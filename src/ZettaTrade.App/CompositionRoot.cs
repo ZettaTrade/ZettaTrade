@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
 using ZettaTrade.AI.Mcp;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
