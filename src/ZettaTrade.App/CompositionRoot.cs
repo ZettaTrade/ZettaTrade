@@ -70,6 +70,10 @@ internal static class CompositionRoot
         services.AddSingleton<IConfirmationService, UiConfirmationService>();
 
         // ViewModels
+        services.AddSingleton<MenuViewModel>();
+        services.AddSingleton<StatusBarViewModel>();
+        services.AddSingleton<ChatViewModel>();
+        services.AddSingleton<SettingsViewModel>();
         services.AddTransient<MainViewModel>();
         
         // Register MCP tools after all services are built
