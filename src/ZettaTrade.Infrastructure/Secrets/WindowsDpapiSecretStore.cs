@@ -1,5 +1,6 @@
 namespace ZettaTrade.Infrastructure.Secrets;
 
+using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -12,6 +13,7 @@ using ZettaTrade.Infrastructure.Configuration;
 /// Uses ProtectedData which encrypts with the current Windows user's credentials.
 /// Secrets are persisted to disk in encrypted form.
 /// </summary>
+[SupportedOSPlatform("windows")]
 public sealed class WindowsDpapiSecretStore : ISecretStore
 {
     private readonly string _storePath;
@@ -38,7 +40,7 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
             {
                 var decrypted = ProtectedData.Unprotect(
                     encrypted,
-                    additionalEntropy: null,
+                    null,
                     DataProtectionScope.CurrentUser);
                 return Task.FromResult<string?>(Encoding.UTF8.GetString(decrypted));
             }
@@ -62,7 +64,7 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
             var plaintext = Encoding.UTF8.GetBytes(value);
             var encrypted = ProtectedData.Protect(
                 plaintext,
-                additionalEntropy: null,
+                null,
                 DataProtectionScope.CurrentUser);
             _cache[key] = encrypted;
             

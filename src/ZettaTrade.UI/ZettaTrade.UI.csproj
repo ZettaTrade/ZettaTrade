@@ -4,11 +4,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	<RootNamespace>ZettaTrade.UI</RootNamespace>
+    <AssemblyName>ZettaTrade.UI</AssemblyName>
+    <Description>Shared UI components, themes, and localization infrastructure.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.4" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
+    <PackageReference Include="ReactiveUI" Version="26.0.1" />
     <PackageReference Include="System.Reactive" Version="7.0.0" />
   </ItemGroup>
 

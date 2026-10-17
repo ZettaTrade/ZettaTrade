@@ -125,13 +125,13 @@ public sealed class EncryptedFileSecretStore : ISecretStore
     {
         var salt = await GetOrCreateSaltAsync(ct);
 
-        using var pbkdf2 = new Rfc2898DeriveBytes(
+        // Use static Pbkdf2 method (modern API, non-obsolete)
+        return Rfc2898DeriveBytes.Pbkdf2(
             password,
             salt,
             Iterations,
-            HashAlgorithmName.SHA256);
-
-        return pbkdf2.GetBytes(KeySize / 8);
+            HashAlgorithmName.SHA256,
+            KeySize / 8);
     }
 
     private async Task<byte[]> GetOrCreateSaltAsync(CancellationToken ct)
@@ -178,7 +178,7 @@ public sealed class EncryptedFileSecretStore : ISecretStore
             var nonce = encryptedData[..12];
             var ciphertextWithTag = encryptedData[12..];
 
-            using var aes = new AesGcm(_encryptionKey, tagSize: 16);
+            using var aes = new AesGcm(_encryptionKey, 16);
             
             // Split ciphertext and tag
             if (ciphertextWithTag.Length < 16)
@@ -234,7 +234,7 @@ public sealed class EncryptedFileSecretStore : ISecretStore
             var json = JsonSerializer.Serialize(_secrets);
             var plaintext = Encoding.UTF8.GetBytes(json);
 
-            using var aes = new AesGcm(_encryptionKey, tagSize: 16);
+            using var aes = new AesGcm(_encryptionKey, 16);
             var nonce = RandomNumberGenerator.GetBytes(12);
             var ciphertext = new byte[plaintext.Length];
             var tag = new byte[16];
