@@ -1,8 +1,9 @@
+namespace ZettaTrade.App.ViewModels;
+
+using System.Collections.ObjectModel;
 using System.Reactive;
 using ReactiveUI;
 using ZettaTrade.Core.Interfaces;
-
-namespace ZettaTrade.App.ViewModels;
 
 /// <summary>
 /// ViewModel for settings management (theme, language, etc.).
@@ -16,8 +17,20 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
     private readonly IThemeManager _themeManager;
     private readonly ILocalizationManager _localization;
 
-    [Reactive] public string SelectedTheme { get; set; } = "Dark";
-    [Reactive] public string SelectedLanguage { get; set; } = "en";
+    private string _selectedTheme = "Dark";
+    private string _selectedLanguage = "en";
+
+    public string SelectedTheme
+    {
+        get => _selectedTheme;
+        set => this.RaiseAndSetIfChanged(ref _selectedTheme, value);
+    }
+
+    public string SelectedLanguage
+    {
+        get => _selectedLanguage;
+        set => this.RaiseAndSetIfChanged(ref _selectedLanguage, value);
+    }
 
     // Expose available options from managers (no duplication)
     public IReadOnlyList<ThemeInfo> AvailableThemes => _themeManager.AvailableThemes;

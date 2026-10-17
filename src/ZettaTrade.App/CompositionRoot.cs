@@ -72,9 +72,14 @@ internal static class CompositionRoot
 
         // ViewModels
         services.AddSingleton<MenuViewModel>();
-        services.AddSingleton<StatusBarViewModel>();
+        services.AddSingleton<StatusBarViewModel>(sp => 
+            new StatusBarViewModel(sp.GetRequiredService<ISettingsService>()));
         services.AddSingleton<ChatViewModel>();
-        services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<SettingsViewModel>(sp =>
+            new SettingsViewModel(
+                sp.GetRequiredService<ISettingsService>(),
+                sp.GetRequiredService<IThemeManager>(),
+                sp.GetRequiredService<ILocalizationManager>()));
         services.AddTransient<MainViewModel>();
         
         // Register MCP tools after all services are built

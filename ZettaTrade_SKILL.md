@@ -3,10 +3,9 @@
 ## Project Context
 - **Project Name**: ZettaTrade
 - **Type**: Cross-platform desktop trading terminal
-- **Tech Stack**: .NET 10, C# 13, Avalonia UI 11.x, ReactiveUI
+- **Tech Stack**: .NET 10, C# 13, Avalonia UI 12, ReactiveUI.Avalonia 12.1
 - **Target Platforms**: Windows, macOS, Linux
 - **License**: MIT (Open Source)
-- **Repository**: github.com/zettatrade/zettatrade (planned)
 
 ## Domain
 Cryptocurrency and traditional stock trading terminal with deep AI/ML integration via MCP (Model Context Protocol).
@@ -20,13 +19,15 @@ Cryptocurrency and traditional stock trading terminal with deep AI/ML integratio
 6. **Security** — Encrypted secrets, no data leaves user's machine without consent
 
 ## Key Technologies
-- **UI Framework**: Avalonia UI (XAML-based, cross-platform)
-- **MVVM Framework**: ReactiveUI (NOT CommunityToolkit.Mvvm)
+- **UI Framework**: Avalonia UI 12 (XAML-based, cross-platform)
+- **MVVM Framework**: ReactiveUI.Avalonia 12.1 (NOT CommunityToolkit.Mvvm)
   - Use ReactiveObject as base class (NOT ObservableObject)
   - Use RaiseAndSetIfChanged for properties (NOT [ObservableProperty])
   - Use ReactiveCommand for commands (NOT [RelayCommand])
   - Use WhenActivated for lifecycle management
   - Use IObservable for reactive streams
+  - **Avalonia 12**: Package renamed from Avalonia.ReactiveUI to ReactiveUI.Avalonia
+  - **Avalonia 12**: Namespace changed from using Avalonia.ReactiveUI to using ReactiveUI.Avalonia
 - **Graphics**: SkiaSharp for custom chart rendering
 - **Storage**: SQLite via EF Core (local), optional TimescaleDB
 - **Networking**: HttpClient + WebSocket (ClientWebSocket)
@@ -50,20 +51,63 @@ Cryptocurrency and traditional stock trading terminal with deep AI/ML integratio
   - macOS: ~/Library/Application Support/ZettaTrade/config/
   - Linux: ~/.config/ZettaTrade/config/
 
-## Localization
+## Localization (Reactive Approach)
 - All internal code in English; user-facing strings via LocalizationManager
 - Resource files: Strings.{culture}.resx (standard .NET .resx format)
-  - Strings.resx (English - default/fallback)
-  - Strings.ru.resx (Russian)
-  - Strings.zh-CN.resx (Chinese Simplified)
-  - etc.
 - ResourceManager loads strings from embedded .resx resources
 - Primary languages: en, ru; planned: zh-CN, ja, ko, es, de, fr
-- Runtime language switching without restart
-- Reactive localization with IObservable and ConcurrentDictionary caching
-- Custom LocalizedExtension for XAML: {loc:Localized Key}
-- LocalizedViewModelBase for automatic language change handling
-- Thread-safe caching with automatic invalidation on language change
+- **Runtime language switching without restart** — all UI updates automatically via reactive bindings
+
+### Reactive Localization Pattern (MANDATORY)
+- **NO INotifyPropertyChanged** for localization — use IObservable exclusively
+- **NO LocalizedViewModelBase** — use direct XAML binding instead
+- LocalizationManager.GetObservable(key) returns IObservable<string>
+- Use Observable.Defer for lazy evaluation at subscription time
+- Use ToBinding() in XAML for automatic UI updates
+- Language changes propagate automatically to all {loc:Localized ...} bindings
+
+### XAML Usage (Primary Method)
+```xml
+<TextBlock Text="{loc:Localized Menu.File}" />
+<Button Content="{loc:Localized Order.Buy}" />
+```
+- LocalizedExtension returns GetObservable(Key).ToBinding()
+- Updates automatically when language changes (no restart needed)
+- No ViewModel properties needed for static strings
+- ObserveOnUiThread() ensures updates happen on UI thread
+
+### ViewModel Usage (ONLY for dynamic data)
+```csharp
+// ❌ WRONG: Don't create ViewModel properties for simple strings
+public class MenuViewModel
+{
+    public string MenuFile { get; set; } // Unnecessary!
+}
+
+// ✅ RIGHT: Use ViewModel only for dynamic data
+public class StatusBarViewModel
+{
+    public string ConnectionStatus { get; set; } // Dynamic - needs ViewModel
+    public string CurrentTheme { get; set; } // Dynamic - needs ViewModel
+}
+
+// ❌ WRONG: Don't localize in ViewModel
+Loc.GetObservable("Status.Ready")
+    .Subscribe(value => StatusText = value); // Unnecessary!
+
+// ✅ RIGHT: Localize directly in XAML
+<TextBlock Text="{loc:Localized Status.Ready}" />
+```
+
+### Key Principles
+- **Direct XAML binding for simple strings** — no ViewModel properties needed
+- **ViewModel properties ONLY for dynamic data** — connection status, user input, etc.
+- Thread-safe caching with ConcurrentDictionary
+- Automatic cache invalidation on language change
+- **ObserveOnUiThread()** extension method in ZettaTrade.UI.Extensions namespace
+- No manual subscription management — use DisposeWith()
+- GetObservable uses Observable.Defer for lazy start value
+- **Language switches on-the-fly** — all {loc:Localized} bindings update automatically
 
 ## Theming
 - Avalonia theme system with custom trading palettes
@@ -199,246 +243,6 @@ Cryptocurrency and traditional stock trading terminal with deep AI/ML integratio
 - **SettingsViewModel** - Settings management (theme, language)
 - Each ViewModel has single responsibility and is independently testable
 
-## Project Structure
-```
-ZettaTrade/
-├── src/
-│   ├── ZettaTrade.App/              # Avalonia Application entry
-│   ├── ZettaTrade.Core/             # Domain models, interfaces, events
-│   │   ├── Enums/
-│   │   │   ├── OrderEnums.cs        # OrderSide, OrderType, TimeInForce, OrderStatus
-│   │   │   ├── TimeFrame.cs         # TimeFrame enum
-│   │   │   └── ExchangeEnums.cs     # AssetClass, ExchangeCapabilities
-│   │   ├── Entities/
-│   │   │   ├── Order.cs             # Order entity
-│   │   │   ├── Position.cs          # Position entity
-│   │   │   ├── Trade.cs             # User trade entity
-│   │   │   ├── MarketTrade.cs       # Public market trade
-│   │   │   └── MarketData.cs        # Bar, PriceLevel, OrderBook, Ticker
-│   │   ├── ValueObjects/
-│   │   │   ├── Symbol.cs            # Trading symbol with normalization
-│   │   │   └── Money.cs             # Money, Price, Quantity
-│   │   └── Interfaces/              # Core interfaces
-│   ├── ZettaTrade.Infrastructure/   # Exchange adapters, storage, networking
-│   ├── ZettaTrade.AI/               # MCP client/server, AI services
-│   ├── ZettaTrade.UI/               # Shared UI components, themes
-│   ├── ZettaTrade.Charting/         # SkiaSharp chart engine
-│   ├── ZettaTrade.Strategies/       # Strategy engine + built-in strategies
-│   └── ZettaTrade.Plugins/          # Plugin loader and SDK
-├── tests/
-│   ├── ZettaTrade.Core.Tests/
-│   ├── ZettaTrade.Infrastructure.Tests/
-│   └── ZettaTrade.AI.Tests/
-├── docs/
-├── samples/
-└── ZettaTrade.sln
-```
-
-## Key Interfaces
-```csharp
-// Market data adapter (read-only, no trading)
-public interface IMarketDataAdapter : IAsyncDisposable
-{
-    string Id { get; }
-    string Name { get; }
-    bool IsConnected { get; }
-    ExchangeCapabilities Capabilities { get; }
-    Task ConnectAsync(CancellationToken ct);
-    Task DisconnectAsync(CancellationToken ct);
-    IAsyncEnumerable<Ticker> SubscribeTickersAsync(IEnumerable<Symbol> symbols, CancellationToken ct);
-    IAsyncEnumerable<OrderBook> SubscribeOrderBookAsync(Symbol symbol, int depth, CancellationToken ct);
-    IAsyncEnumerable<MarketTrade> SubscribeMarketTradesAsync(Symbol symbol, CancellationToken ct);
-    Task<IReadOnlyList<Bar>> GetBarsAsync(Symbol symbol, TimeFrame tf, DateTimeOffset from, DateTimeOffset? to, int limit, CancellationToken ct);
-}
-
-// Trading adapter (extends market data with trading operations)
-public interface ITradingAdapter : IMarketDataAdapter
-{
-    Task<Order> PlaceOrderAsync(OrderRequest request, CancellationToken ct);
-    Task CancelOrderAsync(Symbol symbol, string orderId, CancellationToken ct);
-    Task<IReadOnlyList<Order>> GetOpenOrdersAsync(CancellationToken ct);
-    Task<IReadOnlyList<Position>> GetPositionsAsync(CancellationToken ct);
-    Task<IReadOnlyDictionary<string, Money>> GetBalancesAsync(CancellationToken ct);
-}
-
-// Order request with validation
-public sealed record OrderRequest
-{
-    public required Symbol Symbol { get; init; }
-    public required OrderSide Side { get; init; }
-    public required OrderType Type { get; init; }
-    public required Quantity Quantity { get; init; }
-    public Price? Price { get; init; } // Nullable for market orders
-    public Price? StopPrice { get; init; }
-    public TimeInForce TimeInForce { get; init; }
-    public DateTimeOffset? Expiry { get; init; } // Required for GTD
-    public string? ClientOrderId { get; init; }
-    public bool ReduceOnly { get; init; }
-    public void Validate(); // Validates Expiry for GTD, Price for limit orders, etc.
-}
-
-// Symbol with normalized and exchange-specific formats
-public sealed record Symbol
-{
-    public string Normalized { get; } // "BTC/USDT" for display
-    public string BaseAsset { get; }
-    public string? QuoteAsset { get; }
-    public AssetClass AssetClass { get; }
-    public string GetExchangeFormat(string exchangeId); // "BTCUSDT" for Binance, "AAPL" for Alpaca
-    public static Symbol Parse(string normalized);
-    public static bool TryParseExchangeFormat(string exchangeSymbol, string exchangeId, out Symbol? symbol);
-}
-
-// Money with currency and InvariantCulture formatting
-public readonly record struct Money(decimal Amount, string Currency)
-{
-    public static Money Zero(string currency);
-    public override string ToString(); // Uses InvariantCulture
-}
-
-// Quantity with InvariantCulture formatting
-public readonly record struct Quantity(decimal Value)
-{
-    public Money NotionalAt(Price price, string currency);
-    public override string ToString(); // Uses InvariantCulture
-}
-
-// Price with operator overloads
-public readonly record struct Price(decimal Value)
-{
-    public static Money operator *(Price price, Quantity quantity);
-    public Money Multiply(Quantity quantity, string currency);
-}
-
-// Public market trade (no OrderId or Fee)
-public sealed record MarketTrade
-{
-    public required string Id { get; init; }
-    public required Symbol Symbol { get; init; }
-    public required OrderSide Side { get; init; }
-    public required Price Price { get; init; }
-    public required Quantity Quantity { get; init; }
-    public required DateTimeOffset Timestamp { get; init; }
-}
-
-// AI/MCP integration with Streamable HTTP
-public interface IMcpClient
-{
-    string Name { get; }
-    bool IsConnected { get; }
-    Task ConnectAsync(McpServerConfig config, CancellationToken ct);
-    Task DisconnectAsync(CancellationToken ct);
-    Task<IReadOnlyList<McpToolInfo>> ListToolsAsync(CancellationToken ct);
-    Task<McpToolResult> CallToolAsync(string toolName, JsonElement? parameters, CancellationToken ct);
-    Task<IReadOnlyList<McpResourceInfo>> ListResourcesAsync(CancellationToken ct);
-    Task<McpResourceContent> ReadResourceAsync(string uri, CancellationToken ct);
-    IAsyncEnumerable<McpResourceUpdate> SubscribeResourceAsync(string uri, CancellationToken ct);
-}
-
-// MCP server host with IsRunning and Address
-public interface IMcpServerHost
-{
-    bool IsRunning { get; }
-    string? Address { get; }
-    Task StartAsync(CancellationToken ct);
-    Task StopAsync(CancellationToken ct);
-    void RegisterTool(McpToolDefinition tool);
-    void RegisterResource(McpResourceDefinition resource);
-    void RegisterPrompt(McpPromptDefinition prompt);
-}
-
-// MCP tool definition with JsonElement for type-safe parameters
-public sealed record McpToolDefinition
-{
-    public required string Name { get; init; }
-    public required string Description { get; init; }
-    public required JsonElement InputSchema { get; init; }
-    public required Func<JsonElement?, CancellationToken, Task<McpToolResult>> Handler { get; init; }
-}
-
-// MCP content with binary support (TextValue to avoid collision with CreateText method)
-public sealed record McpContent
-{
-    public required string Type { get; init; } // "text", "image", "binary"
-    public string? TextValue { get; init; }
-    public byte[]? Data { get; init; }
-    public string? MimeType { get; init; }
-    public static McpContent CreateText(string text);
-    public static McpContent CreateBinary(byte[] data, string mimeType);
-}
-
-// Settings (general configuration only)
-public interface ISettingsService
-{
-    Task<T> GetAsync<T>(string section, string key, T defaultValue);
-    Task SetAsync<T>(string section, string key, T value);
-    IObservable<SettingsChange> Changes { get; }
-    Task SaveAsync(CancellationToken ct);
-    Task ReloadAsync(CancellationToken ct);
-}
-
-// Secrets (sensitive data - API keys, tokens, etc.)
-public interface ISecretStore
-{
-    Task<string?> GetAsync(string key, CancellationToken ct);
-    Task SetAsync(string key, string value, CancellationToken ct);
-    Task RemoveAsync(string key, CancellationToken ct);
-    Task<IReadOnlyList<string>> ListKeysAsync(string prefix, CancellationToken ct);
-    Task<bool> IsAvailableAsync(CancellationToken ct);
-}
-
-// Localization & Theming
-public interface IThemeManager
-{
-    string CurrentTheme { get; }
-    IReadOnlyList<ThemeInfo> AvailableThemes { get; }
-    Task ApplyThemeAsync(string themeName, CancellationToken ct);
-    Task LoadCustomThemeAsync(string jsonPath, CancellationToken ct);
-    IObservable<string> ThemeChanged { get; }
-}
-
-public sealed record ThemeInfo(
-    string Name, 
-    string DisplayName, 
-    bool IsBuiltIn, 
-    string[] PreviewColors,
-    IReadOnlyDictionary<string, string>? Colors = null);
-
-public interface ILocalizationManager
-{
-    string CurrentLanguage { get; }
-    IReadOnlyList<LanguageInfo> AvailableLanguages { get; }
-    Task SetLanguageAsync(string cultureCode, CancellationToken ct);
-    string GetString(string key);
-    string GetString(string key, params object[] args);
-    IObservable<string> LanguageChanged { get; }
-}
-```
-
-## MCP Server (presents as "Zetta")
-- The MCP server identifies itself as "Zetta" for friendly AI interaction
-- AI models see the app as a personal trading assistant named "Zetta"
-- Server info: {"name": "Zetta", "version": "0.1.0"}
-- Uses stdio transport (standard for MCP in desktop apps)
-- Communicates via stdin/stdout with JSON-RPC protocol
-- Serilog logs only to files, never to stdout (breaks MCP protocol)
-
-## MCP Server Tools (exposed by Zetta)
-- `place_order` — Place a trading order
-- `cancel_order` — Cancel pending order
-- `get_positions` — Current open positions
-- `get_balance` — Account balance info
-- `get_market_data` — OHLCV data for symbol
-- `get_order_book` — Current order book snapshot
-- `get_indicators` — Calculated indicator values
-- `set_alert` — Create price/indicator alert
-
-## MCP Resources (exposed by Zetta)
-- `zettatrade://positions` — Live positions stream
-- `zettatrade://orders` — Active orders
-- `zettatrade://pnl` — P&L tracking
-- `zettatrade://market/{symbol}` — Market data feed
-
 ## When Making Changes
 1. Always maintain backward compatibility in public interfaces
 2. Add tests for new domain logic
@@ -448,35 +252,37 @@ public interface ILocalizationManager
 6. Never hardcode exchange-specific logic in core
 7. **All code, comments, and internal strings MUST be in English**
 8. User-facing strings must use localization system (never hardcoded)
-9. Sensitive data (API keys, tokens) MUST go through ISecretStore
-10. Settings changes should be reactive (IObservable<SettingsChange>)
-11. New features should have corresponding config sections
-12. Platform-specific code must be isolated in Infrastructure layer
-13. **Use ReactiveUI exclusively** — never mix with CommunityToolkit.Mvvm
-14. All ViewModels must inherit from ReactiveObject
-15. Use WhenActivated for subscription lifecycle management
-16. Always use ObserveOn(RxApp.MainThreadScheduler) for UI updates
-17. Dispose subscriptions properly with DisposeWith(disposables)
-18. **Use async/await throughout** — avoid blocking calls (.Result, .Wait())
-19. **NEVER use lock(_lockObject) in async code** — use SemaphoreSlim instead, even if there's no await inside the critical section
-20. **CRITICAL: When updating scaffold files, ALWAYS update BOTH:**
+9. **For localization: use {loc:Localized Key} in XAML for static strings, ViewModel properties ONLY for dynamic data**
+10. **NEVER create ViewModel properties for localized strings** — use direct XAML binding instead
+11. Sensitive data (API keys, tokens) MUST go through ISecretStore
+12. Settings changes should be reactive (IObservable<SettingsChange>)
+13. New features should have corresponding config sections
+14. Platform-specific code must be isolated in Infrastructure layer
+15. **Use ReactiveUI exclusively** — never mix with CommunityToolkit.Mvvm
+16. All ViewModels must inherit from ReactiveObject
+17. Use WhenActivated for subscription lifecycle management
+18. Always use ObserveOnUiThread() extension for UI updates (not ObserveOn(RxApp.MainThreadScheduler))
+19. Dispose subscriptions properly with DisposeWith(disposables)
+20. **Use async/await throughout** — avoid blocking calls (.Result, .Wait())
+21. **NEVER use lock(_lockObject) in async code** — use SemaphoreSlim instead, even if there's no await inside the critical section
+22. **CRITICAL: When updating scaffold files, ALWAYS update BOTH:**
     - Real files in scaffold/ directory (actual source code)
     - scaffoldData.ts (data for web interface export)
     - Never update only one — they must stay in sync!
-21. **ALWAYS provide a commit message in English after making changes** — brief summary (2-4 lines) describing what was changed and why, following conventional commit format (feat:, fix:, refactor:, docs:, etc.)
-22. **Use #region directives** to organize large files into collapsible sections (e.g., #region Properties, #region Commands, #region Private Methods, #region Event Handlers)
+23. **ALWAYS provide a commit message in English after making changes** — brief summary (2-4 lines) describing what was changed and why, following conventional commit format (feat:, fix:, refactor:, docs:, etc.)
+24. **Use #region directives** to organize large files into collapsible sections (e.g., #region Properties, #region Commands, #region Private Methods, #region Event Handlers)
 
 ## Trading Safety Rules (CRITICAL)
-21. **NEVER execute trades without validation** — all orders must pass through IRiskManager
-22. **NEVER default invalid values** — reject invalid symbol/side/type instead of substituting defaults
-23. **ALWAYS require human confirmation** for high-risk operations (large orders, position changes)
-24. **NEVER write to stdout except MCP protocol messages** — Serilog must log to files only, not console
-25. **NEVER write to stdout in MCP server** — breaks protocol; use proper logging to files only
-26. **ALWAYS validate enum parsing** — return error for invalid values, don't silently default
-27. **ALWAYS require symbol in cancel_order** — some exchanges (Binance) require it
-28. **NEVER overwrite encrypted secrets on decryption failure** — preserve data integrity
-29. **ALWAYS save secrets to disk immediately** — don't keep in memory only
-30. **ALWAYS pass secrets via stdin** — never as command-line arguments (visible in process list)
+25. **NEVER execute trades without validation** — all orders must pass through IRiskManager
+26. **NEVER default invalid values** — reject invalid symbol/side/type instead of substituting defaults
+27. **ALWAYS require human confirmation** for high-risk operations (large orders, position changes)
+28. **NEVER write to stdout except MCP protocol messages** — Serilog must log to files only, not console
+29. **NEVER write to stdout in MCP server** — breaks protocol; use proper logging to files only
+30. **ALWAYS validate enum parsing** — return error for invalid values, don't silently default
+31. **ALWAYS require symbol in cancel_order** — some exchanges (Binance) require it
+32. **NEVER overwrite encrypted secrets on decryption failure** — preserve data integrity
+33. **ALWAYS save secrets to disk immediately** — don't keep in memory only
+34. **ALWAYS pass secrets via stdin** — never as command-line arguments (visible in process list)
 
 ## Performance Targets
 - Order book rendering: 60fps with 1000+ levels
