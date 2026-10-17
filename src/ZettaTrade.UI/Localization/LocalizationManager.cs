@@ -8,6 +8,8 @@ using System.Resources;
 using Avalonia.Data;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.Logging;
+using ReactiveUI;
+using ReactiveUI.Builder;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
@@ -68,7 +70,7 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     public IObservable<string> LanguageChanged => _languageChanged
         .DistinctUntilChanged()
         .Debounce(TimeSpan.FromMilliseconds(50))
-        .ObserveOn(Avalonia.Threading.AvaloniaScheduler.Instance);
+        .ObserveOn(RxSchedulers.MainThreadScheduler);
 
     /// <summary>
     /// Get a localized string by key.
@@ -187,12 +189,12 @@ public class LocalizedExtension : MarkupExtension
 
     public override object ProvideValue(IServiceProvider serviceProvider)
     {
-        // Use indexer binding - will update via PropertyChanged when language changes
+        // Return binding that will update via indexer when language changes
         return new Binding
         {
             Path = $"[{Key}]",
             Mode = BindingMode.OneWay,
             Source = LocalizationManager.Instance,
-        }.ProvideValue(serviceProvider);
+        };
     }
 }
