@@ -29,5 +29,13 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
     <PackageReference Include="ReactiveUI.Avalonia" Version="12.1.6" />
+    <PackageReference Include="Serilog" Version="4.4.0" />
+    <PackageReference Include="System.Reactive" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ZettaTrade.AI\ZettaTrade.AI.csproj" />
+    <ProjectReference Include="..\ZettaTrade.Infrastructure\ZettaTrade.Infrastructure.csproj" />
+    <ProjectReference Include="..\ZettaTrade.UI\ZettaTrade.UI.csproj" />
   </ItemGroup>
 </Project>
