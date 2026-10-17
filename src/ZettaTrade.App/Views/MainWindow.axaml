@@ -1,0 +1,88 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:ZettaTrade.UI.Localization"
+        x:Class="ZettaTrade.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="ZettaTrade"
+        Width="1400" Height="900"
+        MinWidth="1024" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource SystemBackgroundBrush}">
+
+    <DockPanel>
+        <!-- Top menu bar -->
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="{loc:Localized Menu.File}">
+                <MenuItem Header="{loc:Localized Menu.File.Settings}" Command="{Binding OpenSettingsCommand}" InputGesture="Ctrl+," />
+                <Separator />
+                <MenuItem Header="{loc:Localized Menu.File.Exit}" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
+            </MenuItem>
+            <MenuItem Header="{loc:Localized Menu.View}">
+                <MenuItem Header="{loc:Localized Menu.View.Theme}" ItemsSource="{Binding AvailableThemes}">
+                    <!-- Theme submenu populated dynamically -->
+                </MenuItem>
+                <MenuItem Header="{loc:Localized Menu.View.Language}" ItemsSource="{Binding AvailableLanguages}">
+                    <!-- Language submenu populated dynamically -->
+                </MenuItem>
+            </MenuItem>
+            <MenuItem Header="{loc:Localized Menu.Trading}">
+                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="Ctrl+N" />
+                <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
+                <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
+            </MenuItem>
+            <MenuItem Header="{loc:Localized Menu.AI}">
+                <MenuItem Header="{loc:Localized Menu.AI.Chat}" Command="{Binding OpenAiChatCommand}" InputGesture="Ctrl+Shift+A" />
+                <MenuItem Header="{loc:Localized Menu.AI.Servers}" Command="{Binding ManageMcpServersCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom"
+                Background="{DynamicResource SystemAccentColorLight2}"
+                Padding="8,4">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding ConnectionStatus}" Margin="16,0" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="{Binding CurrentThemeName}" Margin="16,0" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="3" Text="{Binding CurrentLanguage}" Margin="16,0" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <!-- Main content area -->
+        <Grid ColumnDefinitions="*,300">
+            <!-- Left: Trading workspace (charts, order book, etc.) -->
+            <Border Grid.Column="0" Padding="8">
+                <TextBlock Text="Trading Workspace — Charts, Order Book, Positions go here"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="Gray" />
+            </Border>
+
+            <!-- Right: AI Chat panel -->
+            <Border Grid.Column="1"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="1,0,0,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="{loc:Localized AI.Assistant}"
+                               FontWeight="Bold"
+                               FontSize="14"
+                               Margin="8" />
+
+                    <!-- Chat input -->
+                    <TextBox DockPanel.Dock="Bottom"
+                             Watermark="{loc:Localized AI.Watermark}"
+                             Text="{Binding AiChatInput}"
+                             Margin="8"
+                             AcceptsReturn="False" />
+
+                    <!-- Chat messages -->
+                    <ListBox ItemsSource="{Binding ChatMessages}" Margin="8">
+                        <!-- Chat message template -->
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

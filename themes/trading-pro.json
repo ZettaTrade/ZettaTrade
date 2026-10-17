@@ -1,0 +1,20 @@
+{
+  "name": "trading-pro",
+  "displayName": "Trading Pro",
+  "baseTheme": "Dark",
+  "colors": {
+    "Background": "#0a0e17",
+    "Surface": "#111827",
+    "Border": "#1f2937",
+    "Accent": "#10b981",
+    "TextPrimary": "#f9fafb",
+    "TextSecondary": "#9ca3af",
+    "Buy": "#22c55e",
+    "Sell": "#ef4444",
+    "CandleUp": "#22c55e",
+    "CandleDown": "#ef4444",
+    "ChartBackground": "#0f172a",
+    "ChartGrid": "#1e293b"
+  },
+  "previewColors": ["#0a0e17", "#111827", "#1f2937", "#10b981"]
+}
