@@ -15,12 +15,13 @@ using ZettaTrade.Infrastructure.Configuration;
 public sealed class EncryptedFileSecretStore : ISecretStore
 {
     private const int KeySize = 256;
-    private const int Iterations = 600_000; // PBKDF2 iterations
+    private const int Iterations = 600_000;
     private readonly string _filePath;
     private readonly ILogger _logger;
-    private readonly Dictionary<string, string> _secrets = [];
+    private readonly SemaphoreSlim _lock = new(1, 1);
+    private Dictionary<string, string> _secrets = new();
     private byte[]? _encryptionKey;
-    private readonly object _lock = new();
+    private bool _initialized;
 
     public EncryptedFileSecretStore(ILogger logger)
     {
@@ -34,52 +35,91 @@ public sealed class EncryptedFileSecretStore : ISecretStore
     /// </summary>
     public async Task InitializeAsync(string masterPassword, CancellationToken ct = default)
     {
-        _encryptionKey = await DeriveKeyAsync(masterPassword, ct);
-        await LoadAsync(ct);
+        await _lock.WaitAsync(ct);
+        try
+        {
+            _encryptionKey = await DeriveKeyAsync(masterPassword, ct);
+            await LoadAsync(ct);
+            _initialized = true;
+            _logger.LogInformation("Encrypted secret store initialized");
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
-    public Task<string?> GetAsync(string key, CancellationToken ct = default)
+    public async Task<string?> GetAsync(string key, CancellationToken ct = default)
     {
-        lock (_lock)
+        if (!_initialized)
+            throw new InvalidOperationException("Store not initialized. Call InitializeAsync first.");
+
+        await _lock.WaitAsync(ct);
+        try
         {
-            _secrets.TryGetValue(key, out var value);
-            return Task.FromResult(value);
+            return _secrets.TryGetValue(key, out var value) ? value : null;
+        }
+        finally
+        {
+            _lock.Release();
         }
     }
 
     public async Task SetAsync(string key, string value, CancellationToken ct = default)
     {
-        lock (_lock)
+        if (!_initialized)
+            throw new InvalidOperationException("Store not initialized. Call InitializeAsync first.");
+
+        await _lock.WaitAsync(ct);
+        try
         {
             _secrets[key] = value;
+            await SaveAsync(ct);
         }
-
-        await SaveAsync(ct);
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task RemoveAsync(string key, CancellationToken ct = default)
     {
-        lock (_lock)
-        {
-            _secrets.Remove(key);
-        }
+        if (!_initialized)
+            throw new InvalidOperationException("Store not initialized. Call InitializeAsync first.");
 
-        await SaveAsync(ct);
+        await _lock.WaitAsync(ct);
+        try
+        {
+            if (_secrets.Remove(key))
+                await SaveAsync(ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
-    public Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
     {
-        lock (_lock)
+        if (!_initialized)
+            throw new InvalidOperationException("Store not initialized. Call InitializeAsync first.");
+
+        await _lock.WaitAsync(ct);
+        try
         {
             var keys = _secrets.Keys
                 .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
                 .ToList();
-            return Task.FromResult<IReadOnlyList<string>>(keys);
+            return keys;
+        }
+        finally
+        {
+            _lock.Release();
         }
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken ct = default)
-        => Task.FromResult(true); // Always available (file-based)
+        => Task.FromResult(true);
 
     private async Task<byte[]> DeriveKeyAsync(string password, CancellationToken ct)
     {
@@ -108,6 +148,14 @@ public sealed class EncryptedFileSecretStore : ISecretStore
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
         await File.WriteAllBytesAsync(saltPath, salt, ct);
+
+        // Set restrictive permissions on Unix
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+        {
+            File.SetUnixFileMode(saltPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+
         return salt;
     }
 
@@ -120,37 +168,58 @@ public sealed class EncryptedFileSecretStore : ISecretStore
         {
             var encryptedData = await File.ReadAllBytesAsync(_filePath, ct);
 
-            // Format: [12-byte nonce][encrypted payload]
+            // Format: [12-byte nonce][encrypted payload with tag]
             if (encryptedData.Length < 12)
+            {
+                _logger.LogWarning("Secret store file is too small, starting fresh");
                 return;
+            }
 
             var nonce = encryptedData[..12];
-            var ciphertext = encryptedData[12..];
+            var ciphertextWithTag = encryptedData[12..];
 
             using var aes = new AesGcm(_encryptionKey, tagSize: 16);
-            var plaintext = new byte[ciphertext.Length - 16];
-            var tag = ciphertext[^16..];
-            var actualCiphertext = ciphertext[..^16];
+            
+            // Split ciphertext and tag
+            if (ciphertextWithTag.Length < 16)
+            {
+                _logger.LogWarning("Secret store file is corrupted, starting fresh");
+                return;
+            }
 
-            aes.Decrypt(nonce, actualCiphertext, tag, plaintext);
+            var ciphertext = ciphertextWithTag[..^16];
+            var tag = ciphertextWithTag[^16..];
+            var plaintext = new byte[ciphertext.Length];
+
+            // Decrypt - will throw CryptographicException if password is wrong
+            aes.Decrypt(nonce, ciphertext, tag, plaintext);
 
             var json = Encoding.UTF8.GetString(plaintext);
             var loaded = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
 
             if (loaded is not null)
             {
-                lock (_lock)
-                {
-                    foreach (var kv in loaded)
-                        _secrets[kv.Key] = kv.Value;
-                }
+                _secrets = loaded;
+                _logger.LogDebug("Loaded {Count} secrets from encrypted store", _secrets.Count);
             }
-
-            _logger.LogDebug("Loaded {Count} secrets from encrypted store", _secrets.Count);
+        }
+        catch (CryptographicException ex)
+        {
+            _logger.LogError(ex, "Failed to decrypt secret store - wrong password or corrupted file");
+            // CRITICAL: Do NOT clear _secrets or overwrite file on decryption failure
+            // This prevents data loss when wrong password is provided
+            throw new InvalidOperationException("Failed to decrypt secret store. Wrong password?", ex);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to parse secret store JSON - file corrupted");
+            // CRITICAL: Do NOT clear _secrets or overwrite file on parse failure
+            throw new InvalidOperationException("Failed to parse secret store. File corrupted?", ex);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load encrypted secret store");
+            throw;
         }
     }
 
@@ -161,6 +230,7 @@ public sealed class EncryptedFileSecretStore : ISecretStore
 
         try
         {
+            // Serialize inside lock to prevent race conditions
             var json = JsonSerializer.Serialize(_secrets);
             var plaintext = Encoding.UTF8.GetBytes(json);
 
@@ -181,7 +251,17 @@ public sealed class EncryptedFileSecretStore : ISecretStore
             if (!string.IsNullOrEmpty(directory))
                 Directory.CreateDirectory(directory);
 
-            await File.WriteAllBytesAsync(_filePath, output, ct);
+            // Atomic write: write to temp file, then rename
+            var tempPath = _filePath + ".tmp";
+            await File.WriteAllBytesAsync(tempPath, output, ct);
+            File.Move(tempPath, _filePath, overwrite: true);
+
+            // Set restrictive permissions on Unix
+            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+            {
+                File.SetUnixFileMode(_filePath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
 
             _logger.LogDebug("Saved {Count} secrets to encrypted store", _secrets.Count);
         }

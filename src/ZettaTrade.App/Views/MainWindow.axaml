@@ -8,7 +8,7 @@
         Width="1400" Height="900"
         MinWidth="1024" MinHeight="600"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource SystemBackgroundBrush}">
+        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
     <DockPanel>
         <!-- Top menu bar -->
@@ -79,7 +79,15 @@
 
                     <!-- Chat messages -->
                     <ListBox ItemsSource="{Binding ChatMessages}" Margin="8">
-                        <!-- Chat message template -->
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4">
+                                    <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="12" />
+                                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}" FontSize="10" Foreground="Gray" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
                     </ListBox>
                 </DockPanel>
             </Border>
