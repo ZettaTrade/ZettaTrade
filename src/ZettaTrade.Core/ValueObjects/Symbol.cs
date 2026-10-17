@@ -1,13 +1,15 @@
 namespace ZettaTrade.Core.ValueObjects;
 
+using System.Globalization;
+
 /// <summary>
-/// Represents a trading symbol (e.g., "BTCUSDT", "AAPL").
-/// Immutable value object.
+/// Represents a trading symbol with normalized and exchange-specific formats.
+/// Each exchange has its own symbol format (e.g., BTCUSDT vs BTC-USD).
 /// </summary>
 public sealed record Symbol
 {
-    /// <summary>Raw symbol string as used by the exchange (e.g., "BTCUSDT").</summary>
-    public string Raw { get; }
+    /// <summary>Normalized symbol (e.g., "BTC/USDT" for display).</summary>
+    public string Normalized { get; }
 
     /// <summary>Base asset (e.g., "BTC").</summary>
     public string BaseAsset { get; }
@@ -15,36 +17,109 @@ public sealed record Symbol
     /// <summary>Quote asset (e.g., "USDT"). Null for stocks.</summary>
     public string? QuoteAsset { get; }
 
-    public Symbol(string raw, string baseAsset, string? quoteAsset = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(raw);
-        ArgumentException.ThrowIfNullOrWhiteSpace(baseAsset);
+    /// <summary>Asset class (Crypto, Stock, etc.).</summary>
+    public Enums.AssetClass AssetClass { get; }
 
-        Raw = raw;
-        BaseAsset = baseAsset;
-        QuoteAsset = quoteAsset;
+    public Symbol(string baseAsset, string? quoteAsset, Enums.AssetClass assetClass)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseAsset);
+        
+        BaseAsset = baseAsset.ToUpperInvariant();
+        QuoteAsset = quoteAsset?.ToUpperInvariant();
+        AssetClass = assetClass;
+        Normalized = quoteAsset != null ? $"{baseAsset.ToUpperInvariant()}/{quoteAsset.ToUpperInvariant()}" : baseAsset.ToUpperInvariant();
     }
 
     /// <summary>
-    /// Parses a symbol string. Assumes format "BASEQUOTE" for crypto.
+    /// Get exchange-specific symbol format.
     /// </summary>
-    public static Symbol Parse(string raw)
+    /// <param name="exchangeId">Exchange identifier (e.g., "binance", "alpaca").</param>
+    /// <returns>Exchange-specific symbol string.</returns>
+    public string GetExchangeFormat(string exchangeId)
     {
-        // Simple heuristic: split at common quote assets
-        var quoteAssets = new[] { "USDT", "BUSD", "USDC", "BTC", "ETH", "USD" };
-
-        foreach (var quote in quoteAssets)
+        return exchangeId.ToLowerInvariant() switch
         {
-            if (raw.EndsWith(quote, StringComparison.OrdinalIgnoreCase) && raw.Length > quote.Length)
-            {
-                var baseAsset = raw[..^quote.Length];
-                return new Symbol(raw, baseAsset, quote);
-            }
-        }
-
-        // Fallback: treat as stock or unknown
-        return new Symbol(raw, raw);
+            "binance" or "bybit" or "okx" => QuoteAsset != null ? $"{BaseAsset}{QuoteAsset}" : BaseAsset,
+            "alpaca" or "ib" => BaseAsset, // Stocks use base symbol only
+            "kraken" => QuoteAsset != null ? $"{BaseAsset}/{QuoteAsset}" : BaseAsset,
+            _ => Normalized,
+        };
     }
 
-    public override string ToString() => Raw;
+    /// <summary>
+    /// Parse a normalized symbol string (e.g., "BTC/USDT").
+    /// </summary>
+    public static Symbol Parse(string normalized)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(normalized);
+        
+        var parts = normalized.Split('/');
+        if (parts.Length == 2)
+        {
+            return new Symbol(parts[0], parts[1], Enums.AssetClass.Crypto);
+        }
+        
+        // Single part — assume stock
+        return new Symbol(parts[0], null, Enums.AssetClass.Stock);
+    }
+
+    /// <summary>
+    /// Try to parse an exchange-specific symbol format.
+    /// </summary>
+    public static bool TryParseExchangeFormat(string exchangeSymbol, string exchangeId, out Symbol? symbol)
+    {
+        symbol = null;
+        
+        if (string.IsNullOrWhiteSpace(exchangeSymbol))
+            return false;
+
+        // Exchange-specific parsing
+        var (baseAsset, quoteAsset, assetClass) = exchangeId.ToLowerInvariant() switch
+        {
+            "binance" or "bybit" or "okx" => ParseCryptoConcatenated(exchangeSymbol),
+            "alpaca" or "ib" => (exchangeSymbol, null, Enums.AssetClass.Stock),
+            "kraken" => ParseCryptoSeparated(exchangeSymbol, '/'),
+            _ => (exchangeSymbol, null, Enums.AssetClass.Stock),
+        };
+
+        if (baseAsset == null)
+            return false;
+
+        symbol = new Symbol(baseAsset, quoteAsset, assetClass);
+        return true;
+    }
+
+    private static (string? baseAsset, string? quoteAsset, Enums.AssetClass assetClass) ParseCryptoConcatenated(string symbol)
+    {
+        // Try common quote assets
+        var quoteAssets = new[] { "USDT", "USDC", "BUSD", "BTC", "ETH", "USD", "EUR" };
+        
+        foreach (var quote in quoteAssets)
+        {
+            if (symbol.EndsWith(quote, StringComparison.OrdinalIgnoreCase) && symbol.Length > quote.Length)
+            {
+                var baseAsset = symbol[..^quote.Length];
+                // Validate base asset doesn't look like a stock ticker
+                if (baseAsset.Length >= 2 && baseAsset.Length <= 10)
+                {
+                    return (baseAsset, quote, Enums.AssetClass.Crypto);
+                }
+            }
+        }
+        
+        return (null, null, Enums.AssetClass.Crypto);
+    }
+
+    private static (string? baseAsset, string? quoteAsset, Enums.AssetClass assetClass) ParseCryptoSeparated(string symbol, char separator)
+    {
+        var parts = symbol.Split(separator);
+        if (parts.Length == 2 && parts[0].Length >= 2 && parts[1].Length >= 2)
+        {
+            return (parts[0], parts[1], Enums.AssetClass.Crypto);
+        }
+        
+        return (null, null, Enums.AssetClass.Crypto);
+    }
+
+    public override string ToString() => Normalized;
 }

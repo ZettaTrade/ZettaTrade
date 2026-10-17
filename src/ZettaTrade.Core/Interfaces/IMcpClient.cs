@@ -1,8 +1,11 @@
 namespace ZettaTrade.Core.Interfaces;
 
+using System.Text.Json;
+
 /// <summary>
 /// MCP (Model Context Protocol) client.
 /// Connects to external MCP servers to get additional context for AI.
+/// Supports Streamable HTTP transport (replaces deprecated SSE).
 /// </summary>
 public interface IMcpClient : IAsyncDisposable
 {
@@ -22,7 +25,7 @@ public interface IMcpClient : IAsyncDisposable
     Task<IReadOnlyList<McpToolInfo>> ListToolsAsync(CancellationToken ct = default);
 
     /// <summary>Call a tool on the remote server.</summary>
-    Task<McpToolResult> CallToolAsync(string toolName, object? parameters = null, CancellationToken ct = default);
+    Task<McpToolResult> CallToolAsync(string toolName, JsonElement? parameters = null, CancellationToken ct = default);
 
     /// <summary>List available resources on the remote server.</summary>
     Task<IReadOnlyList<McpResourceInfo>> ListResourcesAsync(CancellationToken ct = default);
@@ -48,7 +51,7 @@ public sealed record McpServerConfig
     /// <summary>For stdio transport: command arguments.</summary>
     public string[]? Args { get; init; }
 
-    /// <summary>For SSE transport: server URL.</summary>
+    /// <summary>For Streamable HTTP transport: server URL.</summary>
     public string? Url { get; init; }
 
     /// <summary>Reference to a secret for authentication (e.g., "secret://api-key").</summary>
@@ -61,14 +64,43 @@ public sealed record McpServerConfig
     public Dictionary<string, string>? Environment { get; init; }
 }
 
+/// <summary>
+/// MCP transport type.
+/// Note: SSE is deprecated in favor of Streamable HTTP.
+/// </summary>
 public enum McpTransport
 {
     Stdio = 0,
-    Sse = 1,
+    StreamableHttp = 1,
 }
 
-public sealed record McpToolInfo(string Name, string Description, object? InputSchema);
-public sealed record McpToolResult(bool IsError, string Content);
+public sealed record McpToolInfo(string Name, string Description, JsonElement? InputSchema);
+
+/// <summary>
+/// Result of an MCP tool call.
+/// Supports both text and binary content.
+/// </summary>
+public sealed record McpToolResult(bool IsError, IReadOnlyList<McpContent> Content);
+
+/// <summary>
+/// Content block in MCP response.
+/// Supports text, image, and other binary formats.
+/// </summary>
+public sealed record McpContent
+{
+    public required string Type { get; init; } // "text", "image", "resource", etc.
+    public string? Text { get; init; }
+    public byte[]? Data { get; init; }
+    public string? MimeType { get; init; }
+    
+    /// <summary>Create a text content block.</summary>
+    public static McpContent Text(string text) => new() { Type = "text", Text = text };
+    
+    /// <summary>Create a binary content block.</summary>
+    public static McpContent Binary(byte[] data, string mimeType) => 
+        new() { Type = "binary", Data = data, MimeType = mimeType };
+}
+
 public sealed record McpResourceInfo(string Uri, string Name, string? MimeType);
-public sealed record McpResourceContent(string Uri, string Content, string? MimeType);
-public sealed record McpResourceUpdate(string Uri, string Content);
+public sealed record McpResourceContent(string Uri, IReadOnlyList<McpContent> Content);
+public sealed record McpResourceUpdate(string Uri, IReadOnlyList<McpContent> Content);

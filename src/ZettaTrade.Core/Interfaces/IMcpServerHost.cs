@@ -1,10 +1,18 @@
 namespace ZettaTrade.Core.Interfaces;
 
+using System.Text.Json;
+
 /// <summary>
 /// MCP server host. Exposes ZettaTrade's trading context to AI models.
 /// </summary>
 public interface IMcpServerHost
 {
+    /// <summary>Whether the server is currently running.</summary>
+    bool IsRunning { get; }
+    
+    /// <summary>Server address (for HTTP transports).</summary>
+    string? Address { get; }
+
     /// <summary>Start the MCP server (listen for incoming connections).</summary>
     Task StartAsync(CancellationToken ct = default);
 
@@ -23,13 +31,14 @@ public interface IMcpServerHost
 
 /// <summary>
 /// Definition of an MCP tool exposed by ZettaTrade.
+/// Handler receives JsonElement for type-safe parameter access.
 /// </summary>
 public sealed record McpToolDefinition
 {
     public required string Name { get; init; }
     public required string Description { get; init; }
-    public required object InputSchema { get; init; }
-    public required Func<object?, CancellationToken, Task<McpToolResult>> Handler { get; init; }
+    public required JsonElement InputSchema { get; init; }
+    public required Func<JsonElement?, CancellationToken, Task<McpToolResult>> Handler { get; init; }
 }
 
 /// <summary>
@@ -40,7 +49,7 @@ public sealed record McpResourceDefinition
     public required string Uri { get; init; }
     public required string Name { get; init; }
     public string? MimeType { get; init; } = "application/json";
-    public required Func<CancellationToken, Task<string>> Reader { get; init; }
+    public required Func<CancellationToken, Task<IReadOnlyList<McpContent>>> Reader { get; init; }
 }
 
 /// <summary>

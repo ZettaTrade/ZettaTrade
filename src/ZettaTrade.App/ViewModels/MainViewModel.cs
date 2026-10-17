@@ -40,7 +40,14 @@ public sealed class MainViewModel : LocalizedViewModelBase
 
         // Commands
         OpenSettingsCommand = ReactiveCommand.CreateFromTask(OpenSettingsAsync);
-        ExitCommand = ReactiveCommand.Create(() => Environment.Exit(0));
+        ExitCommand = ReactiveCommand.Create(() =>
+        {
+            // Proper shutdown - allows Serilog to flush
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+            {
+                lifetime.Shutdown();
+            }
+        });
         NewOrderCommand = ReactiveCommand.Create(() => { });
         ShowPositionsCommand = ReactiveCommand.Create(() => { });
         ShowOrderHistoryCommand = ReactiveCommand.Create(() => { });
@@ -132,11 +139,11 @@ public sealed class MainViewModel : LocalizedViewModelBase
     /// </summary>
     protected override void OnLanguageChanged()
     {
-        MenuFile = Loc["Menu.File"];
-        MenuView = Loc["Menu.View"];
-        MenuTrading = Loc["Menu.Trading"];
-        MenuAi = Loc["Menu.AI"];
-        StatusText = Loc["Status.Ready"];
+        MenuFile = Loc.GetString("Menu.File");
+        MenuView = Loc.GetString("Menu.View");
+        MenuTrading = Loc.GetString("Menu.Trading");
+        MenuAi = Loc.GetString("Menu.AI");
+        StatusText = Loc.GetString("Status.Ready");
     }
 
     private async Task LoadSettingsAsync()

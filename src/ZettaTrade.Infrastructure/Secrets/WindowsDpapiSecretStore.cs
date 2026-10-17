@@ -2,6 +2,7 @@ namespace ZettaTrade.Infrastructure.Secrets;
 
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
@@ -9,14 +10,14 @@ using ZettaTrade.Infrastructure.Configuration;
 /// <summary>
 /// Windows DPAPI-based secret store.
 /// Uses ProtectedData which encrypts with the current Windows user's credentials.
-/// No password required — tied to the user session.
+/// Secrets are persisted to disk in encrypted form.
 /// </summary>
 public sealed class WindowsDpapiSecretStore : ISecretStore
 {
     private readonly string _storePath;
     private readonly ILogger _logger;
-    private readonly Dictionary<string, byte[]> _cache = [];
-    private readonly object _lock = new();
+    private readonly SemaphoreSlim _lock = new(1, 1);
+    private Dictionary<string, byte[]> _cache = new();
 
     public WindowsDpapiSecretStore(ILogger logger)
     {
@@ -27,7 +28,8 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
 
     public Task<string?> GetAsync(string key, CancellationToken ct = default)
     {
-        lock (_lock)
+        _lock.Wait(ct);
+        try
         {
             if (!_cache.TryGetValue(key, out var encrypted))
                 return Task.FromResult<string?>(null);
@@ -46,11 +48,16 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
                 return Task.FromResult<string?>(null);
             }
         }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public Task SetAsync(string key, string value, CancellationToken ct = default)
     {
-        lock (_lock)
+        _lock.Wait(ct);
+        try
         {
             var plaintext = Encoding.UTF8.GetBytes(value);
             var encrypted = ProtectedData.Protect(
@@ -58,31 +65,46 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
                 additionalEntropy: null,
                 DataProtectionScope.CurrentUser);
             _cache[key] = encrypted;
+            
+            // CRITICAL: Must save to disk immediately
             SaveStore();
+            
+            return Task.CompletedTask;
         }
-
-        return Task.CompletedTask;
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public Task RemoveAsync(string key, CancellationToken ct = default)
     {
-        lock (_lock)
+        _lock.Wait(ct);
+        try
         {
-            _cache.Remove(key);
-            SaveStore();
+            if (_cache.Remove(key))
+                SaveStore();
+            return Task.CompletedTask;
         }
-
-        return Task.CompletedTask;
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
     {
-        lock (_lock)
+        _lock.Wait(ct);
+        try
         {
             var keys = _cache.Keys
                 .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
                 .ToList();
             return Task.FromResult<IReadOnlyList<string>>(keys);
+        }
+        finally
+        {
+            _lock.Release();
         }
     }
 
@@ -96,11 +118,15 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
 
         try
         {
-            var data = File.ReadAllBytes(_storePath);
-            // Simple format: key\0value\0key\0value...
-            // In production, use a proper serialization format
-            // This is a simplified version for the scaffold
-            _logger.LogDebug("Loaded secret store from {Path}", _storePath);
+            var json = File.ReadAllText(_storePath);
+            var data = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+            if (data != null)
+            {
+                _cache = data.ToDictionary(
+                    kv => kv.Key,
+                    kv => Convert.FromBase64String(kv.Value));
+            }
+            _logger.LogDebug("Loaded {Count} secrets from {Path}", _cache.Count, _storePath);
         }
         catch (Exception ex)
         {
@@ -116,8 +142,23 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
             if (!string.IsNullOrEmpty(directory))
                 Directory.CreateDirectory(directory);
 
-            // In production: serialize properly
-            _logger.LogDebug("Saved secret store to {Path}", _storePath);
+            // Atomic write: write to temp file, then rename
+            var tempPath = _storePath + ".tmp";
+            var data = _cache.ToDictionary(
+                kv => kv.Key,
+                kv => Convert.ToBase64String(kv.Value));
+            var json = JsonSerializer.Serialize(data);
+            File.WriteAllText(tempPath, json);
+            File.Move(tempPath, _storePath, overwrite: true);
+
+            // Set restrictive permissions on Unix
+            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+            {
+                File.SetUnixFileMode(_storePath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+
+            _logger.LogDebug("Saved {Count} secrets to {Path}", _cache.Count, _storePath);
         }
         catch (Exception ex)
         {

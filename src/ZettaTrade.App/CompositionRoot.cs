@@ -50,7 +50,6 @@ internal static class CompositionRoot
         services.AddSingleton<ISettingsService>(sp =>
             new SettingsService(
                 ConfigPathResolver.MainSettingsFile,
-                sp.GetRequiredService<ISecretStore>(),
                 sp.GetRequiredService<ILogger<SettingsService>>()));
 
         // UI services
@@ -65,9 +64,22 @@ internal static class CompositionRoot
         // AI / MCP
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
+        
+        // Risk management and confirmation
+        services.AddSingleton<IRiskManager, DefaultRiskManager>();
+        services.AddSingleton<IConfirmationService, UiConfirmationService>();
 
         // ViewModels
         services.AddTransient<MainViewModel>();
+        
+        // Register MCP tools after all services are built
+        var serviceProvider = services.BuildServiceProvider();
+        var mcpServer = serviceProvider.GetRequiredService<IMcpServerHost>();
+        var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+        
+        // Note: Exchange adapters should be registered as plugins
+        // For now, we'll register tools when an exchange is connected
+        // TradingToolsRegistrar.RegisterAll(mcpServer, exchangeAdapter, riskManager, confirmationService, logger);
 
         // TODO: Register exchange adapters as plugins
         // services.AddSingleton<IExchangeAdapter, BinanceExchangeAdapter>();

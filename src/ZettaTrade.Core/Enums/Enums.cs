@@ -11,6 +11,7 @@ public enum OrderSide
 
 /// <summary>
 /// Type of order execution.
+/// Note: OCO is not a type — it's a pair of orders (one cancels the other).
 /// </summary>
 public enum OrderType
 {
@@ -19,7 +20,6 @@ public enum OrderType
     StopMarket = 2,
     StopLimit = 3,
     TrailingStop = 4,
-    OCO = 5,
 }
 
 /// <summary>
@@ -76,4 +76,20 @@ public enum TimeFrame
     D1 = 6,
     W1 = 7,
     MN1 = 8,
+}
+
+/// <summary>
+/// Capabilities of an exchange adapter.
+/// Allows partial implementation (e.g., data-only without trading).
+/// </summary>
+[Flags]
+public enum ExchangeCapabilities
+{
+    None = 0,
+    MarketData = 1 << 0,
+    Trading = 1 << 1,
+    OrderBook = 1 << 2,
+    HistoricalData = 1 << 3,
+    AccountInfo = 1 << 4,
+    All = MarketData | Trading | OrderBook | HistoricalData | AccountInfo,
 }

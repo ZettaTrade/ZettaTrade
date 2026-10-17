@@ -24,6 +24,7 @@ public sealed record Order
     public Price? StopPrice { get; init; }
     public string? ExchangeOrderId { get; init; }
     public string? RejectReason { get; init; }
+    public DateTimeOffset? Expiry { get; init; }
 }
 
 /// <summary>
@@ -52,7 +53,7 @@ public sealed record Position
 }
 
 /// <summary>
-/// Represents an executed trade.
+/// Represents an executed trade (user's trade).
 /// </summary>
 public sealed record Trade
 {
@@ -64,6 +65,21 @@ public sealed record Trade
     public required Quantity Quantity { get; init; }
     public required Money Fee { get; init; }
     public required DateTimeOffset ExecutedAt { get; init; }
+}
+
+/// <summary>
+/// Represents a public market trade (from exchange trade stream).
+/// Does not include user-specific data like OrderId or Fee.
+/// Used for public trade feeds (tape).
+/// </summary>
+public sealed record MarketTrade
+{
+    public required string Id { get; init; }
+    public required Symbol Symbol { get; init; }
+    public required OrderSide Side { get; init; }
+    public required Price Price { get; init; }
+    public required Quantity Quantity { get; init; }
+    public required DateTimeOffset Timestamp { get; init; }
 }
 
 /// <summary>
