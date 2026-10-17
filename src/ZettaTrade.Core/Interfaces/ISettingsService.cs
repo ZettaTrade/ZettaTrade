@@ -1,8 +1,8 @@
 namespace ZettaTrade.Core.Interfaces;
 
 /// <summary>
-/// Unified settings service.
-/// Handles general settings (JSON files) and secrets (platform-native encryption).
+/// Settings service for application configuration.
+/// Does NOT handle secrets — use ISecretStore directly for sensitive data.
 /// </summary>
 public interface ISettingsService
 {
@@ -11,18 +11,6 @@ public interface ISettingsService
 
     /// <summary>Set a typed setting value.</summary>
     Task SetAsync<T>(string section, string key, T value);
-
-    /// <summary>Get a secret value (encrypted storage).</summary>
-    Task<string?> GetSecretAsync(string key, CancellationToken ct = default);
-
-    /// <summary>Set a secret value (encrypted storage).</summary>
-    Task SetSecretAsync(string key, string value, CancellationToken ct = default);
-
-    /// <summary>Remove a secret.</summary>
-    Task RemoveSecretAsync(string key, CancellationToken ct = default);
-
-    /// <summary>List secret keys with a given prefix.</summary>
-    Task<IReadOnlyList<string>> ListSecretKeysAsync(string prefix = "", CancellationToken ct = default);
 
     /// <summary>Observable stream of settings changes.</summary>
     IObservable<SettingsChange> Changes { get; }
