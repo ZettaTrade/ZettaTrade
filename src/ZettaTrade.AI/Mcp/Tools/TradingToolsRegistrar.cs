@@ -61,26 +61,26 @@ public static class TradingToolsRegistrar
                 try
                 {
                     if (argsJson is null)
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text("Arguments required") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText("Arguments required") });
 
                     var args = argsJson.Value.Deserialize<PlaceOrderArgs>();
                     if (args is null)
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text("Invalid arguments") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText("Invalid arguments") });
 
                     // Validate symbol - don't default to BTCUSDT
                     if (string.IsNullOrWhiteSpace(args.Symbol))
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text("Symbol is required") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText("Symbol is required") });
 
                     if (!Symbol.TryParseExchangeFormat(args.Symbol, exchange.Id, out var symbol) || symbol is null)
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text($"Invalid symbol format: {args.Symbol}") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText($"Invalid symbol format: {args.Symbol}") });
 
                     // Validate side - don't default to Sell
                     if (!Enum.TryParse<OrderSide>(args.Side, ignoreCase: true, out var side))
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text($"Invalid side: {args.Side}. Must be 'Buy' or 'Sell'") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText($"Invalid side: {args.Side}. Must be 'Buy' or 'Sell'") });
 
                     // Validate order type - don't default to Market
                     if (!Enum.TryParse<OrderType>(args.OrderType, ignoreCase: true, out var orderType))
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text($"Invalid orderType: {args.OrderType}. Must be 'Market', 'Limit', 'StopMarket', or 'StopLimit'") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText($"Invalid orderType: {args.OrderType}. Must be 'Market', 'Limit', 'StopMarket', or 'StopLimit'") });
 
                     var request = new OrderRequest
                     {
@@ -101,14 +101,14 @@ public static class TradingToolsRegistrar
                     }
                     catch (InvalidOperationException ex)
                     {
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text($"Validation failed: {ex.Message}") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText($"Validation failed: {ex.Message}") });
                     }
 
                     // Risk check
                     var riskCheck = await riskManager.CheckOrderAsync(request, ct);
                     if (!riskCheck.IsApproved)
                     {
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text($"Risk check failed: {riskCheck.Reason}") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText($"Risk check failed: {riskCheck.Reason}") });
                     }
 
                     // Require confirmation for high-risk orders
@@ -120,7 +120,7 @@ public static class TradingToolsRegistrar
 
                         if (!confirmed)
                         {
-                            return new McpToolResult(IsError: true, Content: new[] { McpContent.Text("Order cancelled by user") });
+                            return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText("Order cancelled by user") });
                         }
                     }
 
@@ -129,7 +129,7 @@ public static class TradingToolsRegistrar
 
                     return new McpToolResult(
                         IsError: false,
-                        Content: new[] { McpContent.Text(JsonSerializer.Serialize(new
+                        Content: new[] { McpContent.CreateText(JsonSerializer.Serialize(new
                         {
                             orderId = order.Id,
                             status = order.Status.ToString(),
@@ -142,7 +142,7 @@ public static class TradingToolsRegistrar
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "MCP: place_order failed");
-                    return new McpToolResult(IsError: true, Content: new[] { McpContent.Text(ex.Message) });
+                    return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText(ex.Message) });
                 }
             },
         });
@@ -169,23 +169,23 @@ public static class TradingToolsRegistrar
                 try
                 {
                     if (argsJson is null)
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text("Arguments required") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText("Arguments required") });
 
                     var args = argsJson.Value.Deserialize<CancelOrderArgs>();
                     if (args?.OrderId is null || string.IsNullOrWhiteSpace(args.Symbol))
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text("orderId and symbol are required") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText("orderId and symbol are required") });
 
                     if (!Symbol.TryParseExchangeFormat(args.Symbol, exchange.Id, out var symbol) || symbol is null)
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text($"Invalid symbol format: {args.Symbol}") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText($"Invalid symbol format: {args.Symbol}") });
 
                     await exchange.CancelOrderAsync(symbol, args.OrderId, ct);
                     logger.LogInformation("MCP: Order cancelled — {OrderId}", args.OrderId);
 
-                    return new McpToolResult(IsError: false, Content: new[] { McpContent.Text($"Order {args.OrderId} cancelled") });
+                    return new McpToolResult(IsError: false, Content: new[] { McpContent.CreateText($"Order {args.OrderId} cancelled") });
                 }
                 catch (Exception ex)
                 {
-                    return new McpToolResult(IsError: true, Content: new[] { McpContent.Text(ex.Message) });
+                    return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText(ex.Message) });
                 }
             },
         });
@@ -214,11 +214,11 @@ public static class TradingToolsRegistrar
                         takeProfit = p.TakeProfit?.Value,
                     });
 
-                    return new McpToolResult(IsError: false, Content: new[] { McpContent.Text(JsonSerializer.Serialize(result)) });
+                    return new McpToolResult(IsError: false, Content: new[] { McpContent.CreateText(JsonSerializer.Serialize(result)) });
                 }
                 catch (Exception ex)
                 {
-                    return new McpToolResult(IsError: true, Content: new[] { McpContent.Text(ex.Message) });
+                    return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText(ex.Message) });
                 }
             },
         });
@@ -240,11 +240,11 @@ public static class TradingToolsRegistrar
                         kv => kv.Key,
                         kv => kv.Value.Amount);
 
-                    return new McpToolResult(IsError: false, Content: new[] { McpContent.Text(JsonSerializer.Serialize(result)) });
+                    return new McpToolResult(IsError: false, Content: new[] { McpContent.CreateText(JsonSerializer.Serialize(result)) });
                 }
                 catch (Exception ex)
                 {
-                    return new McpToolResult(IsError: true, Content: new[] { McpContent.Text(ex.Message) });
+                    return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText(ex.Message) });
                 }
             },
         });
@@ -272,14 +272,14 @@ public static class TradingToolsRegistrar
                 try
                 {
                     if (argsJson is null)
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text("Arguments required") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText("Arguments required") });
 
                     var args = argsJson.Value.Deserialize<MarketDataArgs>();
                     if (string.IsNullOrWhiteSpace(args?.Symbol))
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text("Symbol is required") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText("Symbol is required") });
 
                     if (!Symbol.TryParseExchangeFormat(args.Symbol, exchange.Id, out var symbol) || symbol is null)
-                        return new McpToolResult(IsError: true, Content: new[] { McpContent.Text($"Invalid symbol format: {args.Symbol}") });
+                        return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText($"Invalid symbol format: {args.Symbol}") });
 
                     var tf = Enum.TryParse<TimeFrame>(args.Timeframe, true, out var timeFrame) ? timeFrame : TimeFrame.H1;
                     var limit = args.Limit ?? 100;
@@ -296,11 +296,11 @@ public static class TradingToolsRegistrar
                         b.Open, b.High, b.Low, b.Close, b.Volume,
                     });
 
-                    return new McpToolResult(IsError: false, Content: new[] { McpContent.Text(JsonSerializer.Serialize(result)) });
+                    return new McpToolResult(IsError: false, Content: new[] { McpContent.CreateText(JsonSerializer.Serialize(result)) });
                 }
                 catch (Exception ex)
                 {
-                    return new McpToolResult(IsError: true, Content: new[] { McpContent.Text(ex.Message) });
+                    return new McpToolResult(IsError: true, Content: new[] { McpContent.CreateText(ex.Message) });
                 }
             },
         });

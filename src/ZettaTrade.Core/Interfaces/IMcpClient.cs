@@ -89,15 +89,15 @@ public sealed record McpToolResult(bool IsError, IReadOnlyList<McpContent> Conte
 public sealed record McpContent
 {
     public required string Type { get; init; } // "text", "image", "resource", etc.
-    public string? Text { get; init; }
+    public string? TextValue { get; init; }
     public byte[]? Data { get; init; }
     public string? MimeType { get; init; }
     
     /// <summary>Create a text content block.</summary>
-    public static McpContent Text(string text) => new() { Type = "text", Text = text };
+    public static McpContent CreateText(string text) => new() { Type = "text", TextValue = text };
     
     /// <summary>Create a binary content block.</summary>
-    public static McpContent Binary(byte[] data, string mimeType) => 
+    public static McpContent CreateBinary(byte[] data, string mimeType) => 
         new() { Type = "binary", Data = data, MimeType = mimeType };
 }
 

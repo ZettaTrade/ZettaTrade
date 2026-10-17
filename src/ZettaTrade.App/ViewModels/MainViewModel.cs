@@ -38,21 +38,21 @@ public sealed class MainViewModel : LocalizedViewModelBase
         _mcpServer = mcpServer;
         _logger = logger;
 
-        // Commands
+        // Commands — use explicit Unit type to avoid RxVoid inference
         OpenSettingsCommand = ReactiveCommand.CreateFromTask(OpenSettingsAsync);
         ExitCommand = ReactiveCommand.Create(() =>
         {
             // Proper shutdown - allows Serilog to flush
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+            if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime lifetime)
             {
                 lifetime.Shutdown();
             }
         });
-        NewOrderCommand = ReactiveCommand.Create(() => { });
-        ShowPositionsCommand = ReactiveCommand.Create(() => { });
-        ShowOrderHistoryCommand = ReactiveCommand.Create(() => { });
-        OpenAiChatCommand = ReactiveCommand.Create(() => { });
-        ManageMcpServersCommand = ReactiveCommand.Create(() => { });
+        NewOrderCommand = ReactiveCommand.Create((Action)(() => { /* TODO */ }));
+        ShowPositionsCommand = ReactiveCommand.Create((Action)(() => { /* TODO */ }));
+        ShowOrderHistoryCommand = ReactiveCommand.Create((Action)(() => { /* TODO */ }));
+        OpenAiChatCommand = ReactiveCommand.Create((Action)(() => { /* TODO */ }));
+        ManageMcpServersCommand = ReactiveCommand.Create((Action)(() => { /* TODO */ }));
 
         // Initialize collections
         AvailableThemes = new ObservableCollection<string> { "Dark", "Light", "Midnight Blue", "OLED Black" };
