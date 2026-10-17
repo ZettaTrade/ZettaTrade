@@ -1,4 +1,5 @@
 namespace ZettaTrade.UI.Localization;
+
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reactive.Linq;
@@ -13,6 +14,7 @@ using ZettaTrade.Core.Interfaces;
 /// Reactive localization service using ResourceManager and .resx resource files.
 /// Provides IObservable-based language change notifications for efficient UI updates.
 /// Includes thread-safe caching for fast repeated string lookups.
+/// Uses SemaphoreSlim for thread-safe operations.
 /// </summary>
 public sealed class LocalizationManager : ILocalizationManager, IDisposable
 {
@@ -23,6 +25,7 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     private readonly ILogger _logger;
     private readonly BehaviorSubject<string> _languageChanged;
     private readonly ConcurrentDictionary<string, string> _cache = new();
+    private readonly SemaphoreSlim _lock = new(1, 1);
     private CultureInfo _currentCulture;
     private bool _disposed;
 
@@ -39,7 +42,8 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
         _languageChanged = new BehaviorSubject<string>(_currentCulture.Name);
         _instance = this;
 
-        AvailableLanguages = [
+        AvailableLanguages = new List<LanguageInfo>
+        {
             new("en", "English", "English", true),
             new("ru", "Russian", "Русский", true),
             new("zh-CN", "Chinese", "简体中文", false),
@@ -48,7 +52,7 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
             new("es", "Spanish", "Español", false),
             new("de", "German", "Deutsch", false),
             new("fr", "French", "Français", false),
-        ];
+        };
 
         _logger.LogInformation("LocalizationManager initialized with ResourceManager");
     }
@@ -59,22 +63,21 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     /// <summary>
     /// Observable stream of language changes with debounce to prevent excessive updates.
     /// Subscribe to this in ViewModels to reactively update localized strings.
+    /// Uses ObserveOn to ensure UI updates happen on the main thread.
     /// </summary>
     public IObservable<string> LanguageChanged => _languageChanged
         .DistinctUntilChanged()
-        .Debounce(TimeSpan.FromMilliseconds(50));
+        .Debounce(TimeSpan.FromMilliseconds(50))
+        .ObserveOn(Avalonia.Threading.AvaloniaScheduler.Instance);
 
     /// <summary>
+    /// Get a localized string by key.
     /// Cached string lookup from .resx resources. Thread-safe and culture-aware.
-    /// Cache is automatically invalidated on language change.
     /// </summary>
-    public string this[string key]
+    public string GetString(string key)
     {
-        get
-        {
-            var cacheKey = $"{_currentCulture.Name}:{key}";
-            return _cache.GetOrAdd(cacheKey, _ => GetStringFromResource(key));
-        }
+        var cacheKey = $"{_currentCulture.Name}:{key}";
+        return _cache.GetOrAdd(cacheKey, _ => GetStringFromResource(key));
     }
 
     /// <summary>
@@ -83,7 +86,7 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     /// </summary>
     public string GetString(string key, params object[] args)
     {
-        var template = this[key];
+        var template = GetString(key);
         try
         {
             return string.Format(template, args);
@@ -103,31 +106,37 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     public IObservable<string> GetObservable(string key)
     {
         return LanguageChanged
-            .Select(_ => this[key])
-            .StartWith(this[key]);
+            .Select(_ => GetString(key))
+            .StartWith(GetString(key));
     }
 
     /// <summary>
     /// Change the current UI language. Clears cache and notifies all subscribers.
     /// </summary>
-    public Task SetLanguageAsync(string code, CancellationToken ct = default)
+    public async Task SetLanguageAsync(string code, CancellationToken ct = default)
     {
-        if (_currentCulture.Name == code) return Task.CompletedTask;
+        if (_currentCulture.Name == code) return;
 
-        var culture = new CultureInfo(code);
-        _currentCulture = culture;
-        CultureInfo.CurrentUICulture = culture;
-        CultureInfo.CurrentCulture = culture;
+        await _lock.WaitAsync(ct);
+        try
+        {
+            var culture = new CultureInfo(code);
+            _currentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+            CultureInfo.CurrentCulture = culture;
 
-        // Clear cache on language change
-        _cache.Clear();
+            // Clear cache on language change
+            _cache.Clear();
 
-        _logger.LogInformation("Language changed to {Language} ({NativeName})", code, culture.NativeName);
+            _logger.LogInformation("Language changed to {Language} ({NativeName})", code, culture.NativeName);
 
-        // Notify all subscribers
-        _languageChanged.OnNext(code);
-
-        return Task.CompletedTask;
+            // Notify all subscribers
+            _languageChanged.OnNext(code);
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     /// <summary>
@@ -158,6 +167,7 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
         _disposed = true;
         _languageChanged.Dispose();
         _cache.Clear();
+        _lock.Dispose();
     }
 }
 

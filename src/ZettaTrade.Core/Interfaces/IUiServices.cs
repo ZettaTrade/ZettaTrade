@@ -24,7 +24,12 @@ public interface IThemeManager
 /// <summary>
 /// Metadata about an available theme.
 /// </summary>
-public sealed record ThemeInfo(string Name, string DisplayName, bool IsBuiltIn, string[] PreviewColors);
+public sealed record ThemeInfo(
+    string Name, 
+    string DisplayName, 
+    bool IsBuiltIn, 
+    string[] PreviewColors,
+    IReadOnlyDictionary<string, string>? Colors = null);
 
 /// <summary>
 /// Localization manager for runtime language switching.

@@ -11,6 +11,7 @@ public static class SecretStoreFactory
 {
     /// <summary>
     /// Create the best available secret store for the current platform.
+    /// For EncryptedFileSecretStore, InitializeAsync must be called separately with master password.
     /// </summary>
     public static ISecretStore Create(ILoggerFactory loggerFactory)
     {
@@ -41,11 +42,20 @@ public static class SecretStoreFactory
             logger.LogWarning(
                 "Secret Service not available on Linux. " +
                 "Falling back to encrypted file store. " +
-                "Install libsecret-1-0 and a keyring daemon for better security.");
+                "Install libsecret-1-0 and a keyring daemon for better security. " +
+                "Note: EncryptedFileSecretStore requires InitializeAsync() call with master password.");
             return new EncryptedFileSecretStore(loggerFactory.CreateLogger<EncryptedFileSecretStore>());
         }
 
         throw new PlatformNotSupportedException(
             $"No secret store available for platform: {Environment.OSVersion.Platform}");
+    }
+
+    /// <summary>
+    /// Check if the created secret store requires initialization (EncryptedFileSecretStore).
+    /// </summary>
+    public static bool RequiresInitialization(ISecretStore store)
+    {
+        return store is EncryptedFileSecretStore;
     }
 }
