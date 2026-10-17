@@ -94,6 +94,11 @@ Cryptocurrency and traditional stock trading terminal with deep AI/ML integratio
 - Use ReactiveCommand for commands
 - Use WhenActivated for lifecycle management and subscriptions
 - Use IObservable for reactive streams and data flows
+- **NEVER create generic catch-all files** like Enums.cs, Entities.cs, Models.cs, Utils.cs
+- **Split files by domain responsibility** — each file should have a clear, focused purpose
+- **Use descriptive file names** that indicate the domain concept (OrderEnums.cs, not Enums.cs)
+- **One entity per file** for complex entities (Order.cs, Position.cs, Trade.cs)
+- **Group related small types** in one file only if they share the same domain concept (MarketData.cs for Bar, Ticker, OrderBook)
 
 ## Project Structure
 ```
@@ -101,6 +106,20 @@ ZettaTrade/
 ├── src/
 │   ├── ZettaTrade.App/              # Avalonia Application entry
 │   ├── ZettaTrade.Core/             # Domain models, interfaces, events
+│   │   ├── Enums/
+│   │   │   ├── OrderEnums.cs        # OrderSide, OrderType, TimeInForce, OrderStatus
+│   │   │   ├── TimeFrame.cs         # TimeFrame enum
+│   │   │   └── ExchangeEnums.cs     # AssetClass, ExchangeCapabilities
+│   │   ├── Entities/
+│   │   │   ├── Order.cs             # Order entity
+│   │   │   ├── Position.cs          # Position entity
+│   │   │   ├── Trade.cs             # User trade entity
+│   │   │   ├── MarketTrade.cs       # Public market trade
+│   │   │   └── MarketData.cs        # Bar, PriceLevel, OrderBook, Ticker
+│   │   ├── ValueObjects/
+│   │   │   ├── Symbol.cs            # Trading symbol with normalization
+│   │   │   └── Money.cs             # Money, Price, Quantity
+│   │   └── Interfaces/              # Core interfaces
 │   ├── ZettaTrade.Infrastructure/   # Exchange adapters, storage, networking
 │   ├── ZettaTrade.AI/               # MCP client/server, AI services
 │   ├── ZettaTrade.UI/               # Shared UI components, themes
@@ -118,59 +137,155 @@ ZettaTrade/
 
 ## Key Interfaces
 ```csharp
-// Exchange connectivity
-public interface IExchangeAdapter
+// Market data adapter (read-only, no trading)
+public interface IMarketDataAdapter : IAsyncDisposable
 {
+    string Id { get; }
     string Name { get; }
+    bool IsConnected { get; }
+    ExchangeCapabilities Capabilities { get; }
     Task ConnectAsync(CancellationToken ct);
-    IAsyncEnumerable<Ticker> SubscribeTickers(IEnumerable<string> symbols, CancellationToken ct);
-    IAsyncEnumerable<OrderBook> SubscribeOrderBook(string symbol, CancellationToken ct);
-    Task<OrderResult> PlaceOrderAsync(OrderRequest order, CancellationToken ct);
-    Task<Position[]> GetPositionsAsync(CancellationToken ct);
+    Task DisconnectAsync(CancellationToken ct);
+    IAsyncEnumerable<Ticker> SubscribeTickersAsync(IEnumerable<Symbol> symbols, CancellationToken ct);
+    IAsyncEnumerable<OrderBook> SubscribeOrderBookAsync(Symbol symbol, int depth, CancellationToken ct);
+    IAsyncEnumerable<MarketTrade> SubscribeMarketTradesAsync(Symbol symbol, CancellationToken ct);
+    Task<IReadOnlyList<Bar>> GetBarsAsync(Symbol symbol, TimeFrame tf, DateTimeOffset from, DateTimeOffset? to, int limit, CancellationToken ct);
 }
 
-// AI/MCP integration
+// Trading adapter (extends market data with trading operations)
+public interface ITradingAdapter : IMarketDataAdapter
+{
+    Task<Order> PlaceOrderAsync(OrderRequest request, CancellationToken ct);
+    Task CancelOrderAsync(Symbol symbol, string orderId, CancellationToken ct);
+    Task<IReadOnlyList<Order>> GetOpenOrdersAsync(CancellationToken ct);
+    Task<IReadOnlyList<Position>> GetPositionsAsync(CancellationToken ct);
+    Task<IReadOnlyDictionary<string, Money>> GetBalancesAsync(CancellationToken ct);
+}
+
+// Order request with validation
+public sealed record OrderRequest
+{
+    public required Symbol Symbol { get; init; }
+    public required OrderSide Side { get; init; }
+    public required OrderType Type { get; init; }
+    public required Quantity Quantity { get; init; }
+    public Price? Price { get; init; } // Nullable for market orders
+    public Price? StopPrice { get; init; }
+    public TimeInForce TimeInForce { get; init; }
+    public DateTimeOffset? Expiry { get; init; } // Required for GTD
+    public string? ClientOrderId { get; init; }
+    public bool ReduceOnly { get; init; }
+    public void Validate(); // Validates Expiry for GTD, Price for limit orders, etc.
+}
+
+// Symbol with normalized and exchange-specific formats
+public sealed record Symbol
+{
+    public string Normalized { get; } // "BTC/USDT" for display
+    public string BaseAsset { get; }
+    public string? QuoteAsset { get; }
+    public AssetClass AssetClass { get; }
+    public string GetExchangeFormat(string exchangeId); // "BTCUSDT" for Binance, "AAPL" for Alpaca
+    public static Symbol Parse(string normalized);
+    public static bool TryParseExchangeFormat(string exchangeSymbol, string exchangeId, out Symbol? symbol);
+}
+
+// Money with currency and InvariantCulture formatting
+public readonly record struct Money(decimal Amount, string Currency)
+{
+    public static Money Zero(string currency);
+    public override string ToString(); // Uses InvariantCulture
+}
+
+// Quantity with InvariantCulture formatting
+public readonly record struct Quantity(decimal Value)
+{
+    public Money NotionalAt(Price price, string currency);
+    public override string ToString(); // Uses InvariantCulture
+}
+
+// Price with operator overloads
+public readonly record struct Price(decimal Value)
+{
+    public static Money operator *(Price price, Quantity quantity);
+    public Money Multiply(Quantity quantity, string currency);
+}
+
+// Public market trade (no OrderId or Fee)
+public sealed record MarketTrade
+{
+    public required string Id { get; init; }
+    public required Symbol Symbol { get; init; }
+    public required OrderSide Side { get; init; }
+    public required Price Price { get; init; }
+    public required Quantity Quantity { get; init; }
+    public required DateTimeOffset Timestamp { get; init; }
+}
+
+// AI/MCP integration with Streamable HTTP
 public interface IMcpClient
 {
-    Task<McpConnection> ConnectAsync(McpServerConfig config, CancellationToken ct);
-    Task<ToolResult> CallToolAsync(string toolName, object parameters, CancellationToken ct);
-    IAsyncEnumerable<ResourceUpdate> SubscribeResource(string uri, CancellationToken ct);
-}
-
-public interface ITradingAIService
-{
-    Task<AnalysisResult> AnalyzeMarketAsync(string symbol, TimeFrame tf, CancellationToken ct);
-    Task<StrategySuggestion> SuggestStrategyAsync(MarketContext context, CancellationToken ct);
-    IAsyncEnumerable<AIInsight> StreamInsightsAsync(AnalysisRequest request, CancellationToken ct);
-}
-
-// Strategy engine
-public interface IStrategy
-{
     string Name { get; }
-    StrategyParameters Parameters { get; }
-    Signal OnBar(Bar bar, IIndicatorContext context);
+    bool IsConnected { get; }
+    Task ConnectAsync(McpServerConfig config, CancellationToken ct);
+    Task DisconnectAsync(CancellationToken ct);
+    Task<IReadOnlyList<McpToolInfo>> ListToolsAsync(CancellationToken ct);
+    Task<McpToolResult> CallToolAsync(string toolName, JsonElement? parameters, CancellationToken ct);
+    Task<IReadOnlyList<McpResourceInfo>> ListResourcesAsync(CancellationToken ct);
+    Task<McpResourceContent> ReadResourceAsync(string uri, CancellationToken ct);
+    IAsyncEnumerable<McpResourceUpdate> SubscribeResourceAsync(string uri, CancellationToken ct);
 }
 
-// Settings & Secrets
+// MCP server host with IsRunning and Address
+public interface IMcpServerHost
+{
+    bool IsRunning { get; }
+    string? Address { get; }
+    Task StartAsync(CancellationToken ct);
+    Task StopAsync(CancellationToken ct);
+    void RegisterTool(McpToolDefinition tool);
+    void RegisterResource(McpResourceDefinition resource);
+    void RegisterPrompt(McpPromptDefinition prompt);
+}
+
+// MCP tool definition with JsonElement for type-safe parameters
+public sealed record McpToolDefinition
+{
+    public required string Name { get; init; }
+    public required string Description { get; init; }
+    public required JsonElement InputSchema { get; init; }
+    public required Func<JsonElement?, CancellationToken, Task<McpToolResult>> Handler { get; init; }
+}
+
+// MCP content with binary support (TextValue to avoid collision with CreateText method)
+public sealed record McpContent
+{
+    public required string Type { get; init; } // "text", "image", "binary"
+    public string? TextValue { get; init; }
+    public byte[]? Data { get; init; }
+    public string? MimeType { get; init; }
+    public static McpContent CreateText(string text);
+    public static McpContent CreateBinary(byte[] data, string mimeType);
+}
+
+// Settings (general configuration only)
 public interface ISettingsService
 {
     Task<T> GetAsync<T>(string section, string key, T defaultValue);
     Task SetAsync<T>(string section, string key, T value);
-    Task<string?> GetSecretAsync(string key);
-    Task SetSecretAsync(string key, string value);
-    Task RemoveSecretAsync(string key);
     IObservable<SettingsChange> Changes { get; }
-    Task SaveAsync(CancellationToken ct = default);
+    Task SaveAsync(CancellationToken ct);
+    Task ReloadAsync(CancellationToken ct);
 }
 
+// Secrets (sensitive data - API keys, tokens, etc.)
 public interface ISecretStore
 {
-    Task<string?> GetAsync(string key, CancellationToken ct = default);
-    Task SetAsync(string key, string value, CancellationToken ct = default);
-    Task RemoveAsync(string key, CancellationToken ct = default);
-    Task<IReadOnlyList<string>> ListKeysAsync(string prefix, CancellationToken ct = default);
-    Task<bool> IsAvailableAsync(CancellationToken ct = default);
+    Task<string?> GetAsync(string key, CancellationToken ct);
+    Task SetAsync(string key, string value, CancellationToken ct);
+    Task RemoveAsync(string key, CancellationToken ct);
+    Task<IReadOnlyList<string>> ListKeysAsync(string prefix, CancellationToken ct);
+    Task<bool> IsAvailableAsync(CancellationToken ct);
 }
 
 // Localization & Theming
@@ -178,8 +293,26 @@ public interface IThemeManager
 {
     string CurrentTheme { get; }
     IReadOnlyList<ThemeInfo> AvailableThemes { get; }
-    Task ApplyThemeAsync(string themeName, CancellationToken ct = default);
-    Task LoadCustomThemeAsync(string jsonPath, CancellationToken ct = default);
+    Task ApplyThemeAsync(string themeName, CancellationToken ct);
+    Task LoadCustomThemeAsync(string jsonPath, CancellationToken ct);
+    IObservable<string> ThemeChanged { get; }
+}
+
+public sealed record ThemeInfo(
+    string Name, 
+    string DisplayName, 
+    bool IsBuiltIn, 
+    string[] PreviewColors,
+    IReadOnlyDictionary<string, string>? Colors = null);
+
+public interface ILocalizationManager
+{
+    string CurrentLanguage { get; }
+    IReadOnlyList<LanguageInfo> AvailableLanguages { get; }
+    Task SetLanguageAsync(string cultureCode, CancellationToken ct);
+    string GetString(string key);
+    string GetString(string key, params object[] args);
+    IObservable<string> LanguageChanged { get; }
 }
 ```
 
@@ -222,6 +355,24 @@ public interface IThemeManager
 15. Use WhenActivated for subscription lifecycle management
 16. Always use ObserveOn(RxApp.MainThreadScheduler) for UI updates
 17. Dispose subscriptions properly with DisposeWith(disposables)
+18. **Use async/await throughout** — avoid blocking calls (.Result, .Wait())
+19. **NEVER use lock(_lockObject) in async code** — use SemaphoreSlim instead, even if there's no await inside the critical section
+20. **CRITICAL: When updating scaffold files, ALWAYS update BOTH:**
+    - Real files in scaffold/ directory (actual source code)
+    - scaffoldData.ts (data for web interface export)
+    - Never update only one — they must stay in sync!
+
+## Trading Safety Rules (CRITICAL)
+21. **NEVER execute trades without validation** — all orders must pass through IRiskManager
+22. **NEVER default invalid values** — reject invalid symbol/side/type instead of substituting defaults
+23. **ALWAYS require human confirmation** for high-risk operations (large orders, position changes)
+24. **NEVER use stdio for MCP in GUI apps** — use HTTP with bearer token authentication
+25. **NEVER write to stdout in MCP server** — breaks protocol; use proper logging to files only
+26. **ALWAYS validate enum parsing** — return error for invalid values, don't silently default
+27. **ALWAYS require symbol in cancel_order** — some exchanges (Binance) require it
+28. **NEVER overwrite encrypted secrets on decryption failure** — preserve data integrity
+29. **ALWAYS save secrets to disk immediately** — don't keep in memory only
+30. **ALWAYS pass secrets via stdin** — never as command-line arguments (visible in process list)
 
 ## Performance Targets
 - Order book rendering: 60fps with 1000+ levels

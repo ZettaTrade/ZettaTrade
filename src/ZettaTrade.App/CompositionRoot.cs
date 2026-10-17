@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
 using ZettaTrade.AI.Mcp;
-using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
@@ -71,6 +70,10 @@ internal static class CompositionRoot
         services.AddSingleton<IConfirmationService, UiConfirmationService>();
 
         // ViewModels
+        services.AddSingleton<MenuViewModel>();
+        services.AddSingleton<StatusBarViewModel>();
+        services.AddSingleton<ChatViewModel>();
+        services.AddSingleton<SettingsViewModel>();
         services.AddTransient<MainViewModel>();
         
         // Register MCP tools after all services are built
