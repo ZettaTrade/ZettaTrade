@@ -1,4 +1,4 @@
-using Avalonia.ReactiveUI;
+using ReactiveUI.Avalonia;
 using ZettaTrade.App.ViewModels;
 
 namespace ZettaTrade.App.Views;

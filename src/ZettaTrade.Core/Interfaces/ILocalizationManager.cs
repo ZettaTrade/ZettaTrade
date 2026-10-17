@@ -1,37 +1,6 @@
 namespace ZettaTrade.Core.Interfaces;
 
 /// <summary>
-/// Theme management service.
-/// </summary>
-public interface IThemeManager
-{
-    /// <summary>Name of the currently active theme.</summary>
-    string CurrentTheme { get; }
-
-    /// <summary>List of all available themes (built-in + custom).</summary>
-    IReadOnlyList<ThemeInfo> AvailableThemes { get; }
-
-    /// <summary>Apply a theme by name.</summary>
-    Task ApplyThemeAsync(string themeName, CancellationToken ct = default);
-
-    /// <summary>Load a custom theme from a JSON file.</summary>
-    Task LoadCustomThemeAsync(string filePath, CancellationToken ct = default);
-
-    /// <summary>Observable stream of theme changes.</summary>
-    IObservable<string> ThemeChanged { get; }
-}
-
-/// <summary>
-/// Metadata about an available theme.
-/// </summary>
-public sealed record ThemeInfo(
-    string Name, 
-    string DisplayName, 
-    bool IsBuiltIn, 
-    string[] PreviewColors,
-    IReadOnlyDictionary<string, string>? Colors = null);
-
-/// <summary>
 /// Localization manager for runtime language switching.
 /// </summary>
 public interface ILocalizationManager
@@ -53,6 +22,16 @@ public interface ILocalizationManager
 
     /// <summary>Observable stream of language changes.</summary>
     IObservable<string> LanguageChanged { get; }
+
+    /// <summary>
+    /// Get reactive observable for a specific localization key.
+    /// Emits current value immediately, then on every language change.
+    /// Use with ToProperty() in ReactiveUI ViewModels for automatic binding.
+    /// </summary>
+    IObservable<string> GetObservable(string key);
 }
 
+/// <summary>
+/// Metadata about an available language.
+/// </summary>
 public sealed record LanguageInfo(string Code, string DisplayName, string NativeName, bool IsPrimary);

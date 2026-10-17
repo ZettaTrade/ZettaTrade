@@ -1,59 +1,62 @@
+namespace ZettaTrade.App.ViewModels;
+
+using System.Reactive;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using ReactiveUI;
 using ZettaTrade.Core.Interfaces;
 
-namespace ZettaTrade.App.ViewModels;
-
 /// <summary>
-/// ViewModel for status bar showing connection status, theme, and language.
+/// ViewModel for status bar.
+/// Simple strings use direct XAML binding via {loc:Localized Key}.
+/// ViewModel properties only for dynamic data (settings, connection status).
 /// </summary>
 public sealed class StatusBarViewModel : ReactiveObject, IActivatableViewModel
 {
     public ViewModelActivator Activator { get; } = new();
     
     private readonly ISettingsService _settings;
-    private readonly ILocalizationManager _localization;
+    private string _currentThemeName = string.Empty;
+    private string _currentLanguage = string.Empty;
+    private string _connectionStatus = string.Empty;
 
-    [Reactive] public string StatusText { get; set; } = string.Empty;
-    [Reactive] public string ConnectionStatus { get; set; } = "Disconnected";
-    [Reactive] public string CurrentThemeName { get; set; } = "Dark";
-    [Reactive] public string CurrentLanguage { get; set; } = "en";
+    public string CurrentThemeName
+    {
+        get => _currentThemeName;
+        private set => this.RaiseAndSetIfChanged(ref _currentThemeName, value);
+    }
+    
+    public string CurrentLanguage
+    {
+        get => _currentLanguage;
+        private set => this.RaiseAndSetIfChanged(ref _currentLanguage, value);
+    }
+    
+    public string ConnectionStatus
+    {
+        get => _connectionStatus;
+        private set => this.RaiseAndSetIfChanged(ref _connectionStatus, value);
+    }
 
-    public StatusBarViewModel(
-        ISettingsService settings,
-        ILocalizationManager localization)
+    public StatusBarViewModel(ISettingsService settings)
     {
         _settings = settings;
-        _localization = localization;
 
         this.WhenActivated(disposables =>
         {
-            // Load initial settings
-            _ = LoadSettingsAsync();
-
-            // Subscribe to language changes
-            _localization.LanguageChanged
-                .Subscribe(_ => UpdateLocalizedStrings())
+            // Load settings reactively (dynamic data needs ViewModel properties)
+            Observable.FromAsync(() => _settings.GetAsync("UI", "Theme", "Dark"))
+                .Subscribe(value => CurrentThemeName = value)
                 .DisposeWith(disposables);
 
-            UpdateLocalizedStrings();
+            Observable.FromAsync(() => _settings.GetAsync("UI", "Language", "en"))
+                .Subscribe(value => CurrentLanguage = value)
+                .DisposeWith(disposables);
         });
     }
 
-    private async Task LoadSettingsAsync()
+    public void UpdateConnectionStatus(bool isConnected)
     {
-        try
-        {
-            CurrentThemeName = await _settings.GetAsync("UI", "Theme", "Dark");
-            CurrentLanguage = await _settings.GetAsync("UI", "Language", "en");
-        }
-        catch (Exception)
-        {
-            // Use defaults if settings load fails
-        }
-    }
-
-    private void UpdateLocalizedStrings()
-    {
-        StatusText = _localization.GetString("Status.Ready");
+        ConnectionStatus = isConnected ? "Connected" : "Disconnected";
     }
 }

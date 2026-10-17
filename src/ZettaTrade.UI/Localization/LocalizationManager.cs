@@ -2,21 +2,19 @@ namespace ZettaTrade.UI.Localization;
 
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Resources;
-using Avalonia.Data;
-using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
-using ReactiveUI;
-using ReactiveUI.Builder;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.UI.Extensions;
 
 /// <summary>
 /// Reactive localization service using ResourceManager and .resx resource files.
-/// Provides IObservable-based language change notifications for efficient UI updates.
+/// Provides IObservable-based language change notifications.
 /// Includes thread-safe caching for fast repeated string lookups.
-/// Uses SemaphoreSlim for thread-safe operations.
 /// </summary>
 public sealed class LocalizationManager : ILocalizationManager, IDisposable
 {
@@ -63,14 +61,12 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     public IReadOnlyList<LanguageInfo> AvailableLanguages { get; }
 
     /// <summary>
-    /// Observable stream of language changes with debounce to prevent excessive updates.
-    /// Subscribe to this in ViewModels to reactively update localized strings.
-    /// Uses ObserveOn to ensure UI updates happen on the main thread.
+    /// Observable stream of language changes, delivered on the UI thread.
+    /// A language switch is a discrete user action, so there is no debounce.
     /// </summary>
     public IObservable<string> LanguageChanged => _languageChanged
         .DistinctUntilChanged()
-        .Debounce(TimeSpan.FromMilliseconds(50))
-        .ObserveOn(RxSchedulers.MainThreadScheduler);
+        .ObserveOnUiThread();
 
     /// <summary>
     /// Get a localized string by key.
@@ -101,28 +97,29 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     }
 
     /// <summary>
-    /// Get IObservable for a specific localization key.
-    /// Emits current value immediately, then emits on language changes.
-    /// Use this for reactive bindings in ViewModels.
+    /// Get reactive observable for a specific localization key.
+    /// Uses Observable.Defer to compute start value at subscription time.
+    /// Emits current value immediately, then on every language change.
+    /// Use with ToProperty() in ReactiveUI ViewModels.
     /// </summary>
     public IObservable<string> GetObservable(string key)
     {
-        return LanguageChanged
-            .Select(_ => GetString(key))
-            .StartWith(GetString(key));
+        return Observable.Defer(() => Observable.Return(GetString(key)))
+            .Concat(LanguageChanged.Select(_ => GetString(key)))
+            .DistinctUntilChanged();
     }
 
     /// <summary>
     /// Change the current UI language. Clears cache and notifies all subscribers.
     /// </summary>
-    public async Task SetLanguageAsync(string code, CancellationToken ct = default)
+    public async Task SetLanguageAsync(string cultureCode, CancellationToken ct = default)
     {
-        if (_currentCulture.Name == code) return;
+        if (_currentCulture.Name == cultureCode) return;
 
         await _lock.WaitAsync(ct);
         try
         {
-            var culture = new CultureInfo(code);
+            var culture = new CultureInfo(cultureCode);
             _currentCulture = culture;
             CultureInfo.CurrentUICulture = culture;
             CultureInfo.CurrentCulture = culture;
@@ -130,10 +127,10 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
             // Clear cache on language change
             _cache.Clear();
 
-            _logger.LogInformation("Language changed to {Language} ({NativeName})", code, culture.NativeName);
+            _logger.LogInformation("Language changed to {Language} ({NativeName})", cultureCode, culture.NativeName);
 
             // Notify all subscribers
-            _languageChanged.OnNext(code);
+            _languageChanged.OnNext(cultureCode);
         }
         finally
         {
@@ -170,31 +167,5 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
         _languageChanged.Dispose();
         _cache.Clear();
         _lock.Dispose();
-    }
-}
-
-/// <summary>
-/// Avalonia MarkupExtension for reactive localization in XAML.
-/// Creates a binding that automatically updates when language changes.
-/// Usage: {loc:Localized Menu.File}
-/// </summary>
-public class LocalizedExtension : MarkupExtension
-{
-    public string Key { get; }
-
-    public LocalizedExtension(string key)
-    {
-        Key = key;
-    }
-
-    public override object ProvideValue(IServiceProvider serviceProvider)
-    {
-        // Return binding that will update via indexer when language changes
-        return new Binding
-        {
-            Path = $"[{Key}]",
-            Mode = BindingMode.OneWay,
-            Source = LocalizationManager.Instance,
-        };
     }
 }
