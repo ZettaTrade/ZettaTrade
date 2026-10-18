@@ -3,39 +3,59 @@ namespace ZettaTrade.UI.Charting;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Platform;
+using Avalonia.Rendering.SceneGraph;
+using Avalonia.Skia;
 using Avalonia.Threading;
-using SkiaSharp;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Linq;
+using SkiaSharp;
 using ZettaTrade.Core.Entities;
 
 /// <summary>
-/// Candlestick chart control using SkiaSharp for rendering.
+/// Candlestick chart control that draws directly onto the Avalonia Skia canvas
+/// via <see cref="ICustomDrawOperation"/> (no intermediate bitmaps or pixel copies).
 /// </summary>
 public class CandlestickChart : Control
 {
-    #region Properties
+    #region Styled Properties
 
-    private readonly List<Bar> _bars = new();
+    /// <summary>
+    /// StyledProperty for Bars collection.
+    /// </summary>
+    public static readonly StyledProperty<ObservableCollection<Bar>?> BarsProperty =
+        AvaloniaProperty.Register<CandlestickChart, ObservableCollection<Bar>?>(nameof(Bars));
+
+    /// <summary>
+    /// Gets or sets the collection of bars to render.
+    /// </summary>
+    public ObservableCollection<Bar>? Bars
+    {
+        get => GetValue(BarsProperty);
+        set => SetValue(BarsProperty, value);
+    }
+
+    #endregion
+
+    #region Fields & Properties
+
     private int _visibleBars = 100;
     private int _scrollOffset;
-    private double _zoomLevel = 1.0;
-    
-    private SKCanvas? _canvas;
-    private GRContext? _grContext;
 
     /// <summary>Chart background color.</summary>
     public SKColor BackgroundColor { get; set; } = new SKColor(20, 20, 30);
-    
+
     /// <summary>Bullish candle color.</summary>
     public SKColor BullishColor { get; set; } = new SKColor(34, 197, 94);
-    
+
     /// <summary>Bearish candle color.</summary>
     public SKColor BearishColor { get; set; } = new SKColor(239, 68, 68);
-    
+
     /// <summary>Grid line color.</summary>
     public SKColor GridColor { get; set; } = new SKColor(40, 40, 50);
-    
+
     /// <summary>Text color.</summary>
     public SKColor TextColor { get; set; } = new SKColor(200, 200, 200);
 
@@ -43,55 +63,39 @@ public class CandlestickChart : Control
 
     #region Constructor
 
+    static CandlestickChart()
+    {
+        BarsProperty.Changed.AddClassHandler<CandlestickChart>((x, e) => x.OnBarsPropertyChanged(e));
+    }
+
     public CandlestickChart()
     {
-        // Enable pointer events for interaction
         Focusable = true;
+        ClipToBounds = true;
     }
 
     #endregion
 
-    #region Public Methods
+    #region Property Change Handlers
 
-    /// <summary>
-    /// Set the data to display in the chart.
-    /// </summary>
-    public void SetData(IEnumerable<Bar> bars)
+    private void OnBarsPropertyChanged(AvaloniaPropertyChangedEventArgs e)
     {
-        _bars.Clear();
-        _bars.AddRange(bars);
-        _scrollOffset = 0;
-        Dispatcher.UIThread.Post(InvalidateVisual);
-    }
-
-    /// <summary>
-    /// Add a new bar to the chart.
-    /// </summary>
-    public void AddBar(Bar bar)
-    {
-        _bars.Add(bar);
-        Dispatcher.UIThread.Post(InvalidateVisual);
-    }
-
-    /// <summary>
-    /// Update the last bar in the chart.
-    /// </summary>
-    public void UpdateLastBar(Bar bar)
-    {
-        if (_bars.Count > 0)
+        if (e.OldValue is ObservableCollection<Bar> oldColl)
         {
-            _bars[_bars.Count - 1] = bar;
-            Dispatcher.UIThread.Post(InvalidateVisual);
+            oldColl.CollectionChanged -= OnBarsCollectionChanged;
         }
+
+        if (e.NewValue is ObservableCollection<Bar> newColl)
+        {
+            newColl.CollectionChanged += OnBarsCollectionChanged;
+        }
+
+        _scrollOffset = 0;
+        Dispatcher.UIThread.Post(InvalidateVisual);
     }
 
-    /// <summary>
-    /// Clear all data from the chart.
-    /// </summary>
-    public void Clear()
+    private void OnBarsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        _bars.Clear();
-        _scrollOffset = 0;
         Dispatcher.UIThread.Post(InvalidateVisual);
     }
 
@@ -99,209 +103,265 @@ public class CandlestickChart : Control
 
     #region Rendering
 
+    /// <inheritdoc />
     public override void Render(DrawingContext context)
     {
         base.Render(context);
 
-        var bounds = new Rect(0, 0, Bounds.Width, Bounds.Height);
-        
-        using var surface = CreateSurface(bounds);
-        if (surface == null)
+        var size = Bounds.Size;
+        if (size.Width < 1 || size.Height < 1)
             return;
 
-        _canvas = surface.Canvas;
-        
-        // Clear background
-        _canvas.Clear(BackgroundColor);
+        // The draw operation runs later, on the render thread: it must only see an immutable snapshot,
+        // never the live (UI-thread) Bars collection.
+        context.Custom(new CandlestickDrawOperation(new Rect(size), CreateSnapshot()));
+    }
 
-        if (_bars.Count == 0)
+    /// <summary>
+    /// Copies only the visible window of bars (and the colors) so the render thread works on its own data.
+    /// Assumes <see cref="Bar"/> instances are not mutated after they are added to the collection.
+    /// </summary>
+    private ChartSnapshot CreateSnapshot()
+    {
+        Bar[] visible = [];
+        var bars = Bars;
+
+        if (bars is { Count: > 0 })
         {
-            DrawNoDataMessage();
-            return;
+            var start = System.Math.Max(0, bars.Count - _visibleBars - _scrollOffset);
+            var end = System.Math.Min(bars.Count, start + _visibleBars);
+
+            visible = new Bar[end - start];
+            for (var i = 0; i < visible.Length; i++)
+                visible[i] = bars[start + i];
         }
 
-        // Calculate visible range
-        var visibleStart = System.Math.Max(0, _bars.Count - _visibleBars - _scrollOffset);
-        var visibleEnd = System.Math.Min(_bars.Count, visibleStart + _visibleBars);
-        var visibleBars = _bars.Skip(visibleStart).Take(visibleEnd - visibleStart).ToList();
-
-        if (visibleBars.Count == 0)
-            return;
-
-        // Calculate price range
-        var minPrice = visibleBars.Min(b => b.Low);
-        var maxPrice = visibleBars.Max(b => b.High);
-        var priceRange = maxPrice - minPrice;
-        var padding = priceRange * 0.1m;
-        minPrice -= padding;
-        maxPrice += padding;
-        priceRange = maxPrice - minPrice;
-
-        // Draw grid
-        DrawGrid(bounds, minPrice, maxPrice);
-
-        // Draw candles
-        DrawCandles(bounds, visibleBars, minPrice, priceRange);
-
-        // Draw axes
-        DrawAxes(bounds, visibleBars, minPrice, maxPrice);
-
-        // Flush and present
-        _canvas.Flush();
-        
-        using var snapshot = surface.Snapshot();
-        using var image = snapshot.ToAvaloniaImage();
-        context.DrawImage(image, bounds);
+        return new ChartSnapshot(visible, BackgroundColor, BullishColor, BearishColor, GridColor, TextColor);
     }
 
-    private SKSurface? CreateSurface(Rect bounds)
+    private sealed record ChartSnapshot(
+        Bar[] VisibleBars,
+        SKColor Background,
+        SKColor Bullish,
+        SKColor Bearish,
+        SKColor Grid,
+        SKColor Text);
+
+    /// <summary>
+    /// Draws the chart straight onto Avalonia's own SKCanvas (render thread).
+    /// </summary>
+    private sealed class CandlestickDrawOperation : ICustomDrawOperation
     {
-        var info = new SKImageInfo((int)bounds.Width, (int)bounds.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
-        
-        _grContext ??= GRContext.CreateGl();
-        
-        var renderTarget = new GRBackendRenderTarget(
-            info.Width,
-            info.Height,
-            0,
-            8,
-            new GRGlFramebufferInfo(0, info.ColorType.ToGlSizedFormat()));
+        private readonly Rect _bounds;
+        private readonly ChartSnapshot _snapshot;
 
-        return SKSurface.Create(_grContext, renderTarget, GRSurfaceOrigin.BottomLeft, info);
-    }
-
-    private void DrawNoDataMessage()
-    {
-        using var paint = new SKPaint
+        public CandlestickDrawOperation(Rect bounds, ChartSnapshot snapshot)
         {
-            Color = TextColor,
-            TextSize = 16,
-            IsAntialias = true
-        };
-
-        var text = "No data available";
-        var textWidth = paint.MeasureText(text);
-        
-        _canvas!.DrawText(
-            text,
-            (Bounds.Width - textWidth) / 2,
-            Bounds.Height / 2,
-            paint);
-    }
-
-    private void DrawGrid(Rect bounds, decimal minPrice, decimal maxPrice)
-    {
-        using var paint = new SKPaint
-        {
-            Color = GridColor,
-            StrokeWidth = 1,
-            IsAntialias = true
-        };
-
-        // Draw horizontal grid lines
-        var gridLines = 5;
-        for (int i = 0; i <= gridLines; i++)
-        {
-            var y = bounds.Top + (bounds.Height * i / gridLines);
-            _canvas!.DrawLine(bounds.Left, y, bounds.Right, y, paint);
+            _bounds = bounds;
+            _snapshot = snapshot;
         }
 
-        // Draw vertical grid lines
-        var verticalLines = 10;
-        for (int i = 0; i <= verticalLines; i++)
+        public Rect Bounds => _bounds;
+
+        public void Dispose()
         {
-            var x = bounds.Left + (bounds.Width * i / verticalLines);
-            _canvas.DrawLine(x, bounds.Top, x, bounds.Bottom, paint);
         }
-    }
 
-    private void DrawCandles(Rect bounds, List<Bar> bars, decimal minPrice, decimal priceRange)
-    {
-        var candleWidth = bounds.Width / bars.Count;
-        var bodyWidth = candleWidth * 0.7f;
+        // Always redraw; the snapshot changes on nearly every invalidation anyway.
+        public bool Equals(ICustomDrawOperation? other) => false;
 
-        using var bullishPaint = new SKPaint
+        public bool HitTest(Point p) => _bounds.Contains(p);
+
+        public void Render(ImmediateDrawingContext context)
         {
-            Color = BullishColor,
-            IsAntialias = true
-        };
+            // Null when the current rendering backend is not Skia: nothing to draw then.
+            var feature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+            if (feature is null)
+                return;
 
-        using var bearishPaint = new SKPaint
+            using var lease = feature.Lease();
+            var canvas = lease.SkCanvas;
+
+            canvas.Save();
+            try
+            {
+                Draw(canvas);
+            }
+            finally
+            {
+                canvas.Restore();
+            }
+        }
+
+        private void Draw(SKCanvas canvas)
         {
-            Color = BearishColor,
-            IsAntialias = true
-        };
+            var width = (float)_bounds.Width;
+            var height = (float)_bounds.Height;
 
-        for (int i = 0; i < bars.Count; i++)
+            // Do NOT use canvas.Clear(): the canvas is shared with the whole window.
+            var area = SKRect.Create(width, height);
+            canvas.ClipRect(area);
+
+            using (var backgroundPaint = new SKPaint { Color = _snapshot.Background, Style = SKPaintStyle.Fill })
+            {
+                canvas.DrawRect(area, backgroundPaint);
+            }
+
+            var visibleBars = _snapshot.VisibleBars;
+
+            if (visibleBars.Length == 0)
+            {
+                DrawNoDataMessage(canvas, width, height);
+                return;
+            }
+
+            var minPrice = visibleBars.Min(b => b.Low);
+            var maxPrice = visibleBars.Max(b => b.High);
+            var priceRange = maxPrice - minPrice;
+
+            if (priceRange == 0)
+                priceRange = 1;
+
+            var padding = priceRange * 0.1m;
+            minPrice -= padding;
+            maxPrice += padding;
+            priceRange = maxPrice - minPrice;
+
+            var bounds = new Rect(0, 0, width, height);
+            DrawGrid(canvas, bounds);
+            DrawCandles(canvas, bounds, visibleBars, minPrice, priceRange);
+            DrawAxes(canvas, bounds, visibleBars, minPrice, maxPrice);
+        }
+
+        private void DrawNoDataMessage(SKCanvas canvas, double width, double height)
         {
-            var bar = bars[i];
-            var x = bounds.Left + (i * candleWidth) + (candleWidth / 2);
-            
-            var isBullish = bar.Close >= bar.Open;
-            var paint = isBullish ? bullishPaint : bearishPaint;
+            using var paint = new SKPaint
+            {
+                Color = _snapshot.Text,
+                IsAntialias = true
+            };
 
-            // Calculate Y positions
-            var openY = bounds.Bottom - (float)((bar.Open - minPrice) / priceRange * bounds.Height);
-            var closeY = bounds.Bottom - (float)((bar.Close - minPrice) / priceRange * bounds.Height);
-            var highY = bounds.Bottom - (float)((bar.High - minPrice) / priceRange * bounds.Height);
-            var lowY = bounds.Bottom - (float)((bar.Low - minPrice) / priceRange * bounds.Height);
+            using var font = new SKFont(SKTypeface.Default, 16);
 
-            // Draw wick
-            _canvas!.DrawLine(x, highY, x, lowY, paint);
+            // TODO: move to localization (Strings.resx) instead of a hardcoded string.
+            var text = "No data available";
 
-            // Draw body
-            var bodyTop = System.Math.Min(openY, closeY);
-            var bodyHeight = System.Math.Abs(closeY - openY);
-            
-            if (bodyHeight < 1)
-                bodyHeight = 1;
-
-            _canvas.DrawRect(
-                x - bodyWidth / 2,
-                bodyTop,
-                bodyWidth,
-                bodyHeight,
+            canvas.DrawText(
+                text,
+                (float)width / 2,
+                (float)height / 2,
+                SKTextAlign.Center,
+                font,
                 paint);
         }
-    }
 
-    private void DrawAxes(Rect bounds, List<Bar> bars, decimal minPrice, decimal maxPrice)
-    {
-        using var paint = new SKPaint
+        private void DrawGrid(SKCanvas canvas, Rect bounds)
         {
-            Color = TextColor,
-            TextSize = 10,
-            IsAntialias = true
-        };
+            using var paint = new SKPaint
+            {
+                Color = _snapshot.Grid,
+                StrokeWidth = 1,
+                IsAntialias = true
+            };
 
-        // Draw price labels on right axis
-        var priceSteps = 5;
-        for (int i = 0; i <= priceSteps; i++)
-        {
-            var price = minPrice + (maxPrice - minPrice) * i / priceSteps;
-            var y = bounds.Bottom - (bounds.Height * i / priceSteps);
-            
-            var text = price.ToString("F2");
-            var textWidth = paint.MeasureText(text);
-            
-            _canvas!.DrawText(text, bounds.Right - textWidth - 5, y + 5, paint);
+            var gridLines = 5;
+            for (int i = 0; i <= gridLines; i++)
+            {
+                var y = (float)(bounds.Top + (bounds.Height * i / gridLines));
+                canvas.DrawLine((float)bounds.Left, y, (float)bounds.Right, y, paint);
+            }
+
+            var verticalLines = 10;
+            for (int i = 0; i <= verticalLines; i++)
+            {
+                var x = (float)(bounds.Left + (bounds.Width * i / verticalLines));
+                canvas.DrawLine(x, (float)bounds.Top, x, (float)bounds.Bottom, paint);
+            }
         }
 
-        // Draw time labels on bottom axis
-        var timeSteps = System.Math.Min(10, bars.Count);
-        for (int i = 0; i < timeSteps; i++)
+        private void DrawCandles(SKCanvas canvas, Rect bounds, IReadOnlyList<Bar> bars, decimal minPrice, decimal priceRange)
         {
-            var barIndex = i * bars.Count / timeSteps;
-            if (barIndex >= bars.Count)
-                break;
+            var candleWidth = (float)(bounds.Width / bars.Count);
+            var bodyWidth = candleWidth * 0.7f;
 
-            var bar = bars[barIndex];
-            var x = bounds.Left + (bounds.Width * i / timeSteps);
-            
-            var text = bar.Time.ToString("HH:mm");
-            var textWidth = paint.MeasureText(text);
-            
-            _canvas.DrawText(text, x - textWidth / 2, bounds.Bottom - 5, paint);
+            using var bullishPaint = new SKPaint
+            {
+                Color = _snapshot.Bullish,
+                IsAntialias = true
+            };
+
+            using var bearishPaint = new SKPaint
+            {
+                Color = _snapshot.Bearish,
+                IsAntialias = true
+            };
+
+            for (int i = 0; i < bars.Count; i++)
+            {
+                var bar = bars[i];
+                var x = (float)(bounds.Left + (i * candleWidth) + (candleWidth / 2));
+
+                var isBullish = bar.Close >= bar.Open;
+                var paint = isBullish ? bullishPaint : bearishPaint;
+
+                var openY = (float)(bounds.Bottom - (double)((bar.Open - minPrice) / priceRange) * bounds.Height);
+                var closeY = (float)(bounds.Bottom - (double)((bar.Close - minPrice) / priceRange) * bounds.Height);
+                var highY = (float)(bounds.Bottom - (double)((bar.High - minPrice) / priceRange) * bounds.Height);
+                var lowY = (float)(bounds.Bottom - (double)((bar.Low - minPrice) / priceRange) * bounds.Height);
+
+                canvas.DrawLine(x, highY, x, lowY, paint);
+
+                var bodyTop = System.Math.Min(openY, closeY);
+                var bodyHeight = System.Math.Abs(closeY - openY);
+
+                if (bodyHeight < 1)
+                    bodyHeight = 1;
+
+                canvas.DrawRect(
+                    x - bodyWidth / 2,
+                    bodyTop,
+                    bodyWidth,
+                    bodyHeight,
+                    paint);
+            }
+        }
+
+        private void DrawAxes(SKCanvas canvas, Rect bounds, IReadOnlyList<Bar> bars, decimal minPrice, decimal maxPrice)
+        {
+            using var paint = new SKPaint
+            {
+                Color = _snapshot.Text,
+                IsAntialias = true
+            };
+
+            using var font = new SKFont(SKTypeface.Default, 10);
+
+            var priceSteps = 5;
+            for (int i = 0; i <= priceSteps; i++)
+            {
+                var price = minPrice + (maxPrice - minPrice) * i / priceSteps;
+                var y = (float)(bounds.Bottom - (bounds.Height * i / priceSteps));
+
+                var text = price.ToString("F2");
+
+                // Right-aligned at the chart edge (replaces manual MeasureText offset).
+                canvas.DrawText(text, (float)bounds.Right - 5, y + 5, SKTextAlign.Right, font, paint);
+            }
+
+            var timeSteps = System.Math.Min(10, bars.Count);
+            for (int i = 0; i < timeSteps; i++)
+            {
+                var barIndex = i * bars.Count / timeSteps;
+                if (barIndex >= bars.Count)
+                    break;
+
+                var bar = bars[barIndex];
+                var x = (float)(bounds.Left + (bounds.Width * i / timeSteps));
+
+                var text = bar.Time.ToString("HH:mm");
+
+                canvas.DrawText(text, x, (float)bounds.Bottom - 5, SKTextAlign.Center, font, paint);
+            }
         }
     }
 
@@ -314,16 +374,15 @@ public class CandlestickChart : Control
         base.OnPointerWheelChanged(e);
 
         var delta = e.Delta.Y;
-        
+        var barCount = Bars?.Count ?? 0;
+
         if (delta > 0)
         {
-            // Zoom in
             _visibleBars = System.Math.Max(20, _visibleBars - 10);
         }
         else
         {
-            // Zoom out
-            _visibleBars = System.Math.Min(_bars.Count, _visibleBars + 10);
+            _visibleBars = System.Math.Min(System.Math.Max(20, barCount), _visibleBars + 10);
         }
 
         InvalidateVisual();

@@ -1,12 +1,14 @@
 namespace ZettaTrade.Infrastructure.Exchange;
 
 using System.Net.WebSockets;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// WebSocket client with automatic reconnection and message handling.
+/// WebSocket client with automatic reconnection and reactive message streams.
 /// </summary>
 public sealed class WebSocketClient : IAsyncDisposable
 {
@@ -16,7 +18,10 @@ public sealed class WebSocketClient : IAsyncDisposable
     private readonly string _url;
     private readonly TimeSpan _reconnectDelay;
     private readonly int _maxReconnectAttempts;
-    
+
+    private readonly Subject<string> _messageSubject = new();
+    private readonly BehaviorSubject<bool> _connectionStateSubject = new(false);
+
     private ClientWebSocket? _webSocket;
     private CancellationTokenSource? _cts;
     private Task? _receiveTask;
@@ -27,11 +32,11 @@ public sealed class WebSocketClient : IAsyncDisposable
     /// <summary>Whether the WebSocket is currently connected.</summary>
     public bool IsConnected => _isConnected && _webSocket?.State == WebSocketState.Open;
 
-    /// <summary>Event raised when a message is received.</summary>
-    public event Action<string>? MessageReceived;
+    /// <summary>Observable stream of received raw messages.</summary>
+    public IObservable<string> MessageStream => _messageSubject.AsObservable();
 
-    /// <summary>Event raised when connection state changes.</summary>
-    public event Action<bool>? ConnectionStateChanged;
+    /// <summary>Observable stream of connection state changes.</summary>
+    public IObservable<bool> ConnectionStateStream => _connectionStateSubject.AsObservable();
 
     #endregion
 
@@ -95,7 +100,7 @@ public sealed class WebSocketClient : IAsyncDisposable
         _webSocket?.Dispose();
         _webSocket = null;
         _isConnected = false;
-        ConnectionStateChanged?.Invoke(false);
+        _connectionStateSubject.OnNext(false);
     }
 
     /// <summary>
@@ -139,7 +144,7 @@ public sealed class WebSocketClient : IAsyncDisposable
                 await _webSocket.ConnectAsync(new Uri(_url), ct);
                 _isConnected = true;
                 _reconnectAttempts = 0;
-                ConnectionStateChanged?.Invoke(true);
+                _connectionStateSubject.OnNext(true);
 
                 _logger.LogInformation("WebSocket connected to {Url}", _url);
 
@@ -153,7 +158,7 @@ public sealed class WebSocketClient : IAsyncDisposable
             catch (Exception ex)
             {
                 _isConnected = false;
-                ConnectionStateChanged?.Invoke(false);
+                _connectionStateSubject.OnNext(false);
                 _reconnectAttempts++;
 
                 _logger.LogWarning(
@@ -201,11 +206,11 @@ public sealed class WebSocketClient : IAsyncDisposable
 
                     try
                     {
-                        MessageReceived?.Invoke(message);
+                        _messageSubject.OnNext(message);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error handling WebSocket message");
+                        _logger.LogError(ex, "Error emitting WebSocket message");
                     }
                 }
             }
@@ -221,7 +226,7 @@ public sealed class WebSocketClient : IAsyncDisposable
         }
 
         _isConnected = false;
-        ConnectionStateChanged?.Invoke(false);
+        _connectionStateSubject.OnNext(false);
     }
 
     #endregion
@@ -236,6 +241,13 @@ public sealed class WebSocketClient : IAsyncDisposable
         _disposed = true;
 
         await DisconnectAsync();
+
+        _messageSubject.OnCompleted();
+        _messageSubject.Dispose();
+
+        _connectionStateSubject.OnCompleted();
+        _connectionStateSubject.Dispose();
+
         _cts?.Dispose();
     }
 

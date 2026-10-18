@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.ViewModels;
 
 using ReactiveUI;
+using ReactiveUI.Primitives;
 
 /// <summary>
 /// ViewModel for menu bar with commands.
@@ -11,25 +12,25 @@ public sealed class MenuViewModel : ReactiveObject
     #region Commands
 
     /// <summary>Command to open new order dialog.</summary>
-    public ReactiveCommand<Unit, RxVoid> NewOrderCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> NewOrderCommand { get; }
     
     /// <summary>Command to show positions view.</summary>
-    public ReactiveCommand<Unit, RxVoid> ShowPositionsCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ShowPositionsCommand { get; }
     
     /// <summary>Command to show order history view.</summary>
-    public ReactiveCommand<Unit, RxVoid> ShowOrderHistoryCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ShowOrderHistoryCommand { get; }
     
     /// <summary>Command to open AI chat.</summary>
-    public ReactiveCommand<Unit, RxVoid> OpenAiChatCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> OpenAiChatCommand { get; }
     
     /// <summary>Command to manage MCP servers.</summary>
-    public ReactiveCommand<Unit, RxVoid> ManageMcpServersCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ManageMcpServersCommand { get; }
     
     /// <summary>Command to open settings dialog.</summary>
-    public ReactiveCommand<Unit, RxVoid> OpenSettingsCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> OpenSettingsCommand { get; }
     
     /// <summary>Command to exit application.</summary>
-    public ReactiveCommand<Unit, RxVoid> ExitCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ExitCommand { get; }
 
     #endregion Commands
 

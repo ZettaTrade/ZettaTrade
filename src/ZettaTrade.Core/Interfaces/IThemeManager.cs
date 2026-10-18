@@ -12,7 +12,7 @@ public interface IThemeManager
     IReadOnlyList<ThemeInfo> AvailableThemes { get; }
 
     /// <summary>Initialize theme manager by loading custom themes from disk.</summary>
-    Task InitializeAsync();
+    Task InitializeAsync(CancellationToken ct = default);
 
     /// <summary>Apply a theme by name.</summary>
     Task ApplyThemeAsync(string themeName, CancellationToken ct = default);

@@ -1,11 +1,13 @@
 namespace ZettaTrade.Infrastructure.Exchange;
 
 using System.Collections.Concurrent;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
 /// Base class for exchange adapters with common functionality.

@@ -1,11 +1,15 @@
 namespace ZettaTrade.App.ViewModels;
 
 using System.Collections.ObjectModel;
-using System.Reactive.Disposables;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ReactiveUI.Primitives;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.UI.Extensions;
+
+using Observable = System.Reactive.Linq.Observable;
 
 /// <summary>
 /// ViewModel for chart display.
@@ -20,7 +24,7 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
     private readonly IMarketDataAdapter _marketData;
 
     private ObservableCollection<Bar> _bars = new();
-    
+
     /// <summary>Collection of bars to display in the chart.</summary>
     public ObservableCollection<Bar> Bars
     {
@@ -29,7 +33,7 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
     }
 
     private Symbol? _selectedSymbol;
-    
+
     /// <summary>Currently selected trading symbol.</summary>
     public Symbol? SelectedSymbol
     {
@@ -38,7 +42,7 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
     }
 
     private ObservableCollection<Symbol> _availableSymbols = new();
-    
+
     /// <summary>List of available trading symbols.</summary>
     public ObservableCollection<Symbol> AvailableSymbols
     {
@@ -62,11 +66,22 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
 
         this.WhenActivated(disposables =>
         {
-            // Load available symbols
-            LoadSymbolsAsync()
+            // Handle symbol selection change
+            this.WhenAnyValue(x => x.SelectedSymbol)
+                .SelectMany(symbol => Observable.FromAsync(ct => LoadChartDataAsync(symbol, ct)))
+                .ObserveOnUiThread()
                 .Subscribe(
                     _ => { },
-                    ex => _logger.LogError(ex, "Failed to load symbols"));
+                    ex => _logger.LogError(ex, "Failed to update chart data for selected symbol"))
+                .DisposeWith(disposables);
+
+            // Load initial symbols list
+            Observable.FromAsync(ct => LoadSymbolsAsync(ct))
+                .ObserveOnUiThread()
+                .Subscribe(
+                    _ => { },
+                    ex => _logger.LogError(ex, "Failed to load symbols"))
+                .DisposeWith(disposables);
         });
     }
 
@@ -74,17 +89,16 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
 
     #region Private Methods
 
-    private async Task LoadSymbolsAsync()
+    private async Task LoadSymbolsAsync(CancellationToken ct)
     {
         try
         {
-            var symbols = await _marketData.GetSymbolsAsync();
+            var symbols = await _marketData.GetSymbolsAsync(ct);
             AvailableSymbols = new ObservableCollection<Symbol>(symbols.Take(50)); // Limit for demo
-            
-            if (AvailableSymbols.Count > 0)
+
+            if (AvailableSymbols.Count > 0 && SelectedSymbol == null)
             {
                 SelectedSymbol = AvailableSymbols[0];
-                await LoadChartDataAsync(SelectedSymbol);
             }
         }
         catch (Exception ex)
@@ -93,15 +107,19 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
         }
     }
 
-    private async Task LoadChartDataAsync(Symbol symbol)
+    private async Task LoadChartDataAsync(Symbol? symbol, CancellationToken ct)
     {
+        if (symbol is null)
+            return;
+
         try
         {
             var bars = await _marketData.GetBarsAsync(
                 symbol,
                 Core.Enums.TimeFrame.H1,
                 DateTimeOffset.UtcNow.AddDays(-7),
-                limit: 200);
+                limit: 200,
+                ct: ct);
 
             Bars = new ObservableCollection<Bar>(bars);
         }

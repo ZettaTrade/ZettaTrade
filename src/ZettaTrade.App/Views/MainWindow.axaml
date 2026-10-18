@@ -78,7 +78,7 @@
                     
                     <!-- Chart -->
                     <charting:CandlestickChart Grid.Row="1"
-                                               DataContext="{Binding}" />
+                                               Bars="{Binding Bars}" />
                 </Grid>
             </Border>
 

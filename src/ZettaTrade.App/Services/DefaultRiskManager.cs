@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.Services;
 
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
