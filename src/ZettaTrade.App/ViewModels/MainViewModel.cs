@@ -22,6 +22,9 @@ public sealed class MainViewModel : ReactiveObject
     
     /// <summary>Settings ViewModel for theme and language management.</summary>
     public SettingsViewModel Settings { get; }
+    
+    /// <summary>Chart ViewModel for displaying price charts.</summary>
+    public ChartViewModel Chart { get; }
 
     /// <summary>
     /// Create a new MainViewModel instance.
@@ -31,12 +34,14 @@ public sealed class MainViewModel : ReactiveObject
         StatusBarViewModel statusBar,
         ChatViewModel chat,
         SettingsViewModel settings,
+        ChartViewModel chart,
         ILogger<MainViewModel> logger)
     {
         Menu = menu;
         StatusBar = statusBar;
         Chat = chat;
         Settings = settings;
+        Chart = chart;
         _logger = logger;
 
         _logger.LogInformation("MainViewModel initialized with sub-ViewModels");
