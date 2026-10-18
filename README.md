@@ -1,75 +1,115 @@
-# ZettaTrade
+# ZettaTrade Documentation for GitHub Pages
 
-Cross-platform desktop trading terminal for cryptocurrency and traditional stocks with deep AI/ML integration via MCP (Model Context Protocol).
+This repository contains documentation for ZettaTrade - a cross-platform trading terminal with AI integration.
 
-## Tech Stack
+## 📚 Documentation Structure
 
-- **.NET 10** / **C# 13**
-- **Avalonia UI 11** — cross-platform XAML-based UI
-- **ReactiveUI** — reactive MVVM
-- **SkiaSharp** — custom chart rendering
-- **MCP SDK** — AI integration protocol
+The documentation includes:
+- **Overview** - Project features and technology stack
+- **Roadmap** - Development phases and timeline
+- **Architecture** - System design and patterns
+- **MCP Flow** - Model Context Protocol integration details
+- **Settings & i18n** - Configuration and localization system
+- **Structure** - Project file organization
 
-## Features
+## 🚀 Deploy to GitHub Pages
 
-- 📈 Multi-exchange trading (crypto + stocks)
-- 🧠 AI-powered analysis via MCP (local & cloud models)
-- 📊 Advanced charting with custom indicators
-- ⚡ Visual strategy builder & backtesting
-- 🔐 Platform-native secret storage (DPAPI / Keychain / libsecret)
-- 🌍 Localization (en, ru, and more)
-- 🎨 Customizable themes
+### Option 1: Using GitHub Actions (Recommended)
 
-## Project Structure
+1. Create `.github/workflows/deploy.yml`:
 
+```yaml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build
+        run: npm run build
+        
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 ```
-ZettaTrade/
-├── src/
-│   ├── ZettaTrade.Core/              # Domain layer (no dependencies)
-│   ├── ZettaTrade.Infrastructure/    # Exchange adapters, settings, secrets
-│   ├── ZettaTrade.AI/                # MCP client/server, AI services
-│   ├── ZettaTrade.UI/                # Shared UI components, themes, i18n
-│   └── ZettaTrade.App/               # Avalonia application entry point
-├── tests/
-├── docs/
-└── ZettaTrade.sln
-```
 
-## Building
+2. Enable GitHub Pages in repository settings:
+   - Go to Settings → Pages
+   - Source: "GitHub Actions"
+
+3. Push to main branch - documentation will auto-deploy
+
+### Option 2: Manual Deploy
 
 ```bash
-# Prerequisites: .NET 10 SDK
-dotnet restore
-dotnet build
+# Install dependencies
+npm install
 
-# Run
-dotnet run --project src/ZettaTrade.App
+# Build for production
+npm run build
 
-# Publish for specific platform
-dotnet publish src/ZettaTrade.App -c Release -r win-x64 --self-contained
-dotnet publish src/ZettaTrade.App -c Release -r osx-arm64 --self-contained
-dotnet publish src/ZettaTrade.App -c Release -r linux-x64 --self-contained
+# The dist/ folder contains the static site
+# Upload it to your gh-pages branch or hosting service
 ```
 
-## Configuration
+## 📝 Using GitHub-Optimized Version
 
-Settings are stored in platform-specific locations:
+The `App.github.tsx` file is optimized for GitHub Pages:
+- ❌ Removed download buttons (not needed for documentation)
+- ❌ Removed Skill File tab (internal development tool)
+- ✅ Kept all documentation tabs
+- ✅ Added GitHub link in footer
 
-| Platform | Config Path |
-|----------|-------------|
-| Windows  | `%APPDATA%/ZettaTrade/config/` |
-| macOS    | `~/Library/Application Support/ZettaTrade/config/` |
-| Linux    | `~/.config/ZettaTrade/config/` (XDG) |
+To use it:
+1. Rename `src/App.tsx` to `src/App.backup.tsx`
+2. Rename `src/App.github.tsx` to `src/App.tsx`
+3. Build and deploy
 
-Secrets (API keys, tokens) are stored in platform-native secure storage:
-- **Windows**: DPAPI (ProtectedData)
-- **macOS**: Keychain Services
-- **Linux**: Secret Service API (libsecret) with encrypted file fallback
+## 🔧 Development
 
-## Contributing
+```bash
+# Start dev server
+npm run dev
 
-This is an open-source project. See [CONTRIBUTING.md](docs/contributing.md) for guidelines.
+# Build for production
+npm run build
 
-## License
+# Preview production build
+npm run preview
+```
 
-MIT License — see [LICENSE](LICENSE) for details.
+## 📄 License
+
+MIT License - see LICENSE file for details
+
+## 🔗 Links
+
+- [ZettaTrade Repository](https://github.com/ZettaTrade/ZettaTrade)
+- [Documentation](https://zettatrade.github.io/ZettaTrade/)
