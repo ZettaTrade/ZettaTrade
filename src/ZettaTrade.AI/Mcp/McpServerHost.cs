@@ -21,12 +21,16 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     private string? _address;
     private bool _disposed;
 
+    /// <summary>
+    /// Create a new McpServerHost instance.
+    /// </summary>
     public McpServerHost(ILogger<McpServerHost> logger)
     {
         _logger = logger;
     }
 
     public bool IsRunning => _isRunning;
+    
     public string? Address => _address;
 
     public async Task StartAsync(CancellationToken ct = default)
@@ -150,7 +154,6 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         var method = doc.RootElement.GetProperty("method").GetString();
         var id = doc.RootElement.TryGetProperty("id", out var idP) ? idP.GetString() : null;
         
-        // Present as "Zetta" for friendly AI interaction
         string? response = method switch
         {
             "initialize" => """{"jsonrpc":"2.0","id":"1","result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"Zetta","version":"0.1.0"}}}""",

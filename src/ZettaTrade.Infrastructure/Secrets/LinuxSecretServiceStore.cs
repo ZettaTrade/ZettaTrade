@@ -1,8 +1,9 @@
 namespace ZettaTrade.Infrastructure.Secrets;
 
 using System.Diagnostics;
-using System.Text;
+using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Core.Constants;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
@@ -10,13 +11,15 @@ using ZettaTrade.Core.Interfaces;
 /// Works with GNOME Keyring, KWallet, KeePassXC, and other compatible daemons.
 /// Uses secret-tool CLI with proper stdin handling for secret values.
 /// </summary>
+[SupportedOSPlatform("linux")]
 public sealed class LinuxSecretServiceStore : ISecretStore
 {
-    private const string ServiceName = "ZettaTrade";
-    private const string AttributeKey = "key";
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _processLock = new(1, 1);
 
+    /// <summary>
+    /// Create a new LinuxSecretServiceStore instance.
+    /// </summary>
     public LinuxSecretServiceStore(ILogger logger)
     {
         _logger = logger;
@@ -49,7 +52,7 @@ public sealed class LinuxSecretServiceStore : ISecretStore
         {
             var result = await RunSecretToolAsync(
                 "lookup",
-                ["service", ServiceName, AttributeKey, key],
+                ["service", SecretStoreConstants.ServiceName, SecretStoreConstants.DefaultAttributeKey, key],
                 stdinData: null,
                 ct);
             return string.IsNullOrWhiteSpace(result) ? null : result.Trim();
@@ -66,10 +69,9 @@ public sealed class LinuxSecretServiceStore : ISecretStore
         try
         {
             // secret-tool store reads the secret value from stdin
-            // CRITICAL: Must write value to stdin and close stream
             await RunSecretToolAsync(
                 "store",
-                ["--label", $"ZettaTrade: {key}", "service", ServiceName, AttributeKey, key],
+                ["--label", $"ZettaTrade: {key}", "service", SecretStoreConstants.ServiceName, SecretStoreConstants.DefaultAttributeKey, key],
                 stdinData: value,
                 ct);
 
@@ -88,7 +90,7 @@ public sealed class LinuxSecretServiceStore : ISecretStore
         {
             await RunSecretToolAsync(
                 "clear",
-                ["service", ServiceName, AttributeKey, key],
+                ["service", SecretStoreConstants.ServiceName, SecretStoreConstants.DefaultAttributeKey, key],
                 stdinData: null,
                 ct);
         }
@@ -100,18 +102,12 @@ public sealed class LinuxSecretServiceStore : ISecretStore
 
     public Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
     {
-        // Secret Service doesn't have a simple list API via CLI
-        // In production: use D-Bus directly via Tmds.DBus
         return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken ct = default)
         => Task.FromResult(IsAvailable());
 
-    /// <summary>
-    /// Run secret-tool command asynchronously with proper stdin handling and timeout.
-    /// Uses ArgumentList to prevent injection attacks.
-    /// </summary>
     private async Task<string> RunSecretToolAsync(
         string command,
         string[] arguments,
@@ -122,7 +118,7 @@ public sealed class LinuxSecretServiceStore : ISecretStore
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            cts.CancelAfter(TimeSpan.FromSeconds(SecretStoreConstants.OperationTimeoutSeconds));
 
             var psi = new ProcessStartInfo
             {
@@ -134,7 +130,6 @@ public sealed class LinuxSecretServiceStore : ISecretStore
                 CreateNoWindow = true,
             };
 
-            // Use ArgumentList for safe argument passing (no injection)
             psi.ArgumentList.Add(command);
             foreach (var arg in arguments)
             {
@@ -144,14 +139,12 @@ public sealed class LinuxSecretServiceStore : ISecretStore
             using var process = new Process { StartInfo = psi };
             process.Start();
 
-            // Write to stdin asynchronously if needed
             if (stdinData != null)
             {
                 await process.StandardInput.WriteAsync(stdinData.AsMemory(), cts.Token);
                 process.StandardInput.Close();
             }
 
-            // Read stdout and stderr concurrently
             var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
             var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
 

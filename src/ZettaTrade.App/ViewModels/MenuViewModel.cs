@@ -1,6 +1,5 @@
 namespace ZettaTrade.App.ViewModels;
 
-using System.Reactive;
 using ReactiveUI;
 
 /// <summary>
@@ -9,95 +8,62 @@ using ReactiveUI;
 /// </summary>
 public sealed class MenuViewModel : ReactiveObject
 {
-    public ReactiveCommand<Unit, Unit> NewOrderCommand { get; }
-    public ReactiveCommand<Unit, Unit> ShowPositionsCommand { get; }
-    public ReactiveCommand<Unit, Unit> ShowOrderHistoryCommand { get; }
-    public ReactiveCommand<Unit, Unit> OpenAiChatCommand { get; }
-    public ReactiveCommand<Unit, Unit> ManageMcpServersCommand { get; }
-    public ReactiveCommand<Unit, Unit> OpenSettingsCommand { get; }
-    public ReactiveCommand<Unit, Unit> ExitCommand { get; }
+    #region Commands
 
+    /// <summary>Command to open new order dialog.</summary>
+    public ReactiveCommand<Unit, RxVoid> NewOrderCommand { get; }
+    
+    /// <summary>Command to show positions view.</summary>
+    public ReactiveCommand<Unit, RxVoid> ShowPositionsCommand { get; }
+    
+    /// <summary>Command to show order history view.</summary>
+    public ReactiveCommand<Unit, RxVoid> ShowOrderHistoryCommand { get; }
+    
+    /// <summary>Command to open AI chat.</summary>
+    public ReactiveCommand<Unit, RxVoid> OpenAiChatCommand { get; }
+    
+    /// <summary>Command to manage MCP servers.</summary>
+    public ReactiveCommand<Unit, RxVoid> ManageMcpServersCommand { get; }
+    
+    /// <summary>Command to open settings dialog.</summary>
+    public ReactiveCommand<Unit, RxVoid> OpenSettingsCommand { get; }
+    
+    /// <summary>Command to exit application.</summary>
+    public ReactiveCommand<Unit, RxVoid> ExitCommand { get; }
+
+    #endregion Commands
+
+    #region Constructor
+
+    /// <summary>
+    /// Create a new MenuViewModel instance.
+    /// </summary>
     public MenuViewModel()
     {
-        // Initialize commands with explicit Unit type
-        NewOrderCommand = ReactiveCommand.CreateFromTask<Unit, Unit>(async _ =>
-        {
-            await HandleNewOrderAsync();
-            return Unit.Default;
-        });
-        
-        ShowPositionsCommand = ReactiveCommand.CreateFromTask<Unit, Unit>(async _ =>
-        {
-            await HandleShowPositionsAsync();
-            return Unit.Default;
-        });
-        
-        ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask<Unit, Unit>(async _ =>
-        {
-            await HandleShowOrderHistoryAsync();
-            return Unit.Default;
-        });
-        
-        OpenAiChatCommand = ReactiveCommand.CreateFromTask<Unit, Unit>(async _ =>
-        {
-            await HandleOpenAiChatAsync();
-            return Unit.Default;
-        });
-        
-        ManageMcpServersCommand = ReactiveCommand.CreateFromTask<Unit, Unit>(async _ =>
-        {
-            await HandleManageMcpServersAsync();
-            return Unit.Default;
-        });
-        
-        OpenSettingsCommand = ReactiveCommand.CreateFromTask<Unit, Unit>(async _ =>
-        {
-            await HandleOpenSettingsAsync();
-            return Unit.Default;
-        });
-        
-        ExitCommand = ReactiveCommand.Create<Unit>(() =>
-        {
-            HandleExit();
-            return Unit.Default;
-        });
+        NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
+        ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
+        ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
+        OpenAiChatCommand = ReactiveCommand.CreateFromTask(HandleOpenAiChatAsync);
+        ManageMcpServersCommand = ReactiveCommand.CreateFromTask(HandleManageMcpServersAsync);
+        OpenSettingsCommand = ReactiveCommand.CreateFromTask(HandleOpenSettingsAsync);
+        ExitCommand = ReactiveCommand.Create(HandleExit);
     }
 
-    private Task HandleNewOrderAsync()
-    {
-        // TODO: Implement new order dialog
-        return Task.CompletedTask;
-    }
+    #endregion Constructor
 
-    private Task HandleShowPositionsAsync()
-    {
-        // TODO: Implement positions view
-        return Task.CompletedTask;
-    }
+    #region Private Methods
 
-    private Task HandleShowOrderHistoryAsync()
-    {
-        // TODO: Implement order history view
-        return Task.CompletedTask;
-    }
-
-    private Task HandleOpenAiChatAsync()
-    {
-        // TODO: Implement AI chat
-        return Task.CompletedTask;
-    }
-
-    private Task HandleManageMcpServersAsync()
-    {
-        // TODO: Implement MCP servers management
-        return Task.CompletedTask;
-    }
-
-    private Task HandleOpenSettingsAsync()
-    {
-        // TODO: Implement settings dialog
-        return Task.CompletedTask;
-    }
+    private Task HandleNewOrderAsync() => Task.CompletedTask;
+    
+    private Task HandleShowPositionsAsync() => Task.CompletedTask;
+    
+    private Task HandleShowOrderHistoryAsync() => Task.CompletedTask;
+    
+    private Task HandleOpenAiChatAsync() => Task.CompletedTask;
+    
+    private Task HandleManageMcpServersAsync() => Task.CompletedTask;
+    
+    private Task HandleOpenSettingsAsync() => Task.CompletedTask;
 
     private void HandleExit()
     {
@@ -106,4 +72,6 @@ public sealed class MenuViewModel : ReactiveObject
             lifetime.Shutdown();
         }
     }
+
+    #endregion Private Methods
 }

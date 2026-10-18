@@ -7,12 +7,24 @@ using Avalonia.Markup.Xaml;
 /// <summary>
 /// Avalonia MarkupExtension for reactive localization in XAML.
 /// Returns a binding that updates automatically when language changes.
-/// Usage: {loc:Localized Menu.File}
 /// </summary>
+/// <example>
+/// Usage in XAML:
+/// <code>
+/// <TextBlock Text="{loc:Localized Menu.File}" />
+/// <Button Content="{loc:Localized Order.Buy}" />
+/// </code>
+/// </example>
 public class LocalizedExtension : MarkupExtension
 {
+    /// <summary>
+    /// Localization key.
+    /// </summary>
     public string Key { get; }
 
+    /// <summary>
+    /// Create a new LocalizedExtension instance.
+    /// </summary>
     public LocalizedExtension(string key)
     {
         Key = key;
@@ -20,7 +32,6 @@ public class LocalizedExtension : MarkupExtension
 
     public override object ProvideValue(IServiceProvider serviceProvider)
     {
-        // Return binding to GetObservable which emits current value and updates on language change
         return LocalizationManager.Instance
             .GetObservable(Key)
             .ToBinding();

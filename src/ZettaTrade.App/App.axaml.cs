@@ -8,6 +8,9 @@ using ZettaTrade.Infrastructure.Configuration;
 
 namespace ZettaTrade.App;
 
+/// <summary>
+/// Main application class.
+/// </summary>
 public partial class App : Application
 {
     /// <summary>
@@ -20,13 +23,15 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
     }
 
-    public override void OnFrameworkInitializationCompleted()
+    /// <inheritdoc/>
+    public override async void OnFrameworkInitializationCompleted()
     {
-        // Ensure config directories exist
         ConfigPathResolver.EnsureDirectoriesExist();
 
-        // Build DI container
         Services = CompositionRoot.BuildServiceProvider();
+        
+        // Initialize all async services
+        await CompositionRoot.InitializeServicesAsync(Services);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {

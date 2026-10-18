@@ -11,8 +11,10 @@ public static class SecretStoreFactory
 {
     /// <summary>
     /// Create the best available secret store for the current platform.
-    /// For EncryptedFileSecretStore, InitializeAsync must be called separately with master password.
     /// </summary>
+    /// <remarks>
+    /// For EncryptedFileSecretStore (Linux fallback), InitializeAsync must be called separately with master password.
+    /// </remarks>
     public static ISecretStore Create(ILoggerFactory loggerFactory)
     {
         var logger = loggerFactory.CreateLogger("SecretStore");
@@ -31,19 +33,16 @@ public static class SecretStoreFactory
 
         if (OperatingSystem.IsLinux())
         {
-            // Try D-Bus Secret Service first (GNOME Keyring, KWallet, KeePassXC)
             if (LinuxSecretServiceStore.IsAvailable())
             {
                 logger.LogInformation("Using Linux Secret Service (libsecret/D-Bus)");
                 return new LinuxSecretServiceStore(loggerFactory.CreateLogger<LinuxSecretServiceStore>());
             }
 
-            // Fallback to encrypted file
             logger.LogWarning(
                 "Secret Service not available on Linux. " +
                 "Falling back to encrypted file store. " +
-                "Install libsecret-1-0 and a keyring daemon for better security. " +
-                "Note: EncryptedFileSecretStore requires InitializeAsync() call with master password.");
+                "Install libsecret-1-0 and a keyring daemon for better security.");
             return new EncryptedFileSecretStore(loggerFactory.CreateLogger<EncryptedFileSecretStore>());
         }
 

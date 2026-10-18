@@ -1,6 +1,5 @@
 namespace ZettaTrade.App.ViewModels;
 
-using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using ReactiveUI;
@@ -13,38 +12,54 @@ using ZettaTrade.Core.Interfaces;
 /// </summary>
 public sealed class StatusBarViewModel : ReactiveObject, IActivatableViewModel
 {
+    #region Properties
+
     public ViewModelActivator Activator { get; } = new();
     
-    private readonly ISettingsService _settings;
     private string _currentThemeName = string.Empty;
     private string _currentLanguage = string.Empty;
     private string _connectionStatus = string.Empty;
 
+    /// <summary>Current theme name.</summary>
     public string CurrentThemeName
     {
         get => _currentThemeName;
         private set => this.RaiseAndSetIfChanged(ref _currentThemeName, value);
     }
     
+    /// <summary>Current language code.</summary>
     public string CurrentLanguage
     {
         get => _currentLanguage;
         private set => this.RaiseAndSetIfChanged(ref _currentLanguage, value);
     }
     
+    /// <summary>Connection status text.</summary>
     public string ConnectionStatus
     {
         get => _connectionStatus;
         private set => this.RaiseAndSetIfChanged(ref _connectionStatus, value);
     }
 
+    #endregion Properties
+
+    #region Private Fields
+
+    private readonly ISettingsService _settings;
+
+    #endregion Private Fields
+
+    #region Constructor
+
+    /// <summary>
+    /// Create a new StatusBarViewModel instance.
+    /// </summary>
     public StatusBarViewModel(ISettingsService settings)
     {
         _settings = settings;
 
         this.WhenActivated(disposables =>
         {
-            // Load settings reactively (dynamic data needs ViewModel properties)
             Observable.FromAsync(() => _settings.GetAsync("UI", "Theme", "Dark"))
                 .Subscribe(value => CurrentThemeName = value)
                 .DisposeWith(disposables);
@@ -55,8 +70,17 @@ public sealed class StatusBarViewModel : ReactiveObject, IActivatableViewModel
         });
     }
 
+    #endregion Constructor
+
+    #region Public Methods
+
+    /// <summary>
+    /// Update connection status.
+    /// </summary>
     public void UpdateConnectionStatus(bool isConnected)
     {
         ConnectionStatus = isConnected ? "Connected" : "Disconnected";
     }
+
+    #endregion Public Methods
 }

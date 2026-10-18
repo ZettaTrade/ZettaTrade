@@ -1,7 +1,6 @@
 namespace ZettaTrade.App.ViewModels;
 
-using System.Collections.ObjectModel;
-using System.Reactive;
+using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.Core.Interfaces;
 
@@ -11,66 +10,90 @@ using ZettaTrade.Core.Interfaces;
 /// </summary>
 public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
 {
+    #region Properties
+
     public ViewModelActivator Activator { get; } = new();
     
-    private readonly ISettingsService _settings;
-    private readonly IThemeManager _themeManager;
-    private readonly ILocalizationManager _localization;
-
     private string _selectedTheme = "Dark";
     private string _selectedLanguage = "en";
 
+    /// <summary>Currently selected theme name.</summary>
     public string SelectedTheme
     {
         get => _selectedTheme;
         set => this.RaiseAndSetIfChanged(ref _selectedTheme, value);
     }
 
+    /// <summary>Currently selected language code.</summary>
     public string SelectedLanguage
     {
         get => _selectedLanguage;
         set => this.RaiseAndSetIfChanged(ref _selectedLanguage, value);
     }
 
-    // Expose available options from managers (no duplication)
+    /// <summary>Available themes from ThemeManager (no duplication).</summary>
     public IReadOnlyList<ThemeInfo> AvailableThemes => _themeManager.AvailableThemes;
+    
+    /// <summary>Available languages from LocalizationManager (no duplication).</summary>
     public IReadOnlyList<LanguageInfo> AvailableLanguages => _localization.AvailableLanguages;
 
-    // Commands for applying theme and language
-    public ReactiveCommand<string, Unit> ApplyThemeCommand { get; }
-    public ReactiveCommand<string, Unit> ApplyLanguageCommand { get; }
+    #endregion Properties
 
+    #region Commands
+
+    /// <summary>Command to apply a theme by name.</summary>
+    public ReactiveCommand<string, RxVoid> ApplyThemeCommand { get; }
+    
+    /// <summary>Command to apply a language by code.</summary>
+    public ReactiveCommand<string, RxVoid> ApplyLanguageCommand { get; }
+
+    #endregion Commands
+
+    #region Private Fields
+
+    private readonly ISettingsService _settings;
+    private readonly IThemeManager _themeManager;
+    private readonly ILocalizationManager _localization;
+    private readonly ILogger<SettingsViewModel> _logger;
+
+    #endregion Private Fields
+
+    #region Constructor
+
+    /// <summary>
+    /// Create a new SettingsViewModel instance.
+    /// </summary>
     public SettingsViewModel(
         ISettingsService settings,
         IThemeManager themeManager,
-        ILocalizationManager localization)
+        ILocalizationManager localization,
+        ILogger<SettingsViewModel> logger)
     {
         _settings = settings;
         _themeManager = themeManager;
         _localization = localization;
+        _logger = logger;
 
-        // Initialize commands
         ApplyThemeCommand = ReactiveCommand.CreateFromTask<string>(ApplyThemeAsync);
         ApplyLanguageCommand = ReactiveCommand.CreateFromTask<string>(ApplyLanguageAsync);
 
         this.WhenActivated(disposables =>
         {
-            // Load current settings
-            _ = LoadCurrentSettingsAsync();
+            LoadCurrentSettingsAsync()
+                .Subscribe(
+                    _ => { },
+                    ex => _logger.LogError(ex, "Failed to load settings"));
         });
     }
 
+    #endregion Constructor
+
+    #region Private Methods
+
     private async Task LoadCurrentSettingsAsync()
     {
-        try
-        {
-            SelectedTheme = await _settings.GetAsync("UI", "Theme", "Dark");
-            SelectedLanguage = await _settings.GetAsync("UI", "Language", "en");
-        }
-        catch (Exception)
-        {
-            // Use defaults if settings load fails
-        }
+        SelectedTheme = await _settings.GetAsync("UI", "Theme", "Dark");
+        SelectedLanguage = await _settings.GetAsync("UI", "Language", "en");
     }
 
     private async Task ApplyThemeAsync(string themeName)
@@ -86,4 +109,6 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
         await _localization.SetLanguageAsync(languageCode);
         await _settings.SetAsync("UI", "Language", languageCode);
     }
+
+    #endregion Private Methods
 }

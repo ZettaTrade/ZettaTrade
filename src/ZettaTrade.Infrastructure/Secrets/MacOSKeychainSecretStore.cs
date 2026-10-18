@@ -1,20 +1,24 @@
 namespace ZettaTrade.Infrastructure.Secrets;
 
 using System.Diagnostics;
-using System.Text;
+using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Core.Constants;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
 /// macOS Keychain-based secret store.
 /// Uses security CLI tool with stdin for secret values to prevent exposure in process list.
 /// </summary>
+[SupportedOSPlatform("macos")]
 public sealed class MacOSKeychainSecretStore : ISecretStore
 {
-    private const string ServiceName = "ZettaTrade";
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _processLock = new(1, 1);
 
+    /// <summary>
+    /// Create a new MacOSKeychainSecretStore instance.
+    /// </summary>
     public MacOSKeychainSecretStore(ILogger logger)
     {
         _logger = logger;
@@ -25,7 +29,7 @@ public sealed class MacOSKeychainSecretStore : ISecretStore
         try
         {
             var result = await RunSecurityCommandAsync(
-                ["find-generic-password", "-s", ServiceName, "-a", key, "-w"],
+                ["find-generic-password", "-s", SecretStoreConstants.ServiceName, "-a", key, "-w"],
                 stdinData: null,
                 ct);
             return string.IsNullOrWhiteSpace(result) ? null : result.Trim();
@@ -41,21 +45,18 @@ public sealed class MacOSKeychainSecretStore : ISecretStore
     {
         try
         {
-            // Delete existing if present (ignore errors)
             try
             {
                 await RunSecurityCommandAsync(
-                    ["delete-generic-password", "-s", ServiceName, "-a", key],
+                    ["delete-generic-password", "-s", SecretStoreConstants.ServiceName, "-a", key],
                     stdinData: null,
                     ct);
             }
             catch { /* Ignore if doesn't exist */ }
 
-            // Add new entry with secret passed via stdin (not visible in process list)
-            // Note: security add-generic-password doesn't support stdin for -w,
-            // so we use a temporary approach with restricted permissions
+            // Note: security add-generic-password doesn't support stdin for -w
             await RunSecurityCommandAsync(
-                ["add-generic-password", "-s", ServiceName, "-a", key, "-w", value, "-U"],
+                ["add-generic-password", "-s", SecretStoreConstants.ServiceName, "-a", key, "-w", value, "-U"],
                 stdinData: null,
                 ct);
 
@@ -73,7 +74,7 @@ public sealed class MacOSKeychainSecretStore : ISecretStore
         try
         {
             await RunSecurityCommandAsync(
-                ["delete-generic-password", "-s", ServiceName, "-a", key],
+                ["delete-generic-password", "-s", SecretStoreConstants.ServiceName, "-a", key],
                 stdinData: null,
                 ct);
         }
@@ -85,18 +86,12 @@ public sealed class MacOSKeychainSecretStore : ISecretStore
 
     public Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
     {
-        // Keychain doesn't have a simple list API via CLI
-        // In production: use P/Invoke to Security.framework
         return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken ct = default)
         => Task.FromResult(OperatingSystem.IsMacOS());
 
-    /// <summary>
-    /// Run security command asynchronously with proper argument handling and timeout.
-    /// Uses ArgumentList to prevent injection attacks.
-    /// </summary>
     private async Task<string> RunSecurityCommandAsync(
         string[] arguments,
         string? stdinData,
@@ -106,7 +101,7 @@ public sealed class MacOSKeychainSecretStore : ISecretStore
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            cts.CancelAfter(TimeSpan.FromSeconds(SecretStoreConstants.OperationTimeoutSeconds));
 
             var psi = new ProcessStartInfo
             {
@@ -118,7 +113,6 @@ public sealed class MacOSKeychainSecretStore : ISecretStore
                 CreateNoWindow = true,
             };
 
-            // Use ArgumentList for safe argument passing
             foreach (var arg in arguments)
             {
                 psi.ArgumentList.Add(arg);

@@ -4,7 +4,5 @@
              RequestedThemeVariant="Dark">
     <Application.Styles>
         <FluentTheme />
-        <!-- Custom ZettaTrade theme overrides -->
-        <!-- <StyleInclude Source="avares://ZettaTrade.UI/Themes/DarkTheme.axaml" /> -->
     </Application.Styles>
 </Application>

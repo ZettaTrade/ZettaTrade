@@ -48,6 +48,15 @@
   <data name="Menu.File.Exit" xml:space="preserve">
     <value>Exit</value>
   </data>
+  <data name="Menu.View" xml:space="preserve">
+    <value>View</value>
+  </data>
+  <data name="Menu.View.Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Menu.View.Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
   <data name="Menu.Trading" xml:space="preserve">
     <value>Trading</value>
   </data>
@@ -56,6 +65,9 @@
   </data>
   <data name="Menu.Trading.Positions" xml:space="preserve">
     <value>Positions</value>
+  </data>
+  <data name="Menu.Trading.OrderHistory" xml:space="preserve">
+    <value>Order History</value>
   </data>
   <data name="Menu.AI" xml:space="preserve">
     <value>AI</value>
@@ -86,5 +98,8 @@
   </data>
   <data name="Status.Disconnected" xml:space="preserve">
     <value>Disconnected</value>
+  </data>
+  <data name="AI.Assistant" xml:space="preserve">
+    <value>AI Assistant</value>
   </data>
 </root>

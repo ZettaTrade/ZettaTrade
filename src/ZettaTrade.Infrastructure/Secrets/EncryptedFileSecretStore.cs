@@ -16,6 +16,10 @@ public sealed class EncryptedFileSecretStore : ISecretStore
 {
     private const int KeySize = 256;
     private const int Iterations = 600_000;
+    private const int NonceSizeBytes = 12;
+    private const int TagSizeBytes = 16;
+    private const int SaltSizeBytes = 32;
+    
     private readonly string _filePath;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -23,6 +27,9 @@ public sealed class EncryptedFileSecretStore : ISecretStore
     private byte[]? _encryptionKey;
     private bool _initialized;
 
+    /// <summary>
+    /// Create a new EncryptedFileSecretStore instance.
+    /// </summary>
     public EncryptedFileSecretStore(ILogger logger)
     {
         _logger = logger;
@@ -143,17 +150,15 @@ public sealed class EncryptedFileSecretStore : ISecretStore
             return await File.ReadAllBytesAsync(saltPath, ct);
         }
 
-        var salt = RandomNumberGenerator.GetBytes(32);
+        var salt = RandomNumberGenerator.GetBytes(SaltSizeBytes);
         var directory = Path.GetDirectoryName(saltPath);
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
         await File.WriteAllBytesAsync(saltPath, salt, ct);
 
-        // Set restrictive permissions on Unix
         if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
-            File.SetUnixFileMode(saltPath,
-                UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            File.SetUnixFileMode(saltPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
 
         return salt;
@@ -168,30 +173,27 @@ public sealed class EncryptedFileSecretStore : ISecretStore
         {
             var encryptedData = await File.ReadAllBytesAsync(_filePath, ct);
 
-            // Format: [12-byte nonce][encrypted payload with tag]
-            if (encryptedData.Length < 12)
+            if (encryptedData.Length < NonceSizeBytes)
             {
                 _logger.LogWarning("Secret store file is too small, starting fresh");
                 return;
             }
 
-            var nonce = encryptedData[..12];
-            var ciphertextWithTag = encryptedData[12..];
+            var nonce = encryptedData[..NonceSizeBytes];
+            var ciphertextWithTag = encryptedData[NonceSizeBytes..];
 
-            using var aes = new AesGcm(_encryptionKey, 16);
+            using var aes = new AesGcm(_encryptionKey, TagSizeBytes);
             
-            // Split ciphertext and tag
-            if (ciphertextWithTag.Length < 16)
+            if (ciphertextWithTag.Length < TagSizeBytes)
             {
                 _logger.LogWarning("Secret store file is corrupted, starting fresh");
                 return;
             }
 
-            var ciphertext = ciphertextWithTag[..^16];
-            var tag = ciphertextWithTag[^16..];
+            var ciphertext = ciphertextWithTag[..^TagSizeBytes];
+            var tag = ciphertextWithTag[^TagSizeBytes..];
             var plaintext = new byte[ciphertext.Length];
 
-            // Decrypt - will throw CryptographicException if password is wrong
             aes.Decrypt(nonce, ciphertext, tag, plaintext);
 
             var json = Encoding.UTF8.GetString(plaintext);
@@ -205,15 +207,14 @@ public sealed class EncryptedFileSecretStore : ISecretStore
         }
         catch (CryptographicException ex)
         {
+            // Do NOT clear _secrets or overwrite file on decryption failure
             _logger.LogError(ex, "Failed to decrypt secret store - wrong password or corrupted file");
-            // CRITICAL: Do NOT clear _secrets or overwrite file on decryption failure
-            // This prevents data loss when wrong password is provided
             throw new InvalidOperationException("Failed to decrypt secret store. Wrong password?", ex);
         }
         catch (JsonException ex)
         {
+            // Do NOT clear _secrets or overwrite file on parse failure
             _logger.LogError(ex, "Failed to parse secret store JSON - file corrupted");
-            // CRITICAL: Do NOT clear _secrets or overwrite file on parse failure
             throw new InvalidOperationException("Failed to parse secret store. File corrupted?", ex);
         }
         catch (Exception ex)
@@ -230,18 +231,16 @@ public sealed class EncryptedFileSecretStore : ISecretStore
 
         try
         {
-            // Serialize inside lock to prevent race conditions
             var json = JsonSerializer.Serialize(_secrets);
             var plaintext = Encoding.UTF8.GetBytes(json);
 
-            using var aes = new AesGcm(_encryptionKey, 16);
-            var nonce = RandomNumberGenerator.GetBytes(12);
+            using var aes = new AesGcm(_encryptionKey, TagSizeBytes);
+            var nonce = RandomNumberGenerator.GetBytes(NonceSizeBytes);
             var ciphertext = new byte[plaintext.Length];
-            var tag = new byte[16];
+            var tag = new byte[TagSizeBytes];
 
             aes.Encrypt(nonce, plaintext, ciphertext, tag);
 
-            // Format: [nonce][ciphertext][tag]
             var output = new byte[nonce.Length + ciphertext.Length + tag.Length];
             Buffer.BlockCopy(nonce, 0, output, 0, nonce.Length);
             Buffer.BlockCopy(ciphertext, 0, output, nonce.Length, ciphertext.Length);
@@ -256,11 +255,9 @@ public sealed class EncryptedFileSecretStore : ISecretStore
             await File.WriteAllBytesAsync(tempPath, output, ct);
             File.Move(tempPath, _filePath, overwrite: true);
 
-            // Set restrictive permissions on Unix
             if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
             {
-                File.SetUnixFileMode(_filePath,
-                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                File.SetUnixFileMode(_filePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             }
 
             _logger.LogDebug("Saved {Count} secrets to encrypted store", _secrets.Count);

@@ -2,7 +2,6 @@ namespace ZettaTrade.UI.Localization;
 
 using System.Collections.Concurrent;
 using System.Globalization;
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Resources;
@@ -19,6 +18,10 @@ using ZettaTrade.UI.Extensions;
 public sealed class LocalizationManager : ILocalizationManager, IDisposable
 {
     private static LocalizationManager? _instance;
+    
+    /// <summary>
+    /// Get the singleton instance of LocalizationManager.
+    /// </summary>
     public static LocalizationManager Instance => _instance ?? throw new InvalidOperationException("LocalizationManager not initialized");
 
     private readonly ResourceManager _resourceManager;
@@ -30,10 +33,8 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Creates LocalizationManager with ResourceManager from .resx files.
+    /// Create a new LocalizationManager instance.
     /// </summary>
-    /// <param name="logger">Logger instance</param>
-    /// <param name="resourceManager">ResourceManager from generated .resx code (e.g., ZettaTrade.UI.Resources.Strings.ResourceManager)</param>
     public LocalizationManager(ILogger logger, ResourceManager resourceManager)
     {
         _logger = logger;
@@ -58,6 +59,7 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     }
 
     public string CurrentLanguage => _currentCulture.Name;
+    
     public IReadOnlyList<LanguageInfo> AvailableLanguages { get; }
 
     /// <summary>
@@ -78,10 +80,6 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
         return _cache.GetOrAdd(cacheKey, _ => GetStringFromResource(key));
     }
 
-    /// <summary>
-    /// Get localized string with format arguments.
-    /// Note: Formatted strings are not cached to avoid cache bloat.
-    /// </summary>
     public string GetString(string key, params object[] args)
     {
         var template = GetString(key);
@@ -96,12 +94,7 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
         }
     }
 
-    /// <summary>
-    /// Get reactive observable for a specific localization key.
-    /// Uses Observable.Defer to compute start value at subscription time.
-    /// Emits current value immediately, then on every language change.
-    /// Use with ToProperty() in ReactiveUI ViewModels.
-    /// </summary>
+    // Observable.Defer computes start value at subscription time, not at creation
     public IObservable<string> GetObservable(string key)
     {
         return Observable.Defer(() => Observable.Return(GetString(key)))
@@ -109,9 +102,6 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
             .DistinctUntilChanged();
     }
 
-    /// <summary>
-    /// Change the current UI language. Clears cache and notifies all subscribers.
-    /// </summary>
     public async Task SetLanguageAsync(string cultureCode, CancellationToken ct = default)
     {
         if (_currentCulture.Name == cultureCode) return;
@@ -124,12 +114,10 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
             CultureInfo.CurrentUICulture = culture;
             CultureInfo.CurrentCulture = culture;
 
-            // Clear cache on language change
             _cache.Clear();
 
             _logger.LogInformation("Language changed to {Language} ({NativeName})", cultureCode, culture.NativeName);
 
-            // Notify all subscribers
             _languageChanged.OnNext(cultureCode);
         }
         finally
@@ -138,9 +126,6 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
         }
     }
 
-    /// <summary>
-    /// Get string from .resx resource file via ResourceManager.
-    /// </summary>
     private string GetStringFromResource(string key)
     {
         try

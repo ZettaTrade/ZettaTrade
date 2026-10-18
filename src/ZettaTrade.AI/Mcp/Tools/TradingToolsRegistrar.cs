@@ -67,18 +67,18 @@ public static class TradingToolsRegistrar
                     if (args is null)
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText("Invalid arguments")]);
 
-                    // Validate symbol - don't default to BTCUSDT
+                    // Don't default to BTCUSDT - require explicit symbol
                     if (string.IsNullOrWhiteSpace(args.Symbol))
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText("Symbol is required")]);
 
                     if (!Symbol.TryParseExchangeFormat(args.Symbol, exchange.Id, out var symbol) || symbol is null)
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid symbol format: {args.Symbol}")]);
 
-                    // Validate side - don't default to Sell
+                    // Don't default to Sell - require explicit side
                     if (!Enum.TryParse<OrderSide>(args.Side, ignoreCase: true, out var side))
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid side: {args.Side}. Must be 'Buy' or 'Sell'")]);
 
-                    // Validate order type - don't default to Market
+                    // Don't default to Market - require explicit type
                     if (!Enum.TryParse<OrderType>(args.OrderType, ignoreCase: true, out var orderType))
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid orderType: {args.OrderType}. Must be 'Market', 'Limit', 'StopMarket', or 'StopLimit'")]);
 
@@ -94,7 +94,6 @@ public static class TradingToolsRegistrar
                         Expiry = args.Expiry,
                     };
 
-                    // Validate order request
                     try
                     {
                         request.Validate();
@@ -104,14 +103,12 @@ public static class TradingToolsRegistrar
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Validation failed: {ex.Message}")]);
                     }
 
-                    // Risk check
                     var riskCheck = await riskManager.CheckOrderAsync(request, ct);
                     if (!riskCheck.IsApproved)
                     {
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Risk check failed: {riskCheck.Reason}")]);
                     }
 
-                    // Require confirmation for high-risk orders
                     if (riskCheck.RequiresConfirmation)
                     {
                         var confirmed = await confirmationService.RequestConfirmationAsync(
@@ -306,7 +303,6 @@ public static class TradingToolsRegistrar
         });
     }
 
-    // Argument DTOs
     private sealed record PlaceOrderArgs(
         string? Symbol,
         string? Side,

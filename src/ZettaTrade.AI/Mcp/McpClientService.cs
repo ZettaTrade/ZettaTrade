@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Core.Constants;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
@@ -12,6 +13,8 @@ using ZettaTrade.Core.Interfaces;
 /// </summary>
 public sealed class McpClientService : IMcpClient
 {
+    private const int HttpTimeoutSeconds = 30;
+    
     private readonly ILogger<McpClientService> _logger;
     private Process? _serverProcess;
     private HttpClient? _httpClient;
@@ -19,12 +22,16 @@ public sealed class McpClientService : IMcpClient
     private bool _isConnected;
     private bool _disposed;
 
+    /// <summary>
+    /// Create a new McpClientService instance.
+    /// </summary>
     public McpClientService(ILogger<McpClientService> logger)
     {
         _logger = logger;
     }
 
     public string Name => _config?.Name ?? "Not connected";
+    
     public bool IsConnected => _isConnected;
 
     public async Task ConnectAsync(McpServerConfig config, CancellationToken ct = default)
@@ -72,7 +79,6 @@ public sealed class McpClientService : IMcpClient
 
     public Task<IReadOnlyList<McpToolInfo>> ListToolsAsync(CancellationToken ct = default)
     {
-        // In production: send JSON-RPC "tools/list" request to server
         _logger.LogDebug("Listing tools from MCP server {Name}", _config?.Name);
         return Task.FromResult<IReadOnlyList<McpToolInfo>>([]);
     }
@@ -84,7 +90,6 @@ public sealed class McpClientService : IMcpClient
         if (!IsConnected)
             return new McpToolResult(IsError: true, Content: [McpContent.CreateText("Not connected to MCP server")]);
 
-        // Build JSON-RPC request
         var request = new
         {
             jsonrpc = "2.0",
@@ -207,7 +212,7 @@ public sealed class McpClientService : IMcpClient
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri(config.Url),
-            Timeout = TimeSpan.FromSeconds(30),
+            Timeout = TimeSpan.FromSeconds(HttpTimeoutSeconds),
         };
 
         if (!string.IsNullOrEmpty(config.AuthSecretRef))
@@ -233,7 +238,7 @@ public sealed class McpClientService : IMcpClient
             {
                 protocolVersion = "2024-11-05",
                 capabilities = new { },
-                clientInfo = new { name = "ZettaTrade", version = "0.1.0" },
+                clientInfo = new { name = ApplicationConstants.ApplicationName, version = ApplicationConstants.ApplicationVersion },
             },
         };
 
@@ -262,7 +267,7 @@ public sealed class McpClientService : IMcpClient
             {
                 protocolVersion = "2024-11-05",
                 capabilities = new { },
-                clientInfo = new { name = "ZettaTrade", version = "0.1.0" },
+                clientInfo = new { name = ApplicationConstants.ApplicationName, version = ApplicationConstants.ApplicationVersion },
             },
         };
 
