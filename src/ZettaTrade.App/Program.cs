@@ -1,6 +1,5 @@
 using Avalonia;
 using ReactiveUI.Avalonia;
-using System;
 
 namespace ZettaTrade.App;
 
@@ -24,5 +23,5 @@ class Program
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace()
-            .UseReactiveUI();
+            .UseReactiveUI(rxui => { });
 }

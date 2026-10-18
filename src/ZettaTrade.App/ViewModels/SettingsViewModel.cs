@@ -1,7 +1,9 @@
 namespace ZettaTrade.App.ViewModels;
 
+using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ReactiveUI.Primitives;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
@@ -79,10 +81,12 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
 
         this.WhenActivated(disposables =>
         {
-            LoadCurrentSettingsAsync()
+            Observable
+                .FromAsync(() => LoadCurrentSettingsAsync())
                 .Subscribe(
                     _ => { },
-                    ex => _logger.LogError(ex, "Failed to load settings"));
+                    ex => _logger.LogError(ex, "Failed to load settings"))
+                .DisposeWith(disposables);
         });
     }
 

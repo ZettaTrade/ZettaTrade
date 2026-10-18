@@ -2,6 +2,7 @@ namespace ZettaTrade.Core.Interfaces;
 
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
+using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
 /// Base interface for all exchange adapters.
@@ -62,8 +63,8 @@ public interface ITradingAdapter : IMarketDataAdapter
     /// <summary>Place a new order.</summary>
     Task<Order> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default);
     
-    /// <summary>Cancel an existing order.</summary>
-    Task CancelOrderAsync(string orderId, CancellationToken ct = default);
+    /// <summary>Cancel an existing order. Symbol is required by some exchanges (e.g., Binance).</summary>
+    Task CancelOrderAsync(Symbol symbol, string orderId, CancellationToken ct = default);
     
     /// <summary>Get all open orders.</summary>
     Task<IReadOnlyList<Order>> GetOpenOrdersAsync(CancellationToken ct = default);

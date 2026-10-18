@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
 /// Binance exchange adapter implementation.
@@ -16,18 +17,20 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <inheritdoc/>
     public override string Id => "binance";
-    
+
     /// <inheritdoc/>
     public override string Name => "Binance";
-    
+
     /// <inheritdoc/>
-    public override ExchangeCapabilities Capabilities => 
+    public override ExchangeCapabilities Capabilities =>
         ExchangeCapabilities.MarketData | ExchangeCapabilities.OrderBook | ExchangeCapabilities.HistoricalData;
 
     private readonly HttpClient _httpClient;
     private readonly WebSocketClient _wsClient;
     private readonly string _baseUrl = "https://api.binance.com";
     private readonly string _wsUrl = "wss://stream.binance.com:9443/ws";
+    private readonly IDisposable _messageSubscription;
+    private readonly IDisposable _connectionSubscription;
 
     #endregion
 
@@ -41,9 +44,9 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         _httpClient = httpClient ?? new HttpClient();
         _wsClient = new WebSocketClient(_wsUrl, logger);
-        
-        _wsClient.MessageReceived += HandleWebSocketMessage;
-        _wsClient.ConnectionStateChanged += HandleConnectionStateChanged;
+
+        _messageSubscription = _wsClient.MessageStream.Subscribe(HandleWebSocketMessage);
+        _connectionSubscription = _wsClient.ConnectionStateStream.Subscribe(HandleConnectionStateChanged);
     }
 
     #endregion
@@ -72,7 +75,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
             ct);
 
         var symbols = new List<Symbol>();
-        
+
         foreach (var item in response.GetProperty("symbols").EnumerateArray())
         {
             var status = item.GetProperty("status").GetString();
@@ -81,7 +84,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
             var baseAsset = item.GetProperty("baseAsset").GetString()!;
             var quoteAsset = item.GetProperty("quoteAsset").GetString()!;
-            
+
             symbols.Add(new Symbol(baseAsset, quoteAsset, AssetClass.Crypto));
         }
 
@@ -109,7 +112,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
                   $"&limit={limit}";
 
         var response = await _httpClient.GetFromJsonAsync<JsonElement[]>(url, ct);
-        
+
         var bars = new List<Bar>();
         if (response != null)
         {
@@ -135,7 +138,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     public async Task SubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
         var symbolStr = symbol.GetExchangeFormat(Id).ToLower();
-        
+
         var subscribeMessage = new
         {
             method = "SUBSCRIBE",
@@ -157,7 +160,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     public async Task UnsubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
         var symbolStr = symbol.GetExchangeFormat(Id).ToLower();
-        
+
         var unsubscribeMessage = new
         {
             method = "UNSUBSCRIBE",
@@ -181,11 +184,20 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         try
         {
-            var json = JsonDocument.Parse(message);
-            var stream = json.RootElement.GetProperty("stream").GetString();
-            var data = json.RootElement.GetProperty("data");
+            using var json = JsonDocument.Parse(message);
+            var root = json.RootElement;
 
-            if (stream!.EndsWith("@ticker"))
+            if (!root.TryGetProperty("stream", out var streamProp) ||
+                !root.TryGetProperty("data", out var data))
+            {
+                return;
+            }
+
+            var stream = streamProp.GetString();
+            if (string.IsNullOrEmpty(stream))
+                return;
+
+            if (stream.EndsWith("@ticker"))
             {
                 HandleTickerMessage(data);
             }
@@ -239,12 +251,13 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
             asks.Add(new PriceLevel(ask[0].GetDecimal(), ask[1].GetDecimal()));
         }
 
-        var orderBook = new OrderBook(
-            symbol,
-            bids,
-            asks,
-            DateTimeOffset.FromUnixTimeMilliseconds(data.GetProperty("E").GetInt64())
-        );
+        var orderBook = new OrderBook
+        {
+            Symbol = symbol,
+            Bids = bids,
+            Asks = asks,
+            Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(data.GetProperty("E").GetInt64())
+        };
 
         PublishOrderBook(orderBook);
     }
@@ -254,14 +267,15 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         var symbolStr = data.GetProperty("s").GetString()!;
         var symbol = Symbol.Parse(symbolStr);
 
-        var trade = new MarketTrade(
-            data.GetProperty("t").GetInt64().ToString(),
-            symbol,
-            data.GetProperty("m").GetBoolean() ? OrderSide.Sell : OrderSide.Buy,
-            data.GetProperty("p").GetDecimal(),
-            data.GetProperty("q").GetDecimal(),
-            DateTimeOffset.FromUnixTimeMilliseconds(data.GetProperty("T").GetInt64())
-        );
+        var trade = new MarketTrade
+        {
+            Id = data.GetProperty("t").GetInt64().ToString(),
+            Symbol = symbol,
+            Side = data.GetProperty("m").GetBoolean() ? OrderSide.Sell : OrderSide.Buy,
+            Price = new Price(data.GetProperty("p").GetDecimal()),
+            Quantity = new Quantity(data.GetProperty("q").GetDecimal()),
+            Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(data.GetProperty("T").GetInt64())
+        };
 
         PublishTrade(trade);
     }
@@ -296,6 +310,8 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
+        _messageSubscription.Dispose();
+        _connectionSubscription.Dispose();
         await _wsClient.DisposeAsync();
         _httpClient.Dispose();
     }
