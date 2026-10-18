@@ -143,6 +143,10 @@ Loc.GetObservable("Status.Ready")
 - **Use descriptive file names** that indicate the domain concept (OrderEnums.cs, not Enums.cs)
 - **One entity per file** for complex entities (Order.cs, Position.cs, Trade.cs)
 - **Group related small types** in one file only if they share the same domain concept (MarketData.cs for Bar, Ticker, OrderBook)
+- **Avoid magic numbers** — use named constants or enums instead of bare literals (e.g., const int MaxRetries = 3; instead of if (attempts > 3))
+- **Use nameof()** for property/method/type names in strings (e.g., nameof(Order.Symbol) instead of "Symbol", RaisePropertyChanged(nameof(Status)))
+- **Extract repeated literals** — if a value appears in multiple places, define it as const or static readonly field in an appropriate location
+- **Prefer domain-specific constants** — group related constants in static classes (e.g., OrderLimits.MaxQuantity, ExchangeNames.Binance)
 
 ## Design Principles (MANDATORY)
 
@@ -179,10 +183,9 @@ Loc.GetObservable("Status.Ready")
 
 ### DRY (Don't Repeat Yourself)
 - **NEVER duplicate code** — extract to methods, classes, or helpers
-- Use ReactiveUI.Fody [Reactive] attribute to eliminate property boilerplate
-- Create base classes for common ViewModel patterns (LocalizedViewModelBase)
 - Use extension methods for repeated operations
 - Centralize configuration in appsettings.json
+- Delegate to managers (ThemeManager, LocalizationManager) instead of duplicating data
 
 ### KISS (Keep It Simple, Stupid)
 - **Avoid over-engineering** — solve the actual problem, not hypothetical ones
