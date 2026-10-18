@@ -9,6 +9,7 @@ using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
+using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Secrets;
 using ZettaTrade.UI.Localization;
 using ZettaTrade.UI.Themes;
@@ -59,6 +60,10 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<LocalizationManager>>(),
                 ZettaTrade.UI.Resources.Strings.ResourceManager));
 
+        // Exchange adapters
+        services.AddHttpClient();
+        services.AddSingleton<IMarketDataAdapter, BinanceAdapter>();
+
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
         
@@ -75,6 +80,10 @@ internal static class CompositionRoot
                 sp.GetRequiredService<IThemeManager>(),
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<SettingsViewModel>>()));
+        services.AddSingleton<ChartViewModel>(sp =>
+            new ChartViewModel(
+                sp.GetRequiredService<IMarketDataAdapter>(),
+                sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddTransient<MainViewModel>();
 
         // Note: Exchange adapters should be registered as plugins
