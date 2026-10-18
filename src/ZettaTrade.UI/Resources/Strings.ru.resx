@@ -48,6 +48,15 @@
   <data name="Menu.File.Exit" xml:space="preserve">
     <value>Выход</value>
   </data>
+  <data name="Menu.View" xml:space="preserve">
+    <value>Вид</value>
+  </data>
+  <data name="Menu.View.Theme" xml:space="preserve">
+    <value>Тема</value>
+  </data>
+  <data name="Menu.View.Language" xml:space="preserve">
+    <value>Язык</value>
+  </data>
   <data name="Menu.Trading" xml:space="preserve">
     <value>Торговля</value>
   </data>
@@ -56,6 +65,9 @@
   </data>
   <data name="Menu.Trading.Positions" xml:space="preserve">
     <value>Позиции</value>
+  </data>
+  <data name="Menu.Trading.OrderHistory" xml:space="preserve">
+    <value>История ордеров</value>
   </data>
   <data name="Menu.AI" xml:space="preserve">
     <value>ИИ</value>
@@ -86,5 +98,8 @@
   </data>
   <data name="Status.Disconnected" xml:space="preserve">
     <value>Отключено</value>
+  </data>
+  <data name="AI.Assistant" xml:space="preserve">
+    <value>ИИ Ассистент</value>
   </data>
 </root>

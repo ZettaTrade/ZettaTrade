@@ -11,9 +11,8 @@ using ZettaTrade.Infrastructure.Configuration;
 /// <summary>
 /// Manages application themes with support for custom JSON theme files.
 /// Users can create/edit themes in the themes directory without recompiling.
-/// Uses SemaphoreSlim for thread-safe operations.
 /// </summary>
-public sealed class ThemeManager : IThemeManager, IDisposable
+public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposable
 {
     private readonly ILogger _logger;
     private readonly BehaviorSubject<string> _themeChanged;
@@ -23,20 +22,30 @@ public sealed class ThemeManager : IThemeManager, IDisposable
     private string _current = "Dark";
     private bool _disposed;
 
+    /// <summary>
+    /// Create a new ThemeManager instance.
+    /// </summary>
     public ThemeManager(ILogger logger)
     {
         _logger = logger;
         _themeChanged = new BehaviorSubject<string>(_current);
         
-        // Register built-in themes
         RegisterBuiltInThemes();
-        
-        // Load custom themes from directory
-        _ = LoadCustomThemesAsync();
+    }
+
+    /// <summary>
+    /// Initialize theme manager by loading custom themes from disk.
+    /// Must be called after construction.
+    /// </summary>
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        await LoadCustomThemesAsync();
     }
 
     public string CurrentTheme => _current;
+    
     public IReadOnlyList<ThemeInfo> AvailableThemes => _themes;
+    
     public IObservable<string> ThemeChanged => _themeChanged;
 
     public async Task ApplyThemeAsync(string name, CancellationToken ct = default)
@@ -56,7 +65,6 @@ public sealed class ThemeManager : IThemeManager, IDisposable
 
             _current = theme.DisplayName;
             
-            // Apply Avalonia theme variant
             if (Application.Current != null)
             {
                 Application.Current.RequestedThemeVariant = theme.Name == "light" 
@@ -64,7 +72,6 @@ public sealed class ThemeManager : IThemeManager, IDisposable
                     : ThemeVariant.Dark;
             }
             
-            // Apply custom colors if theme has them
             if (theme.Colors != null)
             {
                 ApplyThemeColors(theme.Colors);
@@ -72,50 +79,6 @@ public sealed class ThemeManager : IThemeManager, IDisposable
             
             _themeChanged.OnNext(_current);
             _logger.LogInformation("Theme applied: {Theme}", _current);
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
-
-    public async Task LoadCustomThemeAsync(string filePath, CancellationToken ct = default)
-    {
-        await _lock.WaitAsync(ct);
-        try
-        {
-            var json = await File.ReadAllTextAsync(filePath, ct);
-            var themeDef = JsonSerializer.Deserialize<ThemeDefinition>(json, new JsonSerializerOptions 
-            { 
-                PropertyNameCaseInsensitive = true 
-            });
-            
-            if (themeDef?.Name is null)
-            {
-                _logger.LogWarning("Invalid theme file: {Path}", filePath);
-                return;
-            }
-
-            var themeInfo = new ThemeInfo(
-                themeDef.Name,
-                themeDef.DisplayName ?? themeDef.Name,
-                IsBuiltIn: false,
-                themeDef.PreviewColors ?? Array.Empty<string>(),
-                themeDef.Colors);
-            
-            _themeDefinitions[themeDef.Name] = themeInfo;
-            
-            // Add to available themes if not already present
-            if (!_themes.Any(t => t.Name == themeDef.Name))
-            {
-                _themes.Add(themeInfo);
-            }
-            
-            _logger.LogInformation("Custom theme loaded: {Name} from {Path}", themeDef.Name, filePath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load custom theme from {Path}", filePath);
         }
         finally
         {
@@ -215,6 +178,49 @@ public sealed class ThemeManager : IThemeManager, IDisposable
         }
     }
 
+    public async Task LoadCustomThemeAsync(string filePath, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            var json = await File.ReadAllTextAsync(filePath, ct);
+            var themeDef = JsonSerializer.Deserialize<ThemeDefinition>(json, new JsonSerializerOptions 
+            { 
+                PropertyNameCaseInsensitive = true 
+            });
+            
+            if (themeDef?.Name is null)
+            {
+                _logger.LogWarning("Invalid theme file: {Path}", filePath);
+                return;
+            }
+
+            var themeInfo = new ThemeInfo(
+                themeDef.Name,
+                themeDef.DisplayName ?? themeDef.Name,
+                IsBuiltIn: false,
+                themeDef.PreviewColors ?? Array.Empty<string>(),
+                themeDef.Colors);
+            
+            _themeDefinitions[themeDef.Name] = themeInfo;
+            
+            if (!_themes.Any(t => t.Name == themeDef.Name))
+            {
+                _themes.Add(themeInfo);
+            }
+            
+            _logger.LogInformation("Custom theme loaded: {Name} from {Path}", themeDef.Name, filePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load custom theme from {Path}", filePath);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     private async Task CreateSampleThemeAsync(string themesDir)
     {
         var sampleTheme = new ThemeDefinition
@@ -271,9 +277,6 @@ public sealed class ThemeManager : IThemeManager, IDisposable
     }
 }
 
-/// <summary>
-/// Theme definition loaded from JSON file.
-/// </summary>
 public sealed record ThemeDefinition
 {
     public string? Name { get; init; }

@@ -42,7 +42,10 @@ public interface IMcpClient : IAsyncDisposable
 /// </summary>
 public sealed record McpServerConfig
 {
+    /// <summary>Server name.</summary>
     public required string Name { get; init; }
+    
+    /// <summary>Transport type (Stdio or StreamableHttp).</summary>
     public required McpTransport Transport { get; init; }
 
     /// <summary>For stdio transport: command to run.</summary>
@@ -70,10 +73,15 @@ public sealed record McpServerConfig
 /// </summary>
 public enum McpTransport
 {
+    /// <summary>Standard input/output transport.</summary>
     Stdio = 0,
+    /// <summary>Streamable HTTP transport.</summary>
     StreamableHttp = 1,
 }
 
+/// <summary>
+/// Information about an MCP tool.
+/// </summary>
 public sealed record McpToolInfo(string Name, string Description, JsonElement? InputSchema);
 
 /// <summary>
@@ -88,9 +96,16 @@ public sealed record McpToolResult(bool IsError, IReadOnlyList<McpContent> Conte
 /// </summary>
 public sealed record McpContent
 {
-    public required string Type { get; init; } // "text", "image", "resource", etc.
+    /// <summary>Content type (e.g., "text", "image", "binary").</summary>
+    public required string Type { get; init; }
+    
+    /// <summary>Text content (for text type).</summary>
     public string? TextValue { get; init; }
+    
+    /// <summary>Binary data (for binary/image types).</summary>
     public byte[]? Data { get; init; }
+    
+    /// <summary>MIME type (for binary/image types).</summary>
     public string? MimeType { get; init; }
     
     /// <summary>Create a text content block.</summary>
@@ -101,6 +116,17 @@ public sealed record McpContent
         new() { Type = "binary", Data = data, MimeType = mimeType };
 }
 
+/// <summary>
+/// Information about an MCP resource.
+/// </summary>
 public sealed record McpResourceInfo(string Uri, string Name, string? MimeType);
+
+/// <summary>
+/// Content of an MCP resource.
+/// </summary>
 public sealed record McpResourceContent(string Uri, IReadOnlyList<McpContent> Content);
+
+/// <summary>
+/// Update for an MCP resource.
+/// </summary>
 public sealed record McpResourceUpdate(string Uri, IReadOnlyList<McpContent> Content);

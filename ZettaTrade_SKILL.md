@@ -13,7 +13,7 @@ Cryptocurrency and traditional stock trading terminal with deep AI/ML integratio
 ## Architecture Principles
 1. **Clean Architecture** — Presentation → Domain → Infrastructure
 2. **Plugin-first** — All exchange adapters, indicators, strategies are plugins
-3. **Reactive** — UI and data flows use ReactiveUI / System.Reactive
+3. **Reactive** — UI and data flows use ReactiveUI exclusively (NEVER System.Reactive)
 4. **MCP-native** — AI integration is first-class, not bolted on
 5. **Performance** — Channel<T> for market data, SkiaSharp for rendering
 6. **Security** — Encrypted secrets, no data leaves user's machine without consent
@@ -147,6 +147,12 @@ Loc.GetObservable("Status.Ready")
 - **Use nameof()** for property/method/type names in strings (e.g., nameof(Order.Symbol) instead of "Symbol", RaisePropertyChanged(nameof(Status)))
 - **Extract repeated literals** — if a value appears in multiple places, define it as const or static readonly field in an appropriate location
 - **Prefer domain-specific constants** — group related constants in static classes (e.g., OrderLimits.MaxQuantity, ExchangeNames.Binance)
+- **Format method signatures** — methods with 3+ parameters should be formatted on multiple lines for readability (one parameter per line, indented)
+- **NEVER use fire-and-forget** — avoid underscore-equals async method pattern. Either await the task or use proper error handling with Subscribe(onError: ...) for reactive streams
+- **Avoid synchronous methods returning Task** — if a method is truly synchronous, return the value directly instead of wrapping in Task.FromResult. Only return Task when the method actually performs async I/O or when required by an interface contract
+- **NEVER use .GetAwaiter().GetResult() in constructors** — this blocks the thread and can cause deadlocks in UI applications. Use IAsyncInitializable pattern instead: implement InitializeAsync() method and call it from async context (e.g., App.OnFrameworkInitializationCompleted)
+- **Use RxVoid from ReactiveUI** — for commands without return value, use ReactiveCommand&lt;TParam, RxVoid&gt; (NOT System.Reactive.Unit). Methods should return Task (not Task&lt;Unit&gt;). Note: IObservable&lt;T&gt; is OK (it's from System.Reactive but used by ReactiveUI), but NEVER use System.Reactive.Unit — always use ReactiveUI.RxVoid instead
+- **NO HTML entities in C# code** — never use &lt;, &gt;, &amp;, etc. in C# source files. Use simple // comments for examples instead of XML documentation with HTML escapes
 
 ## Design Principles (MANDATORY)
 
@@ -273,7 +279,7 @@ Loc.GetObservable("Status.Ready")
     - scaffoldData.ts (data for web interface export)
     - Never update only one — they must stay in sync!
 23. **ALWAYS provide a commit message in English after making changes** — brief summary (2-4 lines) describing what was changed and why, following conventional commit format (feat:, fix:, refactor:, docs:, etc.)
-24. **Use #region directives** to organize large files into collapsible sections (e.g., #region Properties, #region Commands, #region Private Methods, #region Event Handlers)
+24. **Use #region directives** to organize large files into collapsible sections (e.g., #region Properties, #region Commands, #region Private Methods, #region Event Handlers). After #endregion, always specify the region name (e.g., #endregion Properties, #endregion Commands)
 
 ## Trading Safety Rules (CRITICAL)
 25. **NEVER execute trades without validation** — all orders must pass through IRiskManager

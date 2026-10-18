@@ -83,9 +83,16 @@ public interface ITradingAdapter : IMarketDataAdapter
 /// </summary>
 public sealed record OrderRequest
 {
+    /// <summary>Trading symbol.</summary>
     public required Symbol Symbol { get; init; }
+    
+    /// <summary>Order side (Buy or Sell).</summary>
     public required OrderSide Side { get; init; }
+    
+    /// <summary>Order type (Market, Limit, etc.).</summary>
     public required OrderType Type { get; init; }
+    
+    /// <summary>Order quantity.</summary>
     public required Quantity Quantity { get; init; }
     
     /// <summary>
@@ -99,6 +106,7 @@ public sealed record OrderRequest
     /// </summary>
     public Price? StopPrice { get; init; }
     
+    /// <summary>Time-in-force policy.</summary>
     public TimeInForce TimeInForce { get; init; } = TimeInForce.GTC;
     
     /// <summary>
@@ -107,12 +115,16 @@ public sealed record OrderRequest
     /// </summary>
     public DateTimeOffset? Expiry { get; init; }
     
+    /// <summary>Client-side order identifier.</summary>
     public string? ClientOrderId { get; init; }
+    
+    /// <summary>Whether this is a reduce-only order.</summary>
     public bool ReduceOnly { get; init; }
     
     /// <summary>
     /// Validate the order request.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if validation fails.</exception>
     public void Validate()
     {
         if (TimeInForce == TimeInForce.GTD && Expiry == null)

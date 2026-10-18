@@ -15,9 +15,6 @@ public static class ObservableExtensions
     /// Uses <see cref="Dispatcher.UIThread"/> directly, so it works in both
     /// Avalonia 11 and Avalonia 12 without extra dependencies.
     /// </summary>
-    /// <typeparam name="T">The type of the observable sequence elements.</typeparam>
-    /// <param name="source">The source observable to marshal.</param>
-    /// <returns>An observable that delivers notifications on the UI thread.</returns>
     public static IObservable<T> ObserveOnUiThread<T>(this IObservable<T> source) =>
         Observable.Create<T>(observer => source.Subscribe(
             value => RunOnUiThread(() => observer.OnNext(value)),

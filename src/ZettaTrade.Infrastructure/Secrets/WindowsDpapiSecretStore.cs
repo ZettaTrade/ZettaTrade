@@ -14,40 +14,48 @@ using ZettaTrade.Infrastructure.Configuration;
 /// Secrets are persisted to disk in encrypted form.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class WindowsDpapiSecretStore : ISecretStore
+public sealed class WindowsDpapiSecretStore : ISecretStore, IAsyncInitializable
 {
     private readonly string _storePath;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private Dictionary<string, byte[]> _cache = new();
 
+    /// <summary>
+    /// Create a new WindowsDpapiSecretStore instance.
+    /// </summary>
     public WindowsDpapiSecretStore(ILogger logger)
     {
         _logger = logger;
         _storePath = Path.Combine(ConfigPathResolver.DataDirectory, "secrets.dat");
-        LoadStore();
     }
 
-    public Task<string?> GetAsync(string key, CancellationToken ct = default)
+    /// <summary>
+    /// Initialize the secret store by loading secrets from disk.
+    /// Must be called after construction.
+    /// </summary>
+    public async Task InitializeAsync(CancellationToken ct = default)
     {
-        _lock.Wait(ct);
+        await LoadStoreAsync();
+    }
+
+    public async Task<string?> GetAsync(string key, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
         try
         {
             if (!_cache.TryGetValue(key, out var encrypted))
-                return Task.FromResult<string?>(null);
+                return null;
 
             try
             {
-                var decrypted = ProtectedData.Unprotect(
-                    encrypted,
-                    null,
-                    DataProtectionScope.CurrentUser);
-                return Task.FromResult<string?>(Encoding.UTF8.GetString(decrypted));
+                var decrypted = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
+                return Encoding.UTF8.GetString(decrypted);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to decrypt secret for key {Key}", key);
-                return Task.FromResult<string?>(null);
+                return null;
             }
         }
         finally
@@ -56,22 +64,15 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
         }
     }
 
-    public Task SetAsync(string key, string value, CancellationToken ct = default)
+    public async Task SetAsync(string key, string value, CancellationToken ct = default)
     {
-        _lock.Wait(ct);
+        await _lock.WaitAsync(ct);
         try
         {
             var plaintext = Encoding.UTF8.GetBytes(value);
-            var encrypted = ProtectedData.Protect(
-                plaintext,
-                null,
-                DataProtectionScope.CurrentUser);
+            var encrypted = ProtectedData.Protect(plaintext, null, DataProtectionScope.CurrentUser);
             _cache[key] = encrypted;
-            
-            // CRITICAL: Must save to disk immediately
-            SaveStore();
-            
-            return Task.CompletedTask;
+            await SaveStoreAsync();
         }
         finally
         {
@@ -79,14 +80,13 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
         }
     }
 
-    public Task RemoveAsync(string key, CancellationToken ct = default)
+    public async Task RemoveAsync(string key, CancellationToken ct = default)
     {
-        _lock.Wait(ct);
+        await _lock.WaitAsync(ct);
         try
         {
             if (_cache.Remove(key))
-                SaveStore();
-            return Task.CompletedTask;
+                await SaveStoreAsync();
         }
         finally
         {
@@ -99,9 +99,7 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
         _lock.Wait(ct);
         try
         {
-            var keys = _cache.Keys
-                .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
-                .ToList();
+            var keys = _cache.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList();
             return Task.FromResult<IReadOnlyList<string>>(keys);
         }
         finally
@@ -113,22 +111,19 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
     public Task<bool> IsAvailableAsync(CancellationToken ct = default)
         => Task.FromResult(OperatingSystem.IsWindows());
 
-    private void LoadStore()
+    private async Task LoadStoreAsync()
     {
         if (!File.Exists(_storePath))
             return;
 
         try
         {
-            var json = File.ReadAllText(_storePath);
+            var json = await File.ReadAllTextAsync(_storePath);
             var data = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
             if (data != null)
             {
-                _cache = data.ToDictionary(
-                    kv => kv.Key,
-                    kv => Convert.FromBase64String(kv.Value));
+                _cache = data.ToDictionary(kv => kv.Key, kv => Convert.FromBase64String(kv.Value));
             }
-            _logger.LogDebug("Loaded {Count} secrets from {Path}", _cache.Count, _storePath);
         }
         catch (Exception ex)
         {
@@ -136,7 +131,7 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
         }
     }
 
-    private void SaveStore()
+    private async Task SaveStoreAsync()
     {
         try
         {
@@ -146,21 +141,15 @@ public sealed class WindowsDpapiSecretStore : ISecretStore
 
             // Atomic write: write to temp file, then rename
             var tempPath = _storePath + ".tmp";
-            var data = _cache.ToDictionary(
-                kv => kv.Key,
-                kv => Convert.ToBase64String(kv.Value));
+            var data = _cache.ToDictionary(kv => kv.Key, kv => Convert.ToBase64String(kv.Value));
             var json = JsonSerializer.Serialize(data);
-            File.WriteAllText(tempPath, json);
+            await File.WriteAllTextAsync(tempPath, json);
             File.Move(tempPath, _storePath, overwrite: true);
 
-            // Set restrictive permissions on Unix
             if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
             {
-                File.SetUnixFileMode(_storePath,
-                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                File.SetUnixFileMode(_storePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             }
-
-            _logger.LogDebug("Saved {Count} secrets to {Path}", _cache.Count, _storePath);
         }
         catch (Exception ex)
         {

@@ -12,8 +12,9 @@ using ZettaTrade.Core.Interfaces;
 /// JSON-file-backed settings service with reactive change notifications.
 /// Supports hot-reload via file system watcher.
 /// Thread-safe with SemaphoreSlim for async operations.
+/// Does NOT handle secrets — use ISecretStore directly for sensitive data.
 /// </summary>
-public sealed class SettingsService : ISettingsService, IDisposable
+public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDisposable
 {
     private readonly string _settingsFilePath;
     private readonly ILogger<SettingsService> _logger;
@@ -23,11 +24,12 @@ public sealed class SettingsService : ISettingsService, IDisposable
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private FileSystemWatcher? _watcher;
     private bool _disposed;
-    private bool _isSaving; // Flag to prevent self-triggered reloads
+    private bool _isSaving;
 
-    public SettingsService(
-        string settingsFilePath,
-        ILogger<SettingsService> logger)
+    /// <summary>
+    /// Create a new SettingsService instance.
+    /// </summary>
+    public SettingsService(string settingsFilePath, ILogger<SettingsService> logger)
     {
         _settingsFilePath = settingsFilePath;
         _logger = logger;
@@ -39,15 +41,23 @@ public sealed class SettingsService : ISettingsService, IDisposable
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
 
-        LoadFromFile();
         StartWatching();
+    }
+
+    /// <summary>
+    /// Initialize the settings service by loading settings from disk.
+    /// Must be called after construction.
+    /// </summary>
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        await LoadFromFileAsync();
     }
 
     public IObservable<SettingsChange> Changes => _changes.Synchronize();
 
     public Task<T> GetAsync<T>(string section, string key, T defaultValue = default!)
     {
-        // Use composite key with null char separator to avoid conflicts with keys containing ':'
+        // Use null char separator to avoid conflicts with keys containing ':'
         var fullKey = $"{section}\0{key}";
 
         if (_settings.TryGetValue(fullKey, out var element))
@@ -70,7 +80,6 @@ public sealed class SettingsService : ISettingsService, IDisposable
         var fullKey = $"{section}\0{key}";
         var jsonElement = JsonSerializer.SerializeToElement(value, _jsonOptions);
 
-        // Get old value for change notification
         JsonElement? oldValue = _settings.TryGetValue(fullKey, out var old) ? old : null;
 
         _settings.AddOrUpdate(fullKey, jsonElement, (_, _) => jsonElement);
@@ -91,7 +100,6 @@ public sealed class SettingsService : ISettingsService, IDisposable
             if (!string.IsNullOrEmpty(directory))
                 Directory.CreateDirectory(directory);
 
-            // Group by section for clean JSON output
             var grouped = new Dictionary<string, Dictionary<string, JsonElement>>();
             
             foreach (var (fullKey, element) in _settings)
@@ -129,13 +137,12 @@ public sealed class SettingsService : ISettingsService, IDisposable
         }
     }
 
-    public Task ReloadAsync(CancellationToken ct = default)
+    public async Task ReloadAsync(CancellationToken ct = default)
     {
-        LoadFromFile();
-        return Task.CompletedTask;
+        await LoadFromFileAsync();
     }
 
-    private void LoadFromFile()
+    private async Task LoadFromFileAsync()
     {
         if (!File.Exists(_settingsFilePath))
         {
@@ -145,10 +152,9 @@ public sealed class SettingsService : ISettingsService, IDisposable
 
         try
         {
-            var json = File.ReadAllText(_settingsFilePath);
+            var json = await File.ReadAllTextAsync(_settingsFilePath);
             using var doc = JsonDocument.Parse(json);
 
-            // Create new dictionary to avoid race conditions
             var newSettings = new ConcurrentDictionary<string, JsonElement>();
 
             foreach (var section in doc.RootElement.EnumerateObject())
@@ -157,14 +163,12 @@ public sealed class SettingsService : ISettingsService, IDisposable
                 {
                     foreach (var prop in section.Value.EnumerateObject())
                     {
-                        // Use null char separator to avoid conflicts
                         var fullKey = $"{section.Name}\0{prop.Name}";
                         newSettings[fullKey] = prop.Value.Clone();
                     }
                 }
             }
 
-            // Atomic swap
             _settings.Clear();
             foreach (var (key, value) in newSettings)
             {
@@ -198,12 +202,11 @@ public sealed class SettingsService : ISettingsService, IDisposable
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        // Ignore changes triggered by our own saves
         if (_isSaving)
             return;
 
         _logger.LogInformation("Settings file changed externally, reloading");
-        LoadFromFile();
+        _ = LoadFromFileAsync();
     }
 
     public void Dispose()

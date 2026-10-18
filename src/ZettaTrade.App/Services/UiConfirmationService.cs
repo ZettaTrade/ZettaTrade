@@ -15,8 +15,13 @@ using ZettaTrade.Core.Interfaces;
 public sealed class UiConfirmationService : IConfirmationService
 {
     private readonly ILogger<UiConfirmationService> _logger;
+    
+    /// <summary>Confirmation dialog timeout in seconds.</summary>
     private const int ConfirmationTimeoutSeconds = 60;
 
+    /// <summary>
+    /// Create a new UiConfirmationService instance.
+    /// </summary>
     public UiConfirmationService(ILogger<UiConfirmationService> logger)
     {
         _logger = logger;
@@ -26,7 +31,6 @@ public sealed class UiConfirmationService : IConfirmationService
     {
         try
         {
-            // Get main window
             if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime lifetime)
             {
                 _logger.LogError("Cannot show confirmation dialog: no desktop lifetime");
@@ -40,7 +44,6 @@ public sealed class UiConfirmationService : IConfirmationService
                 return false;
             }
 
-            // Create confirmation dialog
             var dialog = new Window
             {
                 Title = "Confirmation Required",
@@ -101,13 +104,11 @@ public sealed class UiConfirmationService : IConfirmationService
             panel.Children.Add(buttonPanel);
             dialog.Content = panel;
 
-            // Show dialog with timeout
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(ConfirmationTimeoutSeconds));
 
             await dialog.ShowDialog<object>(mainWindow);
 
-            // Wait for user response or timeout
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(ConfirmationTimeoutSeconds));
             try
             {

@@ -1,3 +1,5 @@
+namespace ZettaTrade.App;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -11,23 +13,21 @@ using ZettaTrade.Infrastructure.Secrets;
 using ZettaTrade.UI.Localization;
 using ZettaTrade.UI.Themes;
 
-namespace ZettaTrade.App;
-
 /// <summary>
 /// DI composition root. Registers all services and dependencies.
 /// </summary>
 internal static class CompositionRoot
 {
+    /// <summary>
+    /// Build and configure the service provider.
+    /// </summary>
     public static IServiceProvider BuildServiceProvider()
     {
-        // Configure Serilog
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
             .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
             .MinimumLevel.Override("Avalonia", LogEventLevel.Warning)
             .Enrich.FromLogContext()
-            .WriteTo.Console(
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.File(
                 path: Path.Combine(ConfigPathResolver.LogDirectory, "zettatrade-.log"),
                 rollingInterval: RollingInterval.Day,
@@ -37,14 +37,12 @@ internal static class CompositionRoot
 
         var services = new ServiceCollection();
 
-        // Logging
         services.AddLogging(builder =>
         {
             builder.ClearProviders();
             builder.AddSerilog(Log.Logger, dispose: true);
         });
 
-        // Core services
         services.AddSingleton<ISecretStore>(sp =>
             SecretStoreFactory.Create(sp.GetRequiredService<ILoggerFactory>()));
 
@@ -53,7 +51,6 @@ internal static class CompositionRoot
                 ConfigPathResolver.MainSettingsFile,
                 sp.GetRequiredService<ILogger<SettingsService>>()));
 
-        // UI services
         services.AddSingleton<IThemeManager>(sp =>
             new ThemeManager(sp.GetRequiredService<ILogger<ThemeManager>>()));
 
@@ -62,15 +59,12 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<LocalizationManager>>(),
                 ZettaTrade.UI.Resources.Strings.ResourceManager));
 
-        // AI / MCP
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
         
-        // Risk management and confirmation
         services.AddSingleton<IRiskManager, DefaultRiskManager>();
         services.AddSingleton<IConfirmationService, UiConfirmationService>();
 
-        // ViewModels
         services.AddSingleton<MenuViewModel>();
         services.AddSingleton<StatusBarViewModel>(sp => 
             new StatusBarViewModel(sp.GetRequiredService<ISettingsService>()));
@@ -79,22 +73,27 @@ internal static class CompositionRoot
             new SettingsViewModel(
                 sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<IThemeManager>(),
-                sp.GetRequiredService<ILocalizationManager>()));
+                sp.GetRequiredService<ILocalizationManager>(),
+                sp.GetRequiredService<ILogger<SettingsViewModel>>()));
         services.AddTransient<MainViewModel>();
-        
-        // Register MCP tools after all services are built
-        var serviceProvider = services.BuildServiceProvider();
-        var mcpServer = serviceProvider.GetRequiredService<IMcpServerHost>();
-        var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
-        
+
         // Note: Exchange adapters should be registered as plugins
-        // For now, we'll register tools when an exchange is connected
         // TradingToolsRegistrar.RegisterAll(mcpServer, exchangeAdapter, riskManager, confirmationService, logger);
 
-        // TODO: Register exchange adapters as plugins
-        // services.AddSingleton<IExchangeAdapter, BinanceExchangeAdapter>();
-        // services.AddSingleton<IExchangeAdapter, BybitExchangeAdapter>();
-
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// Initialize all services that implement IAsyncInitializable.
+    /// Must be called after BuildServiceProvider and before using the application.
+    /// </summary>
+    public static async Task InitializeServicesAsync(IServiceProvider serviceProvider, CancellationToken ct = default)
+    {
+        var initializables = serviceProvider.GetServices<IAsyncInitializable>();
+        
+        foreach (var initializable in initializables)
+        {
+            await initializable.InitializeAsync(ct);
+        }
     }
 }

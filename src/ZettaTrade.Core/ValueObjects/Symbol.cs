@@ -8,6 +8,9 @@ using System.Globalization;
 /// </summary>
 public sealed record Symbol
 {
+    private const int MinAssetLength = 2;
+    private const int MaxAssetLength = 10;
+    
     /// <summary>Normalized symbol (e.g., "BTC/USDT" for display).</summary>
     public string Normalized { get; }
 
@@ -20,6 +23,9 @@ public sealed record Symbol
     /// <summary>Asset class (Crypto, Stock, etc.).</summary>
     public Enums.AssetClass AssetClass { get; }
 
+    /// <summary>
+    /// Create a new Symbol instance.
+    /// </summary>
     public Symbol(string baseAsset, string? quoteAsset, Enums.AssetClass assetClass)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseAsset);
@@ -33,14 +39,12 @@ public sealed record Symbol
     /// <summary>
     /// Get exchange-specific symbol format.
     /// </summary>
-    /// <param name="exchangeId">Exchange identifier (e.g., "binance", "alpaca").</param>
-    /// <returns>Exchange-specific symbol string.</returns>
     public string GetExchangeFormat(string exchangeId)
     {
         return exchangeId.ToLowerInvariant() switch
         {
             "binance" or "bybit" or "okx" => QuoteAsset != null ? $"{BaseAsset}{QuoteAsset}" : BaseAsset,
-            "alpaca" or "ib" => BaseAsset, // Stocks use base symbol only
+            "alpaca" or "ib" => BaseAsset,
             "kraken" => QuoteAsset != null ? $"{BaseAsset}/{QuoteAsset}" : BaseAsset,
             _ => Normalized,
         };
@@ -59,7 +63,6 @@ public sealed record Symbol
             return new Symbol(parts[0], parts[1], Enums.AssetClass.Crypto);
         }
         
-        // Single part — assume stock
         return new Symbol(parts[0], null, Enums.AssetClass.Stock);
     }
 
@@ -73,7 +76,6 @@ public sealed record Symbol
         if (string.IsNullOrWhiteSpace(exchangeSymbol))
             return false;
 
-        // Exchange-specific parsing
         var (baseAsset, quoteAsset, assetClass) = exchangeId.ToLowerInvariant() switch
         {
             "binance" or "bybit" or "okx" => ParseCryptoConcatenated(exchangeSymbol),
@@ -91,7 +93,6 @@ public sealed record Symbol
 
     private static (string? baseAsset, string? quoteAsset, Enums.AssetClass assetClass) ParseCryptoConcatenated(string symbol)
     {
-        // Try common quote assets
         var quoteAssets = new[] { "USDT", "USDC", "BUSD", "BTC", "ETH", "USD", "EUR" };
         
         foreach (var quote in quoteAssets)
@@ -99,8 +100,7 @@ public sealed record Symbol
             if (symbol.EndsWith(quote, StringComparison.OrdinalIgnoreCase) && symbol.Length > quote.Length)
             {
                 var baseAsset = symbol[..^quote.Length];
-                // Validate base asset doesn't look like a stock ticker
-                if (baseAsset.Length >= 2 && baseAsset.Length <= 10)
+                if (baseAsset.Length >= MinAssetLength && baseAsset.Length <= MaxAssetLength)
                 {
                     return (baseAsset, quote, Enums.AssetClass.Crypto);
                 }
@@ -113,7 +113,7 @@ public sealed record Symbol
     private static (string? baseAsset, string? quoteAsset, Enums.AssetClass assetClass) ParseCryptoSeparated(string symbol, char separator)
     {
         var parts = symbol.Split(separator);
-        if (parts.Length == 2 && parts[0].Length >= 2 && parts[1].Length >= 2)
+        if (parts.Length == 2 && parts[0].Length >= MinAssetLength && parts[1].Length >= MinAssetLength)
         {
             return (parts[0], parts[1], Enums.AssetClass.Crypto);
         }

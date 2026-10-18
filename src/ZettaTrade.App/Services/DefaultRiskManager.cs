@@ -11,10 +11,12 @@ public sealed class DefaultRiskManager : IRiskManager
 {
     private readonly ILogger<DefaultRiskManager> _logger;
     
-    // Risk thresholds
+    /// <summary>Maximum order value in USD before requiring confirmation.</summary>
     private const decimal MaxOrderValueUsd = 10000m;
-    private const decimal MaxPositionSizePercent = 10m;
 
+    /// <summary>
+    /// Create a new DefaultRiskManager instance.
+    /// </summary>
     public DefaultRiskManager(ILogger<DefaultRiskManager> logger)
     {
         _logger = logger;
@@ -24,7 +26,6 @@ public sealed class DefaultRiskManager : IRiskManager
     {
         try
         {
-            // Check if order requires confirmation (high value)
             var estimatedValue = request.Quantity.Value * (request.Price?.Value ?? 0m);
             
             if (estimatedValue > MaxOrderValueUsd)
@@ -33,12 +34,6 @@ public sealed class DefaultRiskManager : IRiskManager
                     estimatedValue, MaxOrderValueUsd);
                 return Task.FromResult(RiskCheckResult.Approved(requiresConfirmation: true));
             }
-
-            // Add more risk checks here:
-            // - Position size limits
-            // - Daily loss limits
-            // - Correlation checks
-            // - Volatility checks
 
             return Task.FromResult(RiskCheckResult.Approved(requiresConfirmation: false));
         }
