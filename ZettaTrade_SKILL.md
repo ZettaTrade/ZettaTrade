@@ -1,3 +1,14 @@
+---
+name: zettatrade
+description: >-
+  Project conventions and architecture rules for ZettaTrade, a cross-platform desktop trading terminal
+  (crypto and stocks) built with .NET 10, C# 13, Avalonia UI 12 and ReactiveUI.Avalonia, with AI
+  integration via MCP. Use whenever writing, reviewing, or refactoring ZettaTrade code: ViewModels,
+  XAML views, exchange adapters, chart rendering, localization, theming, settings, or trading and risk
+  logic. Enforces ReactiveUI (not CommunityToolkit.Mvvm), plugin-first clean architecture, SOLID/DRY/KISS
+  principles, and the critical trading safety rules.
+---
+
 # ZettaTrade — AI Skill File
 
 ## Project Context
