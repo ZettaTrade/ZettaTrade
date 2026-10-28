@@ -1,0 +1,5 @@
+T:System.Reactive.Unit;Use ReactiveUI.RxVoid instead of System.Reactive.Unit
+M:System.Threading.Tasks.Task.Wait;Do not block on tasks; use await
+P:System.Threading.Tasks.Task`1.Result;Do not block on tasks; use await
+M:System.Console.Write;Nothing may write to stdout (MCP protocol); use Serilog file sinks
+M:System.Console.WriteLine;Nothing may write to stdout (MCP protocol); use Serilog file sinks
