@@ -111,6 +111,9 @@
   <data name="Trading.Confirm" xml:space="preserve">
     <value>Confirm</value>
   </data>
+  <data name="Trading.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
   <data name="Order.StopMarket" xml:space="preserve">
     <value>Stop-Market</value>
   </data>
