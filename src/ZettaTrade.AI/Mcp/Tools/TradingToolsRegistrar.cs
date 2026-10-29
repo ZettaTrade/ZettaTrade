@@ -1,5 +1,6 @@
 namespace ZettaTrade.AI.Mcp.Tools;
 
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
@@ -10,32 +11,65 @@ using ZettaTrade.Core.ValueObjects;
 /// <summary>
 /// Registers all ZettaTrade MCP tools with the server host.
 /// Includes safety checks and confirmation requirements for trading operations.
+/// All messages returned to the AI are English by design (model-facing);
+/// the human-visible confirmation dialog is localized via <see cref="ILocalizationManager"/>.
 /// </summary>
-public static class TradingToolsRegistrar
+public sealed class TradingToolsRegistrar(ILogger<TradingToolsRegistrar> logger)
 {
+    #region Constants
+
+    /// <summary>Prefix of resx keys holding localized order side/type names ("Order.Buy", ...).</summary>
+    private const string OrderNameKeyPrefix = "Order.";
+
+    /// <summary>Resx key of the confirmation template for placing an order.</summary>
+    private const string ConfirmPlaceOrderKey = "Trading.ConfirmPlaceOrderFormat";
+
+    /// <summary>Resx key shown instead of an explicit price for market orders.</summary>
+    private const string MarketPriceKey = "Trading.PriceMarket";
+
+    /// <summary>Default candle limit for the get_market_data tool.</summary>
+    private const int DefaultMarketDataLimit = 100;
+
+    /// <summary>Historical window for the get_market_data tool, in days.</summary>
+    private const int MarketDataLookbackDays = 7;
+
+    #endregion
+
+    #region Fields
+
+    private readonly ILogger<TradingToolsRegistrar> _logger = logger;
+
+    #endregion
+
+    #region Public Methods
+
     /// <summary>
     /// Register all trading-related MCP tools.
     /// </summary>
-    public static void RegisterAll(
+    public void RegisterAll(
         IMcpServerHost host,
         ITradingAdapter exchange,
         IRiskManager riskManager,
         IConfirmationService confirmationService,
-        ILogger logger)
+        ILocalizationManager localization)
     {
-        RegisterPlaceOrder(host, exchange, riskManager, confirmationService, logger);
-        RegisterCancelOrder(host, exchange, logger);
-        RegisterGetPositions(host, exchange, logger);
-        RegisterGetBalance(host, exchange, logger);
-        RegisterGetMarketData(host, exchange, logger);
+        RegisterPlaceOrder(host, exchange, riskManager, confirmationService, localization);
+        RegisterCancelOrder(host, exchange);
+        RegisterGetPositions(host, exchange);
+        RegisterGetBalance(host, exchange);
+        RegisterGetMarketData(host, exchange);
     }
 
-    private static void RegisterPlaceOrder(
+    #endregion
+
+    #region Tool Registration
+
+    private void RegisterPlaceOrder(
         IMcpServerHost host,
         ITradingAdapter exchange,
         IRiskManager riskManager,
         IConfirmationService confirmationService,
-        ILogger logger)
+        ILocalizationManager localization)
     {
         host.RegisterTool(new McpToolDefinition
         {
@@ -113,7 +147,7 @@ public static class TradingToolsRegistrar
                     if (riskCheck.RequiresConfirmation)
                     {
                         var confirmed = await confirmationService.RequestConfirmationAsync(
-                            $"Place {side} {orderType} order for {args.Quantity} {symbol.Normalized} at {args.Price?.ToString() ?? "market"}?",
+                            BuildPlaceOrderConfirmation(localization, side, orderType, args, symbol),
                             ct);
 
                         if (!confirmed)
@@ -123,7 +157,7 @@ public static class TradingToolsRegistrar
                     }
 
                     var order = await exchange.PlaceOrderAsync(request, ct);
-                    logger.LogInformation("MCP: Order placed — {Order}", order);
+                    _logger.LogInformation("MCP: Order placed — {Order}", order);
 
                     return new McpToolResult(
                         IsError: false,
@@ -139,14 +173,45 @@ public static class TradingToolsRegistrar
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "MCP: place_order failed");
+                    _logger.LogError(ex, "MCP: place_order failed");
                     return new McpToolResult(IsError: true, Content: [McpContent.CreateText(ex.Message)]);
                 }
             },
         });
     }
 
-    private static void RegisterCancelOrder(IMcpServerHost host, ITradingAdapter exchange, ILogger logger)
+    /// <summary>
+    /// Compose a structured, localized-friendly confirmation request: the UI resolves the
+    /// template in the current language; numbers are pre-formatted with InvariantCulture.
+    /// </summary>
+    private static ConfirmationRequest BuildPlaceOrderConfirmation(
+        ILocalizationManager localization,
+        OrderSide side,
+        OrderType orderType,
+        PlaceOrderArgs args,
+        Symbol symbol)
+    {
+        var sideText = localization.GetString($"{OrderNameKeyPrefix}{side}");
+        var typeText = localization.GetString($"{OrderNameKeyPrefix}{orderType}");
+        var priceText = args.Price.HasValue
+            ? args.Price.Value.ToString(CultureInfo.InvariantCulture)
+            : localization.GetString(MarketPriceKey);
+
+        return new ConfirmationRequest
+        {
+            MessageKey = ConfirmPlaceOrderKey,
+            Arguments =
+            [
+                sideText,
+                typeText,
+                args.Quantity.ToString(CultureInfo.InvariantCulture),
+                symbol.Normalized,
+                priceText,
+            ],
+        };
+    }
+
+    private void RegisterCancelOrder(IMcpServerHost host, ITradingAdapter exchange)
     {
         host.RegisterTool(new McpToolDefinition
         {
@@ -177,19 +242,20 @@ public static class TradingToolsRegistrar
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid symbol format: {args.Symbol}")]);
 
                     await exchange.CancelOrderAsync(symbol, args.OrderId, ct);
-                    logger.LogInformation("MCP: Order cancelled — {OrderId}", args.OrderId);
+                    _logger.LogInformation("MCP: Order cancelled — {OrderId}", args.OrderId);
 
                     return new McpToolResult(IsError: false, Content: [McpContent.CreateText($"Order {args.OrderId} cancelled")]);
                 }
                 catch (Exception ex)
                 {
+                    _logger.LogError(ex, "MCP: cancel_order failed");
                     return new McpToolResult(IsError: true, Content: [McpContent.CreateText(ex.Message)]);
                 }
             },
         });
     }
 
-    private static void RegisterGetPositions(IMcpServerHost host, ITradingAdapter exchange, ILogger logger)
+    private void RegisterGetPositions(IMcpServerHost host, ITradingAdapter exchange)
     {
         host.RegisterTool(new McpToolDefinition
         {
@@ -216,13 +282,14 @@ public static class TradingToolsRegistrar
                 }
                 catch (Exception ex)
                 {
+                    _logger.LogError(ex, "MCP: get_positions failed");
                     return new McpToolResult(IsError: true, Content: [McpContent.CreateText(ex.Message)]);
                 }
             },
         });
     }
 
-    private static void RegisterGetBalance(IMcpServerHost host, ITradingAdapter exchange, ILogger logger)
+    private void RegisterGetBalance(IMcpServerHost host, ITradingAdapter exchange)
     {
         host.RegisterTool(new McpToolDefinition
         {
@@ -242,13 +309,14 @@ public static class TradingToolsRegistrar
                 }
                 catch (Exception ex)
                 {
+                    _logger.LogError(ex, "MCP: get_balance failed");
                     return new McpToolResult(IsError: true, Content: [McpContent.CreateText(ex.Message)]);
                 }
             },
         });
     }
 
-    private static void RegisterGetMarketData(IMcpServerHost host, ITradingAdapter exchange, ILogger logger)
+    private void RegisterGetMarketData(IMcpServerHost host, ITradingAdapter exchange)
     {
         host.RegisterTool(new McpToolDefinition
         {
@@ -261,7 +329,7 @@ public static class TradingToolsRegistrar
                 {
                     symbol = new { type = "string" },
                     timeframe = new { type = "string", @enum = new[] { "M1", "M5", "M15", "H1", "H4", "D1" } },
-                    limit = new { type = "integer", description = "Number of candles (default: 100)" }
+                    limit = new { type = "integer", description = $"Number of candles (default: {DefaultMarketDataLimit})" }
                 },
                 required = new[] { "symbol" }
             }.ToJsonElement(),
@@ -279,12 +347,15 @@ public static class TradingToolsRegistrar
                     if (!Symbol.TryParseExchangeFormat(args.Symbol, exchange.Id, out var symbol) || symbol is null)
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid symbol format: {args.Symbol}")]);
 
+                    // Timeframe is a read-only parameter: falling back to H1 keeps the tool usable;
+                    // trade-critical enums (side/type) are never defaulted.
                     var tf = Enum.TryParse<TimeFrame>(args.Timeframe, true, out var timeFrame) ? timeFrame : TimeFrame.H1;
-                    var limit = args.Limit ?? 100;
+                    var limit = args.Limit ?? DefaultMarketDataLimit;
 
                     var bars = await exchange.GetBarsAsync(
-                        symbol, tf,
-                        DateTimeOffset.UtcNow.AddDays(-7),
+                        symbol,
+                        tf,
+                        DateTimeOffset.UtcNow.AddDays(-MarketDataLookbackDays),
                         limit: limit,
                         ct: ct);
 
@@ -302,11 +373,16 @@ public static class TradingToolsRegistrar
                 }
                 catch (Exception ex)
                 {
+                    _logger.LogError(ex, "MCP: get_market_data failed");
                     return new McpToolResult(IsError: true, Content: [McpContent.CreateText(ex.Message)]);
                 }
             },
         });
     }
+
+    #endregion
+
+    #region Tool Arguments
 
     private sealed record PlaceOrderArgs(
         string? Symbol,
@@ -321,4 +397,6 @@ public static class TradingToolsRegistrar
     private sealed record CancelOrderArgs(string? Symbol, string? OrderId);
 
     private sealed record MarketDataArgs(string? Symbol, string? Timeframe, int? Limit);
+
+    #endregion
 }

@@ -1,6 +1,5 @@
 namespace ZettaTrade.App.Services;
 
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -8,16 +7,19 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.App.ViewModels;
+using ZettaTrade.App.Views;
 using ZettaTrade.Core.Interfaces;
-using ZettaTrade.UI.Resources;
 
 /// <summary>
 /// UI-based confirmation service.
-/// Shows a dialog to the user and waits for confirmation.
+/// Shows the MVVM confirmation dialog (<see cref="Views.ConfirmationDialogWindow"/>,
+/// <see cref="ViewModels.ConfirmationDialogViewModel"/>) and waits for the user's answer.
 /// </summary>
 public sealed class UiConfirmationService : IConfirmationService
 {
     private readonly ILogger<UiConfirmationService> _logger;
+    private readonly ILocalizationManager _localization;
 
     /// <summary>Confirmation dialog timeout in seconds.</summary>
     private const int ConfirmationTimeoutSeconds = 60;
@@ -25,17 +27,28 @@ public sealed class UiConfirmationService : IConfirmationService
     /// <summary>
     /// Create a new UiConfirmationService instance.
     /// </summary>
-    public UiConfirmationService(ILogger<UiConfirmationService> logger)
+    public UiConfirmationService(ILogger<UiConfirmationService> logger, ILocalizationManager localization)
     {
         _logger = logger;
+        _localization = localization;
     }
 
-    private static string Localize(string key)
+    /// <inheritdoc/>
+    public Task<bool> RequestConfirmationAsync(string message, CancellationToken ct = default) =>
+        ShowDialogAsync(message, ct);
+
+    /// <inheritdoc/>
+    public async Task<bool> RequestConfirmationAsync(ConfirmationRequest request, CancellationToken ct = default)
     {
-        return Strings.ResourceManager.GetString(key, CultureInfo.CurrentUICulture) ?? key;
+        ArgumentNullException.ThrowIfNull(request);
+
+        // The template is resolved in the current language here; AI layers never
+        // compose user-facing text themselves.
+        var message = _localization.GetString(request.MessageKey, request.Arguments);
+        return await ShowDialogAsync(message, ct);
     }
 
-    public async Task<bool> RequestConfirmationAsync(string message, CancellationToken ct = default)
+    private async Task<bool> ShowDialogAsync(string message, CancellationToken ct)
     {
         try
         {
@@ -52,85 +65,24 @@ public sealed class UiConfirmationService : IConfirmationService
                 return false;
             }
 
-            var dialog = new Window
+            var dialog = new ConfirmationDialogWindow
             {
-                Title = Localize("Trading.ConfirmationTitle"),
-                Width = 400,
-                Height = 200,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                CanResize = false,
+                DataContext = new ConfirmationDialogViewModel(message),
             };
 
-            var panel = new StackPanel
-            {
-                Margin = new Avalonia.Thickness(20),
-                Spacing = 15,
-            };
-
-            var messageText = new TextBlock
-            {
-                Text = message,
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-            };
-
-            var buttonPanel = new StackPanel
-            {
-                Orientation = Avalonia.Layout.Orientation.Horizontal,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                Spacing = 10,
-            };
-
-            var confirmButton = new Button
-            {
-                Content = Localize("Trading.Confirm"),
-                Width = 100,
-            };
-
-            var cancelButton = new Button
-            {
-                Content = Localize("Trading.Cancel"),
-                Width = 100,
-            };
-
-            var tcs = new TaskCompletionSource<bool>();
-
-            confirmButton.Click += (_, _) =>
-            {
-                tcs.TrySetResult(true);
-                dialog.Close();
-            };
-
-            cancelButton.Click += (_, _) =>
-            {
-                tcs.TrySetResult(false);
-                dialog.Close();
-            };
-
-            buttonPanel.Children.Add(confirmButton);
-            buttonPanel.Children.Add(cancelButton);
-            panel.Children.Add(messageText);
-            panel.Children.Add(buttonPanel);
-            dialog.Content = panel;
-
-            // Shared timeout budget: covers dialog open time and the answer wait.
+            // Shared timeout budget: closes the window so ShowDialog cannot hang forever.
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(ConfirmationTimeoutSeconds));
-
-            // Close the dialog on timeout so ShowDialog cannot hang forever.
             using var registration = timeoutCts.Token.Register(
                 () => Dispatcher.UIThread.Post(dialog.Close));
 
             await dialog.ShowDialog<object>(mainWindow);
 
-            try
-            {
-                return await tcs.Task.WaitAsync(timeoutCts.Token);
-            }
-            catch (OperationCanceledException)
-            {
+            if (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
                 _logger.LogWarning("Confirmation dialog timed out");
-                return false;
-            }
+
+            // No explicit answer (title bar X, timeout) is never a confirmation.
+            return dialog.Result ?? false;
         }
         catch (Exception ex)
         {

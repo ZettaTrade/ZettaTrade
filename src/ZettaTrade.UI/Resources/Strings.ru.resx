@@ -114,4 +114,16 @@
   <data name="Trading.Cancel" xml:space="preserve">
     <value>Отмена</value>
   </data>
+  <data name="Order.StopMarket" xml:space="preserve">
+    <value>Стоп-маркет</value>
+  </data>
+  <data name="Order.StopLimit" xml:space="preserve">
+    <value>Стоп-лимит</value>
+  </data>
+  <data name="Trading.ConfirmPlaceOrderFormat" xml:space="preserve">
+    <value>Ордер {1}: {0} {2} {3} — {4}?</value>
+  </data>
+  <data name="Trading.PriceMarket" xml:space="preserve">
+    <value>по рыночной цене</value>
+  </data>
 </root>

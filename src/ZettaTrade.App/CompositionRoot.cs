@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
 using ZettaTrade.AI.Mcp;
+using ZettaTrade.AI.Mcp.Tools;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
@@ -67,11 +68,19 @@ internal static class CompositionRoot
         });
         services.AddSingleton<IMarketDataAdapter, BinanceAdapter>();
 
+        // Trading surface: paper adapter around any market data adapter (mock only; no real keys).
+        services.AddSingleton<ITradingAdapter>(sp => new PaperTradingAdapter(
+            sp.GetRequiredService<IMarketDataAdapter>(),
+            sp.GetRequiredService<ILogger<PaperTradingAdapter>>()));
+
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
 
         services.AddSingleton<IRiskManager, DefaultRiskManager>();
-        services.AddSingleton<IConfirmationService, UiConfirmationService>();
+        services.AddSingleton<IConfirmationService>(sp => new UiConfirmationService(
+            sp.GetRequiredService<ILogger<UiConfirmationService>>(),
+            sp.GetRequiredService<ILocalizationManager>()));
+        services.AddSingleton<TradingToolsRegistrar>();
 
         services.AddSingleton<MenuViewModel>();
         services.AddSingleton<StatusBarViewModel>(sp =>
@@ -89,10 +98,17 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddTransient<MainViewModel>();
 
-        // MCP trading tools (TradingToolsRegistrar.RegisterAll) stay unregistered until an
-        // ITradingAdapter exists in the DI container; current adapters are market-data only.
+        // MCP trading tools: registered once, against the paper trading adapter
+        // (mock surface; real exchange adapters are plugged in as plugins later).
+        var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<TradingToolsRegistrar>().RegisterAll(
+            provider.GetRequiredService<IMcpServerHost>(),
+            provider.GetRequiredService<ITradingAdapter>(),
+            provider.GetRequiredService<IRiskManager>(),
+            provider.GetRequiredService<IConfirmationService>(),
+            provider.GetRequiredService<ILocalizationManager>());
 
-        return services.BuildServiceProvider();
+        return provider;
     }
 
     /// <summary>

@@ -11,6 +11,46 @@ using ZettaTrade.Core.Interfaces;
 /// </summary>
 public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
 {
+    #region Constants
+
+    /// <summary>Server name presented to MCP clients.</summary>
+    public const string ServerName = "Zetta";
+
+    /// <summary>Server version reported in the initialize response.</summary>
+    public const string ServerVersion = "0.1.0";
+
+    /// <summary>Local stdio transport address exposed to the host application.</summary>
+    private const string StdioAddress = "stdio://local";
+
+    /// <summary>MCP protocol revision implemented by this host.</summary>
+    private const string ProtocolVersion = "2024-11-05";
+
+    /// <summary>JSON-RPC envelope version.</summary>
+    private const string JsonRpcVersion = "2.0";
+
+    /// <summary>JSON-RPC error code for unknown tools and resources.</summary>
+    private const int UnknownRequestErrorCode = -32601;
+
+    /// <summary>JSON-RPC method name for the MCP initialize handshake.</summary>
+    private const string InitializeMethod = "initialize";
+
+    /// <summary>JSON-RPC method name listing registered tools.</summary>
+    private const string ToolsListMethod = "tools/list";
+
+    /// <summary>JSON-RPC method name invoking a tool.</summary>
+    private const string ToolsCallMethod = "tools/call";
+
+    /// <summary>JSON-RPC method name listing registered resources.</summary>
+    private const string ResourcesListMethod = "resources/list";
+
+    /// <summary>JSON-RPC method name reading a resource.</summary>
+    private const string ResourcesReadMethod = "resources/read";
+
+    /// <summary>JSON-RPC method name listing registered prompts.</summary>
+    private const string PromptsListMethod = "prompts/list";
+
+    #endregion
+
     private readonly ILogger<McpServerHost> _logger;
     private readonly Dictionary<string, McpToolDefinition> _tools = new();
     private readonly Dictionary<string, McpResourceDefinition> _resources = new();
@@ -47,10 +87,10 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
 
             _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             _isRunning = true;
-            _address = "stdio://local";
+            _address = StdioAddress;
 
-            _logger.LogInformation("MCP Server 'Zetta' started with {Tools} tools, {Resources} resources, {Prompts} prompts",
-                _tools.Count, _resources.Count, _prompts.Count);
+            _logger.LogInformation("MCP Server '{ServerName}' started with {Tools} tools, {Resources} resources, {Prompts} prompts",
+                ServerName, _tools.Count, _resources.Count, _prompts.Count);
 
             // RunLoopAsync catches all non-cancellation failures internally; the continuation
             // below only logs a faulted loop, so no exception escapes unobserved.
@@ -165,12 +205,12 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
 
         string? response = method switch
         {
-            "initialize" => """{"jsonrpc":"2.0","id":"1","result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"Zetta","version":"0.1.0"}}}""",
-            "tools/list" => await HandleToolsListAsync(id, ct),
-            "tools/call" => await HandleToolCallAsync(doc.RootElement, id, ct),
-            "resources/list" => await HandleResourcesListAsync(id, ct),
-            "resources/read" => await HandleResourceReadAsync(doc.RootElement, id, ct),
-            "prompts/list" => await HandlePromptsListAsync(id, ct),
+            InitializeMethod => BuildInitializeResponse(),
+            ToolsListMethod => await HandleToolsListAsync(id, ct),
+            ToolsCallMethod => await HandleToolCallAsync(doc.RootElement, id, ct),
+            ResourcesListMethod => await HandleResourcesListAsync(id, ct),
+            ResourcesReadMethod => await HandleResourceReadAsync(doc.RootElement, id, ct),
+            PromptsListMethod => await HandlePromptsListAsync(id, ct),
             _ => null
         };
 
@@ -180,6 +220,21 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
             await Console.Out.FlushAsync(ct);
         }
     }
+
+    /// <summary>
+    /// Build the MCP initialize response from server constants (single source of truth).
+    /// </summary>
+    private static string BuildInitializeResponse() => JsonSerializer.Serialize(new
+    {
+        jsonrpc = JsonRpcVersion,
+        id = "1",
+        result = new
+        {
+            protocolVersion = ProtocolVersion,
+            capabilities = new { tools = new { } },
+            serverInfo = new { name = ServerName, version = ServerVersion },
+        },
+    });
 
     private async Task<string> HandleToolsListAsync(string? id, CancellationToken ct)
     {
@@ -192,7 +247,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
                 description = t.Description,
                 inputSchema = t.InputSchema
             });
-            return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, result = new { tools } });
+            return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { tools } });
         }
         finally
         {
@@ -209,7 +264,12 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         {
             if (!_tools.TryGetValue(name, out var tool))
             {
-                return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, error = new { code = -32601, message = "Unknown tool" } });
+                return JsonSerializer.Serialize(new
+                {
+                    jsonrpc = JsonRpcVersion,
+                    id,
+                    error = new { code = UnknownRequestErrorCode, message = "Unknown tool" },
+                });
             }
 
             var arguments = root.GetProperty("params").TryGetProperty("arguments", out var args)
@@ -217,7 +277,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
                 : (JsonElement?)null;
 
             var result = await tool.Handler(arguments, ct);
-            return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, result = new { content = result.Content } });
+            return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { content = result.Content } });
         }
         finally
         {
@@ -231,7 +291,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         try
         {
             var resources = _resources.Values.Select(r => new { r.Uri, r.Name, r.MimeType });
-            return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, result = new { resources } });
+            return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { resources } });
         }
         finally
         {
@@ -248,11 +308,16 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         {
             if (!_resources.TryGetValue(uri, out var resource))
             {
-                return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, error = new { code = -32601, message = "Unknown resource" } });
+                return JsonSerializer.Serialize(new
+                {
+                    jsonrpc = JsonRpcVersion,
+                    id,
+                    error = new { code = UnknownRequestErrorCode, message = "Unknown resource" },
+                });
             }
 
             var content = await resource.Reader(ct);
-            return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, result = new { contents = content } });
+            return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { contents = content } });
         }
         finally
         {
@@ -266,7 +331,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         try
         {
             var prompts = _prompts.Values.Select(p => new { p.Name, p.Description, p.Arguments });
-            return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, result = new { prompts } });
+            return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { prompts } });
         }
         finally
         {
