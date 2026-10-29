@@ -9,7 +9,7 @@ public static class ApplicationConstants
     /// Application name used in paths, service names, and client info.
     /// </summary>
     public const string ApplicationName = "ZettaTrade";
-    
+
     /// <summary>
     /// Application version.
     /// </summary>

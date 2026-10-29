@@ -18,13 +18,13 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
 
     /// <inheritdoc/>
     public abstract string Id { get; }
-    
+
     /// <inheritdoc/>
     public abstract string Name { get; }
-    
+
     /// <inheritdoc/>
     public bool IsConnected { get; protected set; }
-    
+
     /// <inheritdoc/>
     public abstract ExchangeCapabilities Capabilities { get; }
 
@@ -33,10 +33,10 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
 
     /// <summary>Subject for ticker updates.</summary>
     protected readonly ConcurrentDictionary<string, Subject<Ticker>> TickerSubjects = new();
-    
+
     /// <summary>Subject for order book updates.</summary>
     protected readonly ConcurrentDictionary<string, Subject<OrderBook>> OrderBookSubjects = new();
-    
+
     /// <summary>Subject for trade updates.</summary>
     protected readonly ConcurrentDictionary<string, Subject<MarketTrade>> TradeSubjects = new();
 
@@ -58,13 +58,13 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
 
     /// <inheritdoc/>
     public abstract Task ConnectAsync(CancellationToken ct = default);
-    
+
     /// <inheritdoc/>
     public abstract Task DisconnectAsync(CancellationToken ct = default);
-    
+
     /// <inheritdoc/>
     public abstract Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default);
-    
+
     /// <inheritdoc/>
     public abstract Task<IReadOnlyList<Bar>> GetBarsAsync(
         Symbol symbol,
@@ -142,7 +142,7 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
 
     #region IDisposable
 
-    public virtual async ValueTask DisposeAsync()
+    public virtual ValueTask DisposeAsync()
     {
         foreach (var subject in TickerSubjects.Values)
         {
@@ -162,7 +162,7 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
         }
         TradeSubjects.Clear();
 
-        await Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     #endregion

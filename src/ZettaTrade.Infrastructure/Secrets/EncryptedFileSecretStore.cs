@@ -19,7 +19,7 @@ public sealed class EncryptedFileSecretStore : ISecretStore
     private const int NonceSizeBytes = 12;
     private const int TagSizeBytes = 16;
     private const int SaltSizeBytes = 32;
-    
+
     private readonly string _filePath;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -183,7 +183,7 @@ public sealed class EncryptedFileSecretStore : ISecretStore
             var ciphertextWithTag = encryptedData[NonceSizeBytes..];
 
             using var aes = new AesGcm(_encryptionKey, TagSizeBytes);
-            
+
             if (ciphertextWithTag.Length < TagSizeBytes)
             {
                 _logger.LogWarning("Secret store file is corrupted, starting fresh");

@@ -25,19 +25,19 @@ public sealed record OrderBook
 {
     /// <summary>Trading symbol.</summary>
     public required Symbol Symbol { get; init; }
-    
+
     /// <summary>Bid side (buy orders).</summary>
     public required IReadOnlyList<PriceLevel> Bids { get; init; }
-    
+
     /// <summary>Ask side (sell orders).</summary>
     public required IReadOnlyList<PriceLevel> Asks { get; init; }
-    
+
     /// <summary>Snapshot timestamp.</summary>
     public required DateTimeOffset Timestamp { get; init; }
 
     /// <summary>Best bid price level.</summary>
     public PriceLevel? BestBid => Bids.Count > 0 ? Bids[0] : null;
-    
+
     /// <summary>Best ask price level.</summary>
     public PriceLevel? BestAsk => Asks.Count > 0 ? Asks[0] : null;
 

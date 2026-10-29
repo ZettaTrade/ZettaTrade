@@ -44,7 +44,7 @@ public sealed record McpServerConfig
 {
     /// <summary>Server name.</summary>
     public required string Name { get; init; }
-    
+
     /// <summary>Transport type (Stdio or StreamableHttp).</summary>
     public required McpTransport Transport { get; init; }
 
@@ -98,21 +98,21 @@ public sealed record McpContent
 {
     /// <summary>Content type (e.g., "text", "image", "binary").</summary>
     public required string Type { get; init; }
-    
+
     /// <summary>Text content (for text type).</summary>
     public string? TextValue { get; init; }
-    
+
     /// <summary>Binary data (for binary/image types).</summary>
     public byte[]? Data { get; init; }
-    
+
     /// <summary>MIME type (for binary/image types).</summary>
     public string? MimeType { get; init; }
-    
+
     /// <summary>Create a text content block.</summary>
     public static McpContent CreateText(string text) => new() { Type = "text", TextValue = text };
-    
+
     /// <summary>Create a binary content block.</summary>
-    public static McpContent CreateBinary(byte[] data, string mimeType) => 
+    public static McpContent CreateBinary(byte[] data, string mimeType) =>
         new() { Type = "binary", Data = data, MimeType = mimeType };
 }
 

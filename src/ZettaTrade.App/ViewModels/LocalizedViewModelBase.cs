@@ -11,7 +11,7 @@ using ZettaTrade.Core.Interfaces;
 public abstract class LocalizedViewModelBase : ReactiveObject, IActivatableViewModel
 {
     public ViewModelActivator Activator { get; } = new();
-    
+
     protected readonly ILocalizationManager Loc;
 
     protected LocalizedViewModelBase(ILocalizationManager localizationManager)

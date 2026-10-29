@@ -2,6 +2,8 @@ namespace ZettaTrade.Infrastructure.Exchange;
 
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
@@ -9,11 +11,24 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
-/// Binance exchange adapter implementation.
+/// Binance exchange adapter implementation (read-only market data).
+/// Creates its own WebSocket transport; HTTP clients come from IHttpClientFactory.
 /// </summary>
 public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 {
     #region Properties
+
+    /// <summary>Named HttpClientFactory client used for REST requests.</summary>
+    public const string HttpClientName = "binance";
+
+    /// <summary>Timeout for REST requests, in seconds.</summary>
+    public const int RequestTimeoutSeconds = 30;
+
+    /// <summary>Number of levels in the partial book depth snapshot.</summary>
+    private const int DepthLevelCount = 20;
+
+    /// <summary>Partial book depth update period in milliseconds.</summary>
+    private const int DepthUpdatePeriodMs = 100;
 
     /// <inheritdoc/>
     public override string Id => "binance";
@@ -39,10 +54,12 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <summary>
     /// Create a new BinanceAdapter instance.
     /// </summary>
-    public BinanceAdapter(ILogger<BinanceAdapter> logger, HttpClient? httpClient = null)
+    public BinanceAdapter(
+        ILogger<BinanceAdapter> logger,
+        IHttpClientFactory httpClientFactory)
         : base(logger)
     {
-        _httpClient = httpClient ?? new HttpClient();
+        _httpClient = httpClientFactory.CreateClient(HttpClientName);
         _wsClient = new WebSocketClient(_wsUrl, logger);
 
         _messageSubscription = _wsClient.MessageStream.Subscribe(HandleWebSocketMessage);
@@ -133,25 +150,13 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     }
 
     /// <summary>
-    /// Subscribe to ticker, order book, and trades for a symbol.
+    /// Subscribe to ticker, partial order book, and trades for a symbol.
     /// </summary>
     public async Task SubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
-        var symbolStr = symbol.GetExchangeFormat(Id).ToLower();
-
-        var subscribeMessage = new
-        {
-            method = "SUBSCRIBE",
-            @params = new[]
-            {
-                $"{symbolStr}@ticker",
-                $"{symbolStr}@depth20@100ms",
-                $"{symbolStr}@trade"
-            },
-            id = DateTime.UtcNow.Ticks
-        };
-
-        await _wsClient.SendJsonAsync(subscribeMessage, ct);
+        await _wsClient.SendJsonAsync(
+            new SubscriptionRequest(MethodNames.Subscribe, BuildStreamNames(symbol)),
+            ct);
     }
 
     /// <summary>
@@ -159,26 +164,42 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// </summary>
     public async Task UnsubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
-        var symbolStr = symbol.GetExchangeFormat(Id).ToLower();
-
-        var unsubscribeMessage = new
-        {
-            method = "UNSUBSCRIBE",
-            @params = new[]
-            {
-                $"{symbolStr}@ticker",
-                $"{symbolStr}@depth20@100ms",
-                $"{symbolStr}@trade"
-            },
-            id = DateTime.UtcNow.Ticks
-        };
-
-        await _wsClient.SendJsonAsync(unsubscribeMessage, ct);
+        await _wsClient.SendJsonAsync(
+            new SubscriptionRequest(MethodNames.Unsubscribe, BuildStreamNames(symbol)),
+            ct);
     }
 
     #endregion
 
     #region Private Methods
+
+    private string[] BuildStreamNames(Symbol symbol)
+    {
+        // Partial book depth snapshot; the payload carries "bids"/"asks" (no symbol field).
+        var streamSuffixes = new[]
+        {
+            "ticker",
+            $"depth{DepthLevelCount}@{DepthUpdatePeriodMs}ms",
+            "trade",
+        };
+
+        var symbolStr = symbol.GetExchangeFormat(Id).ToLowerInvariant();
+        return streamSuffixes.Select(suffix => $"{symbolStr}@{suffix}").ToArray();
+    }
+
+    /// <summary>Extract the symbol part ("btcusdt") from a stream name ("btcusdt@depth20@100ms").</summary>
+    private static string GetStreamSymbol(string stream)
+    {
+        var separatorIndex = stream.IndexOf('@');
+        return separatorIndex < 0 ? stream : stream[..separatorIndex];
+    }
+
+    private Symbol? ParseExchangeSymbol(string exchangeSymbol)
+    {
+        return Symbol.TryParseExchangeFormat(exchangeSymbol, Id, out var symbol) && symbol != null
+            ? symbol
+            : null;
+    }
 
     private void HandleWebSocketMessage(string message)
     {
@@ -187,6 +208,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
             using var json = JsonDocument.Parse(message);
             var root = json.RootElement;
 
+            // Combined-stream envelope: {"stream":"btcusdt@ticker","data":{...}}
             if (!root.TryGetProperty("stream", out var streamProp) ||
                 !root.TryGetProperty("data", out var data))
             {
@@ -197,17 +219,26 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
             if (string.IsNullOrEmpty(stream))
                 return;
 
+            var symbol = ParseExchangeSymbol(GetStreamSymbol(stream));
+
+            // Unknown symbol format: skip the message rather than guessing a default.
+            if (symbol is null)
+            {
+                Logger.LogWarning("WebSocket stream {Stream}: unrecognised symbol format", stream);
+                return;
+            }
+
             if (stream.EndsWith("@ticker"))
             {
-                HandleTickerMessage(data);
+                HandleTickerMessage(symbol, data);
             }
             else if (stream.Contains("@depth"))
             {
-                HandleOrderBookMessage(data);
+                HandleOrderBookMessage(symbol, data);
             }
             else if (stream.EndsWith("@trade"))
             {
-                HandleTradeMessage(data);
+                HandleTradeMessage(symbol, data);
             }
         }
         catch (Exception ex)
@@ -216,11 +247,8 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         }
     }
 
-    private void HandleTickerMessage(JsonElement data)
+    private void HandleTickerMessage(Symbol symbol, JsonElement data)
     {
-        var symbolStr = data.GetProperty("s").GetString()!;
-        var symbol = Symbol.Parse(symbolStr);
-
         var ticker = new Ticker(
             symbol,
             data.GetProperty("c").GetDecimal(),
@@ -234,43 +262,41 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         PublishTicker(ticker);
     }
 
-    private void HandleOrderBookMessage(JsonElement data)
+    private void HandleOrderBookMessage(Symbol symbol, JsonElement data)
     {
-        var symbolStr = data.GetProperty("s").GetString()!;
-        var symbol = Symbol.Parse(symbolStr);
+        var bids = ParsePriceLevels(data.GetProperty("bids"));
+        var asks = ParsePriceLevels(data.GetProperty("asks"));
 
-        var bids = new List<PriceLevel>();
-        foreach (var bid in data.GetProperty("b").EnumerateArray())
-        {
-            bids.Add(new PriceLevel(bid[0].GetDecimal(), bid[1].GetDecimal()));
-        }
-
-        var asks = new List<PriceLevel>();
-        foreach (var ask in data.GetProperty("a").EnumerateArray())
-        {
-            asks.Add(new PriceLevel(ask[0].GetDecimal(), ask[1].GetDecimal()));
-        }
-
+        // Partial book depth snapshots carry no event timestamp, only lastUpdateId.
         var orderBook = new OrderBook
         {
             Symbol = symbol,
             Bids = bids,
             Asks = asks,
-            Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(data.GetProperty("E").GetInt64())
+            Timestamp = DateTimeOffset.UtcNow
         };
 
         PublishOrderBook(orderBook);
     }
 
-    private void HandleTradeMessage(JsonElement data)
+    private static List<PriceLevel> ParsePriceLevels(JsonElement array)
     {
-        var symbolStr = data.GetProperty("s").GetString()!;
-        var symbol = Symbol.Parse(symbolStr);
+        var levels = new List<PriceLevel>();
+        foreach (var level in array.EnumerateArray())
+        {
+            levels.Add(new PriceLevel(level[0].GetDecimal(), level[1].GetDecimal()));
+        }
 
+        return levels;
+    }
+
+    private void HandleTradeMessage(Symbol symbol, JsonElement data)
+    {
         var trade = new MarketTrade
         {
             Id = data.GetProperty("t").GetInt64().ToString(),
             Symbol = symbol,
+            // "m" is "is buyer the maker": a maker buy means the aggressor sold.
             Side = data.GetProperty("m").GetBoolean() ? OrderSide.Sell : OrderSide.Buy,
             Price = new Price(data.GetProperty("p").GetDecimal()),
             Quantity = new Quantity(data.GetProperty("q").GetDecimal()),
@@ -305,7 +331,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     #endregion
 
-    #region IDisposable
+    #region IAsyncDisposable
 
     public override async ValueTask DisposeAsync()
     {
@@ -313,7 +339,21 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         _messageSubscription.Dispose();
         _connectionSubscription.Dispose();
         await _wsClient.DisposeAsync();
-        _httpClient.Dispose();
+        // HttpClient comes from IHttpClientFactory; its lifetime is managed there.
+    }
+
+    #endregion
+
+    #region Nested Types
+
+    private sealed record SubscriptionRequest(
+        [property: JsonPropertyName("method")] string Method,
+        [property: JsonPropertyName("params")] string[] Params);
+
+    private static class MethodNames
+    {
+        public const string Subscribe = "SUBSCRIBE";
+        public const string Unsubscribe = "UNSUBSCRIBE";
     }
 
     #endregion

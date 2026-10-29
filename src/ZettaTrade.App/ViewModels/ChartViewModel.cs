@@ -16,6 +16,22 @@ using Observable = System.Reactive.Linq.Observable;
 /// </summary>
 public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
 {
+    #region Constants
+
+    /// <summary>Upper bound of the symbols dropdown in the demo view.</summary>
+    private const int MaxVisibleSymbols = 50;
+
+    /// <summary>Historical window length for chart bars, in days.</summary>
+    private const int ChartLookbackDays = 7;
+
+    /// <summary>Initial number of candles loaded for the chart.</summary>
+    private const int InitialBarCount = 200;
+
+    /// <summary>Chart timeframe while the timeframe picker is not implemented.</summary>
+    private const Core.Enums.TimeFrame ChartTimeFrame = Core.Enums.TimeFrame.H1;
+
+    #endregion
+
     #region Properties
 
     public ViewModelActivator Activator { get; } = new();
@@ -66,9 +82,11 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
 
         this.WhenActivated(disposables =>
         {
-            // Handle symbol selection change
+            // Redraw the chart when the selected symbol changes. Switch() keeps only the
+            // latest load running and cancels the previous one, so bars never arrive out of order.
             this.WhenAnyValue(x => x.SelectedSymbol)
-                .SelectMany(symbol => Observable.FromAsync(ct => LoadChartDataAsync(symbol, ct)))
+                .Select(symbol => Observable.FromAsync(token => LoadChartDataAsync(symbol, token)))
+                .Switch()
                 .ObserveOnUiThread()
                 .Subscribe(
                     _ => { },
@@ -89,43 +107,52 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
 
     #region Private Methods
 
-    private async Task LoadSymbolsAsync(CancellationToken ct)
+    private async Task<int> LoadSymbolsAsync(CancellationToken ct)
     {
         try
         {
             var symbols = await _marketData.GetSymbolsAsync(ct);
-            AvailableSymbols = new ObservableCollection<Symbol>(symbols.Take(50)); // Limit for demo
+            var visibleSymbols = symbols.Take(MaxVisibleSymbols).ToList();
+            AvailableSymbols = new ObservableCollection<Symbol>(visibleSymbols);
 
             if (AvailableSymbols.Count > 0 && SelectedSymbol == null)
             {
                 SelectedSymbol = AvailableSymbols[0];
             }
+
+            // Task<int> (not plain Task) keeps Rx pipelines on ReactiveUI.RxVoid; System.Reactive.Unit is banned.
+            return AvailableSymbols.Count;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load symbols");
+            return 0;
         }
     }
 
-    private async Task LoadChartDataAsync(Symbol? symbol, CancellationToken ct)
+    private async Task<int> LoadChartDataAsync(Symbol? symbol, CancellationToken ct)
     {
         if (symbol is null)
-            return;
+            return 0;
 
         try
         {
             var bars = await _marketData.GetBarsAsync(
                 symbol,
-                Core.Enums.TimeFrame.H1,
-                DateTimeOffset.UtcNow.AddDays(-7),
-                limit: 200,
+                ChartTimeFrame,
+                DateTimeOffset.UtcNow.AddDays(-ChartLookbackDays),
+                limit: InitialBarCount,
                 ct: ct);
 
             Bars = new ObservableCollection<Bar>(bars);
+
+            // Task<int> (not plain Task) keeps Rx pipelines on ReactiveUI.RxVoid; System.Reactive.Unit is banned.
+            return bars.Count;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load chart data for {Symbol}", symbol);
+            return 0;
         }
     }
 

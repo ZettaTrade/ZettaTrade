@@ -16,12 +16,17 @@ using ZettaTrade.Core.Interfaces;
 /// </summary>
 public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDisposable
 {
+    /// <summary>Debounce window for external settings file reloads, in milliseconds.</summary>
+    private const int ExternalReloadDebounceMs = 1000;
+
     private readonly string _settingsFilePath;
     private readonly ILogger<SettingsService> _logger;
     private readonly Subject<SettingsChange> _changes = new();
+    private readonly Subject<bool> _externalFileChanges = new();
     private readonly ConcurrentDictionary<string, JsonElement> _settings = new();
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly SemaphoreSlim _saveLock = new(1, 1);
+    private IDisposable? _reloadSubscription;
     private FileSystemWatcher? _watcher;
     private bool _disposed;
     private bool _isSaving;
@@ -40,6 +45,15 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
+
+        // Debounced, latest-wins reload pipeline; LoadFromFileAsync logs its own failures.
+        _reloadSubscription = _externalFileChanges
+            .Sample(TimeSpan.FromMilliseconds(ExternalReloadDebounceMs))
+            .Select(_ => Observable.FromAsync(() => LoadFromFileAsync()))
+            .Switch()
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "Failed to reload settings after file change"));
 
         StartWatching();
     }
@@ -101,7 +115,7 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
                 Directory.CreateDirectory(directory);
 
             var grouped = new Dictionary<string, Dictionary<string, JsonElement>>();
-            
+
             foreach (var (fullKey, element) in _settings)
             {
                 var parts = fullKey.Split('\0');
@@ -112,12 +126,12 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
 
                 if (!grouped.ContainsKey(section))
                     grouped[section] = new Dictionary<string, JsonElement>();
-                
+
                 grouped[section][key] = element;
             }
 
             var json = JsonSerializer.Serialize(grouped, _jsonOptions);
-            
+
             // Atomic write: write to temp file, then rename
             var tempPath = _settingsFilePath + ".tmp";
             await File.WriteAllTextAsync(tempPath, json, ct);
@@ -142,12 +156,12 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
         await LoadFromFileAsync();
     }
 
-    private async Task LoadFromFileAsync()
+    private async Task<int> LoadFromFileAsync()
     {
         if (!File.Exists(_settingsFilePath))
         {
             _logger.LogInformation("Settings file not found at {Path}, using defaults", _settingsFilePath);
-            return;
+            return 0;
         }
 
         try
@@ -176,10 +190,13 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
             }
 
             _logger.LogInformation("Settings loaded from {Path} ({Count} keys)", _settingsFilePath, _settings.Count);
+
+            return _settings.Count;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load settings from {Path}", _settingsFilePath);
+            return 0;
         }
     }
 
@@ -202,11 +219,11 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        if (_isSaving)
+        if (_isSaving || _disposed)
             return;
 
         _logger.LogInformation("Settings file changed externally, reloading");
-        _ = LoadFromFileAsync();
+        _externalFileChanges.OnNext(true);
     }
 
     public void Dispose()
@@ -215,6 +232,8 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
         _disposed = true;
 
         _watcher?.Dispose();
+        _reloadSubscription?.Dispose();
+        _externalFileChanges.Dispose();
         _changes.Dispose();
         _saveLock.Dispose();
     }

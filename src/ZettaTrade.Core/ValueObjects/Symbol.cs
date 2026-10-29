@@ -10,7 +10,7 @@ public sealed record Symbol
 {
     private const int MinAssetLength = 2;
     private const int MaxAssetLength = 10;
-    
+
     /// <summary>Normalized symbol (e.g., "BTC/USDT" for display).</summary>
     public string Normalized { get; }
 
@@ -29,7 +29,7 @@ public sealed record Symbol
     public Symbol(string baseAsset, string? quoteAsset, Enums.AssetClass assetClass)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseAsset);
-        
+
         BaseAsset = baseAsset.ToUpperInvariant();
         QuoteAsset = quoteAsset?.ToUpperInvariant();
         AssetClass = assetClass;
@@ -56,13 +56,13 @@ public sealed record Symbol
     public static Symbol Parse(string normalized)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized);
-        
+
         var parts = normalized.Split('/');
         if (parts.Length == 2)
         {
             return new Symbol(parts[0], parts[1], Enums.AssetClass.Crypto);
         }
-        
+
         return new Symbol(parts[0], null, Enums.AssetClass.Stock);
     }
 
@@ -72,7 +72,7 @@ public sealed record Symbol
     public static bool TryParseExchangeFormat(string exchangeSymbol, string exchangeId, out Symbol? symbol)
     {
         symbol = null;
-        
+
         if (string.IsNullOrWhiteSpace(exchangeSymbol))
             return false;
 
@@ -94,7 +94,7 @@ public sealed record Symbol
     private static (string? baseAsset, string? quoteAsset, Enums.AssetClass assetClass) ParseCryptoConcatenated(string symbol)
     {
         var quoteAssets = new[] { "USDT", "USDC", "BUSD", "BTC", "ETH", "USD", "EUR" };
-        
+
         foreach (var quote in quoteAssets)
         {
             if (symbol.EndsWith(quote, StringComparison.OrdinalIgnoreCase) && symbol.Length > quote.Length)
@@ -106,7 +106,7 @@ public sealed record Symbol
                 }
             }
         }
-        
+
         return (null, null, Enums.AssetClass.Crypto);
     }
 
@@ -117,7 +117,7 @@ public sealed record Symbol
         {
             return (parts[0], parts[1], Enums.AssetClass.Crypto);
         }
-        
+
         return (null, null, Enums.AssetClass.Crypto);
     }
 

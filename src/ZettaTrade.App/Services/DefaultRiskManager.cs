@@ -11,7 +11,7 @@ using ZettaTrade.Core.Interfaces;
 public sealed class DefaultRiskManager : IRiskManager
 {
     private readonly ILogger<DefaultRiskManager> _logger;
-    
+
     /// <summary>Maximum order value in USD before requiring confirmation.</summary>
     private const decimal MaxOrderValueUsd = 10000m;
 
@@ -27,11 +27,23 @@ public sealed class DefaultRiskManager : IRiskManager
     {
         try
         {
-            var estimatedValue = request.Quantity.Value * (request.Price?.Value ?? 0m);
-            
+            // Market orders carry no explicit price: rather than estimating zero value
+            // (which would silently bypass confirmation), require a human decision.
+            var referencePrice = request.Price?.Value;
+            if (referencePrice is null)
+            {
+                _logger.LogWarning(
+                    "Order of {Quantity} {Symbol} has no price to estimate value; requiring confirmation",
+                    request.Quantity.Value,
+                    request.Symbol.Normalized);
+                return Task.FromResult(RiskCheckResult.Approved(requiresConfirmation: true));
+            }
+
+            var estimatedValue = request.Quantity.Value * referencePrice.Value;
+
             if (estimatedValue > MaxOrderValueUsd)
             {
-                _logger.LogWarning("Order value {Value} exceeds threshold {Threshold}", 
+                _logger.LogWarning("Order value {Value} exceeds threshold {Threshold}",
                     estimatedValue, MaxOrderValueUsd);
                 return Task.FromResult(RiskCheckResult.Approved(requiresConfirmation: true));
             }

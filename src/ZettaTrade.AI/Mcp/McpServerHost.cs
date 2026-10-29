@@ -17,6 +17,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     private readonly Dictionary<string, McpPromptDefinition> _prompts = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
     private CancellationTokenSource? _cts;
+    private Task? _runLoopTask;
     private bool _isRunning;
     private string? _address;
     private bool _disposed;
@@ -30,7 +31,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     }
 
     public bool IsRunning => _isRunning;
-    
+
     public string? Address => _address;
 
     public async Task StartAsync(CancellationToken ct = default)
@@ -47,11 +48,19 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
             _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             _isRunning = true;
             _address = "stdio://local";
-            
-            _logger.LogInformation("MCP Server 'Zetta' started with {Tools} tools, {Resources} resources, {Prompts} prompts", 
+
+            _logger.LogInformation("MCP Server 'Zetta' started with {Tools} tools, {Resources} resources, {Prompts} prompts",
                 _tools.Count, _resources.Count, _prompts.Count);
-            
-            _ = Task.Run(() => RunLoopAsync(_cts.Token), _cts.Token);
+
+            // RunLoopAsync catches all non-cancellation failures internally; the continuation
+            // below only logs a faulted loop, so no exception escapes unobserved.
+            _runLoopTask = Task
+                .Run(() => RunLoopAsync(_cts.Token), CancellationToken.None)
+                .ContinueWith(
+                    faulted => _logger.LogError(faulted.Exception!, "MCP server run loop faulted"),
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default);
         }
         finally
         {
@@ -75,7 +84,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
             _cts = null;
             _isRunning = false;
             _address = null;
-            
+
             _logger.LogInformation("MCP Server stopped");
         }
         finally
@@ -134,7 +143,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
             {
                 var line = await Console.In.ReadLineAsync(ct);
                 if (line is null) break;
-                
+
                 await HandleRequestAsync(line, ct);
             }
             catch (OperationCanceledException)
@@ -153,7 +162,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         using var doc = JsonDocument.Parse(json);
         var method = doc.RootElement.GetProperty("method").GetString();
         var id = doc.RootElement.TryGetProperty("id", out var idP) ? idP.GetString() : null;
-        
+
         string? response = method switch
         {
             "initialize" => """{"jsonrpc":"2.0","id":"1","result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"Zetta","version":"0.1.0"}}}""",
@@ -164,7 +173,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
             "prompts/list" => await HandlePromptsListAsync(id, ct),
             _ => null
         };
-        
+
         if (response != null && id != null)
         {
             await Console.Out.WriteLineAsync(response.AsMemory(), ct);
@@ -177,11 +186,11 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         await _lock.WaitAsync(ct);
         try
         {
-            var tools = _tools.Values.Select(t => new 
-            { 
-                name = t.Name, 
-                description = t.Description, 
-                inputSchema = t.InputSchema 
+            var tools = _tools.Values.Select(t => new
+            {
+                name = t.Name,
+                description = t.Description,
+                inputSchema = t.InputSchema
             });
             return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, result = new { tools } });
         }
@@ -194,7 +203,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     private async Task<string> HandleToolCallAsync(JsonElement root, string? id, CancellationToken ct)
     {
         var name = root.GetProperty("params").GetProperty("name").GetString() ?? "";
-        
+
         await _lock.WaitAsync(ct);
         try
         {
@@ -203,10 +212,10 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
                 return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, error = new { code = -32601, message = "Unknown tool" } });
             }
 
-            var arguments = root.GetProperty("params").TryGetProperty("arguments", out var args) 
-                ? args 
+            var arguments = root.GetProperty("params").TryGetProperty("arguments", out var args)
+                ? args
                 : (JsonElement?)null;
-            
+
             var result = await tool.Handler(arguments, ct);
             return JsonSerializer.Serialize(new { jsonrpc = "2.0", id, result = new { content = result.Content } });
         }
@@ -233,7 +242,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     private async Task<string> HandleResourceReadAsync(JsonElement root, string? id, CancellationToken ct)
     {
         var uri = root.GetProperty("params").GetProperty("uri").GetString() ?? "";
-        
+
         await _lock.WaitAsync(ct);
         try
         {
@@ -265,14 +274,20 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return ValueTask.CompletedTask;
+
         _disposed = true;
-        
+
+        // Stop the run loop before tearing down the primitives it uses.
+        _cts?.Cancel();
         _cts?.Dispose();
+        _cts = null;
+
         _lock.Dispose();
-        
-        await Task.CompletedTask;
+
+        return ValueTask.CompletedTask;
     }
 }

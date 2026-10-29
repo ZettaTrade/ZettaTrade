@@ -20,10 +20,10 @@ public sealed record RiskCheckResult
 {
     /// <summary>Whether the order is approved.</summary>
     public required bool IsApproved { get; init; }
-    
+
     /// <summary>Whether human confirmation is required.</summary>
     public required bool RequiresConfirmation { get; init; }
-    
+
     /// <summary>Rejection reason (if not approved).</summary>
     public string? Reason { get; init; }
 
