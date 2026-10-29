@@ -5,4 +5,5 @@
   <Project Path="src/ZettaTrade.Infrastructure/ZettaTrade.Infrastructure.csproj" />
   <Project Path="src/ZettaTrade.UI/ZettaTrade.UI.csproj" />
   <Project Path="tests/ZettaTrade.Core.Tests/ZettaTrade.Core.Tests.csproj" />
+  <Project Path="tests/ZettaTrade.Infrastructure.Tests/ZettaTrade.Infrastructure.Tests.csproj" />
 </Solution>

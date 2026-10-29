@@ -11,6 +11,30 @@ public sealed record Symbol
     private const int MinAssetLength = 2;
     private const int MaxAssetLength = 10;
 
+    #region Exchange Identifiers
+
+    private const string BinanceId = "binance";
+    private const string BybitId = "bybit";
+    private const string OkxId = "okx";
+    private const string AlpacaId = "alpaca";
+    private const string InteractiveBrokersId = "ib";
+    private const string KrakenId = "kraken";
+
+    /// <summary>Normalized pair separator (e.g., "BTC/USDT").</summary>
+    private const char NormalizedSeparator = '/';
+
+    /// <summary>
+    /// Common quote currencies used to split concatenated exchange pairs ("BTCUSDT").
+    /// Order matters: tokens sharing prefixes (BUSD/USD) are matched suffix-first,
+    /// so longer tokens must stay before their shorter prefixes.
+    /// </summary>
+    private static readonly string[] KnownCryptoQuoteAssets =
+    [
+        "USDT", "USDC", "BUSD", "BTC", "ETH", "USD", "EUR",
+    ];
+
+    #endregion Exchange Identifiers
+
     /// <summary>Normalized symbol (e.g., "BTC/USDT" for display).</summary>
     public string Normalized { get; }
 
@@ -43,9 +67,9 @@ public sealed record Symbol
     {
         return exchangeId.ToLowerInvariant() switch
         {
-            "binance" or "bybit" or "okx" => QuoteAsset != null ? $"{BaseAsset}{QuoteAsset}" : BaseAsset,
-            "alpaca" or "ib" => BaseAsset,
-            "kraken" => QuoteAsset != null ? $"{BaseAsset}/{QuoteAsset}" : BaseAsset,
+            BinanceId or BybitId or OkxId => QuoteAsset != null ? $"{BaseAsset}{QuoteAsset}" : BaseAsset,
+            AlpacaId or InteractiveBrokersId => BaseAsset,
+            KrakenId => QuoteAsset != null ? $"{BaseAsset}{NormalizedSeparator}{QuoteAsset}" : BaseAsset,
             _ => Normalized,
         };
     }
@@ -57,7 +81,7 @@ public sealed record Symbol
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(normalized);
 
-        var parts = normalized.Split('/');
+        var parts = normalized.Split(NormalizedSeparator);
         if (parts.Length == 2)
         {
             return new Symbol(parts[0], parts[1], Enums.AssetClass.Crypto);
@@ -78,9 +102,9 @@ public sealed record Symbol
 
         var (baseAsset, quoteAsset, assetClass) = exchangeId.ToLowerInvariant() switch
         {
-            "binance" or "bybit" or "okx" => ParseCryptoConcatenated(exchangeSymbol),
-            "alpaca" or "ib" => (exchangeSymbol, null, Enums.AssetClass.Stock),
-            "kraken" => ParseCryptoSeparated(exchangeSymbol, '/'),
+            BinanceId or BybitId or OkxId => ParseCryptoConcatenated(exchangeSymbol),
+            AlpacaId or InteractiveBrokersId => (exchangeSymbol, null, Enums.AssetClass.Stock),
+            KrakenId => ParseCryptoSeparated(exchangeSymbol, NormalizedSeparator),
             _ => (exchangeSymbol, null, Enums.AssetClass.Stock),
         };
 
@@ -93,9 +117,7 @@ public sealed record Symbol
 
     private static (string? baseAsset, string? quoteAsset, Enums.AssetClass assetClass) ParseCryptoConcatenated(string symbol)
     {
-        var quoteAssets = new[] { "USDT", "USDC", "BUSD", "BTC", "ETH", "USD", "EUR" };
-
-        foreach (var quote in quoteAssets)
+        foreach (var quote in KnownCryptoQuoteAssets)
         {
             if (symbol.EndsWith(quote, StringComparison.OrdinalIgnoreCase) && symbol.Length > quote.Length)
             {

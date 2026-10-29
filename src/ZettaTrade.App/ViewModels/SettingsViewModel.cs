@@ -12,12 +12,31 @@ using ZettaTrade.Core.Interfaces;
 /// </summary>
 public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
 {
+    #region Constants
+
+    /// <summary>Settings section holding user interface preferences.</summary>
+    private const string UiSection = "UI";
+
+    /// <summary>Settings key of the selected theme.</summary>
+    private const string ThemeKey = "Theme";
+
+    /// <summary>Settings key of the selected language.</summary>
+    private const string LanguageKey = "Language";
+
+    /// <summary>Theme applied until a stored setting is loaded.</summary>
+    private const string DefaultTheme = "Dark";
+
+    /// <summary>Language applied until a stored setting is loaded.</summary>
+    private const string DefaultLanguage = "en";
+
+    #endregion Constants
+
     #region Properties
 
     public ViewModelActivator Activator { get; } = new();
 
-    private string _selectedTheme = "Dark";
-    private string _selectedLanguage = "en";
+    private string _selectedTheme = DefaultTheme;
+    private string _selectedLanguage = DefaultLanguage;
 
     /// <summary>Currently selected theme name.</summary>
     public string SelectedTheme
@@ -96,8 +115,8 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
 
     private async Task<bool> LoadCurrentSettingsAsync()
     {
-        SelectedTheme = await _settings.GetAsync("UI", "Theme", "Dark");
-        SelectedLanguage = await _settings.GetAsync("UI", "Language", "en");
+        SelectedTheme = await _settings.GetAsync(UiSection, ThemeKey, DefaultTheme);
+        SelectedLanguage = await _settings.GetAsync(UiSection, LanguageKey, DefaultLanguage);
 
         // Task<bool> (not plain Task) keeps Rx pipelines on ReactiveUI.RxVoid; System.Reactive.Unit is banned.
         return true;
@@ -107,14 +126,14 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
     {
         SelectedTheme = themeName;
         await _themeManager.ApplyThemeAsync(themeName);
-        await _settings.SetAsync("UI", "Theme", themeName);
+        await _settings.SetAsync(UiSection, ThemeKey, themeName);
     }
 
     private async Task ApplyLanguageAsync(string languageCode)
     {
         SelectedLanguage = languageCode;
         await _localization.SetLanguageAsync(languageCode);
-        await _settings.SetAsync("UI", "Language", languageCode);
+        await _settings.SetAsync(UiSection, LanguageKey, languageCode);
     }
 
     #endregion Private Methods

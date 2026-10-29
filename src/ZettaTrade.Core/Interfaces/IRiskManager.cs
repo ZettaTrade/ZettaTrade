@@ -46,10 +46,31 @@ public sealed record RiskCheckResult
 public interface IConfirmationService
 {
     /// <summary>
-    /// Request human confirmation for an operation.
+    /// Request human confirmation for an operation (pre-composed message).
     /// </summary>
     /// <param name="message">Confirmation message to display.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>True if confirmed, false if rejected or timeout.</returns>
     Task<bool> RequestConfirmationAsync(string message, CancellationToken ct = default);
+
+    /// <summary>
+    /// Request human confirmation displaying a localization template filled with arguments.
+    /// The implementation resolves the template in the user's language, so callers
+    /// never pass user-facing English text themselves.
+    /// </summary>
+    Task<bool> RequestConfirmationAsync(ConfirmationRequest request, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Structured confirmation message: a localization key plus template arguments.
+/// Layered callers (e.g., MCP tools) only reference keys — UI layers remain the single
+/// place that turns keys into human-readable text.
+/// </summary>
+public sealed record ConfirmationRequest
+{
+    /// <summary>Localization key of the confirmation template (e.g., "Trading.ConfirmPlaceOrderFormat").</summary>
+    public required string MessageKey { get; init; }
+
+    /// <summary>Arguments for the template, in string.Format order (pre-formatted with InvariantCulture).</summary>
+    public object[] Arguments { get; init; } = [];
 }
