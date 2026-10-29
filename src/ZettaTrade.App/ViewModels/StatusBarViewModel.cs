@@ -61,11 +61,17 @@ public sealed class StatusBarViewModel : ReactiveObject, IActivatableViewModel
 
         this.WhenActivated(disposables =>
         {
-            Observable.FromAsync(() => _settings.GetAsync("UI", "Theme", "Dark"))
+            Observable.FromAsync(() => _settings.GetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.Theme,
+                UiSettingsKeys.DefaultTheme))
                 .Subscribe(value => CurrentThemeName = value)
                 .DisposeWith(disposables);
 
-            Observable.FromAsync(() => _settings.GetAsync("UI", "Language", "en"))
+            Observable.FromAsync(() => _settings.GetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.Language,
+                UiSettingsKeys.DefaultLanguage))
                 .Subscribe(value => CurrentLanguage = value)
                 .DisposeWith(disposables);
         });

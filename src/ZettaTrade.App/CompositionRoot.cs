@@ -21,9 +21,12 @@ using ZettaTrade.UI.Themes;
 internal static class CompositionRoot
 {
     /// <summary>
-    /// Build and configure the service provider.
+    /// Build and configure the service provider, initializing all services
+    /// that implement <see cref="IAsyncInitializable"/>.
+    /// Initialization resolves instances by their registered service types,
+    /// which is how App-layer registrations declare them.
     /// </summary>
-    public static IServiceProvider BuildServiceProvider()
+    public static async Task<IServiceProvider> BuildServiceProviderAsync(CancellationToken ct = default)
     {
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
@@ -99,20 +102,49 @@ internal static class CompositionRoot
             provider.GetRequiredService<IConfirmationService>(),
             provider.GetRequiredService<ILocalizationManager>());
 
+        await InitializeRegisteredServicesAsync(provider, services, ct);
+
         return provider;
     }
 
     /// <summary>
-    /// Initialize all services that implement IAsyncInitializable.
-    /// Must be called after BuildServiceProvider and before using the application.
+    /// Initialize every registered service instance implementing
+    /// <see cref="IAsyncInitializable"/>, in registration order, once per instance.
     /// </summary>
-    public static async Task InitializeServicesAsync(IServiceProvider serviceProvider, CancellationToken ct = default)
+    private static async Task InitializeRegisteredServicesAsync(
+        IServiceProvider provider,
+        IServiceCollection registrations,
+        CancellationToken ct)
     {
-        var initializables = serviceProvider.GetServices<IAsyncInitializable>();
+        var initialized = new HashSet<object>(ReferenceEqualityComparer.Instance);
 
-        foreach (var initializable in initializables)
+        foreach (var descriptor in registrations)
         {
-            await initializable.InitializeAsync(ct);
+            // Skip implementations that statically cannot implement the interface:
+            // avoids eager construction of unrelated services and open generic
+            // registrations (e.g. Options) that cannot be resolved directly.
+            var implementation = descriptor.ImplementationType ?? descriptor.ImplementationInstance;
+            if (implementation is not null && implementation is not IAsyncInitializable)
+            {
+                continue;
+            }
+
+            if (descriptor.ServiceType.IsGenericType && !descriptor.ServiceType.IsConstructedGenericType)
+            {
+                continue;
+            }
+
+            if (provider.GetService(descriptor.ServiceType) is not IAsyncInitializable service)
+            {
+                continue;
+            }
+
+            if (!initialized.Add(service))
+            {
+                continue;
+            }
+
+            await service.InitializeAsync(ct);
         }
     }
 }
