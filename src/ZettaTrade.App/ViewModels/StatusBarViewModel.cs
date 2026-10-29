@@ -1,21 +1,23 @@
 namespace ZettaTrade.App.ViewModels;
 
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using ReactiveUI;
-using ReactiveUI.Primitives;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
 /// ViewModel for status bar.
 /// Simple strings use direct XAML binding via {loc:Localized Key}.
-/// ViewModel properties only for dynamic data (settings, connection status).
+/// ViewModel properties only for dynamic data (theme, language, connection status).
 /// </summary>
-public sealed class StatusBarViewModel : ReactiveObject, IActivatableViewModel
+/// <remarks>
+/// The status bar is registered as an application-lifetime singleton, so the theme
+/// and language chips are wired to their managers in the constructor: WhenActivated
+/// would never fire for it. Both managers broadcast their current value on
+/// subscribe, so the chips start with the theme and language applied at startup.
+/// </remarks>
+public sealed class StatusBarViewModel : ReactiveObject
 {
     #region Properties
-
-    public ViewModelActivator Activator { get; } = new();
 
     private string _currentThemeName = string.Empty;
     private string _currentLanguage = string.Empty;
@@ -44,37 +46,26 @@ public sealed class StatusBarViewModel : ReactiveObject, IActivatableViewModel
 
     #endregion Properties
 
-    #region Private Fields
-
-    private readonly ISettingsService _settings;
-
-    #endregion Private Fields
-
     #region Constructor
 
     /// <summary>
     /// Create a new StatusBarViewModel instance.
     /// </summary>
-    public StatusBarViewModel(ISettingsService settings)
+    /// <param name="themeManager">Theme manager providing the theme chip state.</param>
+    /// <param name="localizationManager">Localization manager providing the language chip state.</param>
+    public StatusBarViewModel(
+        IThemeManager themeManager,
+        ILocalizationManager localizationManager)
     {
-        _settings = settings;
+        // The ViewModel lives as long as the application (singleton), so these
+        // subscriptions mirror it and need no explicit disposal.
+        themeManager
+            .ThemeChanged
+            .Subscribe(name => CurrentThemeName = name);
 
-        this.WhenActivated(disposables =>
-        {
-            Observable.FromAsync(() => _settings.GetAsync(
-                UiSettingsKeys.Section,
-                UiSettingsKeys.Theme,
-                UiSettingsKeys.DefaultTheme))
-                .Subscribe(value => CurrentThemeName = value)
-                .DisposeWith(disposables);
-
-            Observable.FromAsync(() => _settings.GetAsync(
-                UiSettingsKeys.Section,
-                UiSettingsKeys.Language,
-                UiSettingsKeys.DefaultLanguage))
-                .Subscribe(value => CurrentLanguage = value)
-                .DisposeWith(disposables);
-        });
+        localizationManager
+            .LanguageChanged
+            .Subscribe(code => CurrentLanguage = code);
     }
 
     #endregion Constructor
