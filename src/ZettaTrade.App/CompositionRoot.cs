@@ -61,17 +61,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<LocalizationManager>>(),
                 ZettaTrade.UI.Resources.Strings.ResourceManager));
 
-        // Exchange adapter: REST transport via named HttpClientFactory client.
-        services.AddHttpClient(BinanceAdapter.HttpClientName, client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(BinanceAdapter.RequestTimeoutSeconds);
-        });
-        services.AddSingleton<IMarketDataAdapter, BinanceAdapter>();
-
-        // Trading surface: paper adapter around any market data adapter (mock only; no real keys).
-        services.AddSingleton<ITradingAdapter>(sp => new PaperTradingAdapter(
-            sp.GetRequiredService<IMarketDataAdapter>(),
-            sp.GetRequiredService<ILogger<PaperTradingAdapter>>()));
+        // Exchange adapters: transport settings live inside each adapter module (Infrastructure).
+        services.AddExchangeAdapters();
 
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
