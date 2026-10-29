@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:ZettaTrade.UI.Localization"
+        x:Class="ZettaTrade.App.Views.ConfirmationDialogWindow"
+        x:DataType="vm:ConfirmationDialogViewModel"
+        Title="{loc:Localized Trading.ConfirmationTitle}"
+        Width="400" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+
+    <StackPanel Margin="20" Spacing="15">
+        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+            <Button x:Name="ConfirmButton"
+                    Content="{loc:Localized Trading.Confirm}"
+                    MinWidth="100"
+                    Click="OnConfirmClick" />
+            <Button x:Name="CancelButton"
+                    Content="{loc:Localized Trading.Cancel}"
+                    MinWidth="100"
+                    Click="OnCancelClick" />
+        </StackPanel>
+    </StackPanel>
+</Window>
