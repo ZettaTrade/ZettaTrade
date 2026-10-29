@@ -33,7 +33,7 @@ public partial class App : Application
 
         Services = await CompositionRoot.BuildServiceProviderAsync();
 
-        await ApplyStoredLanguageAsync();
+        await ApplyStoredUiSettingsAsync();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -56,16 +56,32 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Apply the stored language before the main window is created, so the
-    /// {loc:Localized} bindings emit their initial value in the chosen culture
-    /// and the runtime switch survives an application restart.
+    /// Apply the stored UI preferences (language, theme) before the main window
+    /// is created, so the {loc:Localized} bindings emit their initial value in
+    /// the chosen culture and the window is colored by the chosen theme from its
+    /// first frame; this also makes both survive an application restart.
+    /// The theme manager must already be initialized (its custom themes loaded),
+    /// which the composition root does while building the service provider.
+    /// On the first run (no stored language) the OS culture is kept.
+    /// </summary>
+    private static async Task ApplyStoredUiSettingsAsync()
+    {
+        var settings = Services.GetRequiredService<ISettingsService>();
+
+        await ApplyStoredLanguageAsync(settings);
+        await ApplyStoredThemeAsync(settings);
+    }
+
+    /// <summary>
+    /// Apply the language stored in the UI settings section.
     /// On the first run (no stored value) the OS culture is kept.
     /// </summary>
-    private static async Task ApplyStoredLanguageAsync()
+    private static async Task ApplyStoredLanguageAsync(ISettingsService settings)
     {
-        var language = await Services
-            .GetRequiredService<ISettingsService>()
-            .GetAsync(UiSettingsKeys.Section, UiSettingsKeys.Language, string.Empty);
+        var language = await settings.GetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.Language,
+            string.Empty);
 
         if (string.IsNullOrWhiteSpace(language))
         {
@@ -84,5 +100,25 @@ public partial class App : Application
                 "Invalid stored language '{Language}'; keeping the OS culture",
                 language);
         }
+    }
+
+    /// <summary>
+    /// Apply the theme stored in the UI settings section, falling back to the
+    /// default theme when no value is stored. An unknown stored value is logged
+    /// by the theme manager and leaves the startup theme unchanged.
+    /// </summary>
+    private static async Task ApplyStoredThemeAsync(ISettingsService settings)
+    {
+        var theme = await settings.GetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.Theme,
+            UiSettingsKeys.DefaultTheme);
+
+        if (string.IsNullOrWhiteSpace(theme))
+        {
+            return;
+        }
+
+        await Services.GetRequiredService<IThemeManager>().ApplyThemeAsync(theme);
     }
 }
