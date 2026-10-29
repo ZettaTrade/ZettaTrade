@@ -29,7 +29,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     {
         _logger = logger;
         _themeChanged = new BehaviorSubject<string>(_current);
-        
+
         RegisterBuiltInThemes();
     }
 
@@ -43,9 +43,9 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     }
 
     public string CurrentTheme => _current;
-    
+
     public IReadOnlyList<ThemeInfo> AvailableThemes => _themes;
-    
+
     public IObservable<string> ThemeChanged => _themeChanged;
 
     public async Task ApplyThemeAsync(string name, CancellationToken ct = default)
@@ -53,10 +53,10 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
         await _lock.WaitAsync(ct);
         try
         {
-            var theme = _themes.FirstOrDefault(t => 
+            var theme = _themes.FirstOrDefault(t =>
                 t.Name.Equals(name, StringComparison.OrdinalIgnoreCase) ||
                 t.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase));
-            
+
             if (theme is null)
             {
                 _logger.LogWarning("Theme not found: {ThemeName}", name);
@@ -64,19 +64,19 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
             }
 
             _current = theme.DisplayName;
-            
+
             if (Application.Current != null)
             {
-                Application.Current.RequestedThemeVariant = theme.Name == "light" 
-                    ? ThemeVariant.Light 
+                Application.Current.RequestedThemeVariant = theme.Name == "light"
+                    ? ThemeVariant.Light
                     : ThemeVariant.Dark;
             }
-            
+
             if (theme.Colors != null)
             {
                 ApplyThemeColors(theme.Colors);
             }
-            
+
             _themeChanged.OnNext(_current);
             _logger.LogInformation("Theme applied: {Theme}", _current);
         }
@@ -90,7 +90,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     {
         var builtInThemes = new[]
         {
-            new ThemeInfo("dark", "Dark", true, 
+            new ThemeInfo("dark", "Dark", true,
                 new[] { "#0a0a0f", "#1a1a2e", "#16213e", "#0f3460" },
                 new Dictionary<string, string>
                 {
@@ -105,8 +105,8 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                     ["CandleUp"] = "#22c55e",
                     ["CandleDown"] = "#ef4444"
                 }),
-            
-            new ThemeInfo("light", "Light", true, 
+
+            new ThemeInfo("light", "Light", true,
                 new[] { "#ffffff", "#f8f9fa", "#e9ecef", "#dee2e6" },
                 new Dictionary<string, string>
                 {
@@ -121,8 +121,8 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                     ["CandleUp"] = "#22c55e",
                     ["CandleDown"] = "#ef4444"
                 }),
-            
-            new ThemeInfo("midnight", "Midnight Blue", true, 
+
+            new ThemeInfo("midnight", "Midnight Blue", true,
                 new[] { "#0d1117", "#161b22", "#21262d", "#1f6feb" },
                 new Dictionary<string, string>
                 {
@@ -137,8 +137,8 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                     ["CandleUp"] = "#22c55e",
                     ["CandleDown"] = "#ef4444"
                 }),
-            
-            new ThemeInfo("oled", "OLED Black", true, 
+
+            new ThemeInfo("oled", "OLED Black", true,
                 new[] { "#000000", "#0a0a0a", "#111111", "#1a1a1a" },
                 new Dictionary<string, string>
                 {
@@ -184,11 +184,11 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
         try
         {
             var json = await File.ReadAllTextAsync(filePath, ct);
-            var themeDef = JsonSerializer.Deserialize<ThemeDefinition>(json, new JsonSerializerOptions 
-            { 
-                PropertyNameCaseInsensitive = true 
+            var themeDef = JsonSerializer.Deserialize<ThemeDefinition>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
             });
-            
+
             if (themeDef?.Name is null)
             {
                 _logger.LogWarning("Invalid theme file: {Path}", filePath);
@@ -201,14 +201,14 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                 IsBuiltIn: false,
                 themeDef.PreviewColors ?? Array.Empty<string>(),
                 themeDef.Colors);
-            
+
             _themeDefinitions[themeDef.Name] = themeInfo;
-            
+
             if (!_themes.Any(t => t.Name == themeDef.Name))
             {
                 _themes.Add(themeInfo);
             }
-            
+
             _logger.LogInformation("Custom theme loaded: {Name} from {Path}", themeDef.Name, filePath);
         }
         catch (Exception ex)
@@ -246,7 +246,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
         var json = JsonSerializer.Serialize(sampleTheme, new JsonSerializerOptions { WriteIndented = true });
         var filePath = Path.Combine(themesDir, "sample-custom.json");
         await File.WriteAllTextAsync(filePath, json);
-        
+
         _logger.LogInformation("Created sample theme at {Path}", filePath);
     }
 

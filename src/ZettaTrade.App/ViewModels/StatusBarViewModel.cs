@@ -16,7 +16,7 @@ public sealed class StatusBarViewModel : ReactiveObject, IActivatableViewModel
     #region Properties
 
     public ViewModelActivator Activator { get; } = new();
-    
+
     private string _currentThemeName = string.Empty;
     private string _currentLanguage = string.Empty;
     private string _connectionStatus = string.Empty;
@@ -27,14 +27,14 @@ public sealed class StatusBarViewModel : ReactiveObject, IActivatableViewModel
         get => _currentThemeName;
         private set => this.RaiseAndSetIfChanged(ref _currentThemeName, value);
     }
-    
+
     /// <summary>Current language code.</summary>
     public string CurrentLanguage
     {
         get => _currentLanguage;
         private set => this.RaiseAndSetIfChanged(ref _currentLanguage, value);
     }
-    
+
     /// <summary>Connection status text.</summary>
     public string ConnectionStatus
     {

@@ -18,7 +18,7 @@ using ZettaTrade.UI.Extensions;
 public sealed class LocalizationManager : ILocalizationManager, IDisposable
 {
     private static LocalizationManager? _instance;
-    
+
     /// <summary>
     /// Get the singleton instance of LocalizationManager.
     /// </summary>
@@ -59,7 +59,7 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     }
 
     public string CurrentLanguage => _currentCulture.Name;
-    
+
     public IReadOnlyList<LanguageInfo> AvailableLanguages { get; }
 
     /// <summary>

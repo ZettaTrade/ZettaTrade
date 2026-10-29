@@ -1,12 +1,15 @@
 namespace ZettaTrade.App.Services;
 
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.UI.Resources;
 
 /// <summary>
 /// UI-based confirmation service.
@@ -15,7 +18,7 @@ using ZettaTrade.Core.Interfaces;
 public sealed class UiConfirmationService : IConfirmationService
 {
     private readonly ILogger<UiConfirmationService> _logger;
-    
+
     /// <summary>Confirmation dialog timeout in seconds.</summary>
     private const int ConfirmationTimeoutSeconds = 60;
 
@@ -25,6 +28,11 @@ public sealed class UiConfirmationService : IConfirmationService
     public UiConfirmationService(ILogger<UiConfirmationService> logger)
     {
         _logger = logger;
+    }
+
+    private static string Localize(string key)
+    {
+        return Strings.ResourceManager.GetString(key, CultureInfo.CurrentUICulture) ?? key;
     }
 
     public async Task<bool> RequestConfirmationAsync(string message, CancellationToken ct = default)
@@ -46,7 +54,7 @@ public sealed class UiConfirmationService : IConfirmationService
 
             var dialog = new Window
             {
-                Title = "Confirmation Required",
+                Title = Localize("Trading.ConfirmationTitle"),
                 Width = 400,
                 Height = 200,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -74,13 +82,13 @@ public sealed class UiConfirmationService : IConfirmationService
 
             var confirmButton = new Button
             {
-                Content = "Confirm",
+                Content = Localize("Trading.Confirm"),
                 Width = 100,
             };
 
             var cancelButton = new Button
             {
-                Content = "Cancel",
+                Content = Localize("Trading.Cancel"),
                 Width = 100,
             };
 
@@ -88,14 +96,14 @@ public sealed class UiConfirmationService : IConfirmationService
 
             confirmButton.Click += (_, _) =>
             {
-                dialog.Close();
                 tcs.TrySetResult(true);
+                dialog.Close();
             };
 
             cancelButton.Click += (_, _) =>
             {
-                dialog.Close();
                 tcs.TrySetResult(false);
+                dialog.Close();
             };
 
             buttonPanel.Children.Add(confirmButton);
@@ -104,12 +112,16 @@ public sealed class UiConfirmationService : IConfirmationService
             panel.Children.Add(buttonPanel);
             dialog.Content = panel;
 
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(ConfirmationTimeoutSeconds));
+            // Shared timeout budget: covers dialog open time and the answer wait.
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(ConfirmationTimeoutSeconds));
+
+            // Close the dialog on timeout so ShowDialog cannot hang forever.
+            using var registration = timeoutCts.Token.Register(
+                () => Dispatcher.UIThread.Post(dialog.Close));
 
             await dialog.ShowDialog<object>(mainWindow);
 
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(ConfirmationTimeoutSeconds));
             try
             {
                 return await tcs.Task.WaitAsync(timeoutCts.Token);

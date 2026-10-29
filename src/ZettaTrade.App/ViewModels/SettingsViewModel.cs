@@ -15,7 +15,7 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
     #region Properties
 
     public ViewModelActivator Activator { get; } = new();
-    
+
     private string _selectedTheme = "Dark";
     private string _selectedLanguage = "en";
 
@@ -35,7 +35,7 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
 
     /// <summary>Available themes from ThemeManager (no duplication).</summary>
     public IReadOnlyList<ThemeInfo> AvailableThemes => _themeManager.AvailableThemes;
-    
+
     /// <summary>Available languages from LocalizationManager (no duplication).</summary>
     public IReadOnlyList<LanguageInfo> AvailableLanguages => _localization.AvailableLanguages;
 
@@ -45,7 +45,7 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
 
     /// <summary>Command to apply a theme by name.</summary>
     public ReactiveCommand<string, RxVoid> ApplyThemeCommand { get; }
-    
+
     /// <summary>Command to apply a language by code.</summary>
     public ReactiveCommand<string, RxVoid> ApplyLanguageCommand { get; }
 
@@ -94,10 +94,13 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
 
     #region Private Methods
 
-    private async Task LoadCurrentSettingsAsync()
+    private async Task<bool> LoadCurrentSettingsAsync()
     {
         SelectedTheme = await _settings.GetAsync("UI", "Theme", "Dark");
         SelectedLanguage = await _settings.GetAsync("UI", "Language", "en");
+
+        // Task<bool> (not plain Task) keeps Rx pipelines on ReactiveUI.RxVoid; System.Reactive.Unit is banned.
+        return true;
     }
 
     private async Task ApplyThemeAsync(string themeName)

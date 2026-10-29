@@ -14,7 +14,7 @@ using ZettaTrade.Core.Interfaces;
 public sealed class McpClientService : IMcpClient
 {
     private const int HttpTimeoutSeconds = 30;
-    
+
     private readonly ILogger<McpClientService> _logger;
     private Process? _serverProcess;
     private HttpClient? _httpClient;
@@ -31,7 +31,7 @@ public sealed class McpClientService : IMcpClient
     }
 
     public string Name => _config?.Name ?? "Not connected";
-    
+
     public bool IsConnected => _isConnected;
 
     public async Task ConnectAsync(McpServerConfig config, CancellationToken ct = default)

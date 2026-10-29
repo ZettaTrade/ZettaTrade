@@ -1,18 +1,21 @@
 namespace ZettaTrade.UI.Charting;
 
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.Globalization;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
 using Avalonia.Threading;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Collections.Specialized;
-using System.Linq;
 using SkiaSharp;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.UI.Resources;
 
 /// <summary>
 /// Candlestick chart control that draws directly onto the Avalonia Skia canvas
@@ -20,6 +23,27 @@ using ZettaTrade.Core.Entities;
 /// </summary>
 public class CandlestickChart : Control
 {
+    #region Constants
+
+    private const int MinVisibleBars = 20;
+    private const int DefaultVisibleBars = 100;
+    private const int VisibleBarsZoomStep = 10;
+    private const int HorizontalGridLineCount = 5;
+    private const int VerticalGridLineCount = 10;
+    private const int PriceAxisLabelCount = 5;
+    private const int TimeAxisLabelCount = 10;
+    private const decimal PricePaddingRatio = 0.1m;
+    private const float CandleBodyWidthRatio = 0.7f;
+    private const float MinCandleBodyHeight = 1f;
+    private const float NoDataFontSize = 16f;
+    private const float AxisFontSize = 10f;
+    private const int MinAxisLabelPaddingPx = 5;
+
+    /// <summary>The chart takes a screenshot of these resources on each redraw.</summary>
+    private const string NoDataMessageKey = "Chart.NoDataMessage";
+
+    #endregion
+
     #region Styled Properties
 
     /// <summary>
@@ -41,23 +65,68 @@ public class CandlestickChart : Control
 
     #region Fields & Properties
 
-    private int _visibleBars = 100;
-    private int _scrollOffset;
+    private int _visibleBars = DefaultVisibleBars;
 
-    /// <summary>Chart background color.</summary>
-    public SKColor BackgroundColor { get; set; } = new SKColor(20, 20, 30);
+    private SKColor _backgroundColor = new(20, 20, 30);
+    private SKColor _bullishColor = new(34, 197, 94);
+    private SKColor _bearishColor = new(239, 68, 68);
+    private SKColor _gridColor = new(40, 40, 50);
+    private SKColor _textColor = new(200, 200, 200);
 
-    /// <summary>Bullish candle color.</summary>
-    public SKColor BullishColor { get; set; } = new SKColor(34, 197, 94);
+    /// <summary>Chart background color. Redraws the chart on change.</summary>
+    public SKColor BackgroundColor
+    {
+        get => _backgroundColor;
+        set
+        {
+            _backgroundColor = value;
+            InvalidateVisual();
+        }
+    }
 
-    /// <summary>Bearish candle color.</summary>
-    public SKColor BearishColor { get; set; } = new SKColor(239, 68, 68);
+    /// <summary>Bullish candle color. Redraws the chart on change.</summary>
+    public SKColor BullishColor
+    {
+        get => _bullishColor;
+        set
+        {
+            _bullishColor = value;
+            InvalidateVisual();
+        }
+    }
 
-    /// <summary>Grid line color.</summary>
-    public SKColor GridColor { get; set; } = new SKColor(40, 40, 50);
+    /// <summary>Bearish candle color. Redraws the chart on change.</summary>
+    public SKColor BearishColor
+    {
+        get => _bearishColor;
+        set
+        {
+            _bearishColor = value;
+            InvalidateVisual();
+        }
+    }
 
-    /// <summary>Text color.</summary>
-    public SKColor TextColor { get; set; } = new SKColor(200, 200, 200);
+    /// <summary>Grid line color. Redraws the chart on change.</summary>
+    public SKColor GridColor
+    {
+        get => _gridColor;
+        set
+        {
+            _gridColor = value;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>Text color. Redraws the chart on change.</summary>
+    public SKColor TextColor
+    {
+        get => _textColor;
+        set
+        {
+            _textColor = value;
+            InvalidateVisual();
+        }
+    }
 
     #endregion
 
@@ -90,7 +159,6 @@ public class CandlestickChart : Control
             newColl.CollectionChanged += OnBarsCollectionChanged;
         }
 
-        _scrollOffset = 0;
         Dispatcher.UIThread.Post(InvalidateVisual);
     }
 
@@ -128,8 +196,8 @@ public class CandlestickChart : Control
 
         if (bars is { Count: > 0 })
         {
-            var start = System.Math.Max(0, bars.Count - _visibleBars - _scrollOffset);
-            var end = System.Math.Min(bars.Count, start + _visibleBars);
+            var start = Math.Max(0, bars.Count - _visibleBars);
+            var end = Math.Min(bars.Count, start + _visibleBars);
 
             visible = new Bar[end - start];
             for (var i = 0; i < visible.Length; i++)
@@ -222,7 +290,7 @@ public class CandlestickChart : Control
             if (priceRange == 0)
                 priceRange = 1;
 
-            var padding = priceRange * 0.1m;
+            var padding = priceRange * PricePaddingRatio;
             minPrice -= padding;
             maxPrice += padding;
             priceRange = maxPrice - minPrice;
@@ -241,10 +309,11 @@ public class CandlestickChart : Control
                 IsAntialias = true
             };
 
-            using var font = new SKFont(SKTypeface.Default, 16);
+            using var font = new SKFont(SKTypeface.Default, NoDataFontSize);
 
-            // TODO: move to localization (Strings.resx) instead of a hardcoded string.
-            var text = "No data available";
+            var text = Strings.ResourceManager.GetString(
+                NoDataMessageKey,
+                CultureInfo.CurrentUICulture) ?? NoDataMessageKey;
 
             canvas.DrawText(
                 text,
@@ -264,17 +333,15 @@ public class CandlestickChart : Control
                 IsAntialias = true
             };
 
-            var gridLines = 5;
-            for (int i = 0; i <= gridLines; i++)
+            for (var i = 0; i <= HorizontalGridLineCount; i++)
             {
-                var y = (float)(bounds.Top + (bounds.Height * i / gridLines));
+                var y = (float)(bounds.Top + (bounds.Height * i / HorizontalGridLineCount));
                 canvas.DrawLine((float)bounds.Left, y, (float)bounds.Right, y, paint);
             }
 
-            var verticalLines = 10;
-            for (int i = 0; i <= verticalLines; i++)
+            for (var i = 0; i <= VerticalGridLineCount; i++)
             {
-                var x = (float)(bounds.Left + (bounds.Width * i / verticalLines));
+                var x = (float)(bounds.Left + (bounds.Width * i / VerticalGridLineCount));
                 canvas.DrawLine(x, (float)bounds.Top, x, (float)bounds.Bottom, paint);
             }
         }
@@ -282,7 +349,7 @@ public class CandlestickChart : Control
         private void DrawCandles(SKCanvas canvas, Rect bounds, IReadOnlyList<Bar> bars, decimal minPrice, decimal priceRange)
         {
             var candleWidth = (float)(bounds.Width / bars.Count);
-            var bodyWidth = candleWidth * 0.7f;
+            var bodyWidth = candleWidth * CandleBodyWidthRatio;
 
             using var bullishPaint = new SKPaint
             {
@@ -296,7 +363,7 @@ public class CandlestickChart : Control
                 IsAntialias = true
             };
 
-            for (int i = 0; i < bars.Count; i++)
+            for (var i = 0; i < bars.Count; i++)
             {
                 var bar = bars[i];
                 var x = (float)(bounds.Left + (i * candleWidth) + (candleWidth / 2));
@@ -311,14 +378,14 @@ public class CandlestickChart : Control
 
                 canvas.DrawLine(x, highY, x, lowY, paint);
 
-                var bodyTop = System.Math.Min(openY, closeY);
-                var bodyHeight = System.Math.Abs(closeY - openY);
+                var bodyTop = Math.Min(openY, closeY);
+                var bodyHeight = Math.Abs(closeY - openY);
 
-                if (bodyHeight < 1)
-                    bodyHeight = 1;
+                if (bodyHeight < MinCandleBodyHeight)
+                    bodyHeight = MinCandleBodyHeight;
 
                 canvas.DrawRect(
-                    x - bodyWidth / 2,
+                    x - (bodyWidth / 2),
                     bodyTop,
                     bodyWidth,
                     bodyHeight,
@@ -334,22 +401,21 @@ public class CandlestickChart : Control
                 IsAntialias = true
             };
 
-            using var font = new SKFont(SKTypeface.Default, 10);
+            using var font = new SKFont(SKTypeface.Default, AxisFontSize);
 
-            var priceSteps = 5;
-            for (int i = 0; i <= priceSteps; i++)
+            for (var i = 0; i <= PriceAxisLabelCount; i++)
             {
-                var price = minPrice + (maxPrice - minPrice) * i / priceSteps;
-                var y = (float)(bounds.Bottom - (bounds.Height * i / priceSteps));
+                var price = minPrice + ((maxPrice - minPrice) * i / PriceAxisLabelCount);
+                var y = (float)(bounds.Bottom - (bounds.Height * i / PriceAxisLabelCount));
 
                 var text = price.ToString("F2");
 
-                // Right-aligned at the chart edge (replaces manual MeasureText offset).
-                canvas.DrawText(text, (float)bounds.Right - 5, y + 5, SKTextAlign.Right, font, paint);
+                // Right-aligned at the chart edge.
+                canvas.DrawText(text, (float)bounds.Right - MinAxisLabelPaddingPx, y + MinAxisLabelPaddingPx, SKTextAlign.Right, font, paint);
             }
 
-            var timeSteps = System.Math.Min(10, bars.Count);
-            for (int i = 0; i < timeSteps; i++)
+            var timeSteps = Math.Min(TimeAxisLabelCount, bars.Count);
+            for (var i = 0; i < timeSteps; i++)
             {
                 var barIndex = i * bars.Count / timeSteps;
                 if (barIndex >= bars.Count)
@@ -360,7 +426,7 @@ public class CandlestickChart : Control
 
                 var text = bar.Time.ToString("HH:mm");
 
-                canvas.DrawText(text, x, (float)bounds.Bottom - 5, SKTextAlign.Center, font, paint);
+                canvas.DrawText(text, x, (float)bounds.Bottom - MinAxisLabelPaddingPx, SKTextAlign.Center, font, paint);
             }
         }
     }
@@ -369,7 +435,7 @@ public class CandlestickChart : Control
 
     #region Interaction
 
-    protected override void OnPointerWheelChanged(Avalonia.Input.PointerWheelEventArgs e)
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
 
@@ -378,17 +444,17 @@ public class CandlestickChart : Control
 
         if (delta > 0)
         {
-            _visibleBars = System.Math.Max(20, _visibleBars - 10);
+            _visibleBars = Math.Max(MinVisibleBars, _visibleBars - VisibleBarsZoomStep);
         }
         else
         {
-            _visibleBars = System.Math.Min(System.Math.Max(20, barCount), _visibleBars + 10);
+            _visibleBars = Math.Min(Math.Max(MinVisibleBars, barCount), _visibleBars + VisibleBarsZoomStep);
         }
 
         InvalidateVisual();
     }
 
-    protected override void OnPointerPressed(Avalonia.Input.PointerPressedEventArgs e)
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
         Focus();

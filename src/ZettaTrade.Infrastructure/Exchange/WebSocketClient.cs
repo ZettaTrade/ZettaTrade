@@ -9,9 +9,15 @@ using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// WebSocket client with automatic reconnection and reactive message streams.
+/// <see cref="ConnectAsync"/> returns once the initial connection is established;
+/// the receive/reconnect loop then keeps running in the background until
+/// <see cref="DisconnectAsync"/> or disposal.
 /// </summary>
 public sealed class WebSocketClient : IAsyncDisposable
 {
+    /// <summary>Size of a single WebSocket receive chunk in bytes.</summary>
+    private const int ReceiveChunkSize = 8192;
+
     #region Properties
 
     private readonly ILogger _logger;
@@ -24,9 +30,9 @@ public sealed class WebSocketClient : IAsyncDisposable
 
     private ClientWebSocket? _webSocket;
     private CancellationTokenSource? _cts;
-    private Task? _receiveTask;
+    private Task? _loopTask;
     private int _reconnectAttempts;
-    private bool _disposed;
+    private int _disposed;
     private bool _isConnected;
 
     /// <summary>Whether the WebSocket is currently connected.</summary>
@@ -62,21 +68,59 @@ public sealed class WebSocketClient : IAsyncDisposable
     #region Public Methods
 
     /// <summary>
-    /// Connect to the WebSocket server.
+    /// Connect to the WebSocket server. Retries up to <paramref name="maxConnectAttempts"/> tries
+    /// (configured in the constructor) and yields the reconnect loop to the background.
     /// </summary>
     public async Task ConnectAsync(CancellationToken ct = default)
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(WebSocketClient));
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
 
+        // A new session cancels any previous one.
+        _cts?.Cancel();
+        _cts?.Dispose();
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _reconnectAttempts = 0;
+        var token = _cts.Token;
 
-        await ConnectInternalAsync(_cts.Token);
+        while (!token.IsCancellationRequested && _reconnectAttempts < _maxReconnectAttempts)
+        {
+            try
+            {
+                await OpenSocketAsync(token);
+                _logger.LogInformation("WebSocket connected to {Url}", _url);
+                StartLoop(token);
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _reconnectAttempts++;
+                _isConnected = false;
+                _connectionStateSubject.OnNext(false);
+
+                _logger.LogWarning(
+                    ex,
+                    "WebSocket connection failed (attempt {Attempt}/{MaxAttempts}).",
+                    _reconnectAttempts,
+                    _maxReconnectAttempts);
+
+                if (_reconnectAttempts < _maxReconnectAttempts)
+                    await Task.Delay(_reconnectDelay, token);
+            }
+        }
+
+        if (token.IsCancellationRequested)
+            return;
+
+        if (_reconnectAttempts >= _maxReconnectAttempts)
+            throw new InvalidOperationException(
+                $"Failed to connect to {_url} after {_maxReconnectAttempts} attempts.");
     }
 
     /// <summary>
-    /// Disconnect from the WebSocket server.
+    /// Disconnect from the WebSocket server and stop the background reconnect loop.
     /// </summary>
     public async Task DisconnectAsync()
     {
@@ -108,11 +152,13 @@ public sealed class WebSocketClient : IAsyncDisposable
     /// </summary>
     public async Task SendAsync(string message, CancellationToken ct = default)
     {
-        if (!IsConnected)
+        // Capture the reference so a concurrent reconnect cannot null it mid-send.
+        var socket = _webSocket;
+        if (socket is null || socket.State != WebSocketState.Open)
             throw new InvalidOperationException("WebSocket is not connected");
 
         var bytes = Encoding.UTF8.GetBytes(message);
-        await _webSocket!.SendAsync(
+        await socket.SendAsync(
             new ArraySegment<byte>(bytes),
             WebSocketMessageType.Text,
             true,
@@ -132,56 +178,69 @@ public sealed class WebSocketClient : IAsyncDisposable
 
     #region Private Methods
 
-    private async Task ConnectInternalAsync(CancellationToken ct)
+    private async Task OpenSocketAsync(CancellationToken ct)
     {
-        while (!ct.IsCancellationRequested && _reconnectAttempts < _maxReconnectAttempts)
+        _webSocket?.Dispose();
+        _webSocket = new ClientWebSocket();
+
+        await _webSocket.ConnectAsync(new Uri(_url), ct);
+        _isConnected = true;
+        _reconnectAttempts = 0;
+        _connectionStateSubject.OnNext(true);
+    }
+
+    private void StartLoop(CancellationToken ct)
+    {
+        // The loop below catches every non-cancellation failure internally,
+        // so no exception escapes unobserved.
+        _loopTask = Task.Run(() => RunBackgroundLoopAsync(ct), CancellationToken.None);
+    }
+
+    private async Task RunBackgroundLoopAsync(CancellationToken ct)
+    {
+        try
         {
-            try
+            while (!ct.IsCancellationRequested)
             {
-                _webSocket?.Dispose();
-                _webSocket = new ClientWebSocket();
+                await ReceiveLoopAsync(ct);
 
-                await _webSocket.ConnectAsync(new Uri(_url), ct);
-                _isConnected = true;
-                _reconnectAttempts = 0;
-                _connectionStateSubject.OnNext(true);
-
-                _logger.LogInformation("WebSocket connected to {Url}", _url);
-
-                _receiveTask = ReceiveLoopAsync(ct);
-                await _receiveTask;
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _isConnected = false;
-                _connectionStateSubject.OnNext(false);
-                _reconnectAttempts++;
+                if (ct.IsCancellationRequested)
+                    break;
 
                 _logger.LogWarning(
-                    ex,
-                    "WebSocket connection failed (attempt {Attempt}/{MaxAttempts}). Reconnecting in {Delay}...",
-                    _reconnectAttempts,
-                    _maxReconnectAttempts,
+                    "WebSocket disconnected; reconnecting in {Delay}...",
                     _reconnectDelay);
 
-                await Task.Delay(_reconnectDelay, ct);
+                try
+                {
+                    await Task.Delay(_reconnectDelay, ct);
+                    await OpenSocketAsync(ct);
+                    _logger.LogInformation("WebSocket reconnected to {Url}", _url);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _isConnected = false;
+                    _logger.LogWarning(ex, "WebSocket reconnect failed; retrying");
+                }
             }
         }
-
-        if (_reconnectAttempts >= _maxReconnectAttempts)
+        catch (Exception ex)
         {
-            _logger.LogError("Max reconnection attempts reached. Giving up.");
+            // Belt and braces: the background loop must never fault.
+            _logger.LogError(ex, "WebSocket background loop crashed");
         }
     }
 
     private async Task ReceiveLoopAsync(CancellationToken ct)
     {
-        var buffer = new byte[8192];
-        var messageBuilder = new StringBuilder();
+        var buffer = new byte[ReceiveChunkSize];
+
+        // UTF-8 sequences may span fragment boundaries: accumulate bytes, decode once.
+        using var messageBuffer = new MemoryStream();
 
         while (!ct.IsCancellationRequested && _webSocket?.State == WebSocketState.Open)
         {
@@ -197,12 +256,16 @@ public sealed class WebSocketClient : IAsyncDisposable
                     break;
                 }
 
-                messageBuilder.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                messageBuffer.Write(buffer, 0, result.Count);
 
                 if (result.EndOfMessage)
                 {
-                    var message = messageBuilder.ToString();
-                    messageBuilder.Clear();
+                    var message = Encoding.UTF8.GetString(
+                        messageBuffer.GetBuffer(),
+                        0,
+                        (int)messageBuffer.Length);
+
+                    messageBuffer.SetLength(0);
 
                     try
                     {
@@ -231,14 +294,12 @@ public sealed class WebSocketClient : IAsyncDisposable
 
     #endregion
 
-    #region IDisposable
+    #region IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
-
-        _disposed = true;
 
         await DisconnectAsync();
 

@@ -28,8 +28,8 @@ public interface IThemeManager
 /// Metadata about an available theme.
 /// </summary>
 public sealed record ThemeInfo(
-    string Name, 
-    string DisplayName, 
-    bool IsBuiltIn, 
+    string Name,
+    string DisplayName,
+    bool IsBuiltIn,
     string[] PreviewColors,
     IReadOnlyDictionary<string, string>? Colors = null);

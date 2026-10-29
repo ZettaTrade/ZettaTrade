@@ -13,22 +13,22 @@ public sealed class MenuViewModel : ReactiveObject
 
     /// <summary>Command to open new order dialog.</summary>
     public ReactiveCommand<RxVoid, RxVoid> NewOrderCommand { get; }
-    
+
     /// <summary>Command to show positions view.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowPositionsCommand { get; }
-    
+
     /// <summary>Command to show order history view.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowOrderHistoryCommand { get; }
-    
+
     /// <summary>Command to open AI chat.</summary>
     public ReactiveCommand<RxVoid, RxVoid> OpenAiChatCommand { get; }
-    
+
     /// <summary>Command to manage MCP servers.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ManageMcpServersCommand { get; }
-    
+
     /// <summary>Command to open settings dialog.</summary>
     public ReactiveCommand<RxVoid, RxVoid> OpenSettingsCommand { get; }
-    
+
     /// <summary>Command to exit application.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ExitCommand { get; }
 
@@ -55,15 +55,15 @@ public sealed class MenuViewModel : ReactiveObject
     #region Private Methods
 
     private Task HandleNewOrderAsync() => Task.CompletedTask;
-    
+
     private Task HandleShowPositionsAsync() => Task.CompletedTask;
-    
+
     private Task HandleShowOrderHistoryAsync() => Task.CompletedTask;
-    
+
     private Task HandleOpenAiChatAsync() => Task.CompletedTask;
-    
+
     private Task HandleManageMcpServersAsync() => Task.CompletedTask;
-    
+
     private Task HandleOpenSettingsAsync() => Task.CompletedTask;
 
     private void HandleExit()

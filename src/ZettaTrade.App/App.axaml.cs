@@ -29,7 +29,7 @@ public partial class App : Application
         ConfigPathResolver.EnsureDirectoriesExist();
 
         Services = CompositionRoot.BuildServiceProvider();
-        
+
         // Initialize all async services
         await CompositionRoot.InitializeServicesAsync(Services);
 

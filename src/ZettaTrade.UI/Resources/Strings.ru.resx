@@ -102,4 +102,16 @@
   <data name="AI.Assistant" xml:space="preserve">
     <value>ИИ Ассистент</value>
   </data>
+  <data name="Chart.NoDataMessage" xml:space="preserve">
+    <value>Нет данных</value>
+  </data>
+  <data name="Trading.ConfirmationTitle" xml:space="preserve">
+    <value>Требуется подтверждение</value>
+  </data>
+  <data name="Trading.Confirm" xml:space="preserve">
+    <value>Подтвердить</value>
+  </data>
+  <data name="Trading.Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
 </root>

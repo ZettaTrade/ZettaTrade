@@ -60,18 +60,21 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<LocalizationManager>>(),
                 ZettaTrade.UI.Resources.Strings.ResourceManager));
 
-        // Exchange adapters
-        services.AddHttpClient();
+        // Exchange adapter: REST transport via named HttpClientFactory client.
+        services.AddHttpClient(BinanceAdapter.HttpClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(BinanceAdapter.RequestTimeoutSeconds);
+        });
         services.AddSingleton<IMarketDataAdapter, BinanceAdapter>();
 
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
-        
+
         services.AddSingleton<IRiskManager, DefaultRiskManager>();
         services.AddSingleton<IConfirmationService, UiConfirmationService>();
 
         services.AddSingleton<MenuViewModel>();
-        services.AddSingleton<StatusBarViewModel>(sp => 
+        services.AddSingleton<StatusBarViewModel>(sp =>
             new StatusBarViewModel(sp.GetRequiredService<ISettingsService>()));
         services.AddSingleton<ChatViewModel>();
         services.AddSingleton<SettingsViewModel>(sp =>
@@ -86,8 +89,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddTransient<MainViewModel>();
 
-        // Note: Exchange adapters should be registered as plugins
-        // TradingToolsRegistrar.RegisterAll(mcpServer, exchangeAdapter, riskManager, confirmationService, logger);
+        // MCP trading tools (TradingToolsRegistrar.RegisterAll) stay unregistered until an
+        // ITradingAdapter exists in the DI container; current adapters are market-data only.
 
         return services.BuildServiceProvider();
     }
@@ -99,7 +102,7 @@ internal static class CompositionRoot
     public static async Task InitializeServicesAsync(IServiceProvider serviceProvider, CancellationToken ct = default)
     {
         var initializables = serviceProvider.GetServices<IAsyncInitializable>();
-        
+
         foreach (var initializable in initializables)
         {
             await initializable.InitializeAsync(ct);

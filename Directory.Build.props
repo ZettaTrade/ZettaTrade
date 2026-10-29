@@ -6,8 +6,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
 
-    <!-- Common metadata -->
+  <!-- Banned APIs: see BannedSymbols.txt (ReactiveUI.RxVoid, no blocking, no stdout writes). -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt"
+                     Condition="Exists('$(MSBuildThisFileDirectory)BannedSymbols.txt')"
+                     Visible="false" />
+  </ItemGroup>
+
+  <!-- Common metadata -->
+  <PropertyGroup>
     <Authors>ZettaTrade Contributors</Authors>
     <Company>ZettaTrade</Company>
     <Product>ZettaTrade</Product>

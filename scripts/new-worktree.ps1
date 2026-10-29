@@ -1,4 +1,4 @@
-#Requires -Version 7
+#Requires -Version 5
 # Usage: pwsh scripts/new-worktree.ps1 -Name chart   (creates ..\zt-chart on branch feat/chart)
 param(
     [Parameter(Mandatory)][string]$Name,

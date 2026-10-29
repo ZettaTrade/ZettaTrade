@@ -13,16 +13,16 @@ public sealed class MainViewModel : ReactiveObject
 
     /// <summary>Menu ViewModel for menu bar.</summary>
     public MenuViewModel Menu { get; }
-    
+
     /// <summary>Status bar ViewModel.</summary>
     public StatusBarViewModel StatusBar { get; }
-    
+
     /// <summary>Chat ViewModel for AI chat panel.</summary>
     public ChatViewModel Chat { get; }
-    
+
     /// <summary>Settings ViewModel for theme and language management.</summary>
     public SettingsViewModel Settings { get; }
-    
+
     /// <summary>Chart ViewModel for displaying price charts.</summary>
     public ChartViewModel Chart { get; }
 

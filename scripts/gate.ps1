@@ -1,5 +1,6 @@
-#Requires -Version 7
+#Requires -Version 5
 # Objective "done" check for every agent. Run from any worktree: pwsh scripts/gate.ps1
+# (also works under Windows PowerShell 5.1 on machines without PowerShell 7).
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
@@ -15,6 +16,10 @@ function Step([string]$Name, [scriptblock]$Command) {
 Step 'build'  { dotnet build -nodeReuse:false -warnaserror --nologo -v q }
 Step 'test'   { dotnet test --no-build --nologo -v q }
 Step 'format' { dotnet format --verify-no-changes --no-restore -v q }
+
+if (-not (Test-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'tests'))) {
+    Write-Host 'WARNING: no tests directory - dotnet test did not verify anything' -ForegroundColor Yellow
+}
 
 # Text rules the analyzers cannot express
 $rules = @(

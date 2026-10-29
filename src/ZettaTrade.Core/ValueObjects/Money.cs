@@ -33,10 +33,10 @@ public readonly record struct Money(decimal Amount, string Currency)
 
     /// <summary>True if amount is positive.</summary>
     public bool IsPositive => Amount > 0;
-    
+
     /// <summary>True if amount is negative.</summary>
     public bool IsNegative => Amount < 0;
-    
+
     /// <summary>True if amount is zero.</summary>
     public bool IsZero => Amount == 0;
 
@@ -44,7 +44,7 @@ public readonly record struct Money(decimal Amount, string Currency)
     /// Format with InvariantCulture to avoid culture-dependent output.
     /// </summary>
     public override string ToString() => $"{Amount.ToString("F8", CultureInfo.InvariantCulture)} {Currency}";
-    
+
     /// <summary>
     /// Format with specific number of decimal places.
     /// </summary>
@@ -61,19 +61,19 @@ public readonly record struct Price(decimal Value)
 
     /// <summary>Add two prices.</summary>
     public static Price operator +(Price a, Price b) => new(a.Value + b.Value);
-    
+
     /// <summary>Subtract two prices.</summary>
     public static Price operator -(Price a, Price b) => new(a.Value - b.Value);
-    
+
     /// <summary>Multiply price by a scalar factor.</summary>
     public static Price operator *(Price p, decimal factor) => new(p.Value * factor);
-    
+
     /// <summary>
     /// Multiply price by quantity to get money value.
     /// Currency must be provided since Price doesn't store it.
     /// </summary>
     public static Money operator *(Price price, Quantity quantity) => new(price.Value * quantity.Value, string.Empty);
-    
+
     /// <summary>
     /// Multiply price by quantity with explicit currency.
     /// </summary>
@@ -82,7 +82,7 @@ public readonly record struct Price(decimal Value)
     /// <summary>
     /// Calculate percentage change from another price.
     /// </summary>
-    public decimal ChangePercent(Price from) => 
+    public decimal ChangePercent(Price from) =>
         from.Value == 0 ? 0 : (Value - from.Value) / from.Value * 100m;
 
     public override string ToString() => Value.ToString("F8", CultureInfo.InvariantCulture);
@@ -98,7 +98,7 @@ public readonly record struct Quantity(decimal Value)
 
     /// <summary>Add two quantities.</summary>
     public static Quantity operator +(Quantity a, Quantity b) => new(a.Value + b.Value);
-    
+
     /// <summary>Subtract two quantities.</summary>
     public static Quantity operator -(Quantity a, Quantity b) => new(a.Value - b.Value);
 
