@@ -12,7 +12,14 @@
         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
     <Window.KeyBindings>
-        <!-- The menu advertises Ctrl+,; InputGesture alone is display-only. -->
+        <!-- Gesture audit of the menu labels: all InputGesture strings here are
+             backed or explained below.
+             - Ctrl+OemComma -> OpenSettingsCommand: bound, real behavior.
+             - Alt+F4        -> OS window-close gesture: works without a binding;
+                                adding one would double-handle the close.
+             - Ctrl+N (New Order) and Ctrl+Shift+A (AI chat): gestures removed
+               because those commands are placeholders; the labels return with
+               the features. -->
         <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding Menu.OpenSettingsCommand}" />
     </Window.KeyBindings>
 
@@ -25,12 +32,12 @@
                 <MenuItem Header="{loc:Localized Menu.File.Exit}" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
             </MenuItem>
             <MenuItem Header="{loc:Localized Menu.Trading}">
-                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="Ctrl+N" />
+                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Localized Menu.AI}">
-                <MenuItem Header="{loc:Localized Menu.AI.Chat}" Command="{Binding OpenAiChatCommand}" InputGesture="Ctrl+Shift+A" />
+                <MenuItem Header="{loc:Localized Menu.AI.Chat}" Command="{Binding OpenAiChatCommand}" />
                 <MenuItem Header="{loc:Localized Menu.AI.Servers}" Command="{Binding ManageMcpServersCommand}" />
             </MenuItem>
         </Menu>

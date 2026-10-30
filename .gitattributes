@@ -1,7 +1,15 @@
 ###############################################################################
 # Set default behavior to automatically normalize line endings.
+# eol=lf pins the working-tree endings for every platform: the repo convention
+# is LF (the format gate requires it), so a fresh checkout must not turn text
+# files into CRLF on Windows.
 ###############################################################################
-* text=auto
+* text=auto eol=lf
+
+# Binary assets: never convert line endings, never diff.
+*.ico binary
+*.png binary
+*.jpg binary
 
 ###############################################################################
 # Set default behavior for command prompt diff.
