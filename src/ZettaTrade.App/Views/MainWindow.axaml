@@ -1,5 +1,4 @@
 <Window xmlns="https://github.com/avaloniaui"
-        xmlns:core="using:ZettaTrade.Core.Interfaces"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:ZettaTrade.UI.Localization"
@@ -19,30 +18,6 @@
                 <MenuItem Header="{loc:Localized Menu.File.Settings}" Command="{Binding OpenSettingsCommand}" InputGesture="Ctrl+," />
                 <Separator />
                 <MenuItem Header="{loc:Localized Menu.File.Exit}" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
-            </MenuItem>
-            <MenuItem Header="{loc:Localized Menu.View}">
-                <!-- Data-driven submenu: the generated container owns Command/Header.
-                     In Avalonia an ItemTemplate root never becomes the container itself
-                     (raw data items are always wrapped), so a command declared in the
-                     template is unreachable — bind it in the ItemContainerTheme instead. -->
-                <MenuItem Header="{loc:Localized Menu.View.Theme}" ItemsSource="{Binding $parent[Window].DataContext.Settings.AvailableThemes}">
-                    <MenuItem.ItemContainerTheme>
-                        <ControlTheme TargetType="MenuItem">
-                            <Setter Property="Header" x:DataType="core:ThemeInfo" Value="{Binding DisplayName}" />
-                            <Setter Property="Command" x:DataType="core:ThemeInfo" Value="{Binding $parent[Window].DataContext.Settings.ApplyThemeCommand}" />
-                            <Setter Property="CommandParameter" x:DataType="core:ThemeInfo" Value="{Binding Name}" />
-                        </ControlTheme>
-                    </MenuItem.ItemContainerTheme>
-                </MenuItem>
-                <MenuItem Header="{loc:Localized Menu.View.Language}" ItemsSource="{Binding $parent[Window].DataContext.Settings.AvailableLanguages}">
-                    <MenuItem.ItemContainerTheme>
-                        <ControlTheme TargetType="MenuItem">
-                            <Setter Property="Header" x:DataType="core:LanguageInfo" Value="{Binding NativeName}" />
-                            <Setter Property="Command" x:DataType="core:LanguageInfo" Value="{Binding $parent[Window].DataContext.Settings.ApplyLanguageCommand}" />
-                            <Setter Property="CommandParameter" x:DataType="core:LanguageInfo" Value="{Binding Code}" />
-                        </ControlTheme>
-                    </MenuItem.ItemContainerTheme>
-                </MenuItem>
             </MenuItem>
             <MenuItem Header="{loc:Localized Menu.Trading}">
                 <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="Ctrl+N" />

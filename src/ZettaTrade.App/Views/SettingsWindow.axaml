@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="using:ZettaTrade.Core.Interfaces"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:ZettaTrade.UI.Localization"
+        x:Class="ZettaTrade.App.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="{loc:Localized Settings.Title}"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+
+    <StackPanel Margin="20" Spacing="16">
+        <TextBlock Text="{loc:Localized Settings.Appearance}"
+                   FontWeight="Bold"
+                   FontSize="14" />
+
+        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+            <TextBlock Grid.Row="0" Grid.Column="0"
+                       Text="{loc:Localized Settings.Theme}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Row="0" Grid.Column="1"
+                      ItemsSource="{Binding AvailableThemes}"
+                      SelectedItem="{Binding SelectedThemeItem}"
+                      MinWidth="220"
+                      HorizontalAlignment="Left" HorizontalContentAlignment="Left">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="core:ThemeInfo">
+                        <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <TextBlock Grid.Row="1" Grid.Column="0"
+                       Text="{loc:Localized Settings.Language}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Row="1" Grid.Column="1"
+                      ItemsSource="{Binding AvailableLanguages}"
+                      SelectedItem="{Binding SelectedLanguageItem}"
+                      MinWidth="220"
+                      HorizontalAlignment="Left" HorizontalContentAlignment="Left">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="core:LanguageInfo">
+                        <TextBlock Text="{Binding NativeName}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+
+        <Button x:Name="CloseButton"
+                Content="{loc:Localized Settings.Close}"
+                MinWidth="90"
+                HorizontalAlignment="Right"
+                Click="OnCloseClick" />
+    </StackPanel>
+</Window>
