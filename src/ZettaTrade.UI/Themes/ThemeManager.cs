@@ -17,7 +17,9 @@ using ZettaTrade.Infrastructure.Configuration;
 /// (<c>themes/*.json</c>), user themes live in the settings themes directory.
 /// A user file with the same name overrides the shipped theme, so themes can
 /// be edited or added without recompiling. While the app runs, both theme
-/// directories are watched and a saved file is applied live (hot-reload).
+/// directories are watched and a saved file is applied live (hot-reload);
+/// files that fail to load are tracked and published as a diagnostics
+/// snapshot (<see cref="LoadErrors"/>) for the settings window.
 /// </summary>
 public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposable
 {
@@ -54,6 +56,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
 
     private readonly ILogger _logger;
     private readonly BehaviorSubject<string> _themeChanged;
+    private readonly BehaviorSubject<IReadOnlyList<ThemeFileLoadError>> _loadErrorsSubject;
     private readonly List<ThemeInfo> _themes = new();
     private readonly Dictionary<string, ThemeVariant> _variantOfTheme = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -63,6 +66,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     private IDisposable? _reloadSubscription;
     private string _current = DefaultThemeName;
     private string? _activeName;
+    private IReadOnlyList<ThemeFileLoadError> _loadErrors = Array.Empty<ThemeFileLoadError>();
     private bool _disposed;
 
     #endregion Private Fields
@@ -90,6 +94,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
         _builtInThemesDirectory = builtInThemesDirectory ?? Path.Combine(AppContext.BaseDirectory, BuiltInThemesFolder);
         _userThemesDirectory = userThemesDirectory ?? ConfigPathResolver.ThemesDirectory;
         _themeChanged = new BehaviorSubject<string>(_current);
+        _loadErrorsSubject = new BehaviorSubject<IReadOnlyList<ThemeFileLoadError>>(_loadErrors);
         _instance = this;
     }
 
@@ -113,6 +118,24 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     public IReadOnlyList<ThemeInfo> AvailableThemes => _themes;
 
     public IObservable<string> ThemeChanged => _themeChanged;
+
+    /// <summary>
+    /// Theme files that failed to load — the current snapshot (one entry per
+    /// file with its latest failure reason). Read-only diagnostics view for
+    /// the settings window; updates are pushed via
+    /// <see cref="LoadErrorsChanged"/>.
+    /// </summary>
+    public IReadOnlyList<ThemeFileLoadError> LoadErrors => _loadErrors;
+
+    /// <summary>
+    /// Stream of load-error snapshots. The current snapshot replays on
+    /// subscribe; a publication happens after every attempted load that
+    /// changed a file's error state (including the successful reload of a
+    /// previously broken file, which clears its entry). Publications happen
+    /// on the UI thread when an Avalonia application exists, so plain
+    /// ViewModel subscriptions stay UI-thread safe.
+    /// </summary>
+    public IObservable<IReadOnlyList<ThemeFileLoadError>> LoadErrorsChanged => _loadErrorsSubject;
 
     #endregion Properties
 
@@ -231,9 +254,17 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                 PropertyNameCaseInsensitive = true
             });
 
-            if (themeDef?.Name is null)
+            if (themeDef is null)
             {
                 _logger.LogWarning("Invalid theme file: {Path}", filePath);
+                RecordLoadErrorLocked(filePath, ThemeFileLoadError.InvalidJson);
+                return;
+            }
+
+            if (themeDef.Name is null)
+            {
+                _logger.LogWarning("Missing theme name in theme file: {Path}", filePath);
+                RecordLoadErrorLocked(filePath, ThemeFileLoadError.MissingName);
                 return;
             }
 
@@ -260,6 +291,10 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                 _themes.Add(themeInfo);
             }
 
+            // The file now loads: drop its recorded load error, so a fixed
+            // file clears its warning without an app restart.
+            RecordLoadSuccessLocked(filePath);
+
             _logger.LogInformation(
                 "{Kind} theme loaded: {Name} from {Path}",
                 isBuiltIn ? "Built-in" : "Custom",
@@ -272,9 +307,20 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
             reapply = reapplyIfActive &&
                       string.Equals(loadedName, _activeName, StringComparison.OrdinalIgnoreCase);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Shutdown/abort is not a theme file failure: leave the recorded
+            // error state untouched.
+        }
         catch (Exception ex)
         {
+            // Parse failures are a content problem; anything else (missing,
+            // locked, unreadable file) is an access problem.
+            var reason = ex is JsonException
+                ? ThemeFileLoadError.InvalidJson
+                : ThemeFileLoadError.ReadFailed;
             _logger.LogError(ex, "Failed to load theme from {Path}", filePath);
+            RecordLoadErrorLocked(filePath, reason);
         }
         finally
         {
@@ -286,6 +332,92 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
             await ReapplyThemeAsync(loadedName!, ct);
         }
     }
+
+    #region Load Error Tracking
+
+    /// <summary>
+    /// Record a failed theme file load (called under the load lock): a file
+    /// never holds more than one entry, kept at its first position with the
+    /// latest reason; a real change publishes a new snapshot.
+    /// </summary>
+    private void RecordLoadErrorLocked(
+        string filePath,
+        string reason)
+    {
+        for (var i = 0; i < _loadErrors.Count; i++)
+        {
+            if (!_loadErrors[i].FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (_loadErrors[i].Reason.Equals(reason, StringComparison.Ordinal))
+            {
+                // Same file failing with the same reason: no new snapshot.
+                return;
+            }
+
+            var updated = new List<ThemeFileLoadError>(_loadErrors);
+            updated[i] = new ThemeFileLoadError(filePath, reason);
+            SetLoadErrorsLocked(updated);
+            return;
+        }
+
+        SetLoadErrorsLocked(
+            new List<ThemeFileLoadError>(_loadErrors) { new ThemeFileLoadError(filePath, reason) });
+    }
+
+    /// <summary>
+    /// Drop the load error of a successfully loaded file (called under the
+    /// load lock); no-op when the file had no recorded error.
+    /// </summary>
+    private void RecordLoadSuccessLocked(string filePath)
+    {
+        for (var i = 0; i < _loadErrors.Count; i++)
+        {
+            if (_loadErrors[i].FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                var shrunk = new List<ThemeFileLoadError>(_loadErrors);
+                shrunk.RemoveAt(i);
+                SetLoadErrorsLocked(shrunk);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Swap in a new error snapshot and publish it. Publications happen on
+    /// the UI thread when an Avalonia application exists (same dispatching
+    /// contract as <see cref="ReapplyThemeAsync"/>: the hot-reload pipeline
+    /// and bulk loads can run off the UI thread), directly otherwise, so
+    /// plain ViewModel subscriptions stay UI-thread safe in both worlds.
+    /// </summary>
+    private void SetLoadErrorsLocked(IReadOnlyList<ThemeFileLoadError> errors)
+    {
+        _loadErrors = errors;
+        if (Application.Current is null)
+        {
+            PublishLoadErrorsSnapshot(errors);
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() => PublishLoadErrorsSnapshot(errors));
+    }
+
+    /// <summary>Publish one snapshot; tolerant to disposal during shutdown.</summary>
+    private void PublishLoadErrorsSnapshot(IReadOnlyList<ThemeFileLoadError> errors)
+    {
+        try
+        {
+            _loadErrorsSubject.OnNext(errors);
+        }
+        catch (ObjectDisposedException)
+        {
+            // The manager was disposed while a UI-thread publish was queued.
+        }
+    }
+
+    #endregion Load Error Tracking
 
     private async Task CreateSampleThemeAsync(string themesDir)
     {
@@ -443,6 +575,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
         _reloadSubscription?.Dispose();
         _fileWatcher?.Dispose();
         _themeChanged.Dispose();
+        _loadErrorsSubject.Dispose();
         _lock.Dispose();
     }
 }
@@ -458,4 +591,25 @@ public sealed record ThemeDefinition
     public string? BaseTheme { get; init; }
     public Dictionary<string, string>? Colors { get; init; }
     public string[]? PreviewColors { get; init; }
+}
+
+/// <summary>
+/// One theme file that failed to load: its path and the technical reason.
+/// The reason is an invariant English diagnostic string (log and test use);
+/// the settings window shows only the file name, so no localized text is
+/// implied by these values.
+/// </summary>
+public sealed record ThemeFileLoadError(string FilePath, string Reason)
+{
+    /// <summary>Reason set when the JSON content could not be parsed.</summary>
+    public const string InvalidJson = "Invalid JSON";
+
+    /// <summary>Reason set when the parsed schema has no name field.</summary>
+    public const string MissingName = "Missing theme name";
+
+    /// <summary>Reason set when the file could not be read (missing, locked or unavailable).</summary>
+    public const string ReadFailed = "Read failed";
+
+    /// <summary>File name without the directory (for compact display); the full path stays in <see cref="FilePath"/>.</summary>
+    public string FileName => Path.GetFileName(FilePath);
 }

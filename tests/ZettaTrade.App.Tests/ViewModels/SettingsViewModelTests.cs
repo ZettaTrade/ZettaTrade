@@ -1,17 +1,25 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using FluentAssertions;
 using NSubstitute;
+using ReactiveUI.Primitives;
 using Xunit;
 using ZettaTrade.App;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Infrastructure.Configuration;
+using ZettaTrade.Infrastructure.Shell;
+using ZettaTrade.UI.Themes;
 
 /// <summary>
 /// Tests for the settings window: the selections start at the managers'
 /// applied state (reset on every open, unsaved picks are discarded), and the
 /// explicit save applies and persists only real differences — an unchanged
-/// selection produces no manager calls and no settings rewrite.
+/// selection produces no manager calls and no settings rewrite. The themes
+/// folder button must hand the config themes directory to the injected
+/// shell abstraction, and theme load errors surface as a live warning list.
 /// </summary>
 public sealed class SettingsViewModelTests
 {
@@ -31,7 +39,7 @@ public sealed class SettingsViewModelTests
     public void Constructor_WithInitializedManagers_SelectsAppliedState()
     {
         // Arrange + Act
-        var (viewModel, _, _, _) = CreateViewModel(currentTheme: "Light", currentLanguage: "ru");
+        var (viewModel, _, _, _, _, _) = CreateViewModel(currentTheme: "Light", currentLanguage: "ru");
 
         // Assert
         viewModel.SelectedThemeIndex.Should().Be(1); // "light"
@@ -42,7 +50,7 @@ public sealed class SettingsViewModelTests
     public void ResetSelections_AfterUnsavedSelectionChange_DiscardsTheChange()
     {
         // Arrange
-        var (viewModel, _, _, _) = CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
+        var (viewModel, _, _, _, _, _) = CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
 
         // Act
         viewModel.SelectedThemeIndex = 1;
@@ -58,7 +66,7 @@ public sealed class SettingsViewModelTests
     public async Task SaveAsync_WithChangedSelections_AppliesAndPersistsBoth()
     {
         // Arrange
-        var (viewModel, settings, themeManager, localization) =
+        var (viewModel, settings, themeManager, localization, _, _) =
             CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
 
         // Act
@@ -77,7 +85,7 @@ public sealed class SettingsViewModelTests
     public async Task SaveAsync_WithUnchangedSelections_IsCompleteNoOp()
     {
         // Arrange: selections already match the applied state (fresh reset).
-        var (viewModel, settings, themeManager, localization) =
+        var (viewModel, settings, themeManager, localization, _, _) =
             CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
         viewModel.SelectedThemeIndex = 0;
         viewModel.SelectedLanguageIndex = 0;
@@ -95,7 +103,7 @@ public sealed class SettingsViewModelTests
     public async Task SaveAsync_WithOnlyLanguageChanged_DoesNotTouchTheme()
     {
         // Arrange
-        var (viewModel, settings, themeManager, localization) =
+        var (viewModel, settings, themeManager, localization, _, _) =
             CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
 
         // Act
@@ -126,6 +134,7 @@ public sealed class SettingsViewModelTests
             settings,
             themeManager,
             localization,
+            Substitute.For<IShellUtils>(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
 
         // Assert
@@ -133,12 +142,56 @@ public sealed class SettingsViewModelTests
         viewModel.SelectedThemeIndex.Should().Be(0); // "Dark"
     }
 
+    [Fact]
+    public async Task OpenThemesFolderCommand_Executed_OpensConfigThemesFolder()
+    {
+        // Arrange
+        var (viewModel, _, _, _, shellUtils, _) =
+            CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
+
+        // Act
+        await viewModel.OpenThemesFolderCommand.Execute(RxVoid.Default);
+
+        // Assert
+        shellUtils.Received().OpenInFileManager(ConfigPathResolver.ThemesDirectory);
+    }
+
+    [Fact]
+    public void ThemeLoadErrors_EmittedByManager_UpdateWarningState()
+    {
+        // Arrange
+        var (viewModel, _, _, _, _, themeLoadErrors) =
+            CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
+
+        viewModel.HasThemeFileErrors.Should().BeFalse();
+
+        // Act
+        themeLoadErrors.OnNext(
+            [new ThemeFileLoadError(@"C:\themes\broken.json", ThemeFileLoadError.InvalidJson)]);
+
+        // Assert
+        viewModel.HasThemeFileErrors.Should().BeTrue();
+        viewModel.ThemeFileErrors.Should().ContainSingle().Which.FileName.Should().Be("broken.json");
+
+        // Act: an emptied snapshot clears the warning (a fixed file reloaded).
+        themeLoadErrors.OnNext(Array.Empty<ThemeFileLoadError>());
+
+        // Assert
+        viewModel.HasThemeFileErrors.Should().BeFalse();
+        viewModel.ThemeFileErrors.Should().BeEmpty();
+    }
+
     private static (
         SettingsViewModel ViewModel,
         ISettingsService Settings,
         IThemeManager ThemeManager,
-        ILocalizationManager Localization)
-        CreateViewModel(string currentTheme, string currentLanguage)
+        ILocalizationManager Localization,
+        IShellUtils ShellUtils,
+        BehaviorSubject<IReadOnlyList<ThemeFileLoadError>> ThemeLoadErrors)
+        CreateViewModel(
+            string currentTheme,
+            string currentLanguage,
+            BehaviorSubject<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null)
     {
         var settings = Substitute.For<ISettingsService>();
         var themeManager = Substitute.For<IThemeManager>();
@@ -147,13 +200,17 @@ public sealed class SettingsViewModelTests
         var localization = Substitute.For<ILocalizationManager>();
         localization.CurrentLanguage.Returns(currentLanguage);
         localization.AvailableLanguages.Returns(Languages);
+        var shellUtils = Substitute.For<IShellUtils>();
+        themeLoadErrors ??= new BehaviorSubject<IReadOnlyList<ThemeFileLoadError>>([]);
 
         var viewModel = new SettingsViewModel(
             settings,
             themeManager,
             localization,
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
+            shellUtils,
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>(),
+            themeLoadErrors);
 
-        return (viewModel, settings, themeManager, localization);
+        return (viewModel, settings, themeManager, localization, shellUtils, themeLoadErrors);
     }
 }
