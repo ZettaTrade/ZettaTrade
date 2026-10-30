@@ -3,7 +3,11 @@ namespace ZettaTrade.App.ViewModels;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ReactiveUI.Primitives;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Infrastructure.Configuration;
+using ZettaTrade.Infrastructure.Shell;
+using ZettaTrade.UI.Themes;
 
 /// <summary>
 /// ViewModel for the settings window (theme, language, etc.).
@@ -12,6 +16,10 @@ using ZettaTrade.Core.Interfaces;
 /// window starts from selections synced to the applied state
 /// (<see cref="ResetSelections"/>) and only a real difference is applied and
 /// persisted, so closing without saving never leaves a half-applied state.
+/// Theme diagnostics are read-only: broken files are listed
+/// (<see cref="ThemeFileErrors"/>) and the user themes folder opens through
+/// the injected <see cref="IShellUtils"/> (platform code stays in
+/// Infrastructure).
 /// </summary>
 public sealed class SettingsViewModel : ReactiveObject
 {
@@ -26,6 +34,7 @@ public sealed class SettingsViewModel : ReactiveObject
 
     private int _selectedThemeIndex = NoSelection;
     private int _selectedLanguageIndex = NoSelection;
+    private IReadOnlyList<ThemeFileLoadError> _themeFileErrors = Array.Empty<ThemeFileLoadError>();
 
     /// <summary>Selected theme index (combo box); <see cref="NoSelection"/> when nothing is selected.</summary>
     public int SelectedThemeIndex
@@ -47,13 +56,41 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>Available languages from LocalizationManager (no duplication).</summary>
     public IReadOnlyList<LanguageInfo> AvailableLanguages => _localization.AvailableLanguages;
 
+    /// <summary>Theme files that failed to load, with the file name shown per entry.</summary>
+    public IReadOnlyList<ThemeFileLoadError> ThemeFileErrors
+    {
+        get => _themeFileErrors;
+        private set
+        {
+            if (ReferenceEquals(_themeFileErrors, value))
+            {
+                return;
+            }
+
+            _themeFileErrors = value;
+            this.RaisePropertyChanged(nameof(ThemeFileErrors));
+            this.RaisePropertyChanged(nameof(HasThemeFileErrors));
+        }
+    }
+
+    /// <summary>True while at least one theme file failed to load; drives the warning list visibility.</summary>
+    public bool HasThemeFileErrors => _themeFileErrors.Count > 0;
+
     #endregion Properties
+
+    #region Commands
+
+    /// <summary>Command to open the user themes folder in the OS file manager.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> OpenThemesFolderCommand { get; }
+
+    #endregion Commands
 
     #region Private Fields
 
     private readonly ISettingsService _settings;
     private readonly IThemeManager _themeManager;
     private readonly ILocalizationManager _localization;
+    private readonly IShellUtils _shellUtils;
     private readonly ILogger<SettingsViewModel> _logger;
 
     #endregion Private Fields
@@ -65,16 +102,41 @@ public sealed class SettingsViewModel : ReactiveObject
     /// initialized (app startup applies the stored preferences before the
     /// settings window can open), so their current state defines the selection.
     /// </summary>
+    /// <param name="settings">Stored UI preferences (applied on Save).</param>
+    /// <param name="themeManager">Theme manager providing applied/available themes.</param>
+    /// <param name="localization">Localization manager providing applied/available languages.</param>
+    /// <param name="shellUtils">File manager launcher for the themes folder button.</param>
+    /// <param name="logger">Injected application logger.</param>
+    /// <param name="themeLoadErrors">
+    /// Stream of theme file load errors; when omitted (tests without the
+    /// diagnostics stream), the warning list simply stays empty.
+    /// </param>
     public SettingsViewModel(
         ISettingsService settings,
         IThemeManager themeManager,
         ILocalizationManager localization,
-        ILogger<SettingsViewModel> logger)
+        IShellUtils shellUtils,
+        ILogger<SettingsViewModel> logger,
+        IObservable<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null)
     {
         _settings = settings;
         _themeManager = themeManager;
         _localization = localization;
+        _shellUtils = shellUtils;
         _logger = logger;
+
+        OpenThemesFolderCommand = ReactiveCommand.Create(HandleOpenThemesFolder);
+
+        if (themeLoadErrors is not null)
+        {
+            // App-lifetime singleton: the subscription mirrors the ViewModel's
+            // lifetime (same contract as the status bar chips). The manager
+            // publishes on the UI thread when Avalonia runs, so a plain
+            // subscription is UI-thread safe; in tests it publishes directly.
+            themeLoadErrors.Subscribe(
+                errors => ThemeFileErrors = errors,
+                ex => _logger.LogError(ex, "Theme load error stream failed"));
+        }
 
         ResetSelections();
     }
@@ -125,6 +187,22 @@ public sealed class SettingsViewModel : ReactiveObject
     #endregion Public Methods
 
     #region Private Methods
+
+    /// <summary>
+    /// Open the user themes folder in the OS file manager; the platform
+    /// selection (explorer.exe / open / xdg-open) lives in Infrastructure.
+    /// </summary>
+    private void HandleOpenThemesFolder()
+    {
+        try
+        {
+            _shellUtils.OpenInFileManager(ConfigPathResolver.ThemesDirectory);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open the themes folder {Path}", ConfigPathResolver.ThemesDirectory);
+        }
+    }
 
     /// <summary>Index of the applied theme (matched by display name) in AvailableThemes.</summary>
     private int IndexOfAppliedTheme()

@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="using:ZettaTrade.Core.Interfaces"
+        xmlns:themes="using:ZettaTrade.UI.Themes"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:ZettaTrade.UI.Localization"
         x:Class="ZettaTrade.App.Views.SettingsWindow"
@@ -48,6 +49,34 @@
                 </ComboBox.ItemTemplate>
             </ComboBox>
         </Grid>
+
+        <!-- Theme folder and schema hint: customization is file-based, so the
+             button hands the folder over to the OS file manager. -->
+        <StackPanel Spacing="10">
+            <Button Content="{loc:Localized Settings.ThemesFolder.Open}"
+                    Command="{Binding OpenThemesFolderCommand}"
+                    MinWidth="160"
+                    HorizontalAlignment="Left" />
+            <TextBlock Text="{loc:Localized Settings.ThemeErrors.Hint}"
+                       TextWrapping="Wrap"
+                       FontSize="12" />
+        </StackPanel>
+
+        <!-- Broken theme files (theme files that failed to parse): hidden
+             while every file loads. -->
+        <StackPanel IsVisible="{Binding HasThemeFileErrors}" Spacing="6">
+            <TextBlock Text="{loc:Localized Settings.ThemeErrors.Header}"
+                       FontWeight="Bold" />
+            <ItemsControl ItemsSource="{Binding ThemeFileErrors}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="themes:ThemeFileLoadError">
+                        <TextBlock Text="{Binding FileName}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding FilePath}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
 
         <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
             <Button x:Name="SaveButton"
