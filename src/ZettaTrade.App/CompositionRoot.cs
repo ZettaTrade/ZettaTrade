@@ -12,6 +12,7 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Secrets;
+using ZettaTrade.Infrastructure.Shell;
 using ZettaTrade.UI.Localization;
 using ZettaTrade.UI.Themes;
 
@@ -56,8 +57,14 @@ internal static class CompositionRoot
                 ConfigPathResolver.MainSettingsFile,
                 sp.GetRequiredService<ILogger<SettingsService>>()));
 
-        services.AddSingleton<IThemeManager>(sp =>
+        // ThemeManager is registered both by its concrete type (the read-only
+        // diagnostics surface — LoadErrors/LoadErrorsChanged — lives there,
+        // not on the Core interface) and as the IThemeManager service.
+        services.AddSingleton<ThemeManager>(sp =>
             new ThemeManager(sp.GetRequiredService<ILogger<ThemeManager>>()));
+        services.AddSingleton<IThemeManager>(sp => sp.GetRequiredService<ThemeManager>());
+
+        services.AddSingleton<IShellUtils>(new ShellUtils());
 
         services.AddSingleton<ILocalizationManager>(sp =>
             new LocalizationManager(
@@ -87,7 +94,9 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<IThemeManager>(),
                 sp.GetRequiredService<ILocalizationManager>(),
-                sp.GetRequiredService<ILogger<SettingsViewModel>>()));
+                sp.GetRequiredService<IShellUtils>(),
+                sp.GetRequiredService<ILogger<SettingsViewModel>>(),
+                sp.GetRequiredService<ThemeManager>().LoadErrorsChanged));
         services.AddSingleton<ChartViewModel>(sp =>
             new ChartViewModel(
                 sp.GetRequiredService<IMarketDataAdapter>(),
