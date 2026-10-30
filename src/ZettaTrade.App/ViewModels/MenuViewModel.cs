@@ -29,6 +29,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to open settings dialog.</summary>
     public ReactiveCommand<RxVoid, RxVoid> OpenSettingsCommand { get; }
 
+    /// <summary>
+    /// Interaction that routes the open-settings request to the View, which
+    /// hosts the actual window (window plumbing stays out of the ViewModel).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> OpenSettingsRequested { get; }
+
     /// <summary>Command to exit application.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ExitCommand { get; }
 
@@ -41,6 +47,7 @@ public sealed class MenuViewModel : ReactiveObject
     /// </summary>
     public MenuViewModel()
     {
+        OpenSettingsRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
@@ -64,7 +71,7 @@ public sealed class MenuViewModel : ReactiveObject
 
     private Task HandleManageMcpServersAsync() => Task.CompletedTask;
 
-    private Task HandleOpenSettingsAsync() => Task.CompletedTask;
+    private Task HandleOpenSettingsAsync() => OpenSettingsRequested.Handle(RxVoid.Default);
 
     private void HandleExit()
     {

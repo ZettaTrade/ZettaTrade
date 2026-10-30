@@ -3,34 +3,35 @@ namespace ZettaTrade.App.ViewModels;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
-using ReactiveUI.Primitives;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
-/// ViewModel for settings management (theme, language, etc.).
-/// Delegates available options to ThemeManager and LocalizationManager (DRY, SoC).
+/// ViewModel for the settings window (theme, language, etc.).
+/// Delegates available options to ThemeManager and LocalizationManager (DRY, SoC)
+/// and persists every applied change through <see cref="ISettingsService"/>.
+/// Selecting a theme or language applies it immediately (live preview); app
+/// startup applies the stored preferences before this ViewModel is created,
+/// so the selection starts in the state that is already on screen.
 /// </summary>
-public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
+public sealed class SettingsViewModel : ReactiveObject
 {
     #region Properties
 
-    public ViewModelActivator Activator { get; } = new();
+    private ThemeInfo? _selectedThemeItem;
+    private LanguageInfo? _selectedLanguageItem;
 
-    private string _selectedTheme = UiSettingsKeys.DefaultTheme;
-    private string _selectedLanguage = UiSettingsKeys.DefaultLanguage;
-
-    /// <summary>Currently selected theme name.</summary>
-    public string SelectedTheme
+    /// <summary>Selected theme (null before initialization); a new selection re-colors the app.</summary>
+    public ThemeInfo? SelectedThemeItem
     {
-        get => _selectedTheme;
-        set => this.RaiseAndSetIfChanged(ref _selectedTheme, value);
+        get => _selectedThemeItem;
+        set => this.RaiseAndSetIfChanged(ref _selectedThemeItem, value);
     }
 
-    /// <summary>Currently selected language code.</summary>
-    public string SelectedLanguage
+    /// <summary>Selected language (null before initialization); a new selection re-localizes the app.</summary>
+    public LanguageInfo? SelectedLanguageItem
     {
-        get => _selectedLanguage;
-        set => this.RaiseAndSetIfChanged(ref _selectedLanguage, value);
+        get => _selectedLanguageItem;
+        set => this.RaiseAndSetIfChanged(ref _selectedLanguageItem, value);
     }
 
     /// <summary>Available themes from ThemeManager (no duplication).</summary>
@@ -40,16 +41,6 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
     public IReadOnlyList<LanguageInfo> AvailableLanguages => _localization.AvailableLanguages;
 
     #endregion Properties
-
-    #region Commands
-
-    /// <summary>Command to apply a theme by name.</summary>
-    public ReactiveCommand<string, RxVoid> ApplyThemeCommand { get; }
-
-    /// <summary>Command to apply a language by code.</summary>
-    public ReactiveCommand<string, RxVoid> ApplyLanguageCommand { get; }
-
-    #endregion Commands
 
     #region Private Fields
 
@@ -63,7 +54,9 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
     #region Constructor
 
     /// <summary>
-    /// Create a new SettingsViewModel instance.
+    /// Create a new SettingsViewModel instance. The managers must already be
+    /// initialized (app startup applies the stored preferences before the
+    /// settings window can open), so their current state defines the selection.
     /// </summary>
     public SettingsViewModel(
         ISettingsService settings,
@@ -76,57 +69,74 @@ public sealed class SettingsViewModel : ReactiveObject, IActivatableViewModel
         _localization = localization;
         _logger = logger;
 
-        ApplyThemeCommand = ReactiveCommand.CreateFromTask<string>(ApplyThemeAsync);
-        ApplyLanguageCommand = ReactiveCommand.CreateFromTask<string>(ApplyLanguageAsync);
+        // Every selection change applies the picked item. Concat serializes
+        // back-to-back changes; the apply methods treat an unchanged selection
+        // as a no-op, so re-running the pipeline cannot rewrite settings.
+        this.WhenAnyValue(x => x.SelectedThemeItem)
+            .Where(static theme => theme is not null)
+            .Select(theme => Observable.FromAsync(() => ApplyThemeAsync(theme!)))
+            .Concat()
+            .Subscribe(_ => { }, ex => _logger.LogError(ex, "Theme selection pipeline failed"));
 
-        this.WhenActivated(disposables =>
-        {
-            Observable
-                .FromAsync(() => LoadCurrentSettingsAsync())
-                .Subscribe(
-                    _ => { },
-                    ex => _logger.LogError(ex, "Failed to load settings"))
-                .DisposeWith(disposables);
-        });
+        this.WhenAnyValue(x => x.SelectedLanguageItem)
+            .Where(static language => language is not null)
+            .Select(language => Observable.FromAsync(() => ApplyLanguageAsync(language!)))
+            .Concat()
+            .Subscribe(_ => { }, ex => _logger.LogError(ex, "Language selection pipeline failed"));
+
+        SelectedThemeItem = _themeManager.AvailableThemes.FirstOrDefault(theme =>
+            theme.DisplayName.Equals(_themeManager.CurrentTheme, StringComparison.OrdinalIgnoreCase));
+        SelectedLanguageItem = _localization.AvailableLanguages.FirstOrDefault(language =>
+            language.Code.Equals(_localization.CurrentLanguage, StringComparison.OrdinalIgnoreCase));
     }
 
     #endregion Constructor
 
     #region Private Methods
 
-    private async Task<bool> LoadCurrentSettingsAsync()
+    private async Task ApplyThemeAsync(ThemeInfo theme)
     {
-        SelectedTheme = await _settings.GetAsync(
-            UiSettingsKeys.Section,
-            UiSettingsKeys.Theme,
-            UiSettingsKeys.DefaultTheme);
-        SelectedLanguage = await _settings.GetAsync(
-            UiSettingsKeys.Section,
-            UiSettingsKeys.Language,
-            UiSettingsKeys.DefaultLanguage);
+        try
+        {
+            // The selection is initialized from the applied theme, so an
+            // identical selection is already on screen and stays a no-op.
+            if (_themeManager.CurrentTheme.Equals(theme.DisplayName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
 
-        // Task<bool> (not plain Task) keeps Rx pipelines on ReactiveUI.RxVoid; System.Reactive.Unit is banned.
-        return true;
+            await _themeManager.ApplyThemeAsync(theme.Name);
+            await _settings.SetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.Theme,
+                theme.Name);
+        }
+        catch (Exception ex)
+        {
+            // The pipeline must survive a failed apply and keep accepting changes.
+            _logger.LogError(ex, "Failed to apply theme {Theme}", theme.DisplayName);
+        }
     }
 
-    private async Task ApplyThemeAsync(string themeName)
+    private async Task ApplyLanguageAsync(LanguageInfo language)
     {
-        SelectedTheme = themeName;
-        await _themeManager.ApplyThemeAsync(themeName);
-        await _settings.SetAsync(
-            UiSettingsKeys.Section,
-            UiSettingsKeys.Theme,
-            themeName);
-    }
+        try
+        {
+            if (_localization.CurrentLanguage.Equals(language.Code, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
 
-    private async Task ApplyLanguageAsync(string languageCode)
-    {
-        SelectedLanguage = languageCode;
-        await _localization.SetLanguageAsync(languageCode);
-        await _settings.SetAsync(
-            UiSettingsKeys.Section,
-            UiSettingsKeys.Language,
-            languageCode);
+            await _localization.SetLanguageAsync(language.Code);
+            await _settings.SetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.Language,
+                language.Code);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply language {Language}", language.Code);
+        }
     }
 
     #endregion Private Methods
