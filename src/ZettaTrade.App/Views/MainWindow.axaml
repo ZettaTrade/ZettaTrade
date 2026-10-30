@@ -11,6 +11,11 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
+    <Window.KeyBindings>
+        <!-- The menu advertises Ctrl+,; InputGesture alone is display-only. -->
+        <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding Menu.OpenSettingsCommand}" />
+    </Window.KeyBindings>
+
     <DockPanel>
         <!-- Top menu bar -->
         <Menu DockPanel.Dock="Top" DataContext="{Binding Menu}">

@@ -12,6 +12,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Built-in theme files shipped next to the executable; ThemeManager
+         loads them from $(OutputPath)\themes. Explicit list: repo example
+         files (e.g. trading-pro.json) are not shipped. -->
+    <Content Include="..\..\themes\dark.json" CopyToOutputDirectory="PreserveNewest" Link="themes\dark.json" />
+    <Content Include="..\..\themes\light.json" CopyToOutputDirectory="PreserveNewest" Link="themes\light.json" />
+    <Content Include="..\..\themes\midnight.json" CopyToOutputDirectory="PreserveNewest" Link="themes\midnight.json" />
+    <Content Include="..\..\themes\oled.json" CopyToOutputDirectory="PreserveNewest" Link="themes\oled.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <AvaloniaXaml Remove="Models\**" />
     <Compile Remove="Models\**" />
     <EmbeddedResource Remove="Models\**" />

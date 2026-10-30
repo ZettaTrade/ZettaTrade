@@ -1,0 +1,18 @@
+{
+  "name": "oled",
+  "displayName": "OLED Black",
+  "baseTheme": "Dark",
+  "colors": {
+    "Background": "#000000",
+    "Surface": "#0a0a0a",
+    "Border": "#111111",
+    "Accent": "#1a1a1a",
+    "TextPrimary": "#ffffff",
+    "TextSecondary": "#888888",
+    "Buy": "#22c55e",
+    "Sell": "#ef4444",
+    "CandleUp": "#22c55e",
+    "CandleDown": "#ef4444"
+  },
+  "previewColors": ["#000000", "#0a0a0a", "#111111", "#1a1a1a"]
+}
