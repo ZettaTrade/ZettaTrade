@@ -38,6 +38,10 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     {
         try
         {
+            // The ViewModel is an app-lifetime singleton: resync its selections
+            // to the applied state so unsaved changes never leak into a new dialog.
+            ViewModel!.Settings.ResetSelections();
+
             var dialog = new SettingsWindow
             {
                 DataContext = ViewModel!.Settings,

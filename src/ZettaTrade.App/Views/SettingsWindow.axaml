@@ -23,9 +23,9 @@
                        VerticalAlignment="Center" />
             <ComboBox Grid.Row="0" Grid.Column="1"
                       ItemsSource="{Binding AvailableThemes}"
-                      SelectedItem="{Binding SelectedThemeItem}"
+                      SelectedIndex="{Binding SelectedThemeIndex}"
                       MinWidth="220"
-                      HorizontalAlignment="Left" HorizontalContentAlignment="Left">
+                      HorizontalAlignment="Left">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="core:ThemeInfo">
                         <TextBlock Text="{Binding DisplayName}" />
@@ -38,9 +38,9 @@
                        VerticalAlignment="Center" />
             <ComboBox Grid.Row="1" Grid.Column="1"
                       ItemsSource="{Binding AvailableLanguages}"
-                      SelectedItem="{Binding SelectedLanguageItem}"
+                      SelectedIndex="{Binding SelectedLanguageIndex}"
                       MinWidth="220"
-                      HorizontalAlignment="Left" HorizontalContentAlignment="Left">
+                      HorizontalAlignment="Left">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="core:LanguageInfo">
                         <TextBlock Text="{Binding NativeName}" />
@@ -49,10 +49,15 @@
             </ComboBox>
         </Grid>
 
-        <Button x:Name="CloseButton"
-                Content="{loc:Localized Settings.Close}"
-                MinWidth="90"
-                HorizontalAlignment="Right"
-                Click="OnCloseClick" />
+        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button x:Name="SaveButton"
+                    Content="{loc:Localized Settings.Save}"
+                    MinWidth="90"
+                    Click="OnSaveClick" />
+            <Button x:Name="CloseButton"
+                    Content="{loc:Localized Settings.Close}"
+                    MinWidth="90"
+                    Click="OnCloseClick" />
+        </StackPanel>
     </StackPanel>
 </Window>

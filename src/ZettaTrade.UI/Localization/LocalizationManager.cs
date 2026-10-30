@@ -24,6 +24,12 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     /// </summary>
     public static LocalizationManager Instance => _instance ?? throw new InvalidOperationException("LocalizationManager not initialized");
 
+    /// <summary>
+    /// True once an <see cref="ILocalizationManager"/> instance exists; lets controls
+    /// (e.g. the chart) subscribe safely even in design mode before the app wires the manager.
+    /// </summary>
+    public static bool IsInitialized => _instance is not null;
+
     private readonly ResourceManager _resourceManager;
     private readonly ILogger _logger;
     private readonly BehaviorSubject<string> _languageChanged;
@@ -39,9 +45,6 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     {
         _logger = logger;
         _resourceManager = resourceManager;
-        _currentCulture = CultureInfo.CurrentUICulture;
-        _languageChanged = new BehaviorSubject<string>(_currentCulture.Name);
-        _instance = this;
 
         AvailableLanguages = new List<LanguageInfo>
         {
@@ -55,7 +58,38 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
             new("fr", "French", "Français", false),
         };
 
+        // First run keeps the OS language, but normalized to an available UI
+        // language ("ru-RU" -> "ru"): the OS culture may be region-specific,
+        // while selections and lookups work with plain language codes.
+        _currentCulture = ResolveInitialCulture(CultureInfo.CurrentUICulture);
+        _languageChanged = new BehaviorSubject<string>(_currentCulture.Name);
+        _instance = this;
+
         _logger.LogInformation("LocalizationManager initialized with ResourceManager");
+    }
+
+    /// <summary>
+    /// Map the OS UI culture onto one of the available languages by two-letter
+    /// code; fall back to the OS culture itself when no listed language matches.
+    /// </summary>
+    private CultureInfo ResolveInitialCulture(CultureInfo osCulture)
+    {
+        var shortCode = osCulture.TwoLetterISOLanguageName;
+        var match = AvailableLanguages
+            .FirstOrDefault(l => l.Code.Equals(shortCode, StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+        {
+            return osCulture;
+        }
+
+        try
+        {
+            return new CultureInfo(match.Code);
+        }
+        catch (CultureNotFoundException)
+        {
+            return osCulture;
+        }
     }
 
     public string CurrentLanguage => _currentCulture.Name;

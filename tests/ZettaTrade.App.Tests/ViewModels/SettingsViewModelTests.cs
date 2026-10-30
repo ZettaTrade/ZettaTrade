@@ -8,10 +8,10 @@ using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
-/// Tests for the settings window selection: it starts at the managers'
-/// current state, applies any real change to the managers and persists it,
-/// and leaves an unchanged selection a complete no-op (no settings rewrite,
-/// no redundant theme/language event).
+/// Tests for the settings window: the selections start at the managers'
+/// applied state (reset on every open, unsaved picks are discarded), and the
+/// explicit save applies and persists only real differences — an unchanged
+/// selection produces no manager calls and no settings rewrite.
 /// </summary>
 public sealed class SettingsViewModelTests
 {
@@ -28,58 +28,109 @@ public sealed class SettingsViewModelTests
     ];
 
     [Fact]
-    public void Constructor_WithInitializedManagers_SelectsTheirCurrentState()
+    public void Constructor_WithInitializedManagers_SelectsAppliedState()
     {
         // Arrange + Act
         var (viewModel, _, _, _) = CreateViewModel(currentTheme: "Light", currentLanguage: "ru");
 
         // Assert
-        viewModel.SelectedThemeItem.Should().Be(Themes.Single(theme => theme.Name == "light"));
-        viewModel.SelectedLanguageItem!.Code.Should().Be("ru");
+        viewModel.SelectedThemeIndex.Should().Be(1); // "light"
+        viewModel.SelectedLanguageIndex.Should().Be(1); // "ru"
     }
 
     [Fact]
-    public async Task Constructor_WithInitializedManagers_DoesNotReapplyOrPersist()
-    {
-        // Arrange + Act: the pipeline runs once for the initial selection.
-        var (viewModel, settings, themeManager, localization) =
-            CreateViewModel(currentTheme: "Light", currentLanguage: "ru");
-
-        // Assert: the selection already matches what is on screen.
-        await themeManager.DidNotReceive().ApplyThemeAsync(Arg.Any<string>());
-        await localization.DidNotReceive().SetLanguageAsync(Arg.Any<string>());
-        await settings.DidNotReceiveWithAnyArgs().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>());
-    }
-
-    [Fact]
-    public async Task SelectedThemeItemChanged_AppliesNewThemeAndPersistsIt()
+    public void ResetSelections_AfterUnsavedSelectionChange_DiscardsTheChange()
     {
         // Arrange
-        var (viewModel, settings, themeManager, _) =
-            CreateViewModel(currentTheme: "Light", currentLanguage: "en");
+        var (viewModel, _, _, _) = CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
 
         // Act
-        viewModel.SelectedThemeItem = Themes.Single(theme => theme.Name == "dark");
+        viewModel.SelectedThemeIndex = 1;
+        viewModel.SelectedLanguageIndex = 1;
+        viewModel.ResetSelections();
 
         // Assert
-        await themeManager.Received().ApplyThemeAsync("dark");
-        await settings.Received().SetAsync(UiSettingsKeys.Section, UiSettingsKeys.Theme, "dark");
+        viewModel.SelectedThemeIndex.Should().Be(0); // applied: "dark"
+        viewModel.SelectedLanguageIndex.Should().Be(0); // applied: "en"
     }
 
     [Fact]
-    public async Task SelectedLanguageItemChanged_AppliesNewLanguageAndPersistsIt()
+    public async Task SaveAsync_WithChangedSelections_AppliesAndPersistsBoth()
     {
         // Arrange
         var (viewModel, settings, themeManager, localization) =
             CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
 
         // Act
-        viewModel.SelectedLanguageItem = Languages.Single(language => language.Code == "ru");
+        viewModel.SelectedThemeIndex = 1; // "light"
+        viewModel.SelectedLanguageIndex = 1; // "ru"
+        await viewModel.SaveAsync();
+
+        // Assert
+        await themeManager.Received().ApplyThemeAsync("light");
+        await localization.Received().SetLanguageAsync("ru");
+        await settings.Received().SetAsync(UiSettingsKeys.Section, UiSettingsKeys.Theme, "light");
+        await settings.Received().SetAsync(UiSettingsKeys.Section, UiSettingsKeys.Language, "ru");
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithUnchangedSelections_IsCompleteNoOp()
+    {
+        // Arrange: selections already match the applied state (fresh reset).
+        var (viewModel, settings, themeManager, localization) =
+            CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
+        viewModel.SelectedThemeIndex = 0;
+        viewModel.SelectedLanguageIndex = 0;
+
+        // Act
+        await viewModel.SaveAsync();
+
+        // Assert
+        await themeManager.DidNotReceive().ApplyThemeAsync(Arg.Any<string>());
+        await localization.DidNotReceive().SetLanguageAsync(Arg.Any<string>());
+        await settings.DidNotReceiveWithAnyArgs().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithOnlyLanguageChanged_DoesNotTouchTheme()
+    {
+        // Arrange
+        var (viewModel, settings, themeManager, localization) =
+            CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
+
+        // Act
+        viewModel.SelectedLanguageIndex = 1; // "ru"
+        await viewModel.SaveAsync();
 
         // Assert
         await localization.Received().SetLanguageAsync("ru");
         await settings.Received().SetAsync(UiSettingsKeys.Section, UiSettingsKeys.Language, "ru");
         await themeManager.DidNotReceive().ApplyThemeAsync(Arg.Any<string>());
+    }
+
+    [Fact]
+    public void IndexOfAppliedLanguage_FallsBackToTwoLetterCode()
+    {
+        // Arrange: the OS-reported culture is region-specific ("ru-RU"), but the
+        // language list only has plain codes ("ru"): the selection must still resolve.
+        var settings = Substitute.For<ISettingsService>();
+        var themeManager = Substitute.For<IThemeManager>();
+        themeManager.CurrentTheme.Returns("Dark");
+        themeManager.AvailableThemes.Returns(Themes);
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.CurrentLanguage.Returns("ru-RU");
+        localization.AvailableLanguages.Returns(Languages);
+
+        // Act
+        var viewModel = new SettingsViewModel(
+            settings,
+            themeManager,
+            localization,
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
+
+        // Assert
+        viewModel.SelectedLanguageIndex.Should().Be(1); // "ru"
+        viewModel.SelectedThemeIndex.Should().Be(0); // "Dark"
     }
 
     private static (

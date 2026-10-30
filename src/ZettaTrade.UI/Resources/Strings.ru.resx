@@ -81,6 +81,9 @@
   <data name="Settings.Language" xml:space="preserve">
     <value>Язык</value>
   </data>
+  <data name="Settings.Save" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
   <data name="Settings.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
