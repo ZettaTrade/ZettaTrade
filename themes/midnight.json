@@ -1,0 +1,18 @@
+{
+  "name": "midnight",
+  "displayName": "Midnight Blue",
+  "baseTheme": "Dark",
+  "colors": {
+    "Background": "#0d1117",
+    "Surface": "#161b22",
+    "Border": "#21262d",
+    "Accent": "#1f6feb",
+    "TextPrimary": "#ffffff",
+    "TextSecondary": "#8b949e",
+    "Buy": "#22c55e",
+    "Sell": "#ef4444",
+    "CandleUp": "#22c55e",
+    "CandleDown": "#ef4444"
+  },
+  "previewColors": ["#0d1117", "#161b22", "#21262d", "#1f6feb"]
+}

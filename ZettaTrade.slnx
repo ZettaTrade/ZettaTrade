@@ -7,4 +7,5 @@
   <Project Path="tests/ZettaTrade.App.Tests/ZettaTrade.App.Tests.csproj" />
   <Project Path="tests/ZettaTrade.Core.Tests/ZettaTrade.Core.Tests.csproj" />
   <Project Path="tests/ZettaTrade.Infrastructure.Tests/ZettaTrade.Infrastructure.Tests.csproj" />
+  <Project Path="tests/ZettaTrade.UI.Tests/ZettaTrade.UI.Tests.csproj" />
 </Solution>
