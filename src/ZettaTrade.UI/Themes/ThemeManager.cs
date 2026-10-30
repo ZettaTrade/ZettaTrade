@@ -1,9 +1,11 @@
 namespace ZettaTrade.UI.Themes;
 
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
@@ -14,7 +16,8 @@ using ZettaTrade.Infrastructure.Configuration;
 /// previewColors): built-ins are shipped next to the executable
 /// (<c>themes/*.json</c>), user themes live in the settings themes directory.
 /// A user file with the same name overrides the shipped theme, so themes can
-/// be edited or added without recompiling.
+/// be edited or added without recompiling. While the app runs, both theme
+/// directories are watched and a saved file is applied live (hot-reload).
 /// </summary>
 public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposable
 {
@@ -54,7 +57,12 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     private readonly List<ThemeInfo> _themes = new();
     private readonly Dictionary<string, ThemeVariant> _variantOfTheme = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly string _builtInThemesDirectory;
+    private readonly string _userThemesDirectory;
+    private ThemeFileWatcher? _fileWatcher;
+    private IDisposable? _reloadSubscription;
     private string _current = DefaultThemeName;
+    private string? _activeName;
     private bool _disposed;
 
     #endregion Private Fields
@@ -64,22 +72,38 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     /// <see cref="InitializeAsync"/>; the composition root calls it during
     /// startup, before any stored theme preference is applied.
     /// </summary>
-    public ThemeManager(ILogger logger)
+    /// <param name="logger">Injected application logger.</param>
+    /// <param name="builtInThemesDirectory">
+    /// Overrides the shipped themes folder next to the executable; tests use
+    /// this to stay away from real application files.
+    /// </param>
+    /// <param name="userThemesDirectory">
+    /// Overrides the settings themes directory; tests use this to stay away
+    /// from the real user configuration.
+    /// </param>
+    public ThemeManager(
+        ILogger logger,
+        string? builtInThemesDirectory = null,
+        string? userThemesDirectory = null)
     {
         _logger = logger;
+        _builtInThemesDirectory = builtInThemesDirectory ?? Path.Combine(AppContext.BaseDirectory, BuiltInThemesFolder);
+        _userThemesDirectory = userThemesDirectory ?? ConfigPathResolver.ThemesDirectory;
         _themeChanged = new BehaviorSubject<string>(_current);
         _instance = this;
     }
 
     /// <summary>
     /// Initialize theme manager by loading the shipped built-in themes and the
-    /// user themes from disk. Built-ins load first, so a user file overrides
-    /// them by name.
+    /// user themes from disk, then start watching both theme directories so a
+    /// saved file is picked up without a restart. Built-ins load first, so a
+    /// user file overrides them by name.
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
         await LoadBuiltInThemesAsync(ct);
         await LoadCustomThemesAsync(ct);
+        StartThemeHotReload();
     }
 
     #region Properties
@@ -110,6 +134,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
             }
 
             _current = theme.DisplayName;
+            _activeName = theme.Name;
 
             if (Application.Current != null)
             {
@@ -145,45 +170,58 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     /// </summary>
     public async Task LoadCustomThemeAsync(string filePath, CancellationToken ct = default)
     {
-        await LoadThemeFileAsync(filePath, isBuiltIn: false, ct);
+        await LoadThemeFileAsync(
+            filePath,
+            isBuiltIn: false,
+            reapplyIfActive: false,
+            ct);
     }
 
     private async Task LoadBuiltInThemesAsync(CancellationToken ct)
     {
-        var builtInDir = Path.Combine(AppContext.BaseDirectory, BuiltInThemesFolder);
-        if (!Directory.Exists(builtInDir))
+        if (!Directory.Exists(_builtInThemesDirectory))
         {
-            _logger.LogWarning("Built-in themes directory not found: {Directory}", builtInDir);
+            _logger.LogWarning("Built-in themes directory not found: {Directory}", _builtInThemesDirectory);
             return;
         }
 
-        foreach (var file in Directory.EnumerateFiles(builtInDir, "*.json"))
+        foreach (var file in Directory.EnumerateFiles(_builtInThemesDirectory, "*.json"))
         {
-            await LoadThemeFileAsync(file, isBuiltIn: true, ct);
+            await LoadThemeFileAsync(
+                file,
+                isBuiltIn: true,
+                reapplyIfActive: false,
+                ct);
         }
     }
 
     private async Task LoadCustomThemesAsync(CancellationToken ct)
     {
-        var themesDir = ConfigPathResolver.ThemesDirectory;
-        if (!Directory.Exists(themesDir))
+        if (!Directory.Exists(_userThemesDirectory))
         {
-            Directory.CreateDirectory(themesDir);
-            await CreateSampleThemeAsync(themesDir);
+            Directory.CreateDirectory(_userThemesDirectory);
+            await CreateSampleThemeAsync(_userThemesDirectory);
             return;
         }
 
-        foreach (var file in Directory.EnumerateFiles(themesDir, "*.json"))
+        foreach (var file in Directory.EnumerateFiles(_userThemesDirectory, "*.json"))
         {
-            await LoadThemeFileAsync(file, isBuiltIn: false, ct);
+            await LoadThemeFileAsync(
+                file,
+                isBuiltIn: false,
+                reapplyIfActive: false,
+                ct);
         }
     }
 
     private async Task LoadThemeFileAsync(
         string filePath,
         bool isBuiltIn,
+        bool reapplyIfActive,
         CancellationToken ct)
     {
+        string? loadedName = null;
+        var reapply = false;
         await _lock.WaitAsync(ct);
         try
         {
@@ -198,6 +236,8 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                 _logger.LogWarning("Invalid theme file: {Path}", filePath);
                 return;
             }
+
+            loadedName = themeDef.Name;
 
             var themeInfo = new ThemeInfo(
                 themeDef.Name,
@@ -225,6 +265,12 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                 isBuiltIn ? "Built-in" : "Custom",
                 themeDef.Name,
                 filePath);
+
+            // A hot reload of the active theme re-applies it after the lock is
+            // released, so a saved file retunes the running window; bulk loads
+            // at startup never trigger this.
+            reapply = reapplyIfActive &&
+                      string.Equals(loadedName, _activeName, StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex)
         {
@@ -233,6 +279,11 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
         finally
         {
             _lock.Release();
+        }
+
+        if (reapply)
+        {
+            await ReapplyThemeAsync(loadedName!, ct);
         }
     }
 
@@ -266,6 +317,85 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     }
 
     #endregion Theme Loading
+
+    #region Theme Hot Reload
+
+    /// <summary>
+    /// Start watching both theme directories. Each debounced change is
+    /// processed asynchronously and serially, so one malformed file must not
+    /// stop the pipeline.
+    /// </summary>
+    private void StartThemeHotReload()
+    {
+        _fileWatcher = new ThemeFileWatcher(
+            _logger,
+            _builtInThemesDirectory,
+            _userThemesDirectory);
+
+        _reloadSubscription = _fileWatcher.FileChanged
+            .Select(change => Observable.FromAsync(token => HandleThemeFileChangeAsync(change, token)))
+            .Concat()
+            .Subscribe(_ => { }, ex => _logger.LogError(ex, "Theme hot-reload pipeline stopped"));
+    }
+
+    /// <summary>
+    /// Process one debounced file change: reload the registration and, when
+    /// the file belongs to the active theme, re-apply it so the running
+    /// window picks up the new colors without a restart.
+    /// </summary>
+    private async Task HandleThemeFileChangeAsync(
+        ThemeFileChange change,
+        CancellationToken ct)
+    {
+        if (_disposed) return;
+        try
+        {
+            if (!File.Exists(change.FilePath))
+            {
+                // The event raced with a delete; a deleted file never removes
+                // its registration, the last loaded version stays.
+                return;
+            }
+
+            await LoadThemeFileAsync(
+                change.FilePath,
+                change.IsBuiltIn,
+                reapplyIfActive: true,
+                ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Shutdown: processing stops normally.
+        }
+        catch (Exception ex)
+        {
+            // Never let one bad file kill the hot-reload pipeline.
+            _logger.LogError(ex, "Theme hot-reload failed for {Path}", change.FilePath);
+        }
+    }
+
+    /// <summary>
+    /// Re-apply a theme after a hot reload. Avalonia resources and the base
+    /// variant must be touched on the UI thread; the watcher pipeline runs on
+    /// the thread pool, so it dispatches.
+    /// </summary>
+    private async Task ReapplyThemeAsync(
+        string themeName,
+        CancellationToken ct)
+    {
+        if (_disposed) return;
+
+        if (Application.Current is null)
+        {
+            // Unit tests (and design-time): no Avalonia app to dispatch to.
+            await ApplyThemeAsync(themeName, ct);
+            return;
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() => ApplyThemeAsync(themeName, ct));
+    }
+
+    #endregion Theme Hot Reload
 
     #region Color Mapping
 
@@ -310,6 +440,8 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     {
         if (_disposed) return;
         _disposed = true;
+        _reloadSubscription?.Dispose();
+        _fileWatcher?.Dispose();
         _themeChanged.Dispose();
         _lock.Dispose();
     }
