@@ -14,13 +14,29 @@ using ZettaTrade.Infrastructure.Configuration;
 /// </summary>
 public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposable
 {
+    private static ThemeManager? _instance;
+
+    /// <summary>
+    /// Get the singleton instance of ThemeManager.
+    /// </summary>
+    public static ThemeManager Instance => _instance ?? throw new InvalidOperationException("ThemeManager not initialized");
+
+    /// <summary>
+    /// True once a <see cref="IThemeManager"/> instance exists; lets controls
+    /// (e.g. the chart) subscribe safely even before the app wires the manager.
+    /// </summary>
+    public static bool IsInitialized => _instance is not null;
+
     private readonly ILogger _logger;
     private readonly BehaviorSubject<string> _themeChanged;
     private readonly List<ThemeInfo> _themes = new();
     private readonly Dictionary<string, ThemeInfo> _themeDefinitions = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
-    private string _current = "Dark";
+    private string _current = DefaultThemeName;
     private bool _disposed;
+
+    /// <summary>Theme kept before any stored preference is applied.</summary>
+    private const string DefaultThemeName = "Dark";
 
     /// <summary>
     /// Create a new ThemeManager instance.
@@ -29,6 +45,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     {
         _logger = logger;
         _themeChanged = new BehaviorSubject<string>(_current);
+        _instance = this;
 
         RegisterBuiltInThemes();
     }

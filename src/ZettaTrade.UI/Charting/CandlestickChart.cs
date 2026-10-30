@@ -12,10 +12,13 @@ using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using SkiaSharp;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.UI.Localization;
 using ZettaTrade.UI.Resources;
+using ZettaTrade.UI.Themes;
 
 /// <summary>
 /// Candlestick chart control that draws directly onto the Avalonia Skia canvas
@@ -42,6 +45,13 @@ public class CandlestickChart : Control
     /// <summary>The chart takes a screenshot of these resources on each redraw.</summary>
     private const string NoDataMessageKey = "Chart.NoDataMessage";
 
+    /// <summary>Resource keys published by ThemeManager; the chart mirrors the current theme live.</summary>
+    private const string BackgroundColorKey = "Background";
+    private const string CandleUpColorKey = "CandleUp";
+    private const string CandleDownColorKey = "CandleDown";
+    private const string GridColorKey = "Border";
+    private const string TextColorKey = "TextPrimary";
+
     #endregion
 
     #region Styled Properties
@@ -67,11 +77,16 @@ public class CandlestickChart : Control
 
     private int _visibleBars = DefaultVisibleBars;
 
+    // Defaults match the built-in dark theme; the live colors are refreshed
+    // from application resources on every snapshot (see RefreshThemeColors).
     private SKColor _backgroundColor = new(20, 20, 30);
     private SKColor _bullishColor = new(34, 197, 94);
     private SKColor _bearishColor = new(239, 68, 68);
     private SKColor _gridColor = new(40, 40, 50);
     private SKColor _textColor = new(200, 200, 200);
+
+    private IDisposable? _themeChangeSubscription;
+    private IDisposable? _languageChangeSubscription;
 
     /// <summary>Chart background color. Redraws the chart on change.</summary>
     public SKColor BackgroundColor
@@ -145,6 +160,66 @@ public class CandlestickChart : Control
 
     #endregion
 
+    #region Theme & Language Tracking
+
+    /// <summary>
+    /// While attached, re-render on every theme or language change: the draw
+    /// operation takes a snapshot per render, so invalidating is all it takes
+    /// to pick up new colors and the localized 'no data' message.
+    /// </summary>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        if (ThemeManager.IsInitialized && _themeChangeSubscription is null)
+        {
+            _themeChangeSubscription = ThemeManager.Instance.ThemeChanged.Subscribe(
+                _ => Dispatcher.UIThread.Post(InvalidateVisual));
+        }
+
+        if (LocalizationManager.IsInitialized && _languageChangeSubscription is null)
+        {
+            _languageChangeSubscription = LocalizationManager.Instance.LanguageChanged.Subscribe(
+                _ => Dispatcher.UIThread.Post(InvalidateVisual));
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+
+        _themeChangeSubscription?.Dispose();
+        _themeChangeSubscription = null;
+        _languageChangeSubscription?.Dispose();
+        _languageChangeSubscription = null;
+    }
+
+    /// <summary>
+    /// Refresh the draw colors from the theme resources published by ThemeManager
+    /// (Application.Current.Resources); falls back to the dark-theme defaults.
+    /// </summary>
+    private void RefreshThemeColors()
+    {
+        _backgroundColor = ResourceColor(BackgroundColorKey, _backgroundColor);
+        _bullishColor = ResourceColor(CandleUpColorKey, _bullishColor);
+        _bearishColor = ResourceColor(CandleDownColorKey, _bearishColor);
+        _gridColor = ResourceColor(GridColorKey, _gridColor);
+        _textColor = ResourceColor(TextColorKey, _textColor);
+    }
+
+    private static SKColor ResourceColor(string key, SKColor fallback)
+    {
+        if (Application.Current?.Resources.TryGetResource(key, ThemeVariant.Default, out var value) == true &&
+            value is Color color)
+        {
+            return new SKColor(color.R, color.G, color.B, color.A);
+        }
+
+        return fallback;
+    }
+
+    #endregion Theme & Language Tracking
+
     #region Property Change Handlers
 
     private void OnBarsPropertyChanged(AvaloniaPropertyChangedEventArgs e)
@@ -191,6 +266,8 @@ public class CandlestickChart : Control
     /// </summary>
     private ChartSnapshot CreateSnapshot()
     {
+        RefreshThemeColors();
+
         Bar[] visible = [];
         var bars = Bars;
 
@@ -311,10 +388,7 @@ public class CandlestickChart : Control
 
             using var font = new SKFont(SKTypeface.Default, NoDataFontSize);
 
-            var text = Strings.ResourceManager.GetString(
-                NoDataMessageKey,
-                CultureInfo.CurrentUICulture) ?? NoDataMessageKey;
-
+            var text = GetLocalizedNoDataText();
             canvas.DrawText(
                 text,
                 (float)width / 2,
@@ -322,6 +396,19 @@ public class CandlestickChart : Control
                 SKTextAlign.Center,
                 font,
                 paint);
+        }
+
+        private static string GetLocalizedNoDataText()
+        {
+            if (LocalizationManager.IsInitialized)
+            {
+                return LocalizationManager.Instance.GetString(NoDataMessageKey);
+            }
+
+            // Design mode / manager not wired yet: raw resource lookup instead.
+            return Strings.ResourceManager.GetString(
+                NoDataMessageKey,
+                CultureInfo.CurrentUICulture) ?? NoDataMessageKey;
         }
 
         private void DrawGrid(SKCanvas canvas, Rect bounds)

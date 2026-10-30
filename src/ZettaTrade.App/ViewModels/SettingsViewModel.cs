@@ -1,37 +1,44 @@
 namespace ZettaTrade.App.ViewModels;
 
-using System.Reactive.Linq;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
 /// ViewModel for the settings window (theme, language, etc.).
-/// Delegates available options to ThemeManager and LocalizationManager (DRY, SoC)
-/// and persists every applied change through <see cref="ISettingsService"/>.
-/// Selecting a theme or language applies it immediately (live preview); app
-/// startup applies the stored preferences before this ViewModel is created,
-/// so the selection starts in the state that is already on screen.
+/// Delegates available options to ThemeManager and LocalizationManager (DRY, SoC).
+/// Changes take effect only on the explicit <see cref="SaveAsync"/> call: the
+/// window starts from selections synced to the applied state
+/// (<see cref="ResetSelections"/>) and only a real difference is applied and
+/// persisted, so closing without saving never leaves a half-applied state.
 /// </summary>
 public sealed class SettingsViewModel : ReactiveObject
 {
+    #region Constants
+
+    /// <summary>Combo box index meaning "nothing selected".</summary>
+    private const int NoSelection = -1;
+
+    #endregion Constants
+
     #region Properties
 
-    private ThemeInfo? _selectedThemeItem;
-    private LanguageInfo? _selectedLanguageItem;
+    private int _selectedThemeIndex = NoSelection;
+    private int _selectedLanguageIndex = NoSelection;
 
-    /// <summary>Selected theme (null before initialization); a new selection re-colors the app.</summary>
-    public ThemeInfo? SelectedThemeItem
+    /// <summary>Selected theme index (combo box); <see cref="NoSelection"/> when nothing is selected.</summary>
+    public int SelectedThemeIndex
     {
-        get => _selectedThemeItem;
-        set => this.RaiseAndSetIfChanged(ref _selectedThemeItem, value);
+        get => _selectedThemeIndex;
+        set => this.RaiseAndSetIfChanged(ref _selectedThemeIndex, value);
     }
 
-    /// <summary>Selected language (null before initialization); a new selection re-localizes the app.</summary>
-    public LanguageInfo? SelectedLanguageItem
+    /// <summary>Selected language index (combo box); <see cref="NoSelection"/> when nothing is selected.</summary>
+    public int SelectedLanguageIndex
     {
-        get => _selectedLanguageItem;
-        set => this.RaiseAndSetIfChanged(ref _selectedLanguageItem, value);
+        get => _selectedLanguageIndex;
+        set => this.RaiseAndSetIfChanged(ref _selectedLanguageIndex, value);
     }
 
     /// <summary>Available themes from ThemeManager (no duplication).</summary>
@@ -69,74 +76,115 @@ public sealed class SettingsViewModel : ReactiveObject
         _localization = localization;
         _logger = logger;
 
-        // Every selection change applies the picked item. Concat serializes
-        // back-to-back changes; the apply methods treat an unchanged selection
-        // as a no-op, so re-running the pipeline cannot rewrite settings.
-        this.WhenAnyValue(x => x.SelectedThemeItem)
-            .Where(static theme => theme is not null)
-            .Select(theme => Observable.FromAsync(() => ApplyThemeAsync(theme!)))
-            .Concat()
-            .Subscribe(_ => { }, ex => _logger.LogError(ex, "Theme selection pipeline failed"));
-
-        this.WhenAnyValue(x => x.SelectedLanguageItem)
-            .Where(static language => language is not null)
-            .Select(language => Observable.FromAsync(() => ApplyLanguageAsync(language!)))
-            .Concat()
-            .Subscribe(_ => { }, ex => _logger.LogError(ex, "Language selection pipeline failed"));
-
-        SelectedThemeItem = _themeManager.AvailableThemes.FirstOrDefault(theme =>
-            theme.DisplayName.Equals(_themeManager.CurrentTheme, StringComparison.OrdinalIgnoreCase));
-        SelectedLanguageItem = _localization.AvailableLanguages.FirstOrDefault(language =>
-            language.Code.Equals(_localization.CurrentLanguage, StringComparison.OrdinalIgnoreCase));
+        ResetSelections();
     }
 
     #endregion Constructor
 
-    #region Private Methods
+    #region Public Methods
 
-    private async Task ApplyThemeAsync(ThemeInfo theme)
+    /// <summary>
+    /// Sync the selections with the currently applied theme and language.
+    /// The ViewModel is an app-lifetime singleton, so the window refreshes the
+    /// selections on every open; otherwise an abandoned (unsaved) selection
+    /// would show up as already-applied state on the next open.
+    /// </summary>
+    public void ResetSelections()
     {
-        try
-        {
-            // The selection is initialized from the applied theme, so an
-            // identical selection is already on screen and stays a no-op.
-            if (_themeManager.CurrentTheme.Equals(theme.DisplayName, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
+        SelectedThemeIndex = IndexOfAppliedTheme();
+        SelectedLanguageIndex = IndexOfAppliedLanguage();
+    }
 
+    /// <summary>
+    /// Apply and persist the selected theme and language. A selection equal to
+    /// the applied state is skipped (no redundant events, no settings rewrite).
+    /// </summary>
+    public async Task SaveAsync()
+    {
+        var theme = PickAt(_themeManager.AvailableThemes, _selectedThemeIndex);
+        if (theme is not null && !IsThemeApplied(theme))
+        {
             await _themeManager.ApplyThemeAsync(theme.Name);
             await _settings.SetAsync(
                 UiSettingsKeys.Section,
                 UiSettingsKeys.Theme,
                 theme.Name);
         }
-        catch (Exception ex)
-        {
-            // The pipeline must survive a failed apply and keep accepting changes.
-            _logger.LogError(ex, "Failed to apply theme {Theme}", theme.DisplayName);
-        }
-    }
 
-    private async Task ApplyLanguageAsync(LanguageInfo language)
-    {
-        try
+        var language = PickAt(_localization.AvailableLanguages, _selectedLanguageIndex);
+        if (language is not null && !IsLanguageApplied(language))
         {
-            if (_localization.CurrentLanguage.Equals(language.Code, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
             await _localization.SetLanguageAsync(language.Code);
             await _settings.SetAsync(
                 UiSettingsKeys.Section,
                 UiSettingsKeys.Language,
                 language.Code);
         }
-        catch (Exception ex)
+    }
+
+    #endregion Public Methods
+
+    #region Private Methods
+
+    /// <summary>Index of the applied theme (matched by display name) in AvailableThemes.</summary>
+    private int IndexOfAppliedTheme()
+    {
+        var themes = _themeManager.AvailableThemes;
+        for (var i = 0; i < themes.Count; i++)
         {
-            _logger.LogError(ex, "Failed to apply language {Language}", language.Code);
+            if (IsThemeApplied(themes[i]))
+            {
+                return i;
+            }
         }
+
+        _logger.LogWarning("Applied theme {Theme} is not among available themes", _themeManager.CurrentTheme);
+        return NoSelection;
+    }
+
+    /// <summary>Index of the applied language in AvailableLanguages: exact code, then two-letter fallback ("ru-RU" -&gt; "ru").</summary>
+    private int IndexOfAppliedLanguage()
+    {
+        var languages = _localization.AvailableLanguages;
+        var current = _localization.CurrentLanguage;
+        for (var i = 0; i < languages.Count; i++)
+        {
+            if (IsLanguageApplied(languages[i]))
+            {
+                return i;
+            }
+        }
+
+        try
+        {
+            var shortCode = new CultureInfo(current).TwoLetterISOLanguageName;
+            for (var i = 0; i < languages.Count; i++)
+            {
+                if (languages[i].Code.Equals(shortCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+        }
+        catch (CultureNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Unknown current culture {Language}", current);
+        }
+
+        _logger.LogWarning("Applied language {Language} is not among available languages", current);
+        return NoSelection;
+    }
+
+    private bool IsThemeApplied(ThemeInfo theme) =>
+        _themeManager.CurrentTheme.Equals(theme.DisplayName, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsLanguageApplied(LanguageInfo language) =>
+        _localization.CurrentLanguage.Equals(language.Code, StringComparison.OrdinalIgnoreCase);
+
+    private static T? PickAt<T>(IReadOnlyList<T> items, int index)
+        where T : class
+    {
+        return index >= 0 && index < items.Count ? items[index] : null;
     }
 
     #endregion Private Methods
