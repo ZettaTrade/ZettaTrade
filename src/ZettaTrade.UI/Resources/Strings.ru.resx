@@ -87,6 +87,15 @@
   <data name="Settings.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="Settings.ThemesFolder.Open" xml:space="preserve">
+    <value>Открыть папку тем</value>
+  </data>
+  <data name="Settings.ThemeErrors.Header" xml:space="preserve">
+    <value>Не удалось загрузить некоторые файлы тем:</value>
+  </data>
+  <data name="Settings.ThemeErrors.Hint" xml:space="preserve">
+    <value>Темы — JSON-файлы; схема описана в themes/trading-pro.json.</value>
+  </data>
   <data name="Order.Buy" xml:space="preserve">
     <value>Купить</value>
   </data>
