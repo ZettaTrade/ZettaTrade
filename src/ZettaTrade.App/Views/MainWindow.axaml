@@ -15,12 +15,14 @@
         <!-- Gesture audit of the menu labels: all InputGesture strings here are
              backed or explained below.
              - Ctrl+OemComma -> OpenSettingsCommand: bound, real behavior.
+             - Ctrl+N        -> NewOrderCommand: bound, real behavior (the T-008
+                                order dialog replaced the placeholder).
              - Alt+F4        -> OS window-close gesture: works without a binding;
                                 adding one would double-handle the close.
-             - Ctrl+N (New Order) and Ctrl+Shift+A (AI chat): gestures removed
-               because those commands are placeholders; the labels return with
-               the features. -->
+             - Ctrl+Shift+A (AI chat): gesture removed because the command is
+               still a placeholder; the label returns with the feature. -->
         <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding Menu.OpenSettingsCommand}" />
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding Menu.NewOrderCommand}" />
     </Window.KeyBindings>
 
     <DockPanel>
@@ -32,7 +34,7 @@
                 <MenuItem Header="{loc:Localized Menu.File.Exit}" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
             </MenuItem>
             <MenuItem Header="{loc:Localized Menu.Trading}">
-                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" />
+                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="Ctrl+N" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
             </MenuItem>

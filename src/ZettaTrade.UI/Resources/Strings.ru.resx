@@ -144,4 +144,46 @@
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>по рыночной цене</value>
   </data>
+  <data name="NewOrder.Title" xml:space="preserve">
+    <value>Новый ордер</value>
+  </data>
+  <data name="NewOrder.Symbol" xml:space="preserve">
+    <value>Инструмент</value>
+  </data>
+  <data name="NewOrder.SymbolMissing" xml:space="preserve">
+    <value>Инструмент обязателен</value>
+  </data>
+  <data name="NewOrder.SymbolInvalid" xml:space="preserve">
+    <value>Неизвестный формат инструмента: {0}. Используйте БАЗА/КВОТА, например BTC/USDT.</value>
+  </data>
+  <data name="NewOrder.Side" xml:space="preserve">
+    <value>Сторона</value>
+  </data>
+  <data name="NewOrder.OrderType" xml:space="preserve">
+    <value>Тип ордера</value>
+  </data>
+  <data name="NewOrder.Quantity" xml:space="preserve">
+    <value>Количество</value>
+  </data>
+  <data name="NewOrder.QuantityNotANumber" xml:space="preserve">
+    <value>Количество не является числом: {0}</value>
+  </data>
+  <data name="NewOrder.Price" xml:space="preserve">
+    <value>Лимитная цена</value>
+  </data>
+  <data name="NewOrder.PriceNotANumber" xml:space="preserve">
+    <value>Лимитная цена не является числом: {0}</value>
+  </data>
+  <data name="NewOrder.Place" xml:space="preserve">
+    <value>Разместить ордер</value>
+  </data>
+  <data name="NewOrder.PlaceFailed" xml:space="preserve">
+    <value>Ордер не размещён: {0}</value>
+  </data>
+  <data name="NewOrder.OrderRejected" xml:space="preserve">
+    <value>Отклонено риск-контролем: {0}</value>
+  </data>
+  <data name="NewOrder.OrderPlaced" xml:space="preserve">
+    <value>Ордер размещён: {0}</value>
+  </data>
 </root>

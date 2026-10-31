@@ -16,6 +16,12 @@ public sealed class DefaultRiskManager : IRiskManager
     private const decimal MaxOrderValueUsd = 10000m;
 
     /// <summary>
+    /// Order value in USD that is outright rejected regardless of confirmation.
+    /// Hard caps are the checks that must never be bypassable by any caller.
+    /// </summary>
+    private const decimal MaxOrderValueHardCapUsd = 100000m;
+
+    /// <summary>
     /// Create a new DefaultRiskManager instance.
     /// </summary>
     public DefaultRiskManager(ILogger<DefaultRiskManager> logger)
@@ -40,6 +46,16 @@ public sealed class DefaultRiskManager : IRiskManager
             }
 
             var estimatedValue = request.Quantity.Value * referencePrice.Value;
+
+            if (estimatedValue > MaxOrderValueHardCapUsd)
+            {
+                _logger.LogWarning(
+                    "Order value {Value} exceeds the hard cap {Cap}; rejected",
+                    estimatedValue,
+                    MaxOrderValueHardCapUsd);
+                return Task.FromResult(RiskCheckResult.Rejected(
+                    $"Order value {estimatedValue.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)} USD exceeds the hard cap {MaxOrderValueHardCapUsd.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)} USD"));
+            }
 
             if (estimatedValue > MaxOrderValueUsd)
             {

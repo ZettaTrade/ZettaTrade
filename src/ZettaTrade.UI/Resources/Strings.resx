@@ -144,4 +144,46 @@
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>market price</value>
   </data>
+  <data name="NewOrder.Title" xml:space="preserve">
+    <value>New Order</value>
+  </data>
+  <data name="NewOrder.Symbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="NewOrder.SymbolMissing" xml:space="preserve">
+    <value>Symbol is required</value>
+  </data>
+  <data name="NewOrder.SymbolInvalid" xml:space="preserve">
+    <value>Unknown symbol format: {0}. Use BASE/QUOTE, for example BTC/USDT.</value>
+  </data>
+  <data name="NewOrder.Side" xml:space="preserve">
+    <value>Side</value>
+  </data>
+  <data name="NewOrder.OrderType" xml:space="preserve">
+    <value>Order type</value>
+  </data>
+  <data name="NewOrder.Quantity" xml:space="preserve">
+    <value>Quantity</value>
+  </data>
+  <data name="NewOrder.QuantityNotANumber" xml:space="preserve">
+    <value>Quantity is not a number: {0}</value>
+  </data>
+  <data name="NewOrder.Price" xml:space="preserve">
+    <value>Limit price</value>
+  </data>
+  <data name="NewOrder.PriceNotANumber" xml:space="preserve">
+    <value>Limit price is not a number: {0}</value>
+  </data>
+  <data name="NewOrder.Place" xml:space="preserve">
+    <value>Place order</value>
+  </data>
+  <data name="NewOrder.PlaceFailed" xml:space="preserve">
+    <value>Order was not placed: {0}</value>
+  </data>
+  <data name="NewOrder.OrderRejected" xml:space="preserve">
+    <value>Rejected by risk controls: {0}</value>
+  </data>
+  <data name="NewOrder.OrderPlaced" xml:space="preserve">
+    <value>Order placed: {0}</value>
+  </data>
 </root>

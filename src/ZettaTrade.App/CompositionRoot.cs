@@ -102,6 +102,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<IMarketDataAdapter>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddTransient<MainViewModel>();
+        services.AddTradingUiServices();
 
         // MCP trading tools: registered once, against the paper trading adapter
         // (mock surface; real exchange adapters are plugged in as plugins later).
