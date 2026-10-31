@@ -12,7 +12,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-006 Theme preview swatches in the picker | feat/theme-preview | done | — |
 | T-007 resx en/ru sync gate | chore/resx-gate | done | — |
 | T-008 New Order dialog | feat/order-dialog | done | — |
-| T-009 Positions & open orders panel | feat/positions | planned | — |
+| T-009 Positions & open orders panel | feat/positions | in-progress | — |
 | T-010 Order history + persistence (EF Core) | feat/order-history | planned | — |
 | T-011 Order book widget (60 fps target) | feat/order-book | planned | — |
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
