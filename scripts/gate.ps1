@@ -14,6 +14,10 @@ function Step([string]$Name, [scriptblock]$Command) {
 }
 
 Step 'build'  { dotnet build -nodeReuse:false -warnaserror --nologo -v q }
+# resx: en/ru key sets in sync + module prefix rule (see scripts/check-resx.ps1);
+# runs with the same interpreter the gate was started with (pwsh or 5.1).
+$ResxScript = Join-Path $PSScriptRoot 'check-resx.ps1'
+Step 'resx'   { & (Get-Process -Id $PID).ProcessName -NoProfile -ExecutionPolicy Bypass -File $ResxScript }
 Step 'test'   { dotnet test --no-build --nologo -v q }
 Step 'format' { dotnet format --verify-no-changes --no-restore -v q }
 
