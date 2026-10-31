@@ -10,17 +10,25 @@ using ZettaTrade.Core.Interfaces;
 /// <summary>
 /// Tests for the status bar theme and language chips: they must show the
 /// managers' current value on construction and track later changes live.
-/// The manager stubs expose <see cref="BehaviorSubject{T}"/> streams, which is
-/// exactly the replay-on-subscribe contract both managers provide.
+/// The theme stream carries the canonical Name (the single identifier), so
+/// the chip resolves the user-facing DisplayName from the themed list and
+/// falls back to the raw name while the list is (not yet) populated.
 /// </summary>
 public sealed class StatusBarViewModelTests
 {
+    private static readonly ThemeInfo[] Themes =
+    [
+        new("dark", "Dark", true, []),
+        new("light", "Light", true, []),
+    ];
+
     [Fact]
-    public void Constructor_WithManagersHoldingCurrentValue_ShowsCurrentThemeAndLanguageImmediately()
+    public void Constructor_WithManagersHoldingCurrentValue_ShowsDisplayNamesImmediately()
     {
-        // Arrange: both managers broadcast their current value on subscribe.
+        // Arrange: the theme manager broadcasts its current value on subscribe.
         var themeManager = Substitute.For<IThemeManager>();
-        themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("Dark"));
+        themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
+        themeManager.AvailableThemes.Returns(Themes);
         var localizationManager = Substitute.For<ILocalizationManager>();
         localizationManager.LanguageChanged.Returns(new BehaviorSubject<string>("en"));
 
@@ -28,7 +36,7 @@ public sealed class StatusBarViewModelTests
         var viewModel = new StatusBarViewModel(themeManager, localizationManager);
 
         // Assert
-        viewModel.CurrentThemeName.Should().Be("Dark");
+        viewModel.CurrentThemeName.Should().Be("Dark"); // DisplayName resolved from the canonical name
         viewModel.CurrentLanguage.Should().Be("en");
     }
 
@@ -36,20 +44,39 @@ public sealed class StatusBarViewModelTests
     public void ManagerStreamChange_OnThemeOrLanguageEmitted_UpdatesChips()
     {
         // Arrange
-        var themeChanged = new BehaviorSubject<string>("Dark");
+        var themeChanged = new BehaviorSubject<string>("dark");
         var themeManager = Substitute.For<IThemeManager>();
         themeManager.ThemeChanged.Returns(themeChanged);
+        themeManager.AvailableThemes.Returns(Themes);
         var languageChanged = new BehaviorSubject<string>("en");
         var localizationManager = Substitute.For<ILocalizationManager>();
         localizationManager.LanguageChanged.Returns(languageChanged);
         var viewModel = new StatusBarViewModel(themeManager, localizationManager);
 
         // Act
-        themeChanged.OnNext("Light");
+        themeChanged.OnNext("light");
         languageChanged.OnNext("ru");
 
         // Assert
-        viewModel.CurrentThemeName.Should().Be("Light");
+        viewModel.CurrentThemeName.Should().Be("Light"); // DisplayName resolved from the canonical name
         viewModel.CurrentLanguage.Should().Be("ru");
+    }
+
+    [Fact]
+    public void ThemeStream_WithUnregisteredTheme_KeepsRawName()
+    {
+        // Arrange: the chip must not lose information when the theme is not
+        // (yet) registered — the raw value is the defensive fallback.
+        var themeManager = Substitute.For<IThemeManager>();
+        themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
+        themeManager.AvailableThemes.Returns([]);
+        var localizationManager = Substitute.For<ILocalizationManager>();
+        localizationManager.LanguageChanged.Returns(new BehaviorSubject<string>("en"));
+
+        // Act
+        var viewModel = new StatusBarViewModel(themeManager, localizationManager);
+
+        // Assert
+        viewModel.CurrentThemeName.Should().Be("dark");
     }
 }

@@ -100,7 +100,7 @@ public sealed class ThemeManagerTests
     }
 
     [Fact]
-    public async Task ApplyThemeAsync_WithRegisteredTheme_PublishesDisplayNameOnThemeChanged()
+    public async Task ApplyThemeAsync_WithRegisteredTheme_PublishesCanonicalNameOnThemeChanged()
     {
         // Application resources are not available in unit tests; the manager
         // must still switch the current theme and publish the change.
@@ -113,8 +113,45 @@ public sealed class ThemeManagerTests
         using var subscription = manager.ThemeChanged.Subscribe(published.Add);
         await manager.ApplyThemeAsync("night-shade");
 
-        manager.CurrentTheme.Should().Be("Night Shade");
-        published.Should().HaveCount(2).And.Contain("Night Shade");
+        manager.CurrentTheme.Should().Be("night-shade");
+        published.Should().HaveCount(2).And.Contain("night-shade");
+    }
+
+    [Fact]
+    public async Task ApplyThemeAsync_WithDisplayNameOnly_DoesNotApply()
+    {
+        // Name is the single identifier: a display name is not the lookup key.
+        // "Night Shade" must be rejected like any unknown name and change
+        // nothing — otherwise two themes sharing a display name would be
+        // ambiguous.
+        using var dir = new TempDirectory();
+        var file = WriteTheme(dir, "night-shade", "Night Shade");
+        var manager = new ThemeManager(Substitute.For<ILogger>());
+        await manager.LoadCustomThemeAsync(file);
+
+        var published = new List<string>();
+        using var subscription = manager.ThemeChanged.Subscribe(published.Add);
+        await manager.ApplyThemeAsync("Night Shade");
+
+        manager.CurrentTheme.Should().Be("dark");
+        published.Should().ContainSingle().Which.Should().Be("dark");
+    }
+
+    [Fact]
+    public async Task ApplyThemeAsync_WithDuplicateDisplayNames_MatchesByCanonicalName()
+    {
+        using var dir = new TempDirectory();
+        var first = WriteTheme(dir, "dark", "Dark");
+        var second = WriteTheme(dir, "user-dark", "Dark");
+        var manager = new ThemeManager(Substitute.For<ILogger>());
+        await manager.LoadCustomThemeAsync(first);
+        await manager.LoadCustomThemeAsync(second);
+
+        await manager.ApplyThemeAsync("user-dark");
+
+        manager.CurrentTheme.Should().Be("user-dark");
+        manager.AvailableThemes.Count(t => t.DisplayName == "Dark").Should().Be(2);
+        manager.AvailableThemes.Count(t => t.Name == "user-dark").Should().Be(1);
     }
 
     [Fact]
@@ -126,8 +163,8 @@ public sealed class ThemeManagerTests
         using var subscription = manager.ThemeChanged.Subscribe(published.Add);
         await manager.ApplyThemeAsync("missing-theme");
 
-        manager.CurrentTheme.Should().Be("Dark");
-        published.Should().ContainSingle().Which.Should().Be("Dark");
+        manager.CurrentTheme.Should().Be("dark");
+        published.Should().ContainSingle().Which.Should().Be("dark");
     }
 
     private static string WriteTheme(TempDirectory dir, string name, string displayName)
