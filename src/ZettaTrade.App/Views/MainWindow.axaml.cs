@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
 using ReactiveUI.Primitives;
@@ -32,6 +33,29 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // The main window opens once per application lifetime, so the handler
         // registration lives for the rest of it — no subscription disposal here.
         ViewModel?.Menu.OpenSettingsRequested.RegisterHandler(OpenSettingsAsync);
+        ViewModel?.Menu.NewOrderRequested.RegisterHandler(OpenNewOrderAsync);
+    }
+
+    private async Task OpenNewOrderAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The dialog view model is transient: every open starts with empty
+            // inputs, so a stale symbol or quantity never leaks into a new order.
+            var dialog = new NewOrderDialogWindow
+            {
+                DataContext = App.Services.GetRequiredService<ViewModels.NewOrderDialogViewModel>(),
+            };
+            await dialog.ShowDialog<object>(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the new order dialog");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
     }
 
     private async Task OpenSettingsAsync(IInteractionContext<RxVoid, RxVoid> context)

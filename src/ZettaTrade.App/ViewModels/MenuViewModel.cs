@@ -35,6 +35,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// </summary>
     public Interaction<RxVoid, RxVoid> OpenSettingsRequested { get; }
 
+    /// <summary>
+    /// Interaction that routes the new-order request to the View, which hosts
+    /// the dialog window (same pattern as <see cref="OpenSettingsRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> NewOrderRequested { get; }
+
     /// <summary>Command to exit application.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ExitCommand { get; }
 
@@ -48,6 +54,7 @@ public sealed class MenuViewModel : ReactiveObject
     public MenuViewModel()
     {
         OpenSettingsRequested = new Interaction<RxVoid, RxVoid>();
+        NewOrderRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
@@ -61,7 +68,11 @@ public sealed class MenuViewModel : ReactiveObject
 
     #region Private Methods
 
-    private Task HandleNewOrderAsync() => Task.CompletedTask;
+    /// <summary>
+    /// Route the new-order request to the View (window plumbing stays out of
+    /// the ViewModel, same as the settings window).
+    /// </summary>
+    private Task HandleNewOrderAsync() => NewOrderRequested.Handle(RxVoid.Default);
 
     private Task HandleShowPositionsAsync() => Task.CompletedTask;
 

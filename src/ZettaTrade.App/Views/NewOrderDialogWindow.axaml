@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:ZettaTrade.UI.Localization"
+        x:Class="ZettaTrade.App.Views.NewOrderDialogWindow"
+        x:DataType="vm:NewOrderDialogViewModel"
+        Title="{loc:Localized NewOrder.Title}"
+        Width="380" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+
+    <StackPanel Margin="16" Spacing="10">
+        <!-- Symbol: normalized BASE/QUOTE text; typed deliberately so the
+             dialog works even when the symbols request fails offline. -->
+        <TextBlock Text="{loc:Localized NewOrder.Symbol}" />
+        <TextBox Text="{Binding SymbolInput}"
+                 PlaceholderText="BTC/USDT" />
+
+        <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Localized NewOrder.Side}" />
+            <ComboBox Grid.Row="1" Grid.Column="0"
+                      SelectedIndex="{Binding SelectedSideIndex}">
+                <ComboBoxItem>
+                    <TextBlock Text="{loc:Localized Order.Buy}" />
+                </ComboBoxItem>
+                <ComboBoxItem>
+                    <TextBlock Text="{loc:Localized Order.Sell}" />
+                </ComboBoxItem>
+            </ComboBox>
+
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{loc:Localized NewOrder.Quantity}" />
+            <TextBox Grid.Row="1" Grid.Column="1"
+                     Text="{Binding QuantityInput}"
+                     PlaceholderText="0.01" />
+
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="{loc:Localized NewOrder.OrderType}" />
+            <ComboBox Grid.Row="1" Grid.Column="2"
+                      SelectedIndex="{Binding SelectedTypeIndex}">
+                <ComboBoxItem>
+                    <TextBlock Text="{loc:Localized Order.Market}" />
+                </ComboBoxItem>
+                <ComboBoxItem>
+                    <TextBlock Text="{loc:Localized Order.Limit}" />
+                </ComboBoxItem>
+            </ComboBox>
+        </Grid>
+
+        <!-- Limit price: only meaningfully editable for Limit orders. -->
+        <TextBlock Text="{loc:Localized NewOrder.Price}"
+                   IsVisible="{Binding IsPriceRequired}" />
+        <TextBox Text="{Binding PriceInput}"
+                 PlaceholderText="50000"
+                 IsVisible="{Binding IsPriceRequired}" />
+
+        <!-- Flow errors (parse failure, risk rejection, adapter failure) -->
+        <TextBlock Text="{Binding ErrorMessage}"
+                   Foreground="Red"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasErrorMessage}" />
+
+        <UniformGrid Columns="2" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Command="{Binding PlaceOrderCommand}"
+                    Content="{loc:Localized NewOrder.Place}"
+                    MinWidth="120" Margin="0,0,8,0" />
+            <Button Content="{loc:Localized Trading.Cancel}"
+                    Click="OnCancelClick"
+                    MinWidth="90" />
+        </UniformGrid>
+    </StackPanel>
+</Window>
