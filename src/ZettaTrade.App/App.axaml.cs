@@ -104,21 +104,41 @@ public partial class App : Application
 
     /// <summary>
     /// Apply the theme stored in the UI settings section, falling back to the
-    /// default theme when no value is stored. An unknown stored value is logged
-    /// by the theme manager and leaves the startup theme unchanged.
+    /// canonical default theme when no value is stored. Stored values are
+    /// resolved to the canonical theme Name here: Name is the single
+    /// identifier, but builds before canonical identity stored display names
+    /// ("Dark"), so a Name match is tried first and a display-name match is
+    /// the upgrade fallback. An unknown value is logged and leaves the
+    /// startup theme unchanged.
     /// </summary>
     private static async Task ApplyStoredThemeAsync(ISettingsService settings)
     {
-        var theme = await settings.GetAsync(
+        var stored = await settings.GetAsync(
             UiSettingsKeys.Section,
             UiSettingsKeys.Theme,
             UiSettingsKeys.DefaultTheme);
 
-        if (string.IsNullOrWhiteSpace(theme))
+        if (string.IsNullOrWhiteSpace(stored))
         {
             return;
         }
 
-        await Services.GetRequiredService<IThemeManager>().ApplyThemeAsync(theme);
+        var themeManager = Services.GetRequiredService<IThemeManager>();
+        var themes = themeManager.AvailableThemes;
+        var match = themes.FirstOrDefault(t =>
+                        t.Name.Equals(stored, StringComparison.OrdinalIgnoreCase)) ??
+                    themes.FirstOrDefault(t =>
+                        t.DisplayName.Equals(stored, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null)
+        {
+            Services.GetRequiredService<ILogger<App>>().LogWarning(
+                "Unknown stored theme '{Theme}'; keeping the startup theme",
+                stored);
+            return;
+        }
+
+        // The theme manager matches canonical Names only.
+        await themeManager.ApplyThemeAsync(match.Name);
     }
 }

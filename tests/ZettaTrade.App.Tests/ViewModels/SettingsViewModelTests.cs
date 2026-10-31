@@ -143,6 +143,36 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public void Constructor_WithDuplicateDisplayNames_ResolvesByCanonicalName()
+    {
+        // Arrange: two themes share the display name "Dark"; only the
+        // canonical Name ("user-dark") uniquely identifies the applied row —
+        // matching by display name would always pick the first row.
+        var settings = Substitute.For<ISettingsService>();
+        var themeManager = Substitute.For<IThemeManager>();
+        themeManager.CurrentTheme.Returns("user-dark");
+        themeManager.AvailableThemes.Returns(
+        [
+            new("dark", "Dark", true, []),
+            new("user-dark", "Dark", true, []),
+        ]);
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.CurrentLanguage.Returns("en");
+        localization.AvailableLanguages.Returns(Languages);
+
+        // Act
+        var viewModel = new SettingsViewModel(
+            settings,
+            themeManager,
+            localization,
+            Substitute.For<IShellUtils>(),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
+
+        // Assert
+        viewModel.SelectedThemeIndex.Should().Be(1); // the row whose Name is the applied identity
+    }
+
+    [Fact]
     public async Task OpenThemesFolderCommand_Executed_OpensConfigThemesFolder()
     {
         // Arrange

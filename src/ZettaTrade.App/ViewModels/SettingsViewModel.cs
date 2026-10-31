@@ -204,7 +204,7 @@ public sealed class SettingsViewModel : ReactiveObject
         }
     }
 
-    /// <summary>Index of the applied theme (matched by display name) in AvailableThemes.</summary>
+    /// <summary>Index of the applied theme (matched by canonical Name) in AvailableThemes.</summary>
     private int IndexOfAppliedTheme()
     {
         var themes = _themeManager.AvailableThemes;
@@ -254,7 +254,7 @@ public sealed class SettingsViewModel : ReactiveObject
     }
 
     private bool IsThemeApplied(ThemeInfo theme) =>
-        _themeManager.CurrentTheme.Equals(theme.DisplayName, StringComparison.OrdinalIgnoreCase);
+        _themeManager.CurrentTheme.Equals(theme.Name, StringComparison.OrdinalIgnoreCase);
 
     private bool IsLanguageApplied(LanguageInfo language) =>
         _localization.CurrentLanguage.Equals(language.Code, StringComparison.OrdinalIgnoreCase);

@@ -61,7 +61,7 @@ public sealed class StatusBarViewModel : ReactiveObject
         // subscriptions mirror it and need no explicit disposal.
         themeManager
             .ThemeChanged
-            .Subscribe(name => CurrentThemeName = name);
+            .Subscribe(name => CurrentThemeName = ResolveChipName(themeManager, name));
 
         localizationManager
             .LanguageChanged
@@ -81,4 +81,18 @@ public sealed class StatusBarViewModel : ReactiveObject
     }
 
     #endregion Public Methods
+
+    #region Private Methods
+
+    /// <summary>
+    /// Chip display name for a canonical theme Name: the matching theme's
+    /// DisplayName, or the raw name when the theme is not (yet) registered
+    /// (subscribe can run before the manager populated its list).
+    /// </summary>
+    private static string ResolveChipName(IThemeManager themeManager, string themeName) =>
+        themeManager.AvailableThemes
+            .FirstOrDefault(t => t.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase))
+            ?.DisplayName ?? themeName;
+
+    #endregion Private Methods
 }

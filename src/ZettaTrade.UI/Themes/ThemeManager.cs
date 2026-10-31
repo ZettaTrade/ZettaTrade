@@ -20,6 +20,9 @@ using ZettaTrade.Infrastructure.Configuration;
 /// directories are watched and a saved file is applied live (hot-reload);
 /// files that fail to load are tracked and published as a diagnostics
 /// snapshot (<see cref="LoadErrors"/>) for the settings window.
+/// Theme <c>name</c> is the single identifier: <see cref="CurrentTheme"/> and
+/// the <see cref="ThemeChanged"/> stream carry canonical Names, while
+/// user-facing surfaces render <c>displayName</c>.
 /// </summary>
 public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposable
 {
@@ -38,8 +41,8 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
 
     #region Constants
 
-    /// <summary>Theme kept before any stored preference is applied.</summary>
-    private const string DefaultThemeName = "Dark";
+    /// <summary>Canonical Name of the theme kept before any stored preference is applied.</summary>
+    private const string DefaultThemeName = "dark";
 
     /// <summary>App-relative folder with the shipped built-in theme files.</summary>
     private const string BuiltInThemesFolder = "themes";
@@ -65,7 +68,6 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     private ThemeFileWatcher? _fileWatcher;
     private IDisposable? _reloadSubscription;
     private string _current = DefaultThemeName;
-    private string? _activeName;
     private IReadOnlyList<ThemeFileLoadError> _loadErrors = Array.Empty<ThemeFileLoadError>();
     private bool _disposed;
 
@@ -113,10 +115,21 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
 
     #region Properties
 
+    /// <summary>
+    /// Canonical Name of the currently active theme (the single identifier,
+    /// per the <see cref="IThemeManager"/> contract). UI surfaces render the
+    /// DisplayName, not this value.
+    /// </summary>
     public string CurrentTheme => _current;
 
     public IReadOnlyList<ThemeInfo> AvailableThemes => _themes;
 
+    /// <summary>
+    /// Stream publishing the canonical Name of the active theme on every
+    /// apply; the current value replays on subscribe (BehaviorSubject
+    /// contract). UI chips resolve the user-facing DisplayName from
+    /// <see cref="AvailableThemes"/>.
+    /// </summary>
     public IObservable<string> ThemeChanged => _themeChanged;
 
     /// <summary>
@@ -146,9 +159,11 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
         await _lock.WaitAsync(ct);
         try
         {
+            // Name is the single identifier: the lookup matches the canonical
+            // Name only. Themes may share a DisplayName, so matching display
+            // names would be ambiguous; an unknown name changes nothing.
             var theme = _themes.FirstOrDefault(t =>
-                t.Name.Equals(name, StringComparison.OrdinalIgnoreCase) ||
-                t.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase));
+                t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
             if (theme is null)
             {
@@ -156,8 +171,9 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                 return;
             }
 
-            _current = theme.DisplayName;
-            _activeName = theme.Name;
+            // _current holds the canonical Name; the display name is resolved
+            // only where user-facing text is built, never as identity.
+            _current = theme.Name;
 
             if (Application.Current != null)
             {
@@ -305,7 +321,7 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
             // released, so a saved file retunes the running window; bulk loads
             // at startup never trigger this.
             reapply = reapplyIfActive &&
-                      string.Equals(loadedName, _activeName, StringComparison.OrdinalIgnoreCase);
+                      string.Equals(loadedName, _current, StringComparison.OrdinalIgnoreCase);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

@@ -15,8 +15,8 @@ public static class UiSettingsKeys
     /// <summary>Settings key of the selected language.</summary>
     public const string Language = "Language";
 
-    /// <summary>Theme applied until a stored setting is loaded.</summary>
-    public const string DefaultTheme = "Dark";
+    /// <summary>Canonical Name of the theme applied until a stored setting is loaded.</summary>
+    public const string DefaultTheme = "dark";
 
     /// <summary>Language applied until a stored setting is loaded, empty string means "follow the OS culture".</summary>
     public const string DefaultLanguage = "en";

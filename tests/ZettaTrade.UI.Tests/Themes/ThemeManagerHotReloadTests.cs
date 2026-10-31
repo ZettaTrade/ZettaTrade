@@ -34,7 +34,7 @@ public sealed class ThemeManagerHotReloadTests
 
         await manager.InitializeAsync();
         await manager.ApplyThemeAsync("night-shade");
-        published.Should().Contain("Night Shade");
+        published.Should().Contain("night-shade");
         var appliedCount = published.Count;
 
         File.WriteAllText(themeFile, ThemeJson("night-shade", "Night Shade Bright"));
@@ -47,7 +47,7 @@ public sealed class ThemeManagerHotReloadTests
 
         (await WaitUntilAsync(() => published.Count > appliedCount))
             .Should().BeTrue("hot-reloading the active theme must re-apply it");
-        published.Skip(appliedCount).Should().Contain("Night Shade Bright");
+        published.Skip(appliedCount).Should().Contain("night-shade");
     }
 
     [Fact]
