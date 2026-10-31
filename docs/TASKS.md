@@ -5,12 +5,17 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | Task | Branch | State | Blocker |
 |------|--------|-------|---------|
 | T-001 Load themes from JSON files | develop | done | — |
-| T-002 Wire advertised menu hotkeys | feat/hotkeys | review | — |
-| T-003 Hot-reload of theme files | feat/theme-reload | review | — |
-| T-004 Settings: themes folder + file validation | feat/theme-settings-ui | review | — |
-| T-005 Canonical theme identity | fix/theme-identity | review | — |
-| T-006 Theme preview swatches in the picker | feat/theme-preview | review | — |
-| T-007 resx en/ru sync gate | chore/resx-gate | review | — |
+| T-002 Wire advertised menu hotkeys | feat/hotkeys | done | — |
+| T-003 Hot-reload of theme files | feat/theme-reload | done | — |
+| T-004 Settings: themes folder + file validation | feat/theme-settings-ui | done | — |
+| T-005 Canonical theme identity | fix/theme-identity | done | — |
+| T-006 Theme preview swatches in the picker | feat/theme-preview | done | — |
+| T-007 resx en/ru sync gate | chore/resx-gate | done | — |
+| T-008 New Order dialog | feat/order-dialog | done | — |
+| T-009 Positions & open orders panel | feat/positions | planned | — |
+| T-010 Order history + persistence (EF Core) | feat/order-history | planned | — |
+| T-011 Order book widget (60 fps target) | feat/order-book | planned | — |
+| T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
 
 ---
 
@@ -109,3 +114,54 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Negative runs verified: a removed ru key → `key 'Settings.Title' is missing in the ru file`, exit 1; a prefix violation (`settings.Title`) → both sync problems **and** `key 'settings.Title' has no module prefix (known: …)`; everything restored via `git checkout` afterwards.
   - Positive run: `Strings: 35 en keys, 35 ru keys`, exit 0; full check costs ~0.2 s (well under the 2 s budget).
   - Gate documents the module-prefix rule in the script header; `gate.ps1` → GATE PASSED (35/35 resx in sync + 59 tests).
+
+## T-008 — New Order dialog
+
+- **Branch:** `feat/order-dialog` (worktree `Q:\Projects\__My\zt-order-dialog`, based on develop @ 8f365ec)
+- **Scope:** New Order window/ViewModel in `src/ZettaTrade.App`, `MenuViewModel` wiring (`NewOrderCommand` is a placeholder since the T-002 audit), returning the `Ctrl+N` gesture in `MainWindow.axaml`, resx keys `NewOrder.*` en+ru, tests in `tests/ZettaTrade.App.Tests`. Core contracts untouched — the trading-safety path (`IRiskManager` → `IConfirmationService` → `ITradingAdapter`) already exists.
+- **What:** The first real trader action on the paper adapter: dialog collects symbol (typed, resolved against `GetSymbolsAsync`), side, type (Market/Limit), quantity and limit price; an `OrderRequest` is built and must pass `IRiskManager` before any confirmation; rejection shows the risk error and never opens the confirmation dialog; the confirmation dialog then gates `PlaceOrderAsync`; cancel on either step places nothing.
+- **Acceptance:**
+  - Runtime: a valid paper order is placed; a risk-rejected order shows the validation error and the confirmation dialog is not shown; "Cancel" on confirmation places nothing.
+  - Trading safety rules kept: no order bypasses `IRiskManager`; high-risk orders go through `IConfirmationService` (already the default flow); invalid/unparsable inputs surface as errors, never defaults.
+  - `Ctrl+N` gesture advertised and working again (adb removed in T-002 because the item was dead).
+  - All strings via the localization system, `NewOrder.*` prefix registered in the resx gate; `gate.ps1` passes.
+- **Status:** done. Merged into develop as `495d314`. Outcome:
+  - The full trading-safety pipeline is wired: parse (errors, never defaults) → `OrderRequest.Validate` → `DefaultRiskManager` (new 100k USD hard cap produces the reachable rejection path; >10k requires confirmation) → `UiConfirmationService` (same `Trading.ConfirmPlaceOrderFormat` summary MCP tools use) → `PaperTradingAdapter.PlaceOrderAsync` → adapter throws surface as localized errors, the dialog stays re-runnable.
+  - Runtime verified (UIA probe, screenshots + app log): Ctrl+N opens the dialog; a 150k USD limit order shows "Rejected by risk controls: …hard cap…" and no confirmation window; a 15k order shows the confirmation and Cancel places nothing (log: "user cancelled the confirmation; nothing placed"); a 0.01 BTC @ 50000 limit order fills on the paper adapter and closes the dialog ("Paper fill: Buy 0.01 BTC/USDT at 50000 (Limit)", "placed paper-…").
+  - Tests: 8 ViewModel pipeline tests + 5 risk-gate tests (hard cap, threshold boundaries, market orders never escape with a zero-value estimate) — App.Tests 13 → 26; whole suite 73, GATE PASSED (resx 49/49 en+ru, format clean).
+  - Avalonia 12 notes: `TextBox.PlaceholderText` (Watermark is obsolete); combo popup items are reachable under the owning window in UIA but reject `SelectionItemPattern` — probes (and later ordered-driven tests) select by click on the item rectangle; shell-injected keys must use keybd_event+WM_KEYDOWN, `SendKeys`/SendInput is not seen by Avalonia windows.
+
+## T-009 — Positions & open orders panel
+
+- **Branch:** `feat/positions`
+- **Scope:** positions/orders panel (side panel or window) in `src/ZettaTrade.App`, `ShowPositionsCommand` wiring, resx `Positions.*` en+ru.
+- **What:** `GetPositionsAsync`/`GetOpenOrdersAsync` of the trading adapter rendered in a view; per-order Cancel that always passes the symbol (mandatory `cancel_order` rule) through `IConfirmationService`.
+- **Acceptance:**
+  - Runtime on the paper adapter: placing an order in T-008's dialog makes it appear in open orders; cancel removes it; positions reflect the fill.
+  - Cancel without a symbol is impossible by construction (compiler/time safety, unit-tested).
+  - Strings via resx; gate passes.
+
+## T-010 — Order history + persistence (EF Core)
+
+- **Branch:** `feat/order-history`
+- **Scope:** SQLite persistence in `src/ZettaTrade.Infrastructure` (`DbContext`, migrations, platform file location via `ConfigPathResolver`), history view in `App`, resx `History.*` en+ru.
+- **What:** Placed/cancelled orders persist to SQLite journal; the history view reads the DB; cold start re-loads past activity.
+- **Acceptance:**
+  - An order placed, app restarted — the order is still in history.
+  - No secrets ever written to the DB (trading-safety rule checks pass); gate.
+
+## T-011 — Order book widget
+
+- **Branch:** `feat/order-book`
+- **Scope:** order book panel in `src/ZettaTrade.App` (SkiaSharp or virtualized ItemsControl), driven by `IMarketDataAdapter.SubscribeOrderBook`.
+- **What:** Depth view with bids/asks, live updates.
+- **Acceptance:**
+  - Performance target measured: 60 fps with 1000+ levels (per the stated targets), graceful degradation when the adapter has no book stream.
+
+## T-012 — UX follow-ups: chat focus, reconnect states
+
+- **Branch:** `feat/chat-focus`
+- **Scope:** `MenuViewModel`/`MainViewModel` wiring in `src/ZettaTrade.App` only.
+- **What:** `OpenAiChatCommand` focuses the existing assistant side panel (with `ChatViewModel` already present) instead of a dead action; `Ctrl+Shift+A` returns; connection state in the status bar reflects adapter events rather than stubs.
+- **Acceptance:**
+  - `Ctrl+Shift+A` focuses the chat panel at runtime; status chip mirrors adapter state; gate.
