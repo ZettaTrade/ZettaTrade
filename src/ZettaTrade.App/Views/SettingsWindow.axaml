@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="using:ZettaTrade.Core.Interfaces"
+        xmlns:media="using:Avalonia.Media"
         xmlns:themes="using:ZettaTrade.UI.Themes"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:ZettaTrade.UI.Localization"
@@ -29,7 +30,31 @@
                       HorizontalAlignment="Left">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="core:ThemeInfo">
-                        <TextBlock Text="{Binding DisplayName}" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding DisplayName}"
+                                       VerticalAlignment="Center" />
+                            <!-- Preview motif from the theme file's previewColors;
+                                 skipped hex values and an empty list render no
+                                 strip (converter drops unparseable entries). -->
+                            <ItemsControl Grid.Column="1"
+                                          VerticalAlignment="Center"
+                                          ItemsSource="{Binding PreviewColors, Converter={x:Static themes:PreviewColorsToBrushesConverter.Instance}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="3" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="media:ISolidColorBrush">
+                                        <Border Width="10"
+                                                Height="10"
+                                                CornerRadius="2"
+                                                Background="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
