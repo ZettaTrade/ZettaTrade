@@ -16,7 +16,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-010 Order history + persistence (EF Core) | feat/order-history | done | — |
 | T-011 Order book widget (60 fps target) | feat/order-book | planned | — |
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
-| T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | in-progress | — |
+| T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | done | — |
 | T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
 | T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
 | T-016 Exchange selector in the toolbar | feat/exchange-selector | planned | needs a 2nd adapter |
@@ -191,6 +191,11 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - The same crash pattern is latent in three more places of `BinanceAdapter`: WS ticker fields (`c`/`b`/`a`/`v`/`P`), depth price levels (`bids`/`asks` arrays) and trades (`p`/`q`) — all numeric values are strings on the wire; the WS handler currently swallows every one of these failures into "Error handling WebSocket message".
   - The type combo clips the RU "Рыночный" label: window is 380 px with `*,*,*` columns (≈109 px per combo).
 - **Fix direction:** one tolerant number parser (JSON `String` → invariant parse, `Number` → `GetDecimal`) applied at all four sites; klines regression test with the real Binance payload shape; dialog window 380 → 440.
+- **Status:** done. Merged into develop as `c5b650b`. Outcome:
+  - New internal `BinanceJsonNumbers.ParseDecimal(JsonElement)` (`Exchange/BinanceJsonNumbers.cs`): `Number` → `GetDecimal()`, `String` → invariant `decimal.Parse`, any other kind → explicit throw (never a defaulted value). All four `BinanceAdapter` sites now go through it: klines OHLCV, WS ticker (`c`/`b`/`a`/`v`/`P`), depth `bids`/`asks` levels, trades (`p`/`q`) — the latent WS crashes died with the reported one.
+  - Tests 115 → 119: `BinanceAdapterParsingTests` runs a real-shaped klines payload (an outer array of rows whose numbers are strings — first test attempt forgot the outer wrapper and taught the payload shape) through the public `GetBarsAsync` path, plus parser unit cases (string/number/exact decimals, `FormatException` for a non-numeric string, `InvalidOperationException` for a wrong JSON kind). Pinned via `InternalsVisibleTo` in `ZettaTrade.Infrastructure.csproj`.
+  - Dialog window 380 → 440 px; type combo measured 109 → 144 px via a UIA probe.
+  - GATE PASSED (119: Core 13, Infra 23, App 60, UI 23). Runtime check on the exact user scenario (RU interface, default Market, 0.01 BTC/USDT): Place → confirmation → confirm → dialog closed, log shows `Paper fill: "Buy" 0.01 BTC/USDT at <live close>` (the fill came from real Binance klines), no crash signature, order persisted to SQLite (`dialog_market_ru_fixed.png`; probe script `dialog-fix-ui-test.ps1`, PS 5.1 needs UTF-8 + BOM for RU literals; a closed Avalonia ComboBox exposes no Text UIA node — probes must measure `BoundingRectangle.Width` instead).
 
 ## T-014 — Instrument autocomplete in the order dialog (queued by user)
 
