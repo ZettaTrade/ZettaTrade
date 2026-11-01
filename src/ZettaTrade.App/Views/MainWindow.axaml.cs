@@ -11,9 +11,12 @@ using ZettaTrade.App.ViewModels;
 namespace ZettaTrade.App.Views;
 
 /// <summary>
-/// Main application window. Owns the open-settings interaction handler:
-/// creating and showing windows is View behavior, so the ViewModel only
-/// raises <see cref="MenuViewModel.OpenSettingsRequested"/>.
+/// Main application window. Owns the menu interaction handlers: creating and
+/// showing windows is View behavior, and focusing the assistant input is a
+/// View concern too, so the ViewModel only raises
+/// <see cref="MenuViewModel.OpenSettingsRequested"/>,
+/// <see cref="MenuViewModel.NewOrderRequested"/>, … and
+/// <see cref="MenuViewModel.OpenAiChatRequested"/>.
 /// </summary>
 public partial class MainWindow : ReactiveWindow<MainViewModel>
 {
@@ -36,6 +39,14 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.NewOrderRequested.RegisterHandler(OpenNewOrderAsync);
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
+        ViewModel?.Menu.OpenAiChatRequested.RegisterHandler(FocusChatAsync);
+    }
+
+    private Task FocusChatAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        ChatInput.Focus();
+        context.SetOutput(RxVoid.Default);
+        return Task.CompletedTask;
     }
 
     private async Task OpenNewOrderAsync(IInteractionContext<RxVoid, RxVoid> context)
