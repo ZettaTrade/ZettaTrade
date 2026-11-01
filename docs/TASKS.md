@@ -13,7 +13,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-007 resx en/ru sync gate | chore/resx-gate | done | — |
 | T-008 New Order dialog | feat/order-dialog | done | — |
 | T-009 Positions & open orders panel | feat/positions | done | — |
-| T-010 Order history + persistence (EF Core) | feat/order-history | planned | — |
+| T-010 Order history + persistence (EF Core) | feat/order-history | done | — |
 | T-011 Order book widget (60 fps target) | feat/order-book | planned | — |
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
 
@@ -153,9 +153,14 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Branch:** `feat/order-history`
 - **Scope:** SQLite persistence in `src/ZettaTrade.Infrastructure` (`DbContext`, migrations, platform file location via `ConfigPathResolver`), history view in `App`, resx `History.*` en+ru.
 - **What:** Placed/cancelled orders persist to SQLite journal; the history view reads the DB; cold start re-loads past activity.
-- **Acceptance:**
-  - An order placed, app restarted — the order is still in history.
-  - No secrets ever written to the DB (trading-safety rule checks pass); gate.
+- **Status:** done. Canon: the feature commit is on develop as `464835a`. Outcome:
+  - Infrastructure `Persistence/` module: `IOrderHistoryStore` (Infrastructure-owned, like `IShellUtils`), `SqliteOrderHistoryStore` (IAsyncInitializable: ensure data dir + `MigrateAsync`, per-operation contexts over singleton options), `OrderHistoryEntry`, `OrderHistoryDbContext` (enums/decimals/timestamps as invariant TEXT), design-time factory for `dotnet ef`, `AddOrderHistory()`, migration `20261101071749_Initial`.
+  - App: `ConfigPathResolver.OrderHistoryDatabaseFile`; the dialog records placements, the panel marks cancellations (both best-effort: a store failure is logged, never fails an already-accepted order/cancel); modal 920×520 window through the interaction pattern (MenuViewModel `ShowOrderHistoryRequested` → MainWindow handler → transient `OrderHistoryViewModel`, one DB read per open); `TimeFormats.OrderTimestamp` shared with the positions panel — journal stores UTC, tables show the local wall clock; `HistoryUiDependencyInjection()` + two one-liners in CompositionRoot.
+  - resx `History.*` 12 keys en+ru (87/87), `History.` prefix registered in `check-resx.ps1`.
+  - **Acceptance (achieved):** restart story proven end-to-end — a 0.01 BTC @ 50000 limit order placed via the dialog on the paper adapter → graceful close → restart → the Trading > Order History window shows the row (Opened, paper, BTC/USDT, 0.01, 50000.00000000, Filled); both runs log "Order history store ready at … (migrations applied)", the second run logs "Order history window: loaded 1 orders from the journal". No secrets in the DB by construction: one `Orders` table keyed by (ExchangeId, OrderId), a 17-field white-list pinned by a `PRAGMA table_info` test.
+  - Two root-caused stepping stones: the CompositionRoot init walk initializes **only factory-lambda registrations** (type-based registrations resolve lazily — the first attempt produced a 0-byte DB), so the store registers via a factory delegate; and `IDesignTimeDbContextFactory<>` lives in namespace `Microsoft.EntityFrameworkCore.Design` inside the core `Microsoft.EntityFrameworkCore.dll` (the Design package therefore needs compile assets, `PrivateAssets=all` kept). EF 10.0.14 forced `Microsoft.Extensions.*` pins 10.0.13 → 10.0.14 in four csproj (NU1605).
+  - Tests 98 → 115: 8 store tests (roundtrip, upsert, newest-first, cancel marking, unrecorded cancel ignored, cross-store restart, schema white-list; `Pooling=false` lesson for temp DB deletes), dialog/panel persistence hooks + resilience, menu routing, 4 history VM tests. GATE PASSED (build, resx 87/87, format).
+- **Next:** T-011 (order book widget) — cut from develop **after** the versioning chore lands (see `CHANGELOG.md`: alpha.11 is T-011's release).
 
 ## T-011 — Order book widget
 
