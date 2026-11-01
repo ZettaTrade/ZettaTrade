@@ -36,6 +36,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     #region Private Fields
 
     private readonly ITradingAdapter _trading;
+    private readonly SymbolListProvider _symbolList;
     private readonly IRiskManager _riskManager;
     private readonly IConfirmationService _confirmation;
     private readonly OrderConfirmationComposer _composer;
@@ -59,11 +60,30 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     private string? _errorMessage;
     private string? _resultMessage;
 
-    /// <summary>Normalized symbol text (BASE/QUOTE, e.g. "BTC/USDT").</summary>
+    private IReadOnlyList<string> _allSymbols = [];
+    private IReadOnlyList<string> _symbolSuggestions = [];
+    private bool _isSymbolSuggestionsOpen;
+
+    /// <summary>
+    /// Symbol text with autocomplete suggestions derived from the adapter
+    /// symbol list on every change (free-form text preserved: typed input is
+    /// never forced into a list item, so the dialog works when the symbol
+    /// list is unavailable).
+    /// </summary>
     public string SymbolInput
     {
         get => _symbolInput;
-        set => this.RaiseAndSetIfChanged(ref _symbolInput, value);
+        set
+        {
+            if (_symbolInput == value)
+            {
+                return;
+            }
+
+            _symbolInput = value;
+            this.RaisePropertyChanged(nameof(SymbolInput));
+            RefreshSymbolSuggestions();
+        }
     }
 
     /// <summary>Quantity text, parsed with the invariant culture.</summary>
@@ -138,10 +158,41 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     }
 
     /// <summary>
+    /// Case-insensitive <c>contains</c> matches for <see cref="SymbolInput"/>
+    /// over the loaded symbol list, prefix matches first (see
+    /// <c>SuggestSymbols</c>). Empty while nothing matches or nothing loads.
+    /// </summary>
+    public IReadOnlyList<string> SymbolSuggestions
+    {
+        get => _symbolSuggestions;
+        private set => this.RaiseAndSetIfChanged(ref _symbolSuggestions, value);
+    }
+
+    /// <summary>
+    /// Whether the symbol suggestion dropdown should be visible. The
+    /// AutoCompleteBox refreshes the popup only on a text change, so when
+    /// the symbol list arrives AFTER the user already typed (slow network),
+    /// the load handler opens the dropdown itself — mid-typing suggestions
+    /// appear without forcing a retype.
+    /// </summary>
+    public bool IsSymbolSuggestionsOpen
+    {
+        get => _isSymbolSuggestionsOpen;
+        private set => this.RaiseAndSetIfChanged(ref _isSymbolSuggestionsOpen, value);
+    }
+
+    /// <summary>
     /// Raised when the dialog must close (order placed or user cancelled);
     /// the View owns the actual window close.
     /// </summary>
     public Interaction<RxVoid, RxVoid> CloseRequested { get; }
+
+    /// <summary>
+    /// Loads the adapter symbol list once per dialog open for the
+    /// autocomplete suggestions; a failure silently keeps the empty
+    /// suggestion state (see <see cref="HandleLoadSymbolsAsync"/>).
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> LoadSymbolsCommand { get; }
 
     /// <summary>Runs the full validation → confirmation → placement pipeline.</summary>
     public ReactiveCommand<RxVoid, RxVoid> PlaceOrderCommand { get; }
@@ -155,6 +206,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     /// </summary>
     public NewOrderDialogViewModel(
         ITradingAdapter trading,
+        SymbolListProvider symbolList,
         IRiskManager riskManager,
         IConfirmationService confirmation,
         OrderConfirmationComposer composer,
@@ -164,6 +216,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
         ILogger<NewOrderDialogViewModel> logger)
     {
         _trading = trading ?? throw new ArgumentNullException(nameof(trading));
+        _symbolList = symbolList ?? throw new ArgumentNullException(nameof(symbolList));
         _riskManager = riskManager ?? throw new ArgumentNullException(nameof(riskManager));
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
@@ -173,12 +226,95 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         CloseRequested = new Interaction<RxVoid, RxVoid>();
+        LoadSymbolsCommand = ReactiveCommand.CreateFromTask(HandleLoadSymbolsAsync);
         PlaceOrderCommand = ReactiveCommand.CreateFromTask(HandlePlaceOrderAsync);
     }
 
     #endregion Constructor
 
     #region Private Methods
+
+    /// <summary>
+    /// Load the tradable symbol list from the shared application-lifetime
+    /// provider (warm at startup, cached across dialog opens — the
+    /// suggestions appear instantly except the very first cold open). A
+    /// failure (typically offline) is a convenience downgrade, never a
+    /// dialog error: the free-form symbol field keeps working with the
+    /// empty suggestion state.
+    /// </summary>
+    private async Task HandleLoadSymbolsAsync()
+    {
+        try
+        {
+            // The provider answers with ready-to-display names ("BASE/QUOTE").
+            var symbols = await _symbolList.GetSymbolsAsync();
+            _allSymbols = symbols is string[] cached ? cached : symbols.ToArray();
+            _logger.LogInformation(
+                "Order dialog: {SymbolCount} tradable symbols loaded for autocomplete",
+                _allSymbols.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Order dialog: symbol list unavailable, autocomplete stays empty");
+        }
+
+        RefreshSymbolSuggestions();
+
+        // Late-load UX: the AutoCompleteBox refreshed the open popup only
+        // on a text change, so typing during the symbol-list fetch left the
+        // user with a stale empty dropdown. The load arrival opens a
+        // populated dropdown for any text already present; a fresh dropdown
+        // stays closed for untouched or no-match text.
+        IsSymbolSuggestionsOpen = SymbolSuggestions.Count > 0 && SymbolInput.Trim().Length > 0;
+    }
+
+    /// <summary>
+    /// Re-derive <see cref="SymbolSuggestions"/> from
+    /// <see cref="SymbolInput"/> against the loaded symbol list.
+    /// </summary>
+    private void RefreshSymbolSuggestions() =>
+        SymbolSuggestions = SuggestSymbols(_allSymbols, SymbolInput);
+
+    /// <summary>
+    /// Case-insensitive <c>contains</c> matches for
+    /// <paramref name="input"/> over <paramref name="symbols"/>, with
+    /// prefix matches ordered ahead of strictly-contains matches (
+    /// likeliest typist intent) and the original adapter order kept inside
+    /// every bucket. Whitespace-only input yields no suggestions.
+    /// </summary>
+    private static IReadOnlyList<string> SuggestSymbols(IReadOnlyList<string> symbols, string input)
+    {
+        var text = input.Trim();
+        if (text.Length == 0)
+        {
+            return [];
+        }
+
+        var prefixAndContains = new List<string>();
+        var contains = new List<string>();
+        foreach (var symbol in symbols)
+        {
+            var position = symbol.IndexOf(text, StringComparison.OrdinalIgnoreCase);
+            if (position < 0)
+            {
+                continue;
+            }
+
+            if (position == 0)
+            {
+                prefixAndContains.Add(symbol);
+            }
+            else
+            {
+                contains.Add(symbol);
+            }
+        }
+
+        prefixAndContains.AddRange(contains);
+        return prefixAndContains;
+    }
 
     private async Task HandlePlaceOrderAsync()
     {

@@ -18,7 +18,10 @@ using ZettaTrade.Infrastructure.Persistence;
 /// Tests for the New Order dialog pipeline: every placement must pass risk
 /// validation and human confirmation before reaching the trading adapter, a
 /// rejected order never opens the confirmation dialog, and an unparsable
-/// input surfaces a localized error instead of a defaulted number.
+/// input surfaces a localized error instead of a defaulted number. The
+/// symbol autocomplete additionally loads the adapter symbol list and
+/// derives case-insensitive suggestions per keystroke (silently empty
+/// offline, free-form input always usable).
 /// </summary>
 public sealed class NewOrderDialogViewModelTests
 {
@@ -42,6 +45,9 @@ public sealed class NewOrderDialogViewModelTests
     private NewOrderDialogViewModel CreateViewModel() =>
         new(
             _trading,
+            new SymbolListProvider(
+                _trading,
+                Substitute.For<Microsoft.Extensions.Logging.ILogger<SymbolListProvider>>()),
             _riskManager,
             _confirmation,
             new OrderConfirmationComposer(_localization),
@@ -373,4 +379,70 @@ public sealed class NewOrderDialogViewModelTests
     }
 
     private static string FormatArgs(object[] args) => string.Join("|", args);
+
+    [Fact]
+    public async Task LoadSymbolsCommand_Executed_DerivesSuggestionsWithPrefixMatchesFirst()
+    {
+        // Arrange: the fake adapter answers exchangeInfo with the normalized
+        // BASE/QUOTE strings. The user typed "btc" (lower case) BEFORE the
+        // list returns — the dialog opens faster than the remote answers.
+        var viewModel = CreateViewModel();
+        _trading.GetSymbolsAsync().Returns(new List<Symbol>
+        {
+            Symbol.Parse("ETH/BTC"),
+            Symbol.Parse("BTC/USDT"),
+            Symbol.Parse("BTC/USDC"),
+            Symbol.Parse("XRP/BTC"),
+        });
+        viewModel.SymbolInput = "btc";
+
+        // Act
+        await viewModel.LoadSymbolsCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: case-insensitive contains matches; prefix matches (BTC/*)
+        // ordered ahead of strictly-contains matches (*/BTC), source order
+        // kept inside both buckets. The late-arriving list must open the
+        // dropdown for the text the user already typed (the stale-empty
+        // popup would otherwise need a retype).
+        viewModel.SymbolSuggestions.Should()
+            .Equal("BTC/USDT", "BTC/USDC", "ETH/BTC", "XRP/BTC");
+        viewModel.IsSymbolSuggestionsOpen.Should()
+            .BeTrue("a late list arrives while input text is present");
+    }
+
+    [Fact]
+    public async Task WhitespaceInput_YieldsNoSuggestionsEvenWithSymbolsLoaded()
+    {
+        // Arrange
+        var viewModel = CreateViewModel();
+        _trading.GetSymbolsAsync().Returns(new List<Symbol> { Symbol.Parse("BTC/USDT") });
+
+        // Act
+        await viewModel.LoadSymbolsCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        viewModel.SymbolInput = "   ";
+
+        // Assert
+        viewModel.SymbolSuggestions.Should().BeEmpty("nothing typed means nothing suggested");
+        viewModel.IsSymbolSuggestionsOpen.Should().BeFalse("the dropdown stays closed for whitespace input");
+    }
+
+    [Fact]
+    public async Task LoadSymbolsCommand_WhenRequestFails_StaysSilentAndFieldKeepsAcceptingText()
+    {
+        // Arrange: offline — the designed empty state, never an error UI.
+        _trading.GetSymbolsAsync()
+            .Returns(_ => Task.FromException<IReadOnlyList<Symbol>>(
+                new System.Net.Http.HttpRequestException("offline")));
+        var viewModel = CreateViewModel();
+
+        // Act: the load completes despite the failure; typing still works.
+        await viewModel.LoadSymbolsCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        viewModel.SymbolInput = "btc";
+
+        // Assert
+        viewModel.SymbolSuggestions.Should().BeEmpty("a failed symbol request contributes no suggestions");
+        viewModel.SymbolInput.Should().Be("btc", "the field stays free-form");
+        viewModel.HasErrorMessage.Should().BeFalse("an autocomplete failure is not a placement error");
+        viewModel.IsSymbolSuggestionsOpen.Should().BeFalse("nothing to show without a symbol list");
+    }
 }
