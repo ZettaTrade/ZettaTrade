@@ -15,7 +15,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-009 Positions & open orders panel | feat/positions | done | — |
 | T-010 Order history + persistence (EF Core) | feat/order-history | done | — |
 | T-011 Order book widget (60 fps target) | feat/order-book | done | — |
-| T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | in-progress | — |
+| T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | done | — |
 | T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | done | — |
 | T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
 | T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
@@ -207,6 +207,11 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Acceptance:**
   - `Ctrl+Shift+A` focuses the chat panel at runtime; status chip mirrors adapter state; gate.
 - **Tests:** menu routing (OpenAiChat command → interaction handled, per the ShowPositions test pattern); `StatusBarViewModel` localized derivation (fake `ILocalizationManager`, connected/language-change/disconnected transitions); the 2 s Rx glue is validated by the runtime probe, not unit tests (no scheduler injection noise).
+- **Status:** done. Merged into develop as `2f53304` (fast-forward). Outcome:
+  - Shipped per the design: `MenuViewModel.OpenAiChatRequested` + routed `HandleOpenAiChatAsync` (the dead `Task.CompletedTask` is gone); `MainWindow` registers `FocusChatAsync` in `OnOpened` and focuses the named `ChatInput`; `KeyBinding Gesture="Ctrl+Shift+A"` on the window + menu `InputGesture` (the T-002 follow-up debt is closed). `StatusBarViewModel` stores `_lastConnectionState` (bool?, null before the first report) and derives the chip text via the injected `ILocalizationManager` from the pre-existing `Status.Connected`/`Status.Disconnected` keys — the hardcoded English literals are gone; `LanguageChanged` re-derives so a runtime switch keeps the chip localized. `MainViewModel` ctor-subscribes the 2 s poll (`Observable.Return` + `Interval` → `DistinctUntilChanged` → `ObserveOnUiThread` → `UpdateConnectionStatus`); `CompositionRoot` gained the `MainViewModel` full-resolve with the `IMarketDataAdapter` dep. Core contracts untouched.
+  - Tests 148 → 152: +1 `MenuViewModelTests` (OpenAiChat routing), +3 `StatusBarViewModelTests` (localized state per value, language-switch re-derive, empty before the first report). GATE PASSED (13 Core + 80 App + 28 Infra + 31 UI = 152).
+  - Probe (`t012-live-probe.ps1`, UIA on the real exe): chip timeline t0 `Готов | Отключено | Dark | ru | 0.1.0-alpha.12` → t1 `Подключено` — the disconnected→connected transition is caught inside the 2 s poll and stays localized RU; the status-strip screenshot shows the shipped strip. Menu route: UIA Invoke on «ИИ Чат» → focus + typed `!` lands in the chat input (`keys=True values=[!]`). Hotkey route: `Ctrl+Shift+A` then `?` → `keys=True values=[!?]` — both the binding and the focus proven by the round-tripped character.
+  - Probe lessons: (1) when testing `Ctrl+Shift+A` after typing into the input, blur via the window-root `SetFocus()` — a ComboBox blur enables Avalonia type-ahead and swallows the letter key, which made the first hotkey run look like an app failure (it never was); (2) .ps1 probe scripts with Cyrillic literals need UTF-8 + BOM for PS 5.1 (without it the parser dies mid-regex).
 
 ## T-013 — Order dialog fixes: market-order JSON strings + combo clipping
 
