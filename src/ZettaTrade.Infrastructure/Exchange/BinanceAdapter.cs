@@ -43,9 +43,18 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     private readonly HttpClient _httpClient;
     private readonly WebSocketClient _wsClient;
     private readonly string _baseUrl = "https://api.binance.com";
-    private readonly string _wsUrl = "wss://stream.binance.com:9443/ws";
+
+    // The combined endpoint wraps every frame as {"stream":...,"data":...};
+    // the message handler expects that envelope (raw /ws frames lack it).
+    private readonly string _wsUrl = "wss://stream.binance.com:9443/stream";
     private readonly IDisposable _messageSubscription;
     private readonly IDisposable _connectionSubscription;
+
+    /// <summary>Serializes on-demand stream starts across concurrent first subscriptions.</summary>
+    private readonly SemaphoreSlim _streamStartGate = new(1, 1);
+
+    /// <summary>Last WS request id (the WS API echoes it back per request).</summary>
+    private int _lastRequestId;
 
     #endregion
 
@@ -82,6 +91,33 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         await _wsClient.DisconnectAsync();
         IsConnected = false;
+    }
+
+    /// <summary>
+    /// Start the streams for one symbol on demand (called by the first
+    /// subscriber of any feed): connect once when not connected, then
+    /// subscribe the symbol's ticker, partial order book and trade streams.
+    /// Serialized with a semaphore so concurrent first subscriptions cannot
+    /// interleave frames on the shared WebSocket.
+    /// </summary>
+    protected override async Task StartSymbolStreamsAsync(
+        Symbol symbol,
+        CancellationToken ct)
+    {
+        await _streamStartGate.WaitAsync(ct);
+        try
+        {
+            if (!_wsClient.IsConnected)
+            {
+                await ConnectAsync(ct);
+            }
+
+            await SubscribeSymbolAsync(symbol, ct);
+        }
+        finally
+        {
+            _streamStartGate.Release();
+        }
     }
 
     /// <inheritdoc/>
@@ -155,7 +191,10 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     public async Task SubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
         await _wsClient.SendJsonAsync(
-            new SubscriptionRequest(MethodNames.Subscribe, BuildStreamNames(symbol)),
+            new SubscriptionRequest(
+                MethodNames.Subscribe,
+                NextRequestId(),
+                BuildStreamNames(symbol)),
             ct);
     }
 
@@ -165,9 +204,18 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     public async Task UnsubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
         await _wsClient.SendJsonAsync(
-            new SubscriptionRequest(MethodNames.Unsubscribe, BuildStreamNames(symbol)),
+            new SubscriptionRequest(
+                MethodNames.Unsubscribe,
+                NextRequestId(),
+                BuildStreamNames(symbol)),
             ct);
     }
+
+    /// <summary>
+    /// Sequential request id: the WS API requires an id per request and
+    /// echoes it back in the response.
+    /// </summary>
+    private int NextRequestId() => Interlocked.Increment(ref _lastRequestId);
 
     #endregion
 
@@ -341,6 +389,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         _messageSubscription.Dispose();
         _connectionSubscription.Dispose();
         await _wsClient.DisposeAsync();
+        _streamStartGate.Dispose();
         // HttpClient comes from IHttpClientFactory; its lifetime is managed there.
     }
 
@@ -350,6 +399,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     private sealed record SubscriptionRequest(
         [property: JsonPropertyName("method")] string Method,
+        [property: JsonPropertyName("id")] int Id,
         [property: JsonPropertyName("params")] string[] Params);
 
     private static class MethodNames

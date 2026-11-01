@@ -75,32 +75,44 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
         CancellationToken ct = default);
 
     /// <inheritdoc/>
-    public IObservable<Ticker> SubscribeTicker(Symbol symbol)
+    public virtual IObservable<Ticker> SubscribeTicker(Symbol symbol)
     {
-        var key = symbol.Normalized;
-        var subject = TickerSubjects.GetOrAdd(key, _ => new Subject<Ticker>());
-        return subject.AsObservable();
+        var subject = TickerSubjects.GetOrAdd(symbol.Normalized, _ => new Subject<Ticker>());
+        return SubscribeWithStreamStart(symbol, StartSymbolStreamsAsync, subject.AsObservable());
     }
 
     /// <inheritdoc/>
-    public IObservable<OrderBook> SubscribeOrderBook(Symbol symbol, int depth = 20)
+    public virtual IObservable<OrderBook> SubscribeOrderBook(Symbol symbol, int depth = 20)
     {
-        var key = symbol.Normalized;
-        var subject = OrderBookSubjects.GetOrAdd(key, _ => new Subject<OrderBook>());
-        return subject.AsObservable();
+        var subject = OrderBookSubjects.GetOrAdd(symbol.Normalized, _ => new Subject<OrderBook>());
+        return SubscribeWithStreamStart(symbol, StartSymbolStreamsAsync, subject.AsObservable());
     }
 
     /// <inheritdoc/>
-    public IObservable<MarketTrade> SubscribeTrades(Symbol symbol)
+    public virtual IObservable<MarketTrade> SubscribeTrades(Symbol symbol)
     {
-        var key = symbol.Normalized;
-        var subject = TradeSubjects.GetOrAdd(key, _ => new Subject<MarketTrade>());
-        return subject.AsObservable();
+        var subject = TradeSubjects.GetOrAdd(symbol.Normalized, _ => new Subject<MarketTrade>());
+        return SubscribeWithStreamStart(symbol, StartSymbolStreamsAsync, subject.AsObservable());
     }
 
     #endregion
 
     #region Protected Methods
+
+    /// <summary>
+    /// Start the adapter-specific exchange streams for one symbol. Invoked by
+    /// the first subscriber of each feed (SubscribeTicker, SubscribeOrderBook,
+    /// SubscribeTrades) so data actually flows, and re-run by every new outer
+    /// subscription (stream subscription is idempotent on exchanges). The
+    /// in-flight start is cancelled together with the subscription. The
+    /// default is a no-op for adapters that push into the subjects directly.
+    /// The cancellation token covers the start only: it is reclaimed once the
+    /// start completes, so resources pooled longer than one start (WebSocket
+    /// sessions) must run on adapter-owned lifetimes, not on this token.
+    /// </summary>
+    protected virtual Task StartSymbolStreamsAsync(
+        Symbol symbol,
+        CancellationToken ct) => Task.CompletedTask;
 
     /// <summary>
     /// Publish a ticker update to all subscribers.
@@ -136,6 +148,28 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
         {
             subject.OnNext(trade);
         }
+    }
+
+    #endregion
+
+    #region Private Methods
+
+    /// <summary>
+    /// Wrap a shared per-symbol feed subject so the FIRST subscription starts
+    /// the adapter-side exchange streams (never silently dead data), the
+    /// in-flight start is cancelled together with the subscription, and every
+    /// re-subscription re-runs the idempotent start. The subject itself stays
+    /// shared, so repeated subscribers receive the same published data.
+    /// </summary>
+    private static IObservable<T> SubscribeWithStreamStart<T>(
+        Symbol symbol,
+        Func<Symbol, CancellationToken, Task> startStreams,
+        IObservable<T> feed)
+    {
+        return Observable
+            .FromAsync(token => startStreams(symbol, token))
+            .Select(_ => feed)
+            .Switch();
     }
 
     #endregion
