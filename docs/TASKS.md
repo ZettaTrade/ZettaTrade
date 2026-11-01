@@ -14,7 +14,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-008 New Order dialog | feat/order-dialog | done | — |
 | T-009 Positions & open orders panel | feat/positions | done | — |
 | T-010 Order history + persistence (EF Core) | feat/order-history | done | — |
-| T-011 Order book widget (60 fps target) | feat/order-book | in-progress | — |
+| T-011 Order book widget (60 fps target) | feat/order-book | done | — |
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
 | T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | done | — |
 | T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
@@ -183,6 +183,16 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Performance target measured by tests: the layout+snapshot path for 1000 levels per side sustains 60 fps (frame budget < 16 ms, measured value printed), and the VM-side ingest keeps up with 60 Hz pushes of 1000-level snapshots without backlog.
   - Real-Binance runtime probe: the default BTC/USDT book streams live depth (screenshots ~2 s apart differ, depth updates), and an idle/unreachable adapter degrades to the localized no-data placeholder instead of freezing or crashing.
   - gate.ps1 passes; version lands as alpha.11 per the changelog convention.
+- **Status:** done. Canon: the feature commit `d522b92` is on develop via merge `310e49f`. Outcome:
+  - Shipped: `OrderBookWidget` (Skia `ICustomDrawOperation`, CandlestickChart pattern) + pure `OrderBookPageLayout` (bids hang below the mid, asks above; cumulative bars relative to the side's own deepest visible level; per-frame cost bounded by the visible row count) + app-lifetime `OrderBookViewModel` (typed `SymbolInput`, default BTC/USDT, ctor subscriptions per the documented singleton precedent); workspace split `*,300` with the book column; resx `OrderBook.*` 5 keys en+ru (92/92) + prefix in `check-resx.ps1`; 5 `OrderBook.*` header strings drawn with the theme keys `Background/Border/TextPrimary/CandleUp/CandleDown`.
+  - Demand-driven stream start: `ExchangeAdapterBase` wraps the three feeds in `SubscribeWithStreamStart` (`Observable.FromAsync(start).Select(subject).Switch()`) with the documented token contract — the token covers the in-flight start only and is reclaimed once the start completes (adapters must pool longer-lived transports on their own lifetimes); `BinanceAdapter` starts connect+on-demand SUBSCRIBE under `SemaphoreSlim(1,1)`, in-flight start cancelled with the subscription, re-subscription re-runs the idempotent start, subjects stay shared per symbol.
+  - **Three transport faults the live probe uncovered (all fixed in scope, the WS path had never run before T-011):**
+    1. Rx reclaims the `Observable.FromAsync` token at start completion → `WebSocketClient.ConnectAsync` had linked its session CTS to the caller's token → the receive loop died ~10 ms after connect, silently (`Connected → Disconnected`, no reconnect warning). Now the open phase honours the caller's token (in-flight connect still aborts with the subscription) and the loop runs on an adapter-owned session token until `DisconnectAsync`/disposal.
+    2. SUBSCRIBE/UNSUBSCRIBE payloads lacked the required `id` field — Binance silently ignored them (connected socket, zero frames, no errors). Added a per-adapter `Interlocked.Increment` request-id counter.
+    3. The adapter connected via the raw `/ws` endpoint where frames are NOT wrapped, while `HandleWebSocketMessage` expects the combined `{"stream","data"}` envelope and skipped every frame. Switched to `wss://stream.binance.com:9443/stream` (combined framing) — the endpoint literals remain the T-015 target.
+  - **Acceptance (achieved):** default BTC/USDT streams real Binance depth — per-frame avg 1.9 ms / worst 4.8 ms at 1000 levels per side (60-fps budget 16 ms, printed by the test); screenshot pair 2 s apart differs; the localized no-data placeholder was observed live before the first depth frame (app stays alive, no freeze); logs show `WebSocket connected to wss://stream.binance.com:9443/stream` from the first subscriber.
+  - Tests 119 → 137: 5 `ExchangeAdapterBaseSubscriptionTests` (first-subscription start, idempotent re-run + in-flight cancellation, shared-subject flow, per-symbol isolation, in-flight token liveness), 5 `OrderBookViewModelTests` (default-symbol subscribe, publish flow, Switch cancels the old stream, unparsable input keeps the stream, stream failure keeps the pipeline for later symbols), 8 `OrderBookPageLayoutTests` (60 fps budget, mid-line geometry, cumulative growth, row trimming, empty/degenerate sides, spread/header). GATE PASSED (build, resx 92/92, format); `Directory.Build.props` → `alpha.11` + CHANGELOG entry as the branch tail.
+  - Known follow-ups: no e2e WS-server test for the transport (validated by the runtime probe instead); `BinanceAdapter` endpoint literals remain hardcoded (T-015); the dead `ChartViewModel`/`WhenActivated` gap and the duplicate symbol defaults stay queued as T-017.
 
 ## T-012 — UX follow-ups: chat focus, reconnect states
 
