@@ -1,20 +1,28 @@
 namespace ZettaTrade.App.ViewModels;
 
 using System.Collections.ObjectModel;
+using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
-using ReactiveUI.Primitives;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.UI.Extensions;
 
-using Observable = System.Reactive.Linq.Observable;
-
 /// <summary>
-/// ViewModel for chart display.
+/// Chart panel state: the available symbols list, the selected symbol and the
+/// loaded bars. Application-lifetime singleton: the pipelines are built in the
+/// constructor — WhenActivated never fires for VMs bound as nested-panel
+/// DataContexts (the documented workspace fact), so there is no activation path.
 /// </summary>
-public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
+/// <remarks>
+/// The chart owns the workspace symbol context: <see cref="SymbolSelections"/>
+/// publishes every confirmed selection (the workspace combo change and the
+/// symbols preselect both raise <see cref="SelectedSymbol"/>) for watchers such
+/// as the order book panel. <see cref="BarsUpdates"/> stays raw and testable;
+/// <see cref="Bars"/> is assigned after the UI-thread hop.
+/// </remarks>
+public sealed class ChartViewModel : ReactiveObject
 {
     #region Constants
 
@@ -33,8 +41,6 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
     #endregion
 
     #region Properties
-
-    public ViewModelActivator Activator { get; } = new();
 
     private readonly ILogger<ChartViewModel> _logger;
     private readonly IMarketDataAdapter _marketData;
@@ -66,9 +72,24 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
         private set => this.RaiseAndSetIfChanged(ref _availableSymbols, value);
     }
 
+    /// <summary>
+    /// Every confirmed symbol selection: the workspace combo and the symbols
+    /// preselect both flow through here. Raw — not UI-marshaled.
+    /// </summary>
+    public IObservable<Symbol> SymbolSelections { get; }
+
+    /// <summary>
+    /// Bars loaded for the latest selection; a newer selection cancels the
+    /// previous load (Rx Switch). The machine is hot and shared: exactly one
+    /// load pipeline runs no matter how many consumers subscribe, and a late
+    /// watcher immediately gets the latest bars. Raw — not UI-marshaled;
+    /// user-interface consumers marshal themselves.
+    /// </summary>
+    public IObservable<IReadOnlyList<Bar>> BarsUpdates { get; }
+
     #endregion
 
-    #region Constructor
+    #region Constructors
 
     /// <summary>
     /// Create a new ChartViewModel instance.
@@ -80,80 +101,90 @@ public sealed class ChartViewModel : ReactiveObject, IActivatableViewModel
         _marketData = marketData;
         _logger = logger;
 
-        this.WhenActivated(disposables =>
-        {
-            // Redraw the chart when the selected symbol changes. Switch() keeps only the
-            // latest load running and cancels the previous one, so bars never arrive out of order.
-            this.WhenAnyValue(x => x.SelectedSymbol)
-                .Select(symbol => Observable.FromAsync(token => LoadChartDataAsync(symbol, token)))
-                .Switch()
-                .ObserveOnUiThread()
-                .Subscribe(
-                    _ => { },
-                    ex => _logger.LogError(ex, "Failed to update chart data for selected symbol"))
-                .DisposeWith(disposables);
+        SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
+            .Where(symbol => symbol is not null)
+            .Select(symbol => symbol!);
 
-            // Load initial symbols list
-            Observable.FromAsync(ct => LoadSymbolsAsync(ct))
-                .ObserveOnUiThread()
-                .Subscribe(
-                    _ => { },
-                    ex => _logger.LogError(ex, "Failed to load symbols"))
-                .DisposeWith(disposables);
-        });
+        BarsUpdates = SymbolSelections
+            .Select(LoadBars)
+            .Switch()
+            .Replay(1)
+            .RefCount();
+
+        // The ViewModel lives as long as the application (singleton), so this
+        // subscription mirrors it and needs no explicit disposal. The marshal
+        // chain keeps <see cref="Bars"/> on the Avalonia UI thread.
+        BarsUpdates.ObserveOnUiThread()
+            .Subscribe(
+                bars =>
+                {
+                    Bars = new ObservableCollection<Bar>(bars);
+                    _logger.LogInformation("Chart bars delivered: {Count} candles", bars.Count);
+                },
+                ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
+
+        // Bootstrap for the nested-panel singleton: load the symbol list once
+        // (assignments are marshaled; the failure stays logged and leaves the
+        // combo empty), then seed the combo with its first entry — the single
+        // workspace default owner.
+        Observable.FromAsync(LoadSymbolsAsync)
+            .ObserveOnUiThread()
+            .Subscribe(
+                symbols =>
+                {
+                    AvailableSymbols = new ObservableCollection<Symbol>(symbols);
+
+                    if (SelectedSymbol is null && AvailableSymbols.Count > 0)
+                    {
+                        SelectedSymbol = AvailableSymbols[0];
+                        _logger.LogInformation(
+                            "Symbols loaded: {Count}; preselected {Symbol}",
+                            AvailableSymbols.Count,
+                            SelectedSymbol);
+                    }
+                },
+                ex => _logger.LogError(ex, "Failed to load symbols"));
     }
 
     #endregion
 
     #region Private Methods
 
-    private async Task<int> LoadSymbolsAsync(CancellationToken ct)
+    /// <summary>
+    /// Fetch the symbol list, trimmed to the combo capacity. Failures belong
+    /// to the subscribe side (logged there, the combo stays empty).
+    /// </summary>
+    private async Task<IReadOnlyList<Symbol>> LoadSymbolsAsync(CancellationToken ct)
     {
-        try
-        {
-            var symbols = await _marketData.GetSymbolsAsync(ct);
-            var visibleSymbols = symbols.Take(MaxVisibleSymbols).ToList();
-            AvailableSymbols = new ObservableCollection<Symbol>(visibleSymbols);
-
-            if (AvailableSymbols.Count > 0 && SelectedSymbol == null)
-            {
-                SelectedSymbol = AvailableSymbols[0];
-            }
-
-            // Task<int> (not plain Task) keeps Rx pipelines on ReactiveUI.RxVoid; System.Reactive.Unit is banned.
-            return AvailableSymbols.Count;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load symbols");
-            return 0;
-        }
+        var symbols = await _marketData.GetSymbolsAsync(ct);
+        return symbols.Take(MaxVisibleSymbols).ToList();
     }
 
-    private async Task<int> LoadChartDataAsync(Symbol? symbol, CancellationToken ct)
+    /// <summary>
+    /// Bars load for one selection. A failure ends this selection's data
+    /// (logged, never a default value) but must not terminate the switching
+    /// machine for later selections.
+    /// </summary>
+    private IObservable<IReadOnlyList<Bar>> LoadBars(Symbol symbol)
     {
-        if (symbol is null)
-            return 0;
+        _logger.LogInformation("Chart bars load requested for {Symbol}", symbol);
 
-        try
-        {
-            var bars = await _marketData.GetBarsAsync(
+        return Observable
+            .FromAsync(token => _marketData.GetBarsAsync(
                 symbol,
                 ChartTimeFrame,
                 DateTimeOffset.UtcNow.AddDays(-ChartLookbackDays),
                 limit: InitialBarCount,
-                ct: ct);
-
-            Bars = new ObservableCollection<Bar>(bars);
-
-            // Task<int> (not plain Task) keeps Rx pipelines on ReactiveUI.RxVoid; System.Reactive.Unit is banned.
-            return bars.Count;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load chart data for {Symbol}", symbol);
-            return 0;
-        }
+                ct: token))
+            // A cancelled load is the normal outcome of Switch dropping the
+            // previous selection: keep it silent (real failures log below).
+            .Catch<IReadOnlyList<Bar>, OperationCanceledException>(_ =>
+                Observable.Empty<IReadOnlyList<Bar>>())
+            .Catch<IReadOnlyList<Bar>, Exception>(ex =>
+            {
+                _logger.LogError(ex, "Failed to load chart data for {Symbol}", symbol);
+                return Observable.Empty<IReadOnlyList<Bar>>();
+            });
     }
 
     #endregion

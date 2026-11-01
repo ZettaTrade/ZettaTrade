@@ -137,6 +137,7 @@ public sealed class OrderBookViewModelTests
 
         var vm = new OrderBookViewModel(
             marketData,
+            Observable.Never<Symbol>(),
             NullLogger<OrderBookViewModel>.Instance);
 
         vm.SymbolInput.Should().Be(OrderBookViewModel.DefaultSymbolInput);
@@ -149,6 +150,7 @@ public sealed class OrderBookViewModelTests
         var marketData = new FakeMarketData();
         var vm = new OrderBookViewModel(
             marketData,
+            Observable.Never<Symbol>(),
             NullLogger<OrderBookViewModel>.Instance);
         var seen = new List<OrderBook>();
 
@@ -164,6 +166,7 @@ public sealed class OrderBookViewModelTests
         var marketData = new FakeMarketData();
         var vm = new OrderBookViewModel(
             marketData,
+            Observable.Never<Symbol>(),
             NullLogger<OrderBookViewModel>.Instance);
         var seen = new List<OrderBook>();
 
@@ -189,6 +192,7 @@ public sealed class OrderBookViewModelTests
         var marketData = new FakeMarketData();
         var vm = new OrderBookViewModel(
             marketData,
+            Observable.Never<Symbol>(),
             NullLogger<OrderBookViewModel>.Instance);
         var seen = new List<OrderBook>();
 
@@ -208,6 +212,7 @@ public sealed class OrderBookViewModelTests
         var marketData = new FakeMarketData();
         var vm = new OrderBookViewModel(
             marketData,
+            Observable.Never<Symbol>(),
             NullLogger<OrderBookViewModel>.Instance);
         var seen = new List<OrderBook>();
 
@@ -219,6 +224,63 @@ public sealed class OrderBookViewModelTests
         vm.SymbolInput = "ETH/BTC";
         marketData.GetFeed(Symbol.Parse("ETH/BTC")).Subject.OnNext(Book("ETH/BTC", 1));
         seen.Should().ContainSingle("later symbols keep working after a failure");
+    }
+
+    [Fact]
+    public void WorkspaceSelection_RewritesTheInputAndSwitchesTheFeed()
+    {
+        var marketData = new FakeMarketData();
+        var workspaceSelections = new Subject<Symbol>();
+        var vm = new OrderBookViewModel(
+            marketData,
+            workspaceSelections,
+            NullLogger<OrderBookViewModel>.Instance);
+        var seen = new List<OrderBook>();
+
+        using var subscription = vm.Updates.Subscribe(seen.Add);
+
+        workspaceSelections.OnNext(Symbol.Parse("ETH/BTC"));
+
+        vm.SymbolInput.Should().Be("ETH/BTC", "the workspace combo owns the symbol");
+        marketData.Feeds.Should().ContainKey("ETH/BTC");
+
+        marketData.GetFeed(Symbol.Parse("ETH/BTC")).Subject.OnNext(Book("ETH/BTC", 2));
+        seen.Should().ContainSingle(b => b.Symbol.Normalized == "ETH/BTC");
+    }
+
+    [Fact]
+    public void WorkspaceSelectionWithoutChange_DoesNotTearTheFeed()
+    {
+        var marketData = new FakeMarketData();
+        var workspaceSelections = new Subject<Symbol>();
+        var vm = new OrderBookViewModel(
+            marketData,
+            workspaceSelections,
+            NullLogger<OrderBookViewModel>.Instance);
+
+        using var subscription = vm.Updates.Subscribe(_ => { });
+
+        workspaceSelections.OnNext(Symbol.Parse("BTC/USDT"));
+
+        marketData.Feeds["BTC/USDT"].Unsubscriptions.Should().Be(0, "identical selection must not churn the feed");
+    }
+
+    [Fact]
+    public void WorkspaceSelectionFailure_KeepsTheTypedInputWorking()
+    {
+        var marketData = new FakeMarketData();
+        var workspaceSelections = new Subject<Symbol>();
+        var vm = new OrderBookViewModel(
+            marketData,
+            workspaceSelections,
+            NullLogger<OrderBookViewModel>.Instance);
+
+        using var subscription = vm.Updates.Subscribe(_ => { });
+
+        workspaceSelections.OnError(new InvalidOperationException("selection source died"));
+
+        vm.SymbolInput = "SOL/USDC";
+        marketData.Feeds.Should().ContainKey("SOL/USDC", "the typed input stays the offline override after the selection source dies");
     }
 
     #endregion
