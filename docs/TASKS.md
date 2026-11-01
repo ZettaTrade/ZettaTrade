@@ -21,7 +21,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
 | T-016 Exchange selector in the toolbar | feat/exchange-selector | planned | needs a 2nd adapter |
 | T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | done | — |
-| T-018 App version display in the status bar | feat/status-version | in-progress | — |
+| T-018 App version display in the status bar | feat/status-version | done | — |
 
 ---
 
@@ -280,3 +280,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - The status bar shows the running version (probe: UIA name search for "0.1.0-alpha.12" finds the chip).
   - Version bump alpha.11 → alpha.12 + CHANGELOG entry lands with this task.
   - gate.
+- **Status:** done. Canon: the feature commit `fb38467` is on develop (fast-forward merge). Outcome:
+  - Shipped: `AppVersion` accessor in the App project — the entry-assembly informational version (MSBuild bakes `Directory.Build.props` `$(Version)`) read exactly ONCE via a static get-only property initializer (compiles to a readonly field + static ctor, thread-safe once semantics; reviewed with the user), the `+<git-commit>` suffix the SDK appends in repositories trimmed by `ToDisplayVersion`, and an "unknown" fallback so the chip can never be blank. `StatusBarViewModel` gained the `AppVersion` ctor-threaded property; `CompositionRoot` passes `AppVersion.Current` (the single production call site); XAML adds the fifth `Auto` status column — the chip sits rightmost after the language chip. The version string is tech state (like the theme name), no resx key.
+  - Tests 145 → 148: 3 new `StatusBarViewModelTests` (the chip flow from the ctor, the git-suffix trim, the never-blank fallback) + the 3 existing ctor calls updated with a literal.
+  - Probe: UIA search over the window found exactly one version text node — `0.1.0-alpha.12`, no suffix leak; the status strip screenshot shows `Готов | Dark | ru | 0.1.0-alpha.12`. GATE PASSED (13 + 76 + 28 + 31 = 148).
+  - Branch tail: `Directory.Build.props` alpha.11 → alpha.12 (the in-file comment now flags T-018 → alpha.12, next alpha.13, and mentions the status-bar chip); `CHANGELOG.md` gains the alpha.12 section documenting T-018 and noting T-017 ships inside this release (T-017 merged without its own bump — accepted drift in the strictly "one release == one merged task" reading; the bump convention itself holds: next is alpha.13).
