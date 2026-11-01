@@ -16,6 +16,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-010 Order history + persistence (EF Core) | feat/order-history | done | — |
 | T-011 Order book widget (60 fps target) | feat/order-book | planned | — |
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
+| T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | in-progress | — |
+| T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
 
 ---
 
@@ -177,3 +179,19 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **What:** `OpenAiChatCommand` focuses the existing assistant side panel (with `ChatViewModel` already present) instead of a dead action; `Ctrl+Shift+A` returns; connection state in the status bar reflects adapter events rather than stubs.
 - **Acceptance:**
   - `Ctrl+Shift+A` focuses the chat panel at runtime; status chip mirrors adapter state; gate.
+
+## T-013 — Order dialog fixes: market-order JSON strings + combo clipping
+
+- **Branch:** `fix/order-dialog` (worktree `zt-dialog-fix`, cut from develop @ 1fc27a5; `scripts/new-worktree.ps1` only creates `feat/` branches, so the branch came from `git worktree add -b fix/order-dialog` directly)
+- **Scope:** `src/ZettaTrade.Infrastructure/Exchange` (Binance payload parsing), `src/ZettaTrade.App/Views/NewOrderDialogWindow.axaml` (widths), `tests/ZettaTrade.Infrastructure.Tests`. VM/App pipeline untouched. User-reported.
+- **What:**
+  - Placing a **market** order fails with "Ордер не размещён: The requested operation requires an element of type 'Number', but the target element has type 'String'": the paper adapter resolves the fill price from the latest bar, and Binance klines (REST) return numeric kline fields as JSON strings while `GetBarsAsync` calls `JsonElement.GetDecimal()` directly (limit orders take the fill price from the order itself, which is why the T-008/T-010 probes never hit it).
+  - The same crash pattern is latent in three more places of `BinanceAdapter`: WS ticker fields (`c`/`b`/`a`/`v`/`P`), depth price levels (`bids`/`asks` arrays) and trades (`p`/`q`) — all numeric values are strings on the wire; the WS handler currently swallows every one of these failures into "Error handling WebSocket message".
+  - The type combo clips the RU "Рыночный" label: window is 380 px with `*,*,*` columns (≈109 px per combo).
+- **Fix direction:** one tolerant number parser (JSON `String` → invariant parse, `Number` → `GetDecimal`) applied at all four sites; klines regression test with the real Binance payload shape; dialog window 380 → 440.
+
+## T-014 — Instrument autocomplete in the order dialog (queued by user)
+
+- **Branch:** `feat/symbol-autocomplete` (planned; not scheduled before T-011)
+- **Scope:** `src/ZettaTrade.App` (dialog symbol input → editable list/AutoCompleteBox over `GetSymbolsAsync`), resx if new strings needed.
+- **What:** typing "Btc/usdt" every time is clumsy — suggest completions from the adapter symbol list as the user types (case-insensitive prefix/contains), keyboard-navigable, graceful empty state when the symbols request fails offline (the field stays free-form by design).
