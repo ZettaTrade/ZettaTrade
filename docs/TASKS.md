@@ -15,7 +15,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-009 Positions & open orders panel | feat/positions | done | — |
 | T-010 Order history + persistence (EF Core) | feat/order-history | done | — |
 | T-011 Order book widget (60 fps target) | feat/order-book | done | — |
-| T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
+| T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | in-progress | — |
 | T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | done | — |
 | T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
 | T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
@@ -200,8 +200,13 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Branch:** `feat/chat-focus`
 - **Scope:** `MenuViewModel`/`MainViewModel` wiring in `src/ZettaTrade.App` only.
 - **What:** `OpenAiChatCommand` focuses the existing assistant side panel (with `ChatViewModel` already present) instead of a dead action; `Ctrl+Shift+A` returns; connection state in the status bar reflects adapter events rather than stubs.
+- **Design (decided, 2026-11-01):**
+  - Chat focus via the established menu-plumbing pattern: `MenuViewModel` gains an `OpenAiChatRequested` interaction (like `NewOrderRequested`/`ShowPositionsRequested`/…), `OpenAiChatCommand` routes through it, and the `MainWindow` code-behind handler (the window owns all menu interactions in `OnOpened`) focuses the chat input by name — the XAML input gains `x:Name="ChatInput"`. The hotkey comes back with it: a `KeyBinding Ctrl+Shift+A` plus the menu's `InputGesture` (the T-002 follow-up debt).
+  - Connection chip without touching supervisor-owned Core contracts: `WebSocketClient.ConnectionStateStream` exists but is Infrastructure-internal, and `PaperTradingAdapter` wraps/hides the concrete adapter, so no clean App-visible stream exists. App-only choice: `MainViewModel` ctor-subscribes a poll — `Observable.Return(IsConnected)` + `Observable.Interval(2 s).Select(…)` (named constant), `DistinctUntilChanged`, `ObserveOnUiThread` → `StatusBar.UpdateConnectionStatus(bool)`. `MainViewModel` gains the `IMarketDataAdapter` ctor dep (CompositionRoot line). The chip clocks at most 2 s of staleness — a status indicator, not a safety signal.
+  - The chip text gets localized while this VM is touched: the hardcoded English `"Connected"/"Disconnected"` literals (a rule violation) are replaced by stored-bool + derivation via the injected `ILocalizationManager` using the pre-existing `Status.Connected`/`Status.Disconnected` resx keys (present in BOTH en and ru), and `LanguageChanged` re-derives the text so a runtime language switch keeps the chip localized. `UpdateConnectionStatus(bool)` keeps its shape.
 - **Acceptance:**
   - `Ctrl+Shift+A` focuses the chat panel at runtime; status chip mirrors adapter state; gate.
+- **Tests:** menu routing (OpenAiChat command → interaction handled, per the ShowPositions test pattern); `StatusBarViewModel` localized derivation (fake `ILocalizationManager`, connected/language-change/disconnected transitions); the 2 s Rx glue is validated by the runtime probe, not unit tests (no scheduler injection noise).
 
 ## T-013 — Order dialog fixes: market-order JSON strings + combo clipping
 
