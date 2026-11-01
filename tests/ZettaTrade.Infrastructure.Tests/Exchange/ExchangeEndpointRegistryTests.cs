@@ -117,9 +117,10 @@ public sealed class ExchangeEndpointRegistryTests
             }
 
             // Act: the RegisterAll step — resolving the trading adapter
-            // constructs the whole adapter stack, market data included.
-            provider.GetRequiredService<ITradingAdapter>().Should().NotBeNull();
-            var adapter = (BinanceAdapter)provider.GetRequiredService<IMarketDataAdapter>();
+            // constructs the whole adapter stack, market data included; on
+            // this seam (without the App-side facade) the equivalent first
+            // stack construction is the Binance adapter resolve.
+            var adapter = provider.GetRequiredService<BinanceAdapter>();
 
             // Assert: the walked registry configures the adapter resolved
             // after the walk — the full ordering story in one test.
@@ -212,7 +213,7 @@ public sealed class ExchangeEndpointRegistryTests
         await provider.GetRequiredService<ExchangeEndpointRegistry>().InitializeAsync();
 
         // Act
-        var adapter = (BinanceAdapter)provider.GetRequiredService<IMarketDataAdapter>();
+        var adapter = provider.GetRequiredService<BinanceAdapter>();
 
         // Assert
         adapter.RestBaseUrl.Should().Be("https://stub.tld");
