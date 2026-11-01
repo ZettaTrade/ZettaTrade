@@ -20,7 +20,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
 | T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
 | T-016 Exchange selector in the toolbar | feat/exchange-selector | planned | needs a 2nd adapter |
-| T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | planned | — |
+| T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | in-progress | — |
 
 ---
 
@@ -255,9 +255,10 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 
 ## T-017 — One symbol context for the workspace (queued during T-011)
 
-- **Branch:** `feat/workspace-symbols` (planned)
+- **Branch:** `feat/workspace-symbols` (started 2026-11-01, cut from develop @ 0911f13)
 - **Scope:** `src/ZettaTrade.App` (workspace symbol flow: `ChartViewModel` + `OrderBookViewModel` follow one selection; the dead `WhenActivated` path for nested-panel DataContext VMs), possibly a small `MainViewModel` coordination change.
 - **What:** Born from the T-011 probe: `ChartViewModel` is silently dead (its `WhenActivated` never fires for a nested DataContext, so the symbol combo stays empty and the chart draws "Нет данных"), and the T-011 book carries its own typed symbol. The workspace should have ONE active symbol driving chart and book; this task decides whether that is ctor-subscription bootstrap, view-attached activation, or an explicit workspace-level `SelectedSymbol` owner, then removes the duplicate default the two panels currently hold.
+- **Design (decided):** ctor-subscription bootstrap — the workspace VMs are singletons bound as nested DataContexts where `WhenActivated` is a proven dead path (T-011 probe), so `ChartViewModel` drops `IActivatableViewModel` and mirrors the StatusBar/book pattern: ctor-built Rx pipelines, raw test-visible streams, UI-thread hops only for property assignment. Selection ownership: `ChartViewModel` (the only panel holding the symbols list) exposes a raw `IObservable<Symbol> SymbolSelections` (combo changes and the list-0 preselect both flow through one `WhenAnyValue(SelectedSymbol)`); `CompositionRoot` wires chart → `OrderBookViewModel`, which follows the selection by writing its free-typed `SymbolInput` (one owner, typed input remains the offline override; the last user action wins), so the book's and the chart's defaults stop being two independent owners. XAML stays unchanged: the existing combo keeps driving `Chart.SelectedSymbol`.
 - **Acceptance:**
   - Selecting a symbol in the workspace combo drives both the chart and the order book (probe).
   - The chart shows real klines on cold start again (regression: the "Нет данных" dead state disappears without a page refresh).
