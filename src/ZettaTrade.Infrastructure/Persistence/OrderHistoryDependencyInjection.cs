@@ -9,10 +9,13 @@ using ZettaTrade.Infrastructure.Configuration;
 /// DI wiring for the persistent order history. The store is a singleton
 /// (per-operation contexts inside it) and initializes through
 /// <see cref="ZettaTrade.Core.Interfaces.IAsyncInitializable"/> during the
-/// composition root's startup walk. Registering via the factory overload
-/// keeps the descriptor free of <c>ImplementationType</c>, which the
-/// startup walk resolves and initializes (type-based registrations are
-/// resolved lazily on first use — too late for migrations).
+/// composition root's startup walk. Since the walk screens typed
+/// registrations through implementation-type assignability, both the
+/// factory overload used here and a type-based registration initialize at
+/// startup; the factory form is kept as-is (registration churn buys
+/// nothing). The historical "type-based registrations are resolved lazily
+/// on first use — too late for migrations" constraint was lifted by the
+/// T-015 startup-walk fix.
 /// </summary>
 public static class OrderHistoryDependencyInjection
 {
