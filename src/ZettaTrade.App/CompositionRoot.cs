@@ -75,6 +75,14 @@ internal static class CompositionRoot
         // Exchange adapters: transport settings live inside each adapter module (Infrastructure).
         services.AddExchangeAdapters();
 
+        // Active-exchange facade over the concrete adapters: every market
+        // data consumer resolves one IMarketDataAdapter that forwards to
+        // the exchange picked in the toolbar selector, and trading rides the
+        // same context (paper over the facade). Typed + IAsyncInitializable:
+        // the startup walk restores the persisted choice here — before any
+        // consumer VM is constructed.
+        services.AddActiveExchange();
+
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
 
