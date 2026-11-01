@@ -49,6 +49,13 @@ public sealed class MenuViewModel : ReactiveObject
     public Interaction<RxVoid, RxVoid> ShowOrderHistoryRequested { get; }
 
     /// <summary>
+    /// Interaction that routes the open-AI-chat request to the View, which
+    /// focuses the assistant panel input (same pattern as
+    /// <see cref="NewOrderRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> OpenAiChatRequested { get; }
+
+    /// <summary>
     /// Interaction that routes the new-order request to the View, which hosts
     /// the dialog window (same pattern as <see cref="OpenSettingsRequested"/>).
     /// </summary>
@@ -70,6 +77,7 @@ public sealed class MenuViewModel : ReactiveObject
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
         ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
         ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
+        OpenAiChatRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
@@ -101,7 +109,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// </summary>
     private Task HandleShowOrderHistoryAsync() => ShowOrderHistoryRequested.Handle(RxVoid.Default);
 
-    private Task HandleOpenAiChatAsync() => Task.CompletedTask;
+    /// <summary>
+    /// Route the open-AI-chat request to the View, which focuses the
+    /// assistant panel input (window plumbing stays out of the ViewModel,
+    /// same as the settings window).
+    /// </summary>
+    private Task HandleOpenAiChatAsync() => OpenAiChatRequested.Handle(RxVoid.Default);
 
     private Task HandleManageMcpServersAsync() => Task.CompletedTask;
 

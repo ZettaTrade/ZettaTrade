@@ -1,7 +1,11 @@
 namespace ZettaTrade.App.ViewModels;
 
+using System;
+using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ZettaTrade.Core.Interfaces;
+using ZettaTrade.UI.Extensions;
 
 /// <summary>
 /// Main window view model. Coordinates sub-ViewModels for menu, status bar, chat, and settings.
@@ -9,7 +13,11 @@ using ReactiveUI;
 /// </summary>
 public sealed class MainViewModel : ReactiveObject
 {
+    /// <summary>How often the status chip re-reads the adapter connection state.</summary>
+    private static readonly TimeSpan ConnectionPollInterval = TimeSpan.FromSeconds(2);
+
     private readonly ILogger<MainViewModel> _logger;
+    private readonly IMarketDataAdapter _marketData;
 
     /// <summary>Menu ViewModel for menu bar.</summary>
     public MenuViewModel Menu { get; }
@@ -39,6 +47,7 @@ public sealed class MainViewModel : ReactiveObject
         SettingsViewModel settings,
         ChartViewModel chart,
         OrderBookViewModel orderBook,
+        IMarketDataAdapter marketData,
         ILogger<MainViewModel> logger)
     {
         Menu = menu;
@@ -48,6 +57,24 @@ public sealed class MainViewModel : ReactiveObject
         Chart = chart;
         OrderBook = orderBook;
         _logger = logger;
+        _marketData = marketData;
+
+        // The status chip mirrors the adapter connection state. The Core
+        // contract is a property (no state stream), so an App-owned poll
+        // bridges it — the chip is at most ConnectionPollInterval stale,
+        // which is acceptable for a status indicator. The ViewModel lives as
+        // long as the application (composes singleton sub-ViewModels), so
+        // this subscription mirrors it and needs no explicit disposal.
+        Observable
+            .Return(marketData.IsConnected)
+            .Concat(Observable
+                .Interval(ConnectionPollInterval)
+                .Select(_ => _marketData.IsConnected))
+            .DistinctUntilChanged()
+            .ObserveOnUiThread()
+            .Subscribe(
+                StatusBar.UpdateConnectionStatus,
+                ex => _logger.LogError(ex, "The connection status poll stopped unexpectedly"));
 
         _logger.LogInformation("MainViewModel initialized with sub-ViewModels");
     }

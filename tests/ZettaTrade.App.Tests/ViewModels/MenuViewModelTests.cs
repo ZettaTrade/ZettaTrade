@@ -72,4 +72,24 @@ public sealed class MenuViewModelTests
         // Assert
         handled.Should().Be(1);
     }
+
+    [Fact]
+    public async Task OpenAiChatCommand_Executed_RoutesThroughOpenAiChatInteraction()
+    {
+        // Arrange
+        var menu = new MenuViewModel();
+        var handled = 0;
+        menu.OpenAiChatRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref handled);
+            context.SetOutput(RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await menu.OpenAiChatCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(1);
+    }
 }

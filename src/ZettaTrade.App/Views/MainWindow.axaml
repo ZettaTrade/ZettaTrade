@@ -23,6 +23,7 @@
                still a placeholder; the label returns with the feature. -->
         <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding Menu.OpenSettingsCommand}" />
         <KeyBinding Gesture="Ctrl+N" Command="{Binding Menu.NewOrderCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+A" Command="{Binding Menu.OpenAiChatCommand}" />
     </Window.KeyBindings>
 
     <DockPanel>
@@ -39,7 +40,7 @@
                 <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Localized Menu.AI}">
-                <MenuItem Header="{loc:Localized Menu.AI.Chat}" Command="{Binding OpenAiChatCommand}" />
+                <MenuItem Header="{loc:Localized Menu.AI.Chat}" Command="{Binding OpenAiChatCommand}" InputGesture="Ctrl+Shift+A" />
                 <MenuItem Header="{loc:Localized Menu.AI.Servers}" Command="{Binding ManageMcpServersCommand}" />
             </MenuItem>
         </Menu>
@@ -115,8 +116,10 @@
                                FontSize="14"
                                Margin="8" />
 
-                    <!-- Chat input -->
-                    <TextBox DockPanel.Dock="Bottom"
+                    <!-- Chat input (named: the menu/hotkey focus request
+                         lands on it, so the assistant is one keystroke away) -->
+                    <TextBox x:Name="ChatInput"
+                             DockPanel.Dock="Bottom"
                              Text="{Binding AiChatInput}"
                              Margin="8"
                              AcceptsReturn="False" />

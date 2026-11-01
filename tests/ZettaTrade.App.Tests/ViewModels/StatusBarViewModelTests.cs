@@ -118,4 +118,63 @@ public sealed class StatusBarViewModelTests
     {
         AppVersion.ToDisplayVersion(null).Should().NotBeNullOrWhiteSpace();
     }
+
+    [Fact]
+    public void UpdateConnectionStatus_ReportsLocalizedStatePerValue()
+    {
+        var themeManager = Substitute.For<IThemeManager>();
+        themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
+        var localizationManager = Substitute.For<ILocalizationManager>();
+        localizationManager.LanguageChanged.Returns(new BehaviorSubject<string>("en"));
+        localizationManager.GetString("Status.Connected").Returns("Connected");
+        localizationManager.GetString("Status.Disconnected").Returns("Disconnected");
+
+        var viewModel = new StatusBarViewModel(
+            themeManager,
+            localizationManager,
+            "0.1.0-test");
+
+        viewModel.UpdateConnectionStatus(true);
+        viewModel.ConnectionStatus.Should().Be("Connected", "the connected key is localized");
+
+        viewModel.UpdateConnectionStatus(false);
+        viewModel.ConnectionStatus.Should().Be("Disconnected", "the disconnected key is localized");
+    }
+
+    [Fact]
+    public void LanguageSwitch_KeepsTheConnectionChipLocalized()
+    {
+        var languageChanged = new BehaviorSubject<string>("en");
+        var themeManager = Substitute.For<IThemeManager>();
+        themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
+        var localizationManager = Substitute.For<ILocalizationManager>();
+        localizationManager.LanguageChanged.Returns(languageChanged);
+        localizationManager.GetString("Status.Connected").Returns("Connected");
+
+        var viewModel = new StatusBarViewModel(
+            themeManager,
+            localizationManager,
+            "0.1.0-test");
+        viewModel.UpdateConnectionStatus(true);
+
+        languageChanged.OnNext("ru");
+
+        viewModel.ConnectionStatus.Should().Be("Connected", "the chip re-derives from the stored state, not from a stale text");
+    }
+
+    [Fact]
+    public void BeforeTheFirstConnectionReport_TheChipStaysEmpty()
+    {
+        var themeManager = Substitute.For<IThemeManager>();
+        themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
+        var localizationManager = Substitute.For<ILocalizationManager>();
+        localizationManager.LanguageChanged.Returns(new BehaviorSubject<string>("en"));
+
+        var viewModel = new StatusBarViewModel(
+            themeManager,
+            localizationManager,
+            "0.1.0-test");
+
+        viewModel.ConnectionStatus.Should().BeEmpty("no state report means no chip text");
+    }
 }

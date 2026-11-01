@@ -22,6 +22,13 @@ public sealed class StatusBarViewModel : ReactiveObject
     private string _currentThemeName = string.Empty;
     private string _currentLanguage = string.Empty;
     private string _connectionStatus = string.Empty;
+    private readonly ILocalizationManager _localizationManager;
+
+    /// <summary>
+    /// Last adapter connection state reported to
+    /// <see cref="UpdateConnectionStatus"/>; null before the first report.
+    /// </summary>
+    private bool? _lastConnectionState;
 
     /// <summary>Running application version for the status bar chip.</summary>
     public string AppVersion
@@ -65,6 +72,7 @@ public sealed class StatusBarViewModel : ReactiveObject
         ILocalizationManager localizationManager,
         string appVersion)
     {
+        _localizationManager = localizationManager;
         AppVersion = appVersion;
 
         // The ViewModel lives as long as the application (singleton), so these
@@ -75,7 +83,11 @@ public sealed class StatusBarViewModel : ReactiveObject
 
         localizationManager
             .LanguageChanged
-            .Subscribe(code => CurrentLanguage = code);
+            .Subscribe(code =>
+            {
+                CurrentLanguage = code;
+                RefreshConnectionStatus();
+            });
     }
 
     #endregion Constructor
@@ -83,16 +95,38 @@ public sealed class StatusBarViewModel : ReactiveObject
     #region Public Methods
 
     /// <summary>
-    /// Update connection status.
+    /// Store the adapter connection state and refresh the checkpoint chip
+    /// (also invoked on language changes).
     /// </summary>
+    /// <param name="isConnected">Current adapter connection state.</param>
     public void UpdateConnectionStatus(bool isConnected)
     {
-        ConnectionStatus = isConnected ? "Connected" : "Disconnected";
+        _lastConnectionState = isConnected;
+        RefreshConnectionStatus();
     }
 
     #endregion Public Methods
 
     #region Private Methods
+
+    /// <summary>
+    /// Localized connection chip text keys.
+    /// </summary>
+    private const string ConnectedStatusKey = "Status.Connected";
+    private const string DisconnectedStatusKey = "Status.Disconnected";
+
+    /// <summary>
+    /// Derive the connection chip text from the stored adapter state: empty
+    /// before the first report, otherwise the localized
+    /// <see cref="ConnectedStatusKey"/> / <see cref="DisconnectedStatusKey"/>
+    /// value (re-derived on every language change so a runtime switch keeps
+    /// the chip localized).
+    /// </summary>
+    private void RefreshConnectionStatus() =>
+        ConnectionStatus = _lastConnectionState is not { } isConnected
+            ? string.Empty
+            : _localizationManager.GetString(
+                isConnected ? ConnectedStatusKey : DisconnectedStatusKey);
 
     /// <summary>
     /// Chip display name for a canonical theme Name: the matching theme's
