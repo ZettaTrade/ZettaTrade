@@ -9,6 +9,43 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.14] - 2026-11-01
+
+Build of task T-015 (configurable exchange endpoints + registry seam).
+
+### Added (T-015 — the registry seam)
+- `Exchange:Binance` settings section configures the Binance adapter's
+  transport endpoints at startup: rest base URL and WebSocket URL (camelCase
+  `restBaseUrl`/`wsUrl` in `appsettings.json`). Testnet, regional mirrors and
+  proxies no longer need a recompile; a section change takes effect on the
+  next app restart.
+- `BinanceEndpoints` — immutable value object (`RestBaseUrl`, `WsUrl`) with
+  the shipped `Production` default; `ExchangeEndpointRegistry` (app-lifetime
+  singleton) reads the section ONCE during the composition root's startup
+  walk and serves the pair synchronously to the adapter factory.
+- `BinanceAdapter` constructor accepts the endpoints pair: omitted →
+  shipped defaults; a provided pair with blank members fails fast
+  (`ArgumentException`) — the tolerant missing-entry case belongs to the
+  registry, not the adapter.
+- Tolerance rules: missing section → shipped production endpoints silently;
+  present-but-blank members → warning in the log + production endpoints.
+
+### Changed (T-015 — startup walk ordering)
+- The composition root's startup walk now initializes TYPED registrations
+  too: the static guard checks `typeof(IAsyncInitializable).IsAssignableFrom`
+  instead of a `type is IAsyncInitializable` pattern that never matched a
+  `System.Type`. The live probe caught the endpoint registry never
+  initializing (the walk skipped it) and the MCP-tools registration
+  constructing the whole adapter stack before the settings file was loaded.
+- `RegisterAll` (MCP trading tools) moved after the startup walk: resolving
+  `ITradingAdapter` constructs the adapter stack, and the Binance adapter
+  reads its endpoints from the registry at construction time — the walk must
+  have loaded the settings file first, or every adapter silently ran on the
+  shipped production hosts.
+- Test suite 159 → 169 (10 new `ExchangeEndpointRegistryTests`: walk
+  semantics, ctor validation, a startup replica wiring the configured host
+  into the resolved adapter, a real-file end-to-end read).
+
 ## [0.1.0-alpha.13] - 2026-11-01
 
 Build of task T-014 (instrument autocomplete in the order dialog).
