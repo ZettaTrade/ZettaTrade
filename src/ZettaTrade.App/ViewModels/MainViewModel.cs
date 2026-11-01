@@ -4,7 +4,7 @@ using System;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
-using ZettaTrade.Core.Interfaces;
+using ZettaTrade.App.Services;
 using ZettaTrade.UI.Extensions;
 
 /// <summary>
@@ -17,7 +17,6 @@ public sealed class MainViewModel : ReactiveObject
     private static readonly TimeSpan ConnectionPollInterval = TimeSpan.FromSeconds(2);
 
     private readonly ILogger<MainViewModel> _logger;
-    private readonly IMarketDataAdapter _marketData;
 
     /// <summary>Menu ViewModel for menu bar.</summary>
     public MenuViewModel Menu { get; }
@@ -47,7 +46,7 @@ public sealed class MainViewModel : ReactiveObject
         SettingsViewModel settings,
         ChartViewModel chart,
         OrderBookViewModel orderBook,
-        IMarketDataAdapter marketData,
+        ActiveExchangeService activeExchanges,
         ILogger<MainViewModel> logger)
     {
         Menu = menu;
@@ -57,19 +56,25 @@ public sealed class MainViewModel : ReactiveObject
         Chart = chart;
         OrderBook = orderBook;
         _logger = logger;
-        _marketData = marketData;
 
         // The status chip mirrors the adapter connection state. The Core
         // contract is a property (no state stream), so an App-owned poll
-        // bridges it — the chip is at most ConnectionPollInterval stale,
-        // which is acceptable for a status indicator. The ViewModel lives as
-        // long as the application (composes singleton sub-ViewModels), so
-        // this subscription mirrors it and needs no explicit disposal.
-        Observable
-            .Return(marketData.IsConnected)
-            .Concat(Observable
-                .Interval(ConnectionPollInterval)
-                .Select(_ => _marketData.IsConnected))
+        // bridges it. The poll follows the active exchange: the behavioral
+        // AdapterChanges re-switches the whole pipeline, so a switch reports
+        // the new adapter's state immediately (deferred first value) and
+        // then holds the ConnectionPollInterval cadence on it;
+        // DistinctUntilChanged keeps the chip text stable unless the state
+        // flips. The ViewModel lives as long as the application (composes
+        // singleton sub-ViewModels), so this subscription mirrors it and
+        // needs no explicit disposal.
+        activeExchanges
+            .AdapterChanges
+            .Select(adapter => Observable
+                .Return(adapter.IsConnected)
+                .Concat(Observable
+                    .Interval(ConnectionPollInterval)
+                    .Select(_ => adapter.IsConnected)))
+            .Switch()
             .DistinctUntilChanged()
             .ObserveOnUiThread()
             .Subscribe(

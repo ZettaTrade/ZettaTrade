@@ -117,6 +117,15 @@
   <data name="Status.Disconnected" xml:space="preserve">
     <value>Disconnected</value>
   </data>
+  <data name="Status.ExchangePicker" xml:space="preserve">
+    <value>Active exchange</value>
+  </data>
+  <data name="Status.PaperMode" xml:space="preserve">
+    <value>Paper</value>
+  </data>
+  <data name="Status.ExchangeFallback" xml:space="preserve">
+    <value>Saved exchange unavailable — continuing on the default one</value>
+  </data>
   <data name="AI.Assistant" xml:space="preserve">
     <value>AI Assistant</value>
   </data>
