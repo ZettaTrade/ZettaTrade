@@ -26,6 +26,11 @@ Build of task T-014 (instrument autocomplete in the order dialog).
   holds); `SemaphoreSlim` single-flight serves concurrent consumers from
   that one fetch; a failed fetch is never cached, so the next consumer
   retries.
+- The dialog's symbol-list fetch runs under its command's execution
+  token: closing the order dialog cancels an in-flight download
+  silently. `SymbolListProvider.GetSymbolsAsync` takes no default token
+  — every consumer passes an explicit one; the only
+  `CancellationToken.None` left is the deliberate app-lifetime warm-up.
 
 ### Changed (T-014 — speed)
 - The chart symbols combo comes from the same provider (the startup used
@@ -40,9 +45,9 @@ Build of task T-014 (instrument autocomplete in the order dialog).
   instruments).
 
 ### Changed
-- Test suite 152 -> 158 (8 new: 5 `NewOrderDialogViewModelTests`, 3
-  `SymbolListProviderTests`; the chart tests thread the provider through
-  the same fake adapter).
+- Test suite 152 -> 159 (9 new: 5 dialog suggestion tests, 3
+  `SymbolListProviderTests`, 1 dialog dispose-cancels-the-fetch test; the
+  chart tests thread the provider through the same fake adapter).
 
 ## [0.1.0-alpha.12] - 2026-11-01
 
