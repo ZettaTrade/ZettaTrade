@@ -300,4 +300,19 @@
   <data name="History.Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="OrderBook.Title" xml:space="preserve">
+    <value>Order Book</value>
+  </data>
+  <data name="OrderBook.NoDataMessage" xml:space="preserve">
+    <value>No data available</value>
+  </data>
+  <data name="OrderBook.Price" xml:space="preserve">
+    <value>Price</value>
+  </data>
+  <data name="OrderBook.CumulativeVolume" xml:space="preserve">
+    <value>Cumulative volume</value>
+  </data>
+  <data name="OrderBook.SpreadFormat" xml:space="preserve">
+    <value>Spread: {0}</value>
+  </data>
 </root>

@@ -9,6 +9,38 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.11] - 2026-11-01
+
+Build of task T-011 (order book widget).
+
+### Added (T-011 — order book)
+- Live order book panel in the workspace: Skia depth widget
+  (`OrderBookWidget`, `ICustomDrawOperation` like the chart) driven by a
+  self-fed `OrderBookViewModel` (free-typed symbol, default BTC/USDT) over
+  `IMarketDataAdapter.SubscribeOrderBook`; bids/asks plan drawn by the pure
+  `OrderBookPageLayout` with cumulative-volume bars, spread and localized
+  header/columns in en/ru (`OrderBook.*`).
+- Demand-driven stream start: the first subscriber of any feed starts the
+  adapter-side streams (`ExchangeAdapterBase` virtual
+  `StartSymbolStreamsAsync`; Binance connects once, then SUBSCRIBEs the
+  symbol's ticker/book/trade streams under a semaphore) — market data no
+  longer stays dark because nothing ever called `ConnectAsync`.
+
+### Fixed
+- WS transport survived only until the stream start completed (Rx reclaims
+  the start token): `WebSocketClient` now opens on the caller's token and
+  runs the receive/reconnect loop on an adapter-owned session token.
+- SUBSCRIBE payloads lacked the required `id`, and the raw `/ws` endpoint
+  did not emit the `{"stream","data"}` envelope the message handler
+  expects — both dropped depth frames silently; now serialized with id and
+  connected via the combined `/stream` endpoint.
+
+### Changed
+- Test suite 119 -> 137 (18 new: 5 `ExchangeAdapterBaseSubscriptionTests`
+  contract tests, 5 `OrderBookViewModelTests` feed/switch tests, 8
+  `OrderBookPageLayoutTests` including the 60 fps frame-budget measurement:
+  avg 1.9 ms / worst 4.8 ms per frame at 1000 levels per side).
+
 ## [0.1.0-alpha.10] - 2026-11-01
 
 First versioned state (build of task T-010; app shell and everything

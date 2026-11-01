@@ -68,8 +68,12 @@ public sealed class WebSocketClient : IAsyncDisposable
     #region Public Methods
 
     /// <summary>
-    /// Connect to the WebSocket server. Retries up to <paramref name="maxConnectAttempts"/> tries
-    /// (configured in the constructor) and yields the reconnect loop to the background.
+    /// Connect to the WebSocket server, retrying up to <paramref name="maxConnectAttempts"/>
+    /// times (configured in the constructor). The open phase honours <paramref name="ct"/>:
+    /// a cancelled caller aborts the in-flight connect. Once the connection is open, the
+    /// background receive/reconnect loop runs on the session token owned here — callers may
+    /// only own their token for the length of the call (a stream start), while the session
+    /// must live until <see cref="DisconnectAsync"/> or disposal.
     /// </summary>
     public async Task ConnectAsync(CancellationToken ct = default)
     {
@@ -78,16 +82,16 @@ public sealed class WebSocketClient : IAsyncDisposable
         // A new session cancels any previous one.
         _cts?.Cancel();
         _cts?.Dispose();
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var token = _cts.Token;
+        _cts = new CancellationTokenSource();
+        var session = _cts.Token;
 
-        while (!token.IsCancellationRequested && _reconnectAttempts < _maxReconnectAttempts)
+        while (!ct.IsCancellationRequested && _reconnectAttempts < _maxReconnectAttempts)
         {
             try
             {
-                await OpenSocketAsync(token);
+                await OpenSocketAsync(ct);
                 _logger.LogInformation("WebSocket connected to {Url}", _url);
-                StartLoop(token);
+                StartLoop(session);
                 return;
             }
             catch (OperationCanceledException)
@@ -107,11 +111,11 @@ public sealed class WebSocketClient : IAsyncDisposable
                     _maxReconnectAttempts);
 
                 if (_reconnectAttempts < _maxReconnectAttempts)
-                    await Task.Delay(_reconnectDelay, token);
+                    await Task.Delay(_reconnectDelay, ct);
             }
         }
 
-        if (token.IsCancellationRequested)
+        if (ct.IsCancellationRequested)
             return;
 
         if (_reconnectAttempts >= _maxReconnectAttempts)
