@@ -34,6 +34,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // registration lives for the rest of it — no subscription disposal here.
         ViewModel?.Menu.OpenSettingsRequested.RegisterHandler(OpenSettingsAsync);
         ViewModel?.Menu.NewOrderRequested.RegisterHandler(OpenNewOrderAsync);
+        ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
     }
 
     private async Task OpenNewOrderAsync(IInteractionContext<RxVoid, RxVoid> context)
@@ -51,6 +52,28 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the new order dialog");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenPositionsAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The panel view model is transient: every open starts by
+            // reloading the adapter state and the session order journal.
+            var panel = new PositionsPanelWindow
+            {
+                DataContext = App.Services.GetRequiredService<ViewModels.PositionsPanelViewModel>(),
+            };
+            await panel.ShowDialog<object>(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the positions panel");
         }
         finally
         {
