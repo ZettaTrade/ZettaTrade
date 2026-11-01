@@ -4,6 +4,7 @@ using System.Globalization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ReactiveUI.Primitives;
+using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
@@ -29,9 +30,6 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     private const string OrderRejectedKey = "NewOrder.OrderRejected";
     private const string OrderPlacedKey = "NewOrder.OrderPlaced";
 
-    private const string ConfirmPlaceOrderKey = "Trading.ConfirmPlaceOrderFormat";
-    private const string MarketLabelKey = "Trading.PriceMarket";
-
     #endregion Resx Keys
 
     #region Private Fields
@@ -39,6 +37,8 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     private readonly ITradingAdapter _trading;
     private readonly IRiskManager _riskManager;
     private readonly IConfirmationService _confirmation;
+    private readonly OrderConfirmationComposer _composer;
+    private readonly IOrderJournal _orderJournal;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<NewOrderDialogViewModel> _logger;
 
@@ -155,12 +155,16 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
         ITradingAdapter trading,
         IRiskManager riskManager,
         IConfirmationService confirmation,
+        OrderConfirmationComposer composer,
+        IOrderJournal orderJournal,
         ILocalizationManager localization,
         ILogger<NewOrderDialogViewModel> logger)
     {
         _trading = trading ?? throw new ArgumentNullException(nameof(trading));
         _riskManager = riskManager ?? throw new ArgumentNullException(nameof(riskManager));
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
+        _composer = composer ?? throw new ArgumentNullException(nameof(composer));
+        _orderJournal = orderJournal ?? throw new ArgumentNullException(nameof(orderJournal));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -206,7 +210,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
                 return;
             }
 
-            var confirmed = await _confirmation.RequestConfirmationAsync(BuildConfirmationRequest(request));
+            var confirmed = await _confirmation.RequestConfirmationAsync(_composer.ForPlace(request));
             if (!confirmed)
             {
                 _logger.LogInformation("Order dialog: user cancelled the confirmation; nothing placed");
@@ -214,6 +218,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
             }
 
             var order = await _trading.PlaceOrderAsync(request);
+            _orderJournal.RecordPlaced(order);
             ResultMessage = _localization.GetString(OrderPlacedKey, order.Id);
             _logger.LogInformation("Order dialog: placed {OrderId} ({Status})", order.Id, order.Status);
 
@@ -288,32 +293,6 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
             Price = limitPrice,
         };
         return true;
-    }
-
-    /// <summary>
-    /// Confirmation payload in the same format the MCP trading tools use, so
-    /// the user always sees one identical order summary before a placement.
-    /// </summary>
-    private ConfirmationRequest BuildConfirmationRequest(OrderRequest request)
-    {
-        var sideText = _localization.GetString($"Order.{request.Side}");
-        var typeText = _localization.GetString($"Order.{request.Type}");
-        var priceText = request.Price is { } price
-            ? price.Value.ToString("F8", CultureInfo.InvariantCulture)
-            : _localization.GetString(MarketLabelKey);
-
-        return new ConfirmationRequest
-        {
-            MessageKey = ConfirmPlaceOrderKey,
-            Arguments =
-            [
-                sideText,
-                typeText,
-                request.Quantity.Value.ToString(CultureInfo.InvariantCulture),
-                request.Symbol.Normalized,
-                priceText,
-            ],
-        };
     }
 
     #endregion Private Methods

@@ -186,4 +186,82 @@
   <data name="NewOrder.OrderPlaced" xml:space="preserve">
     <value>Ордер размещён: {0}</value>
   </data>
+  <data name="Positions.Title" xml:space="preserve">
+    <value>Позиции и ордера</value>
+  </data>
+  <data name="Positions.PositionsHeader" xml:space="preserve">
+    <value>Открытые позиции</value>
+  </data>
+  <data name="Positions.NoPositions" xml:space="preserve">
+    <value>Нет открытых позиций</value>
+  </data>
+  <data name="Positions.OpenOrdersHeader" xml:space="preserve">
+    <value>Открытые ордера</value>
+  </data>
+  <data name="Positions.NoOpenOrders" xml:space="preserve">
+    <value>Нет открытых ордеров</value>
+  </data>
+  <data name="Positions.RecentHeader" xml:space="preserve">
+    <value>Ордера, размещённые в этой сессии</value>
+  </data>
+  <data name="Positions.NoRecent" xml:space="preserve">
+    <value>В этой сессии ещё ничего не размещалось</value>
+  </data>
+  <data name="Positions.Symbol" xml:space="preserve">
+    <value>Символ</value>
+  </data>
+  <data name="Positions.Side" xml:space="preserve">
+    <value>Направление</value>
+  </data>
+  <data name="Positions.ColQuantity" xml:space="preserve">
+    <value>Количество</value>
+  </data>
+  <data name="Positions.ColPrice" xml:space="preserve">
+    <value>Цена</value>
+  </data>
+  <data name="Positions.ColStatus" xml:space="preserve">
+    <value>Статус</value>
+  </data>
+  <data name="Positions.ColOpened" xml:space="preserve">
+    <value>Время открытия</value>
+  </data>
+  <data name="Positions.StatusPending" xml:space="preserve">
+    <value>Ожидает</value>
+  </data>
+  <data name="Positions.StatusSubmitted" xml:space="preserve">
+    <value>Отправлен</value>
+  </data>
+  <data name="Positions.StatusPartiallyFilled" xml:space="preserve">
+    <value>Частично исполнен</value>
+  </data>
+  <data name="Positions.StatusFilled" xml:space="preserve">
+    <value>Исполнен</value>
+  </data>
+  <data name="Positions.StatusCancelled" xml:space="preserve">
+    <value>Отменён</value>
+  </data>
+  <data name="Positions.StatusRejected" xml:space="preserve">
+    <value>Отклонён</value>
+  </data>
+  <data name="Positions.StatusExpired" xml:space="preserve">
+    <value>Истёк</value>
+  </data>
+  <data name="Positions.Cancelled" xml:space="preserve">
+    <value>Ордер отменён: {0}</value>
+  </data>
+  <data name="Positions.CancelFailed" xml:space="preserve">
+    <value>Ордер не был отменён: {0}</value>
+  </data>
+  <data name="Positions.ConfirmCancelFormat" xml:space="preserve">
+    <value>Отменить ордер {1} ({2} {3}, {0})?</value>
+  </data>
+  <data name="Positions.LoadFailed" xml:space="preserve">
+    <value>Не удалось загрузить позиции и ордера: {0}</value>
+  </data>
+  <data name="Positions.CancelCurrentPosition" xml:space="preserve">
+    <value>Отменить</value>
+  </data>
+  <data name="Positions.Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
 </root>

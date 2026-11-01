@@ -186,4 +186,82 @@
   <data name="NewOrder.OrderPlaced" xml:space="preserve">
     <value>Order placed: {0}</value>
   </data>
+  <data name="Positions.Title" xml:space="preserve">
+    <value>Positions and orders</value>
+  </data>
+  <data name="Positions.PositionsHeader" xml:space="preserve">
+    <value>Open positions</value>
+  </data>
+  <data name="Positions.NoPositions" xml:space="preserve">
+    <value>No open positions</value>
+  </data>
+  <data name="Positions.OpenOrdersHeader" xml:space="preserve">
+    <value>Open orders</value>
+  </data>
+  <data name="Positions.NoOpenOrders" xml:space="preserve">
+    <value>No open orders</value>
+  </data>
+  <data name="Positions.RecentHeader" xml:space="preserve">
+    <value>Orders placed this session</value>
+  </data>
+  <data name="Positions.NoRecent" xml:space="preserve">
+    <value>Nothing placed in this session yet</value>
+  </data>
+  <data name="Positions.Symbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="Positions.Side" xml:space="preserve">
+    <value>Side</value>
+  </data>
+  <data name="Positions.ColQuantity" xml:space="preserve">
+    <value>Quantity</value>
+  </data>
+  <data name="Positions.ColPrice" xml:space="preserve">
+    <value>Price</value>
+  </data>
+  <data name="Positions.ColStatus" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Positions.ColOpened" xml:space="preserve">
+    <value>Opened</value>
+  </data>
+  <data name="Positions.StatusPending" xml:space="preserve">
+    <value>Pending</value>
+  </data>
+  <data name="Positions.StatusSubmitted" xml:space="preserve">
+    <value>Submitted</value>
+  </data>
+  <data name="Positions.StatusPartiallyFilled" xml:space="preserve">
+    <value>Partially filled</value>
+  </data>
+  <data name="Positions.StatusFilled" xml:space="preserve">
+    <value>Filled</value>
+  </data>
+  <data name="Positions.StatusCancelled" xml:space="preserve">
+    <value>Cancelled</value>
+  </data>
+  <data name="Positions.StatusRejected" xml:space="preserve">
+    <value>Rejected</value>
+  </data>
+  <data name="Positions.StatusExpired" xml:space="preserve">
+    <value>Expired</value>
+  </data>
+  <data name="Positions.Cancelled" xml:space="preserve">
+    <value>Order cancelled: {0}</value>
+  </data>
+  <data name="Positions.CancelFailed" xml:space="preserve">
+    <value>Order was not cancelled: {0}</value>
+  </data>
+  <data name="Positions.ConfirmCancelFormat" xml:space="preserve">
+    <value>Cancel the {0} order {1} ({2} {3})?</value>
+  </data>
+  <data name="Positions.LoadFailed" xml:space="preserve">
+    <value>Could not load positions and orders: {0}</value>
+  </data>
+  <data name="Positions.CancelCurrentPosition" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Positions.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
 </root>
