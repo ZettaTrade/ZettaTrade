@@ -14,12 +14,13 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-008 New Order dialog | feat/order-dialog | done | — |
 | T-009 Positions & open orders panel | feat/positions | done | — |
 | T-010 Order history + persistence (EF Core) | feat/order-history | done | — |
-| T-011 Order book widget (60 fps target) | feat/order-book | planned | — |
+| T-011 Order book widget (60 fps target) | feat/order-book | in-progress | — |
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
 | T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | done | — |
 | T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
 | T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
 | T-016 Exchange selector in the toolbar | feat/exchange-selector | planned | needs a 2nd adapter |
+| T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | planned | — |
 
 ---
 
@@ -168,11 +169,20 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 
 ## T-011 — Order book widget
 
-- **Branch:** `feat/order-book`
-- **Scope:** order book panel in `src/ZettaTrade.App` (SkiaSharp or virtualized ItemsControl), driven by `IMarketDataAdapter.SubscribeOrderBook`.
+- **Branch:** `feat/order-book` (worktree `zt-order-book`, cut from develop @ e7a7d56)
+- **Scope:** depth rendering in `src/ZettaTrade.UI/Charting` (Skia widget, CandlestickChart pattern), `src/ZettaTrade.App` (self-fed `OrderBookViewModel` + wiring), `src/ZettaTrade.Infrastructure/Exchange` (lazy stream start on first subscriber), resx `OrderBook.*` en+ru + `check-resx.ps1` prefix. Tests across Infrastructure/App/UI test projects. Core contracts untouched.
 - **What:** Depth view with bids/asks, live updates.
+- **Pre-existing runtime facts discovered at start (2026-11-01 probe):**
+  - `WhenActivated` never fires for VMs bound as nested-panel DataContexts: the main workspace runs with `ChartViewModel` dead (no symbols, no bars, "Нет данных"). Workspace VMs therefore use ctor subscriptions (the documented `StatusBarViewModel` precedent) and the widget subscribes on view attach; the chart's own gap is queued separately as T-017, not patched in scope here.
+  - Nobody started the live subsystem: `ConnectAsync`/`SubscribeSymbolAsync` had no callers — market-data streams were unreachable (`SubscribeOrderBook` returned a never-filled subject). T-011 adds demand-driven stream start.
+- **Design:**
+  - `ExchangeAdapterBase`: stream-subject seams get a virtual `StartSymbolStreamsAsync(Symbol, CancellationToken)` starter (default no-op); the first subscription triggers the start, an in-flight start is cancelled with the subscription; repeated outer subscriptions re-run the idempotent start (documented). `BinanceAdapter` implements the starter: connect once (guard), then SUBSCRIBE the symbol's ticker/book/trade streams, serialized via `SemaphoreSlim` (no `lock` in async code).
+  - App: `OrderBookViewModel` holds a typed `SymbolInput` (default BTC/USDT, parsed like the dialog), publishes an `Updates` stream switched on the parsed symbol; a parse failure keeps the previous symbol (logged, never silently defaulted).
+  - UI: `OrderBookWidget` draws a per-frame snapshot (bids/asks halves, cumulative volume bars, header from the book's own symbol); depth beyond fitted rows is not drawn, so per-frame cost is bounded by control size, not by 1000+ levels; theme colors reused (`CandleUp`/`CandleDown`, background/grid/text), localized no-data/state strings.
 - **Acceptance:**
-  - Performance target measured: 60 fps with 1000+ levels (per the stated targets), graceful degradation when the adapter has no book stream.
+  - Performance target measured by tests: the layout+snapshot path for 1000 levels per side sustains 60 fps (frame budget < 16 ms, measured value printed), and the VM-side ingest keeps up with 60 Hz pushes of 1000-level snapshots without backlog.
+  - Real-Binance runtime probe: the default BTC/USDT book streams live depth (screenshots ~2 s apart differ, depth updates), and an idle/unreachable adapter degrades to the localized no-data placeholder instead of freezing or crashing.
+  - gate.ps1 passes; version lands as alpha.11 per the changelog convention.
 
 ## T-012 — UX follow-ups: chat focus, reconnect states
 
@@ -232,3 +242,13 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - One adapter: no selector, zero behavior change (pinned by test).
   - Two adapters: switching is atomic — chart/book/dialog switch together, in-flight data of the previous adapter is dropped, not mixed.
   - Unavailable persisted choice → startup warning + default selection; gate.
+
+## T-017 — One symbol context for the workspace (queued during T-011)
+
+- **Branch:** `feat/workspace-symbols` (planned)
+- **Scope:** `src/ZettaTrade.App` (workspace symbol flow: `ChartViewModel` + `OrderBookViewModel` follow one selection; the dead `WhenActivated` path for nested-panel DataContext VMs), possibly a small `MainViewModel` coordination change.
+- **What:** Born from the T-011 probe: `ChartViewModel` is silently dead (its `WhenActivated` never fires for a nested DataContext, so the symbol combo stays empty and the chart draws "Нет данных"), and the T-011 book carries its own typed symbol. The workspace should have ONE active symbol driving chart and book; this task decides whether that is ctor-subscription bootstrap, view-attached activation, or an explicit workspace-level `SelectedSymbol` owner, then removes the duplicate default the two panels currently hold.
+- **Acceptance:**
+  - Selecting a symbol in the workspace combo drives both the chart and the order book (probe).
+  - The chart shows real klines on cold start again (regression: the "Нет данных" dead state disappears without a page refresh).
+  - gate.
