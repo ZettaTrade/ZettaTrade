@@ -264,4 +264,40 @@
   <data name="Positions.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="History.Title" xml:space="preserve">
+    <value>История ордеров</value>
+  </data>
+  <data name="History.Empty" xml:space="preserve">
+    <value>Пока нет записей об ордерах</value>
+  </data>
+  <data name="History.ColOpened" xml:space="preserve">
+    <value>Открыт</value>
+  </data>
+  <data name="History.ColExchange" xml:space="preserve">
+    <value>Биржа</value>
+  </data>
+  <data name="History.ColSymbol" xml:space="preserve">
+    <value>Символ</value>
+  </data>
+  <data name="History.ColSide" xml:space="preserve">
+    <value>Направление</value>
+  </data>
+  <data name="History.ColType" xml:space="preserve">
+    <value>Тип</value>
+  </data>
+  <data name="History.ColQuantity" xml:space="preserve">
+    <value>Количество</value>
+  </data>
+  <data name="History.ColPrice" xml:space="preserve">
+    <value>Цена</value>
+  </data>
+  <data name="History.ColStatus" xml:space="preserve">
+    <value>Статус</value>
+  </data>
+  <data name="History.LoadFailed" xml:space="preserve">
+    <value>Не удалось загрузить историю ордеров: {0}</value>
+  </data>
+  <data name="History.Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
 </root>

@@ -21,7 +21,8 @@ $ModulePrefixes = @(
     'Chart.',
     'Trading.',
     'NewOrder.',
-    'Positions.'
+    'Positions.',
+    'History.'
 )
 
 function Get-ResxKeys([string]$Path) {

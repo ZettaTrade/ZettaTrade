@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:ZettaTrade.UI.Localization"
+        x:Class="ZettaTrade.App.Views.OrderHistoryWindow"
+        x:DataType="vm:OrderHistoryViewModel"
+        Title="{loc:Localized History.Title}"
+        Width="920" Height="520"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+
+    <Grid Margin="16" RowDefinitions="*,Auto,Auto" RowSpacing="10">
+
+        <ScrollViewer Grid.Row="0">
+            <StackPanel Spacing="6">
+
+                <!-- Column headers -->
+                <Grid ColumnDefinitions="150,90,125,55,75,75,150,125"
+                      IsVisible="{Binding HasRows}">
+                    <TextBlock Grid.Column="0" Text="{loc:Localized History.ColOpened}" />
+                    <TextBlock Grid.Column="1" Text="{loc:Localized History.ColExchange}" />
+                    <TextBlock Grid.Column="2" Text="{loc:Localized History.ColSymbol}" />
+                    <TextBlock Grid.Column="3" Text="{loc:Localized History.ColSide}" />
+                    <TextBlock Grid.Column="4" Text="{loc:Localized History.ColType}" />
+                    <TextBlock Grid.Column="5" Text="{loc:Localized History.ColQuantity}" />
+                    <TextBlock Grid.Column="6" Text="{loc:Localized History.ColPrice}" />
+                    <TextBlock Grid.Column="7" Text="{loc:Localized History.ColStatus}" />
+                </Grid>
+
+                <!-- Empty state -->
+                <TextBlock Text="{loc:Localized History.Empty}"
+                           IsVisible="{Binding !HasRows}" />
+
+                <!-- Persisted journal rows, newest first -->
+                <ItemsControl ItemsSource="{Binding Rows}"
+                              IsVisible="{Binding HasRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:OrderHistoryRowViewModel">
+                            <Grid ColumnDefinitions="150,90,125,55,75,75,150,125">
+                                <TextBlock Grid.Column="0" Text="{Binding Opened}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Exchange}" />
+                                <TextBlock Grid.Column="2" Text="{Binding Symbol}" />
+                                <TextBlock Grid.Column="3" Text="{Binding Side}" />
+                                <TextBlock Grid.Column="4" Text="{Binding Type}" />
+                                <TextBlock Grid.Column="5" Text="{Binding Quantity}" />
+                                <TextBlock Grid.Column="6" Text="{Binding Price}" />
+                                <TextBlock Grid.Column="7" Text="{Binding Status}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Load failure -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding ErrorMessage}"
+                   Foreground="Red"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasErrorMessage}" />
+
+        <Button Grid.Row="2"
+                Content="{loc:Localized History.Close}"
+                Click="OnCloseClick"
+                MinWidth="90"
+                HorizontalAlignment="Right" />
+
+    </Grid>
+</Window>

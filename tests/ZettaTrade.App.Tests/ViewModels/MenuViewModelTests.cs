@@ -52,4 +52,24 @@ public sealed class MenuViewModelTests
         // Assert
         handled.Should().Be(1);
     }
+
+    [Fact]
+    public async Task ShowOrderHistoryCommand_Executed_RoutesThroughShowOrderHistoryInteraction()
+    {
+        // Arrange
+        var menu = new MenuViewModel();
+        var handled = 0;
+        menu.ShowOrderHistoryRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref handled);
+            context.SetOutput(RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await menu.ShowOrderHistoryCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(1);
+    }
 }

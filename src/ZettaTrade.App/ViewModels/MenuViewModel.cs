@@ -42,6 +42,13 @@ public sealed class MenuViewModel : ReactiveObject
     public Interaction<RxVoid, RxVoid> ShowPositionsRequested { get; }
 
     /// <summary>
+    /// Interaction that routes the show-order-history request to the View,
+    /// which hosts the modal window (same pattern as
+    /// <see cref="ShowPositionsRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowOrderHistoryRequested { get; }
+
+    /// <summary>
     /// Interaction that routes the new-order request to the View, which hosts
     /// the dialog window (same pattern as <see cref="OpenSettingsRequested"/>).
     /// </summary>
@@ -62,6 +69,7 @@ public sealed class MenuViewModel : ReactiveObject
         OpenSettingsRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
         ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
+        ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
@@ -87,7 +95,11 @@ public sealed class MenuViewModel : ReactiveObject
     /// </summary>
     private Task HandleShowPositionsAsync() => ShowPositionsRequested.Handle(RxVoid.Default);
 
-    private Task HandleShowOrderHistoryAsync() => Task.CompletedTask;
+    /// <summary>
+    /// Route the show-order-history request to the View (window plumbing
+    /// stays out of the ViewModel, same as the positions panel).
+    /// </summary>
+    private Task HandleShowOrderHistoryAsync() => ShowOrderHistoryRequested.Handle(RxVoid.Default);
 
     private Task HandleOpenAiChatAsync() => Task.CompletedTask;
 

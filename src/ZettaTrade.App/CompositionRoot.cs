@@ -11,6 +11,7 @@ using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Infrastructure.Secrets;
 using ZettaTrade.Infrastructure.Shell;
 using ZettaTrade.UI.Localization;
@@ -103,6 +104,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddTransient<MainViewModel>();
         services.AddTradingUiServices();
+        services.AddOrderHistory();
+        services.AddHistoryUiServices();
 
         // MCP trading tools: registered once, against the paper trading adapter
         // (mock surface; real exchange adapters are plugged in as plugins later).

@@ -44,6 +44,13 @@ public static class ConfigPathResolver
     public static string McpConfigFile => Path.Combine(ConfigDirectory, "mcp.config.json");
 
     /// <summary>
+    /// Path to the SQLite database holding the persistent order history
+    /// (the trading adapters themselves never touch it; writes go through
+    /// the Infrastructure persistence module).
+    /// </summary>
+    public static string OrderHistoryDatabaseFile => Path.Combine(DataDirectory, "orders-history.db");
+
+    /// <summary>
     /// Ensure all required directories exist.
     /// </summary>
     public static void EnsureDirectoriesExist()

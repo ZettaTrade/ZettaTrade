@@ -9,6 +9,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// New Order dialog view model. Collects the order inputs, and routes the
@@ -39,6 +40,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     private readonly IConfirmationService _confirmation;
     private readonly OrderConfirmationComposer _composer;
     private readonly IOrderJournal _orderJournal;
+    private readonly IOrderHistoryStore _orderHistory;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<NewOrderDialogViewModel> _logger;
 
@@ -157,6 +159,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
         IConfirmationService confirmation,
         OrderConfirmationComposer composer,
         IOrderJournal orderJournal,
+        IOrderHistoryStore orderHistory,
         ILocalizationManager localization,
         ILogger<NewOrderDialogViewModel> logger)
     {
@@ -165,6 +168,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
         _orderJournal = orderJournal ?? throw new ArgumentNullException(nameof(orderJournal));
+        _orderHistory = orderHistory ?? throw new ArgumentNullException(nameof(orderHistory));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -219,6 +223,22 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
 
             var order = await _trading.PlaceOrderAsync(request);
             _orderJournal.RecordPlaced(order);
+
+            // Persist the placed order into the SQLite journal. Best effort:
+            // the adapter accepted the order already, so a persistence fault
+            // must never turn a successful placement into a dialog error.
+            try
+            {
+                await _orderHistory.RecordPlacedAsync(order);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Order dialog: failed to persist {OrderId} to the order history",
+                    order.Id);
+            }
+
             ResultMessage = _localization.GetString(OrderPlacedKey, order.Id);
             _logger.LogInformation("Order dialog: placed {OrderId} ({Status})", order.Id, order.Status);
 
