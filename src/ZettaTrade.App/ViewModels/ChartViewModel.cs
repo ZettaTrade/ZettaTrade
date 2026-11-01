@@ -21,7 +21,12 @@ using ZettaTrade.UI.Extensions;
 /// publishes every confirmed selection (the workspace combo change and the
 /// symbols preselect both raise <see cref="SelectedSymbol"/>) for watchers such
 /// as the order book panel. <see cref="BarsUpdates"/> stays raw and testable;
-/// <see cref="Bars"/> is assigned after the UI-thread hop.
+/// <see cref="Bars"/> is assigned after the UI-thread hop. The exchange
+/// context is inherited from the active-exchange facade: both the symbol
+/// bootstrap and the bars machine re-run on every adapter change, so the
+/// workspace follows the toolbar selector blind. The ViewModel lives as
+/// long as the application (singleton), so the subscriptions mirror it
+/// and need no explicit disposal.
 /// </remarks>
 public sealed class ChartViewModel : ReactiveObject
 {
@@ -44,7 +49,7 @@ public sealed class ChartViewModel : ReactiveObject
     #region Properties
 
     private readonly ILogger<ChartViewModel> _logger;
-    private readonly IMarketDataAdapter _marketData;
+    private readonly ActiveExchangeService _activeExchanges;
     private readonly SymbolListProvider _symbolList;
 
     private ObservableCollection<Bar> _bars = new();
@@ -97,11 +102,11 @@ public sealed class ChartViewModel : ReactiveObject
     /// Create a new ChartViewModel instance.
     /// </summary>
     public ChartViewModel(
-        IMarketDataAdapter marketData,
+        ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
         ILogger<ChartViewModel> logger)
     {
-        _marketData = marketData;
+        _activeExchanges = activeExchanges;
         _symbolList = symbolList;
         _logger = logger;
 
@@ -109,8 +114,13 @@ public sealed class ChartViewModel : ReactiveObject
             .Where(symbol => symbol is not null)
             .Select(symbol => symbol!);
 
+        // Bars re-load on every selection or active-exchange change: the pair
+        // pins the adapter that owns the bars, so each load targets exactly
+        // the exchange of its triggering change, and the Switch drops the
+        // in-flight load of a superseded pair (atomic by construction).
         BarsUpdates = SymbolSelections
-            .Select(LoadBars)
+            .CombineLatest(activeExchanges.AdapterChanges, (symbol, adapter) => (Symbol: symbol, Adapter: adapter))
+            .Select(pair => LoadBars(pair.Symbol, pair.Adapter))
             .Switch()
             .Replay(1)
             .RefCount();
@@ -127,27 +137,15 @@ public sealed class ChartViewModel : ReactiveObject
                 },
                 ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
 
-        // Bootstrap for the nested-panel singleton: load the shared symbol
-        // list once (assignments are marshaled; the failure stays logged and
-        // leaves the combo empty), then seed the combo with its first entry
-        // — the single workspace default owner.
-        Observable.FromAsync(LoadSymbolsAsync)
-            .ObserveOnUiThread()
+        // The symbol list belongs to the exchange: the bootstrap re-runs on
+        // every adapter change (the behavioral stream also performs the first
+        // load right at construction) and keeps the previous selection alive
+        // while the new exchange's list still carries it.
+        activeExchanges
+            .AdapterChanges
             .Subscribe(
-                symbols =>
-                {
-                    AvailableSymbols = new ObservableCollection<Symbol>(symbols);
-
-                    if (SelectedSymbol is null && AvailableSymbols.Count > 0)
-                    {
-                        SelectedSymbol = AvailableSymbols[0];
-                        _logger.LogInformation(
-                            "Symbols loaded: {Count}; preselected {Symbol}",
-                            AvailableSymbols.Count,
-                            SelectedSymbol);
-                    }
-                },
-                ex => _logger.LogError(ex, "Failed to load symbols"));
+                _ => BootstrapSymbols(),
+                ex => _logger.LogError(ex, "The chart symbols stream stopped unexpectedly"));
     }
 
     #endregion
@@ -157,11 +155,11 @@ public sealed class ChartViewModel : ReactiveObject
     /// <summary>
     /// Fetch the symbol list through the shared
     /// <see cref="SymbolListProvider"/> (one <c>exchangeInfo</c> fetch per
-    /// application run serves the chart combo and the order dialog
-    /// autocomplete alike; the provider is warmed at startup, so this
-    /// bootstrap usually awaits a fetch that already runs), trimmed to the
-    /// combo capacity. Failures belong to the subscribe side (logged there,
-    /// the combo stays empty).
+    /// application run per exchange serves the chart combo and the order
+    /// dialog autocomplete alike; the provider is warmed at startup and
+    /// flushed on every exchange switch, so this bootstrap usually awaits a
+    /// fetch or a ready cache), trimmed to the combo capacity. Failures
+    /// belong to the subscribe side (logged there, the combo stays empty).
     /// </summary>
     private async Task<IReadOnlyList<Symbol>> LoadSymbolsAsync(CancellationToken ct)
     {
@@ -170,23 +168,61 @@ public sealed class ChartViewModel : ReactiveObject
     }
 
     /// <summary>
-    /// Bars load for one selection. A failure ends this selection's data
-    /// (logged, never a default value) but must not terminate the switching
-    /// machine for later selections.
+    /// Load the symbol list for the current exchange and preselect. The
+    /// selection decision is computed raw (pinned by tests through
+    /// <see cref="Preselect"/>); the marshaled subscribe side only applies
+    /// the assignments, and a failure stays logged, leaving the combo empty.
     /// </summary>
-    private IObservable<IReadOnlyList<Bar>> LoadBars(Symbol symbol)
+    private void BootstrapSymbols()
     {
-        _logger.LogInformation("Chart bars load requested for {Symbol}", symbol);
+        Observable.FromAsync(LoadSymbolsAsync)
+            .Select(symbols => (
+                Symbols: symbols,
+                Selection: Preselect(SelectedSymbol, symbols)))
+            .ObserveOnUiThread()
+            .Subscribe(
+                page =>
+                {
+                    AvailableSymbols = new ObservableCollection<Symbol>(page.Symbols);
+                    SelectedSymbol = page.Selection;
+                    _logger.LogInformation(
+                        "Symbols loaded: {Count}; selected {Symbol}",
+                        AvailableSymbols.Count,
+                        SelectedSymbol);
+                },
+                ex => _logger.LogError(ex, "Failed to load symbols"));
+    }
+
+    /// <summary>
+    /// The preselection decision, in its pure form (pinned directly by
+    /// tests): the current selection survives while the new list carries
+    /// it, otherwise the first entry owns the workspace default; an empty
+    /// list clears the selection with no substitute.
+    /// </summary>
+    internal static Symbol? Preselect(Symbol? currentSelection, IReadOnlyList<Symbol> symbols) =>
+        currentSelection is { } kept && symbols.Contains(kept)
+            ? kept
+            : symbols.FirstOrDefault();
+
+    /// <summary>
+    /// Bars load for one selection on the exchange that triggered it. A
+    /// failure ends this selection's data (logged, never a default value)
+    /// but must not terminate the switching machine for later selections.
+    /// </summary>
+    private IObservable<IReadOnlyList<Bar>> LoadBars(Symbol symbol, IMarketDataAdapter adapter)
+    {
+        _logger.LogInformation("Chart bars load requested for {Symbol} on {Exchange}", symbol, adapter.Name);
 
         return Observable
-            .FromAsync(token => _marketData.GetBarsAsync(
+            .FromAsync(token => adapter.GetBarsAsync(
                 symbol,
                 ChartTimeFrame,
                 DateTimeOffset.UtcNow.AddDays(-ChartLookbackDays),
                 limit: InitialBarCount,
                 ct: token))
             // A cancelled load is the normal outcome of Switch dropping the
-            // previous selection: keep it silent (real failures log below).
+            // previous selection or exchange: keep it silent (real failures
+            // log below).
             .Catch<IReadOnlyList<Bar>, OperationCanceledException>(_ =>
                 Observable.Empty<IReadOnlyList<Bar>>())
             .Catch<IReadOnlyList<Bar>, Exception>(ex =>

@@ -9,6 +9,51 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.15] - 2026-11-01
+
+Build of task T-016 (exchange selector in the toolbar + the Demo adapter).
+
+### Added (T-016 — the exchange selector)
+- Status bar exchange picker (visible only when two or more adapters are
+  registered): picking an entry switches every market data consumer, the
+  paper trading adapter and the symbol autocomplete to that exchange
+  atomically; the choice persists (`Workspace:ExchangeId`) and is restored
+  at the next start (restore runs inside the startup walk).
+- `Exchange · Mode` chip next to the picker (`Binance · Paper`): the trading
+  mode stays a separate always-visible concern and is never folded into the
+  picker (exchange and mode are two different decisions).
+- `DemoMarketDataAdapter` — a deterministic canned-data adapter (no network,
+  no keys; six fixed symbols, seeded bars per (symbol, time frame) from an
+  explicit anchor, cadenced book/ticker/trades snapshots), always registered
+  to give the selector a second entry. It will be replaced by a real
+  exchange (Bybit/Kraken) in a dedicated adapter task.
+- Loud fallback: a persisted exchange id that is not registered anymore is
+  warned in the log and announced in the connection chip for ~5 s
+  (localized `Status.ExchangeFallback`), instead of a silent substitution.
+- resx keys `Status.ExchangePicker` / `Status.PaperMode` /
+  `Status.ExchangeFallback` (en + ru).
+
+### Changed (T-016 — the active-exchange facade)
+- `ActiveExchangeService` (app-lifetime singleton, `IAsyncInitializable`) is
+  now the single registered `IMarketDataAdapter`: everything forwards to the
+  active adapter; the behavioral `AdapterChanges` stream re-switches the
+  running market data streams (book/ticker/trades), the chart bars trigger
+  (`CombineLatest` with `AdapterChanges`) and the connection poll (a switch
+  reports the new adapter's state immediately) — a switch is context-wide by
+  construction, no consumer can stay on the previous exchange.
+- `SymbolListProvider` drops its cache on every exchange switch (the next
+  fetch targets the new exchange; a fetch racing a switch returns its data
+  but is not cached); the chart re-bootstraps the symbol list per switch and
+  keeps the selected symbol while the new exchange still lists it.
+- Registration layout: adapters register by concrete type only; the facade
+  owns the `IMarketDataAdapter` entry point; paper trading wraps the facade,
+  so trading follows the exchange automatically. The exact-one-`exchangeInfo`
+  path per run is preserved (the chart bootstrap joins the startup warm-up
+  through the provider's single-flight gate).
+- Test suite 176 → 207 (Demo adapter determinism + rejection rules, facade
+  restore/switch/stream semantics, picker visibility + fallback UX, chart
+  switch-and-cancel, provider flush).
+
 ## [0.1.0-alpha.14] - 2026-11-01
 
 Build of task T-015 (configurable exchange endpoints + registry seam).
