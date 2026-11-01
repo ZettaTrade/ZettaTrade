@@ -1,0 +1,133 @@
+namespace ZettaTrade.App.Tests.Services;
+
+using FluentAssertions;
+using NSubstitute;
+using Xunit;
+using ZettaTrade.App.Services;
+using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
+using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Core.ValueObjects;
+
+/// <summary>
+/// Tests for the shared confirmation composer: the place confirmation must
+/// keep the exact MCP-tool argument shape the new-order dialog tests lock
+/// in, and the cancel confirmation carries the order's own identity facts.
+/// </summary>
+public sealed class OrderConfirmationComposerTests
+{
+    private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
+
+    public OrderConfirmationComposerTests()
+    {
+        // The fake resolves dynamic messages in a predictable, test-visible
+        // form: the key plus the first argument, e.g. "[Order.Buy]".
+        _localization.GetString(Arg.Any<string>()).Returns(call =>
+            $"[{call.ArgAt<string>(0)}]");
+        _localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
+            $"[{call.ArgAt<string>(0)}:{FormatArgs(call.ArgAt<object[]>(1))}]");
+    }
+
+    [Fact]
+    public void ForPlace_LimitOrder_UsesMcpToolArgumentShape()
+    {
+        // Arrange
+        var composer = new OrderConfirmationComposer(_localization);
+        var request = new OrderRequest
+        {
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Buy,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(0.01m),
+            Price = new Price(50_000m),
+        };
+
+        // Act
+        var confirmation = composer.ForPlace(request);
+
+        // Assert: side, type, quantity, symbol, price — in that exact order.
+        confirmation.MessageKey.Should().Be("Trading.ConfirmPlaceOrderFormat");
+        confirmation.Arguments.Should().HaveCount(5);
+        confirmation.Arguments[0].Should().Be("[Order.Buy]");
+        confirmation.Arguments[1].Should().Be("[Order.Limit]");
+        confirmation.Arguments[2].Should().Be("0.01");
+        confirmation.Arguments[3].Should().Be("BTC/USDT");
+        confirmation.Arguments[4].Should().Be("50000.00000000");
+    }
+
+    [Fact]
+    public void ForPlace_MarketOrder_SubstitutesMarketPriceLabel()
+    {
+        // Arrange
+        var composer = new OrderConfirmationComposer(_localization);
+        var request = new OrderRequest
+        {
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Sell,
+            Type = OrderType.Market,
+            Quantity = new Quantity(0.02m),
+        };
+
+        // Act
+        var confirmation = composer.ForPlace(request);
+
+        // Assert: the market label takes the price slot.
+        confirmation.MessageKey.Should().Be("Trading.ConfirmPlaceOrderFormat");
+        confirmation.Arguments.Should().HaveCount(5);
+        confirmation.Arguments[0].Should().Be("[Order.Sell]");
+        confirmation.Arguments[1].Should().Be("[Order.Market]");
+        confirmation.Arguments[4].Should().Be("[Trading.PriceMarket]");
+    }
+
+    [Fact]
+    public void ForCancel_BuildsPositionsTemplateWithOrderIdentity()
+    {
+        // Arrange
+        var composer = new OrderConfirmationComposer(_localization);
+        var order = BuildOrder("paper-9", OrderSide.Sell);
+
+        // Act
+        var confirmation = composer.ForCancel(order);
+
+        // Assert: the cancellation template for the cancellation of the order's
+        // own symbol and id.
+        confirmation.MessageKey.Should().Be("Positions.ConfirmCancelFormat");
+        confirmation.Arguments.Should().HaveCount(4);
+        confirmation.Arguments[0].Should().Be("[Order.Sell]");
+        confirmation.Arguments[1].Should().Be("paper-9");
+        confirmation.Arguments[2].Should().Be("0.01");
+        confirmation.Arguments[3].Should().Be("ETH/USDT");
+    }
+
+    [Fact]
+    public void ForPlace_WithNullRequest_Throws()
+    {
+        var composer = new OrderConfirmationComposer(_localization);
+        var act = () => composer.ForPlace(null!);
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void ForCancel_WithNullOrder_Throws()
+    {
+        var composer = new OrderConfirmationComposer(_localization);
+        var act = () => composer.ForCancel(null!);
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    private static Order BuildOrder(string id, OrderSide side) => new()
+    {
+        Id = id,
+        ExchangeId = "paper",
+        Symbol = Symbol.Parse("ETH/USDT"),
+        Side = side,
+        Type = OrderType.Limit,
+        Quantity = new Quantity(0.01m),
+        Price = new Price(2_000m),
+        Status = OrderStatus.Pending,
+        TimeInForce = TimeInForce.GTC,
+        CreatedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
+    };
+
+    private static string FormatArgs(object[] args) => string.Join("|", args);
+}

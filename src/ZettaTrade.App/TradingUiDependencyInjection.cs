@@ -1,6 +1,7 @@
 namespace ZettaTrade.App;
 
 using Microsoft.Extensions.DependencyInjection;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 
 /// <summary>
@@ -9,7 +10,11 @@ using ZettaTrade.App.ViewModels;
 /// </summary>
 public static class TradingUiDependencyInjection
 {
-    /// <summary>Register the trading dialog view models (transient per open).</summary>
+    /// <summary>Register the trading UI services and dialog view models.</summary>
     public static IServiceCollection AddTradingUiServices(this IServiceCollection services) =>
-        services.AddTransient<NewOrderDialogViewModel>();
+        services
+            .AddSingleton<IOrderJournal, OrderJournal>()
+            .AddSingleton<OrderConfirmationComposer>()
+            .AddTransient<NewOrderDialogViewModel>()
+            .AddTransient<PositionsPanelViewModel>();
 }
