@@ -123,17 +123,24 @@ internal static class CompositionRoot
         services.AddOrderHistory();
         services.AddHistoryUiServices();
 
+        var provider = services.BuildServiceProvider();
+
+        await InitializeRegisteredServicesAsync(provider, services, ct);
+
         // MCP trading tools: registered once, against the paper trading adapter
         // (mock surface; real exchange adapters are plugged in as plugins later).
-        var provider = services.BuildServiceProvider();
+        // Registration runs AFTER the startup walk: resolving ITradingAdapter
+        // constructs the whole adapter stack (PaperTradingAdapter wraps the
+        // market data adapter), and the Binance adapter reads its endpoints
+        // from the endpoint registry at construction time — the walk must
+        // have loaded the settings file first, or every adapter would
+        // silently run on the shipped production endpoints.
         provider.GetRequiredService<TradingToolsRegistrar>().RegisterAll(
             provider.GetRequiredService<IMcpServerHost>(),
             provider.GetRequiredService<ITradingAdapter>(),
             provider.GetRequiredService<IRiskManager>(),
             provider.GetRequiredService<IConfirmationService>(),
             provider.GetRequiredService<ILocalizationManager>());
-
-        await InitializeRegisteredServicesAsync(provider, services, ct);
 
         return provider;
     }
@@ -151,11 +158,24 @@ internal static class CompositionRoot
 
         foreach (var descriptor in registrations)
         {
-            // Skip implementations that statically cannot implement the interface:
-            // avoids eager construction of unrelated services and open generic
-            // registrations (e.g. Options) that cannot be resolved directly.
-            var implementation = descriptor.ImplementationType ?? descriptor.ImplementationInstance;
-            if (implementation is not null && implementation is not IAsyncInitializable)
+            // Typed registrations are inspected through static interface
+            // assignability: a System.Type object never pattern-matches a
+            // service interface, so a naive `type is IAsyncInitializable`
+            // check silently skipped every typed registration (the endpoint
+            // registry could never initialize). Factory registrations carry
+            // no implementation hint and are inspected dynamically below;
+            // open-generic registrations (e.g. Options) still cannot be
+            // resolved directly and are skipped further down.
+            var implementationType = descriptor.ImplementationType;
+            if (implementationType is { } typed &&
+                !typeof(IAsyncInitializable).IsAssignableFrom(typed))
+            {
+                continue;
+            }
+
+            var implementationInstance = descriptor.ImplementationInstance;
+            if (implementationInstance is { } instance &&
+                instance is not IAsyncInitializable)
             {
                 continue;
             }
