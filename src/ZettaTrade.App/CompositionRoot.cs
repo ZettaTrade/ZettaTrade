@@ -105,6 +105,7 @@ internal static class CompositionRoot
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
                 sp.GetRequiredService<IMarketDataAdapter>(),
+                sp.GetRequiredService<ChartViewModel>().SymbolSelections,
                 sp.GetRequiredService<ILogger<OrderBookViewModel>>()));
         services.AddTransient<MainViewModel>();
         services.AddTradingUiServices();

@@ -18,11 +18,14 @@ using ZettaTrade.UI.Extensions;
 /// Like <see cref="StatusBarViewModel"/>, this is an application-lifetime
 /// singleton whose subscriptions are created in the constructor: WhenActivated
 /// never fires for VMs bound as nested-panel DataContexts, and the book must
-/// stream from the first frame. <see cref="Updates"/> stays raw (testable
-/// without the UI thread); <see cref="Book"/> is assigned after the UI-thread
-/// hop. A new symbol cancels the previous stream (Rx <c>Switch</c>); a stream
-/// failure ends the data for its symbol only (logged, never a default value)
-/// and later symbol changes keep working.
+/// stream from the first frame. The workspace selection (the chart's symbol
+/// combo) is the owner and rewrites the typed input; the typed input stays
+/// the free-form override and the last user action wins.
+/// <see cref="Updates"/> stays raw (testable without the UI thread);
+/// <see cref="Book"/> is assigned after the UI-thread hop. A new symbol
+/// cancels the previous stream (Rx <c>Switch</c>); a stream failure ends the
+/// data for its symbol only (logged, never a default value) and later symbol
+/// changes keep working.
 /// </remarks>
 public sealed class OrderBookViewModel : ReactiveObject
 {
@@ -70,6 +73,7 @@ public sealed class OrderBookViewModel : ReactiveObject
     /// </summary>
     public OrderBookViewModel(
         IMarketDataAdapter marketData,
+        IObservable<Symbol> workspaceSelections,
         ILogger<OrderBookViewModel> logger)
     {
         _logger = logger;
@@ -80,6 +84,18 @@ public sealed class OrderBookViewModel : ReactiveObject
             .Where(symbol => symbol is not null)
             .Select(symbol => GuardStreamFailures(marketData.SubscribeOrderBook(symbol!)))
             .Switch();
+
+        // The workspace combo owns the symbol: a selection rewrites the typed
+        // input (RaiseAndSetIfChanged dedupes the no-change repeats) and the
+        // bars/book switch chain follows. The ViewModel lives as long as the
+        // application (singleton), so this subscription mirrors it.
+        workspaceSelections.Subscribe(
+            symbol =>
+            {
+                SymbolInput = symbol.Normalized;
+                _logger.LogInformation("Workspace selection applied: {Symbol}", symbol.Normalized);
+            },
+            ex => _logger.LogError(ex, "The workspace symbol stream stopped unexpectedly"));
 
         // The ViewModel lives as long as the application (singleton), so this
         // subscription mirrors it and needs no explicit disposal. The marshal
