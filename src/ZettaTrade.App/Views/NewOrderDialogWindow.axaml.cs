@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
 using ReactiveUI.Primitives;
+using Serilog;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.UI.Extensions;
 
@@ -25,6 +26,16 @@ public partial class NewOrderDialogWindow : ReactiveWindow<NewOrderDialogViewMod
         InitializeComponent();
         this.WhenActivated(disposables =>
         {
+            // The autocandidate list loads on activation and dies with the
+            // window: the transient view model and its only window live
+            // exactly as long as this disposal scope.
+            ViewModel?.LoadSymbolsCommand
+                .Execute(RxVoid.Default)
+                .Subscribe(
+                    _ => { },
+                    ex => Log.Error(ex, "Order dialog: symbol list load failed to start"))
+                .DisposeWith(disposables);
+
             ViewModel?.CloseRequested
                 .RegisterHandler(context =>
                 {

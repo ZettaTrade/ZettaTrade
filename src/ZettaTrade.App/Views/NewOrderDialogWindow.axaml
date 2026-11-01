@@ -12,11 +12,15 @@
         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
     <StackPanel Margin="16" Spacing="10">
-        <!-- Symbol: normalized BASE/QUOTE text; typed deliberately so the
-             dialog works even when the symbols request fails offline. -->
+        <!-- Symbol: free-form normalized BASE/QUOTE text with adapter-driven
+             suggestions; symbol-list failure simply leaves the field without
+             completions (the designed empty state). -->
         <TextBlock Text="{loc:Localized NewOrder.Symbol}" />
-        <TextBox Text="{Binding SymbolInput}"
-                 PlaceholderText="BTC/USDT" />
+        <AutoCompleteBox Text="{Binding SymbolInput, Mode=TwoWay}"
+                         ItemsSource="{Binding SymbolSuggestions}"
+                         FilterMode="None"
+                         IsDropDownOpen="{Binding IsSymbolSuggestionsOpen, Mode=TwoWay}"
+                         PlaceholderText="BTC/USDT" />
 
         <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Localized NewOrder.Side}" />
