@@ -17,7 +17,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-011 Order book widget (60 fps target) | feat/order-book | done | — |
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | done | — |
 | T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | done | — |
-| T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
+| T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | in-progress | — |
 | T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
 | T-016 Exchange selector in the toolbar | feat/exchange-selector | planned | needs a 2nd adapter |
 | T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | done | — |
@@ -230,9 +230,21 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 
 ## T-014 — Instrument autocomplete in the order dialog (queued by user)
 
-- **Branch:** `feat/symbol-autocomplete` (planned; not scheduled before T-011)
+- **Branch:** `feat/symbol-autocomplete` (started 2026-11-01, cut from develop @ acfccc2; worktree `zt-symbol-autocomplete`)
 - **Scope:** `src/ZettaTrade.App` (dialog symbol input → editable list/AutoCompleteBox over `GetSymbolsAsync`), resx if new strings needed.
 - **What:** typing "Btc/usdt" every time is clumsy — suggest completions from the adapter symbol list as the user types (case-insensitive prefix/contains), keyboard-navigable, graceful empty state when the symbols request fails offline (the field stays free-form by design).
+- **Design (decided, 2026-11-01):**
+  - No new View Model dependencies: the dialog already holds `ITradingAdapter : IMarketDataAdapter`, whose `GetSymbolsAsync` is the symbol source. Note: `BinanceAdapter.GetSymbolsAsync` is a live REST `exchangeInfo` call (no adapter cache) — one call per dialog open on the load command, acceptable for an on-demand dialog (no new App-side cache service: YAGNI, revisit only if the network shows pain).
+  - `NewOrderDialogViewModel`: a cached `_allSymbols` list of `Symbol.Normalized` strings ("BASE/QUOTE", upper invariant), a `SymbolSuggestions` string list property, and a `LoadSymbolsCommand` (`ReactiveCommand.CreateFromTask` with `CancellationToken`). The load re-derives suggestions; any failure (offline) is logged as a warning and suggestions stay empty — no error line, the symbol field stays free-form exactly as designed.
+  - Derivation is imperative, not an Rx self-subscription: the `SymbolInput` setter re-filters after `RaiseAndSetIfChanged` (the `SelectedTypeIndex` → `IsPriceRequired` precedent in the same file), and the load completion re-filters for the current input. No property-chain subscription rooted in a transient, per-dialog VM — nothing to leak, tests are deterministic without schedulers.
+  - Filter (static, pure): whitespace/empty input → no suggestions; otherwise case-insensitive (`OrdinalIgnoreCase`) contains matches, with prefix matches (`StartsWith`) ordered ahead of contains matches and original adapter order kept within each bucket (prefix hits are the likeliest intent).
+  - View: the symbol `TextBox` becomes an `AutoCompleteBox` — `Text="{Binding SymbolInput, Mode=TwoWay}"` (free-form input preserved: typed text is never forced into a list item), `ItemsSource="{Binding SymbolSuggestions}"` (a fresh list instance per keystroke keeps the binding raising), `FilterMode="None"` (the VM pre-filters), the `BTC/USDT` placeholder unchanged. Arrow/Enter/Esc keyboard navigation comes with the control. No resx changes: suggestions are symbols, not user-facing prose.
+  - `NewOrderDialogWindow.WhenActivated` additionally executes `LoadSymbolsCommand` with `Subscribe(onError: …)` (the sanctioned error-handling escape) disposed with the window (`DisposeWith(disposables)`) — the transient VM and its only window live and die together, so the window's disposables are the right lifetime anchor for the in-flight load.
+- **Acceptance:**
+  - Typing part of a symbol offers case-insensitive suggestions with the prefix bucket first; Enter fills the input (probe: UIA — open the dialog, type "btc", read the popup items, Enter → the input holds "BTC/USDT").
+  - Offline (symbols request fails): no suggestions, no error UI, free-form text still accepted.
+  - gate.
+- **Tests:** `NewOrderDialogViewModelTests` (+) — the load populates suggestions through a fake `ITradingAdapter.GetSymbolsAsync`; case-insensitive derivation from `SymbolInput`; prefix-before-contains ordering; whitespace yields nothing; load failure stays silent and the field keeps accepting text.
 
 ## T-015 — Configurable exchange endpoints + registry seam (queued by user)
 
