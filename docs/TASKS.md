@@ -17,9 +17,9 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-011 Order book widget (60 fps target) | feat/order-book | done | — |
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | done | — |
 | T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | done | — |
-| T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | in-progress | — |
-| T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
-| T-016 Exchange selector in the toolbar | feat/exchange-selector | planned | needs a 2nd adapter |
+| T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | done | — |
+| T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | done | — |
+| T-016 Exchange selector in the toolbar | feat/exchange-selector | done | — |
 | T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | done | — |
 | T-018 App version display in the status bar | feat/status-version | done | — |
 
@@ -300,6 +300,15 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - One adapter: no selector, zero behavior change (pinned by test).
   - Two adapters: switching is atomic — chart/book/dialog switch together, in-flight data of the previous adapter is dropped, not mixed.
   - Unavailable persisted choice → startup warning + default selection; gate.
+- **Status:** done. Canon: the feature commits `eedf405` (wave 1: facade + Demo adapter) and `6c96fdd` (wave 2: the picker UI) are merged on develop and origin (merge `640df7a`; the branch tail `b357c54` shipped `0.1.0-alpha.15`). Outcome:
+  - `AdapterChanges` is behavioral: every subscription re-emits the current adapter once, so chart/book/poll re-switch atomically the moment the facade (or a late-built subscriber) attaches; `ITradingAdapter` stays paper over the facade — trading follows the picked exchange with no extra wire-up.
+  - Persistent-choice restore runs inside the startup walk (typed + `IAsyncInitializable`, the T-019-pinned path): `Workspace:ExchangeId` selects the initial adapter; an unknown/unavailable id falls back to the first registered (Binance) with a loud warning, and the notice reaches the status bar through a `ReplaySubject(1)` buffer (the chip VM is constructed later in the walk and still receives it). The connection chip holds the localized fallback text for ~5 s — a `_noticeHeldUntil` guard keeps the first poll report and language switches from overwriting it — then the regular `Exchange · Paper` chip resumes.
+  - Picker: rendered only at ≥2 registered adapters (`HasExchangeChoice`, pinned by test — with one adapter the toolbar is unchanged); narrower VM contract than planned (`ExchangeNames`/`SelectedExchangeName` are plain strings, no `Exchange` records in the UI layer); resx `Status.ExchangePicker` / `Status.PaperMode` / `Status.ExchangeFallback`, en + ru parity (95/95 on both files).
+  - Chart re-target: `BarsUpdates = CombineLatest(SymbolSelections, AdapterChanges) → Select(LoadBars).Switch()` — in-flight loads are cancelled on a switch; symbols rebootstrap per exchange change and the selected symbol is kept when still listed, otherwise the first (pure `ChartViewModel.Preselect`, test-pinned).
+  - `SymbolListProvider` drops its symbol cache on every `AdapterChanges` emission (Interlocked epoch: a stale in-flight fetch returns its data but is never cached); `MainViewModel`'s connection poll re-switches over `AdapterChanges`.
+  - `DemoMarketDataAdapter` (Infrastructure, always registered, no network/keys): deterministic seeded bars per (symbol, timeframe), canned book/ticker/trades; unknown symbols raise, never silently default.
+  - Tests 176 → 207; GATE PASSED twice (before and after the version bump). No live probe this round (the gate + the pinned behavioral tests were deemed enough; the picker switch round-trip stays untested-run).
+  - Follow-ups: the order-dialog header naming the active exchange ("visible at the action points" UX rule) was outside this change set — small standalone UI candidate; a real second exchange (Bybit/Kraken) remains the declared dedicated replacement for the Demo stub.
 
 ## T-017 — One symbol context for the workspace (queued during T-011)
 
