@@ -43,11 +43,20 @@ public sealed class NewOrderDialogViewModelTests
             $"[{call.ArgAt<string>(0)}:{FormatArgs(call.ArgAt<object[]>(1))}]");
     }
 
-    private NewOrderDialogViewModel CreateViewModel(IMarketDataAdapter? marketData = null) =>
-        new(
+    private NewOrderDialogViewModel CreateViewModel(IMarketDataAdapter? marketData = null)
+    {
+        // The dialog sees the market data side through the provider, and the
+        // provider is now scoped to the active-exchange facade: compose a
+        // one-entry catalog for the test subject.
+        var adapter = marketData ?? _trading;
+        var service = new ActiveExchangeService(
+            [adapter],
+            Substitute.For<ISettingsService>(),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<ActiveExchangeService>>());
+        return new NewOrderDialogViewModel(
             _trading,
             new SymbolListProvider(
-                marketData ?? _trading,
+                service,
                 Substitute.For<Microsoft.Extensions.Logging.ILogger<SymbolListProvider>>()),
             _riskManager,
             _confirmation,
@@ -56,6 +65,7 @@ public sealed class NewOrderDialogViewModelTests
             _history,
             _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>());
+    }
 
     private static void FillValidLimitOrder(NewOrderDialogViewModel viewModel)
     {

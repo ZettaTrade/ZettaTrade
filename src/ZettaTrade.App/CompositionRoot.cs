@@ -97,7 +97,9 @@ internal static class CompositionRoot
             new StatusBarViewModel(
                 sp.GetRequiredService<IThemeManager>(),
                 sp.GetRequiredService<ILocalizationManager>(),
-                AppVersion.Current));
+                sp.GetRequiredService<ActiveExchangeService>(),
+                AppVersion.Current,
+                logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>()));
         services.AddSingleton<ChatViewModel>();
         services.AddSingleton<SettingsViewModel>(sp =>
             new SettingsViewModel(
@@ -109,7 +111,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ThemeManager>().LoadErrorsChanged));
         services.AddSingleton<ChartViewModel>(sp =>
             new ChartViewModel(
-                sp.GetRequiredService<IMarketDataAdapter>(),
+                sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
@@ -125,7 +127,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<SettingsViewModel>(),
                 sp.GetRequiredService<ChartViewModel>(),
                 sp.GetRequiredService<OrderBookViewModel>(),
-                sp.GetRequiredService<IMarketDataAdapter>(),
+                sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();
         services.AddOrderHistory();
