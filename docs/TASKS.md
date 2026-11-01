@@ -134,11 +134,12 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 ## T-009 — Positions & open orders panel
 
 - **Branch:** `feat/positions`
-- **Scope:** positions/orders panel (side panel or window) in `src/ZettaTrade.App`, `ShowPositionsCommand` wiring, resx `Positions.*` en+ru.
+- **Scope:** positions/orders panel (side panel or window) in `src/ZettaTrade.App`, `ShowPositionsCommand` wiring, resx `Positions.*` en+ru. Core contracts and adapters untouched (supervisor decision Option A).
 - **What:** `GetPositionsAsync`/`GetOpenOrdersAsync` of the trading adapter rendered in a view; per-order Cancel that always passes the symbol (mandatory `cancel_order` rule) through `IConfirmationService`.
-- **Acceptance:**
-  - Runtime on the paper adapter: placing an order in T-008's dialog makes it appear in open orders; cancel removes it; positions reflect the fill.
-  - Cancel without a symbol is impossible by construction (compiler/time safety, unit-tested).
+- **Acceptance (amended per Option A):**
+  - Runtime on the paper adapter: placing an order in T-008's dialog shows its effects in the panel — positions reflect the fill; open orders stay empty on paper (the paper adapter fills everything instantly, so Pending never exists there) and the order appears in the "session journal" section via the new App-layer `IOrderJournal` (live adapters still feed open orders at runtime).
+  - Cancel is fully wired (IConfirmationService → `CancelOrderAsync(order.Symbol, order.Id)`) and enabled for Pending/Submitted/PartiallyFilled rows; proven by unit tests, including symbol-mismatch-free argument passing. The paper adapter itself never needs cancel at runtime (F-filled instantly) and stays untouched.
+  - Cancel without a symbol is impossible by construction (compiler/type safety, unit-tested).
   - Strings via resx; gate passes.
 
 ## T-010 — Order history + persistence (EF Core)
