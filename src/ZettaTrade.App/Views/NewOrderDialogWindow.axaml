@@ -5,7 +5,7 @@
         x:Class="ZettaTrade.App.Views.NewOrderDialogWindow"
         x:DataType="vm:NewOrderDialogViewModel"
         Title="{loc:Localized NewOrder.Title}"
-        Width="380" SizeToContent="Height"
+        Width="440" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         ShowInTaskbar="False"

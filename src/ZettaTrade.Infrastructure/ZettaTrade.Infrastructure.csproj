@@ -23,4 +23,10 @@
     <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
   </ItemGroup>
 
+  <!-- The test project pins the tolerant-number parser directly; assembly
+       signature remains internal (no public surface). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ZettaTrade.Infrastructure.Tests" />
+  </ItemGroup>
+
 </Project>
