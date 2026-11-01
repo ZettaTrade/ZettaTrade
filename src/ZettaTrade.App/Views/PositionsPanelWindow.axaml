@@ -1,0 +1,140 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:ZettaTrade.UI.Localization"
+        x:Class="ZettaTrade.App.Views.PositionsPanelWindow"
+        x:DataType="vm:PositionsPanelViewModel"
+        Title="{loc:Localized Positions.Title}"
+        Width="800" Height="560"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+
+    <Grid Margin="16" RowDefinitions="*,Auto,Auto" RowSpacing="10">
+
+        <ScrollViewer Grid.Row="0">
+            <StackPanel Spacing="14">
+
+                <!-- Open positions -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{loc:Localized Positions.PositionsHeader}" FontWeight="Bold" />
+                    <Grid ColumnDefinitions="125,50,75,150,150"
+                          IsVisible="{Binding HasPositions}">
+                        <TextBlock Grid.Column="0" Text="{loc:Localized Positions.Symbol}" />
+                        <TextBlock Grid.Column="1" Text="{loc:Localized Positions.Side}" />
+                        <TextBlock Grid.Column="2" Text="{loc:Localized Positions.ColQuantity}" />
+                        <TextBlock Grid.Column="3" Text="{loc:Localized Positions.ColPrice}" />
+                        <TextBlock Grid.Column="4" Text="{loc:Localized Positions.ColOpened}" />
+                    </Grid>
+                    <TextBlock Text="{loc:Localized Positions.NoPositions}"
+                               IsVisible="{Binding !HasPositions}" />
+                    <ItemsControl ItemsSource="{Binding Positions}"
+                                  IsVisible="{Binding HasPositions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PositionRowViewModel">
+                                <Grid ColumnDefinitions="125,50,75,150,150">
+                                    <TextBlock Grid.Column="0" Text="{Binding Symbol}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Side}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Quantity}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding EntryPrice}" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Opened}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Open orders -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{loc:Localized Positions.OpenOrdersHeader}" FontWeight="Bold" />
+                    <Grid ColumnDefinitions="125,50,75,150,125,150,85"
+                          IsVisible="{Binding HasOpenOrders}">
+                        <TextBlock Grid.Column="0" Text="{loc:Localized Positions.Symbol}" />
+                        <TextBlock Grid.Column="1" Text="{loc:Localized Positions.Side}" />
+                        <TextBlock Grid.Column="2" Text="{loc:Localized Positions.ColQuantity}" />
+                        <TextBlock Grid.Column="3" Text="{loc:Localized Positions.ColPrice}" />
+                        <TextBlock Grid.Column="4" Text="{loc:Localized Positions.ColStatus}" />
+                        <TextBlock Grid.Column="5" Text="{loc:Localized Positions.ColOpened}" />
+                    </Grid>
+                    <TextBlock Text="{loc:Localized Positions.NoOpenOrders}"
+                               IsVisible="{Binding !HasOpenOrders}" />
+                    <ItemsControl ItemsSource="{Binding OpenOrders}"
+                                  IsVisible="{Binding HasOpenOrders}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:OrderRowViewModel">
+                                <Grid ColumnDefinitions="125,50,75,150,125,150,85">
+                                    <TextBlock Grid.Column="0" Text="{Binding Symbol}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Side}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Quantity}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Price}" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Status}" />
+                                    <TextBlock Grid.Column="5" Text="{Binding Opened}" />
+                                    <Button Grid.Column="6"
+                                            Content="{loc:Localized Positions.CancelCurrentPosition}"
+                                            Command="{Binding CancelCommand}"
+                                            MinWidth="64" HorizontalAlignment="Left" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Orders placed this session (from the session order journal) -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{loc:Localized Positions.RecentHeader}" FontWeight="Bold" />
+                    <Grid ColumnDefinitions="125,50,75,150,125,150,85"
+                          IsVisible="{Binding HasRecentOrders}">
+                        <TextBlock Grid.Column="0" Text="{loc:Localized Positions.Symbol}" />
+                        <TextBlock Grid.Column="1" Text="{loc:Localized Positions.Side}" />
+                        <TextBlock Grid.Column="2" Text="{loc:Localized Positions.ColQuantity}" />
+                        <TextBlock Grid.Column="3" Text="{loc:Localized Positions.ColPrice}" />
+                        <TextBlock Grid.Column="4" Text="{loc:Localized Positions.ColStatus}" />
+                        <TextBlock Grid.Column="5" Text="{loc:Localized Positions.ColOpened}" />
+                    </Grid>
+                    <TextBlock Text="{loc:Localized Positions.NoRecent}"
+                               IsVisible="{Binding !HasRecentOrders}" />
+                    <ItemsControl ItemsSource="{Binding RecentOrders}"
+                                  IsVisible="{Binding HasRecentOrders}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:OrderRowViewModel">
+                                <Grid ColumnDefinitions="125,50,75,150,125,150,85">
+                                    <TextBlock Grid.Column="0" Text="{Binding Symbol}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Side}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Quantity}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Price}" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Status}" />
+                                    <TextBlock Grid.Column="5" Text="{Binding Opened}" />
+                                    <Button Grid.Column="6"
+                                            Content="{loc:Localized Positions.CancelCurrentPosition}"
+                                            Command="{Binding CancelCommand}"
+                                            MinWidth="64" HorizontalAlignment="Left" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Spacing="6">
+            <!-- Flow errors (load failure, cancel failure) -->
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="Red"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasErrorMessage}" />
+            <!-- Last successful cancellation outcome -->
+            <TextBlock Text="{Binding ResultMessage}"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasResultMessage}" />
+        </StackPanel>
+
+        <Button Grid.Row="2"
+                Content="{loc:Localized Positions.Close}"
+                Click="OnCloseClick"
+                MinWidth="90"
+                HorizontalAlignment="Right" />
+
+    </Grid>
+</Window>

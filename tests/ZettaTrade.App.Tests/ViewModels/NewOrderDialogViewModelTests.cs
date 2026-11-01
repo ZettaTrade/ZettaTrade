@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
@@ -24,6 +25,7 @@ public sealed class NewOrderDialogViewModelTests
     private readonly IRiskManager _riskManager = Substitute.For<IRiskManager>();
     private readonly IConfirmationService _confirmation = Substitute.For<IConfirmationService>();
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
+    private readonly IOrderJournal _journal = new OrderJournal();
 
     public NewOrderDialogViewModelTests()
     {
@@ -36,7 +38,13 @@ public sealed class NewOrderDialogViewModelTests
     }
 
     private NewOrderDialogViewModel CreateViewModel() =>
-        new(_trading, _riskManager, _confirmation, _localization,
+        new(
+            _trading,
+            _riskManager,
+            _confirmation,
+            new OrderConfirmationComposer(_localization),
+            _journal,
+            _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>());
 
     private static void FillValidLimitOrder(NewOrderDialogViewModel viewModel)
@@ -250,6 +258,50 @@ public sealed class NewOrderDialogViewModelTests
         viewModel.IsPriceRequired.Should().BeTrue();
         viewModel.SelectedTypeIndex = 0;
         viewModel.IsPriceRequired.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_AfterConfirmedPlacement_RecordsOrderInSessionJournal()
+    {
+        // Arrange: a successful placement must be visible to the positions
+        // panel through the session order journal.
+        var viewModel = CreateViewModel();
+        FillValidLimitOrder(viewModel);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: true));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+        _trading.PlaceOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        _journal.GetRecent().Should().ContainSingle(order => order.Id == "paper-test");
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WhenNotPlaced_JournalStaysEmpty()
+    {
+        // Arrange: a user-declined confirmation never places, so the journal
+        // must not gain a record (the panel shows only real placements).
+        var viewModel = CreateViewModel();
+        FillValidLimitOrder(viewModel);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: true));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(false);
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        _journal.GetRecent().Should().BeEmpty();
     }
 
     private static string FormatArgs(object[] args) => string.Join("|", args);

@@ -14,6 +14,26 @@ using ZettaTrade.App.ViewModels;
 public sealed class MenuViewModelTests
 {
     [Fact]
+    public async Task ShowPositionsCommand_Executed_RoutesThroughShowPositionsInteraction()
+    {
+        // Arrange
+        var menu = new MenuViewModel();
+        var handled = 0;
+        menu.ShowPositionsRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref handled);
+            context.SetOutput(RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await menu.ShowPositionsCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(1);
+    }
+
+    [Fact]
     public async Task OpenSettingsCommand_Executed_RoutesThroughOpenSettingsInteraction()
     {
         // Arrange

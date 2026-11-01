@@ -36,6 +36,12 @@ public sealed class MenuViewModel : ReactiveObject
     public Interaction<RxVoid, RxVoid> OpenSettingsRequested { get; }
 
     /// <summary>
+    /// Interaction that routes the show-positions request to the View, which
+    /// hosts the modal panel (same pattern as <see cref="NewOrderRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowPositionsRequested { get; }
+
+    /// <summary>
     /// Interaction that routes the new-order request to the View, which hosts
     /// the dialog window (same pattern as <see cref="OpenSettingsRequested"/>).
     /// </summary>
@@ -55,6 +61,7 @@ public sealed class MenuViewModel : ReactiveObject
     {
         OpenSettingsRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
+        ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
@@ -74,7 +81,11 @@ public sealed class MenuViewModel : ReactiveObject
     /// </summary>
     private Task HandleNewOrderAsync() => NewOrderRequested.Handle(RxVoid.Default);
 
-    private Task HandleShowPositionsAsync() => Task.CompletedTask;
+    /// <summary>
+    /// Route the show-positions request to the View (window plumbing stays
+    /// out of the ViewModel, same as the new-order dialog).
+    /// </summary>
+    private Task HandleShowPositionsAsync() => ShowPositionsRequested.Handle(RxVoid.Default);
 
     private Task HandleShowOrderHistoryAsync() => Task.CompletedTask;
 
