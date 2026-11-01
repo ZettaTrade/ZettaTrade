@@ -158,29 +158,7 @@ internal static class CompositionRoot
 
         foreach (var descriptor in registrations)
         {
-            // Typed registrations are inspected through static interface
-            // assignability: a System.Type object never pattern-matches a
-            // service interface, so a naive `type is IAsyncInitializable`
-            // check silently skipped every typed registration (the endpoint
-            // registry could never initialize). Factory registrations carry
-            // no implementation hint and are inspected dynamically below;
-            // open-generic registrations (e.g. Options) still cannot be
-            // resolved directly and are skipped further down.
-            var implementationType = descriptor.ImplementationType;
-            if (implementationType is { } typed &&
-                !typeof(IAsyncInitializable).IsAssignableFrom(typed))
-            {
-                continue;
-            }
-
-            var implementationInstance = descriptor.ImplementationInstance;
-            if (implementationInstance is { } instance &&
-                instance is not IAsyncInitializable)
-            {
-                continue;
-            }
-
-            if (descriptor.ServiceType.IsGenericType && !descriptor.ServiceType.IsConstructedGenericType)
+            if (!IsStartupWalkCandidate(descriptor))
             {
                 continue;
             }
@@ -197,5 +175,42 @@ internal static class CompositionRoot
 
             await service.InitializeAsync(ct);
         }
+    }
+
+    /// <summary>
+    /// Static (resolution-free) screen for the startup walk: decides whether
+    /// a registration descriptor can host an <see cref="IAsyncInitializable"/>
+    /// service before anything is resolved.
+    /// </summary>
+    /// <remarks>
+    /// Typed registrations are inspected through static interface
+    /// assignability: a <see cref="System.Type"/> object never pattern-matches
+    /// a service interface, so a naive `type is IAsyncInitializable` check
+    /// silently skipped every typed registration (the endpoint registry could
+    /// never initialize). Factory registrations carry no implementation hint
+    /// and are inspected dynamically by the walk; instance registrations
+    /// carry the instance itself. Open-generic registrations (e.g. Options)
+    /// cannot be resolved directly and are never candidates.
+    /// </remarks>
+    internal static bool IsStartupWalkCandidate(ServiceDescriptor descriptor)
+    {
+        if (descriptor.ImplementationType is { } typed &&
+            !typeof(IAsyncInitializable).IsAssignableFrom(typed))
+        {
+            return false;
+        }
+
+        if (descriptor.ImplementationInstance is { } instance &&
+            instance is not IAsyncInitializable)
+        {
+            return false;
+        }
+
+        if (descriptor.ServiceType.IsGenericType && !descriptor.ServiceType.IsConstructedGenericType)
+        {
+            return false;
+        }
+
+        return true;
     }
 }
