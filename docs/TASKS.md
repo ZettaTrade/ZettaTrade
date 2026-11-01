@@ -12,7 +12,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-006 Theme preview swatches in the picker | feat/theme-preview | done | — |
 | T-007 resx en/ru sync gate | chore/resx-gate | done | — |
 | T-008 New Order dialog | feat/order-dialog | done | — |
-| T-009 Positions & open orders panel | feat/positions | in-progress | — |
+| T-009 Positions & open orders panel | feat/positions | done | — |
 | T-010 Order history + persistence (EF Core) | feat/order-history | planned | — |
 | T-011 Order book widget (60 fps target) | feat/order-book | planned | — |
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
@@ -141,6 +141,12 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Cancel is fully wired (IConfirmationService → `CancelOrderAsync(order.Symbol, order.Id)`) and enabled for Pending/Submitted/PartiallyFilled rows; proven by unit tests, including symbol-mismatch-free argument passing. The paper adapter itself never needs cancel at runtime (F-filled instantly) and stays untouched.
   - Cancel without a symbol is impossible by construction (compiler/type safety, unit-tested).
   - Strings via resx; gate passes.
+- **Status:** done. Merged into develop as `eb72401` (feature commit `32f3986`). Outcome:
+  - Modal panel (Trading → Positions) with three sections: positions from `GetPositionsAsync`; open orders from `GetOpenOrdersAsync`; session-journal orders from the new App-layer `IOrderJournal` (thread-safe capacity-50 ring buffer, newest first) recorded by the T-008 dialog after each placement. Rows carry precomputed localized strings, empty states via `Has*` flags.
+  - Cancel pipeline: shared `OrderConfirmationComposer` (same summary shape as the MCP tools; `Positions.ConfirmCancelFormat`) → `IConfirmationService` → `CancelOrderAsync(order.Symbol, order.Id)` — symbol-first by construction; the per-row command is enabled only for Pending/Submitted/PartiallyFilled.
+  - Runtime verified (UIA probe): a 0.01 BTC @ 50000 limit order fills instantly on paper; the panel shows the position (Buy / 0.01 / 50000.00000000 / Filled), the empty open-orders state, and the journal row with a disabled Cancel; app log has "Positions panel: loaded 1 positions, 0 open orders, 1 recent orders"; Close closes the window.
+  - Tests: OrderJournal (3), OrderConfirmationComposer (5), panel VM (13, incl. the cancellable-status theory), dialog journal hooks (2), menu routing (1) — App.Tests 26 → 51; whole suite 98; GATE PASSED (resx 75/75 en+ru, format clean).
+  - Core contracts and `PaperTradingAdapter` untouched (Option A: paper fills everything instantly, so no runtime Pending/cancel path exists there — cancel stays unit-proven).
 
 ## T-010 — Order history + persistence (EF Core)
 
