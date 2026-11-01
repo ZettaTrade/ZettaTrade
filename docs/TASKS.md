@@ -20,7 +20,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
 | T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
 | T-016 Exchange selector in the toolbar | feat/exchange-selector | planned | needs a 2nd adapter |
-| T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | in-progress | — |
+| T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | done | — |
+| T-018 App version display in the status bar | feat/status-version | in-progress | — |
 
 ---
 
@@ -262,4 +263,20 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Acceptance:**
   - Selecting a symbol in the workspace combo drives both the chart and the order book (probe).
   - The chart shows real klines on cold start again (regression: the "Нет данных" dead state disappears without a page refresh).
+  - gate.
+- **Status:** done. Canon: the feature commit `de116cb` is on develop (fast-forward merge). Outcome:
+  - Shipped: `ChartViewModel` rewritten without `IActivatableViewModel` — ctor-built pipelines per the singleton precedent; raw `SymbolSelections` (the combo change and the list-0 preselect flow through one `WhenAnyValue(SelectedSymbol)` chain); `BarsUpdates` = `Select(LoadBars).Switch().Replay(1).RefCount()` — a hot shared machine: exactly one load pipeline no matter how many watchers, late watchers get the latest bars; a silent `Catch<OperationCanceledException>` first (Switch-cancel is the normal outcome, no "failed" log spam), then `Catch<Exception>` logs and keeps the machine alive for later selections. Instrumented INF logging (bars requested/delivered, "Symbols loaded: {N}; preselected {Symbol}") mirrors the adapter/SettingsService precedent.
+  - `OrderBookViewModel` gained the `workspaceSelections` ctor stream: a workspace selection rewrites the typed `SymbolInput` (`symbol.Normalized`) — the last user action wins, the free-typed input stays the offline override; a workspace-stream failure is logged and the typed input keeps working. `CompositionRoot` wires chart → book with one line (`ChartViewModel.SymbolSelections`).
+  - Tests 137 → 145: 5 `ChartViewModelTests` (ctor bootstrap without activation, raw selections flow, bars delivered for the latest selection, fast-switch cancels the in-flight load — a 30 ms fake plus token asserts, winner token verified alive at delivery time since a completed load ends its own Rx lease; a failed load keeps the machine) + 3 book workspace tests (selection rewrites the input and switches the feed, an identical selection does not tear the feed, a selection-source failure keeps the typed input working). `Bar` carries no symbol — fake bars mark theirs in `Close` (100/200/300).
+  - Probe (real Binance, UIA-driven combo): cold start — WS connect ~1.5 s; 50 symbols load, preselect ETH/BTC → "Chart bars load requested for ETH/BTC" → 168 candles delivered; the book header shows ETH/BTC too (the workspace preselect drives BOTH panels). UIA combo switch → ETH/USDT: bars requested+delivered, "Workspace selection applied: ETH/USDT", book header flips to ETH/USDT with live depth; screenshot pairs differ in both phases. The "Нет данных" dead-chart state is gone without any activation path.
+  - Follow-ups from the probe: the first symbols apply can lag ~4–10 s on an idle UI thread (a posted dispatcher job on a non-interacted window) — cold-start polish candidate (post priority or inline apply); illiquid pairs (BNB/ETH) produce byte-identical "after" screenshots (sparse depth) — probes must drive liquid symbols; a probe on a stale binary misreads behavior — guard probes behind a successful build.
+
+## T-018 — App version display in the status bar (queued by the user at the T-017 merge)
+
+- **Branch:** `feat/status-version` (started 2026-11-01, cut from develop @ de116cb)
+- **Scope:** `src/ZettaTrade.App` (status bar version chip + the version source); branch tail: the `Directory.Build.props` suffix bump + `CHANGELOG.md` per the in-file convention (next suffix alpha.12 — T-017 merged without its own bump, so this task takes alpha.12).
+- **What:** The user asked for the app version somewhere in the UI. The status bar already lists tech state chips (connection status, theme name, language code) — a version chip fits there. Source of truth: the exe's `AssemblyInformationalVersionAttribute` (bakes `Directory.Build.props` `$(Version)` = `0.1.0-alpha.N`), read once by a tiny static accessor in the App project; `StatusBarViewModel` gains a documented `AppVersion` property passed through the ctor (a literal in tests). XAML: one more `Auto` column. The version string is not user-facing localization — it is tech state like the theme name, no resx key.
+- **Acceptance:**
+  - The status bar shows the running version (probe: UIA name search for "0.1.0-alpha.12" finds the chip).
+  - Version bump alpha.11 → alpha.12 + CHANGELOG entry lands with this task.
   - gate.
