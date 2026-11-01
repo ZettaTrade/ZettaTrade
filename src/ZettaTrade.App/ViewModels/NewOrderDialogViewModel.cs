@@ -237,21 +237,32 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     /// <summary>
     /// Load the tradable symbol list from the shared application-lifetime
     /// provider (warm at startup, cached across dialog opens — the
-    /// suggestions appear instantly except the very first cold open). A
-    /// failure (typically offline) is a convenience downgrade, never a
-    /// dialog error: the free-form symbol field keeps working with the
-    /// empty suggestion state.
+    /// suggestions appear instantly except the very first cold open). The
+    /// fetch lives exactly as long as the execution it serves:
+    /// <see cref="LoadSymbolsCommand"/> passes its execution token to
+    /// <see cref="HandleLoadSymbolsAsync"/>, so the window disposal cancels
+    /// an in-flight download instead of leaving it abandoned. A failure
+    /// (typically offline) is a convenience downgrade, never a dialog
+    /// error: the free-form symbol field keeps working with the empty
+    /// suggestion state.
     /// </summary>
-    private async Task HandleLoadSymbolsAsync()
+    private async Task HandleLoadSymbolsAsync(CancellationToken ct)
     {
         try
         {
             // The provider answers with ready-to-display names ("BASE/QUOTE").
-            var symbols = await _symbolList.GetSymbolsAsync();
+            var symbols = await _symbolList.GetSymbolsAsync(ct);
             _allSymbols = symbols is string[] cached ? cached : symbols.ToArray();
             _logger.LogInformation(
                 "Order dialog: {SymbolCount} tradable symbols loaded for autocomplete",
                 _allSymbols.Count);
+        }
+        catch (OperationCanceledException)
+        {
+            // The dialog closed while the fetch was in flight (the window
+            // disposal cancels this command's execution token): nothing
+            // user-visible remains, and a cancelled convenience fetch is not
+            // a service failure — no warning noise in the log.
         }
         catch (Exception ex)
         {

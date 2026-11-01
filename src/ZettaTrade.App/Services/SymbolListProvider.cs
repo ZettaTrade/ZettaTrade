@@ -15,6 +15,13 @@ using ZettaTrade.Core.Interfaces;
 /// <see cref="ZettaTrade.Core.Interfaces.IAsyncInitializable"/> — and every
 /// later dialog open answers instantly from the cache.
 /// </summary>
+/// <remarks>
+/// <see cref="GetSymbolsAsync"/> takes no default token value on purpose:
+/// every consumer passes an explicit one (the dialog's command execution
+/// token, the chart's subscription token) and the only
+/// <see cref="CancellationToken.None"/> in this class is the deliberate
+/// app-lifetime warm-up.
+/// </remarks>
 public sealed class SymbolListProvider : IAsyncInitializable
 {
     private readonly IMarketDataAdapter _marketData;
@@ -61,7 +68,7 @@ public sealed class SymbolListProvider : IAsyncInitializable
     /// checked under a semaphore so concurrent dialog opens share one
     /// fetch). A failed fetch is never cached: the next dialog open retries.
     /// </summary>
-    public async Task<IReadOnlyList<string>> GetSymbolsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> GetSymbolsAsync(CancellationToken ct)
     {
         if (_symbols is { } fastPath)
         {
