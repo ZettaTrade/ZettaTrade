@@ -137,11 +137,11 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
             {
                 bars.Add(new Bar(
                     DateTimeOffset.FromUnixTimeMilliseconds(item[0].GetInt64()),
-                    item[1].GetDecimal(),
-                    item[2].GetDecimal(),
-                    item[3].GetDecimal(),
-                    item[4].GetDecimal(),
-                    item[5].GetDecimal()
+                    BinanceJsonNumbers.ParseDecimal(item[1]),
+                    BinanceJsonNumbers.ParseDecimal(item[2]),
+                    BinanceJsonNumbers.ParseDecimal(item[3]),
+                    BinanceJsonNumbers.ParseDecimal(item[4]),
+                    BinanceJsonNumbers.ParseDecimal(item[5])
                 ));
             }
         }
@@ -251,11 +251,11 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         var ticker = new Ticker(
             symbol,
-            data.GetProperty("c").GetDecimal(),
-            data.GetProperty("b").GetDecimal(),
-            data.GetProperty("a").GetDecimal(),
-            data.GetProperty("v").GetDecimal(),
-            data.GetProperty("P").GetDecimal(),
+            BinanceJsonNumbers.ParseDecimal(data.GetProperty("c")),
+            BinanceJsonNumbers.ParseDecimal(data.GetProperty("b")),
+            BinanceJsonNumbers.ParseDecimal(data.GetProperty("a")),
+            BinanceJsonNumbers.ParseDecimal(data.GetProperty("v")),
+            BinanceJsonNumbers.ParseDecimal(data.GetProperty("P")),
             DateTimeOffset.FromUnixTimeMilliseconds(data.GetProperty("E").GetInt64())
         );
 
@@ -284,7 +284,9 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         var levels = new List<PriceLevel>();
         foreach (var level in array.EnumerateArray())
         {
-            levels.Add(new PriceLevel(level[0].GetDecimal(), level[1].GetDecimal()));
+            levels.Add(new PriceLevel(
+                BinanceJsonNumbers.ParseDecimal(level[0]),
+                BinanceJsonNumbers.ParseDecimal(level[1])));
         }
 
         return levels;
@@ -298,8 +300,8 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
             Symbol = symbol,
             // "m" is "is buyer the maker": a maker buy means the aggressor sold.
             Side = data.GetProperty("m").GetBoolean() ? OrderSide.Sell : OrderSide.Buy,
-            Price = new Price(data.GetProperty("p").GetDecimal()),
-            Quantity = new Quantity(data.GetProperty("q").GetDecimal()),
+            Price = new Price(BinanceJsonNumbers.ParseDecimal(data.GetProperty("p"))),
+            Quantity = new Quantity(BinanceJsonNumbers.ParseDecimal(data.GetProperty("q"))),
             Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(data.GetProperty("T").GetInt64())
         };
 
