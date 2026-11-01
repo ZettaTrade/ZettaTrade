@@ -22,6 +22,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-016 Exchange selector in the toolbar | feat/exchange-selector | done | — |
 | T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | done | — |
 | T-018 App version display in the status bar | feat/status-version | done | — |
+| T-019 Startup-walk audit after the typed-registration guard fix | feat/startup-walk-audit | done | — |
+| T-020 e2e WebSocket transport tests against a loopback server | feat/ws-transport-tests | in-progress | — |
 
 ---
 
@@ -352,3 +354,19 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Documented quirk, deliberately not fixed here: the walk `GetService`s every descriptor passing the screen, so transient registrations are constructed (and thrown away) during the walk — `MainViewModel` (`AddTransient<MainViewModel>`) logs its ctor bootstrap twice per run (walk + real window). A walk-skip-transients refinement is queued as a possible future task, not accepted now.
   - No version bump (T-017 precedent: audit + tests ship no user-facing change); alpha.15 stays queued for the next behavior-shipping task.
 - **Branch:** `feat/startup-walk-audit` (done; cut from develop @ `eae8d9b`, worktree `zt-startup-walk-audit`)
+
+## T-020 — e2e WebSocket transport tests against a loopback server (queued by user)
+
+- **Branch:** `feat/ws-transport-tests` (queued 2026-11-01, cut from develop @ `6d86bcc`; worktree `zt-ws-transport-tests`)
+- **Origin:** the transport (`WebSocketClient` + the adapter's `HandleWebSocketMessage`) has only ever been validated by runtime probes against the real stream host — that gap bit at T-013, when the combined-envelope framing bug survived every unit suite until a live probe caught it. This task closes it with in-test infrastructure: a real WebSocket server inside the test host, no network.
+- **Scope:** `tests/ZettaTrade.Infrastructure.Tests` ONLY (a loopback server helper + two suites). Product code must not change. The test csproj gains a `Microsoft.AspNetCore.App` framework reference solely to host Kestrel in-process.
+- **What:** run the whole transport path inside the test host — adapter → `WebSocketClient` → `ClientWebSocket` → loopback Kestrel server → server-pushed frames → envelope parsing → published observables — so reconnect and framing regressions fail in CI instead of in a manual probe.
+- **Design (decided):**
+  - `LoopbackWebSocketServer` helper: minimal `WebApplication` (Kestrel) bound to `127.0.0.1:0` — the dynamic port is read from the bound address after `StartAsync`, so binds never collide; `UseWebSockets` on the `/stream` path. Each accepted connection runs a fragment-aware receive loop (mirroring the client) that queues whole messages for the test; the test can push text frames, close the server side with a full closing handshake, kill the connection hard, and count sessions (reconnect evidence). Console logging providers are stripped — the server never writes to stdout (MCP rule territory).
+  - Suite 1 — `WebSocketClientTests`, the reconnect/decode units; the client is built directly with a short `reconnectDelay` because the adapter hardcodes the production 5 s: `ConnectAsync` returns after the OPEN handshake with `ConnectionStateStream` true; server-pushed frames arrive verbatim on `MessageStream`; a server-side fragmented message (UTF-8 sequence split mid-codepoint) decodes as ONE message (pins the fragment accumulation); a graceful server close flips the state to false and a fresh session reconnects after the short delay — new frames flow again and the session count increments (the reconnect loop is exercised, not assumed); an unbound loopback port fails `ConnectAsync` with `InvalidOperationException` after the configured attempts (connection refused is immediate, no wall-clock sleeps); `SendAsync`/`SendJsonAsync` deliver to the server and inherit the not-connected guard.
+  - Suite 2 — `BinanceAdapterWsE2eTests`, the T-013 regression on real sockets: the adapter is constructed with test endpoints (`ws://…/stream`); the first `SubscribeTicker(BTC/USDT)` drives the whole path — Kestrel handshake, the adapter's SUBSCRIBE frame lands on the server with `method`/`id`/the three `btcusdt@…` params, the server answers with `{"stream",…,"data"}` envelopes and the test asserts the published `Ticker` / `OrderBook` (bid/ask levels) / `MarketTrade` (`m`=maker-buy ⇒ `Side`=Sell, aggressor side) entities field by field in BOTH number encodings (numbers-as-strings and numbers-as-numbers — the `BinanceJsonNumbers` contract); a bare payload without the envelope publishes nothing (the raw-/ws frame drop stays pinned); the connection-state subscription keeps the adapter's `IsConnected` honest.
+  - Reconnect pacing stays in suite 1; suite 2 never waits on the adapter's 5 s production defaults.
+- **Acceptance:**
+  - Everything runs against the in-process loopback server: no real hosts, no keys; every wait is bounded and polled (no flaky fixed sleeps).
+  - gate.
+- **Tests:** new `LoopbackWebSocketServer`; `WebSocketClientTests` (~6); `BinanceAdapterWsE2eTests` (~4).
