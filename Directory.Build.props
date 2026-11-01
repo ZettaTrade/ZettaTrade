@@ -31,10 +31,11 @@
 
     <!-- App version: 0.1.0 while in alpha; one alpha release per merged board
          task — bump the suffix number with the task that changes the app
-         (T-011 -> alpha.11, next is alpha.12) and document the change in
+         (T-018 -> alpha.12, next is alpha.13) and document the change in
          CHANGELOG.md. Info about the version shows in the exe file
-         properties (Product version) and in NuGet metadata. -->
+         properties (Product version), in NuGet metadata and in the status
+         bar version chip. -->
     <VersionPrefix>0.1.0</VersionPrefix>
-    <VersionSuffix>alpha.11</VersionSuffix>
+    <VersionSuffix>alpha.12</VersionSuffix>
   </PropertyGroup>
 </Project>

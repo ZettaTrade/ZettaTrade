@@ -9,6 +9,28 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.12] - 2026-11-01
+
+Build of task T-018 (app version chip); the board's T-017 ships in this
+release as well (it merged without its own version bump).
+
+### Added (T-018 — version display)
+- App version chip in the status bar: the running `0.1.0-alpha.N` is read
+  once from the exe's `AssemblyInformationalVersionAttribute` (baked from
+  `Directory.Build.props`; the `+<git-commit>` suffix the SDK adds in
+  repositories is trimmed) by the `AppVersion` accessor and shown through
+  `StatusBarViewModel.AppVersion` in a new status column.
+
+### Added (T-017 — workspace symbol context)
+- One symbol context for the workspace: `ChartViewModel` boots in the
+  constructor (the dead `WhenActivated` path for nested-panel VMs is gone)
+  — a raw `SymbolSelections` stream plus a hot-shared bars machine (`Switch`
+  cancels the in-flight load, `Replay(1).RefCount()` keeps one pipeline);
+  the order book follows workspace selections by rewriting its typed symbol
+  input (the free-typed input stays the offline override, last user action
+  wins). Real-Binance probe: the cold-start preselect and the combo switch
+  drive both the chart and the book.
+
 ## [0.1.0-alpha.11] - 2026-11-01
 
 Build of task T-011 (order book widget).

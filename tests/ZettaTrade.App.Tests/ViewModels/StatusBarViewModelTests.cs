@@ -4,6 +4,7 @@ using System.Reactive.Subjects;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
+using ZettaTrade.App;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
 
@@ -33,7 +34,10 @@ public sealed class StatusBarViewModelTests
         localizationManager.LanguageChanged.Returns(new BehaviorSubject<string>("en"));
 
         // Act
-        var viewModel = new StatusBarViewModel(themeManager, localizationManager);
+        var viewModel = new StatusBarViewModel(
+            themeManager,
+            localizationManager,
+            "0.1.0-test");
 
         // Assert
         viewModel.CurrentThemeName.Should().Be("Dark"); // DisplayName resolved from the canonical name
@@ -51,7 +55,10 @@ public sealed class StatusBarViewModelTests
         var languageChanged = new BehaviorSubject<string>("en");
         var localizationManager = Substitute.For<ILocalizationManager>();
         localizationManager.LanguageChanged.Returns(languageChanged);
-        var viewModel = new StatusBarViewModel(themeManager, localizationManager);
+        var viewModel = new StatusBarViewModel(
+            themeManager,
+            localizationManager,
+            "0.1.0-test");
 
         // Act
         themeChanged.OnNext("light");
@@ -74,9 +81,41 @@ public sealed class StatusBarViewModelTests
         localizationManager.LanguageChanged.Returns(new BehaviorSubject<string>("en"));
 
         // Act
-        var viewModel = new StatusBarViewModel(themeManager, localizationManager);
+        var viewModel = new StatusBarViewModel(
+            themeManager,
+            localizationManager,
+            "0.1.0-test");
 
         // Assert
         viewModel.CurrentThemeName.Should().Be("dark");
+    }
+
+    [Fact]
+    public void Ctor_WithAppVersion_ShowsTheVersionChip()
+    {
+        var themeManager = Substitute.For<IThemeManager>();
+        themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
+        var localizationManager = Substitute.For<ILocalizationManager>();
+        localizationManager.LanguageChanged.Returns(new BehaviorSubject<string>("en"));
+
+        var viewModel = new StatusBarViewModel(
+            themeManager,
+            localizationManager,
+            "0.1.0-alpha.12");
+
+        viewModel.AppVersion.Should().Be("0.1.0-alpha.12");
+    }
+
+    [Fact]
+    public void ToDisplayVersion_TrimsTheGitSuffixTheSdkBakes()
+    {
+        AppVersion.ToDisplayVersion("0.1.0-alpha.12+de116cb").Should().Be("0.1.0-alpha.12");
+        AppVersion.ToDisplayVersion("0.1.0-alpha.12").Should().Be("0.1.0-alpha.12");
+    }
+
+    [Fact]
+    public void ToDisplayVersion_WithoutAttributeValue_NeverBlank()
+    {
+        AppVersion.ToDisplayVersion(null).Should().NotBeNullOrWhiteSpace();
     }
 }

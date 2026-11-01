@@ -88,7 +88,8 @@ internal static class CompositionRoot
         services.AddSingleton<StatusBarViewModel>(sp =>
             new StatusBarViewModel(
                 sp.GetRequiredService<IThemeManager>(),
-                sp.GetRequiredService<ILocalizationManager>()));
+                sp.GetRequiredService<ILocalizationManager>(),
+                AppVersion.Current));
         services.AddSingleton<ChatViewModel>();
         services.AddSingleton<SettingsViewModel>(sp =>
             new SettingsViewModel(

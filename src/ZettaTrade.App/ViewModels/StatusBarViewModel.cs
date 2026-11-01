@@ -23,6 +23,12 @@ public sealed class StatusBarViewModel : ReactiveObject
     private string _currentLanguage = string.Empty;
     private string _connectionStatus = string.Empty;
 
+    /// <summary>Running application version for the status bar chip.</summary>
+    public string AppVersion
+    {
+        get;
+    }
+
     /// <summary>Current theme name.</summary>
     public string CurrentThemeName
     {
@@ -53,10 +59,14 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// </summary>
     /// <param name="themeManager">Theme manager providing the theme chip state.</param>
     /// <param name="localizationManager">Localization manager providing the language chip state.</param>
+    /// <param name="appVersion">Running version for the version chip.</param>
     public StatusBarViewModel(
         IThemeManager themeManager,
-        ILocalizationManager localizationManager)
+        ILocalizationManager localizationManager,
+        string appVersion)
     {
+        AppVersion = appVersion;
+
         // The ViewModel lives as long as the application (singleton), so these
         // subscriptions mirror it and need no explicit disposal.
         themeManager
