@@ -329,7 +329,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 
 ## T-019 — Startup-walk audit after the typed-registration guard fix (queued from T-015)
 
-- **Branch:** `feat/startup-walk-audit` (not started; cut from develop after the T-015/T-016 merge)
+- **Branch:** `feat/startup-walk-audit` (started; cut from develop @ `eae8d9b`, worktree `zt-startup-walk-audit`)
 - **Scope:** `src/ZettaTrade.App` (verbatim: no CompositionRoot change expected — an audit plus one regression test), App.Tests.
 - **What:** T-015's live probe found the startup walk's static guard silently skipping every typed registration (`type is IAsyncInitializable` is never true for a `System.Type` object; the `typeof(IAsyncInitializable).IsAssignableFrom(...)` fix shipped in T-015). With typed services now actually initialized at startup, audit the semantics and pin them so nothing else rides on accidents.
 - **Acceptance:**
