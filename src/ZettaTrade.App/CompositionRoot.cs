@@ -102,6 +102,10 @@ internal static class CompositionRoot
             new ChartViewModel(
                 sp.GetRequiredService<IMarketDataAdapter>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
+        services.AddSingleton<OrderBookViewModel>(sp =>
+            new OrderBookViewModel(
+                sp.GetRequiredService<IMarketDataAdapter>(),
+                sp.GetRequiredService<ILogger<OrderBookViewModel>>()));
         services.AddTransient<MainViewModel>();
         services.AddTradingUiServices();
         services.AddOrderHistory();

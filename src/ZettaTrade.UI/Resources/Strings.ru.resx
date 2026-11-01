@@ -300,4 +300,19 @@
   <data name="History.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="OrderBook.Title" xml:space="preserve">
+    <value>Стакан ордеров</value>
+  </data>
+  <data name="OrderBook.NoDataMessage" xml:space="preserve">
+    <value>Нет данных</value>
+  </data>
+  <data name="OrderBook.Price" xml:space="preserve">
+    <value>Цена</value>
+  </data>
+  <data name="OrderBook.CumulativeVolume" xml:space="preserve">
+    <value>Объём</value>
+  </data>
+  <data name="OrderBook.SpreadFormat" xml:space="preserve">
+    <value>Спред: {0}</value>
+  </data>
 </root>
