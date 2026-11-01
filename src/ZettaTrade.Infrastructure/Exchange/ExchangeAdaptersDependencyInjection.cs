@@ -6,6 +6,7 @@ using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Infrastructure.Demo;
 
 /// <summary>
 /// DI wiring for exchange adapters. Transport details (client name, timeouts) belong
@@ -17,7 +18,13 @@ public static class ExchangeAdaptersDependencyInjection
 {
     #region Public Methods
 
-    /// <summary>Register all currently shipped exchange adapters (data + paper trading).</summary>
+    /// <summary>
+    /// Register all currently shipped exchange adapters by concrete type
+    /// (market data + the canned-data demo entry). The single
+    /// <see cref="IMarketDataAdapter"/>/<see cref="ITradingAdapter"/> entry
+    /// points are composed by the App-side active-exchange wiring over the
+    /// facade, so adapters must not claim the interface registrations.
+    /// </summary>
     public static IServiceCollection AddExchangeAdapters(this IServiceCollection services)
     {
         // The endpoint registry must come FIRST: the composition-root init
@@ -27,7 +34,7 @@ public static class ExchangeAdaptersDependencyInjection
         return services
             .AddExchangeEndpointRegistry()
             .AddBinanceAdapter()
-            .AddPaperTrading();
+            .AddDemoAdapter();
     }
 
     /// <summary>
@@ -47,7 +54,10 @@ public static class ExchangeAdaptersDependencyInjection
     /// multi-megabyte — the decompression is what keeps symbol-list loads in
     /// the sub-second range). Endpoints come from the
     /// <see cref="ExchangeEndpointRegistry"/> snapshot (settings override or
-    /// shipped production defaults).
+    /// shipped production defaults). Concrete-type registration: the
+    /// App-side active-exchange wiring owns the single
+    /// <c>IMarketDataAdapter</c> entry point, so the adapter itself must not
+    /// claim the interface descriptor.
     /// </summary>
     public static IServiceCollection AddBinanceAdapter(this IServiceCollection services)
     {
@@ -61,7 +71,7 @@ public static class ExchangeAdaptersDependencyInjection
                 | DecompressionMethods.Deflate
                 | DecompressionMethods.Brotli,
         });
-        services.AddSingleton<IMarketDataAdapter>(sp =>
+        services.AddSingleton<BinanceAdapter>(sp =>
             new BinanceAdapter(
                 sp.GetRequiredService<ILogger<BinanceAdapter>>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
@@ -71,8 +81,10 @@ public static class ExchangeAdaptersDependencyInjection
     }
 
     /// <summary>
-    /// Register the paper trading adapter over whatever market data adapter is
-    /// registered (mock surface; real keys are never involved).
+    /// Register the paper trading adapter over the active-exchange facade
+    /// (mock surface; real keys are never involved). This registration
+    /// belongs to the App-side active-exchange composition: infrastructure
+    /// wiring alone carries no <c>IMarketDataAdapter</c> to wrap.
     /// </summary>
     public static IServiceCollection AddPaperTrading(this IServiceCollection services) =>
         services.AddSingleton<ITradingAdapter>(sp => new PaperTradingAdapter(

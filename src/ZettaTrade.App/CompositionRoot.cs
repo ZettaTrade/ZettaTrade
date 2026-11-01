@@ -75,6 +75,14 @@ internal static class CompositionRoot
         // Exchange adapters: transport settings live inside each adapter module (Infrastructure).
         services.AddExchangeAdapters();
 
+        // Active-exchange facade over the concrete adapters: every market
+        // data consumer resolves one IMarketDataAdapter that forwards to
+        // the exchange picked in the toolbar selector, and trading rides the
+        // same context (paper over the facade). Typed + IAsyncInitializable:
+        // the startup walk restores the persisted choice here — before any
+        // consumer VM is constructed.
+        services.AddActiveExchange();
+
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
 
@@ -89,7 +97,9 @@ internal static class CompositionRoot
             new StatusBarViewModel(
                 sp.GetRequiredService<IThemeManager>(),
                 sp.GetRequiredService<ILocalizationManager>(),
-                AppVersion.Current));
+                sp.GetRequiredService<ActiveExchangeService>(),
+                AppVersion.Current,
+                logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>()));
         services.AddSingleton<ChatViewModel>();
         services.AddSingleton<SettingsViewModel>(sp =>
             new SettingsViewModel(
@@ -101,7 +111,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ThemeManager>().LoadErrorsChanged));
         services.AddSingleton<ChartViewModel>(sp =>
             new ChartViewModel(
-                sp.GetRequiredService<IMarketDataAdapter>(),
+                sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
@@ -117,7 +127,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<SettingsViewModel>(),
                 sp.GetRequiredService<ChartViewModel>(),
                 sp.GetRequiredService<OrderBookViewModel>(),
-                sp.GetRequiredService<IMarketDataAdapter>(),
+                sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();
         services.AddOrderHistory();
