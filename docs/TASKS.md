@@ -272,11 +272,11 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Missing config section → production defaults at registration (test).
   - gate.
 - **Tests:** registry semantics (missing → Production; override → served as-is; blank members → Production plus a warning) and the full registration path: building the container resolves `IMarketDataAdapter` whose (internal, `InternalsVisibleTo`) endpoints equal the configured host — no network anywhere.
-- **Status:** implemented + live-probed on `feat/exchange-config` (not yet merged; awaiting commit/merge).
+- **Status:** done. Canon: the feature commit `f78f57f` is on develop (merge `eeed418` on develop and origin; the branch tail `778f17d` shipped `0.1.0-alpha.14`). Outcome:
   - Code: `BinanceEndpoints` + `ExchangeEndpointRegistry` (read-once section snapshot; missing → Production silent, blank members → warning + Production, valid override → logged), the registration site (registry first, the adapter factory resolves `registry.Binance`), the adapter ctor param + internal accessors; CompositionRoot round 2 (`IsAssignableFrom` guard + `RegisterAll` after the walk).
   - Tests 159 → 169 (10 new `ExchangeEndpointRegistryTests`: semantics above; ctor without endpoints → defaults; ctor with blank members → `ArgumentException` fail-fast; the startup replica — walk + the RegisterAll step — asserts the RESOLVED adapter carries the configured host; a real-file `SettingsService` end-to-end. Adapters are IAsyncDisposable-only — providers must `await using`).
   - Live probe (mirror host written into `%APPDATA%\ZettaTrade\config\appsettings.json`, then restored): settings load "(3 keys)" → the walk logs `Exchange endpoints configured: rest https://api1.binance.com, ws …` BEFORE the adapter's construction line → `exchangeInfo` and `klines` served through `api1.binance.com` end-to-end in the real app; one `exchangeInfo` per run holds.
-  - GATE PASSED twice (before and after the ordering fix).
+  - GATE PASSED three times (twice mid-round, once after the version bump shipped).
   - Follow-up: T-019 (startup-walk audit).
 
 ## T-016 — Exchange selector in the toolbar (queued by user)
