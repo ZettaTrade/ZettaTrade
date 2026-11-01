@@ -12,6 +12,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// Tests for the New Order dialog pipeline: every placement must pass risk
@@ -26,6 +27,7 @@ public sealed class NewOrderDialogViewModelTests
     private readonly IConfirmationService _confirmation = Substitute.For<IConfirmationService>();
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
     private readonly IOrderJournal _journal = new OrderJournal();
+    private readonly IOrderHistoryStore _history = Substitute.For<IOrderHistoryStore>();
 
     public NewOrderDialogViewModelTests()
     {
@@ -44,6 +46,7 @@ public sealed class NewOrderDialogViewModelTests
             _confirmation,
             new OrderConfirmationComposer(_localization),
             _journal,
+            _history,
             _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>());
 
@@ -302,6 +305,71 @@ public sealed class NewOrderDialogViewModelTests
 
         // Assert
         _journal.GetRecent().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_AfterConfirmedPlacement_PersistsOrderToHistoryStore()
+    {
+        // Arrange: a successful placement must reach the persistent SQLite
+        // journal (restart acceptance), beyond the session-only journal.
+        var placed = (Order?)null;
+        _history.RecordPlacedAsync(Arg.Do<Order>(order => placed = order))
+            .Returns(Task.CompletedTask);
+        var viewModel = CreateViewModel();
+        FillValidLimitOrder(viewModel);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: true));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+        _trading.PlaceOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: exactly one record, carrying the adapter's own order.
+        await _history.Received(1).RecordPlacedAsync(Arg.Any<Order>());
+        placed.Should().NotBeNull();
+        placed!.Id.Should().Be("paper-test");
+        placed.ExchangeId.Should().Be("paper");
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WhenHistoryStoreFails_PlacementStillSucceeds()
+    {
+        // Arrange: persistence is best effort — a local database fault must
+        // never turn an adapter-accepted order into a dialog error or keep
+        // the dialog open with stale inputs.
+        _history.RecordPlacedAsync(Arg.Any<Order>())
+            .Returns(_ => Task.FromException(new InvalidOperationException("disk full")));
+        var viewModel = CreateViewModel();
+        FillValidLimitOrder(viewModel);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: true));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+        _trading.PlaceOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+
+        var closes = 0;
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref closes);
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        closes.Should().Be(1);
+        viewModel.ErrorMessage.Should().BeNull();
+        _journal.GetRecent().Should().ContainSingle(order => order.Id == "paper-test");
     }
 
     private static string FormatArgs(object[] args) => string.Join("|", args);

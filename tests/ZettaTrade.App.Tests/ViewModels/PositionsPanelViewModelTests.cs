@@ -14,6 +14,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// Tests for the positions panel: loading populates all three sections with
@@ -28,6 +29,7 @@ public sealed class PositionsPanelViewModelTests
     private readonly IConfirmationService _confirmation = Substitute.For<IConfirmationService>();
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
     private readonly IOrderJournal _journal = new OrderJournal();
+    private readonly IOrderHistoryStore _history = Substitute.For<IOrderHistoryStore>();
 
     public PositionsPanelViewModelTests()
     {
@@ -43,6 +45,7 @@ public sealed class PositionsPanelViewModelTests
         new(
             _trading,
             _journal,
+            _history,
             _confirmation,
             new OrderConfirmationComposer(_localization),
             _localization,
@@ -191,6 +194,59 @@ public sealed class PositionsPanelViewModelTests
     }
 
     [Fact]
+    public async Task CancelCommand_WhenConfirmed_MarksOrderCancelledInHistoryStore()
+    {
+        // Arrange: after the adapter confirms the cancellation the persistent
+        // SQLite journal must carry the terminal state for restarts.
+        var viewModel = CreateViewModel();
+        _journal.RecordPlaced(BuildOrder("paper-1", OrderStatus.Pending, "ETH/USDT"));
+        _trading.GetOpenOrdersAsync().Returns([]);
+        _trading.GetPositionsAsync().Returns([]);
+
+        var capturedExchangeId = (string?)null;
+        var capturedOrderId = (string?)null;
+        _history.MarkCancelledAsync(
+                Arg.Do<string>(exchangeId => capturedExchangeId = exchangeId),
+                Arg.Do<string>(orderId => capturedOrderId = orderId),
+                Arg.Any<DateTimeOffset>())
+            .Returns(Task.CompletedTask);
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act
+        await viewModel.RecentOrders.Single().CancelCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the order's own exchange and id, no substitution.
+        capturedExchangeId.Should().Be("paper");
+        capturedOrderId.Should().Be("paper-1");
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CancelCommand_WhenHistoryStoreFails_CancellationStillSucceeds()
+    {
+        // Arrange: persistence is best effort — a journal fault must never
+        // undo or fail a cancellation the adapter already performed.
+        _journal.RecordPlaced(BuildOrder("paper-1", OrderStatus.Pending, "ETH/USDT"));
+        _trading.GetOpenOrdersAsync().Returns([]);
+        _trading.GetPositionsAsync().Returns([]);
+        _history.MarkCancelledAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>())
+            .Returns(_ => Task.FromException(new InvalidOperationException("disk full")));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+
+        var viewModel = CreateViewModel();
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act
+        await viewModel.RecentOrders.Single().CancelCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: localized success, no stale error.
+        viewModel.ResultMessage.Should().Contain("Positions.Cancelled").And.Contain("paper-1");
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
     public async Task CancelCommand_WhenUserDeclines_NeverTouchesAdapter()
     {
         // Arrange
@@ -208,6 +264,8 @@ public sealed class PositionsPanelViewModelTests
         // Assert: the confirmation shows the cancel template, the adapter
         // stays untouched, and no outcome line is shown.
         await _trading.DidNotReceive().CancelOrderAsync(Arg.Any<Symbol>(), Arg.Any<string>());
+        await _history.DidNotReceive().MarkCancelledAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>());
         viewModel.ResultMessage.Should().BeNull();
         viewModel.ErrorMessage.Should().BeNull();
     }
@@ -237,6 +295,8 @@ public sealed class PositionsPanelViewModelTests
         viewModel.ErrorMessage.Should().Contain("Positions.CancelFailed").And.Contain("not cancellable");
         viewModel.ResultMessage.Should().BeNull();
         confirmations.Should().Be(1);
+        await _history.DidNotReceive().MarkCancelledAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>());
     }
 
     [Fact]

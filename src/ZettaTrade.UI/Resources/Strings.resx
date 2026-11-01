@@ -264,4 +264,40 @@
   <data name="Positions.Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="History.Title" xml:space="preserve">
+    <value>Order History</value>
+  </data>
+  <data name="History.Empty" xml:space="preserve">
+    <value>No orders recorded yet</value>
+  </data>
+  <data name="History.ColOpened" xml:space="preserve">
+    <value>Opened</value>
+  </data>
+  <data name="History.ColExchange" xml:space="preserve">
+    <value>Exchange</value>
+  </data>
+  <data name="History.ColSymbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="History.ColSide" xml:space="preserve">
+    <value>Side</value>
+  </data>
+  <data name="History.ColType" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="History.ColQuantity" xml:space="preserve">
+    <value>Quantity</value>
+  </data>
+  <data name="History.ColPrice" xml:space="preserve">
+    <value>Price</value>
+  </data>
+  <data name="History.ColStatus" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="History.LoadFailed" xml:space="preserve">
+    <value>Could not load the order history: {0}</value>
+  </data>
+  <data name="History.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
 </root>

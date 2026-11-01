@@ -10,6 +10,7 @@ using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// Positions and orders panel view model (modal window). Loads positions,
@@ -17,7 +18,8 @@ using ZettaTrade.Core.Interfaces;
 /// demand, and routes cancel requests through the mandatory pipeline:
 /// <see cref="IConfirmationService"/> → <see cref="ITradingAdapter.CancelOrderAsync"/>
 /// where the adapter always receives the order's own symbol and id (the
-/// Symbol-first contract). Window plumbing stays in the View.
+/// Symbol-first contract) and the SQLite order history is updated after the
+/// adapter confirms the cancellation. Window plumbing stays in the View.
 /// </summary>
 public sealed class PositionsPanelViewModel : ReactiveObject
 {
@@ -27,15 +29,13 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     private const string CancelledKey = "Positions.Cancelled";
     private const string CancelFailedKey = "Positions.CancelFailed";
 
-    /// <summary>Shared display format for order/position timestamps.</summary>
-    private const string OpenedFormat = "yyyy-MM-dd HH:mm";
-
     #endregion Resx Keys
 
     #region Private Fields
 
     private readonly ITradingAdapter _trading;
     private readonly IOrderJournal _journal;
+    private readonly IOrderHistoryStore _orderHistory;
     private readonly IConfirmationService _confirmation;
     private readonly OrderConfirmationComposer _composer;
     private readonly ILocalizationManager _localization;
@@ -168,6 +168,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     public PositionsPanelViewModel(
         ITradingAdapter trading,
         IOrderJournal journal,
+        IOrderHistoryStore orderHistory,
         IConfirmationService confirmation,
         OrderConfirmationComposer composer,
         ILocalizationManager localization,
@@ -175,6 +176,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     {
         _trading = trading ?? throw new ArgumentNullException(nameof(trading));
         _journal = journal ?? throw new ArgumentNullException(nameof(journal));
+        _orderHistory = orderHistory ?? throw new ArgumentNullException(nameof(orderHistory));
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
@@ -225,6 +227,22 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             // The adapter contract takes the symbol first and it must be the
             // order's own symbol — enforced here by construction.
             await _trading.CancelOrderAsync(order.Symbol, order.Id);
+
+            // Record the cancellation in the persistent order history. Best
+            // effort: the adapter has already cancelled the order, so a
+            // persistence fault must never undo or fail the cancellation.
+            try
+            {
+                await _orderHistory.MarkCancelledAsync(order.ExchangeId, order.Id, DateTimeOffset.UtcNow);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Positions panel: failed to mark {OrderId} cancelled in the order history",
+                    order.Id);
+            }
+
             ResultMessage = _localization.GetString(CancelledKey, order.Id);
             _logger.LogInformation(
                 "Positions panel: cancelled {OrderId} on {Symbol}",
@@ -277,7 +295,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         Side = _localization.GetString($"Order.{position.Side}"),
         Quantity = position.Quantity.Value.ToString(CultureInfo.InvariantCulture),
         EntryPrice = position.EntryPrice.Value.ToString("F8", CultureInfo.InvariantCulture),
-        Opened = position.OpenedAt.ToString(OpenedFormat, CultureInfo.InvariantCulture),
+        Opened = position.OpenedAt.ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
     };
 
     /// <summary>
@@ -300,7 +318,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             Quantity = order.Quantity.Value.ToString(CultureInfo.InvariantCulture),
             Price = order.Price.Value.ToString("F8", CultureInfo.InvariantCulture),
             Status = _localization.GetString($"Positions.Status{order.Status}"),
-            Opened = order.CreatedAt.ToString(OpenedFormat, CultureInfo.InvariantCulture),
+            Opened = order.CreatedAt.ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
             IsCancellable = isCancellable,
             CancelCommand = ReactiveCommand.CreateFromTask(
                 () => HandleCancelAsync(order),

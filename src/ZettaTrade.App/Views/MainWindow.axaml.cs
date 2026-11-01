@@ -35,6 +35,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.OpenSettingsRequested.RegisterHandler(OpenSettingsAsync);
         ViewModel?.Menu.NewOrderRequested.RegisterHandler(OpenNewOrderAsync);
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
+        ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
     }
 
     private async Task OpenNewOrderAsync(IInteractionContext<RxVoid, RxVoid> context)
@@ -74,6 +75,28 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the positions panel");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenOrderHistoryAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The view model is transient: every open re-reads the persisted
+            // order journal, so a restarted app never shows stale rows.
+            var window = new OrderHistoryWindow
+            {
+                DataContext = App.Services.GetRequiredService<ViewModels.OrderHistoryViewModel>(),
+            };
+            await window.ShowDialog<object>(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the order history window");
         }
         finally
         {
