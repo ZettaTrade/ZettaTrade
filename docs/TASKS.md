@@ -281,7 +281,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 
 ## T-016 — Exchange selector in the toolbar (queued by user)
 
-- **Branch:** `feat/exchange-selector` (planned; **blocker: needs a 2nd registered adapter** — a selector over one item is meaningless)
+- **Branch:** `feat/exchange-selector` (started; cut from develop @ `05b46f5`, worktree `zt-exchange-selector`)
+- **Blocker resolved (user decision):** the 2nd registered adapter is a stub **"Demo" adapter with deterministic canned data** (no network, no keys), **always registered** — the selector is live from the first alpha build and needs no settings section; the "one adapter → no selector" behavior is pinned by test. A real second exchange (e.g. Bybit/Kraken) replaces the stub in a separate dedicated adapter task later.
 - **Scope:** toolbar/status bar in `src/ZettaTrade.App`, hooking the T-015 registry seam. No Core interface changes.
 - **UX design (the anti-confusion rules):**
   - **One concept, one control:** a single "active exchange" picked in exactly one toolbar place; chart, order book, dialog symbol resolution and new-order context all follow it blind. Never two places that can disagree (no split-brain: chart on Binance while the dialog places on Bybit is impossible by construction).
