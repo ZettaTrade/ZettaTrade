@@ -1,5 +1,6 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
+using System.Collections.Generic;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,11 +43,11 @@ public sealed class NewOrderDialogViewModelTests
             $"[{call.ArgAt<string>(0)}:{FormatArgs(call.ArgAt<object[]>(1))}]");
     }
 
-    private NewOrderDialogViewModel CreateViewModel() =>
+    private NewOrderDialogViewModel CreateViewModel(IMarketDataAdapter? marketData = null) =>
         new(
             _trading,
             new SymbolListProvider(
-                _trading,
+                marketData ?? _trading,
                 Substitute.For<Microsoft.Extensions.Logging.ILogger<SymbolListProvider>>()),
             _riskManager,
             _confirmation,
@@ -387,7 +388,7 @@ public sealed class NewOrderDialogViewModelTests
         // BASE/QUOTE strings. The user typed "btc" (lower case) BEFORE the
         // list returns — the dialog opens faster than the remote answers.
         var viewModel = CreateViewModel();
-        _trading.GetSymbolsAsync().Returns(new List<Symbol>
+        _trading.GetSymbolsAsync(Arg.Any<CancellationToken>()).Returns(new List<Symbol>
         {
             Symbol.Parse("ETH/BTC"),
             Symbol.Parse("BTC/USDT"),
@@ -415,7 +416,7 @@ public sealed class NewOrderDialogViewModelTests
     {
         // Arrange
         var viewModel = CreateViewModel();
-        _trading.GetSymbolsAsync().Returns(new List<Symbol> { Symbol.Parse("BTC/USDT") });
+        _trading.GetSymbolsAsync(Arg.Any<CancellationToken>()).Returns(new List<Symbol> { Symbol.Parse("BTC/USDT") });
 
         // Act
         await viewModel.LoadSymbolsCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
@@ -430,7 +431,7 @@ public sealed class NewOrderDialogViewModelTests
     public async Task LoadSymbolsCommand_WhenRequestFails_StaysSilentAndFieldKeepsAcceptingText()
     {
         // Arrange: offline — the designed empty state, never an error UI.
-        _trading.GetSymbolsAsync()
+        _trading.GetSymbolsAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException<IReadOnlyList<Symbol>>(
                 new System.Net.Http.HttpRequestException("offline")));
         var viewModel = CreateViewModel();
@@ -444,5 +445,51 @@ public sealed class NewOrderDialogViewModelTests
         viewModel.SymbolInput.Should().Be("btc", "the field stays free-form");
         viewModel.HasErrorMessage.Should().BeFalse("an autocomplete failure is not a placement error");
         viewModel.IsSymbolSuggestionsOpen.Should().BeFalse("nothing to show without a symbol list");
+    }
+
+    [Fact]
+    public async Task LoadSymbolsCommand_WhenTheExecutionSubscriptionIsDisposed_CancelsTheFetch()
+    {
+        // Arrange: the real window owns the load execution —
+        // Execute().Subscribe(), disposed with the WhenActivated disposables.
+        // The fake fetch parks on the token it receives (only cancellation
+        // completes it), so the test observes the exact token the dialog
+        // flows into the provider and asserts it dies with the window.
+        var fetchEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var consumedToken = (CancellationToken?)null;
+        var marketData = Substitute.For<IMarketDataAdapter>();
+        marketData.GetSymbolsAsync(Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var token = call.ArgAt<CancellationToken>(0);
+                consumedToken = token;
+                fetchEntered.SetResult();
+                return AwaitCancellationAsync(token);
+            });
+        var viewModel = CreateViewModel(marketData);
+
+        // Act: subscribe, wait until the fetch is in flight, then dispose
+        // the execution subscription (the dialog closed while it ran).
+        var execution = viewModel.LoadSymbolsCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        using (execution.Subscribe(_ => { }, _ => { }))
+        {
+            await fetchEntered.Task;
+        }
+
+        // Assert
+        consumedToken.Should().NotBeNull("the fetch ran through the dialog's own token");
+        consumedToken!.Value.IsCancellationRequested.Should().BeTrue(
+            "disposing the execution subscription must cancel the in-flight fetch");
+    }
+
+    /// <summary>
+    /// Fake adapter fetch: enters once, then parks on the received token —
+    /// only cancellation completes it.
+    /// </summary>
+    private static async Task<IReadOnlyList<Symbol>> AwaitCancellationAsync(CancellationToken ct)
+    {
+        await Task.Delay(Timeout.Infinite, ct);
+        throw new InvalidOperationException("the delay returned without cancellation");
     }
 }

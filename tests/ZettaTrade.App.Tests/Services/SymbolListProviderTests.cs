@@ -40,8 +40,8 @@ public sealed class SymbolListProviderTests
             }));
 
         // Act
-        var first = await provider.GetSymbolsAsync();
-        var second = await provider.GetSymbolsAsync();
+        var first = await provider.GetSymbolsAsync(CancellationToken.None);
+        var second = await provider.GetSymbolsAsync(CancellationToken.None);
 
         // Assert
         await _marketData.Received(1).GetSymbolsAsync(Arg.Any<CancellationToken>());
@@ -58,7 +58,7 @@ public sealed class SymbolListProviderTests
         var provider = CreateProvider();
         _marketData.GetSymbolsAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException<IReadOnlyList<Symbol>>(new HttpRequestException("offline")));
-        await Assert.ThrowsAsync<HttpRequestException>(() => provider.GetSymbolsAsync());
+        await Assert.ThrowsAsync<HttpRequestException>(() => provider.GetSymbolsAsync(CancellationToken.None));
 
         _marketData.GetSymbolsAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyList<Symbol>>(new List<Symbol>
@@ -67,7 +67,7 @@ public sealed class SymbolListProviderTests
             }));
 
         // Act
-        var result = await provider.GetSymbolsAsync();
+        var result = await provider.GetSymbolsAsync(CancellationToken.None);
 
         // Assert
         await _marketData.Received(2).GetSymbolsAsync(Arg.Any<CancellationToken>());
@@ -91,7 +91,7 @@ public sealed class SymbolListProviderTests
 
         // Act
         var initialization = provider.InitializeAsync();
-        var cached = await provider.GetSymbolsAsync();
+        var cached = await provider.GetSymbolsAsync(CancellationToken.None);
 
         // Assert
         initialization.IsCompleted.Should().BeTrue("startup must not await the network");
