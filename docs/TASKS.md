@@ -258,17 +258,20 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 
 ## T-015 — Configurable exchange endpoints + registry seam (queued by user)
 
-- **Branch:** `feat/exchange-config` (planned)
+- **Branch:** `feat/exchange-config` (started 2026-11-01, cut from develop @ f35c6e5; worktree `zt-exchange-config`)
 - **Scope:** `src/ZettaTrade.Infrastructure/Exchange` (`BinanceAdapter` constructor + wiring), the registration site in Infrastructure/App, new `Exchange.*` config section (the rule: new features get a config section). Core contracts untouched; public read-only endpoints mean `ISecretStore` is not involved.
 - **What:** `BinanceAdapter` hardcodes `_baseUrl = "https://api.binance.com"` and `_wsUrl = "wss://stream.binance.com:9443/ws"` as private literals — testnet (`testnet.binance.vision`), regional mirrors (`api1..3.binance.com`, `api.binance.us`) or a proxy need a recompile.
-- **Fix direction:**
-  - Adapter constructor gains optional `baseUrl`/`wsUrl` parameters with the production defaults (existing call sites compile unchanged).
-  - Registration reads `Exchange:Binance:RestBase` / `Exchange:Binance:WsUrl` from appsettings; a missing section falls back to the shipped defaults (hidden-safe, no breaking change for existing configs).
-  - The registration site doubles as the adapter-registry seam T-016 selects from.
+- **Design (decided, 2026-11-01):**
+  - `BinanceEndpoints` — immutable record (`RestBaseUrl`, `WsUrl`) with a `Production` default built from the adapter's newly public `DefaultRestBaseUrl`/`DefaultWsUrl` constants (moved out of private field initializers into the same public-const shelf as `HttpClientName`, `RequestTimeoutSeconds`).
+  - `ExchangeEndpointRegistry` (Infrastructure, App-lifetime singleton, `IAsyncInitializable`) reads the section ONCE in `InitializeAsync` through `ISettingsService.GetAsync<BinanceEndpoint??>("Exchange", "Binance")` and caches an `Endpoints` sync view: missing section → shipped `Production` hidden-safe; present-but-blank members → warning + `Production` (connectivity may degrade but the app stays honest to the log). Config applies at startup; changing endpoints needs an app restart (live switching is a T-016+ concern).
+  - The async problem this solves: `ISettingsService` is async-only while DI construction is synchronous. The registration ORDER is the bridge: `AddExchangeAdapters` registers the registry BEFORE every adapter, so the composition-root init loop (registration-order initialization) loads the settings file before the adapter resolves `registry.Endpoints` synchronously post-init. No Core contract change, no CompositionRoot restructuring (the root's adapter line stays one line).
+  - `BinanceAdapter` ctor gains a trailing `BinanceEndpoints? endpoints = null` parameter: omitted → shipped defaults (existing call sites compile unchanged); provided with blank members → `ArgumentException` fail-fast (config errors never get silently substituted by the ADAPTER itself; the registry handles the tolerant file case). The named HTTP client (timeout, decompression) needs no change — the adapter composes absolute URLs from `_baseUrl`, so endpoints affect only the adapter fields.
+  - File shape (SettingsService stores a section→key map, record JSON is camelCase): `{ "Exchange": { "Binance": { "restBaseUrl": "https://…", "wsUrl": "wss://…/stream" } } }` — note the WS default is the combined `/stream` endpoint (the envelope the message handler expects), not raw `/ws`.
 - **Acceptance:**
   - A config override points the adapter at a different host (unit test against a stub URL, no network).
   - Missing config section → production defaults at registration (test).
   - gate.
+- **Tests:** registry semantics (missing → Production; override → served as-is; blank members → Production plus a warning) and the full registration path: building the container resolves `IMarketDataAdapter` whose (internal, `InternalsVisibleTo`) endpoints equal the configured host — no network anywhere.
 
 ## T-016 — Exchange selector in the toolbar (queued by user)
 
