@@ -53,4 +53,10 @@
     <ProjectReference Include="..\ZettaTrade.Infrastructure\ZettaTrade.Infrastructure.csproj" />
     <ProjectReference Include="..\ZettaTrade.UI\ZettaTrade.UI.csproj" />
   </ItemGroup>
+
+  <!-- The App test project pins the composition root's internal startup-walk
+       screen directly; no public surface is added. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ZettaTrade.App.Tests" />
+  </ItemGroup>
 </Project>
