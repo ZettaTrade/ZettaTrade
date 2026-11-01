@@ -18,6 +18,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-012 UX follow-ups: chat focus, reconnect states | feat/chat-focus | planned | — |
 | T-013 Order dialog fixes: market-order JSON strings + combo clipping | fix/order-dialog | in-progress | — |
 | T-014 Instrument autocomplete in the order dialog | feat/symbol-autocomplete | planned | — |
+| T-015 Configurable exchange endpoints + registry seam | feat/exchange-config | planned | — |
+| T-016 Exchange selector in the toolbar | feat/exchange-selector | planned | needs a 2nd adapter |
 
 ---
 
@@ -195,3 +197,33 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Branch:** `feat/symbol-autocomplete` (planned; not scheduled before T-011)
 - **Scope:** `src/ZettaTrade.App` (dialog symbol input → editable list/AutoCompleteBox over `GetSymbolsAsync`), resx if new strings needed.
 - **What:** typing "Btc/usdt" every time is clumsy — suggest completions from the adapter symbol list as the user types (case-insensitive prefix/contains), keyboard-navigable, graceful empty state when the symbols request fails offline (the field stays free-form by design).
+
+## T-015 — Configurable exchange endpoints + registry seam (queued by user)
+
+- **Branch:** `feat/exchange-config` (planned)
+- **Scope:** `src/ZettaTrade.Infrastructure/Exchange` (`BinanceAdapter` constructor + wiring), the registration site in Infrastructure/App, new `Exchange.*` config section (the rule: new features get a config section). Core contracts untouched; public read-only endpoints mean `ISecretStore` is not involved.
+- **What:** `BinanceAdapter` hardcodes `_baseUrl = "https://api.binance.com"` and `_wsUrl = "wss://stream.binance.com:9443/ws"` as private literals — testnet (`testnet.binance.vision`), regional mirrors (`api1..3.binance.com`, `api.binance.us`) or a proxy need a recompile.
+- **Fix direction:**
+  - Adapter constructor gains optional `baseUrl`/`wsUrl` parameters with the production defaults (existing call sites compile unchanged).
+  - Registration reads `Exchange:Binance:RestBase` / `Exchange:Binance:WsUrl` from appsettings; a missing section falls back to the shipped defaults (hidden-safe, no breaking change for existing configs).
+  - The registration site doubles as the adapter-registry seam T-016 selects from.
+- **Acceptance:**
+  - A config override points the adapter at a different host (unit test against a stub URL, no network).
+  - Missing config section → production defaults at registration (test).
+  - gate.
+
+## T-016 — Exchange selector in the toolbar (queued by user)
+
+- **Branch:** `feat/exchange-selector` (planned; **blocker: needs a 2nd registered adapter** — a selector over one item is meaningless)
+- **Scope:** toolbar/status bar in `src/ZettaTrade.App`, hooking the T-015 registry seam. No Core interface changes.
+- **UX design (the anti-confusion rules):**
+  - **One concept, one control:** a single "active exchange" picked in exactly one toolbar place; chart, order book, dialog symbol resolution and new-order context all follow it blind. Never two places that can disagree (no split-brain: chart on Binance while the dialog places on Bybit is impossible by construction).
+  - **Hide what there is no choice about:** the selector is rendered only when ≥2 adapters are registered; with one adapter the toolbar looks exactly as today.
+  - **The context is always visible while the control is rare enough:** a status chip combines exchange + trading mode (`Binance · Paper`); trading mode stays a separate always-visible concern and is never folded into the same picker as the exchange — those are two different decisions.
+  - **Visible at the action points:** the order dialog header names the active exchange; history rows already carry the Exchange column (T-010).
+  - **Depth out of the toolbar:** endpoints/testnet configuration (T-015) lives in Settings; the picker only switches context, it does not configure.
+  - **Persistence with a loud fallback:** the last choice persists; a persisted exchange that is unavailable at startup falls back to a default with an explicit user-facing warning, never silently.
+- **Acceptance:**
+  - One adapter: no selector, zero behavior change (pinned by test).
+  - Two adapters: switching is atomic — chart/book/dialog switch together, in-flight data of the previous adapter is dropped, not mixed.
+  - Unavailable persisted choice → startup warning + default selection; gate.
