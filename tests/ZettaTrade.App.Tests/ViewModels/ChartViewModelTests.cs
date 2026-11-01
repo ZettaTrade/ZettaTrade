@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
@@ -136,6 +137,7 @@ public sealed class ChartViewModelTests
 
         var chart = new ChartViewModel(
             marketData,
+            new SymbolListProvider(marketData, NullLogger<SymbolListProvider>.Instance),
             NullLogger<ChartViewModel>.Instance);
 
         marketData.SymbolsRequested.Should().ContainSingle(
@@ -148,6 +150,7 @@ public sealed class ChartViewModelTests
         var marketData = new FakeMarketData();
         var chart = new ChartViewModel(
             marketData,
+            new SymbolListProvider(marketData, NullLogger<SymbolListProvider>.Instance),
             NullLogger<ChartViewModel>.Instance);
         var selections = new List<Symbol>();
 
@@ -167,6 +170,7 @@ public sealed class ChartViewModelTests
         var marketData = new FakeMarketData();
         var chart = new ChartViewModel(
             marketData,
+            new SymbolListProvider(marketData, NullLogger<SymbolListProvider>.Instance),
             NullLogger<ChartViewModel>.Instance);
         var delivered = new List<IReadOnlyList<Bar>>();
 
@@ -185,6 +189,7 @@ public sealed class ChartViewModelTests
         var marketData = new FakeMarketData(barDelayMs: 30);
         var chart = new ChartViewModel(
             marketData,
+            new SymbolListProvider(marketData, NullLogger<SymbolListProvider>.Instance),
             NullLogger<ChartViewModel>.Instance);
         var latest = new TaskCompletionSource<IReadOnlyList<Bar>>();
 
@@ -220,6 +225,7 @@ public sealed class ChartViewModelTests
         var marketData = new FakeMarketData(failingSymbols: ["BTC/USDT"]);
         var chart = new ChartViewModel(
             marketData,
+            new SymbolListProvider(marketData, NullLogger<SymbolListProvider>.Instance),
             NullLogger<ChartViewModel>.Instance);
         var delivered = new List<IReadOnlyList<Bar>>();
 

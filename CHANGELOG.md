@@ -9,6 +9,41 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.13] - 2026-11-01
+
+Build of task T-014 (instrument autocomplete in the order dialog).
+
+### Added (T-014 — symbol autocomplete)
+- Free-form symbol input in the New Order dialog: case-insensitive VM
+  suggestions (prefix matches first, adapter order preserved) via the
+  `SymbolSuggestions` list; Enter fills the field. Offline (or while the
+  list loads) there are no suggestions and no error UI — free text is
+  always accepted; a late-arriving list opens the dropdown over already
+  typed text.
+- `SymbolListProvider` (app-lifetime singleton): normalized tradable
+  symbol names cached with one `exchangeInfo` fetch per application run,
+  warmed at startup in a non-blocking subscription (cold-start target
+  holds); `SemaphoreSlim` single-flight serves concurrent consumers from
+  that one fetch; a failed fetch is never cached, so the next consumer
+  retries.
+
+### Changed (T-014 — speed)
+- The chart symbols combo comes from the same provider (the startup used
+  to run two competing `exchangeInfo` downloads); `ChartViewModel`
+  re-parses the cached names through `Symbol.Parse` and keeps the
+  50-symbol dropdown trim.
+- The named Binance HTTP client decompresses responses (gzip, deflate,
+  brotli) — the uncompressed multi-megabyte `exchangeInfo` was the main
+  cold-start blocker. Real-Binance probe: chart symbols ready 2.39 s
+  after process start (was ~8.4 s+; gzip ≈ 6× smaller), klines response
+  317 ms, `Symbol list cached` fires exactly once per run (1373
+  instruments).
+
+### Changed
+- Test suite 152 -> 158 (8 new: 5 `NewOrderDialogViewModelTests`, 3
+  `SymbolListProviderTests`; the chart tests thread the provider through
+  the same fake adapter).
+
 ## [0.1.0-alpha.12] - 2026-11-01
 
 Build of task T-018 (app version chip); the board's T-017 ships in this

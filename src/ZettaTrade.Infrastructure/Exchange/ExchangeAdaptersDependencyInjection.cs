@@ -1,6 +1,8 @@
 namespace ZettaTrade.Infrastructure.Exchange;
 
 using System;
+using System.Net;
+using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
@@ -23,13 +25,23 @@ public static class ExchangeAdaptersDependencyInjection
 
     /// <summary>
     /// Register the Binance market data adapter: its named HTTP client carries
-    /// the adapter-owned timeout, so no other module needs to know it.
+    /// the adapter-owned timeout and transparent gzip/deflate/brotli
+    /// decompression (the factory client never enables automatic decompression
+    /// by itself, and an uncompressed <c>exchangeInfo</c> response is
+    /// multi-megabyte — the decompression is what keeps symbol-list loads in
+    /// the sub-second range).
     /// </summary>
     public static IServiceCollection AddBinanceAdapter(this IServiceCollection services)
     {
         services.AddHttpClient(BinanceAdapter.HttpClientName, client =>
         {
             client.Timeout = TimeSpan.FromSeconds(BinanceAdapter.RequestTimeoutSeconds);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip
+                | DecompressionMethods.Deflate
+                | DecompressionMethods.Brotli,
         });
         services.AddSingleton<IMarketDataAdapter, BinanceAdapter>();
 

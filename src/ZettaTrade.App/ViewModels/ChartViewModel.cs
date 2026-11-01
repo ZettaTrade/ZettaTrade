@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
@@ -44,6 +45,7 @@ public sealed class ChartViewModel : ReactiveObject
 
     private readonly ILogger<ChartViewModel> _logger;
     private readonly IMarketDataAdapter _marketData;
+    private readonly SymbolListProvider _symbolList;
 
     private ObservableCollection<Bar> _bars = new();
 
@@ -96,9 +98,11 @@ public sealed class ChartViewModel : ReactiveObject
     /// </summary>
     public ChartViewModel(
         IMarketDataAdapter marketData,
+        SymbolListProvider symbolList,
         ILogger<ChartViewModel> logger)
     {
         _marketData = marketData;
+        _symbolList = symbolList;
         _logger = logger;
 
         SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
@@ -123,10 +127,10 @@ public sealed class ChartViewModel : ReactiveObject
                 },
                 ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
 
-        // Bootstrap for the nested-panel singleton: load the symbol list once
-        // (assignments are marshaled; the failure stays logged and leaves the
-        // combo empty), then seed the combo with its first entry — the single
-        // workspace default owner.
+        // Bootstrap for the nested-panel singleton: load the shared symbol
+        // list once (assignments are marshaled; the failure stays logged and
+        // leaves the combo empty), then seed the combo with its first entry
+        // — the single workspace default owner.
         Observable.FromAsync(LoadSymbolsAsync)
             .ObserveOnUiThread()
             .Subscribe(
@@ -151,13 +155,18 @@ public sealed class ChartViewModel : ReactiveObject
     #region Private Methods
 
     /// <summary>
-    /// Fetch the symbol list, trimmed to the combo capacity. Failures belong
-    /// to the subscribe side (logged there, the combo stays empty).
+    /// Fetch the symbol list through the shared
+    /// <see cref="SymbolListProvider"/> (one <c>exchangeInfo</c> fetch per
+    /// application run serves the chart combo and the order dialog
+    /// autocomplete alike; the provider is warmed at startup, so this
+    /// bootstrap usually awaits a fetch that already runs), trimmed to the
+    /// combo capacity. Failures belong to the subscribe side (logged there,
+    /// the combo stays empty).
     /// </summary>
     private async Task<IReadOnlyList<Symbol>> LoadSymbolsAsync(CancellationToken ct)
     {
-        var symbols = await _marketData.GetSymbolsAsync(ct);
-        return symbols.Take(MaxVisibleSymbols).ToList();
+        var names = await _symbolList.GetSymbolsAsync(ct);
+        return names.Select(Symbol.Parse).Take(MaxVisibleSymbols).ToList();
     }
 
     /// <summary>
