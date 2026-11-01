@@ -24,6 +24,14 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <summary>Timeout for REST requests, in seconds.</summary>
     public const int RequestTimeoutSeconds = 30;
 
+    /// <summary>Production REST API base URL.</summary>
+    public const string DefaultRestBaseUrl = "https://api.binance.com";
+
+    // The combined endpoint wraps every frame as {"stream":...,"data":...};
+    // the message handler expects that envelope (raw /ws frames lack it).
+    /// <summary>Production WebSocket URL of the combined stream endpoint.</summary>
+    public const string DefaultWsUrl = "wss://stream.binance.com:9443/stream";
+
     /// <summary>Number of levels in the partial book depth snapshot.</summary>
     private const int DepthLevelCount = 20;
 
@@ -40,13 +48,16 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     public override ExchangeCapabilities Capabilities =>
         ExchangeCapabilities.MarketData | ExchangeCapabilities.OrderBook | ExchangeCapabilities.HistoricalData;
 
+    /// <summary>Configured REST base URL (internal: the registration tests assert it, no network).</summary>
+    internal string RestBaseUrl => _baseUrl;
+
+    /// <summary>Configured combined WS URL (internal: the registration tests assert it).</summary>
+    internal string WsUrl => _wsUrl;
+
     private readonly HttpClient _httpClient;
     private readonly WebSocketClient _wsClient;
-    private readonly string _baseUrl = "https://api.binance.com";
-
-    // The combined endpoint wraps every frame as {"stream":...,"data":...};
-    // the message handler expects that envelope (raw /ws frames lack it).
-    private readonly string _wsUrl = "wss://stream.binance.com:9443/stream";
+    private readonly string _baseUrl;
+    private readonly string _wsUrl;
     private readonly IDisposable _messageSubscription;
     private readonly IDisposable _connectionSubscription;
 
@@ -61,13 +72,28 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     #region Constructor
 
     /// <summary>
-    /// Create a new BinanceAdapter instance.
+    /// Create a new BinanceAdapter instance. Endpoints come from the
+    /// registration configuration (see <see cref="ExchangeEndpointRegistry"/>)
+    /// or fall back to the production hosts; providing a pair with blank
+    /// members is a configuration error and throws immediately (the
+    /// tolerant missing-entry case is the registry's job, not the adapter's).
     /// </summary>
     public BinanceAdapter(
         ILogger<BinanceAdapter> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        BinanceEndpoints? endpoints = null)
         : base(logger)
     {
+        _baseUrl = endpoints?.RestBaseUrl ?? DefaultRestBaseUrl;
+        _wsUrl = endpoints?.WsUrl ?? DefaultWsUrl;
+
+        if (string.IsNullOrWhiteSpace(_baseUrl) || string.IsNullOrWhiteSpace(_wsUrl))
+        {
+            throw new ArgumentException(
+                "Configured Binance endpoints must carry non-empty RestBaseUrl and WsUrl",
+                nameof(endpoints));
+        }
+
         _httpClient = httpClientFactory.CreateClient(HttpClientName);
         _wsClient = new WebSocketClient(_wsUrl, logger);
 

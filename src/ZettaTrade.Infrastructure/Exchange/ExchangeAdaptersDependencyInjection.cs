@@ -18,10 +18,26 @@ public static class ExchangeAdaptersDependencyInjection
     #region Public Methods
 
     /// <summary>Register all currently shipped exchange adapters (data + paper trading).</summary>
-    public static IServiceCollection AddExchangeAdapters(this IServiceCollection services) =>
-        services
+    public static IServiceCollection AddExchangeAdapters(this IServiceCollection services)
+    {
+        // The endpoint registry must come FIRST: the composition-root init
+        // loop initializes in registration order, so the settings file is
+        // already read (and the configured endpoints cached) before the
+        // first adapter resolves them synchronously.
+        return services
+            .AddExchangeEndpointRegistry()
             .AddBinanceAdapter()
             .AddPaperTrading();
+    }
+
+    /// <summary>
+    /// Register the adapter registry seam's configuration piece: a
+    /// read-once settings snapshot of exchange transport endpoints, exposed
+    /// synchronously after initialization (missing entries fall back to the
+    /// shipped production endpoints).
+    /// </summary>
+    public static IServiceCollection AddExchangeEndpointRegistry(this IServiceCollection services) =>
+        services.AddSingleton<ExchangeEndpointRegistry>();
 
     /// <summary>
     /// Register the Binance market data adapter: its named HTTP client carries
@@ -29,7 +45,9 @@ public static class ExchangeAdaptersDependencyInjection
     /// decompression (the factory client never enables automatic decompression
     /// by itself, and an uncompressed <c>exchangeInfo</c> response is
     /// multi-megabyte — the decompression is what keeps symbol-list loads in
-    /// the sub-second range).
+    /// the sub-second range). Endpoints come from the
+    /// <see cref="ExchangeEndpointRegistry"/> snapshot (settings override or
+    /// shipped production defaults).
     /// </summary>
     public static IServiceCollection AddBinanceAdapter(this IServiceCollection services)
     {
@@ -43,7 +61,11 @@ public static class ExchangeAdaptersDependencyInjection
                 | DecompressionMethods.Deflate
                 | DecompressionMethods.Brotli,
         });
-        services.AddSingleton<IMarketDataAdapter, BinanceAdapter>();
+        services.AddSingleton<IMarketDataAdapter>(sp =>
+            new BinanceAdapter(
+                sp.GetRequiredService<ILogger<BinanceAdapter>>(),
+                sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetRequiredService<ExchangeEndpointRegistry>().Binance));
 
         return services;
     }
