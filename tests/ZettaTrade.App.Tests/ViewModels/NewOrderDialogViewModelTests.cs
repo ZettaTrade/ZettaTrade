@@ -22,7 +22,9 @@ using ZettaTrade.Infrastructure.Persistence;
 /// input surfaces a localized error instead of a defaulted number. The
 /// symbol autocomplete additionally loads the adapter symbol list and
 /// derives case-insensitive suggestions per keystroke (silently empty
-/// offline, free-form input always usable).
+/// offline, free-form input always usable). The dialog header mirrors the
+/// active exchange: it bootstraps from the facade behavioral stream on open
+/// and tracks toolbar switches while the dialog stays open.
 /// </summary>
 public sealed class NewOrderDialogViewModelTests
 {
@@ -43,13 +45,17 @@ public sealed class NewOrderDialogViewModelTests
             $"[{call.ArgAt<string>(0)}:{FormatArgs(call.ArgAt<object[]>(1))}]");
     }
 
-    private NewOrderDialogViewModel CreateViewModel(IMarketDataAdapter? marketData = null)
+    private NewOrderDialogViewModel CreateViewModel(
+        IMarketDataAdapter? marketData = null,
+        ActiveExchangeService? exchanges = null)
     {
         // The dialog sees the market data side through the provider, and the
         // provider is now scoped to the active-exchange facade: compose a
-        // one-entry catalog for the test subject.
+        // one-entry catalog for the test subject, unless the test supplies
+        // its own service (the header tests use a two-entry catalog to
+        // drive a live switch).
         var adapter = marketData ?? _trading;
-        var service = new ActiveExchangeService(
+        var service = exchanges ?? new ActiveExchangeService(
             [adapter],
             Substitute.For<ISettingsService>(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<ActiveExchangeService>>());
@@ -58,6 +64,7 @@ public sealed class NewOrderDialogViewModelTests
             new SymbolListProvider(
                 service,
                 Substitute.For<Microsoft.Extensions.Logging.ILogger<SymbolListProvider>>()),
+            service,
             _riskManager,
             _confirmation,
             new OrderConfirmationComposer(_localization),
@@ -65,6 +72,27 @@ public sealed class NewOrderDialogViewModelTests
             _history,
             _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>());
+    }
+
+    /// <summary>
+    /// A two-adapter facade for the header tests: named adapter stubs with
+    /// registered ids and a settings service reporting "no persisted
+    /// choice", so switches start from the default entry.
+    /// </summary>
+    private static ActiveExchangeService CreateSwitchableFacade(
+        IMarketDataAdapter first,
+        IMarketDataAdapter second)
+    {
+        // Explicit "no persisted choice": the restore is never exercised in
+        // these tests, the default entry starts active.
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+
+        return new ActiveExchangeService(
+            [first, second],
+            settings,
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<ActiveExchangeService>>());
     }
 
     private static void FillValidLimitOrder(NewOrderDialogViewModel viewModel)
@@ -491,6 +519,54 @@ public sealed class NewOrderDialogViewModelTests
         consumedToken.Should().NotBeNull("the fetch ran through the dialog's own token");
         consumedToken!.Value.IsCancellationRequested.Should().BeTrue(
             "disposing the execution subscription must cancel the in-flight fetch");
+    }
+
+    [Fact]
+    public void Header_BootstrapsFromTheActiveExchangeOnOpen()
+    {
+        // Arrange: the facade starts on its first registered adapter.
+        var service = CreateSwitchableFacade(
+            CreateNamedAdapter("binance", "Binance Spot"),
+            CreateNamedAdapter("demo", "Demo"));
+
+        // Act + assert: the behavioral stream emits its current adapter on
+        // subscribe, so the bootstrap is a synchronous constructor side
+        // effect — a direct assertion is deterministic (no cross-thread
+        // event ever happened here). `using` exercises the transient VM's
+        // own disposal path (the one the window closure calls).
+        using var viewModel = CreateViewModel(exchanges: service);
+        viewModel.ActiveExchangeName.Should().Be("Binance Spot");
+    }
+
+    [Fact]
+    public async Task Header_FollowsTheToolbarSwitchWhileOpen()
+    {
+        // Arrange: the facade starts on Binance; the dialog stays open (the
+        // VM subscribes to the same behavioral stream) while the toolbar
+        // switches to Demo.
+        var service = CreateSwitchableFacade(
+            CreateNamedAdapter("binance", "Binance Spot"),
+            CreateNamedAdapter("demo", "Demo"));
+        using var viewModel = CreateViewModel(exchanges: service);
+        viewModel.ActiveExchangeName.Should().Be("Binance Spot");
+
+        // Act: the toolbar switch — persist-then-activate inside the
+        // facade. The VM property assignment runs synchronously inside
+        // Activate (same thread as this call), so the direct assertions
+        // observe no cross-thread event.
+        await service.SwitchToAsync("demo");
+
+        // Assert: the header flipped without reopening the dialog.
+        viewModel.ActiveExchangeName.Should().Be("Demo");
+    }
+
+    /// <summary>Named adapter stub for the two-entry facade tests.</summary>
+    private static IMarketDataAdapter CreateNamedAdapter(string id, string name)
+    {
+        var adapter = Substitute.For<IMarketDataAdapter>();
+        adapter.Id.Returns(id);
+        adapter.Name.Returns(name);
+        return adapter;
     }
 
     /// <summary>

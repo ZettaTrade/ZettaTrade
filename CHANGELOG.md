@@ -9,6 +9,18 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.17] - 2026-11-02
+
+Build of task T-022 (the order dialog names its exchange).
+
+### Added (T-022 — the order dialog header names the active exchange)
+- The order dialog opens context-free: the toolbar selector can switch the
+  exchange at any moment, and nothing in the dialog said which exchange the
+  symbol suggestions and reference prices ride. A header line now shows the
+  localized title plus the live active-exchange name (e.g. `New order —
+  Binance Spot`), bootstrapped on open and flipped by toolbar switches
+  while the dialog stays open.
+
 ## [0.1.0-alpha.16] - 2026-11-02
 
 Build of task T-021 (cold-start polish: the first symbols apply).
