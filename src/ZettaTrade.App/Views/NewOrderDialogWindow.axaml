@@ -12,6 +12,15 @@
         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
     <StackPanel Margin="16" Spacing="10">
+        <!-- Header: the localized title plus the live active-exchange name —
+             the dialog's price/context source; mirrors the status-bar chip
+             and follows toolbar switches while the dialog is open -->
+        <TextBlock>
+            <Run Text="{loc:Localized NewOrder.Title}" />
+            <Run Text=" — " />
+            <Run Text="{Binding ActiveExchangeName}" />
+        </TextBlock>
+
         <!-- Symbol: free-form normalized BASE/QUOTE text with adapter-driven
              suggestions; symbol-list failure simply leaves the field without
              completions (the designed empty state). -->

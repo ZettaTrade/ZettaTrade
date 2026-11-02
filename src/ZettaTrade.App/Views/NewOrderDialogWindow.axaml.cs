@@ -45,6 +45,11 @@ public partial class NewOrderDialogWindow : ReactiveWindow<NewOrderDialogViewMod
                 })
                 .DisposeWith(disposables);
         });
+
+        // The transient view model owns subscriptions of its own (the
+        // active-exchange header stream); they release with the window, the
+        // same moment this activation disposal scope dies.
+        Closed += (_, _) => ViewModel?.Dispose();
     }
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) => Close();
