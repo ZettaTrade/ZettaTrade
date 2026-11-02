@@ -39,7 +39,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-032 The assistant answers: local model first (Ollama) | feat/ai-chat-local | queued | — |
 | T-033 Chart pan + older-history paging | feat/chart-pan | queued | — |
 | T-034 Indicator seam MVP (a plugin draws an SMA overlay) | feat/indicators | queued | — |
-| T-035 Chart axis labels clip at the canvas edges + zoom never re-buckets the axes (user-reported) | fix/chart-axes | queued | — |
+| T-035 Chart axis labels clip at the canvas edges + zoom never re-buckets the axes (user-reported) | fix/chart-axes | done | — |
 
 ---
 
@@ -606,3 +606,4 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** `CandlestickChart.cs` + one pure axis-formatting class in `src/ZettaTrade.UI/Charting`, tests in `tests/ZettaTrade.UI.Tests/Charting`. No resx (dates/numbers format through CultureInfo, which `LocalizationManager.SetLanguage` already resets), no VM/XAML changes, no Core.
 - **Acceptance:** screenshot probe (the canvas prints no UIA nodes): labels present inside both gutters, no ink in the label bands' outermost edge rows/columns; a zoom-out visibly re-buckets the axes (axis-band pixel diff between two zoom states).
 - **Tests:** the time-step ladder, both formatters, the tick alignment, and the decimal-precision rule — including the ETH/BTC distinctness repro and D1/MN1-span windows.
+- **Status:** done. Canon: the feature commit `23c111d` is on develop (the user merged it as a fast-forward). Outcome: measured price gutter + headroom, epoch-anchored time ladder (`ChartAxisFormatting`, 27 new tests; UI 42 → 69; gate 316 total), and a pixel probe `PROBE PASSED` over three chart states (default full window / 8×IN to the 20-bar floor / 8×OUT back): label ink in both gutters (~2994/~1372 px at s=1.25), zero ink at the outermost edge rows/columns, jitter 0, zoom gutter diffs TG 593 / PG 3835 per state change. Probe facts live in the temp dir (`t035-probe.ps1`, `t035-*.png`); known follow-ups from the user's live review queued as T-036 (chart history depth + candle-width cap) and T-037 (denser time ladder rungs).
