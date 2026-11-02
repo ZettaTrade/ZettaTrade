@@ -1,0 +1,186 @@
+namespace ZettaTrade.Infrastructure.Tests.Exchange;
+
+using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
+using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
+using ZettaTrade.Infrastructure.Exchange;
+
+/// <summary>
+/// E2e transport tests for <see cref="WebSocketClient"/> against the in-process
+/// loopback Kestrel server: handshake, verbatim framing, fragmented decode,
+/// graceful close with real reconnect, refused endpoints and the send path.
+/// All waits are bounded; no real hosts are ever contacted.
+/// </summary>
+public sealed class WebSocketClientTests
+{
+    #region Constants
+
+    /// <summary>Bounded wait for any expected observable event or connection.</summary>
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(10);
+
+    /// <summary>Short reconnect delay so the reconnect test stays sub-second.</summary>
+    private static readonly TimeSpan ShortReconnectDelay = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>Attempts for the refused-endpoint test (the handshake failure is immediate).</summary>
+    private const int RefusedConnectAttempts = 2;
+
+    /// <summary>Reconnect attempts for the normal scenarios.</summary>
+    private const int ReconnectAttempts = 5;
+
+    /// <summary>An empty probe path — the server answers plain HTTP, never an upgrade.</summary>
+    private const string MissingStreamPath = "/missing";
+
+    private const string TextFrameOne = "probe-frame-one";
+
+    private const string TextFrameTwo = "probe-frame-two";
+
+    #endregion
+
+    #region Tests
+
+    [Fact]
+    public async Task Connect_reports_state_and_completes_after_the_handshake()
+    {
+        await using var server = await LoopbackWebSocketServer.StartAsync();
+        await using var client = CreateClient(server.CombinedStreamUrl, ShortReconnectDelay, ReconnectAttempts);
+
+        // BehaviorSubject seeds false at subscription; the open emits true.
+        var statesTask = CollectAsync(client.ConnectionStateStream, 2);
+
+        await client.ConnectAsync();
+        client.IsConnected.Should().BeTrue();
+
+        var connection = await server.WaitForConnectionAsync(1, EventWait);
+        connection.Index.Should().Be(1);
+
+        (await statesTask).Should().Equal(new[] { false, true });
+    }
+
+    [Fact]
+    public async Task Server_pushed_frames_flow_verbatim()
+    {
+        await using var server = await LoopbackWebSocketServer.StartAsync();
+        await using var client = CreateClient(server.CombinedStreamUrl, ShortReconnectDelay, ReconnectAttempts);
+        await client.ConnectAsync();
+
+        var framesTask = CollectAsync(client.MessageStream, 2);
+        var connection = await server.WaitForConnectionAsync(1, EventWait);
+
+        await connection.SendTextAsync(TextFrameOne);
+        await connection.SendTextAsync(TextFrameTwo);
+
+        (await framesTask).Should().Equal(new[] { TextFrameOne, TextFrameTwo });
+    }
+
+    [Fact]
+    public async Task Fragmented_utf8_message_decodes_as_one()
+    {
+        // Non-ASCII text: UTF-8 sequences span several bytes per character, and
+        // the split index lands inside the first 2-byte alpha byte sequence.
+        const string fragmentedText = "αβγ€ηφ";
+        const int splitByteIndex = 1;
+
+        await using var server = await LoopbackWebSocketServer.StartAsync();
+        await using var client = CreateClient(server.CombinedStreamUrl, ShortReconnectDelay, ReconnectAttempts);
+        await client.ConnectAsync();
+
+        var framesTask = CollectAsync(client.MessageStream, 1);
+        var connection = await server.WaitForConnectionAsync(1, EventWait);
+
+        await connection.SendTextFragmentedAsync(fragmentedText, splitByteIndex);
+
+        (await framesTask).Should().Equal(new[] { fragmentedText });
+    }
+
+    [Fact]
+    public async Task Graceful_server_close_reconnects_and_state_flips()
+    {
+        await using var server = await LoopbackWebSocketServer.StartAsync();
+        await using var client = CreateClient(server.CombinedStreamUrl, ShortReconnectDelay, ReconnectAttempts);
+
+        // Seed false at subscribe, true on open, false when the server closes,
+        // true again once the reconnect loop reopens the socket.
+        var statesTask = CollectAsync(client.ConnectionStateStream, 4);
+
+        await client.ConnectAsync();
+        var firstConnection = await server.WaitForConnectionAsync(1, EventWait);
+
+        var firstFrameTask = CollectAsync(client.MessageStream, 1);
+        await firstConnection.SendTextAsync(TextFrameOne);
+        (await firstFrameTask).Should().Equal(new[] { TextFrameOne });
+
+        await firstConnection.CloseGracefullyAsync();
+
+        // A fresh session (and a reconnected client) appears after the short delay;
+        // the server-side accept may beat the client-side state write, so poll.
+        var secondConnection = await server.WaitForConnectionAsync(2, EventWait);
+        await TestPoll.PollUntilAsync(() => client.IsConnected, EventWait);
+
+        var secondFrameTask = CollectAsync(client.MessageStream, 1);
+        await secondConnection.SendTextAsync(TextFrameTwo);
+        (await secondFrameTask).Should().Equal(new[] { TextFrameTwo });
+
+        (await statesTask).Should().Equal(new[] { false, true, false, true });
+        server.ConnectionCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Refused_endpoint_fails_connect_after_configured_attempts()
+    {
+        // A real server on a missing path answers plain HTTP, never an
+        // upgrade — a deterministic handshake refusal without port games.
+        await using var server = await LoopbackWebSocketServer.StartAsync();
+        await using var client = CreateClient(
+            $"ws://127.0.0.1:{server.Port}{MissingStreamPath}",
+            ShortReconnectDelay,
+            RefusedConnectAttempts);
+
+        Func<Task> connect = () => client.ConnectAsync();
+        (await connect.Should().ThrowAsync<InvalidOperationException>())
+            .Which.Message.Should().Contain(server.Port.ToString());
+        client.IsConnected.Should().BeFalse();
+        server.ConnectionCount.Should().Be(0, "a failed handshake never yields a session");
+    }
+
+    [Fact]
+    public async Task Sends_deliver_to_the_server_and_inherit_the_connected_guard()
+    {
+        await using var server = await LoopbackWebSocketServer.StartAsync();
+        await using var client = CreateClient(server.CombinedStreamUrl, ShortReconnectDelay, ReconnectAttempts);
+
+        // Still unconnected: the send guard must reject before touching the wire.
+        Func<Task> unconnectedSend = () => client.SendJsonAsync(new { hello = "world" });
+        await unconnectedSend.Should().ThrowAsync<InvalidOperationException>();
+
+        await client.ConnectAsync();
+        await client.SendJsonAsync(new { hello = "world" });
+        await server.WaitForFrameAsync(f => f.Contains("\"hello\""), EventWait);
+        server.SnapshotFrames().Should().Contain("{\"hello\":\"world\"}");
+
+        await client.SendAsync(TextFrameOne);
+        await server.WaitForFrameAsync(f => f == TextFrameOne, EventWait);
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private static WebSocketClient CreateClient(string url, TimeSpan reconnectDelay, int maxConnectAttempts) =>
+        new(
+            url,
+            NullLogger.Instance,
+            reconnectDelay: reconnectDelay,
+            maxReconnectAttempts: maxConnectAttempts);
+
+    /// <summary>Materialize the first <paramref name="expectedCount"/> stream events into a bounded task.</summary>
+    private static Task<IList<T>> CollectAsync<T>(IObservable<T> source, int expectedCount) =>
+        source
+            .Take(expectedCount)
+            .ToList()
+            .ToTask(TaskCreationOptions.RunContinuationsAsynchronously)
+            .WaitAsync(EventWait);
+
+    #endregion
+}
