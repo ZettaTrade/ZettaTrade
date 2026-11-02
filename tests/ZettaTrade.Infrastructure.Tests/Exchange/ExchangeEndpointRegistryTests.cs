@@ -156,6 +156,83 @@ public sealed class ExchangeEndpointRegistryTests
     }
 
     [Fact]
+    public async Task InitializeAsync_BybitOverrideComplete_ServesTheOverrideAndLeavesBinanceAlone()
+    {
+        // Arrange: a complete Bybit override while Binance stays unconfigured —
+        // each vendor's entry resolves independently.
+        var configured = new BybitEndpoints(
+            "https://bybit.stub.tld",
+            "wss://stream.bybit.stub.tld/v5/public/spot");
+        _settings.GetAsync<BybitEndpoints?>(Arg.Any<string>(), Arg.Any<string>())
+            .Returns(configured);
+        _settings.GetAsync<BinanceEndpoints?>(Arg.Any<string>(), Arg.Any<string>())
+            .Returns((BinanceEndpoints?)null);
+        var registry = CreateRegistry();
+
+        // Act
+        await registry.InitializeAsync();
+
+        // Assert
+        registry.Bybit.Should().Be(
+            configured,
+            "a complete override replaces the shipped defaults");
+        registry.Binance.Should().Be(
+            BinanceEndpoints.Production,
+            "an unconfigured sibling vendor keeps its shipped defaults silently");
+    }
+
+    [Fact]
+    public async Task InitializeAsync_BybitOverrideIncomplete_WarnsAndKeepsProductionEndpoints()
+    {
+        // Arrange: a partial override (blank members) — hidden-safe degradation.
+        var configured = new BybitEndpoints(string.Empty, "wss://stream.stub.tld/spot");
+        _settings.GetAsync<BybitEndpoints?>(Arg.Any<string>(), Arg.Any<string>())
+            .Returns(configured);
+        _settings.GetAsync<BinanceEndpoints?>(Arg.Any<string>(), Arg.Any<string>())
+            .Returns((BinanceEndpoints?)null);
+        var registry = CreateRegistry();
+
+        // Act
+        await registry.InitializeAsync();
+
+        // Assert
+        registry.Bybit.Should().Be(
+            BybitEndpoints.Production,
+            "an incomplete override is a warning plus the shipped defaults");
+    }
+
+    [Fact]
+    public async Task InitializeAsync_BybitRealSettingsFile_ServesTheConfiguredOverride()
+    {
+        // Arrange: a REAL SettingsService bound to a real temp JSON file in
+        // the exact shape the app writes it — the file-backed pass for the
+        // Bybit record (the NSub stub above skips real deserialization).
+        var path = Path.Combine(Path.GetTempPath(), $"t023-{Guid.NewGuid():N}.json");
+        try
+        {
+            await File.WriteAllTextAsync(path,
+                "{\"Exchange\":{\"Bybit\":{\"restBaseUrl\":\"https://real.bybit.tld\",\"wsUrl\":\"wss://real.bybit.tld/v5/public/spot\"}}}");
+            var settings = new SettingsService(path, NullLogger<SettingsService>.Instance);
+            await settings.InitializeAsync();
+
+            var registry = new ExchangeEndpointRegistry(settings, NullLogger<ExchangeEndpointRegistry>.Instance);
+
+            // Act
+            await registry.InitializeAsync();
+
+            // Assert
+            registry.Bybit.RestBaseUrl.Should().Be(
+                "https://real.bybit.tld",
+                "an end-to-end file-backed read must serve the override");
+            registry.Bybit.WsUrl.Should().Be("wss://real.bybit.tld/v5/public/spot");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task InitializeAsync_WithConfiguredEndpoints_ServesTheOverride()
     {
         // Arrange: a complete override (e.g. testnet or a regional mirror).

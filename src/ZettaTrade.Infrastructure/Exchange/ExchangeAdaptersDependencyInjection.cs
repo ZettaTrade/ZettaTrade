@@ -34,6 +34,7 @@ public static class ExchangeAdaptersDependencyInjection
         return services
             .AddExchangeEndpointRegistry()
             .AddBinanceAdapter()
+            .AddBybitAdapter()
             .AddDemoAdapter();
     }
 
@@ -76,6 +77,35 @@ public static class ExchangeAdaptersDependencyInjection
                 sp.GetRequiredService<ILogger<BinanceAdapter>>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
                 sp.GetRequiredService<ExchangeEndpointRegistry>().Binance));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Register the Bybit market data adapter (mirrored on the Binance
+    /// registration: adapter-owned timeout, transparent decompression,
+    /// endpoints from the <see cref="ExchangeEndpointRegistry"/> snapshot).
+    /// Concrete-type registration: the App-side active-exchange wiring owns
+    /// the single <c>IMarketDataAdapter</c> entry point, so the adapter
+    /// itself must not claim the interface descriptor.
+    /// </summary>
+    public static IServiceCollection AddBybitAdapter(this IServiceCollection services)
+    {
+        services.AddHttpClient(BybitAdapter.HttpClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(BybitAdapter.RequestTimeoutSeconds);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip
+                | DecompressionMethods.Deflate
+                | DecompressionMethods.Brotli,
+        });
+        services.AddSingleton<BybitAdapter>(sp =>
+            new BybitAdapter(
+                sp.GetRequiredService<ILogger<BybitAdapter>>(),
+                sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetRequiredService<ExchangeEndpointRegistry>().Bybit));
 
         return services;
     }

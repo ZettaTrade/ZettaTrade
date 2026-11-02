@@ -28,6 +28,9 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
     /// <summary>Settings key carrying the Binance endpoint record.</summary>
     public const string BinanceKey = "Binance";
 
+    /// <summary>Settings key carrying the Bybit endpoint record.</summary>
+    public const string BybitKey = "Bybit";
+
     private readonly ILogger<ExchangeEndpointRegistry> _logger;
     private readonly ISettingsService _settings;
 
@@ -50,17 +53,30 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
     /// </summary>
     public BinanceEndpoints Binance { get; private set; } = BinanceEndpoints.Production;
 
+    /// <summary>
+    /// Bybit adapter endpoints: shipped production defaults until an
+    /// initialized settings override (same semantics as <see cref="Binance"/>).
+    /// </summary>
+    public BybitEndpoints Bybit { get; private set; } = BybitEndpoints.Production;
+
     /// <inheritdoc/>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        var configured = await _settings.GetAsync<BinanceEndpoints?>(
-            SettingsSection,
-            BinanceKey);
+        ReadBinanceEndpoints(await _settings.GetAsync<BinanceEndpoints?>(SettingsSection, BinanceKey));
+        ReadBybitEndpoints(await _settings.GetAsync<BybitEndpoints?>(SettingsSection, BybitKey));
+    }
 
+    /// <summary>
+    /// Apply the Binance override when present: a missing entry keeps the
+    /// shipped defaults silently (the common case — the config file simply
+    /// has no Exchange section); an incomplete override (blank members) is a
+    /// hidden-safe warning plus the shipped defaults; a complete override
+    /// replaces the value.
+    /// </summary>
+    private void ReadBinanceEndpoints(BinanceEndpoints? configured)
+    {
         if (configured is null)
         {
-            // The config file simply has no Exchange section (the common
-            // case): the shipped defaults win silently, hidden-safe.
             return;
         }
 
@@ -74,6 +90,32 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
         }
 
         Binance = configured;
+        _logger.LogInformation(
+            "Exchange endpoints configured: rest {RestBaseUrl}, ws {WsUrl}",
+            configured.RestBaseUrl,
+            configured.WsUrl);
+    }
+
+    /// <summary>
+    /// Apply the Bybit override under the same semantics as the Binance one.
+    /// </summary>
+    private void ReadBybitEndpoints(BybitEndpoints? configured)
+    {
+        if (configured is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(configured.RestBaseUrl) ||
+            string.IsNullOrWhiteSpace(configured.WsUrl))
+        {
+            _logger.LogWarning(
+                "Exchange:{Key} endpoint override is incomplete; the shipped production endpoints stay in use",
+                BybitKey);
+            return;
+        }
+
+        Bybit = configured;
         _logger.LogInformation(
             "Exchange endpoints configured: rest {RestBaseUrl}, ws {WsUrl}",
             configured.RestBaseUrl,
