@@ -40,6 +40,15 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
     #endregion Resx Keys
 
+    #region Constants
+
+    /// <summary>Fraction format of the prefilled price text: the same
+    /// money-like shape the book widget prints (two forced digits, trailing
+    /// zeros beyond that trimmed) so a clicked level reads back exactly.</summary>
+    private const string PrefillPriceFormat = "0.00########";
+
+    #endregion Constants
+
     #region Private Fields
 
     private readonly ITradingAdapter _trading;
@@ -281,6 +290,31 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     }
 
     #endregion Constructor
+
+    #region Public Methods
+
+    /// <summary>
+    /// Apply a deliberate prefill from the trading surface (a clicked order
+    /// book level today): the clicked symbol, the clicked side (bids buy,
+    /// asks sell) and an explicit LIMIT type carrying the clicked price;
+    /// the quantity stays EMPTY — the prefill never assumes a size — and
+    /// every field remains fully editable. Called before the dialog shows,
+    /// on the UI thread.
+    /// </summary>
+    public void Prefill(OrderPrefill prefill)
+    {
+        if (prefill is null)
+        {
+            throw new ArgumentNullException(nameof(prefill));
+        }
+
+        SymbolInput = prefill.Symbol.Normalized;
+        SelectedSideIndex = (int)prefill.Side;
+        SelectedTypeIndex = (int)OrderType.Limit;
+        PriceInput = prefill.Price.ToString(PrefillPriceFormat, CultureInfo.InvariantCulture);
+    }
+
+    #endregion Public Methods
 
     #region IDisposable
 
