@@ -177,11 +177,17 @@
   <data name="NewOrder.QuantityNotANumber" xml:space="preserve">
     <value>Quantity is not a number: {0}</value>
   </data>
+  <data name="NewOrder.QuantityRequired" xml:space="preserve">
+    <value>Quantity is required</value>
+  </data>
   <data name="NewOrder.Price" xml:space="preserve">
     <value>Limit price</value>
   </data>
   <data name="NewOrder.PriceNotANumber" xml:space="preserve">
     <value>Limit price is not a number: {0}</value>
+  </data>
+  <data name="NewOrder.PriceRequired" xml:space="preserve">
+    <value>Limit price is required</value>
   </data>
   <data name="NewOrder.Place" xml:space="preserve">
     <value>Place order</value>

@@ -209,21 +209,70 @@ public sealed class NewOrderDialogViewModelTests
         await _riskManager.DidNotReceive().CheckOrderAsync(Arg.Any<OrderRequest>());
     }
 
+    /// <summary>
+    /// The exact post-merge book-click repro: the prefill carries symbol,
+    /// side and price, the quantity stays empty by design ("a click is never
+    /// a size"), and an early Place press must ask for the size instead of
+    /// the dangled "not a number: ".
+    /// </summary>
     [Fact]
-    public async Task PlaceOrderCommand_WithLimitOrderMissingPrice_ErrorsWithoutRiskCheck()
+    public async Task PlaceOrderCommand_WithEmptyQuantity_AsksForTheQuantity()
     {
         // Arrange
         var viewModel = CreateViewModel();
-        viewModel.SymbolInput = "BTC/USDT";
-        viewModel.QuantityInput = "0.01";
-        viewModel.SelectedTypeIndex = 1; // Limit; PriceInput stays empty
+        viewModel.Prefill(new OrderPrefill(
+            Symbol.Parse("BTC/USDT"),
+            OrderSide.Buy,
+            66993.30m));
 
         // Act
         await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
 
         // Assert
-        viewModel.ErrorMessage.Should().Contain("NewOrder.PriceNotANumber");
+        viewModel.ErrorMessage.Should().Be("[NewOrder.QuantityRequired]");
         await _riskManager.DidNotReceive().CheckOrderAsync(Arg.Any<OrderRequest>());
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>());
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WithWhitespaceQuantity_AsksForTheQuantity()
+    {
+        // Arrange
+        var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "   ";
+        viewModel.SelectedTypeIndex = 0; // Market: price parsing is skipped
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: whitespace-only input is MISSING, not unparsable.
+        viewModel.ErrorMessage.Should().Be("[NewOrder.QuantityRequired]");
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>());
+    }
+
+    /// <summary>
+    /// A Limit order without a typed price: the honest refusal names the
+    /// REQUIREMENT — the former wording ("Limit price is not a number: ")
+    /// dangled on a blank argument. Whitespace-only input covers the trim.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrderCommand_WithLimitOrderMissingPrice_AsksForThePrice()
+    {
+        // Arrange
+        var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.01";
+        viewModel.SelectedTypeIndex = 1; // Limit
+        viewModel.PriceInput = "   ";
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.ErrorMessage.Should().Be("[NewOrder.PriceRequired]");
+        await _riskManager.DidNotReceive().CheckOrderAsync(Arg.Any<OrderRequest>());
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>());
     }
 
     [Fact]
@@ -619,6 +668,40 @@ public sealed class NewOrderDialogViewModelTests
         viewModel.PriceInput.Should().Be("3.50");
         viewModel.SelectedTypeIndex.Should().Be((int)OrderType.Limit);
         viewModel.QuantityInput.Should().Be("0.42");
+    }
+
+    /// <summary>
+    /// The post-merge defect: the load handler opened the dropdown for ANY
+    /// text in the field, so a click-prefilled dialog came up with the popup
+    /// echoing just the clicked symbol. While the field holds its untouched
+    /// prefill the suggestions stay empty (the dropdown cannot open); the
+    /// first edit restores the typed pipeline.
+    /// </summary>
+    [Fact]
+    public async Task Prefill_KeepsTheDropdownQuiet_UntilTheSymbolIsEdited()
+    {
+        // Arrange: a warm symbol catalog — the application-lifetime provider
+        // answers from its cache while the dialog is still opening.
+        _trading.GetSymbolsAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<Symbol> { Symbol.Parse("ETH/BTC") });
+
+        // Act: the production order — the click prefills, THEN the load
+        // completes (activation runs after the window shows).
+        var viewModel = CreateViewModel();
+        viewModel.Prefill(new OrderPrefill(
+            Symbol.Parse("ETH/BTC"),
+            OrderSide.Buy,
+            0.02941m));
+        await viewModel.LoadSymbolsCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.SymbolSuggestions.Should().BeEmpty(
+            "the click already names the full symbol; an echoing dropdown would cover the layout");
+        viewModel.IsSymbolSuggestionsOpen.Should().BeFalse("a prefill is not a typist's intent");
+
+        // The first edit releases the hold: typed text resumes suggestions.
+        viewModel.SymbolInput = "ETH/B";
+        viewModel.SymbolSuggestions.Should().Contain("ETH/BTC", "typed intent restores the suggestion pipeline");
     }
 
     /// <summary>Named adapter stub for the two-entry facade tests.</summary>

@@ -32,7 +32,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
     private const string SymbolMissingKey = "NewOrder.SymbolMissing";
     private const string SymbolInvalidKey = "NewOrder.SymbolInvalid";
+    private const string QuantityRequiredKey = "NewOrder.QuantityRequired";
     private const string QuantityNotANumberKey = "NewOrder.QuantityNotANumber";
+    private const string PriceRequiredKey = "NewOrder.PriceRequired";
     private const string PriceNotANumberKey = "NewOrder.PriceNotANumber";
     private const string PlaceFailedKey = "NewOrder.PlaceFailed";
     private const string OrderRejectedKey = "NewOrder.OrderRejected";
@@ -64,6 +66,17 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
     /// <summary>Serializes the placement pipeline; re-entrancy is an error state.</summary>
     private bool _placing;
+
+    /// <summary>
+    /// The symbol text a click's prefill deposited, held while the field is
+    /// UNEDITED: until the user touches the symbol, suggestions stay empty
+    /// (the clicked level already names a full symbol — an open dropdown
+    /// would only echo it and cover the layout). The first edit that changes
+    /// the text releases the hold and suggestions resume; the invariant
+    /// <c>_prefilledSymbol is not null ⟹ SymbolInput == _prefilledSymbol</c>
+    /// is guarded by the setter.
+    /// </summary>
+    private string? _prefilledSymbol;
 
     /// <summary>
     /// Holds the facade subscription: the view model is transient, so the
@@ -102,6 +115,13 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             if (_symbolInput == value)
             {
                 return;
+            }
+
+            if (_prefilledSymbol is not null && value != _prefilledSymbol)
+            {
+                // A text edit is the user's own intent: relieve the prefill
+                // hold so typed suggestions resume.
+                _prefilledSymbol = null;
             }
 
             _symbolInput = value;
@@ -210,7 +230,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// AutoCompleteBox refreshes the popup only on a text change, so when
     /// the symbol list arrives AFTER the user already typed (slow network),
     /// the load handler opens the dropdown itself — mid-typing suggestions
-    /// appear without forcing a retype.
+    /// appear without forcing a retype. A delivered prefill is NOT a
+    /// typist's intent: while the field holds its untouched click payload
+    /// (see <see cref="_prefilledSymbol"/>), suggestions stay empty and this
+    /// gate cannot open the dropdown.
     /// </summary>
     public bool IsSymbolSuggestionsOpen
     {
@@ -298,8 +321,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// book level today): the clicked symbol, the clicked side (bids buy,
     /// asks sell) and an explicit LIMIT type carrying the clicked price;
     /// the quantity stays EMPTY — the prefill never assumes a size — and
-    /// every field remains fully editable. Called before the dialog shows,
-    /// on the UI thread.
+    /// every field remains fully editable. The suggestion dropdown never
+    /// opens for the untouched prefill (the click already names the full
+    /// symbol); the first edit of the field restores typed suggestions.
+    /// Called before the dialog shows, on the UI thread.
     /// </summary>
     public void Prefill(OrderPrefill prefill)
     {
@@ -308,6 +333,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             throw new ArgumentNullException(nameof(prefill));
         }
 
+        // Park the prefill hold BEFORE the symbol assignment: the setter's
+        // suggestion refresh reads it and returns the empty list, so the
+        // dropdown cannot echo the clicked symbol over the layout.
+        _prefilledSymbol = prefill.Symbol.Normalized;
         SymbolInput = prefill.Symbol.Normalized;
         SelectedSideIndex = (int)prefill.Side;
         SelectedTypeIndex = (int)OrderType.Limit;
@@ -379,8 +408,17 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// Re-derive <see cref="SymbolSuggestions"/> from
     /// <see cref="SymbolInput"/> against the loaded symbol list.
     /// </summary>
-    private void RefreshSymbolSuggestions() =>
-        SymbolSuggestions = SuggestSymbols(_allSymbols, SymbolInput);
+    private void RefreshSymbolSuggestions()
+    {
+        // An untouched prefill contributes no suggestions: the click already
+        // named the full symbol, and an echoing dropdown would just cover
+        // the layout. The first user edit of the field releases the hold
+        // (see the <see cref="_prefilledSymbol"/> invariant) and typed text
+        // resumes the suggestion pipeline.
+        SymbolSuggestions = _prefilledSymbol is null
+            ? SuggestSymbols(_allSymbols, SymbolInput)
+            : [];
+    }
 
     /// <summary>
     /// Case-insensitive <c>contains</c> matches for
@@ -524,10 +562,20 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             return false;
         }
 
-        if (!decimal.TryParse(QuantityInput, NumberStyles.Number, CultureInfo.InvariantCulture, out var quantity)
+        // Empty (or whitespace) means MISSING, not unparsable: "not a
+        // number" with a blank argument would dangle. The display argument
+        // is trimmed so the message never shows padding.
+        var rawQuantity = QuantityInput.Trim();
+        if (rawQuantity.Length == 0)
+        {
+            error = _localization.GetString(QuantityRequiredKey);
+            return false;
+        }
+
+        if (!decimal.TryParse(rawQuantity, NumberStyles.Number, CultureInfo.InvariantCulture, out var quantity)
             || quantity <= 0)
         {
-            error = _localization.GetString(QuantityNotANumberKey, QuantityInput);
+            error = _localization.GetString(QuantityNotANumberKey, rawQuantity);
             return false;
         }
 
@@ -535,10 +583,17 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         Price? limitPrice = null;
         if (type == OrderType.Limit)
         {
-            if (!decimal.TryParse(PriceInput, NumberStyles.Number, CultureInfo.InvariantCulture, out var price)
+            var rawPrice = PriceInput.Trim();
+            if (rawPrice.Length == 0)
+            {
+                error = _localization.GetString(PriceRequiredKey);
+                return false;
+            }
+
+            if (!decimal.TryParse(rawPrice, NumberStyles.Number, CultureInfo.InvariantCulture, out var price)
                 || price <= 0)
             {
-                error = _localization.GetString(PriceNotANumberKey, PriceInput);
+                error = _localization.GetString(PriceNotANumberKey, rawPrice);
                 return false;
             }
 
