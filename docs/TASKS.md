@@ -25,6 +25,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-019 Startup-walk audit after the typed-registration guard fix | feat/startup-walk-audit | done | — |
 | T-020 e2e WebSocket transport tests against a loopback server | feat/ws-transport-tests | done | — |
 | T-021 Cold-start polish: the first symbols apply lag | feat/cold-start-symbols | done | — |
+| T-022 Order-dialog header names the active exchange | feat/order-dialog-exchange | in-progress | — |
 
 ---
 
@@ -398,3 +399,19 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Probe (final build, run 4): window show → `Symbol list cached: 3693` (+0.49 s) → `Symbols loaded: 50` (+0.56 s) → chart bars delivered (+0.88 s) → WS connected (~1.5 s) — inside the < 3 s cold-start target (was 2.4–4.2 s).
   - Probe-artifact note: runs 1/3 (the same build that later flew in runs 2/4) froze 4–6 s after an HTTP fetch completed with ZERO further log lines — unreproduced, attributed to probe mechanics, not code; never pin behavior on a single frozen run.
   - Branch tail: `Directory.Build.props` alpha.15 → alpha.16 (the in-file comment flags T-021 → alpha.16, next alpha.17); `CHANGELOG.md` gains the alpha.16 section (`### Changed (T-021 — the symbols catalog source)`).
+
+## T-022 — Order-dialog header names the active exchange (T-016 follow-up)
+
+- **Branch:** `feat/order-dialog-exchange` (queued 2026-11-02, cut from develop @ `42c6f48`; worktree `zt-order-dialog-exchange`)
+- **Origin:** the leftover T-016 UX rule: the toolbar selector can switch the active exchange at runtime, but the order dialog never names the exchange in play — after a switch the dialog floats context-free (the only naming surface is the status bar chip).
+- **Scope:** `src/ZettaTrade.App` only: the dialog VM + the XAML header; the DI registration is untouched (the transient's largest ctor auto-resolves the facade). No Core contracts, NO new resx keys (see What). Existing test ctor call sites updated.
+- **What (decided in the code walk):** trading always places via `PaperTradingAdapter` today (registered over the facade by `AddPaperTrading`), while the dialog's context — the symbol suggestions and reference prices — rides the ACTIVE exchange; T-016's rule stands that the dialog header must name the active exchange. Shape, mirroring the status-bar precedent (`MainWindow.axaml` `<Run Text="{Binding ActiveExchangeName}" />`):
+  - `NewOrderDialogViewModel` gains `ActiveExchangeName` — ctor-threaded `ActiveExchangeService`; a subscription over `AdapterChanges` sets the property (the behavioral stream emits the current adapter on subscribe, so the bootstrap value is free) and live-updates on every toolbar switch; lifecycle mirrors the StatusBar pattern (activation-scoped disposables; the dialog is transient per open, and window disposal releases it).
+  - XAML: a header line at the top of the dialog body — `<Run Text="{loc:Localized NewOrder.Title}"/>` + separator + `<Run Text="{Binding ActiveExchangeName, Mode=OneWay}"/>`. The static part stays in resx (language switching needs zero extra keys), the dynamic part rebinds. The window `Title` stays the plain localized one.
+  - Honesty note: the header names the price/context source; the paper surface stays disclosed by the confirmation dialog (untouched here) — when real exchange trading lands (future board task), the header keeps following the same property.
+- **Acceptance:**
+  - Probe: open the order dialog (Binance active) → the header reads "New order — Binance"; switch to Demo via the toolbar while the dialog is open → the header flips to Demo without reopening.
+  - Tests: `NewOrderDialogViewModelTests` additions — (1) the property bootstraps from the current adapter name; (2) an `AdapterChanges` emission updates it live (bounded-poll assertions, never immediate post-event asserts).
+  - Branch tail: version bump alpha.16 → alpha.17 + `CHANGELOG.md` (user-facing: the dialog names its context; next suffix alpha.18).
+  - gate.
+- **Tests:** new cases in `NewOrderDialogViewModelTests`; ctor call sites updated.
