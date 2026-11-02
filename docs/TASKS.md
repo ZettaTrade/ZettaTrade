@@ -28,7 +28,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-022 Order-dialog header names the active exchange | feat/order-dialog-exchange | done | — |
 | T-023 Real second adapter: Bybit (read-only market data) | feat/bybit-adapter | done | — |
 | T-024 Fix the demo seeded-walk underflow (demo bar loads overflow) | fix/demo-walk | done | — |
-| T-025 Click a book level to prefill the order dialog | feat/book-click | queued | — |
+| T-025 Click a book level to prefill the order dialog | feat/book-click | done | - |
 | T-026 Working time frame on the chart | feat/timeframe | queued | — |
 | T-027 Hide/show the AI assistant panel | feat/ai-panel-toggle | queued | — |
 | T-028 Candle OHLC + crosshair price on chart hover | feat/chart-hover | queued | — |
@@ -490,6 +490,13 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** `OrderBookWidget` (pointer + hit-test), the event route through the panel/`MainViewModel` (same plumbing as `NewOrderRequested`), the dialog prefill surface (the transient's largest ctor keeps auto-resolving; a prefill carrier type is added at App level), tests.
 - **Acceptance:** probe: with BTC/USDT live, click a mid-book bid — the dialog opens prefilled (symbol/side/price, quantity empty), Cancel closes with nothing placed; placing follows the normal confirmation. The prefill always reflects the CURRENT exchange's context (a level click right after a toolbar switch names the new exchange), and a second click while the dialog is open re-opens the transient with the fresh prefill.
 - **Tests:** hit-test index math (pure helper), the routing+prefill values, existing placement/confirmation suites untouched and green.
+- **Status:** done. Canon: the four commits (`5c4c495`, `bcc2fb3`, `b17c1ca`, `bb3d8aa`) sit directly on develop — fast-forward (no merge commit; develop had only the queue docs commit `5cb5d0a` past the branch's cut base). Outcome:
+  - The click resolve ships as a pure layout helper (`OrderBookPageLayout.ResolveLevel`): asks = ceiling index, bids = floor, half-open bands toward the mid neighbor — the press resolves the side the trader would trade AT that level. The prefill carries `OrderPrefill(Symbol, Side, Price)` into the SAME dialog path the menu drives (dialog creation + `ShowDialog` stay View-owned per the window-opening convention); quantity is NEVER auto-filled; IRiskManager + IConfirmationService untouched.
+  - Route shape (the async-void review fork): `LevelClicked` publishes as a hot `IObservable<OrderBookLevelClickedEventArgs>` (Subject-backed, fed on the UI thread); MainWindow subscribes through the house `SubscribeAsync` extension (task per press, one error callback logging `"Book level click stream failed"`, disposed with `Closed`) — zero `async void` at the seam. Placement was reviewed and KEPT View-side: the stream's source is the widget and the observer's effect needs the owner window; the VM gains nothing today (no decision logic to own) — revisit via `Interaction` if the VM ever must decide what a click means.
+  - Hit-surface lesson: a plain Avalonia `Control` rendering only a custom draw op is NOT hit-tested — the first live clicks died silently. Fixed with a transparent child `Rectangle` bound to `Bounds` (events bubble to the widget); same defect class as the T-022 canvas-invisibility note.
+  - Tests 254 → 268 (13 Core + 120 App + 42 UI + 93 Infra): the resolve matrix (8 layout tests), 3 `Prefill` facts on the dialog VM, 3 `SubscribeAsync` facts (per-press ordering, error routing, hot-source tolerance). GATE PASSED ×2; resx parity untouched (95/95 — no new strings).
+  - Probe (UIA + Serilog + pixel math, toolbar → Demo, BTC/USDT): the book column measured from the theme palette at 125 % DPI (ask bar `(73,26,30)`, bid bar `(16,61,37)`, navy midline `(18,25,45)`, pitch 17 px = 14 DIP). Bid row 0 click → «Новый ордер» opens prefilled BTC/USDT / «Купить» / `66993.30`, quantity EMPTY; ask row 0 → «Продать» / `67006.70`; Cancel closes each; the fresh log window contains no `Order dialog: placed`.
+  - Probe-infra notes: UIA `SetFocus` throws on Avalonia peers → Win32 `SetForegroundWindow` on the process window instead; the dialog title is «Новый ордер» and the side combo items are «Купить»/«Продать» (the App resx wording — the UI `Resources.Strings` carries «Покупка»/«Продажа»; trust the peer dump, not memory).
 
 ## T-026 — Working time frame (the picker replaces the hardcoded H1)
 
