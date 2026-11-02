@@ -29,6 +29,11 @@ public sealed class DemoMarketDataAdapterTests
     /// <summary>The anchor floored onto the M1 boundary the tests expect.</summary>
     private static DateTimeOffset AnchorOpen() => M1Anchor;
 
+    /// <summary>An H1-boundary anchor: a 7 day window back from it holds 169
+    /// candles — the full chart range with headroom under the limit.</summary>
+    private static readonly DateTimeOffset H1Anchor =
+        DateTimeOffset.FromUnixTimeSeconds(1729998000);
+
     private static Symbol BtcUsdt() => Symbol.Parse("BTC/USDT");
 
     [Fact]
@@ -86,6 +91,37 @@ public sealed class DemoMarketDataAdapterTests
     }
 
     [Fact]
+    public async Task GetBarsAsync_FullChartRange_EverySymbolStaysWithinTheDocumentedWalk()
+    {
+        var symbols = await _adapter.GetSymbolsAsync();
+
+        foreach (var symbol in symbols)
+        {
+            var bars = await _adapter.GetBarsAsync(
+                symbol,
+                TimeFrame.H1,
+                from: H1Anchor.AddDays(-7),
+                to: H1Anchor,
+                limit: 200);
+
+            bars.Should().HaveCount(169, $"{symbol.Normalized} covers a full 7 day range at H1");
+            bars[^1].Time.Should().Be(H1Anchor);
+
+            // Seeded steps live in (−1%, +1%), so by induction every close
+            // stays inside the anchor price compounded over bounded steps.
+            // The unsigned-wrap regression (T-024) produced ~+42 949% steps
+            // and the walk exploded beyond the decimal range instead.
+            var anchorPrice = bars[0].Open;
+            var upperBound = anchorPrice * Power(1.01m, bars.Count);
+            var lowerBound = anchorPrice * Power(0.99m, bars.Count);
+
+            bars.Should().OnlyContain(bar =>
+                bar.Close >= lowerBound && bar.Close <= upperBound,
+                $"each close of {symbol.Normalized} compounds the documented (−1%, +1%) steps");
+        }
+    }
+
+    [Fact]
     public async Task GetBarsAsync_UnknownSymbol_ThrowsInsteadOfDefaulting()
     {
         var act = async () => await _adapter.GetBarsAsync(
@@ -128,6 +164,22 @@ public sealed class DemoMarketDataAdapterTests
     }
 
     [Fact]
+    public async Task SubscribeTicker_24hChange_StaysInTheDocumentedBand()
+    {
+        var symbols = await _adapter.GetSymbolsAsync();
+
+        foreach (var symbol in symbols)
+        {
+            var first = await FirstWithin(_adapter.SubscribeTicker(symbol), TimeSpan.FromSeconds(2));
+
+            first.PriceChange24hPercent.Should().BeInRange(
+                -1m,
+                1m,
+                $"{symbol.Normalized} documents a 24 h move in (−1%, +1%)");
+        }
+    }
+
+    [Fact]
     public void Ctor_IsConnectedImmediately()
     {
         _adapter.IsConnected.Should().BeTrue("the canned surface is always up");
@@ -155,5 +207,17 @@ public sealed class DemoMarketDataAdapterTests
         var winner = await Task.WhenAny(received.Task, Task.Delay(wait));
         winner.Should().Be(received.Task, $"the first snapshot must arrive within {wait}");
         return await received.Task;
+    }
+
+    /// <summary>Whole-power helper for the documented-walk compounding bounds.</summary>
+    private static decimal Power(decimal baseValue, int exponent)
+    {
+        var result = 1m;
+        for (var i = 0; i < exponent; i++)
+        {
+            result *= baseValue;
+        }
+
+        return result;
     }
 }

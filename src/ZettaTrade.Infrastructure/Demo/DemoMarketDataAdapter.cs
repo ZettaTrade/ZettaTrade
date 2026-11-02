@@ -331,12 +331,18 @@ public sealed class DemoMarketDataAdapter : IMarketDataAdapter
         return DateTimeOffset.FromUnixTimeSeconds(unix - unix % step);
     }
 
-    /// <summary>Seeded relative bar step in (−1%, +1%).</summary>
-    private static decimal BarStep(ref uint seed) => (Next(ref seed) % 2001 - 1000) / 100000m;
+    /// <summary>Seeded relative bar step in (−1%, +1%). The subtraction is
+    /// evaluated in <c>long</c> semantics: a bare <c>uint</c> modulo minus
+    /// 1000 would wrap unsigned whenever the modulo lands below 1000 and
+    /// explode the walk (T-024).</summary>
+    private static decimal BarStep(ref uint seed) => ((long)(Next(ref seed) % 2001) - 1000) / 100000m;
 
     private static decimal Volume24h(Symbol symbol) => StableSeed(symbol.Normalized) % 900 + 100m;
 
-    private static decimal PriceChange24h(Symbol symbol) => (StableSeed(symbol.Normalized) % 21 - 10) / 10m;
+    /// <summary>Seeded 24 h price change in (−1, +1): the same signed-arithmetic
+    /// rule as <see cref="BarStep"/> — the <c>uint</c> modulo minus 10 wraps
+    /// unsigned and the ticker would report a ~429-million-percent rise.</summary>
+    private static decimal PriceChange24h(Symbol symbol) => ((long)(StableSeed(symbol.Normalized) % 21) - 10) / 10m;
 
     private static decimal LevelQuantity(ref uint seed) => (Next(ref seed) % 500 + 50) / 10m;
 
