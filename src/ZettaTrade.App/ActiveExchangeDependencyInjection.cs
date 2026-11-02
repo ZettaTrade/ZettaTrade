@@ -25,6 +25,7 @@ public static class ActiveExchangeDependencyInjection
         .AddSingleton<ActiveExchangeService>(sp => new ActiveExchangeService(
             [
                 sp.GetRequiredService<BinanceAdapter>(),
+                sp.GetRequiredService<BybitAdapter>(),
                 sp.GetRequiredService<DemoMarketDataAdapter>(),
             ],
             sp.GetRequiredService<ISettingsService>(),
