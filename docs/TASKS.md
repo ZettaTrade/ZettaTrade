@@ -26,6 +26,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-020 e2e WebSocket transport tests against a loopback server | feat/ws-transport-tests | done | — |
 | T-021 Cold-start polish: the first symbols apply lag | feat/cold-start-symbols | done | — |
 | T-022 Order-dialog header names the active exchange | feat/order-dialog-exchange | done | — |
+| T-023 Real second adapter: Bybit (read-only market data) | feat/bybit-adapter | in-progress | — |
 
 ---
 
@@ -422,3 +423,26 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Probe (UIA, real network, ru locale): the dialog opened via the Trading menu → the header read `Новый ордер — Binance`; the toolbar combo switched to Demo WHILE THE DIALOG STAYED OPEN (the same window element dumped before and after — no reopen) → the header read `Новый ордер — Demo`; the status bar chip flipped `Binance · Paper` → `Demo · Paper` and the version chip read `0.1.0-alpha.17` in the same dump. Probe-infra notes for reuse: the modal Avalonia dialog is INVISIBLE to the PId top-level query — bind it via hwnd enumeration + `AutomationElement.FromHandle`; the menu item's real name carries an ellipsis (`Новый ордер…`), so match by prefix, not equality; screenshots were skipped this time (a bad `[int]` cast on the DPI-scaled rect in the probe script) — the text dumps carry the evidence.
   - Board correction folded in: the T-021 alpha.16 tail had left the `Directory.Build.props` comment stale (see the corrected T-021 tail above).
   - Branch tail: `Directory.Build.props` alpha.16 → alpha.17 (the in-file comment now flags T-022 → alpha.17, next alpha.18); `CHANGELOG.md` gains the alpha.17 section (`### Added (T-022 — the order dialog header names the active exchange)`).
+
+## T-023 — Real second adapter: Bybit (read-only market data)
+
+- **Branch:** `feat/bybit-adapter` (queued 2026-11-02, cut from develop @ `2eea05c`; worktree `zt-bybit-adapter`)
+- **Origin:** the exchange story is single-vendor: the registered catalog carries one production adapter (Binance) plus the canned Demo fixture, and only the teardown surface has been touched across nine UI/AI tasks since T-016. The plugin-first design — small `IMarketDataAdapter`, transport settings inside the adapter, the T-015 endpoint-registry seam, the T-016 selector, the T-017 workspace context — has never been stressed by a second real implementation. This is the structural test. READ-ONLY: `IMarketDataAdapter` only, paper trading stays the sole order surface.
+- **Exchange choice, measured 2026-11-02 (public REST, no keys, same terms as T-021):** Bybit spot vs Kraken:
+  - Bybit `instruments-info?category=spot&limit=1000`: 282 KB / ~0.95 s, 520 pairs, ONE page (empty `nextPageCursor`), and every item SERVES `baseCoin`/`quoteCoin`/`status` — no Binance-style quote table needed, the split is exact metadata (`status == "Trading"`), unlike the priced-list approximation T-021 adopted for Binance.
+  - Kraken `AssetPairs`: 680 KB / ~1.24 s, 1464 entries including margin noise, with the `XBT`-vs-`BTC` canonicalization nuisance.
+  - Bybit wins on payload, entry quality and target-market fit (Binance-shaped pairs); the choice is easily inverted at review time if the vendor flips.
+- **What (decided by the live WS probe):** `BybitAdapter : ExchangeAdapterBase`, mirroring the Binance structure (`WebSocketClient` transport + a named HTTP client + endpoints from the registry snapshot). Wire facts from the probe:
+  - REST catalog: `GET /v5/market/instruments-info?category=spot&limit=1000` → `new Symbol(baseCoin, quoteCoin, Crypto)` per `status == "Trading"` entry (the Core `Symbol` registry already speaks the Bybit concatenated exchange format — `GetExchangeFormat("bybit")` ships today). A non-empty `nextPageCursor` follows with a bounded shipped page cap (ONE aggregated warning when the cap bites); malformed entries skip singly, never guess.
+  - REST bars: `GET /v5/market/kline?category=spot&symbol={BASE}{QUOTE}&interval={map}&start&end&limit` → `[[startMs,"o","h","l","c","vol","turnover"],...]`, newest-first, ms as strings (shared `BinanceJsonNumbers` helper); interval map M1/5/15/30 → `1,5,15,30`, H1/H4 → `60,240`, D/W/MN1 → `D,W,M`; reversed to ascending (Binance's bar contract).
+  - WS `wss://stream.bybit.com/v5/public/spot`, one shared socket; per-symbol subscribes ride ONE frame `{op:"subscribe",args:["tickers.X","orderbook.50.X","publicTrade.X"]}`; the ack frame (`"success":false`) logs loudly; dispatch by `topic` prefix with `{"topic","type":"snapshot|delta","ts","data"}`. Spot tickers are SNAPSHOT-typed (live-verified — no state merge), `publicTrade.X` is an event array (aggressor `S=Buy|Sell`, `T` ms epoch).
+  - Order book: `orderbook.50` arrives snapshot then deltas with monotonic `u`; qty `"0"` == delete level (live-verified). `BybitOrderBookAssembler` (the genuinely new component): snapshot resets, deltas apply only when `u` == prev+1, a gap discards state and re-subscribes the topic for a fresh snapshot; publishes the FULL rebuilt depth each frame, capped at 50.
+  - Spot tickers carry NO bid/ask (linear-only fields, live-verified): the mapped ticker keeps the honest absent-value (0), price = lastPrice — no guessed substitutes (the chart consumes price only; implications checked at build).
+  - Keepalive: the infrastructure has NO app-level ping today; Bybit sockets dislike silence, so the adapter ships a small adapter-lifetime heartbeat (`op:"ping"` on a `PeriodicTimer`, owned by `DisposeAsync` — never a subscription token). A soak on the final build verifies it holds; if the stream proves self-warming, the keepalive stays as belt-and-braces.
+- **Scope:** `src/ZettaTrade.Infrastructure` (new `Bybit*` files; `ExchangeEndpointRegistry` gains the Bybit descriptor with the T-015 override semantics; `AddBybitAdapter()` in the transport aggregate), `src/ZettaTrade.App` (the active-exchange catalog array gains Bybit — one line), tests. Core contracts untouched. Demo adapter STAYS (cold-start fallback + test fixture; removal is not this task).
+- **Acceptance:**
+  - Probe: a real cold start shows THREE choices in the picker; switching to Bybit restores the chart/book context (the T-017 seams hold); Bybit ETH/BTC bars load and the WS ticker/trades/book flow live.
+  - Tests pin the shipped slice: catalog parse (`status` filter, page-cap warning, malformed-entry skip), kline mapping, `BybitOrderBookAssembler` snapshot/delta/gap sequences, and the Bybit protocol shape e2e via the T-020 loopback server.
+  - Branch tail: version bump alpha.17 → alpha.18 + `CHANGELOG.md` (behavior-shipping: a second real exchange).
+  - gate.
+- **Tests:** new `BybitAdapter*Tests` suites (reusing the T-020 `LoopbackWebSocketServer` and `StubHandler` helpers).
