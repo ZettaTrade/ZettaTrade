@@ -39,6 +39,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-032 The assistant answers: local model first (Ollama) | feat/ai-chat-local | queued | — |
 | T-033 Chart pan + older-history paging | feat/chart-pan | queued | — |
 | T-034 Indicator seam MVP (a plugin draws an SMA overlay) | feat/indicators | queued | — |
+| T-035 Chart axis labels clip at the canvas edges + zoom never re-buckets the axes (user-reported) | fix/chart-axes | queued | — |
 
 ---
 
@@ -589,3 +590,12 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** the seam + loader (App/Infrastructure services), the SMA assembly, the overlay render in `CandlestickChart`, the settings section, tests.
 - **Acceptance:** probe: SMA(N) renders over BTC/USDT (visually distinguishable overlay line via screenshot probe), toggling off removes it, a bad assembly warns without crashing, the settings round-trip.
 - **Tests:** the SMA golden vectors, the loader good/bad/missing matrix, the overlay point mapping (reuses the T-028 price↔pixel helpers if they landed).
+
+## T-035 — Fix the clipped chart axis labels + adaptive axis labels on zoom (user-reported)
+
+- **Branch:** queued 2026-11-02 (reported the same day by the user with screenshots of the chart on ETH/BTC: scale numbers clip at the canvas edges and the wheel zoom visibly changes nothing). Independent files from `feat/timeframe` (T-026) — rebase onto develop after that merge.
+- **Origin (proven against `CandlestickChart.DrawAxes`, develop@e52f90d):** price ticks draw right-aligned with a `y + MinAxisLabelPaddingPx` baseline spanning the FULL canvas height — the bottom-most tick's baseline lands below the canvas (invisible), the top-most glyph crosses it; the first time label is `SKTextAlign.Center` at `x = Left` (left half clipped) and the last one sits centered on the right canvas edge (right half clipped). `price.ToString("F2")` collapses close prices (ETH/BTC renders one repeated «0,03»); time ticks are per-bar-index `"HH:mm"` — never re-bucketed on zoom (and every D1/W1/MN1 bar renders `00:00`).
+- **What (user-approved scope):** axis gutters so labels never clip — the plot rect insets right/bottom by the MEASURED label extents and the price mapping gains vertical headroom (shared by candles, grid and ticks so the scale stays honest); the price ladder keeps even ticks with the smallest decimal count (≥ 2) that keeps adjacent labels distinct; time ticks re-bucket from a step ladder over the VISIBLE time span (`HH:mm` ↔ month-day ↔ year as the window widens; ticks aligned to the step grid and horizontally clamped inside the canvas). DATA/TIMEFRAME STAYS MANUAL (the T-026 picker): zoom keeps moving the visible window only; "see more history" stays T-033; auto-TF-on-zoom was explicitly rejected.
+- **Scope:** `CandlestickChart.cs` + one pure axis-formatting class in `src/ZettaTrade.UI/Charting`, tests in `tests/ZettaTrade.UI.Tests/Charting`. No resx (dates/numbers format through CultureInfo, which `LocalizationManager.SetLanguage` already resets), no VM/XAML changes, no Core.
+- **Acceptance:** screenshot probe (the canvas prints no UIA nodes): labels present inside both gutters, no ink in the label bands' outermost edge rows/columns; a zoom-out visibly re-buckets the axes (axis-band pixel diff between two zoom states).
+- **Tests:** the time-step ladder, both formatters, the tick alignment, and the decimal-precision rule — including the ETH/BTC distinctness repro and D1/MN1-span windows.
