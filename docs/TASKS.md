@@ -23,7 +23,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-017 One symbol context for the workspace (chart+book), fill the activation gap | feat/workspace-symbols | done | — |
 | T-018 App version display in the status bar | feat/status-version | done | — |
 | T-019 Startup-walk audit after the typed-registration guard fix | feat/startup-walk-audit | done | — |
-| T-020 e2e WebSocket transport tests against a loopback server | feat/ws-transport-tests | in-progress | — |
+| T-020 e2e WebSocket transport tests against a loopback server | feat/ws-transport-tests | done | — |
 
 ---
 
@@ -370,3 +370,9 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Everything runs against the in-process loopback server: no real hosts, no keys; every wait is bounded and polled (no flaky fixed sleeps).
   - gate.
 - **Tests:** new `LoopbackWebSocketServer`; `WebSocketClientTests` (~6); `BinanceAdapterWsE2eTests` (~4).
+- **Status:** done. Canon: the feature commit `4b53544` is on develop (fast-forward merge). Outcome:
+  - Shipped exactly the planned shape: `LoopbackWebSocketServer` (a minimal Kestrel `WebApplication`, console logging providers stripped — the host never writes to stdout) with a per-session-number waiter TCS, a fragment-aware receive loop mirroring the client's chunk accumulation, a `LoopbackConnection` handle for push/fragment/close, and the shared `TestPoll` bounded poll; suites `WebSocketClientTests` (6) and `BinanceAdapterWsE2eTests` (4).
+  - Two design deltas settled while building: (1) the server does NOT read the port off Kestrel's reported bound address — the port is pre-reserved with a `TcpListener(:0)` and released before the bind, and `StartAsync` retries on 3 freshly reserved ports against `AddressAlreadyInUse`, failing hard (never silently) otherwise; (2) the refused-endpoint scenario uses the real server + a missing path (`/missing` answers plain HTTP, never an upgrade) instead of an unbound port — deterministic, no port-race arithmetic.
+  - Pinned: verbatim in-order frames; mid-codepoint fragmented UTF-8 (the split lands inside the first 2-byte sequence) decodes as ONE message; graceful server close → states `[false,true,false,true]` with session #2 delivering frames again; the SUBSCRIBE frame shape (`method`/`id`/the three `btcusdt@…` params); ticker/book/trade entities field-by-field in BOTH number encodings; bare-frame and half-envelope drops with a valid tail probe — a silent leak shifts `Take(2)`'s first entry, so no sleeps.
+  - Tests 207 → 217 (13 Core + 115 App + 58 Infra + 31 UI); the new suites ran green 3× straight (~0.5 s each run). GATE PASSED. Product code untouched; the test csproj gains `FrameworkReference Microsoft.AspNetCore.App` + `System.Reactive 7.0.0` for the in-process host.
+  - No version bump (T-019 precedent: test-only tasks ship no user-facing change); alpha.16 stays queued for the next behavior-shipping task.
