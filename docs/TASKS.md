@@ -29,6 +29,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-023 Real second adapter: Bybit (read-only market data) | feat/bybit-adapter | done | — |
 | T-024 Fix the demo seeded-walk underflow (demo bar loads overflow) | fix/demo-walk | done | — |
 | T-025 Click a book level to prefill the order dialog | feat/book-click | done | - |
+| T-025b Fix the prefilled-dialog defects from the live review (dropdown echo, dangling empty-quantity error) | fix/dialog-prefill | done | — |
 | T-026 Working time frame on the chart | feat/timeframe | queued | — |
 | T-027 Hide/show the AI assistant panel | feat/ai-panel-toggle | queued | — |
 | T-028 Candle OHLC + crosshair price on chart hover | feat/chart-hover | queued | — |
@@ -496,7 +497,19 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Hit-surface lesson: a plain Avalonia `Control` rendering only a custom draw op is NOT hit-tested — the first live clicks died silently. Fixed with a transparent child `Rectangle` bound to `Bounds` (events bubble to the widget); same defect class as the T-022 canvas-invisibility note.
   - Tests 254 → 268 (13 Core + 120 App + 42 UI + 93 Infra): the resolve matrix (8 layout tests), 3 `Prefill` facts on the dialog VM, 3 `SubscribeAsync` facts (per-press ordering, error routing, hot-source tolerance). GATE PASSED ×2; resx parity untouched (95/95 — no new strings).
   - Probe (UIA + Serilog + pixel math, toolbar → Demo, BTC/USDT): the book column measured from the theme palette at 125 % DPI (ask bar `(73,26,30)`, bid bar `(16,61,37)`, navy midline `(18,25,45)`, pitch 17 px = 14 DIP). Bid row 0 click → «Новый ордер» opens prefilled BTC/USDT / «Купить» / `66993.30`, quantity EMPTY; ask row 0 → «Продать» / `67006.70`; Cancel closes each; the fresh log window contains no `Order dialog: placed`.
-  - Probe-infra notes: UIA `SetFocus` throws on Avalonia peers → Win32 `SetForegroundWindow` on the process window instead; the dialog title is «Новый ордер» and the side combo items are «Купить»/«Продать» (the App resx wording — the UI `Resources.Strings` carries «Покупка»/«Продажа»; trust the peer dump, not memory).
+  - Probe-infra notes: UIA `SetFocus` throws on Avalonia peers → Win32 `SetForegroundWindow` on the process window instead; the dialog title is «Новый ордер» and the side combo items are «Купить»/«Продать» — both from the ONE resx pair there is (`ZettaTrade.UI/Resources/Strings` en+ru; the earlier "App resx vs UI resx" split and the «Покупка»/«Продажа» claim were a mojibake misread of the ru file — corrected in T-025b; trust the peer dump, not memory).
+
+## T-025b — Fix the prefilled-dialog defects from the live review
+
+- **Branch:** `fix/dialog-prefill`, reported 2026-11-02 by the user right after the T-025 merge (two screenshots: the symbol AutoCompleteBox popup hanging open over the just-prefilled dialog; pressing Place on the empty quantity shows «Количество не является числом: » with nothing after the colon).
+- **Origin:** the T-025 probe asserted the prefill VALUES but not the dialog's post-open state. The symbol load handler deliberately opens the dropdown while ANY text sits in the field (the slow-network, mid-typing affordance) — and a click prefill IS such text, so the popup echoed the clicked level over the layout. The empty-quantity refusal fell into the "not a number" parse branch, whose message dangles on a blank argument.
+- **What:** a prefill is not a typist's intent — while the field holds its untouched click payload the suggestions stay empty (the dropdown cannot open) and the FIRST editing change releases the hold; empty/whitespace quantity and limit price name the REQUIREMENT with dedicated resx keys instead of the dangling wording; unparsable input keeps the "not a number" message with the argument trimmed.
+- **Status:** done. Canon: the fix commit `3b096a1` sits directly on develop — fast-forward (no merge commit; develop had only the T-025 docs commit `af7aa61` past the branch's cut base). Outcome:
+  - `NewOrderDialogViewModel`: `Prefill` parks the `_prefilledSymbol` hold BEFORE assigning `SymbolInput`; the setter clears the hold on any differing edit; `RefreshSymbolSuggestions` returns the empty list while the hold is active (the invariant is documented and guarded by the setter); the `IsSymbolSuggestionsOpen` doc notes a prefill can never open the gate.
+  - `TryBuildRequest`: trimmed required-branches for the quantity and the limit price → new keys `NewOrder.QuantityRequired` («Количество обязательно») / `NewOrder.PriceRequired` («Лимитная цена обязательна») added to BOTH files of the single resx pair (`ZettaTrade.UI/Resources/Strings`); unparsable input keeps the NotANumber wording.
+  - Tests 268 → 271 (13 Core + 123 App + 42 UI + 93 Infra): the empty-quantity prefill repro, a whitespace-quantity fact covering the trim, and the Limit-missing-price fact reworded to the required contract. GATE PASSED.
+  - Probe (the T-025 probe skeleton + new asserts, exit=0): bid0/ask0 clicks open the dialog on attempt 1; zero ListItems outside the combos and exactly 2 visible top-level windows (no popup); the prefill is exact (`BTC/USDT` / `66993.30` Buy, `67006.70` Sell), quantity EMPTY; Place on the empty quantity refuses with «Количество обязательно» while the fresh Serilog window has no `Order dialog: placed` and no `risk manager rejected`; Cancel closes.
+  - Review note: the gray `0.01` in the quantity field is the TextBox placeholder, not a value — a click never assumes a size (the T-025 contract stands; the trader types the quantity). Confirmed correct with the user after an initial misread.
 
 ## T-026 — Working time frame (the picker replaces the hardcoded H1)
 
