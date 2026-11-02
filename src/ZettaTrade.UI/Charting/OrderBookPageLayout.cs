@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.UI.Localization;
 using ZettaTrade.UI.Resources;
 
@@ -113,6 +114,64 @@ public static class OrderBookPageLayout
 
     #endregion
 
+    #region Hit Resolution
+
+    /// <summary>
+    /// The inverse of <see cref="Build"/> for level clicks: the book level
+    /// under a cursor height, planned with the same constants the widget
+    /// drew with. Half-open row spans match the planned bands; the header
+    /// band and the stretches beyond the planned rows yield no level; the
+    /// mid-line pixel belongs to the best bid.
+    /// </summary>
+    public static BookLevelHit? ResolveLevel(
+        OrderBook? book,
+        double widgetHeight,
+        double cursorY,
+        double rowHeight,
+        double headerHeight)
+    {
+        if (book is null)
+        {
+            return null;
+        }
+
+        var bodyHeight = Math.Max(0, widgetHeight - headerHeight);
+        var rowsPerSide = Math.Max(
+            MinRowsPerSide,
+            (int)(bodyHeight / (2 * rowHeight)));
+        var midY = headerHeight + (rowsPerSide * rowHeight);
+
+        var visibleBids = Math.Min(book.Bids.Count, rowsPerSide);
+        var visibleAsks = Math.Min(book.Asks.Count, rowsPerSide);
+
+        if (cursorY < midY)
+        {
+            // Asks stack upward from the mid line: row i spans
+            // [midY - (i+1)h, midY - i*h), so a distance of exactly the row
+            // height (the row's own top edge) belongs to that row — the
+            // ceiling-based index. The header band above carries no rows.
+            if (cursorY < headerHeight)
+            {
+                return null;
+            }
+
+            var askIndex = (int)Math.Ceiling((midY - cursorY) / rowHeight) - 1;
+            return askIndex < visibleAsks
+                ? new BookLevelHit(OrderSide.Sell, book.Asks[askIndex].Price)
+                : null;
+        }
+
+        // Bids stack downward from the mid line: row i spans
+        // [midY + i*h, midY + (i+1)*h), so the floor-based index maps the
+        // mid-line pixel to the best bid.
+        var bidIndex = (int)((cursorY - midY) / rowHeight);
+        return bidIndex < visibleBids
+            ? new BookLevelHit(OrderSide.Buy, book.Bids[bidIndex].Price)
+            : null;
+    }
+
+    #endregion Hit Resolution
+
     #region Header & Formatting
 
     private static string? SpreadText(OrderBook book) =>
@@ -164,3 +223,9 @@ public sealed record OrderBookPage(
     IReadOnlyList<OrderBookDrawRow> Asks,
     IReadOnlyList<OrderBookDrawRow> Bids,
     float MidY);
+
+/// <summary>
+/// The book level a click resolved to: the side the user would trade AT
+/// that price (a bid is bought at, an ask is sold at) and the level's price.
+/// </summary>
+public readonly record struct BookLevelHit(OrderSide Side, decimal Price);

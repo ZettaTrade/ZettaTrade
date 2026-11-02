@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
@@ -13,6 +14,8 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using SkiaSharp;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
+using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.UI.Localization;
 using ZettaTrade.UI.Resources;
 using ZettaTrade.UI.Themes;
@@ -75,6 +78,14 @@ public class OrderBookWidget : Control
         get => GetValue(BookProperty);
         set => SetValue(BookProperty, value);
     }
+
+    /// <summary>
+    /// Raised for a pointer press on a book level: the side the user would
+    /// trade AT that price (bids buy, asks sell) plus the level's price and
+    /// the book's symbol. The routing decision (typically: prefill the New
+    /// Order dialog) belongs to the owning window, not the widget.
+    /// </summary>
+    public event EventHandler<OrderBookLevelClickedEventArgs>? LevelClicked;
 
     #endregion
 
@@ -173,6 +184,35 @@ public class OrderBookWidget : Control
         }
 
         return fallback;
+    }
+
+    #endregion
+
+    #region Interaction
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        Focus();
+
+        // The level under the cursor resolves against the CURRENT snapshot
+        // (the same constants the render planned with: row height, header
+        // height). No book, a header click or a press beyond the planned
+        // rows stays unrouted.
+        var position = e.GetPosition(this);
+        var book = Book;
+        var hit = OrderBookPageLayout.ResolveLevel(
+            book,
+            Bounds.Height,
+            position.Y,
+            RowHeightPx,
+            HeaderHeightPx);
+        if (book is not null && hit is { } level)
+        {
+            LevelClicked?.Invoke(
+                this,
+                new OrderBookLevelClickedEventArgs(book.Symbol, level.Side, level.Price));
+        }
     }
 
     #endregion
@@ -379,4 +419,21 @@ public class OrderBookWidget : Control
                 CultureInfo.CurrentUICulture) ?? NoDataMessageKey;
         }
     }
+}
+
+/// <summary>
+/// A clicked order book level: the side the user would trade at that price
+/// (a bid is bought at, an ask is sold at), the level's price and the book's
+/// symbol that owns the level.
+/// </summary>
+public sealed class OrderBookLevelClickedEventArgs(Symbol symbol, OrderSide side, decimal price) : EventArgs
+{
+    /// <summary>The book's symbol that owns the clicked level.</summary>
+    public Symbol Symbol { get; } = symbol;
+
+    /// <summary>The side the user would trade AT the clicked price.</summary>
+    public OrderSide Side { get; } = side;
+
+    /// <summary>The clicked level's price.</summary>
+    public decimal Price { get; } = price;
 }
