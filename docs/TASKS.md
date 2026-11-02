@@ -40,6 +40,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-033 Chart pan + older-history paging | feat/chart-pan | queued | — |
 | T-034 Indicator seam MVP (a plugin draws an SMA overlay) | feat/indicators | queued | — |
 | T-035 Chart axis labels clip at the canvas edges + zoom never re-buckets the axes (user-reported) | fix/chart-axes | done | — |
+| T-036 Chart history depth + candle-size cap (user-reported: W1/MN render one full-width candle) | fix/chart-history | queued | — |
+| T-037 Exchange-grade time-grid density (one-rung-above-the-step grids on zoom) | feat/time-grid | queued | — |
 
 ---
 
@@ -607,3 +609,21 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Acceptance:** screenshot probe (the canvas prints no UIA nodes): labels present inside both gutters, no ink in the label bands' outermost edge rows/columns; a zoom-out visibly re-buckets the axes (axis-band pixel diff between two zoom states).
 - **Tests:** the time-step ladder, both formatters, the tick alignment, and the decimal-precision rule — including the ETH/BTC distinctness repro and D1/MN1-span windows.
 - **Status:** done. Canon: the feature commit `23c111d` is on develop (the user merged it as a fast-forward). Outcome: measured price gutter + headroom, epoch-anchored time ladder (`ChartAxisFormatting`, 27 new tests; UI 42 → 69; gate 316 total), and a pixel probe `PROBE PASSED` over three chart states (default full window / 8×IN to the 20-bar floor / 8×OUT back): label ink in both gutters (~2994/~1372 px at s=1.25), zero ink at the outermost edge rows/columns, jitter 0, zoom gutter diffs TG 593 / PG 3835 per state change. Probe facts live in the temp dir (`t035-probe.ps1`, `t035-*.png`); known follow-ups from the user's live review queued as T-036 (chart history depth + candle-width cap) and T-037 (denser time ladder rungs).
+
+## T-036 — Chart history depth + candle-size cap (user-reported)
+
+- **Branch:** queued 2026-11-02 (user review of the merged T-035: the weekly and monthly charts render ONE candle stretched across the whole plot).
+- **Origin (proven against develop@484262d):** `ChartViewModel.LoadBars` asks for a 7-day window (`ChartLookbackDays = 7`, `InitialBarCount = 200`) — the request yields per interval: H4 42 bars, W1 1–2, MN1 1; and the draw pass stretches whatever arrived: `candleWidth = plotRect.Width / bars.Count` paints one bar full-width. The same window also dates the M1 "latest" edge ~6.9 days back (the API returns the OLDEST `limit` bars of the window).
+- **What (user-approved, exchange-standard):** every time frame gets the same INITIAL bar count (~200 is the web-terminal norm): `from = now − InitialBarCount × tfDuration` from a TF-duration map (W1 → 200 weeks, MN1 → all months since the listing, M1 → a fresh 200 minutes). The chart never stretches bars: the bar pitch is capped at a max logical pitch, and when fewer bars than the visible window are loaded they keep that pitch anchored to the plot's RIGHT edge (the terminal right-offset; the empty space grows left). Zoom semantics unchanged (the T-035 machine).
+- **Scope:** `ChartViewModel.cs` (+ the TF-duration history-start math as a testable pure piece), `CandlestickChart.cs` bar layout + time mapping for the capped case, tests (App.Tests history-start facts; UI.Tests bar-layout facts). No Core, no resx.
+- **Acceptance:** pixel probe (the T-035 harness): W1/MN1 show the exchange picture — many candles and NO full-width candle; the H4 state keeps the T-035 verdict (label bands inked, zero edge ink).
+- **Tests:** the TF→duration history-start math for every enum member, the pitch cap + right-anchor mapping (pure facts), the snapshot/zoom window unchanged.
+
+## T-037 — Exchange-grade time-grid density
+
+- **Branch:** queued 2026-11-02 (from the same user review: at the 20-bar zoom floor the M1 chart grids every 5 minutes, M5 → 10 min, M15 → 30 min — the time step always lands one ladder rung above the bar step).
+- **Origin:** the time axis uses a FIXED 10-tick budget (`ChartAxisFormatting.TimeTickBudget`) and a ladder without fine rungs: a ~20-bar window then always picks one rung above (1m→5m, 5m→10m, 15m→30m). Terminals derive the tick budget from the plot width (~80–100 px per label ⇒ 12–20 ticks) and run fine rungs (2m, 3m, 2h, 4h), so a deep-zoomed M1 shows a 1–2-minute grid.
+- **What:** the tick budget becomes measured from the label font (max label width + gap, clamped to a sane band), the ladder gains 2m/3m/2h/4h; everything else stays the T-035 machine (epoch anchoring, clamping, midnight→date labels).
+- **Scope:** `ChartAxisFormatting.cs` + the draw pass consuming the measured budget in `CandlestickChart.cs`, tests.
+- **Acceptance:** pixel probe (the T-035 harness): at the zoom floor M1 grids below 5 minutes; wide windows re-bucket exactly as before (the diff-based re-bucket assertions hold); no glyph clipping (edge asserts stay 0).
+- **Tests:** budget picker (width bands), the new rungs at window boundaries, the measured-budget calibration against the on-screen font.
