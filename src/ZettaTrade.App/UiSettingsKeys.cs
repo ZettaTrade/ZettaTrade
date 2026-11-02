@@ -20,4 +20,7 @@ public static class UiSettingsKeys
 
     /// <summary>Language applied until a stored setting is loaded, empty string means "follow the OS culture".</summary>
     public const string DefaultLanguage = "en";
+
+    /// <summary>Settings key of the persisted chart time frame (a TimeFrame enum name, e.g. H1).</summary>
+    public const string ChartTimeFrame = "ChartTimeFrame";
 }
