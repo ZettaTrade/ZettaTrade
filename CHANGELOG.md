@@ -9,6 +9,34 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.18] - 2026-11-02
+
+Build of task T-023 (the second real adapter: Bybit).
+
+### Added (T-023 — the Bybit adapter)
+- A second production market data adapter, Bybit v5 spot (read-only
+  `IMarketDataAdapter`, transport untouched Trading Safety invariants: no
+  keys are read or carried; orders stay paper-only). Measured against
+  Kraken's public API the same way T-021 measured REST catalogs: Bybit won
+  on payload (282 KB vs 680 KB), single-page catalog and server-served
+  `baseCoin`/`quoteCoin`/`status` metadata (no quote-table splitting).
+- Symbol catalog from `instruments-info` (`status == "Trading"` pairs,
+  cursor-paged and bounded by a five-page cap with ONE aggregated warning;
+  malformed entries dropped and counted, never guessed), bars from `kline`
+  (newest-first wire order reversed to the adapter contract; all numbers
+  arrive as strings and parse to exact decimals), plus live `tickers` (the
+  spot payload carries no bid/ask — mapped honestly as zero, no guessed
+  substitutes), `orderbook.50` (snapshot + delta state machine with
+  monotonic `u`, quantity `"0"` deletes a level, a detected gap discards
+  the state and re-subscribes the topic) and `publicTrade` (aggressor side).
+- One shared WebSocket with a single multiplexed subscribe frame per
+  symbol, re-subscription of every tracked symbol after a reconnect, and an
+  adapter-owned 20 s keepalive ping (the infra has no app-level ping).
+- Endpoints live in the T-015 settings seam (`Exchange:Bybit`, same
+  override semantics as Binance), the adapter joins the T-016 picker
+  between Binance and Demo, and the cold-start default stays preserved
+  (probe: `Binance | Bybit | Demo`, Demo persisted choice survives).
+
 ## [0.1.0-alpha.17] - 2026-11-02
 
 Build of task T-022 (the order dialog names its exchange).
