@@ -8,6 +8,7 @@ using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.UI.Charting;
 
@@ -226,6 +227,205 @@ public sealed class OrderBookPageLayoutTests
         var page = OrderBookPageLayout.Build(book, HeightFor(10), RowHeight, HeaderHeight);
 
         page.SpreadText.Should().BeNull();
+    }
+
+    #endregion
+
+    #region Hit Resolution
+
+    /// <summary>
+    /// Click geometry mirrors the plan: for a widget planned for
+    /// <c>rowsPerSide</c>, the mid line sits one row band below center,
+    /// exactly where <see cref="OrderBookPageLayout.Build"/> puts it.
+    /// </summary>
+    private static double MidYFor(int rowsPerSide) =>
+        HeaderHeight + (RowHeight * rowsPerSide);
+
+    [Fact]
+    public void ResolveLevel_NullBook_YieldsNull()
+    {
+        var hit = OrderBookPageLayout.ResolveLevel(
+            book: null,
+            widgetHeight: HeightFor(10),
+            cursorY: MidYFor(10),
+            rowHeight: RowHeight,
+            headerHeight: HeaderHeight);
+
+        hit.Should().BeNull();
+    }
+
+    [Fact]
+    public void ResolveLevel_ClickInHeaderBand_YieldsNull()
+    {
+        var hit = OrderBookPageLayout.ResolveLevel(
+            Book(10),
+            HeightFor(10),
+            cursorY: HeaderHeight / 2,
+            RowHeight,
+            HeaderHeight);
+
+        hit.Should().BeNull();
+    }
+
+    [Fact]
+    public void ResolveLevel_AskRowCenters_MapSellAscending()
+    {
+        const int Depth = 10;
+        var book = Book(Depth);
+        var midY = MidYFor(Depth);
+
+        for (var i = 0; i < Depth; i++)
+        {
+            var hit = OrderBookPageLayout.ResolveLevel(
+                book,
+                HeightFor(Depth),
+                cursorY: midY - ((i + 0.5) * RowHeight),
+                RowHeight,
+                HeaderHeight);
+
+            hit.Should().NotBeNull($"ask row {i} is planned and clickable");
+            hit!.Value.Side.Should().Be(OrderSide.Sell);
+            hit.Value.Price.Should().Be(100.01m + i, $"ask row {i} shows 100.01+{i}");
+        }
+    }
+
+    [Fact]
+    public void ResolveLevel_BidRowCenters_MapBuyDescending()
+    {
+        const int Depth = 10;
+        var book = Book(Depth);
+        var midY = MidYFor(Depth);
+
+        for (var i = 0; i < Depth; i++)
+        {
+            var hit = OrderBookPageLayout.ResolveLevel(
+                book,
+                HeightFor(Depth),
+                cursorY: midY + ((i + 0.5) * RowHeight),
+                RowHeight,
+                HeaderHeight);
+
+            hit.Should().NotBeNull($"bid row {i} is planned and clickable");
+            hit!.Value.Side.Should().Be(OrderSide.Buy);
+            hit.Value.Price.Should().Be(100m - i, $"bid row {i} shows 100-{i}");
+        }
+    }
+
+    [Fact]
+    public void ResolveLevel_MidLineBelongsToBestBid()
+    {
+        var hit = OrderBookPageLayout.ResolveLevel(
+            Book(10),
+            HeightFor(10),
+            cursorY: MidYFor(10),
+            RowHeight,
+            HeaderHeight);
+
+        hit!.Value.Side.Should().Be(OrderSide.Buy);
+        hit.Value.Price.Should().Be(100m);
+    }
+
+    /// <summary>
+    /// Row spans are half-open toward the mid line: a row's own top edge
+    /// (the pixel away from the mid line) belongs to it, so the exact row
+    /// boundary resolves to the closer row — no dead pixel, no off-by-one.
+    /// </summary>
+    [Fact]
+    public void ResolveLevel_ExactRowBoundaries_ResolveToTheCloserRow()
+    {
+        var book = Book(10);
+        var midY = MidYFor(10);
+
+        // One row height above the mid line: the top edge of ask row 0.
+        var askEdge = OrderBookPageLayout.ResolveLevel(
+            book,
+            HeightFor(10),
+            cursorY: midY - RowHeight,
+            RowHeight,
+            HeaderHeight);
+        askEdge!.Value.Side.Should().Be(OrderSide.Sell);
+        askEdge.Value.Price.Should().Be(100.01m);
+
+        // Two row heights above: the top edge of ask row 1 (the synthetic
+        // ladder steps by 1.00, so row 1 shows 101.01).
+        var askSecondEdge = OrderBookPageLayout.ResolveLevel(
+            book,
+            HeightFor(10),
+            cursorY: midY - (2 * RowHeight),
+            RowHeight,
+            HeaderHeight);
+        askSecondEdge!.Value.Price.Should().Be(101.01m);
+
+        // One row height below the mid line: the top edge of bid row 1
+        // (the mid line itself already belongs to bid row 0).
+        var bidEdge = OrderBookPageLayout.ResolveLevel(
+            book,
+            HeightFor(10),
+            cursorY: midY + RowHeight,
+            RowHeight,
+            HeaderHeight);
+        bidEdge!.Value.Side.Should().Be(OrderSide.Buy);
+        bidEdge.Value.Price.Should().Be(99m);
+    }
+
+    [Fact]
+    public void ResolveLevel_BeyondPlannedRows_YieldsNull()
+    {
+        // A deep book planned for 5 rows plus a 7 px stub: the widget shows
+        // a sliver of the unplanned bid row 5, which stays unclickable.
+        const int PlannedRows = 5;
+        var book = Book(100);
+        var midY = MidYFor(PlannedRows);
+
+        var headerMostPlanned = OrderBookPageLayout.ResolveLevel(
+            book,
+            HeightFor(PlannedRows) + 7,
+            cursorY: midY - (4.5 * RowHeight),
+            RowHeight,
+            HeaderHeight);
+        headerMostPlanned!.Value.Side.Should().Be(OrderSide.Sell);
+        headerMostPlanned.Value.Price.Should().Be(104.01m, "ask row 4, the last planned one");
+
+        var unplannedStub = OrderBookPageLayout.ResolveLevel(
+            book,
+            HeightFor(PlannedRows) + 7,
+            cursorY: midY + 73, // inside the sliver of unplanned bid row 5
+            RowHeight,
+            HeaderHeight);
+        unplannedStub.Should().BeNull();
+    }
+
+    [Fact]
+    public void ResolveLevel_BookSmallerThanPlan_LevelsBeyondContentYieldNull()
+    {
+        const int PlannedRows = 5;
+        var book = Book(2);
+        var midY = MidYFor(PlannedRows);
+
+        var belowContent = OrderBookPageLayout.ResolveLevel(
+            book,
+            HeightFor(PlannedRows),
+            cursorY: midY + (3.5 * RowHeight),
+            RowHeight,
+            HeaderHeight);
+        belowContent.Should().BeNull("only two bids exist; row 3 is empty space");
+
+        var aboveContent = OrderBookPageLayout.ResolveLevel(
+            book,
+            HeightFor(PlannedRows),
+            cursorY: midY - (3.5 * RowHeight),
+            RowHeight,
+            HeaderHeight);
+        aboveContent.Should().BeNull();
+
+        var deepestBid = OrderBookPageLayout.ResolveLevel(
+            book,
+            HeightFor(PlannedRows),
+            cursorY: midY + (1.5 * RowHeight),
+            RowHeight,
+            HeaderHeight);
+        deepestBid!.Value.Side.Should().Be(OrderSide.Buy);
+        deepestBid.Value.Price.Should().Be(99m);
     }
 
     #endregion
