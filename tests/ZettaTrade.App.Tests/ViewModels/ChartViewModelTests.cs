@@ -68,6 +68,8 @@ public sealed class ChartViewModelTests
 
         public List<Symbol> BarsRequested { get; } = new();
 
+        public List<TimeFrame> BarsTimeFrames { get; } = new();
+
         public List<CancellationToken> BarsCancellationTokens { get; } = new();
 
         public string Id { get; }
@@ -94,6 +96,7 @@ public sealed class ChartViewModelTests
             CancellationToken ct = default)
         {
             BarsRequested.Add(symbol);
+            BarsTimeFrames.Add(timeFrame);
             BarsCancellationTokens.Add(ct);
 
             if (_failingSymbols.Contains(symbol))
@@ -154,11 +157,29 @@ public sealed class ChartViewModelTests
             NullLogger<ActiveExchangeService>.Instance);
     }
 
-    private static ChartViewModel CreateChart(ActiveExchangeService service) =>
-        new(
+    private static ChartViewModel CreateChart(
+        ActiveExchangeService service,
+        ISettingsService? settings = null)
+    {
+        var timeFrameSettings = settings;
+        if (timeFrameSettings is null)
+        {
+            timeFrameSettings = Substitute.For<ISettingsService>();
+            timeFrameSettings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+                .Returns(string.Empty);
+            timeFrameSettings.SetAsync(
+                    Arg.Any<string>(),
+                    Arg.Any<string>(),
+                    Arg.Any<string>())
+                .Returns(Task.CompletedTask);
+        }
+
+        return new(
             service,
             new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
+            timeFrameSettings,
             NullLogger<ChartViewModel>.Instance);
+    }
 
     #endregion
 
@@ -329,6 +350,159 @@ public sealed class ChartViewModelTests
         ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), empty)
             .Should().BeNull();
     }
+
+    [Fact]
+    public void SelectedTimeFrame_DefaultsToH1_WithThePickerCatalog()
+    {
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+
+        chart.SelectedTimeFrame.Should().Be(
+            TimeFrame.H1,
+            "today's hardcoded behavior is the default until a restore applies");
+        chart.TimeFrames.Should().Equal(
+            TimeFrame.M1,
+            TimeFrame.M5,
+            TimeFrame.M15,
+            TimeFrame.M30,
+            TimeFrame.H1,
+            TimeFrame.H4,
+            TimeFrame.D1,
+            TimeFrame.W1,
+            TimeFrame.MN1);
+    }
+
+    /// <summary>
+    /// The persisted <c>UI.ChartTimeFrame</c> choice applies at the startup
+    /// walk, BEFORE the first load: the first bars request already carries
+    /// the restored frame (no H1 flash). A restore never re-persists the
+    /// value it just read.
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_RestoresThePersistedTimeFrame_BeforeTheFirstLoad()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns("M15");
+        var marketData = new FakeMarketData();
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+        var delivered = new List<IReadOnlyList<Bar>>();
+
+        using var subscription = chart.BarsUpdates.Subscribe(delivered.Add);
+
+        await chart.InitializeAsync();
+
+        chart.SelectedTimeFrame.Should().Be(TimeFrame.M15);
+        await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>());
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        marketData.BarsTimeFrames.Should().ContainSingle().Which.Should().Be(
+            TimeFrame.M15,
+            "the restored frame owns the first load");
+        delivered.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Every non-name stored value (absent, blank, numeric, garbage) keeps
+    /// the running default instead of substituting a time frame silently —
+    /// the unrecognized value is logged, not applied.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("garbage")]
+    [InlineData("9")]
+    [InlineData("25")]
+    public async Task InitializeAsync_UnrecognizedPersistedChoice_KeepsTheDefaultH1(string? storedValue)
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(storedValue ?? string.Empty);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        await chart.InitializeAsync();
+
+        chart.SelectedTimeFrame.Should().Be(TimeFrame.H1);
+    }
+
+    [Fact]
+    public async Task SelectedTimeFrame_Change_ReloadsTheChartAndPersistsTheChoice()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var marketData = new FakeMarketData();
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+        var delivered = new List<IReadOnlyList<Bar>>();
+
+        using var subscription = chart.BarsUpdates.Subscribe(delivered.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        chart.SelectedTimeFrame = TimeFrame.M5;
+
+        marketData.BarsRequested.Should().HaveCount(2, "a time frame change is a reload trigger, not a no-op");
+        marketData.BarsTimeFrames.Should().Equal([TimeFrame.H1, TimeFrame.M5]);
+        delivered.Should().HaveCount(2);
+        delivered[1].Should().ContainSingle().Which.Close.Should().Be(100m);
+
+        // The user flip persists the enum name into the UI section.
+        await settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartTimeFrame,
+            "M5");
+    }
+
+    [Fact]
+    public async Task FastTimeFrameFlip_DropsTheInFlightLoadAndDeliversTheWinner()
+    {
+        var marketData = new FakeMarketData(barDelayMs: 30);
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+        var latest = new TaskCompletionSource<IReadOnlyList<Bar>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // At delivery time the winning load's lease must still be alive (the
+        // same receipt contract as the exchange-switch cancellation test);
+        // the winner is the THIRD load: H1 initial, M5 superseded, D1 wins.
+        var supersededCancelledAtDelivery = default(bool?);
+        using var subscription = chart.BarsUpdates.Subscribe(bars =>
+        {
+            supersededCancelledAtDelivery = marketData.BarsCancellationTokens[2].IsCancellationRequested;
+            latest.TrySetResult(bars);
+        });
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        chart.SelectedTimeFrame = TimeFrame.M5;
+        chart.SelectedTimeFrame = TimeFrame.D1;
+
+        var winnerBars = await latest.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        winnerBars.Should().ContainSingle().Which.Close.Should().Be(100m);
+        marketData.BarsRequested.Should().HaveCount(3, "every flip requested its own reload");
+        marketData.BarsTimeFrames.Should().Equal([TimeFrame.H1, TimeFrame.M5, TimeFrame.D1]);
+        marketData.BarsCancellationTokens[1].IsCancellationRequested.Should().BeTrue(
+            "the Switch dropped the in-flight M5 load; only the D1 winner runs");
+        supersededCancelledAtDelivery.Should().BeFalse(
+            "the winning load is still alive when its bars arrive");
+    }
+
+    /// <summary>
+    /// The persisted-value parse contract: enum names (any case, trimmed)
+    /// restore their time frame; absent, blank, numeric or unrecognized
+    /// values produce null (the caller keeps the default and logs).
+    /// </summary>
+    [Theory]
+    [InlineData("M1", TimeFrame.M1)]
+    [InlineData("m15", TimeFrame.M15)]
+    [InlineData("  H4  ", TimeFrame.H4)]
+    [InlineData("MN1", TimeFrame.MN1)]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("9", null)]
+    [InlineData("garbage", null)]
+    public void ParseStoredTimeFrame_PinsTheRestoreContract(string? stored, TimeFrame? expected) =>
+        ChartViewModel.ParseStoredTimeFrame(stored).Should().Be(expected);
 
     #endregion
 }

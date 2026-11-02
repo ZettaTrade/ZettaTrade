@@ -132,6 +132,9 @@
   <data name="Chart.NoDataMessage" xml:space="preserve">
     <value>Нет данных</value>
   </data>
+  <data name="Chart.TimeFrame" xml:space="preserve">
+    <value>Таймфрейм</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>

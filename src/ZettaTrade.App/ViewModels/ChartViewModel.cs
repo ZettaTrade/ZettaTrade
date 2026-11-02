@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.UI.Extensions;
@@ -24,11 +25,15 @@ using ZettaTrade.UI.Extensions;
 /// <see cref="Bars"/> is assigned after the UI-thread hop. The exchange
 /// context is inherited from the active-exchange facade: both the symbol
 /// bootstrap and the bars machine re-run on every adapter change, so the
-/// workspace follows the toolbar selector blind. The ViewModel lives as
-/// long as the application (singleton), so the subscriptions mirror it
-/// and need no explicit disposal.
+/// workspace follows the toolbar selector blind. The time frame is the
+/// third load-key ingredient and persists as <c>UI.ChartTimeFrame</c>: the
+/// constructor restore (a startup-walk <see cref="InitializeAsync"/> call
+/// applies the stored choice before any window binds) re-loads the chart
+/// through the same machine a combo flip drives, and user changes persist.
+/// The ViewModel lives as long as the application (singleton), so the
+/// subscriptions mirror it and need no explicit disposal.
 /// </remarks>
-public sealed class ChartViewModel : ReactiveObject
+public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 {
     #region Constants
 
@@ -41,16 +46,22 @@ public sealed class ChartViewModel : ReactiveObject
     /// <summary>Initial number of candles loaded for the chart.</summary>
     private const int InitialBarCount = 200;
 
-    /// <summary>Chart timeframe while the timeframe picker is not implemented.</summary>
-    private const Core.Enums.TimeFrame ChartTimeFrame = Core.Enums.TimeFrame.H1;
-
     #endregion
 
     #region Properties
 
+    private readonly ISettingsService _settings;
     private readonly ILogger<ChartViewModel> _logger;
     private readonly ActiveExchangeService _activeExchanges;
     private readonly SymbolListProvider _symbolList;
+
+    /// <summary>
+    /// Whether the constructor restore is writing its own value into
+    /// <see cref="SelectedTimeFrame"/>: the persistence chain suppresses
+    /// exactly that assignment (a restore is not a user edit — repersisting
+    /// the just-read value would be a duplicate write with no information).
+    /// </summary>
+    private bool _isRestoringTimeFrame;
 
     private ObservableCollection<Bar> _bars = new();
 
@@ -70,6 +81,34 @@ public sealed class ChartViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _selectedSymbol, value);
     }
 
+    private TimeFrame _selectedTimeFrame = TimeFrame.H1;
+
+    /// <summary>
+    /// The time frame the chart loads bars for. Defaults to H1 — today's
+    /// hardcoded behavior — until <see cref="InitializeAsync"/> applies the
+    /// persisted choice; every combo change re-loads the chart AND persists
+    /// the choice for the next cold start.
+    /// </summary>
+    public TimeFrame SelectedTimeFrame
+    {
+        get => _selectedTimeFrame;
+        set => this.RaiseAndSetIfChanged(ref _selectedTimeFrame, value);
+    }
+
+    /// <summary>Every time frame the picker offers, in enum order (M1…MN1).</summary>
+    public IReadOnlyList<TimeFrame> TimeFrames { get; } =
+    [
+        TimeFrame.M1,
+        TimeFrame.M5,
+        TimeFrame.M15,
+        TimeFrame.M30,
+        TimeFrame.H1,
+        TimeFrame.H4,
+        TimeFrame.D1,
+        TimeFrame.W1,
+        TimeFrame.MN1,
+    ];
+
     private ObservableCollection<Symbol> _availableSymbols = new();
 
     /// <summary>List of available trading symbols.</summary>
@@ -86,11 +125,12 @@ public sealed class ChartViewModel : ReactiveObject
     public IObservable<Symbol> SymbolSelections { get; }
 
     /// <summary>
-    /// Bars loaded for the latest selection; a newer selection cancels the
-    /// previous load (Rx Switch). The machine is hot and shared: exactly one
-    /// load pipeline runs no matter how many consumers subscribe, and a late
-    /// watcher immediately gets the latest bars. Raw — not UI-marshaled;
-    /// user-interface consumers marshal themselves.
+    /// Bars loaded for the latest (symbol, time frame, exchange) triple; a
+    /// newer triple cancels the previous load (Rx Switch). The machine is
+    /// hot and shared: exactly one load pipeline runs no matter how many
+    /// consumers subscribe, and a late watcher immediately gets the latest
+    /// bars. Raw — not UI-marshaled; user-interface consumers marshal
+    /// themselves.
     /// </summary>
     public IObservable<IReadOnlyList<Bar>> BarsUpdates { get; }
 
@@ -101,29 +141,54 @@ public sealed class ChartViewModel : ReactiveObject
     /// <summary>
     /// Create a new ChartViewModel instance.
     /// </summary>
+    /// <param name="settings">The app settings service; the time frame
+    /// restore reads <see cref="UiSettingsKeys.ChartTimeFrame"/> and every
+    /// user change persists there.</param>
     public ChartViewModel(
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
+        ISettingsService settings,
         ILogger<ChartViewModel> logger)
     {
         _activeExchanges = activeExchanges;
         _symbolList = symbolList;
+        _settings = settings;
         _logger = logger;
 
         SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
             .Where(symbol => symbol is not null)
             .Select(symbol => symbol!);
 
-        // Bars re-load on every selection or active-exchange change: the pair
-        // pins the adapter that owns the bars, so each load targets exactly
-        // the exchange of its triggering change, and the Switch drops the
-        // in-flight load of a superseded pair (atomic by construction).
+        // Bars re-load on every symbol, time frame or active-exchange change:
+        // the triple pins the exact load target (exchange + timeframe), so
+        // each load serves precisely its triggering change, and the Switch
+        // drops the in-flight load of a superseded triple (atomic by
+        // construction) — a rapid time frame flip leaves exactly one load.
         BarsUpdates = SymbolSelections
-            .CombineLatest(activeExchanges.AdapterChanges, (symbol, adapter) => (Symbol: symbol, Adapter: adapter))
-            .Select(pair => LoadBars(pair.Symbol, pair.Adapter))
+            .CombineLatest(
+                this.WhenAnyValue(x => x.SelectedTimeFrame),
+                activeExchanges.AdapterChanges,
+                (symbol, timeFrame, adapter) => (Symbol: symbol, TimeFrame: timeFrame, Adapter: adapter))
+            .Select(triple => LoadBars(triple.Symbol, triple.TimeFrame, triple.Adapter))
             .Switch()
             .Replay(1)
             .RefCount();
+
+        // The time frame persists: every USER change writes the enum name
+        // into the UI settings section (the debounced settings service calls
+        // the file I/O). The subscribe-time bootstrap emission is skipped,
+        // and the restore's own assignment is suppressed by
+        // <see cref="_isRestoringTimeFrame"/> — reads are never re-written.
+        this.WhenAnyValue(x => x.SelectedTimeFrame)
+            .Skip(1)
+            .Where(_ => !_isRestoringTimeFrame)
+            .SelectMany(timeFrame => Observable.FromAsync(() => _settings.SetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartTimeFrame,
+                timeFrame.ToString())))
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "Failed to persist the chart time frame"));
 
         // The ViewModel lives as long as the application (singleton), so this
         // subscription mirrors it and needs no explicit disposal. The marshal
@@ -149,6 +214,85 @@ public sealed class ChartViewModel : ReactiveObject
     }
 
     #endregion
+
+    #region Public Methods
+
+    /// <summary>
+    /// Apply the persisted chart time frame before any consumer exists: the
+    /// startup walk calls this AFTER the active-exchange facade restored its
+    /// choice and BEFORE the main window binds, so the first bars load (and
+    /// the combo) already carry the stored value — no H1 flash. A restore
+    /// runs the same raise a combo flip drives (the load machine re-keys),
+    /// but the persistence chain suppresses the assignment: a restore is a
+    /// read, not an edit.
+    /// </summary>
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        var persisted = await _settings.GetAsync<string>(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartTimeFrame);
+
+        if (string.IsNullOrWhiteSpace(persisted))
+        {
+            _logger.LogInformation(
+                "No persisted chart time frame; starting on '{Value}'",
+                SelectedTimeFrame);
+            return;
+        }
+
+        // An unrecognized stored value keeps the default and logs — the
+        // trading-safety rule: never substitute defaults silently.
+        if (ParseStoredTimeFrame(persisted) is not { } restored)
+        {
+            _logger.LogWarning(
+                "Persisted chart time frame '{PersistedValue}' is not a supported time frame; keeping '{Value}'",
+                persisted,
+                SelectedTimeFrame);
+            return;
+        }
+
+        if (restored == SelectedTimeFrame)
+        {
+            return;
+        }
+
+        _isRestoringTimeFrame = true;
+        try
+        {
+            SelectedTimeFrame = restored;
+        }
+        finally
+        {
+            _isRestoringTimeFrame = false;
+        }
+
+        _logger.LogInformation("Restored persisted chart time frame '{Value}'", restored);
+    }
+
+    /// <summary>
+    /// The persisted-key parse, in its pure form (pinned by tests): the
+    /// stored value must name a DEFINED time frame (case-insensitive,
+    /// trimmed). Absent, blank, numeric or unrecognized values produce
+    /// null — the caller keeps the default and logs.
+    /// </summary>
+    internal static TimeFrame? ParseStoredTimeFrame(string? stored)
+    {
+        if (string.IsNullOrWhiteSpace(stored))
+        {
+            return null;
+        }
+
+        var trimmed = stored.Trim();
+        if (!Enum.TryParse(trimmed, ignoreCase: true, out TimeFrame parsed) ||
+            !Enum.IsDefined(typeof(TimeFrame), parsed))
+        {
+            return null;
+        }
+
+        return parsed;
+    }
+
+    #endregion Public Methods
 
     #region Private Methods
 
@@ -205,18 +349,26 @@ public sealed class ChartViewModel : ReactiveObject
             : symbols.FirstOrDefault();
 
     /// <summary>
-    /// Bars load for one selection on the exchange that triggered it. A
-    /// failure ends this selection's data (logged, never a default value)
-    /// but must not terminate the switching machine for later selections.
+    /// Bars load for one selection on the exchange that triggered it, for
+    /// the exact time frame of the triggering change. A failure ends this
+    /// selection's data (logged, never a default value) but must not
+    /// terminate the switching machine for later selections.
     /// </summary>
-    private IObservable<IReadOnlyList<Bar>> LoadBars(Symbol symbol, IMarketDataAdapter adapter)
+    private IObservable<IReadOnlyList<Bar>> LoadBars(
+        Symbol symbol,
+        TimeFrame timeFrame,
+        IMarketDataAdapter adapter)
     {
-        _logger.LogInformation("Chart bars load requested for {Symbol} on {Exchange}", symbol, adapter.Name);
+        _logger.LogInformation(
+            "Chart bars load requested for {Symbol} {TimeFrame} on {Exchange}",
+            symbol,
+            timeFrame,
+            adapter.Name);
 
         return Observable
             .FromAsync(token => adapter.GetBarsAsync(
                 symbol,
-                ChartTimeFrame,
+                timeFrame,
                 DateTimeOffset.UtcNow.AddDays(-ChartLookbackDays),
                 limit: InitialBarCount,
                 ct: token))
