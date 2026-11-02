@@ -31,16 +31,37 @@ public class CandlestickChart : Control
     private const int MinVisibleBars = 20;
     private const int DefaultVisibleBars = 100;
     private const int VisibleBarsZoomStep = 10;
-    private const int HorizontalGridLineCount = 5;
-    private const int VerticalGridLineCount = 10;
+
+    /// <summary>Price tick slots between the padded extremes (six inclusive ticks).</summary>
     private const int PriceAxisLabelCount = 5;
-    private const int TimeAxisLabelCount = 10;
     private const decimal PricePaddingRatio = 0.1m;
     private const float CandleBodyWidthRatio = 0.7f;
     private const float MinCandleBodyHeight = 1f;
     private const float NoDataFontSize = 16f;
     private const float AxisFontSize = 10f;
-    private const int MinAxisLabelPaddingPx = 5;
+
+    /// <summary>
+    /// Horizontal padding between the plot and the price-label column, on
+    /// both sides of the text: the right gutter is sized to the widest
+    /// measured label, so no price label can cross the canvas edge.
+    /// </summary>
+    private const float PriceAxisGutterPadPx = 6f;
+
+    /// <summary>Vertical padding of the bottom gutter around the time labels.</summary>
+    private const float TimeAxisGutterPadPx = 6f;
+
+    /// <summary>
+    /// Vertical headroom the price mapping keeps inside the plot at its top
+    /// and bottom: extreme candles, gridlines and the centered labels of the
+    /// extreme ticks all stay clear of the plot edges.
+    /// </summary>
+    private const float PriceVerticalHeadroomPx = 12f;
+
+    /// <summary>
+    /// Horizontal inset a centered time label keeps from the plot edges when
+    /// its tick sits at (or near) a boundary.
+    /// </summary>
+    private const float TimeLabelClampPadPx = 4f;
 
     /// <summary>The chart takes a screenshot of these resources on each redraw.</summary>
     private const string NoDataMessageKey = "Chart.NoDataMessage";
@@ -372,10 +393,60 @@ public class CandlestickChart : Control
             maxPrice += padding;
             priceRange = maxPrice - minPrice;
 
-            var bounds = new Rect(0, 0, width, height);
-            DrawGrid(canvas, bounds);
-            DrawCandles(canvas, bounds, visibleBars, minPrice, priceRange);
-            DrawAxes(canvas, bounds, visibleBars, minPrice, maxPrice);
+            // The labels decide the geometry FIRST: gutters size themselves
+            // to the measured texts so no label can clip, and the plot
+            // shrinks to leave room for them. Zoom re-buckets the axes free
+            // of charge: the wheel narrows or widens the visible window, the
+            // window changes the price spread AND the time span, and both
+            // label sets follow.
+            using var font = new SKFont(SKTypeface.Default, AxisFontSize);
+            using var gridPaint = new SKPaint
+            {
+                Color = _snapshot.Grid,
+                StrokeWidth = 1,
+                IsAntialias = true
+            };
+            using var textPaint = new SKPaint
+            {
+                Color = _snapshot.Text,
+                IsAntialias = true
+            };
+
+            var priceTicks = ChartAxisFormatting.PickPriceTicks(minPrice, maxPrice, PriceAxisLabelCount);
+            var priceDecimals = ChartAxisFormatting.PickPriceDecimals(priceRange / PriceAxisLabelCount);
+            var priceTexts = priceTicks
+                .Select(tick => ChartAxisFormatting.FormatPriceTick(tick, priceDecimals, CultureInfo.CurrentCulture))
+                .ToArray();
+            var priceGutter = priceTexts.Max(text => font.MeasureText(text)) + (2f * PriceAxisGutterPadPx);
+
+            var firstTime = visibleBars[0].Time;
+            var lastTime = visibleBars[^1].Time;
+            var timeStep = ChartAxisFormatting.PickTimeStep(lastTime - firstTime);
+            var timeTicks = ChartAxisFormatting.PickTimeTicks(firstTime, lastTime, timeStep);
+            var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
+            var timeGutter = textHeight + (2f * TimeAxisGutterPadPx);
+
+            // At least a one-pixel plot on an absurdly small window.
+            var plotRect = new Rect(
+                0,
+                0,
+                Math.Max(1d, width - priceGutter),
+                Math.Max(1d, height - timeGutter));
+
+            DrawGrid(
+                canvas,
+                gridPaint,
+                plotRect,
+                minPrice,
+                priceRange,
+                priceTicks,
+                timeTicks,
+                firstTime,
+                lastTime);
+
+            DrawCandles(canvas, plotRect, visibleBars, minPrice, priceRange);
+            DrawPriceAxis(canvas, font, textPaint, plotRect, minPrice, priceRange, priceTicks, priceTexts);
+            DrawTimeAxis(canvas, font, textPaint, plotRect, firstTime, lastTime, timeStep, timeTicks);
         }
 
         private void DrawNoDataMessage(SKCanvas canvas, double width, double height)
@@ -411,31 +482,44 @@ public class CandlestickChart : Control
                 CultureInfo.CurrentUICulture) ?? NoDataMessageKey;
         }
 
-        private void DrawGrid(SKCanvas canvas, Rect bounds)
+        /// <summary>
+        /// Grid lines AT the tick positions: horizontal lines ride the price
+        /// ladder (aligned with the price labels), vertical lines ride the
+        /// time ticks (aligned with the time labels). Both stay strictly
+        /// inside the plot, so the gutters and the canvas edges stay clean.
+        /// </summary>
+        private static void DrawGrid(
+            SKCanvas canvas,
+            SKPaint paint,
+            Rect plotRect,
+            decimal minPrice,
+            decimal priceRange,
+            IReadOnlyList<decimal> priceTicks,
+            IReadOnlyList<DateTimeOffset> timeTicks,
+            DateTimeOffset firstTime,
+            DateTimeOffset lastTime)
         {
-            using var paint = new SKPaint
+            foreach (var tick in priceTicks)
             {
-                Color = _snapshot.Grid,
-                StrokeWidth = 1,
-                IsAntialias = true
-            };
-
-            for (var i = 0; i <= HorizontalGridLineCount; i++)
-            {
-                var y = (float)(bounds.Top + (bounds.Height * i / HorizontalGridLineCount));
-                canvas.DrawLine((float)bounds.Left, y, (float)bounds.Right, y, paint);
+                var y = PriceToY(plotRect, tick, minPrice, priceRange);
+                canvas.DrawLine((float)plotRect.Left, y, (float)plotRect.Right, y, paint);
             }
 
-            for (var i = 0; i <= VerticalGridLineCount; i++)
+            foreach (var tick in timeTicks)
             {
-                var x = (float)(bounds.Left + (bounds.Width * i / VerticalGridLineCount));
-                canvas.DrawLine(x, (float)bounds.Top, x, (float)bounds.Bottom, paint);
+                var x = TimeToX(plotRect, tick, firstTime, lastTime);
+                canvas.DrawLine(x, (float)plotRect.Top, x, (float)plotRect.Bottom, paint);
             }
         }
 
-        private void DrawCandles(SKCanvas canvas, Rect bounds, IReadOnlyList<Bar> bars, decimal minPrice, decimal priceRange)
+        private void DrawCandles(
+            SKCanvas canvas,
+            Rect plotRect,
+            IReadOnlyList<Bar> bars,
+            decimal minPrice,
+            decimal priceRange)
         {
-            var candleWidth = (float)(bounds.Width / bars.Count);
+            var candleWidth = (float)(plotRect.Width / bars.Count);
             var bodyWidth = candleWidth * CandleBodyWidthRatio;
 
             using var bullishPaint = new SKPaint
@@ -453,15 +537,15 @@ public class CandlestickChart : Control
             for (var i = 0; i < bars.Count; i++)
             {
                 var bar = bars[i];
-                var x = (float)(bounds.Left + (i * candleWidth) + (candleWidth / 2));
+                var x = (float)(plotRect.Left + (i * candleWidth) + (candleWidth / 2));
 
                 var isBullish = bar.Close >= bar.Open;
                 var paint = isBullish ? bullishPaint : bearishPaint;
 
-                var openY = (float)(bounds.Bottom - (double)((bar.Open - minPrice) / priceRange) * bounds.Height);
-                var closeY = (float)(bounds.Bottom - (double)((bar.Close - minPrice) / priceRange) * bounds.Height);
-                var highY = (float)(bounds.Bottom - (double)((bar.High - minPrice) / priceRange) * bounds.Height);
-                var lowY = (float)(bounds.Bottom - (double)((bar.Low - minPrice) / priceRange) * bounds.Height);
+                var openY = PriceToY(plotRect, bar.Open, minPrice, priceRange);
+                var closeY = PriceToY(plotRect, bar.Close, minPrice, priceRange);
+                var highY = PriceToY(plotRect, bar.High, minPrice, priceRange);
+                var lowY = PriceToY(plotRect, bar.Low, minPrice, priceRange);
 
                 canvas.DrawLine(x, highY, x, lowY, paint);
 
@@ -480,41 +564,107 @@ public class CandlestickChart : Control
             }
         }
 
-        private void DrawAxes(SKCanvas canvas, Rect bounds, IReadOnlyList<Bar> bars, decimal minPrice, decimal maxPrice)
+        /// <summary>
+        /// Price labels in the right gutter, LEFT-aligned as one column
+        /// starting just past the plot edge and vertically CENTERED on their
+        /// gridline (metrics-based). The old placement drew with an
+        /// edge-relative baseline, clipping the extreme labels off the canvas.
+        /// </summary>
+        private static void DrawPriceAxis(
+            SKCanvas canvas,
+            SKFont font,
+            SKPaint paint,
+            Rect plotRect,
+            decimal minPrice,
+            decimal priceRange,
+            IReadOnlyList<decimal> ticks,
+            IReadOnlyList<string> texts)
         {
-            using var paint = new SKPaint
+            for (var i = 0; i < texts.Count; i++)
             {
-                Color = _snapshot.Text,
-                IsAntialias = true
-            };
+                var y = PriceToY(plotRect, ticks[i], minPrice, priceRange);
+                var centerY = y - ((font.Metrics.Ascent + font.Metrics.Descent) / 2f);
 
-            using var font = new SKFont(SKTypeface.Default, AxisFontSize);
+                canvas.DrawText(texts[i], (float)plotRect.Right + PriceAxisGutterPadPx, centerY, SKTextAlign.Left, font, paint);
+            }
+        }
 
-            for (var i = 0; i <= PriceAxisLabelCount; i++)
+        /// <summary>
+        /// Time labels centered under their ticks inside the bottom gutter
+        /// (metrics-based baseline), with the center-x clamped INSIDE the
+        /// plot horizontally: the old placement centered the first label on
+        /// the exact canvas edge and half of the text fell off. Ticks already
+        /// sit on the step grid inside the visible window.
+        /// </summary>
+        private static void DrawTimeAxis(
+            SKCanvas canvas,
+            SKFont font,
+            SKPaint paint,
+            Rect plotRect,
+            DateTimeOffset firstTime,
+            DateTimeOffset lastTime,
+            TimeSpan step,
+            IReadOnlyList<DateTimeOffset> ticks)
+        {
+            var culture = CultureInfo.CurrentCulture;
+
+            foreach (var tick in ticks)
             {
-                var price = minPrice + ((maxPrice - minPrice) * i / PriceAxisLabelCount);
-                var y = (float)(bounds.Bottom - (bounds.Height * i / PriceAxisLabelCount));
+                var text = ChartAxisFormatting.FormatTimeTick(tick, step, culture);
+                var halfWidth = font.MeasureText(text) / 2f;
+                var centered = TimeToX(plotRect, tick, firstTime, lastTime);
+                var minCenter = halfWidth + TimeLabelClampPadPx;
+                var maxCenter = (float)plotRect.Right - halfWidth - TimeLabelClampPadPx;
 
-                var text = price.ToString("F2");
+                // When the plot is narrower than one label the two clamp
+                // bounds collapse — Max(min, max) then keeps the left bound:
+                // the degenerate case clips a label, it never throws.
+                var x = Math.Min(Math.Max(centered, minCenter), Math.Max(minCenter, maxCenter));
+                var baseline = (float)plotRect.Bottom + TimeAxisGutterPadPx - font.Metrics.Ascent;
 
-                // Right-aligned at the chart edge.
-                canvas.DrawText(text, (float)bounds.Right - MinAxisLabelPaddingPx, y + MinAxisLabelPaddingPx, SKTextAlign.Right, font, paint);
+                canvas.DrawText(text, x, baseline, SKTextAlign.Center, font, paint);
+            }
+        }
+
+        /// <summary>
+        /// Maps a price onto the plot's vertical axis: the padded scale owns
+        /// the full candle spread and keeps unmapped headroom at both ends,
+        /// so extreme candles — and the centered labels of the extreme ticks
+        /// — stay clear of the plot edges. Candles, gridlines and labels all
+        /// use this one mapping, so the scale stays honest.
+        /// </summary>
+        private static float PriceToY(
+            Rect plotRect,
+            decimal price,
+            decimal minPrice,
+            decimal priceRange)
+        {
+            var usableHeight = (float)plotRect.Height - (2f * PriceVerticalHeadroomPx);
+
+            return ((float)plotRect.Bottom - PriceVerticalHeadroomPx)
+                - ((float)((double)((price - minPrice) / priceRange) * usableHeight));
+        }
+
+        /// <summary>
+        /// Maps a time onto the plot's horizontal axis, linear across the
+        /// visible window <c>[first, last]</c>. A zero span (a single visible
+        /// bar) maps to the left edge.
+        /// </summary>
+        private static float TimeToX(
+            Rect plotRect,
+            DateTimeOffset time,
+            DateTimeOffset first,
+            DateTimeOffset last)
+        {
+            var spanTicks = last.Ticks - first.Ticks;
+            if (spanTicks <= 0)
+            {
+                return (float)plotRect.Left;
             }
 
-            var timeSteps = Math.Min(TimeAxisLabelCount, bars.Count);
-            for (var i = 0; i < timeSteps; i++)
-            {
-                var barIndex = i * bars.Count / timeSteps;
-                if (barIndex >= bars.Count)
-                    break;
+            var fraction = (double)(time.Ticks - first.Ticks) / spanTicks;
 
-                var bar = bars[barIndex];
-                var x = (float)(bounds.Left + (bounds.Width * i / timeSteps));
-
-                var text = bar.Time.ToString("HH:mm");
-
-                canvas.DrawText(text, x, (float)bounds.Bottom - MinAxisLabelPaddingPx, SKTextAlign.Center, font, paint);
-            }
+            return (float)(plotRect.Left + (fraction * plotRect.Width));
         }
     }
 
