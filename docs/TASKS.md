@@ -25,7 +25,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-019 Startup-walk audit after the typed-registration guard fix | feat/startup-walk-audit | done | — |
 | T-020 e2e WebSocket transport tests against a loopback server | feat/ws-transport-tests | done | — |
 | T-021 Cold-start polish: the first symbols apply lag | feat/cold-start-symbols | done | — |
-| T-022 Order-dialog header names the active exchange | feat/order-dialog-exchange | in-progress | — |
+| T-022 Order-dialog header names the active exchange | feat/order-dialog-exchange | done | — |
 
 ---
 
@@ -398,7 +398,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Tests 217 → 220 (13 Core + 115 App + 61 Infra + 31 UI): 3 new tests in `BinanceAdapterParsingTests` pin the ticker/price endpoint (via the `StubHandler.LastRequest` capture), the name split and the unknown-quote drop. GATE PASSED; resx parity 95/95 (en/ru).
   - Probe (final build, run 4): window show → `Symbol list cached: 3693` (+0.49 s) → `Symbols loaded: 50` (+0.56 s) → chart bars delivered (+0.88 s) → WS connected (~1.5 s) — inside the < 3 s cold-start target (was 2.4–4.2 s).
   - Probe-artifact note: runs 1/3 (the same build that later flew in runs 2/4) froze 4–6 s after an HTTP fetch completed with ZERO further log lines — unreproduced, attributed to probe mechanics, not code; never pin behavior on a single frozen run.
-  - Branch tail: `Directory.Build.props` alpha.15 → alpha.16 (the in-file comment flags T-021 → alpha.16, next alpha.17); `CHANGELOG.md` gains the alpha.16 section (`### Changed (T-021 — the symbols catalog source)`).
+  - Branch tail: `Directory.Build.props` alpha.15 → alpha.16; `CHANGELOG.md` gains the alpha.16 section (`### Changed (T-021 — the symbols catalog source)`). Correction made at T-022: this task's in-file comment was left stale by the tail (it still said "next is alpha.16") — the rewrite landed with the alpha.17 bump instead.
 
 ## T-022 — Order-dialog header names the active exchange (T-016 follow-up)
 
@@ -415,3 +415,10 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Branch tail: version bump alpha.16 → alpha.17 + `CHANGELOG.md` (user-facing: the dialog names its context; next suffix alpha.18).
   - gate.
 - **Tests:** new cases in `NewOrderDialogViewModelTests`; ctor call sites updated.
+- **Status:** done. Canon: the feature commit `b7c7bd8` + the release tail `b67a03b` are on develop via merge `dfb4915` (no fast-forward — the queue docs commit `9c56db8` had advanced develop past the cut base `42c6f48`). Outcome:
+  - Shipped exactly the planned shape: `NewOrderDialogViewModel.ActiveExchangeName` — ctor-threaded `ActiveExchangeService`, bootstrapped by the facade behavioral stream's emission zero (the stream emits its current adapter on subscribe) and updated live on every toolbar switch while the dialog stays open. XAML header = the localized title `Run` + separator + the live-name `Run` (status-bar precedent) — NO new resx keys, so runtime language switching stays free; the window `Title` keeps the plain localized string.
+  - The app's first transient VM with scoped subscriptions: the dialog VM is now `IDisposable` — the facade subscription parks in a `CompositeDisposable` and the window releases it on `Closed` (no per-dialog observer leak; the singleton VMs from T-016 keep their lifetime-long subscriptions by design). DI registration untouched — the transient's largest ctor auto-resolves the facade.
+  - Tests 220 → 222 (13 Core + 117 App + 61 Infra + 31 UI): 2 new tests in `NewOrderDialogViewModelTests` pin the bootstrap from the current adapter name and the live switch; `CreateViewModel` gained an `exchanges:` parameter and a two-adapter facade helper. GATE PASSED; resx parity untouched (95/95 — no new keys, as designed). The new tests assert the synchronous emissions directly (no bounded polling — there is no cross-thread event in the tested path: the facade emits synchronously inside `Activate`).
+  - Probe (UIA, real network, ru locale): the dialog opened via the Trading menu → the header read `Новый ордер — Binance`; the toolbar combo switched to Demo WHILE THE DIALOG STAYED OPEN (the same window element dumped before and after — no reopen) → the header read `Новый ордер — Demo`; the status bar chip flipped `Binance · Paper` → `Demo · Paper` and the version chip read `0.1.0-alpha.17` in the same dump. Probe-infra notes for reuse: the modal Avalonia dialog is INVISIBLE to the PId top-level query — bind it via hwnd enumeration + `AutomationElement.FromHandle`; the menu item's real name carries an ellipsis (`Новый ордер…`), so match by prefix, not equality; screenshots were skipped this time (a bad `[int]` cast on the DPI-scaled rect in the probe script) — the text dumps carry the evidence.
+  - Board correction folded in: the T-021 alpha.16 tail had left the `Directory.Build.props` comment stale (see the corrected T-021 tail above).
+  - Branch tail: `Directory.Build.props` alpha.16 → alpha.17 (the in-file comment now flags T-022 → alpha.17, next alpha.18); `CHANGELOG.md` gains the alpha.17 section (`### Added (T-022 — the order dialog header names the active exchange)`).
