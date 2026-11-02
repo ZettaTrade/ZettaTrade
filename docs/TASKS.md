@@ -27,7 +27,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-021 Cold-start polish: the first symbols apply lag | feat/cold-start-symbols | done | — |
 | T-022 Order-dialog header names the active exchange | feat/order-dialog-exchange | done | — |
 | T-023 Real second adapter: Bybit (read-only market data) | feat/bybit-adapter | done | — |
-| T-024 Fix the demo seeded-walk underflow (demo bar loads overflow) | — | queued | — |
+| T-024 Fix the demo seeded-walk underflow (demo bar loads overflow) | fix/demo-walk | done | — |
 
 ---
 
@@ -465,3 +465,9 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **What:** fix the step arithmetic (evaluate the modulo/subtraction in `long` semantics — the intended ±1 % step) and pin it: a regression test that loads a full chart-range of demo bars for every demo symbol (H1, limit 200) asserts a finite last close bounded by the documented walk; fix-shipping → alpha.19.
 - **Scope:** `DemoMarketDataAdapter` + its test suite only. No Core, no Bybit regressions.
 - **Acceptance:** the reproduction no longer overflows; the app cold-starts on the persisted BTC/USDT/Demo and delivers demo candles (the error line gone from the Serilog chronology); gate.
+- **Status:** done. Canon: the fix commit `3be8a11` + the release tail `4ff6667` sit directly on develop — fast-forward (no merge commit; develop had only the T-023 docs commit `91f44f5` past the branch's cut base). Outcome:
+  - The fix, scoped to `DemoMarketDataAdapter`: BOTH sites of the `% N - k` unsigned-wrap class now evaluate in `long` semantics — `BarStep` (the walk exploded full-range demo bar loads) and, discovered in the same sweep, `PriceChange24h` (the ticker's 24 h change: 4 of the 6 demo symbols — BTC/USDT, ETH/USDT, SOL/USDT, ETH/BTC — permanently displayed ≈ +429 496 729 %). The healthy path is untouched: the seeded sequences equal the wrapped build wherever the modulo lands ≥ the subtractand (same request ⇒ same bars preserved).
+  - Tests 252 → 254 (13 Core + 117 App + 93 Infra + 31 UI): a full chart range (H1, 7 d, limit 200 → 169 candles) loads for EVERY demo symbol with every close inside the documented-walk bounds (`bars[0].Open × (0.99…1.01)^n`), and every ticker's 24 h change is pinned to the documented (−1 %, +1 %) band. GATE PASSED; resx parity untouched (95/95 — UI strings not involved).
+  - Regression harness (the T-023 scratch repro, repointed at the fixed build): all six symbols walk 169 H1 bars with 78–95 wrapped steps each (the ~50 % wrap rate as diagnosed) — finite closes everywhere; the fixed adapter loads 169 bars per symbol without exception.
+  - Probe (UIA + Serilog, persisted `ExchangeId: "demo"`): the cold start restored Demo, cached the 6-instrument catalog, served the whole demo universe in the chart combo, read the version chip `0.1.0-alpha.19`, and the exact former killer line flowed clean — `Chart bars load requested for BTC/USDT on Demo` → `Chart bars delivered: 168 candles`. Fresh log window: no `[WRN]`/`[ERR]`, no `OverflowException`, no `Failed to load chart data`.
+  - Probe-infra note: the T-023 settings-path lesson is baked into the reusable probe (`t024-probe1.ps1`: Roaming `AppData\Roaming\ZettaTrade\config\appsettings.json`, offset-scoped log reading so only the probe's own lines count).
