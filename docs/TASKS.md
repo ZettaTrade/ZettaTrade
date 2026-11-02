@@ -24,6 +24,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-018 App version display in the status bar | feat/status-version | done | — |
 | T-019 Startup-walk audit after the typed-registration guard fix | feat/startup-walk-audit | done | — |
 | T-020 e2e WebSocket transport tests against a loopback server | feat/ws-transport-tests | done | — |
+| T-021 Cold-start polish: the first symbols apply lag | feat/cold-start-symbols | in-progress | — |
 
 ---
 
@@ -376,3 +377,16 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Pinned: verbatim in-order frames; mid-codepoint fragmented UTF-8 (the split lands inside the first 2-byte sequence) decodes as ONE message; graceful server close → states `[false,true,false,true]` with session #2 delivering frames again; the SUBSCRIBE frame shape (`method`/`id`/the three `btcusdt@…` params); ticker/book/trade entities field-by-field in BOTH number encodings; bare-frame and half-envelope drops with a valid tail probe — a silent leak shifts `Take(2)`'s first entry, so no sleeps.
   - Tests 207 → 217 (13 Core + 115 App + 58 Infra + 31 UI); the new suites ran green 3× straight (~0.5 s each run). GATE PASSED. Product code untouched; the test csproj gains `FrameworkReference Microsoft.AspNetCore.App` + `System.Reactive 7.0.0` for the in-process host.
   - No version bump (T-019 precedent: test-only tasks ship no user-facing change); alpha.16 stays queued for the next behavior-shipping task.
+
+## T-021 — Cold-start polish: the first symbols apply lag (T-017 follow-up)
+
+- **Branch:** `feat/cold-start-symbols` (queued 2026-11-02, cut from develop @ `4f5362b`; worktree `zt-cold-start-symbols`)
+- **Origin:** the T-017 probe follow-up: the first symbols apply can lag ~4–10 s on an idle UI thread (attributed to a posted dispatcher job on a non-interacted window). This task measures the whole bootstrap chain and fixes the measured cause, not the first hypothesis. Cold start < 3 s is a standing performance target, so the combo must populate in that envelope.
+- **What:** instrument and decide. The chain to timestamp on a real cold start (window show → combo populated): `AdapterChanges` first emission (the ChartViewModel ctor bootstrap runs during the walk AND again for the real window — both fire), the SymbolListProvider fetch start/finish (the apply posts only after the fetch), the `ObserveOnUiThread` Post submit vs execution, and the visible `Symbols loaded` log. The two candidate causes each have a distinct signature: (a) the post-executed-late signature blames the dispatcher (fix: apply inline on the UI thread or raise the apply priority); (b) the fetch-finished-late signature blames the network/parse — the adapter pulls the FULL unfiltered `/api/v3/exchangeInfo` (multi-MB JSON, status filtering happens after the whole body parses), so the fix is lighter/faster symbol data (e.g. the tiny `ticker/price`-style name list for the combo, keeping the Core `GetSymbolsAsync` contract, or a streaming parse), decided by measurement.
+- **Scope:** `src/ZettaTrade.App` (apply path, WeakSymbolBootstrap refinement) + potentially one small `BinanceAdapter` endpoint change (the `GetSymbolsAsync` CONTRACT does not move). Probe-only changes (temporary logging) never commit product; the probe's reported timings go into the Status block.
+- **Acceptance:**
+  - Probe: on a real cold start the combo is populated within the 3 s cold-start envelope (UIA-visible), the recorded timings in the Status block make the cause unambiguous.
+  - Tests for whatever behavior ships (the fetch/apply split, a double-bootstrap dedup, the endpoint change if taken).
+  - Branch tail: the `Directory.Build.props` suffix bump alpha.15 → alpha.16 + `CHANGELOG.md` (behavior-shipping: the combo arrives faster).
+  - gate.
+- **Tests:** new `SymbolListProviderTests`/`ChartViewModelTests` additions pin the shipped slice.
