@@ -24,7 +24,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-018 App version display in the status bar | feat/status-version | done | — |
 | T-019 Startup-walk audit after the typed-registration guard fix | feat/startup-walk-audit | done | — |
 | T-020 e2e WebSocket transport tests against a loopback server | feat/ws-transport-tests | done | — |
-| T-021 Cold-start polish: the first symbols apply lag | feat/cold-start-symbols | in-progress | — |
+| T-021 Cold-start polish: the first symbols apply lag | feat/cold-start-symbols | done | — |
 
 ---
 
@@ -390,3 +390,11 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Branch tail: the `Directory.Build.props` suffix bump alpha.15 → alpha.16 + `CHANGELOG.md` (behavior-shipping: the combo arrives faster).
   - gate.
 - **Tests:** new `SymbolListProviderTests`/`ChartViewModelTests` additions pin the shipped slice.
+- **Status:** done. Canon: the feature commit `124e8b2` + the release tail `38a44ac` are on develop (fast-forward merge). Outcome:
+  - Measured before fixing: the T-017 dispatcher hypothesis is disproven — the user's own 11-01 logs show the apply lands ~16 ms after the fetch completes (`ObserveOnUiThread` posts promptly even on a non-interacted window); the entire wait was the FETCH BODY itself. The App/apply path shipped untouched.
+  - Shipped: `BinanceAdapter.GetSymbolsAsync` now draws the symbol catalog from `/api/v3/ticker/price` (~160 KB / 0.82 s raw) instead of the full unfiltered `/api/v3/exchangeInfo` (~17.8 MB / 7.8 s raw, 1.2–3.7 s in-app; the rejected middle option `exchangeInfo?permissions=SPOT&showPermissionSets=false` still measured 6.7 MB / 3.3 s). The Core `GetSymbolsAsync` contract does not move.
+  - Name parsing: a Binance-LOCAL quote table `BinanceQuoteAssets` (sorted longest-first at static init via `SortBinanceQuoteAssets`) splits ticker names into base/quote; USD1, AED, KZT and the live one-letter `U` quote added after live probes (`SUIU` confirmed TRADING with quoteAsset "U"). Unrecognized quotes are DROPPED and counted in ONE aggregated warning (52 delisted remnants), never guessed — matching the old status-filter semantics (PAX/UST/IDRT/USDSOLD/EURI stay dropped).
+  - Tests 217 → 220 (13 Core + 115 App + 61 Infra + 31 UI): 3 new tests in `BinanceAdapterParsingTests` pin the ticker/price endpoint (via the `StubHandler.LastRequest` capture), the name split and the unknown-quote drop. GATE PASSED; resx parity 95/95 (en/ru).
+  - Probe (final build, run 4): window show → `Symbol list cached: 3693` (+0.49 s) → `Symbols loaded: 50` (+0.56 s) → chart bars delivered (+0.88 s) → WS connected (~1.5 s) — inside the < 3 s cold-start target (was 2.4–4.2 s).
+  - Probe-artifact note: runs 1/3 (the same build that later flew in runs 2/4) froze 4–6 s after an HTTP fetch completed with ZERO further log lines — unreproduced, attributed to probe mechanics, not code; never pin behavior on a single frozen run.
+  - Branch tail: `Directory.Build.props` alpha.15 → alpha.16 (the in-file comment flags T-021 → alpha.16, next alpha.17); `CHANGELOG.md` gains the alpha.16 section (`### Changed (T-021 — the symbols catalog source)`).
