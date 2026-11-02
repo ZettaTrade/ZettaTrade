@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.ViewModels;
 
 using System.Globalization;
+using System.Reactive.Disposables;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ReactiveUI.Primitives;
@@ -18,8 +19,14 @@ using ZettaTrade.Infrastructure.Persistence;
 /// confirmation dialog) → <see cref="IConfirmationService"/> →
 /// <see cref="ITradingAdapter.PlaceOrderAsync"/>. Window plumbing (close on
 /// success or on Cancel) stays in the View via <see cref="CloseRequested"/>.
+/// The header names the active exchange: the behavioral facade stream
+/// bootstraps <see cref="ActiveExchangeName"/> on subscribe and keeps it
+/// current through toolbar switches while the dialog is open. The view
+/// model is transient (one instance per window) and implements
+/// <see cref="IDisposable"/>: the owning window releases the facade
+/// subscription on closure.
 /// </summary>
-public sealed class NewOrderDialogViewModel : ReactiveObject
+public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 {
     #region Resx Keys
 
@@ -37,6 +44,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
 
     private readonly ITradingAdapter _trading;
     private readonly SymbolListProvider _symbolList;
+    private readonly ActiveExchangeService _activeExchanges;
     private readonly IRiskManager _riskManager;
     private readonly IConfirmationService _confirmation;
     private readonly OrderConfirmationComposer _composer;
@@ -47,6 +55,12 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
 
     /// <summary>Serializes the placement pipeline; re-entrancy is an error state.</summary>
     private bool _placing;
+
+    /// <summary>
+    /// Holds the facade subscription: the view model is transient, so the
+    /// owning window disposes it on closure (see <see cref="Dispose"/>).
+    /// </summary>
+    private readonly CompositeDisposable _subscriptions = new();
 
     #endregion Private Fields
 
@@ -59,6 +73,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     private int _selectedTypeIndex;
     private string? _errorMessage;
     private string? _resultMessage;
+    private string _activeExchangeName = string.Empty;
 
     private IReadOnlyList<string> _allSymbols = [];
     private IReadOnlyList<string> _symbolSuggestions = [];
@@ -158,6 +173,19 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     }
 
     /// <summary>
+    /// Display name of the currently active exchange (the dialog header's
+    /// dynamic half). The behavioral facade stream bootstraps it on
+    /// subscribe — the dialog opens against the exchange already picked in
+    /// the toolbar — and updates it on every switch while the dialog stays
+    /// open, so the header can never silently fall behind the toolbar.
+    /// </summary>
+    public string ActiveExchangeName
+    {
+        get => _activeExchangeName;
+        private set => this.RaiseAndSetIfChanged(ref _activeExchangeName, value);
+    }
+
+    /// <summary>
     /// Case-insensitive <c>contains</c> matches for <see cref="SymbolInput"/>
     /// over the loaded symbol list, prefix matches first (see
     /// <c>SuggestSymbols</c>). Empty while nothing matches or nothing loads.
@@ -204,9 +232,16 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     /// <summary>
     /// Create a new order dialog view model.
     /// </summary>
+    /// <param name="trading">The trading adapter the placement pipeline rides.</param>
+    /// <param name="symbolList">The application-lifetime symbol list provider for the autocomplete.</param>
+    /// <param name="activeExchanges">
+    /// The active-exchange facade: its behavioral stream names the exchange
+    /// the dialog's price context rides (the header property).
+    /// </param>
     public NewOrderDialogViewModel(
         ITradingAdapter trading,
         SymbolListProvider symbolList,
+        ActiveExchangeService activeExchanges,
         IRiskManager riskManager,
         IConfirmationService confirmation,
         OrderConfirmationComposer composer,
@@ -217,6 +252,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
     {
         _trading = trading ?? throw new ArgumentNullException(nameof(trading));
         _symbolList = symbolList ?? throw new ArgumentNullException(nameof(symbolList));
+        _activeExchanges = activeExchanges ?? throw new ArgumentNullException(nameof(activeExchanges));
         _riskManager = riskManager ?? throw new ArgumentNullException(nameof(riskManager));
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
@@ -228,9 +264,33 @@ public sealed class NewOrderDialogViewModel : ReactiveObject
         CloseRequested = new Interaction<RxVoid, RxVoid>();
         LoadSymbolsCommand = ReactiveCommand.CreateFromTask(HandleLoadSymbolsAsync);
         PlaceOrderCommand = ReactiveCommand.CreateFromTask(HandlePlaceOrderAsync);
+
+        // The header mirrors the active exchange on the same behavioral
+        // stream every other consumer uses: emission zero provides the
+        // bootstrap value (the stream emits its current adapter on
+        // subscribe), later emissions track toolbar switches. Switches fire
+        // on the UI thread; the restore emission precedes any dialog
+        // lifetime. The subscription parks in the composite disposable —
+        // the transient VM must not outlive its window.
+        _subscriptions.Add(
+            _activeExchanges
+                .AdapterChanges
+                .Subscribe(
+                    adapter => ActiveExchangeName = adapter.Name,
+                    ex => _logger.LogError(ex, "The dialog exchange header stream stopped unexpectedly")));
     }
 
     #endregion Constructor
+
+    #region IDisposable
+
+    /// <summary>
+    /// Release the facade subscription. The owning window calls this on
+    /// closure — idempotent, the composite guards repeated calls.
+    /// </summary>
+    public void Dispose() => _subscriptions.Dispose();
+
+    #endregion IDisposable
 
     #region Private Methods
 
