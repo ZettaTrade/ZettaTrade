@@ -30,7 +30,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-024 Fix the demo seeded-walk underflow (demo bar loads overflow) | fix/demo-walk | done | — |
 | T-025 Click a book level to prefill the order dialog | feat/book-click | done | - |
 | T-025b Fix the prefilled-dialog defects from the live review (dropdown echo, dangling empty-quantity error) | fix/dialog-prefill | done | — |
-| T-026 Working time frame on the chart | feat/timeframe | queued | — |
+| T-026 Working time frame on the chart | feat/timeframe | done | — |
 | T-027 Hide/show the AI assistant panel | feat/ai-panel-toggle | queued | — |
 | T-028 Candle OHLC + crosshair price on chart hover | feat/chart-hover | queued | — |
 | T-029 Persist the workspace symbol | feat/persist-symbol | queued | — |
@@ -514,12 +514,19 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 
 ## T-026 — Working time frame (the picker replaces the hardcoded H1)
 
-- **Branch:** queued 2026-11-02 (grounding: `ChartViewModel` carries `private const TimeFrame ChartTimeFrame = H1` with the comment "while the timeframe picker is not implemented")
+- **Branch:** done — `feat/timeframe` @ `1e4b774` (worktree `zt-timeframe`; origin branch kept)
 - **Origin:** the chart silently pins H1: a trader switching M1/D1 sees nothing change. The bars machine was built TF-blind (T-021 polish never included the picker).
 - **What:** `SelectedTimeFrame` property (default H1 — today's behavior preserved); the TF joins the load key: `CombineLatest(Symbol, TimeFrame, AdapterChanges)` behind the SAME Switch + Replay(1) machine (a flip drops the in-flight load atomically; the cancelled load stays silent as today). XAML combo in the chart header (M1…MN1 in enum order); the 7 d lookback + limit 200 stay — the candle count rides the TF honestly (M1 fills to the cap). Persisted as `UI.ChartTimeFrame` (UiSettingsKeys + the reactive settings pipeline: a change applies live, cold start restores).
 - **Scope:** `ChartViewModel` + the chart header XAML, `UiSettingsKeys`, the resx combo label key (`Chart.*`, en+ru), tests.
 - **Acceptance:** probe: switch H1 → M1 live (`Chart bars delivered` with the new count), switch back; persisted choice restores at cold start; the workspace symbol/exchange context is untouched by the TF change.
 - **Tests:** the load-key decision pinned (a TF change triggers a reload, a rapid flip leaves exactly one load), the persisted-key restore, the default stays H1 when the setting is absent/invalid.
+- **Status:** done. Canon: the feature commit `1e4b774` is on develop (merge `a7bb22d`, non-FF — develop had the T-025b/T-035 docs commits past the branch's cut base). Outcome:
+  - Shipped: `ChartViewModel.SelectedTimeFrame` (default H1 — today's behavior preserved) + the `TimeFrames` picker catalog (M1…MN1 in enum order); the load key is the three-way `CombineLatest(Symbol, TimeFrame, AdapterChanges)` behind the same `Switch()` + `Replay(1)` machine — a flip drops the in-flight load atomically, exactly one load survives a rapid flip.
+  - Header UX + persistence: localized `Chart.TimeFrame` label and the TF combo in the chart header; `UI.ChartTimeFrame` via `UiSettingsKeys`; the restore runs in `IAsyncInitializable.InitializeAsync` (startup-walk parity with `ActiveExchangeService` — applied before the first load, no H1 flash); user flips persist live; a restore is a read and never re-persists (suppression flag, test-pinned); an unrecognized stored value keeps H1 and logs a warning — never a silent substitute.
+  - Tests 271 → 289 (13 Core + 141 App + 42 UI + 93 Infra): restore-before-first-load, absent/blank/garbage/numeric keys keep the default (theory), live flips reload+persist, the fast-flip cancellation with the winner's lease alive at delivery, the enum-order catalog, the pure `ParseStoredTimeFrame` contract theory. GATE PASSED.
+  - Acceptance probe (UIA + Serilog, exit=0): `UI.ChartTimeFrame = M5` injected → cold start restores it BEFORE the first load (the first bars request carries M5, delivered 200 candles vs 168 on H1 — no H1 flash); the combo shows the catalog in enum order with M5 selected; live M5→M1→M5 flips each reload and persist to the settings file; no foreign symbol ever requested; a relaunch restored M5 again.
+  - Probe-infra lessons (reusable): Serilog ROLLS the daily file by size (`zettatrade-2026110N_001.log`) so fresh capture must timestamp-cut across every roll of today; enum-valued log properties render QUOTED (`"M5"`); the first-load symbol is the exchange list's first entry (ETH/BTC on the persisted Binance) — derive it from the log, never assume BTC/USDT; a single-element PowerShell return unwraps to a scalar (`return ,$array` preserves the array).
+  - No version bump: alpha.20 stays deferred per the user's earlier decision (decide at batch completion).
 
 ## T-027 — Hide/show the AI assistant panel
 
