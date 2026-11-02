@@ -3,6 +3,7 @@ namespace ZettaTrade.UI.Charting;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Reactive.Subjects;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -79,14 +80,6 @@ public class OrderBookWidget : Control
         set => SetValue(BookProperty, value);
     }
 
-    /// <summary>
-    /// Raised for a pointer press on a book level: the side the user would
-    /// trade AT that price (bids buy, asks sell) plus the level's price and
-    /// the book's symbol. The routing decision (typically: prefill the New
-    /// Order dialog) belongs to the owning window, not the widget.
-    /// </summary>
-    public event EventHandler<OrderBookLevelClickedEventArgs>? LevelClicked;
-
     #endregion
 
     #region Fields & Properties
@@ -98,6 +91,20 @@ public class OrderBookWidget : Control
     private SKColor _textColor = new(200, 200, 200);
     private SKColor _bidColor = new(34, 197, 94);
     private SKColor _askColor = new(239, 68, 68);
+
+    /// <summary>
+    /// The level-presses stream sink (hot; see <see cref="LevelClicked"/>).
+    /// </summary>
+    private readonly Subject<OrderBookLevelClickedEventArgs> _levelClicked = new();
+
+    /// <summary>
+    /// The level presses stream, hot and fed on the UI thread: a pointer
+    /// press on a book level publishes the side the user would trade AT that
+    /// price (bids buy, asks sell) plus the level's price and the book's
+    /// symbol. The routing decision (typically: prefill the New Order
+    /// dialog) belongs to the owning window, not the widget.
+    /// </summary>
+    public IObservable<OrderBookLevelClickedEventArgs> LevelClicked => _levelClicked;
 
     #endregion
 
@@ -209,8 +216,7 @@ public class OrderBookWidget : Control
             HeaderHeightPx);
         if (book is not null && hit is { } level)
         {
-            LevelClicked?.Invoke(
-                this,
+            _levelClicked.OnNext(
                 new OrderBookLevelClickedEventArgs(book.Symbol, level.Side, level.Price));
         }
     }

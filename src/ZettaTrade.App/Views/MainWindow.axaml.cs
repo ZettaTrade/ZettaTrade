@@ -8,7 +8,7 @@ using ReactiveUI.Primitives;
 using Serilog;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
-using ZettaTrade.UI.Charting;
+using ZettaTrade.UI.Extensions;
 
 namespace ZettaTrade.App.Views;
 
@@ -44,9 +44,18 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.OpenAiChatRequested.RegisterHandler(FocusChatAsync);
 
         // The book panel lives for the whole window lifetime too: its level
-        // clicks route a deliberate prefill into the New Order dialog.
-        BookWidget.LevelClicked += OnBookLevelClicked;
+        // presses feed a click stream that channels the prefill into the
+        // SAME dialog path the menu drives. SubscribeAsync keeps the whole
+        // route task-based (zero async void) and stream failures land in
+        // the log via the error callback.
+        _bookClicks = BookWidget.LevelClicked.SubscribeAsync(
+            level => OpenNewOrderDialogAsync(new OrderPrefill(level.Symbol, level.Side, level.Price)),
+            onError: ex => Log.Error(ex, "Book level click stream failed"));
+        Closed += (_, _) => _bookClicks.Dispose();
     }
+
+    /// <summary>Subscription of the book level click stream; disposed with the window.</summary>
+    private IDisposable? _bookClicks;
 
     private Task FocusChatAsync(IInteractionContext<RxVoid, RxVoid> context)
     {
@@ -94,17 +103,6 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         {
             Log.Error(ex, "Failed to open the new order dialog");
         }
-    }
-
-    /// <summary>
-    /// The book sends its level clicks here: they open the New Order dialog
-    /// prefilled with the clicked symbol, side and price. Task failures are
-    /// impossible to observe from a void event handler, so the open path
-    /// logs its own exceptions (the same discipline as the menu route).
-    /// </summary>
-    private async void OnBookLevelClicked(object? sender, OrderBookLevelClickedEventArgs e)
-    {
-        await OpenNewOrderDialogAsync(new OrderPrefill(e.Symbol, e.Side, e.Price));
     }
 
     private async Task OpenPositionsAsync(IInteractionContext<RxVoid, RxVoid> context)
