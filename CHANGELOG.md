@@ -9,6 +9,24 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.16] - 2026-11-02
+
+Build of task T-021 (cold-start polish: the first symbols apply).
+
+### Changed (T-021 — the symbols catalog source)
+- The chart's symbol combo filled only after the multi-megabyte
+  `exchangeInfo` document finished streaming and parsing (measured
+  1.2–3.7 s inside the app; the raw document is ~17.8 MB and took up to
+  7.8 s on a real network). The adapter now draws the symbol catalog from
+  the compact priced-symbols list (~160 KB): the combo appears within
+  ~0.5–0.9 s of the window showing (probe), the first chart bars ride the
+  same speedup, and the whole cold start sits well inside the 3 s envelope.
+- Symbol names split by a Binance-local quote table (USDT, FDUSD, USD1, the
+  recent AED/KZT fiats, the one-letter "U" quote, …) sorted longest-first
+  in the adapter; a pair whose quote is unrecognized (52 delisted remnants
+  like PAX/UST/IDRT that still carry a price) is dropped and counted once
+  in a warning, never guessed.
+
 ## [0.1.0-alpha.15] - 2026-11-01
 
 Build of task T-016 (exchange selector in the toolbar + the Demo adapter).
