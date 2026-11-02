@@ -28,6 +28,16 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-022 Order-dialog header names the active exchange | feat/order-dialog-exchange | done | — |
 | T-023 Real second adapter: Bybit (read-only market data) | feat/bybit-adapter | done | — |
 | T-024 Fix the demo seeded-walk underflow (demo bar loads overflow) | fix/demo-walk | done | — |
+| T-025 Click a book level to prefill the order dialog | feat/book-click | queued | — |
+| T-026 Working time frame on the chart | feat/timeframe | queued | — |
+| T-027 Hide/show the AI assistant panel | feat/ai-panel-toggle | queued | — |
+| T-028 Candle OHLC + crosshair price on chart hover | feat/chart-hover | queued | — |
+| T-029 Persist the workspace symbol | feat/persist-symbol | queued | — |
+| T-030 Debt cleanup: LocalizedViewModelBase + Serilog console sink | chore/debt-cleanup | queued | — |
+| T-031 Cancel a working order from the UI | feat/cancel-order | queued | — |
+| T-032 The assistant answers: local model first (Ollama) | feat/ai-chat-local | queued | — |
+| T-033 Chart pan + older-history paging | feat/chart-pan | queued | — |
+| T-034 Indicator seam MVP (a plugin draws an SMA overlay) | feat/indicators | queued | — |
 
 ---
 
@@ -471,3 +481,91 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Regression harness (the T-023 scratch repro, repointed at the fixed build): all six symbols walk 169 H1 bars with 78–95 wrapped steps each (the ~50 % wrap rate as diagnosed) — finite closes everywhere; the fixed adapter loads 169 bars per symbol without exception.
   - Probe (UIA + Serilog, persisted `ExchangeId: "demo"`): the cold start restored Demo, cached the 6-instrument catalog, served the whole demo universe in the chart combo, read the version chip `0.1.0-alpha.19`, and the exact former killer line flowed clean — `Chart bars load requested for BTC/USDT on Demo` → `Chart bars delivered: 168 candles`. Fresh log window: no `[WRN]`/`[ERR]`, no `OverflowException`, no `Failed to load chart data`.
   - Probe-infra note: the T-023 settings-path lesson is baked into the reusable probe (`t024-probe1.ps1`: Roaming `AppData\Roaming\ZettaTrade\config\appsettings.json`, offset-scoped log reading so only the probe's own lines count).
+
+## T-025 — Click a book level to prefill the order dialog
+
+- **Branch:** queued 2026-11-02 (worktree name `book-click` when cut)
+- **Origin:** the T-011 book (60 fps) is read-only: to act on the level in front of their eyes the trader opens the dialog, retypes the symbol, flips the side and rekeys the price. The T-017 workspace context already binds the book to the dialog's exchange; a click closes the loop.
+- **What:** pointer-down on a level hit-tests the widget's own row geometry (the Skia layout math, no re-layout) and raises `LevelClicked(Symbol, OrderSide, Price)` — bids are the side to BUY at that level, asks SELL; the routed request opens the SAME New Order dialog the menu uses with the VM prefilled BEFORE Show: symbol, side, price, quantity EMPTY (never assume size). The dialog stays fully editable; placement keeps riding IRiskManager + IConfirmationService untouched.
+- **Scope:** `OrderBookWidget` (pointer + hit-test), the event route through the panel/`MainViewModel` (same plumbing as `NewOrderRequested`), the dialog prefill surface (the transient's largest ctor keeps auto-resolving; a prefill carrier type is added at App level), tests.
+- **Acceptance:** probe: with BTC/USDT live, click a mid-book bid — the dialog opens prefilled (symbol/side/price, quantity empty), Cancel closes with nothing placed; placing follows the normal confirmation. The prefill always reflects the CURRENT exchange's context (a level click right after a toolbar switch names the new exchange), and a second click while the dialog is open re-opens the transient with the fresh prefill.
+- **Tests:** hit-test index math (pure helper), the routing+prefill values, existing placement/confirmation suites untouched and green.
+
+## T-026 — Working time frame (the picker replaces the hardcoded H1)
+
+- **Branch:** queued 2026-11-02 (grounding: `ChartViewModel` carries `private const TimeFrame ChartTimeFrame = H1` with the comment "while the timeframe picker is not implemented")
+- **Origin:** the chart silently pins H1: a trader switching M1/D1 sees nothing change. The bars machine was built TF-blind (T-021 polish never included the picker).
+- **What:** `SelectedTimeFrame` property (default H1 — today's behavior preserved); the TF joins the load key: `CombineLatest(Symbol, TimeFrame, AdapterChanges)` behind the SAME Switch + Replay(1) machine (a flip drops the in-flight load atomically; the cancelled load stays silent as today). XAML combo in the chart header (M1…MN1 in enum order); the 7 d lookback + limit 200 stay — the candle count rides the TF honestly (M1 fills to the cap). Persisted as `UI.ChartTimeFrame` (UiSettingsKeys + the reactive settings pipeline: a change applies live, cold start restores).
+- **Scope:** `ChartViewModel` + the chart header XAML, `UiSettingsKeys`, the resx combo label key (`Chart.*`, en+ru), tests.
+- **Acceptance:** probe: switch H1 → M1 live (`Chart bars delivered` with the new count), switch back; persisted choice restores at cold start; the workspace symbol/exchange context is untouched by the TF change.
+- **Tests:** the load-key decision pinned (a TF change triggers a reload, a rapid flip leaves exactly one load), the persisted-key restore, the default stays H1 when the setting is absent/invalid.
+
+## T-027 — Hide/show the AI assistant panel
+
+- **Branch:** queued 2026-11-02 (grounding: the chat panel is a fixed 300 px right column in `MainWindow.axaml`; `Menu.OpenAiChatCommand` (Ctrl+Shift+A) only focuses the input — nothing hides the panel)
+- **What:** `IsAiChatVisible` property (binding lives where the toggle is owned — the menu VM mirrors it as a checkable item); the hotkey semantics become toggle: hidden → show + focus the input, visible → hide. The right column collapses and the rest of the layout reflows. Persisted as `UI.ShowAiPanel` (UiSettingsKeys; default TRUE — today's layout stays the default view) and restored BEFORE the first layout (no flash of the hidden or shown state).
+- **Scope:** menu VM + the property owner VM, `MainWindow.axaml` (column/IsVisible + the checkable item), `UiSettingsKeys`, the settings ViewModel section, tests. resx: `Menu.AI.Chat` is reused; a new `Ai.*` key ONLY if a visible toolbar toggle button ships too.
+- **Acceptance:** probe: toggle off → the column disappears and the dump shows no chat texts; restart → still hidden; Ctrl+Shift+A → visible + the input focused; persistence round-trips both states.
+- **Tests:** the toggle command semantics (hidden/visible branches), the persisted restore, the default when the key is missing.
+
+## T-028 — Candle OHLC + crosshair price on chart hover
+
+- **Branch:** queued 2026-11-02 (grounding: `CandlestickChart` handles zoom wheel + focus only — `OnPointerMoved` does not exist; the canvas is UIA-invisible per the T-022 probe lesson)
+- **Origin:** reading a candle's price today means eyeballing the axis. The chart already owns the price↔pixel mapping for axes/grid — hovering is the same math reversed.
+- **What:** `OnPointerMoved` tracks the cursor and requests a redraw on each move (the chart already owns its redraw pipeline): dashed crosshair (theme colors), a price-axis label at the cursor's price and a compact O/H/L/C (+V) readout of the HOVERED candle — the honest pair the user asked: cursor price on the axis, candle values in the readout. Hidden when the pointer leaves; dead code paths when no Bars. The x/y ↔ price/time mapping is extracted into internal static pure helpers (the same geometry the axes already use) so tests can pin it without pixels.
+- **Scope:** `CandlestickChart.cs` ONLY (+ the pure helpers), the UI test suite. No resx (numbers reuse the axis formatting), no VM changes.
+- **Acceptance:** screenshot probe (the canvas prints no UIA nodes): px-diff the chart region before/after a hover move — crosshair present; move over two distinct candles → the readout changes to the second candle's OHLC. The known-broken DPI-scaled-rect screenshot helper (T-022 note) is fixed as probe infra.
+- **Tests:** mapping helpers (top/bottom padding, zero bars, one bar), hovered-bar selection math, no-throw when the cursor is outside the bar area.
+
+## T-029 — Persist the workspace symbol
+
+- **Branch:** queued 2026-11-02 (grounding: settings persist ONLY `Workspace.ExchangeId` — the T-023/T-024 probes cold-started on BTC/USDT because it is the demo universe's first entry, the Preselect default)
+- **Origin:** the T-017 one-symbol workspace context survives exchanges at runtime but not restarts: everything (chart/book/dialog) re-opens on the first-entry symbol after a relaunch.
+- **What:** `Workspace.SymbolId` setting; every confirmed `SymbolSelections` emission saves it (the settings service already debounces); at bootstrap the Preselect rule gains a persisted-priority branch: persisted → preserved-current → first entry → empty; the persisted value is a PREFERENCE, not a substitute — an unknown/unsupported symbol falls through and is logged (trading-safety: never substitute defaults silently).
+- **Scope:** `ChartViewModel` (Preselect + a save hook), the settings keys, tests. Core untouched.
+- **Acceptance:** probe: select ETH/BTC while Binance is active → restart → the chart/book/dialog reopen on ETH/BTC; switch exchange to one that lacks it → logged fallback to the first entry.
+- **Tests:** the Preselect priority table (persisted/current/first/empty/fallback), save-on-change timing, restore behavior.
+
+## T-030 — Debt cleanup: LocalizedViewModelBase + the Serilog console sink
+
+- **Branch:** queued 2026-11-02 (both sit in AGENTS.md's "Known debt: do not copy or extend"; the section promises removal after the cleanup task)
+- **What:** delete `LocalizedViewModelBase` and port its remaining uses to the established `{loc:Localized}` XAML pattern (static strings never become VM properties); remove the Serilog console sink from the composition — Serilog logs to files only, stdout carries MCP protocol bytes exclusively.
+- **Scope:** the two debt sites + their consumers; the AGENTS.md debt section is dropped IN this task. Nothing else rides along (no refactor drift).
+- **Acceptance:** no `LocalizedViewModelBase` type remains; runtime language switching still works live on both locales (probe); no console log lines in the Serilog chain; an MCP handshake test (or the existing MCP e2e) confirms stdout purity.
+- **Tests:** the affected suites adjust (the base class removal shrinks ctor call sites exactly like T-022 did); a stdout-purity pin.
+
+## T-031 — Cancel a working order from the UI
+
+- **Branch:** queued 2026-11-02 (grounding: open orders are listed (T-009 panel, T-010 persistence) but the UI has no cancel; the MCP `cancel_order` tool already wraps the adapter cancel surface)
+- **Origin:** the only cancel path the app exposes runs through the AI MCP tools — a human clicking the panel can see a stuck paper limit order but cannot act on it.
+- **What:** a Cancel action on the open-orders rows (and positions-adjacent orders if one panel hosts both): routes through the SAME ITradingAdapter cancel the MCP tool uses; the SYMBOL always accompanies the request (safety: no symbol-less cancel); the high-risk gate is `IConfirmationService` (the composed confirmation dialog); the journal records it; failures log + surface honestly (no silent no-op); the row/list and history update from the adapter's own events (no optimistic mutation).
+- **Scope:** the panel VM + row action, the dialog composition reuse, tests. No Core changes (the cancel surface exists for MCP).
+- **Acceptance:** place a paper limit, cancel from the panel → confirmation dialog → the order ends Cancelled, history persists it, the panel refreshes from the adapter events; the user-declined confirmation changes nothing.
+- **Tests:** the VM flow (success/adapter-fail/user-declined), the symbol-always-present rule, no optimistic list mutations.
+
+## T-032 — The assistant answers: local model first (Ollama)
+
+- **Branch:** queued 2026-11-02 (grounding: `ChatViewModel` is a pure shell — `AddMessage` appends strings, there is no send command and no model call anywhere; the ZettaTrade.AI MCP bridge registers trading tools but the chat does not speak to anything)
+- **Origin:** the assistant panel is decorative: the trader types, nothing answers. The AGENTS.md AI direction is local models FIRST (cloud is an enhancement, keys never for exchanges).
+- **What:** a send command in the chat VM → `IChatCompletion` (ZettaTrade.AI): Ollama HTTP at a configured base URL + model (`AI` settings section: `AI.Model`, `AI.OllamaUrl` — default `http://localhost:11434` and a small default model); one-shot completion first (no streaming UI), the workspace context (active exchange, symbol, last price, TF) rides the SYSTEM PROMPT (not tool-calling — tools come later); unreachable/off → an honest in-chat error line (never silently swallowed). Session-scoped history (the existing list); input keeps the T-012 focus behavior.
+- **Scope:** `ChatViewModel` + chat XAML, a new chat service + its DI extension (`AddAiServices`), the settings section + keys (`Ai.*` prefix), resx en+ru (send placeholder, error lines), tests.
+- **Acceptance:** an e2e probe against a LOOPBACK stub (owned by the tests: timeout, HTTP 500, malformed JSON → honest errors asserted) plus a real-Ollama probe when the machine has one (the in-chat reply renders); settings allow switching the model at runtime.
+- **Tests:** the chat service e2e on the loopback stub, the VM send flow (success/error/busy), the context-injection contents (exchange/symbol/price present).
+
+## T-033 — Chart pan + older-history paging
+
+- **Branch:** queued 2026-11-02 (grounding: the chart zooms — `_visibleBars` on wheel — but cannot pan; `GetBarsAsync` serves one from-anchored window per request, naturally paginated by `start/end`)
+- **Origin:** a 200-candle chart cannot look further back; deep history is unreachable in the UI even though both real adapters page klines server-side.
+- **What:** pointer-drag pans horizontally; crossing the oldest visible bar fetches the PREVIOUS window (same limit) from the adapter and prepends (times stay strictly ASCENDING — the T-023 contract; an overlap is deduped by opening time, a failed fetch leaves the view honest). Appends ride the LAST loaded (symbol, TF, exchange) pair only — a selection/TF/exchange change rebases the whole series (the existing Switch machinery owns rebasing). Hover/zoom continue over the extended series.
+- **Scope:** `CandlestickChart` (pan + the fetch threshold), `ChartViewModel` (an append path beside the full reload), tests.
+- **Acceptance:** probe: pan left past the first candle → older candles appear (an appends log line distinct from the reload line); the ascending invariant holds visually and in the VM collection; a TF flip mid-pan rebases cleanly.
+- **Tests:** the window-merge math (overlap, dedupe, non-ascending guard), the append-vs-rebase ownership, no-throw under cancellation.
+
+## T-034 — Indicator seam MVP (a plugin draws an SMA overlay)
+
+- **Branch:** queued 2026-11-02 (grounding: the architecture mandates plugin-first indicators; nothing indicator-shaped exists — the chart draws candles only)
+- **Origin:** the plugin-first promise is untested for indicators (T-023 stressed adapters): no seam, no plugin assembly, no loader, no overlay render.
+- **What:** the minimal seam: an `IIndicator` contract (Name + `Apply(IReadOnlyList<Bar>) → IReadOnlyList<decimal?>`) + a first indicator ASSEMBLY (SMA, configurable period) resolved from `PluginsDirectory`; enabled/period via a `Chart.Indicators` settings section (reactive: a change re-renders without restart); the chart draws ONE line overlay per active indicator over the candle grid. A failing/malformed plugin skips loudly (a logged warning, the chart keeps working — never crashes the canvas). The contract lives in the charting layer for now — it migrates to Core only when a second consumer (AI annotations) needs it (YAGNI; Core Interfaces stay supervisor-only).
+- **Scope:** the seam + loader (App/Infrastructure services), the SMA assembly, the overlay render in `CandlestickChart`, the settings section, tests.
+- **Acceptance:** probe: SMA(N) renders over BTC/USDT (visually distinguishable overlay line via screenshot probe), toggling off removes it, a bad assembly warns without crashing, the settings round-trip.
+- **Tests:** the SMA golden vectors, the loader good/bad/missing matrix, the overlay point mapping (reuses the T-028 price↔pixel helpers if they landed).
