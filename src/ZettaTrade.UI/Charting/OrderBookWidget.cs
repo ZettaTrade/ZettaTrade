@@ -3,9 +3,12 @@ namespace ZettaTrade.UI.Charting;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
@@ -118,6 +121,18 @@ public class OrderBookWidget : Control
 
     public OrderBookWidget()
     {
+        // A plain Avalonia Control is hit-tested only through its children:
+        // the drawn surface (custom draw operation) stays input-invisible.
+        // A transparent child rectangle gives the whole bounds a hit-test
+        // surface, so level presses reach OnPointerPressed; events bubble
+        // from the child to this widget.
+        var hitSurface = new Rectangle { Fill = Brushes.Transparent };
+        hitSurface.Bind(
+            Rectangle.WidthProperty,
+            this.GetObservable(BoundsProperty).Select(b => b.Width));
+        hitSurface.Bind(Rectangle.HeightProperty, this.GetObservable(BoundsProperty).Select(b => b.Height));
+        VisualChildren.Add(hitSurface);
+
         ClipToBounds = true;
     }
 
