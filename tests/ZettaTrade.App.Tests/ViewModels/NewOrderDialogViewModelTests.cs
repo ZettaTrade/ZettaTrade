@@ -560,6 +560,67 @@ public sealed class NewOrderDialogViewModelTests
         viewModel.ActiveExchangeName.Should().Be("Demo");
     }
 
+    /// <summary>
+    /// Prefill from a clicked book level: the clicked symbol, side and price
+    /// land in the inputs, the type switches to an explicit Limit, and the
+    /// quantity stays EMPTY — a click is never a size. The bid→Buy pair has
+    /// its own fact below.
+    /// </summary>
+    [Fact]
+    public void Prefill_FromClickedAskLevel_CarriesInputsAndLeavesQuantityEmpty()
+    {
+        using var viewModel = CreateViewModel();
+
+        viewModel.Prefill(new OrderPrefill(
+            Symbol.Parse("btc/usdt"),
+            OrderSide.Sell,
+            100.01m));
+
+        viewModel.SymbolInput.Should().Be("BTC/USDT"); // normalized, not typed
+        viewModel.SelectedSideIndex.Should().Be((int)OrderSide.Sell);
+        viewModel.SelectedTypeIndex.Should().Be((int)OrderType.Limit);
+        viewModel.PriceInput.Should().Be("100.01"); // invariant
+        viewModel.QuantityInput.Should().BeEmpty();
+        viewModel.IsPriceRequired.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Prefill_FromClickedBidLevel_MapsBuyAndForcesTwoFractionDigits()
+    {
+        using var viewModel = CreateViewModel();
+
+        viewModel.Prefill(new OrderPrefill(
+            Symbol.Parse("BTC/USDT"),
+            OrderSide.Buy,
+            99.5m));
+
+        viewModel.SelectedSideIndex.Should().Be((int)OrderSide.Buy);
+        viewModel.SelectedTypeIndex.Should().Be((int)OrderType.Limit);
+        viewModel.PriceInput.Should().Be("99.50", "the money-like format keeps the trailing zero");
+        viewModel.QuantityInput.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Prefill_TouchesOnlyTheCarriedFields()
+    {
+        // Arrange: even if the dialog already holds user input, a prefill
+        // rewrites exactly what the click carries (symbol, side, type, price)
+        // and never the quantity — a click is never a size, typed or not.
+        using var viewModel = CreateViewModel();
+        viewModel.QuantityInput = "0.42";
+        viewModel.SelectedTypeIndex = (int)OrderType.Market;
+
+        viewModel.Prefill(new OrderPrefill(
+            Symbol.Parse("ETH/USDT"),
+            OrderSide.Buy,
+            3.5m));
+
+        viewModel.SymbolInput.Should().Be("ETH/USDT");
+        viewModel.PriceInput.Should().Be("3.50");
+        viewModel.SelectedTypeIndex.Should().Be((int)OrderType.Limit);
+        viewModel.QuantityInput.Should().Be("0.42");
+    }
+
     /// <summary>Named adapter stub for the two-entry facade tests.</summary>
     private static IMarketDataAdapter CreateNamedAdapter(string id, string name)
     {

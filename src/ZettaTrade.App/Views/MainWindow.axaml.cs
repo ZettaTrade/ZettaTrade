@@ -6,7 +6,9 @@ using ReactiveUI;
 using ReactiveUI.Avalonia;
 using ReactiveUI.Primitives;
 using Serilog;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.UI.Charting;
 
 namespace ZettaTrade.App.Views;
 
@@ -40,6 +42,10 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
         ViewModel?.Menu.OpenAiChatRequested.RegisterHandler(FocusChatAsync);
+
+        // The book panel lives for the whole window lifetime too: its level
+        // clicks route a deliberate prefill into the New Order dialog.
+        BookWidget.LevelClicked += OnBookLevelClicked;
     }
 
     private Task FocusChatAsync(IInteractionContext<RxVoid, RxVoid> context)
@@ -53,11 +59,34 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     {
         try
         {
-            // The dialog view model is transient: every open starts with empty
-            // inputs, so a stale symbol or quantity never leaks into a new order.
+            await OpenNewOrderDialogAsync(prefill: null);
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    /// <summary>
+    /// Open a NEW order dialog through the single transient path the menu
+    /// and the book level clicks share. The transient VM starts EMPTY by
+    /// design (a stale symbol or quantity never leaks into a new order);
+    /// a prefill is not a leftover — it is the user's deliberate action,
+    /// applied before the window shows.
+    /// </summary>
+    private async Task OpenNewOrderDialogAsync(OrderPrefill? prefill)
+    {
+        try
+        {
+            var viewModel = App.Services.GetRequiredService<ViewModels.NewOrderDialogViewModel>();
+            if (prefill is { } carry)
+            {
+                viewModel.Prefill(carry);
+            }
+
             var dialog = new NewOrderDialogWindow
             {
-                DataContext = App.Services.GetRequiredService<ViewModels.NewOrderDialogViewModel>(),
+                DataContext = viewModel,
             };
             await dialog.ShowDialog<object>(this);
         }
@@ -65,10 +94,17 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         {
             Log.Error(ex, "Failed to open the new order dialog");
         }
-        finally
-        {
-            context.SetOutput(RxVoid.Default);
-        }
+    }
+
+    /// <summary>
+    /// The book sends its level clicks here: they open the New Order dialog
+    /// prefilled with the clicked symbol, side and price. Task failures are
+    /// impossible to observe from a void event handler, so the open path
+    /// logs its own exceptions (the same discipline as the menu route).
+    /// </summary>
+    private async void OnBookLevelClicked(object? sender, OrderBookLevelClickedEventArgs e)
+    {
+        await OpenNewOrderDialogAsync(new OrderPrefill(e.Symbol, e.Side, e.Price));
     }
 
     private async Task OpenPositionsAsync(IInteractionContext<RxVoid, RxVoid> context)
