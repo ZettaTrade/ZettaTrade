@@ -9,6 +9,24 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.19] - 2026-11-02
+
+Build of task T-024 (the demo seeded-walk underflow).
+
+### Fixed (T-024 — demo bar loads overflowed)
+- Loading a full chart range of demo bars overflowed: `BarStep` evaluated
+  `Next % 2001 - 1000` in unsigned semantics, so ~half the steps wrapped to
+  ≈+42 949 % instead of the documented (−1%, +1%) and the compounding prices
+  blew past the decimal range with `OverflowException`. The modulo and the
+  subtraction now run in `long` semantics (the healthy path is unchanged —
+  only the wrapped values were wrong).
+- The same unsigned wrap sat in the ticker's 24 h change (`PriceChange24h`):
+  four of the six demo symbols permanently displayed a ~+429 496 729 %
+  rise. They now carry the documented (−1%, +1%) move.
+- Pinned by tests: the full 7 day H1 range loads for every demo symbol with
+  every close inside the documented-walk bounds, and every ticker stays in
+  the documented band.
+
 ## [0.1.0-alpha.18] - 2026-11-02
 
 Build of task T-023 (the second real adapter: Bybit).
