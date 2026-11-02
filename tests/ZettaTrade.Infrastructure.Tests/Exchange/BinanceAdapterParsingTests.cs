@@ -38,9 +38,16 @@ public sealed class BinanceAdapterParsingTests
 
     private sealed class StubHandler(HttpResponseMessage response) : HttpMessageHandler
     {
+        /// <summary>The last request seen by the stub (endpoint pins).</summary>
+        public HttpRequestMessage? LastRequest { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
-            CancellationToken cancellationToken) => Task.FromResult(response);
+            CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return Task.FromResult(response);
+        }
     }
 
     private static BinanceAdapter CreateAdapter(HttpResponseMessage response)
@@ -51,6 +58,16 @@ public sealed class BinanceAdapterParsingTests
             .Returns(new HttpClient(new StubHandler(response)));
 
         return new BinanceAdapter(NullLogger<BinanceAdapter>.Instance, factory);
+    }
+
+    private static (BinanceAdapter Adapter, StubHandler Handler) CreateAdapterWithCapture(
+        HttpResponseMessage response)
+    {
+        var handler = new StubHandler(response);
+        var factory = Substitute.For<IHttpClientFactory>();
+        factory.CreateClient(Arg.Any<string>()).Returns(new HttpClient(handler));
+
+        return (new BinanceAdapter(NullLogger<BinanceAdapter>.Instance, factory), handler);
     }
 
     private static HttpResponseMessage Json(byte[] json) => new(HttpStatusCode.OK)
@@ -90,6 +107,50 @@ public sealed class BinanceAdapterParsingTests
     }
 
     #endregion Public API
+
+    #region Symbol Catalog
+
+    /// <summary>Real ticker/price shape: an array of priced symbol rows.</summary>
+    private const string TickerPricePayload =
+        """[{"symbol":"ETHBTC","price":"0.05"},          {"symbol":"BTCUSDT","price":"50000"},          {"symbol":"USDTTRY","price":"34.2"},          {"symbol":"FDUSDUSDC","price":"0.99"},          {"symbol":"EURUSDC","price":"1.07"},          {"symbol":"BTCUSD1","price":"78000"},          {"symbol":"SUIU","price":"0.9"},          {"symbol":"USDTAED","price":"3.66"}]""";
+
+    [Fact]
+    public async Task GetSymbolsAsync_WithPricedSymbolPayload_SplitsEveryKnownQuote()
+    {
+        var adapter = CreateAdapter(Json(Encoding.UTF8.GetBytes(TickerPricePayload)));
+
+        var symbols = await adapter.GetSymbolsAsync();
+
+        symbols.Select(symbol => symbol.Normalized).Should().Equal(
+            "ETH/BTC", "BTC/USDT", "USDT/TRY", "FDUSD/USDC", "EUR/USDC", "BTC/USD1", "SUI/U", "USDT/AED");
+    }
+
+    [Fact]
+    public async Task GetSymbolsAsync_RequestsTheCompactPricedSymbolsEndpoint()
+    {
+        var (adapter, handler) = CreateAdapterWithCapture(
+            Json(Encoding.UTF8.GetBytes(TickerPricePayload)));
+
+        await adapter.GetSymbolsAsync();
+
+        handler.LastRequest!.RequestUri!.AbsolutePath
+            .Should().Be("/api/v3/ticker/price");
+    }
+
+    [Fact]
+    public async Task GetSymbolsAsync_WithUnrecognizedQuoteNames_DropsThemCounted()
+    {
+        // "SUI" alone is a quote literal but not a pair (guard: name must be
+        // longer than the quote); "ZZZYYY" matches no known quote at all.
+        var payload = """[{"symbol":"BTCUSDT","price":"50000"},{"symbol":"SUI","price":"1"},{"symbol":"ZZZYYY","price":"1"}]""";
+        var adapter = CreateAdapter(Json(Encoding.UTF8.GetBytes(payload)));
+
+        var symbols = await adapter.GetSymbolsAsync();
+
+        symbols.Select(symbol => symbol.Normalized).Should().Equal("BTC/USDT");
+    }
+
+    #endregion Symbol Catalog
 
     #region Parser
 

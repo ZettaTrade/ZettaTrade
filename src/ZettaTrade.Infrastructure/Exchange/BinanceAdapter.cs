@@ -1,5 +1,6 @@
 namespace ZettaTrade.Infrastructure.Exchange;
 
+using System.Linq;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -37,6 +38,47 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <summary>Partial book depth update period in milliseconds.</summary>
     private const int DepthUpdatePeriodMs = 100;
+
+    /// <summary>
+    /// REST path of the symbol catalog: the priced-symbols list (~160 KB) instead
+    /// of the full <c>exchangeInfo</c> document (~17 MB) — the multi-megabyte body
+    /// delayed the first symbols apply by seconds on cold start (T-021 measurement),
+    /// while the full per-symbol metadata (status, filters) is not needed anywhere.
+    /// Priced spot symbols approximate "status == TRADING" closely (an unlisted
+    /// pair has no price tick and is absent).
+    /// </summary>
+    private const string SymbolsRequestPath = "/api/v3/ticker/price";
+
+    /// <summary>
+    /// Quote assets Binance spot symbols are denominated in. The static array is
+    /// sorted LONGEST FIRST at construction, so suffix collisions split by the
+    /// suffix-first rule (USDC before USD) without anyone keeping literals in
+    /// order. The table lives in the adapter, not <c>Symbol</c> (whose list is
+    /// cross-exchange conservative): it is Binance-specific and rotates when
+    /// Binance rotates quote currencies — and a missed quote only drops that
+    /// pair from the catalog (counted and logged once, never a wrong split).
+    /// </summary>
+    private static readonly string[] BinanceQuoteAssets =
+        SortBinanceQuoteAssets(
+        [
+            "USDT", "FDUSD", "USDC", "BUSD", "TUSD", "USDP", "USDS",
+            "USD1", "BTC", "ETH", "BNB", "TRX", "XRP", "DOGE", "SOL", "SUI",
+            "TRY", "EUR", "GBP", "AED", "KZT", "USD", "AUD", "BRL", "JPY", "KRW",
+            "RUB", "PLN", "RON", "UAH", "ARS", "MXN", "CLP", "COP",
+            "CZK", "DOP", "IDR", "ILS", "INR", "NGN", "NZD", "PHP",
+            "SAR", "SEK", "SYP", "THB", "TZS", "UGX", "VND", "XAF",
+            "XOF", "ZAR", "DAI", "U",
+        ]);
+
+    /// <summary>
+    /// Put the quote table in match order: LONGEST entries first, so the
+    /// suffix scan never lets a shorter prefix win over a longer literal.
+    /// </summary>
+    private static string[] SortBinanceQuoteAssets(string[] assets) =>
+        assets
+            .OrderByDescending(asset => asset.Length)
+            .ThenBy(asset => asset, StringComparer.Ordinal)
+            .ToArray();
 
     /// <inheritdoc/>
     public override string Id => "binance";
@@ -149,25 +191,59 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <inheritdoc/>
     public override async Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default)
     {
-        var response = await _httpClient.GetFromJsonAsync<JsonElement>(
-            $"{_baseUrl}/api/v3/exchangeInfo",
-            ct);
+        var response = await _httpClient.GetFromJsonAsync<JsonElement[]>($"{_baseUrl}{SymbolsRequestPath}", ct) ?? [];
 
         var symbols = new List<Symbol>();
+        var unrecognized = 0;
 
-        foreach (var item in response.GetProperty("symbols").EnumerateArray())
+        foreach (var item in response)
         {
-            var status = item.GetProperty("status").GetString();
-            if (status != "TRADING")
-                continue;
+            var name = item.GetProperty("symbol").GetString()!;
+            var split = SplitBinanceName(name);
 
-            var baseAsset = item.GetProperty("baseAsset").GetString()!;
-            var quoteAsset = item.GetProperty("quoteAsset").GetString()!;
+            if (split is { } pair)
+            {
+                symbols.Add(new Symbol(pair.Base, pair.Quote, AssetClass.Crypto));
+            }
+            else
+            {
+                unrecognized++;
+            }
+        }
 
-            symbols.Add(new Symbol(baseAsset, quoteAsset, AssetClass.Crypto));
+        if (unrecognized > 0)
+        {
+            Logger.LogWarning(
+                "{Count} Binance symbols arrived with an unrecognized quote asset and are dropped",
+                unrecognized);
         }
 
         return symbols;
+    }
+
+    /// <summary>
+    /// Split a concatenated Binance spot name ("ETHBTC") into base and quote
+    /// assets by the longest matching quote suffix; returns null when no known
+    /// quote matches (the name then belongs to a rotated quote and the catalog
+    /// entry is dropped, not guessed).
+    /// </summary>
+    private static (string Base, string Quote)? SplitBinanceName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        foreach (var quote in BinanceQuoteAssets)
+        {
+            if (name.Length > quote.Length &&
+                name.EndsWith(quote, StringComparison.OrdinalIgnoreCase))
+            {
+                return (name[..^quote.Length], quote);
+            }
+        }
+
+        return null;
     }
 
     /// <inheritdoc/>
