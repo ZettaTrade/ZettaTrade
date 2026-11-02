@@ -27,6 +27,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-021 Cold-start polish: the first symbols apply lag | feat/cold-start-symbols | done | — |
 | T-022 Order-dialog header names the active exchange | feat/order-dialog-exchange | done | — |
 | T-023 Real second adapter: Bybit (read-only market data) | feat/bybit-adapter | in-progress | — |
+| T-024 Fix the demo seeded-walk underflow (demo bar loads overflow) | — | queued | — |
 
 ---
 
@@ -446,3 +447,13 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Branch tail: version bump alpha.17 → alpha.18 + `CHANGELOG.md` (behavior-shipping: a second real exchange).
   - gate.
 - **Tests:** new `BybitAdapter*Tests` suites (reusing the T-020 `LoopbackWebSocketServer` and `StubHandler` helpers).
+
+## T-024 — Fix the demo seeded-walk underflow (demo bar loads overflow)
+
+- **Branch:** queued 2026-11-02 (discovered during the T-023 acceptance probe)
+- **Origin:** the T-023 probe's cold start loads the persisted workspace symbol (BTC/USDT) on the persisted exchange (Demo — the T-021 default). The demo bars request died with `[ERR] ZettaTrade.App.ViewModels.ChartViewModel Failed to load chart data for BTC/USDT` + `System.OverflowException` (a `Decimal.op_Multiply` inside `DemoMarketDataAdapter.BuildBars`).
+- **Root cause (proven by an instrumented reproduction):** `BarStep` computes `(Next(ref seed) % 2001 - 1000) / 100000m`; the subtraction happens in UINT semantics and UNDERFLOWS whenever `Next % 2001 < 1000` (wraps to ≈ +4 294 965 x), so ~25% of the steps come out as ≈ **+42 949 (≈ +42949% per bar)** instead of the documented ±1 %. The multiplicative walk explodes and dies on `Decimal` range; every demo symbol x full chart range (H1, 7 d lookback, limit 200) overflows: BTC/USDT, ETH/BTC, ETH/USDT, SOL/USDT all reproduce.
+- **Pre-existing, not T-023:** the same instrumented reproduction overflows on a DETACHED `develop@2eea05c` build (`ZettaTrade.Infrastructure.dll` byte-same source, zero Bybit involvement). No `OverflowException` line exists in any Serilog log from Oct 18 to Nov 1 — earlier probes and workspace choices simply never drove a full demo-bars load until today.
+- **What:** fix the step arithmetic (evaluate the modulo/subtraction in `long` semantics — the intended ±1 % step) and pin it: a regression test that loads a full chart-range of demo bars for every demo symbol (H1, limit 200) asserts a finite last close bounded by the documented walk; fix-shipping → alpha.19.
+- **Scope:** `DemoMarketDataAdapter` + its test suite only. No Core, no Bybit regressions.
+- **Acceptance:** the reproduction no longer overflows; the app cold-starts on the persisted BTC/USDT/Demo and delivers demo candles (the error line gone from the Serilog chronology); gate.
