@@ -113,6 +113,7 @@ internal static class CompositionRoot
             new ChartViewModel(
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<SymbolListProvider>(),
+                sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
