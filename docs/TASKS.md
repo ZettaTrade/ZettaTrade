@@ -26,7 +26,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-020 e2e WebSocket transport tests against a loopback server | feat/ws-transport-tests | done | — |
 | T-021 Cold-start polish: the first symbols apply lag | feat/cold-start-symbols | done | — |
 | T-022 Order-dialog header names the active exchange | feat/order-dialog-exchange | done | — |
-| T-023 Real second adapter: Bybit (read-only market data) | feat/bybit-adapter | in-progress | — |
+| T-023 Real second adapter: Bybit (read-only market data) | feat/bybit-adapter | done | — |
 | T-024 Fix the demo seeded-walk underflow (demo bar loads overflow) | — | queued | — |
 
 ---
@@ -447,6 +447,14 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
   - Branch tail: version bump alpha.17 → alpha.18 + `CHANGELOG.md` (behavior-shipping: a second real exchange).
   - gate.
 - **Tests:** new `BybitAdapter*Tests` suites (reusing the T-020 `LoopbackWebSocketServer` and `StubHandler` helpers).
+- **Status:** done. Canon: the feature commits `b1b8c19` (adapter) + `6079be0` (catalog) and the release tail `f648eab` (alpha.18) are on develop via merge `eb67234` (`origin/feat/bybit-adapter`); develop is back in sync with `origin/develop`. Outcome:
+  - Shipped exactly the planned shape: `BybitAdapter : ExchangeAdapterBase` — WebSocketClient transport + named HTTP client + endpoints from the T-015 registry snapshot; ONE multiplexed socket with all tracked symbols in one subscribe frame (`{op:"subscribe",args:["tickers.X","orderbook.50.X","publicTrade.X"]}`); reconnect re-subscribes the tracked set; a depth gap discards state and re-subscribes (`Subject<Symbol>` + `FromAsync().Catch().Switch()` — no fire-and-forget); the 20 s `op:"ping"` keepalive lives on a `PeriodicTimer` owned by `DisposeAsync` (never a subscription token); `BybitOrderBookAssembler` runs the snapshot + monotonic-`u` deltas with `"0"`-qty deletes and republishes the full rebuilt depth capped at 50.
+  - Honesty preserved on the wire gaps: spot tickers are snapshot-typed with NO bid/ask (live-verified) — the mapped ticker keeps 0 for the absent fields, prices from `lastPrice` and carries `price24hPcnt × 100` as the 24 h percent; no guessed substitutes.
+  - Catalog: `ExchangeEndpointRegistry` gains the Bybit descriptor (`BybitKey`, per-vendor override reads); `AddBybitAdapter()` in the transport aggregate; the App active-exchange catalog becomes `[Binance, Bybit, Demo]` — one line, the T-021 cold-start default stays Demo.
+  - Tests 222 → 252 (13 Core + 117 App + 91 Infra + 31 UI): 40 targeted tests in `BybitAdapterParsingTests`, `BybitOrderBookAssemblerTests`, `BybitAdapterWsE2eTests` and the endpoint-registry suite (the T-020 loopback server). Pins: `status=="Trading"` filter, the single-page fast path, cursor paging capped at 5 pages with ONE aggregated warning, malformed entries skipped singly, `retCode != 0` throws, kline strings reversed to the ascending contract. The new suites caught a latent `BinanceJsonNumbers` defect on arrival — it now returns `Clone()`ed elements and gained `ParseInt64`. GATE PASSED; resx parity untouched (95/95 — no new UI strings, as designed).
+  - Probe (UIA, real network): the picker shows THREE choices (`Binance | Bybit | Demo`); switching to Bybit live — real `api.bybit.com` kline 200 → 169 candles, 520 instruments, WS `Connected` to `wss://stream.bybit.com/v5/public/spot` with live book/ticker/trades; a persisted-`bybit` cold start restored end to end (catalog → WS → bars, ~2 s); a 150 s keepalive soak held — ONE `Connected`, no reconnects, no ping failures. Probe-infra note for reuse: the settings file lives in ROAMING (`AppData\Roaming\ZettaTrade\config\appsettings.json`) — the switch persisted `bybit` into the real settings (the probe's LOCALAPPDATA backup never fired, its path was wrong; restored and re-verified manually).
+  - Bonus finding, queued as T-024: the Demo-default cold start drove the first full demo-bars load and surfaced the pre-existing seeded-walk `uint` underflow (`OverflowException` in `DemoMarketDataAdapter.BuildBars`) — proven pre-existing on a detached `develop@2eea05c` build, NOT a T-023 regression.
+  - Branch tail: `Directory.Build.props` alpha.17 → alpha.18; `CHANGELOG.md` gains the alpha.18 section (`### Added (T-023 — the Bybit adapter)`).
 
 ## T-024 — Fix the demo seeded-walk underflow (demo bar loads overflow)
 
