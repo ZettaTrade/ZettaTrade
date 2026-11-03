@@ -351,6 +351,63 @@ public sealed class ChartViewModelTests
             .Should().BeNull();
     }
 
+    /// <summary>
+    /// The history depth is pinned per time frame: the same bar count walks
+    /// back at each frame's own duration (the exchange-standard depth — W1
+    /// gets its 200 weeks, M1 a fresh 200 minutes) instead of one fixed
+    /// calendar window that starved the coarse frames and dated the fine
+    /// ones. Monthly and weekly frames use nominal calendar lengths.
+    /// </summary>
+    [Theory]
+    [InlineData(TimeFrame.M1, 200)]
+    [InlineData(TimeFrame.M5, 1_000)]
+    [InlineData(TimeFrame.M15, 3_000)]
+    [InlineData(TimeFrame.M30, 6_000)]
+    [InlineData(TimeFrame.H1, 12_000)]
+    [InlineData(TimeFrame.H4, 48_000)]
+    [InlineData(TimeFrame.D1, 288_000)]
+    [InlineData(TimeFrame.W1, 2_016_000)]
+    [InlineData(TimeFrame.MN1, 8_640_000)]
+    public void HistoryStart_WalksBackTheNominalBarDepth_PerTimeFrame(
+        TimeFrame timeFrame,
+        double expectedMinutes)
+    {
+        var now = new DateTimeOffset(2026, 11, 3, 12, 0, 0, TimeSpan.Zero);
+        var start = ChartViewModel.HistoryStart(now, timeFrame, 200);
+        var expected = now - TimeSpan.FromMinutes(expectedMinutes);
+
+        // Day-scale calendar arithmetic rounds at the double tick (the
+        // DateTimeOffset add path multiplies its milliseconds as doubles);
+        // one-tenth of a microsecond of tolerated drift is still six orders
+        // of magnitude below a single one-minute bar.
+        Math.Abs((start - expected).Ticks)
+            .Should()
+            .BeLessThanOrEqualTo(1000L, "the walk-back is bar count times bar duration, at clock precision");
+    }
+
+    [Fact]
+    public void HistoryStart_TheOldSevenDayH4Window_YieldsFortyTwoBarsWalkedBack()
+    {
+        var now = new DateTimeOffset(2026, 11, 3, 12, 0, 0, TimeSpan.Zero);
+
+        // The deprecated 7-day calendar window held 42 H4 bars; that same
+        // bar count walked back at the frame's own four-hour bars spans
+        // exactly those 7 days — the depth is frame and count, not calendar.
+        ChartViewModel.HistoryStart(now, TimeFrame.H4, 42)
+            .Should().Be(now - TimeSpan.FromHours(168));
+    }
+
+    [Fact]
+    public void HistoryStart_UnknownTimeFrame_IsAnErrorNotADefault()
+    {
+        Action act = () => ChartViewModel.HistoryStart(
+            DateTimeOffset.UtcNow,
+            (TimeFrame)999,
+            200);
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
     [Fact]
     public void SelectedTimeFrame_DefaultsToH1_WithThePickerCatalog()
     {

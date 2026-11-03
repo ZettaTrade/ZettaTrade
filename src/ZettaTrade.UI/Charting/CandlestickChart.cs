@@ -58,6 +58,15 @@ public class CandlestickChart : Control
     private const float PriceVerticalHeadroomPx = 12f;
 
     /// <summary>
+    /// Upper bound of the bar pitch (the full slot width one candle
+    /// occupies). When fewer bars are loaded than the visible window wants,
+    /// they keep a terminal-normal candle width and anchor to the plot's
+    /// right edge (the empty space grows left) instead of stretching across
+    /// the whole plot.
+    /// </summary>
+    private const float MaxBarPitchPx = 40f;
+
+    /// <summary>
     /// Horizontal inset a centered time label keeps from the plot edges when
     /// its tick sits at (or near) a boundary.
     /// </summary>
@@ -419,8 +428,9 @@ public class CandlestickChart : Control
                 .ToArray();
             var priceGutter = priceTexts.Max(text => font.MeasureText(text)) + (2f * PriceAxisGutterPadPx);
 
-            var firstTime = visibleBars[0].Time;
-            var lastTime = visibleBars[^1].Time;
+            var openTimes = ChartBarLayout.CollectOpenTimes(visibleBars);
+            var firstTime = openTimes[0];
+            var lastTime = openTimes[^1];
             var timeStep = ChartAxisFormatting.PickTimeStep(lastTime - firstTime);
             var timeTicks = ChartAxisFormatting.PickTimeTicks(firstTime, lastTime, timeStep);
             var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
@@ -433,6 +443,13 @@ public class CandlestickChart : Control
                 Math.Max(1d, width - priceGutter),
                 Math.Max(1d, height - timeGutter));
 
+            // The bar pitch is window-driven and capped: when fewer bars are
+            // loaded than the window wants, they keep a normal candle width
+            // and anchor to the plot's right edge (empty space grows left)
+            // instead of stretching into a full-width wall. Grid lines and
+            // label centers ride the SAME slots as the candles.
+            var barPitch = ChartBarLayout.BarPitch(plotRect.Width, visibleBars.Length, MaxBarPitchPx);
+
             DrawGrid(
                 canvas,
                 gridPaint,
@@ -441,12 +458,12 @@ public class CandlestickChart : Control
                 priceRange,
                 priceTicks,
                 timeTicks,
-                firstTime,
-                lastTime);
+                barPitch,
+                openTimes);
 
-            DrawCandles(canvas, plotRect, visibleBars, minPrice, priceRange);
+            DrawCandles(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minPrice, priceRange, priceTicks, priceTexts);
-            DrawTimeAxis(canvas, font, textPaint, plotRect, firstTime, lastTime, timeStep, timeTicks);
+            DrawTimeAxis(canvas, font, textPaint, plotRect, timeStep, barPitch, openTimes, timeTicks);
         }
 
         private void DrawNoDataMessage(SKCanvas canvas, double width, double height)
@@ -485,8 +502,9 @@ public class CandlestickChart : Control
         /// <summary>
         /// Grid lines AT the tick positions: horizontal lines ride the price
         /// ladder (aligned with the price labels), vertical lines ride the
-        /// time ticks (aligned with the time labels). Both stay strictly
-        /// inside the plot, so the gutters and the canvas edges stay clean.
+        /// time ticks — mapped onto the SAME bar slots the candles occupy.
+        /// Both stay strictly inside the plot, so the gutters and the canvas
+        /// edges stay clean.
         /// </summary>
         private static void DrawGrid(
             SKCanvas canvas,
@@ -496,8 +514,8 @@ public class CandlestickChart : Control
             decimal priceRange,
             IReadOnlyList<decimal> priceTicks,
             IReadOnlyList<DateTimeOffset> timeTicks,
-            DateTimeOffset firstTime,
-            DateTimeOffset lastTime)
+            double barPitch,
+            IReadOnlyList<DateTimeOffset> openTimes)
         {
             foreach (var tick in priceTicks)
             {
@@ -507,7 +525,7 @@ public class CandlestickChart : Control
 
             foreach (var tick in timeTicks)
             {
-                var x = TimeToX(plotRect, tick, firstTime, lastTime);
+                var x = (float)ChartBarLayout.BarXForTime(plotRect.Right, barPitch, openTimes, tick);
                 canvas.DrawLine(x, (float)plotRect.Top, x, (float)plotRect.Bottom, paint);
             }
         }
@@ -516,11 +534,11 @@ public class CandlestickChart : Control
             SKCanvas canvas,
             Rect plotRect,
             IReadOnlyList<Bar> bars,
+            double barPitch,
             decimal minPrice,
             decimal priceRange)
         {
-            var candleWidth = (float)(plotRect.Width / bars.Count);
-            var bodyWidth = candleWidth * CandleBodyWidthRatio;
+            var bodyWidth = (float)(barPitch * CandleBodyWidthRatio);
 
             using var bullishPaint = new SKPaint
             {
@@ -537,7 +555,7 @@ public class CandlestickChart : Control
             for (var i = 0; i < bars.Count; i++)
             {
                 var bar = bars[i];
-                var x = (float)(plotRect.Left + (i * candleWidth) + (candleWidth / 2));
+                var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, bars.Count, i);
 
                 var isBullish = bar.Close >= bar.Open;
                 var paint = isBullish ? bullishPaint : bearishPaint;
@@ -601,9 +619,9 @@ public class CandlestickChart : Control
             SKFont font,
             SKPaint paint,
             Rect plotRect,
-            DateTimeOffset firstTime,
-            DateTimeOffset lastTime,
             TimeSpan step,
+            double barPitch,
+            IReadOnlyList<DateTimeOffset> openTimes,
             IReadOnlyList<DateTimeOffset> ticks)
         {
             var culture = CultureInfo.CurrentCulture;
@@ -612,7 +630,7 @@ public class CandlestickChart : Control
             {
                 var text = ChartAxisFormatting.FormatTimeTick(tick, step, culture);
                 var halfWidth = font.MeasureText(text) / 2f;
-                var centered = TimeToX(plotRect, tick, firstTime, lastTime);
+                var centered = (float)ChartBarLayout.BarXForTime(plotRect.Right, barPitch, openTimes, tick);
                 var minCenter = halfWidth + TimeLabelClampPadPx;
                 var maxCenter = (float)plotRect.Right - halfWidth - TimeLabelClampPadPx;
 
@@ -643,28 +661,6 @@ public class CandlestickChart : Control
 
             return ((float)plotRect.Bottom - PriceVerticalHeadroomPx)
                 - ((float)((double)((price - minPrice) / priceRange) * usableHeight));
-        }
-
-        /// <summary>
-        /// Maps a time onto the plot's horizontal axis, linear across the
-        /// visible window <c>[first, last]</c>. A zero span (a single visible
-        /// bar) maps to the left edge.
-        /// </summary>
-        private static float TimeToX(
-            Rect plotRect,
-            DateTimeOffset time,
-            DateTimeOffset first,
-            DateTimeOffset last)
-        {
-            var spanTicks = last.Ticks - first.Ticks;
-            if (spanTicks <= 0)
-            {
-                return (float)plotRect.Left;
-            }
-
-            var fraction = (double)(time.Ticks - first.Ticks) / spanTicks;
-
-            return (float)(plotRect.Left + (fraction * plotRect.Width));
         }
     }
 

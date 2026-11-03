@@ -40,8 +40,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>Upper bound of the symbols dropdown in the demo view.</summary>
     private const int MaxVisibleSymbols = 50;
 
-    /// <summary>Historical window length for chart bars, in days.</summary>
-    private const int ChartLookbackDays = 7;
+    /// <summary>The nominal month length for MN1 history starts.</summary>
+    private const int NominalMonthDays = 30;
+
+    /// <summary>The nominal week length for W1 history starts.</summary>
+    private const int NominalWeekDays = 7;
 
     /// <summary>Initial number of candles loaded for the chart.</summary>
     private const int InitialBarCount = 200;
@@ -349,6 +352,37 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             : symbols.FirstOrDefault();
 
     /// <summary>
+    /// History window start for one time frame: the nominal bar count walked
+    /// back at the frame's own duration, so EVERY frame asks for the same bar
+    /// depth (the exchange-standard ~200 bars: W1 walks back 200 weeks, M1 a
+    /// fresh 200 minutes) instead of one fixed calendar window that starved
+    /// the coarse frames (one weekly bar in 7 days) and dated the fine ones.
+    /// Monthly and weekly frames use nominal calendar lengths; the exchange
+    /// keeps whatever the listing has delivered since — a frame younger than
+    /// the requested depth never fills the window (the listing fact).
+    /// </summary>
+    internal static DateTimeOffset HistoryStart(
+        DateTimeOffset now,
+        TimeFrame timeFrame,
+        int barCount) =>
+        timeFrame switch
+        {
+            TimeFrame.MN1 => now.AddDays(-barCount * NominalMonthDays),
+            TimeFrame.W1 => now.AddDays(-barCount * NominalWeekDays),
+            TimeFrame.D1 => now.AddDays(-barCount),
+            TimeFrame.H4 => now.AddHours(-barCount * 4),
+            TimeFrame.H1 => now.AddHours(-barCount),
+            TimeFrame.M30 => now.AddMinutes(-barCount * 30),
+            TimeFrame.M15 => now.AddMinutes(-barCount * 15),
+            TimeFrame.M5 => now.AddMinutes(-barCount * 5),
+            TimeFrame.M1 => now.AddMinutes(-barCount),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(timeFrame),
+                timeFrame,
+                "Unknown time frame has no bar duration.")
+        };
+
+    /// <summary>
     /// Bars load for one selection on the exchange that triggered it, for
     /// the exact time frame of the triggering change. A failure ends this
     /// selection's data (logged, never a default value) but must not
@@ -365,12 +399,19 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             timeFrame,
             adapter.Name);
 
+        // From = the frame's own bar depth walked back from now: every time
+        // frame loads its full history depth. The limit is one over the bar
+        // count because the request window [start, now] contains count+1
+        // open times when start lands on a bar boundary (the current,
+        // still-forming candle included), and the exchange answers a
+        // saturated window with its OLDEST bars — a saturated limit would
+        // cut exactly the fresh edge.
         return Observable
             .FromAsync(token => adapter.GetBarsAsync(
                 symbol,
                 timeFrame,
-                DateTimeOffset.UtcNow.AddDays(-ChartLookbackDays),
-                limit: InitialBarCount,
+                HistoryStart(DateTimeOffset.UtcNow, timeFrame, InitialBarCount),
+                limit: InitialBarCount + 1,
                 ct: token))
             // A cancelled load is the normal outcome of Switch dropping the
             // previous selection or exchange: keep it silent (real failures
