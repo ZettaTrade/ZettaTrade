@@ -168,6 +168,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     public IObservable<Symbol> SymbolSelections { get; }
 
     /// <summary>
+    /// Every workspace time-frame change: the current value arrives at
+    /// subscribe time, so a late follower starts from the standing choice.
+    /// Raw — not UI-marshaled (the chat context consumes it the same way the
+    /// chart's own pipelines do).
+    /// </summary>
+    public IObservable<TimeFrame> TimeFrameSelections { get; }
+
+    /// <summary>
     /// Bars loaded for the latest (symbol, time frame, exchange) triple; a
     /// newer triple cancels the previous load (Rx Switch). The machine is
     /// hot and shared: exactly one load pipeline runs no matter how many
@@ -204,6 +212,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
             .Where(symbol => symbol is not null)
             .Select(symbol => symbol!);
+
+        TimeFrameSelections = this.WhenAnyValue(x => x.SelectedTimeFrame);
 
         // Bars re-load on every symbol, time frame or active-exchange change:
         // the triple pins the exact load target (exchange + timeframe), so
