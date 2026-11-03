@@ -34,7 +34,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-027 Hide/show the AI assistant panel | feat/ai-panel-toggle | done | — |
 | T-028 Candle OHLC + crosshair price on chart hover | feat/chart-hover | done | — |
 | T-029 Persist the workspace symbol | feat/persist-symbol | done | — |
-| T-030 Debt cleanup: LocalizedViewModelBase + Serilog console sink | chore/debt-cleanup | queued | — |
+| T-030 Debt cleanup: LocalizedViewModelBase + Serilog console sink | chore/debt-cleanup | done | - |
 | T-031 Cancel a working order from the UI | feat/cancel-order | queued | — |
 | T-032 The assistant answers: local model first (Ollama) | feat/ai-chat-local | queued | — |
 | T-033 Chart pan + older-history paging | feat/chart-pan | queued | — |
@@ -582,6 +582,11 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** the two debt sites + their consumers; the AGENTS.md debt section is dropped IN this task. Nothing else rides along (no refactor drift).
 - **Acceptance:** no `LocalizedViewModelBase` type remains; runtime language switching still works live on both locales (probe); no console log lines in the Serilog chain; an MCP handshake test (or the existing MCP e2e) confirms stdout purity.
 - **Tests:** the affected suites adjust (the base class removal shrinks ctor call sites exactly like T-022 did); a stdout-purity pin.
+- **Status:** done. Canon: the feature commit `e2c77df` is on develop (the user merged `origin/feat/debt-cleanup`). Outcome:
+  - Removed: `LocalizedViewModelBase` (zero consumers — pure dead code, nothing to port) and the AGENTS.md "Known debt" section naming it. The Serilog console sink turned out already absent (only `Serilog.Sinks.File` is referenced; no `WriteTo.Console`/`AddConsole`/`Console.WriteLine` anywhere in src), so the second half of the debt landed as the missing control instead of a deletion.
+  - Control: `McpServerHostStdioTests` drives the real MCP stdio loop in-process (redirected console in/out): initialize handshake + tools/list come out as exactly two JSON-RPC envelopes, a malformed line is reported through `ILogger` and writes nothing to the protocol stream. 425 → 426 tests (13 Core + 180 App + 139 UI + 93 Infra; the +1 App fact is the pin).
+  - Probe `PROBE PASSED` (`t030-lang-probe.ps1`, UIA, original settings bytes restored): the persisted Language=ru start renders ru; File → Settings → "English" + Save applies LIVE in the same process (the File menu header renders en and `UI.Language=en` persists), the same walk back to the ru item restores Language=ru — no restart, and the deleted base class left the localization chain intact. Probe fact: the settings-window Save closes the dialog, so the run asserts window-gone + file value + live menu flip.
+  - No version bump: alpha.20 stays deferred (batch-completion decision, per T-037/T-027/T-028). Worktree `zt-debt-cleanup` and the local branch removed post-merge.
 
 ## T-031 — Cancel a working order from the UI
 
