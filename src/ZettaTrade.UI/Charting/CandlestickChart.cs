@@ -23,6 +23,10 @@ using ZettaTrade.UI.Themes;
 /// <summary>
 /// Candlestick chart control that draws directly onto the Avalonia Skia canvas
 /// via <see cref="ICustomDrawOperation"/> (no intermediate bitmaps or pixel copies).
+/// The pointer hover is part of the same pipeline: <see cref="OnPointerMoved"/>
+/// tracks the cursor, the draw pass renders the dashed crosshair rails, the
+/// hovered price pill in the right gutter and the hovered candle's OHLC
+/// readout off an immutable snapshot copy.
 /// </summary>
 public class CandlestickChart : Control
 {
@@ -34,7 +38,6 @@ public class CandlestickChart : Control
 
     /// <summary>Price tick slots between the padded extremes (six inclusive ticks).</summary>
     private const int PriceAxisLabelCount = 5;
-    private const decimal PricePaddingRatio = 0.1m;
     private const float CandleBodyWidthRatio = 0.7f;
     private const float MinCandleBodyHeight = 1f;
     private const float NoDataFontSize = 16f;
@@ -57,11 +60,20 @@ public class CandlestickChart : Control
     private const float TimeLabelGapPx = 24f;
 
     /// <summary>
-    /// Vertical headroom the price mapping keeps inside the plot at its top
-    /// and bottom: extreme candles, gridlines and the centered labels of the
-    /// extreme ticks all stay clear of the plot edges.
+    /// Dash pattern (on/off pixels) of the hover crosshair rails.
     /// </summary>
-    private const float PriceVerticalHeadroomPx = 12f;
+    private static readonly float[] CrosshairDashPatternPx = [4f, 4f];
+
+    /// <summary>
+    /// Padding around the hovered-candle OHLC readout inside the plot's
+    /// top-left corner.
+    /// </summary>
+    private const float CrosshairReadoutPadPx = 8f;
+
+    /// <summary>
+    /// Padding between the hover price-pill text and its background edges.
+    /// </summary>
+    private const float CrosshairPillPadPx = 3f;
 
     /// <summary>
     /// Upper bound of the bar pitch (the full slot width one candle
@@ -114,8 +126,8 @@ public class CandlestickChart : Control
         AvaloniaProperty.Register<CandlestickChart, bool>(nameof(Use12HourClock));
 
     /// <summary>
-    /// Whether the time axis prints the 12-hour clock ("11:45 PM"); false —
-    /// the default — prints the 24-hour "23:45". The chart owns no
+    /// Whether the time axis prints the 12-hour clock ("11:45 PM"); false вЂ”
+    /// the default вЂ” prints the 24-hour "23:45". The chart owns no
     /// persistence: the settings service is the source of truth, rendering
     /// flows the applied value in through this StyledProperty binding.
     /// </summary>
@@ -130,6 +142,14 @@ public class CandlestickChart : Control
     #region Fields & Properties
 
     private int _visibleBars = DefaultVisibleBars;
+
+    /// <summary>
+    /// The cursor's position in control coordinates, or null when the
+    /// pointer has never entered the control or has left it. UI-thread
+    /// state only: <see cref="CreateSnapshot"/> copies it into the snapshot
+    /// the render thread draws from.
+    /// </summary>
+    private Point? _hoverPosition;
 
     // Defaults match the built-in dark theme; the live colors are refreshed
     // from application resources on every snapshot (see RefreshThemeColors).
@@ -347,14 +367,17 @@ public class CandlestickChart : Control
             GridColor,
             TextColor,
             ChartTickCulture.Resolve(),
-            Use12HourClock);
+            Use12HourClock,
+            _hoverPosition);
     }
 
     /// <summary>
     /// Immutable per-redraw state the render thread sees: the visible bars,
-    /// the theme colors, and the label culture + clock format resolved on the
-    /// UI thread (the render thread reads no live chart state — an ambient
-    /// CultureInfo there belongs to the process default, not the app).
+    /// the theme colors, the label culture + clock format resolved on the
+    /// UI thread (the render thread reads no live chart state вЂ” an ambient
+    /// CultureInfo there belongs to the process default, not the app), and
+    /// the hover position captured from the pointer events on the UI thread
+    /// (null when the cursor is outside the control or has left it).
     /// </summary>
     private sealed record ChartSnapshot(
         Bar[] VisibleBars,
@@ -364,7 +387,8 @@ public class CandlestickChart : Control
         SKColor Grid,
         SKColor Text,
         CultureInfo Culture,
-        bool Use12HourClock);
+        bool Use12HourClock,
+        Point? Hover);
 
     /// <summary>
     /// Draws the chart straight onto Avalonia's own SKCanvas (render thread).
@@ -434,17 +458,9 @@ public class CandlestickChart : Control
                 return;
             }
 
-            var minPrice = visibleBars.Min(b => b.Low);
-            var maxPrice = visibleBars.Max(b => b.High);
-            var priceRange = maxPrice - minPrice;
-
-            if (priceRange == 0)
-                priceRange = 1;
-
-            var padding = priceRange * PricePaddingRatio;
-            minPrice -= padding;
-            maxPrice += padding;
-            priceRange = maxPrice - minPrice;
+            var lowest = visibleBars.Min(b => b.Low);
+            var highest = visibleBars.Max(b => b.High);
+            var (minPrice, maxPrice, priceRange) = ChartPriceScale.PaddedSpread(lowest, highest);
 
             // The labels decide the geometry FIRST: gutters size themselves
             // to the measured texts so no label can clip, and the plot
@@ -515,6 +531,20 @@ public class CandlestickChart : Control
             DrawCandles(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minPrice, priceRange, priceTicks, priceTexts);
             DrawTimeAxis(canvas, font, textPaint, plotRect, barPitch, openTimes, timeTicks, timeTexts);
+
+            // The hover layer rides LAST: the crosshair paints over the
+            // candles and the axis labels (the terminal look).
+            DrawHover(
+                canvas,
+                font,
+                textPaint,
+                plotRect,
+                visibleBars,
+                barPitch,
+                minPrice,
+                priceRange,
+                priceDecimals,
+                _snapshot.Hover);
         }
 
         private void DrawNoDataMessage(SKCanvas canvas, double width, double height)
@@ -553,7 +583,7 @@ public class CandlestickChart : Control
         /// <summary>
         /// Grid lines AT the tick positions: horizontal lines ride the price
         /// ladder (aligned with the price labels), vertical lines ride the
-        /// time ticks — mapped onto the SAME bar slots the candles occupy.
+        /// time ticks вЂ” mapped onto the SAME bar slots the candles occupy.
         /// Both stay strictly inside the plot, so the gutters and the canvas
         /// edges stay clean.
         /// </summary>
@@ -570,7 +600,7 @@ public class CandlestickChart : Control
         {
             foreach (var tick in priceTicks)
             {
-                var y = PriceToY(plotRect, tick, minPrice, priceRange);
+                var y = ChartPriceScale.PriceToY(plotRect, tick, minPrice, priceRange);
                 canvas.DrawLine((float)plotRect.Left, y, (float)plotRect.Right, y, paint);
             }
 
@@ -611,10 +641,10 @@ public class CandlestickChart : Control
                 var isBullish = bar.Close >= bar.Open;
                 var paint = isBullish ? bullishPaint : bearishPaint;
 
-                var openY = PriceToY(plotRect, bar.Open, minPrice, priceRange);
-                var closeY = PriceToY(plotRect, bar.Close, minPrice, priceRange);
-                var highY = PriceToY(plotRect, bar.High, minPrice, priceRange);
-                var lowY = PriceToY(plotRect, bar.Low, minPrice, priceRange);
+                var openY = ChartPriceScale.PriceToY(plotRect, bar.Open, minPrice, priceRange);
+                var closeY = ChartPriceScale.PriceToY(plotRect, bar.Close, minPrice, priceRange);
+                var highY = ChartPriceScale.PriceToY(plotRect, bar.High, minPrice, priceRange);
+                var lowY = ChartPriceScale.PriceToY(plotRect, bar.Low, minPrice, priceRange);
 
                 canvas.DrawLine(x, highY, x, lowY, paint);
 
@@ -651,7 +681,7 @@ public class CandlestickChart : Control
         {
             for (var i = 0; i < texts.Count; i++)
             {
-                var y = PriceToY(plotRect, ticks[i], minPrice, priceRange);
+                var y = ChartPriceScale.PriceToY(plotRect, ticks[i], minPrice, priceRange);
                 var centerY = y - ((font.Metrics.Ascent + font.Metrics.Descent) / 2f);
 
                 canvas.DrawText(texts[i], (float)plotRect.Right + PriceAxisGutterPadPx, centerY, SKTextAlign.Left, font, paint);
@@ -667,7 +697,7 @@ public class CandlestickChart : Control
         /// calendar scales whose labels stay within the measured width, so
         /// one measurement pass suffices. The rung, ticks and texts always
         /// belong to the same final pick. The culture and the clock format
-        /// ride the snapshot (the render thread reads no ambient state) —
+        /// ride the snapshot (the render thread reads no ambient state) вЂ”
         /// every redraw resolves them from the applied UI language.
         /// </summary>
         private static (TimeTickRung Rung, IReadOnlyList<DateTimeOffset> Ticks, string[] Texts) PickTimeLabels(
@@ -733,7 +763,7 @@ public class CandlestickChart : Control
                 var maxCenter = (float)plotRect.Right - halfWidth - TimeLabelClampPadPx;
 
                 // When the plot is narrower than one label the two clamp
-                // bounds collapse — Max(min, max) then keeps the left bound:
+                // bounds collapse вЂ” Max(min, max) then keeps the left bound:
                 // the degenerate case clips a label, it never throws.
                 var x = Math.Min(Math.Max(centered, minCenter), Math.Max(minCenter, maxCenter));
                 var baseline = (float)plotRect.Bottom + TimeAxisGutterPadPx - font.Metrics.Ascent;
@@ -743,28 +773,149 @@ public class CandlestickChart : Control
         }
 
         /// <summary>
-        /// Maps a price onto the plot's vertical axis: the padded scale owns
-        /// the full candle spread and keeps unmapped headroom at both ends,
-        /// so extreme candles — and the centered labels of the extreme ticks
-        /// — stay clear of the plot edges. Candles, gridlines and labels all
-        /// use this one mapping, so the scale stays honest.
+        /// The hover layer, drawn last: dashed crosshair rails clipped to the
+        /// plot, the hovered price pill in the right gutter at the cursor's
+        /// row, and the hovered candle's compact OHLC (+V) readout in the
+        /// plot's top-left. Everything keys off the hover position the
+        /// snapshot carries: no hover, a cursor outside the plot band (a
+        /// rail just does not draw) or a cursor outside every bar's
+        /// half-pitch band (no readout) draw less of it instead of throwing
+        /// or substituting вЂ” the dead paths stay silent. The cursor's price
+        /// maps back onto the padded scale through the SAME
+        /// <see cref="ChartPriceScale"/> geometry the candles and axis
+        /// labels use, so the pill and the readout always agree with the
+        /// pixels under the cursor.
         /// </summary>
-        private static float PriceToY(
+        private void DrawHover(
+            SKCanvas canvas,
+            SKFont font,
+            SKPaint textPaint,
             Rect plotRect,
-            decimal price,
+            IReadOnlyList<Bar> bars,
+            double barPitch,
             decimal minPrice,
-            decimal priceRange)
+            decimal priceRange,
+            int priceDecimals,
+            Point? hover)
         {
-            var usableHeight = (float)plotRect.Height - (2f * PriceVerticalHeadroomPx);
+            if (hover is not { } position)
+            {
+                return;
+            }
 
-            return ((float)plotRect.Bottom - PriceVerticalHeadroomPx)
-                - ((float)((double)((price - minPrice) / priceRange) * usableHeight));
+            var x = (float)position.X;
+            var y = (float)position.Y;
+            var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
+
+            // The rails: 1 px dashed lines riding the plot's inside only вЂ”
+            // a cursor in a gutter shows no rail on that axis. SkiaSharp
+            // refcounts the native dash effect: the paint holds one
+            // reference, this call holds the other, both die here.
+            using var dashEffect = SKPathEffect.CreateDash(CrosshairDashPatternPx, 0f);
+            using var railPaint = new SKPaint
+            {
+                Color = _snapshot.Grid,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1f,
+                IsAntialias = true,
+                PathEffect = dashEffect
+            };
+
+            if ((x >= plotRect.Left) && (x <= plotRect.Right))
+            {
+                canvas.DrawLine(x, (float)plotRect.Top, x, (float)plotRect.Bottom, railPaint);
+            }
+
+            if ((y >= plotRect.Top) && (y <= plotRect.Bottom))
+            {
+                canvas.DrawLine((float)plotRect.Left, y, (float)plotRect.Right, y, railPaint);
+            }
+
+            // The hovered price pill: the cursor's y mapped back onto the
+            // padded scale, printed in the right gutter at the cursor's row
+            // (backgrounded, so it stays readable over the tick labels).
+            var pillText = ChartAxisFormatting.FormatPriceTick(
+                ChartPriceScale.YToPrice(position.Y, plotRect, minPrice, priceRange),
+                priceDecimals,
+                _snapshot.Culture);
+            var pillWidth = font.MeasureText(pillText) + (2f * CrosshairPillPadPx);
+            var pillHeight = textHeight + (2f * CrosshairPillPadPx);
+            var pillBaseline = y - ((font.Metrics.Ascent + font.Metrics.Descent) / 2f);
+
+            using var pillPaint = new SKPaint
+            {
+                Color = _snapshot.Grid,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true
+            };
+
+            canvas.DrawRect((float)plotRect.Right, y - (pillHeight / 2f), pillWidth, pillHeight, pillPaint);
+            canvas.DrawText(pillText, (float)plotRect.Right + CrosshairPillPadPx, pillBaseline, SKTextAlign.Left, font, textPaint);
+
+            // The hovered candle's compact readout in the plot's top-left:
+            // O/H/L/C plus volume of the bar under the cursor x. The numbers
+            // reuse the price-axis formatting (same decimals, same culture вЂ”
+            // numbers need no resx), the letter glyphs are the universal
+            // trading notation, unlocalized per the board's scope.
+            var barIndex = ChartBarLayout.SlotIndexForX(plotRect.Right, barPitch, bars.Count, position.X);
+
+            if (barIndex < 0)
+            {
+                return;
+            }
+
+            var bar = bars[barIndex];
+            var openText = ChartAxisFormatting.FormatPriceTick(bar.Open, priceDecimals, _snapshot.Culture);
+            var highText = ChartAxisFormatting.FormatPriceTick(bar.High, priceDecimals, _snapshot.Culture);
+            var lowText = ChartAxisFormatting.FormatPriceTick(bar.Low, priceDecimals, _snapshot.Culture);
+            var closeText = ChartAxisFormatting.FormatPriceTick(bar.Close, priceDecimals, _snapshot.Culture);
+            var volumeText = ChartAxisFormatting.FormatPriceTick(bar.Volume, priceDecimals, _snapshot.Culture);
+            var readout = $"O {openText}  H {highText}  L {lowText}  C {closeText}  V {volumeText}";
+            var readoutBaseline = (float)plotRect.Top + CrosshairReadoutPadPx - font.Metrics.Ascent;
+
+            canvas.DrawText(readout, (float)plotRect.Left + CrosshairReadoutPadPx, readoutBaseline, SKTextAlign.Left, font, textPaint);
         }
     }
 
     #endregion
 
     #region Interaction
+
+    /// <summary>
+    /// Track the cursor for the hover layer: every move re-snapshots the
+    /// position (the chart redraws from the new snapshot), a same-position
+    /// move event changes nothing and skips the invalidation.
+    /// </summary>
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+
+        var position = e.GetPosition(this);
+
+        if (_hoverPosition is { } last && last == position)
+        {
+            return;
+        }
+
+        _hoverPosition = position;
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// The pointer left the control: the hover layer has nothing to draw on.
+    /// </summary>
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+
+        if (_hoverPosition is null)
+        {
+            return;
+        }
+
+        _hoverPosition = null;
+        InvalidateVisual();
+    }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
