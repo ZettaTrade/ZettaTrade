@@ -8,10 +8,12 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
-/// Simulated (paper) trading adapter. Fills orders immediately against reference prices
-/// taken from the wrapped <see cref="IMarketDataAdapter"/>, maintains in-memory balances
-/// and netted positions. Never touches real funds or exchange keys, which makes it the
-/// safe default trading surface for MCP tools and demos on any exchange.
+/// Simulated (paper) trading adapter. Market, stop and market-crossing limit orders
+/// fill immediately against prices taken from the wrapped <see cref="IMarketDataAdapter"/>,
+/// while a limit order resting away from the market stays Pending (and cancelable) until
+/// it is cancelled — there is no automatic matching loop. In-memory balances and netted
+/// positions are maintained for every fill. Never touches real funds or exchange keys,
+/// which makes it the safe default trading surface for MCP tools and demos on any exchange.
 /// </summary>
 public sealed class PaperTradingAdapter : ITradingAdapter
 {
@@ -31,7 +33,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     private const string OrderIdPrefix = "paper-";
     private const string PositionIdPrefix = "pos-";
 
-    /// <summary>Timeframe of the bar used as the market-order reference price.</summary>
+    /// <summary>Timeframe of the bar providing the reference price (market fills and limit crossing checks).</summary>
     private const TimeFrame ReferenceTimeFrame = TimeFrame.H1;
 
     /// <summary>Lookback window guaranteeing at least one reference bar exists.</summary>
@@ -124,22 +126,74 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         await _tradingLock.WaitAsync(ct);
         try
         {
+            if (request.Type == OrderType.Limit)
+            {
+                return await PlaceLimitOrderCoreAsync(request, ct);
+            }
+
+            // Market and stop orders keep the long-standing immediate-fill semantics.
             var fillPrice = await ResolveFillPriceAsync(request, ct);
-
-            var order = FillOrder(request, fillPrice);
-            _orders[order.Id] = order;
-            ApplyFillToPortfolio(order, fillPrice);
-
-            _logger.LogInformation(
-                "Paper fill: {Side} {Quantity} {Symbol} at {Price} ({Type})",
-                order.Side, order.Quantity.Value, order.Symbol.Normalized, fillPrice.Value, order.Type);
-
-            return order;
+            return FillAndApply(request, fillPrice);
         }
         finally
         {
             _tradingLock.Release();
         }
+    }
+
+    /// <summary>
+    /// The paper book simulation for limit orders: a limit whose price already reaches
+    /// the market (a buy at or above the latest reference close, a sell at or below)
+    /// fills at its own limit price exactly like before; a limit placed away from the
+    /// market rests as Pending — no balance or position is touched, there is no
+    /// matching loop, and the order stays cancelable.
+    /// </summary>
+    private async Task<Order> PlaceLimitOrderCoreAsync(OrderRequest request, CancellationToken ct)
+    {
+        // The request is validated: a limit always carries its limit price.
+        Price limitPrice = request.Price!.Value;
+        var referenceClose = await ResolveReferenceCloseAsync(request, ct);
+
+        var crosses = request.Side == OrderSide.Buy
+            ? limitPrice.Value >= referenceClose.Value
+            : limitPrice.Value <= referenceClose.Value;
+
+        if (!crosses)
+        {
+            var resting = CreateRestingOrder(request);
+            _orders[resting.Id] = resting;
+
+            _logger.LogInformation(
+                "Paper rest: {Side} {Quantity} {Symbol} limit {LimitPrice} does not cross the reference close {ReferenceClose}; the order stays pending until cancelled",
+                resting.Side,
+                resting.Quantity.Value,
+                resting.Symbol.Normalized,
+                limitPrice.Value,
+                referenceClose.Value);
+
+            return resting;
+        }
+
+        // A crossing limit takes liquidity at its own price (the limit price itself).
+        return FillAndApply(request, limitPrice);
+    }
+
+    /// <summary>Record a filled order and apply its portfolio effect, under the trading lock.</summary>
+    private Order FillAndApply(OrderRequest request, Price fillPrice)
+    {
+        var order = FillOrder(request, fillPrice);
+        _orders[order.Id] = order;
+        ApplyFillToPortfolio(order, fillPrice);
+
+        _logger.LogInformation(
+            "Paper fill: {Side} {Quantity} {Symbol} at {Price} ({Type})",
+            order.Side,
+            order.Quantity.Value,
+            order.Symbol.Normalized,
+            fillPrice.Value,
+            order.Type);
+
+        return order;
     }
 
     /// <inheritdoc/>
@@ -213,9 +267,11 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     #region Fill Simulation
 
     /// <summary>
-    /// Resolve the execution price without guessing: prefer the order's own prices;
-    /// market orders take the latest close from the wrapped adapter and fail loudly
-    /// when no reference data is available.
+    /// Resolve the execution price of an immediate fill without guessing: a stop-limit
+    /// order fills at its own limit price, a stop-market at its stop price, and a market
+    /// order takes the latest close from the wrapped adapter (failing loudly when no
+    /// reference data is available). Limit orders never reach here: the crossing
+    /// decision in <see cref="PlaceLimitOrderCoreAsync"/> routes them first.
     /// </summary>
     private async Task<Price> ResolveFillPriceAsync(OrderRequest request, CancellationToken ct)
     {
@@ -225,6 +281,17 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         if (request.StopPrice is { } stopPrice)
             return stopPrice;
 
+        return await ResolveReferenceCloseAsync(request, ct);
+    }
+
+    /// <summary>
+    /// Latest H1 close from the wrapped adapter — the market's reference price: the
+    /// fill price of market orders and the crossing yardstick for limit orders. Fails
+    /// loudly when no reference data is available: a paper fill without a market
+    /// price would corrupt the simulation.
+    /// </summary>
+    private async Task<Price> ResolveReferenceCloseAsync(OrderRequest request, CancellationToken ct)
+    {
         var bars = await _marketData.GetBarsAsync(
             request.Symbol,
             ReferenceTimeFrame,
@@ -234,12 +301,28 @@ public sealed class PaperTradingAdapter : ITradingAdapter
 
         if (bars.Count == 0)
             throw new InvalidOperationException(
-                $"No reference bar available for {request.Symbol.Normalized}; cannot fill a market order.");
+                $"No reference bar available for {request.Symbol.Normalized}; cannot fill a {request.Type} order.");
 
         return new Price(bars[^1].Close);
     }
 
-    private Order FillOrder(OrderRequest request, Price fillPrice)
+    /// <summary>The immediate-fill factory: the order records its full quantity.</summary>
+    private Order FillOrder(OrderRequest request, Price fillPrice) =>
+        CreateOrder(request, OrderStatus.Filled, fillPrice, request.Quantity);
+
+    /// <summary>The resting factory: a non-crossing limit keeps its own limit price and fills nothing.</summary>
+    private Order CreateRestingOrder(OrderRequest request)
+    {
+        // The request is validated: a limit always carries its limit price.
+        return CreateOrder(request, OrderStatus.Pending, request.Price!.Value, Quantity.Zero);
+    }
+
+    /// <summary>Shared order field copy — the paper adapter's single order spelling.</summary>
+    private Order CreateOrder(
+        OrderRequest request,
+        OrderStatus status,
+        Price fillPrice,
+        Quantity filledQuantity)
     {
         var id = $"{OrderIdPrefix}{Guid.NewGuid():N}";
         var now = DateTimeOffset.UtcNow;
@@ -258,8 +341,8 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             TimeInForce = request.TimeInForce,
             Expiry = request.Expiry,
             ClientOrderId = request.ClientOrderId,
-            Status = OrderStatus.Filled,
-            FilledQuantity = request.Quantity,
+            Status = status,
+            FilledQuantity = filledQuantity,
             CreatedAt = now,
             UpdatedAt = now,
         };
