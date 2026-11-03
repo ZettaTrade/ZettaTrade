@@ -33,7 +33,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-026 Working time frame on the chart | feat/timeframe | done | — |
 | T-027 Hide/show the AI assistant panel | feat/ai-panel-toggle | done | — |
 | T-028 Candle OHLC + crosshair price on chart hover | feat/chart-hover | done | — |
-| T-029 Persist the workspace symbol | feat/persist-symbol | queued | — |
+| T-029 Persist the workspace symbol | feat/persist-symbol | done | — |
 | T-030 Debt cleanup: LocalizedViewModelBase + Serilog console sink | chore/debt-cleanup | queued | — |
 | T-031 Cancel a working order from the UI | feat/cancel-order | queued | — |
 | T-032 The assistant answers: local model first (Ollama) | feat/ai-chat-local | queued | — |
@@ -569,6 +569,11 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** `ChartViewModel` (Preselect + a save hook), the settings keys, tests. Core untouched.
 - **Acceptance:** probe: select ETH/BTC while Binance is active → restart → the chart/book/dialog reopen on ETH/BTC; switch exchange to one that lacks it → logged fallback to the first entry.
 - **Tests:** the Preselect priority table (persisted/current/first/empty/fallback), save-on-change timing, restore behavior.
+- **Status:** done. Canon: the feature commit `bd0ae1a` is on develop (the user merged `feat/persist-symbol` as a fast-forward). Outcome:
+  - Shipped: `Workspace.SymbolId` (`UiSettingsKeys.WorkspaceSection`/`WorkspaceSymbolId`); the constructor persists every confirmed selection (`WhenAnyValue(SelectedSymbol)` → `Skip(1)` eats the ctor echo → the bootstrap-application gate → non-null → `FromAsync(SetAsync(...))`, errors logged), and every symbols bootstrap reads the preference FRESH inside its load (`LoadBootstrapAsync` — deliberately not `InitializeAsync`, which would race the constructor bootstrap). The decision stays pinned pure: `Preselect` prefers persisted → preserved-current → first entry → empty and returns the LIST's own instance (identity uplift, the combo's `SelectedItem` stays of its source); `TryParseStoredSymbol` never throws; an unsupported value only warns (no substitute), an unlisted one warns `is not listed on <Exchange>`. A bootstrap application never rewrites the preference (the restore echo would be a duplicate write; persisting the fall-through substitute would destroy the preference it deferred); a cleared selection never erases it.
+  - Tests 411 → 424 (13 Core + 179 App + 139 UI + 93 Infra; +13 App facts): the persisted-priority and fall-through tables, the identity uplift (`BeSameAs`), the restore-parse matrix (any case/trim/blank/`/USDT` → null), save-on-change, the identity echo writes once, null writes nothing; the `Preselect` call sites updated to the 3-arg signature.
+  - Probe `PROBE PASSED` (`t029-probe.ps1`, UIA + a real book-level click, settings bytes restored from the backup): a no-preference cold start on Binance opens its first listed entry ETH/BTC (combo and book agree); picking BTC/USDT persists it; the relaunch reopens chart, book and a book-click-prefilled order dialog on BTC/USDT; staging `Demo` + `XLM/USDT` logs `Persisted workspace symbol 'XLM/USDT' is not listed on Demo; starting on 'BTC/USDT'`, the combo falls to the demo first entry and the settings file keeps `XLM/USDT` + `ExchangeId=demo`. Canon fact the probe established: the persisted exchange is `binance` and Binance's trimmed listing's first entry is **ETH/BTC** (the demo universe's own first entry is BTC/USDT — this task's grounding dated from the demo runs). Probe lesson: a `,$`-wrapped array returned into a PowerShell PIPELINE arrives as one object, so `Where-Object` matched the whole fresh-log window as a single blob and masked real matches — bare `return` enumerates per-line; Phase 4's 0/1 timeouts were this harness artifact, never app behavior.
+  - No version bump: alpha.20 stays deferred (batch-completion decision, per T-037/T-027/T-028). Worktree `zt-persist-symbol` and branch removed post-merge.
 
 ## T-030 — Debt cleanup: LocalizedViewModelBase + the Serilog console sink
 
