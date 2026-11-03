@@ -5,6 +5,8 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Globalization;
 using System.Linq;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -162,6 +164,36 @@ public class CandlestickChart : Control
     private IDisposable? _themeChangeSubscription;
     private IDisposable? _languageChangeSubscription;
 
+    /// <summary>
+    /// The pan offset in bar slots: the count of loaded bars hidden at the
+    /// series' RIGHT end (zero keeps the newest bar at the plot's right edge
+    /// — the standing behavior). Zero on every new Bars instance (a rebase),
+    /// untouched by in-place appends and prepends: prepends only add older
+    /// bars to the series' left, so the offset still names the same bars.
+    /// UI-thread state only: pointer events mutate it, <see cref="CreateSnapshot"/>
+    /// copies its effect into the snapshot the render thread draws from.
+    /// </summary>
+    private int _panOffset;
+
+    /// <summary>
+    /// The control-space X where the active pan drag started, or null when
+    /// no drag is active (no pointer captured / released). UI-thread state only.
+    /// </summary>
+    private double? _panAnchorX;
+
+    /// <summary>
+    /// The older-history requests stream sink (hot; see <see cref="OlderHistoryRequested"/>).
+    /// </summary>
+    private readonly Subject<ChartOlderHistoryRequestedEventArgs> _olderHistoryRequested = new();
+
+    /// <summary>
+    /// The older-history requests stream, hot and fed on the UI thread: a
+    /// pan gesture that moves the window while its left edge stands on the
+    /// loaded series' first bar (see <see cref="ChartPanWindow.OlderFetchThresholdReached"/>).
+    /// The ViewModel answers with a fetch of the previous windows.
+    /// </summary>
+    public IObservable<ChartOlderHistoryRequestedEventArgs> OlderHistoryRequested => _olderHistoryRequested;
+
     /// <summary>Chart background color. Redraws the chart on change.</summary>
     public SKColor BackgroundColor
     {
@@ -312,6 +344,12 @@ public class CandlestickChart : Control
             newColl.CollectionChanged += OnBarsCollectionChanged;
         }
 
+        // A new Bars instance is a rebase (a full reload): the pan offset is
+        // defined against the loaded series, so the window returns to the
+        // newest bar. In-place edits keep it — prepends add older bars to
+        // the left only, so the offset keeps pointing at the same bars.
+        _panOffset = 0;
+
         Dispatcher.UIThread.Post(InvalidateVisual);
     }
 
@@ -351,8 +389,7 @@ public class CandlestickChart : Control
 
         if (bars is { Count: > 0 })
         {
-            var start = Math.Max(0, bars.Count - _visibleBars);
-            var end = Math.Min(bars.Count, start + _visibleBars);
+            var (start, end) = ChartPanWindow.VisibleSpan(bars.Count, _panOffset, _visibleBars);
 
             visible = new Bar[end - start];
             for (var i = 0; i < visible.Length; i++)
@@ -892,6 +929,10 @@ public class CandlestickChart : Control
 
         var position = e.GetPosition(this);
 
+        // An armed pan drag scrolls first (whole bar slots); the hover
+        // crosshair rides the same pointer either way.
+        ApplyPan(position.X);
+
         if (_hoverPosition is { } last && last == position)
         {
             return;
@@ -936,11 +977,118 @@ public class CandlestickChart : Control
         InvalidateVisual();
     }
 
+    /// <summary>
+    /// A left-button press arms a pan drag and captures the pointer: the
+    /// press itself pans nothing, so the chart is never dragged by an
+    /// accidental click (and the click keeps its <see cref="Focus"/> job).
+    /// </summary>
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+
+        var props = e.GetCurrentPoint(this).Properties;
+        if (props.IsLeftButtonPressed)
+        {
+            _panAnchorX = e.GetPosition(this).X;
+            e.Pointer.Capture(this);
+        }
+
         Focus();
     }
 
+    /// <summary>
+    /// The pan gesture ended: the anchor drops, the offset stands.
+    /// </summary>
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+
+        EndPan();
+    }
+
+    /// <summary>
+    /// The capture was lost mid-drag (the pointer left the window, a
+    /// menu grabbed it): end the pan rather than leaving a ghost anchor.
+    /// </summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+
+        EndPan();
+    }
+
+    /// <summary>
+    /// Ends the pan drag: the anchor drops, the offset stands.
+    /// </summary>
+    private void EndPan()
+    {
+        _panAnchorX = null;
+    }
+
+    /// <summary>
+    /// One moved-slot step of the pan: converts the pixel distance dragged,
+    /// relative to the anchor, into whole bar slots (the pan scrolls in
+    /// integer slots — the pitch is the same window-driven one the draw
+    /// pass paints with, so the scroll distance matches the bar width).
+    /// </summary>
+    private void ApplyPan(double draggedX)
+    {
+        var bars = Bars;
+        if (_panAnchorX is not { } anchorX || bars is not { Count: > 0 })
+        {
+            return;
+        }
+
+        var barCount = bars.Count;
+
+        // The pan step paces the slots the draw pass paints per pixel: the
+        // pitch comes from the VISIBLE SPAN (the draw pass computes it from
+        // the same slice), not from the raw window size - a shrunken span
+        // (a starved series, or a start-clamped window) would otherwise
+        // scroll at a different speed than the candles.
+        var (spanStart, spanEnd) = ChartPanWindow.VisibleSpan(barCount, _panOffset, _visibleBars);
+        var pitch = ChartBarLayout.BarPitch(Bounds.Width, spanEnd - spanStart, MaxBarPitchPx);
+        if (pitch <= 0)
+        {
+            return;
+        }
+
+        // Dragging RIGHT slides the timeline right: older bars enter the
+        // plot from the left, the offset grows. The distance is taken from
+        // the drag's own anchor (not per-event deltas) so a wave of move
+        // events accumulates without rounding drift.
+        var slots = (int)Math.Round((draggedX - anchorX) / pitch);
+        var moved = ChartPanWindow.ClampOffset(barCount, _panOffset + slots);
+        if (moved == _panOffset)
+        {
+            return;
+        }
+
+        _panOffset = moved;
+        InvalidateVisual();
+
+        // The window moved while its left edge stands on the series' first
+        // bar: older history is needed to keep panning. One request per
+        // moved slot — the ViewModel's interlock serializes the pages.
+        if (!ChartPanWindow.OlderFetchThresholdReached(barCount, moved, _visibleBars))
+        {
+            return;
+        }
+
+        var (start, _) = ChartPanWindow.VisibleSpan(barCount, moved, _visibleBars);
+        _olderHistoryRequested.OnNext(new ChartOlderHistoryRequestedEventArgs(bars[start].Time));
+    }
+
     #endregion
+
+    /// <summary>
+    /// One older-history request from a pan gesture: the oldest bar time
+    /// the visible window reached at the threshold moment. Context for the
+    /// subscriber — the fetch window itself is decided by the ViewModel.
+    /// </summary>
+    public sealed class ChartOlderHistoryRequestedEventArgs(DateTimeOffset oldestVisibleTime) : EventArgs
+    {
+        /// <summary>The oldest visible bar's open time at the request moment.</summary>
+        public DateTimeOffset OldestVisibleTime { get; } = oldestVisibleTime;
+    }
 }

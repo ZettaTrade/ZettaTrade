@@ -54,10 +54,24 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             level => OpenNewOrderDialogAsync(new OrderPrefill(level.Symbol, level.Side, level.Price)),
             onError: ex => Log.Error(ex, "Book level click stream failed"));
         Closed += (_, _) => _bookClicks.Dispose();
+
+        // The same route serves the chart's older-history requests: a pan
+        // that reaches the loaded series' left edge asks the ViewModel for
+        // the previous bars window (SubscribeAsync keeps the route task
+        // based; stream failures land in the log via the error callback).
+        _olderHistoryRequests = CandlesChart.OlderHistoryRequested
+            .ObserveOnUiThread()
+            .SubscribeAsync(
+                request => ViewModel!.Chart.RequestOlderBarsAsync(),
+                onError: ex => Log.Error(ex, "Chart older history request stream failed"));
+        Closed += (_, _) => _olderHistoryRequests.Dispose();
     }
 
     /// <summary>Subscription of the book level click stream; disposed with the window.</summary>
     private IDisposable? _bookClicks;
+
+    /// <summary>Subscription of the chart older-history request stream; disposed with the window.</summary>
+    private IDisposable? _olderHistoryRequests;
 
     /// <summary>
     /// The frames (queued below the render priority) the chat focus is
