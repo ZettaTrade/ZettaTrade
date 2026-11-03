@@ -2,12 +2,9 @@ namespace ZettaTrade.App.Tests.ViewModels;
 
 using System.Reactive.Linq;
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
-using NSubstitute;
 using ReactiveUI.Primitives;
 using Xunit;
 using ZettaTrade.App.ViewModels;
-using ZettaTrade.Core.Interfaces;
 
 /// <summary>
 /// Tests for the menu command routing: the dialog commands raise their
@@ -134,10 +131,7 @@ public sealed class MenuViewModelTests
     [Fact]
     public async Task TheStartupRestoreArrivesAfterTheMenuLanded_MirrorsTheRestoredState()
     {
-        var settings = Substitute.For<ISettingsService>();
-        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
-            .Returns(false);
-        var chat = new ChatViewModel(settings, NullLogger<ChatViewModel>.Instance);
+        var chat = ChatTests.CreateAnonymousChat(false);
         var menu = new MenuViewModel(chat);
 
         menu.IsAiChatVisible.Should().BeTrue("the restore has not applied yet");
@@ -147,9 +141,8 @@ public sealed class MenuViewModelTests
         menu.IsAiChatVisible.Should().BeFalse("the mirror follows the restored persisted state");
     }
 
-    private static ChatViewModel CreateChat() => new(
-        Substitute.For<ISettingsService>(),
-        NullLogger<ChatViewModel>.Instance);
+    private static ChatViewModel CreateChat() =>
+        ChatTests.CreateAnonymousChat();
 
     private static (MenuViewModel Menu, ChatViewModel Chat) CreateMenuWithChat()
     {

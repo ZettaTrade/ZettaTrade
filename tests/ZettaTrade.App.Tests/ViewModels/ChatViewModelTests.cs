@@ -1,23 +1,39 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Reactive.Threading.Tasks;
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
-using ZettaTrade.App;
+using ZettaTrade.AI.Chat;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
 
+/// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
+using RxVoid = ReactiveUI.Primitives.RxVoid;
+
 /// <summary>
-/// Chat panel visibility as persisted state: the startup walk restores
-/// <c>UI.ShowAiPanel</c> (default visible) before any window opens, every
-/// user toggle persists immediately, the restore and the changes-stream echo
-/// never rewrite the value they just applied (the real-difference cache), and
-/// external writers apply live.
+/// Chat panel state: the visibility is persisted state (the startup walk
+/// restores <c>UI.ShowAiPanel</c> before any window opens, every user toggle
+/// persists immediately, the restore and the changes-stream echo never
+/// rewrite the value they just applied, and external writers apply live);
+/// the send pipeline turns the input into a workspace-context completion
+/// where the user turn lands first, the answer appends as an assistant turn,
+/// an unavailable assistant reports an honest in-chat error line, and no
+/// request ever races another.
 /// </summary>
 public sealed class ChatViewModelTests
 {
+    /// <summary>
+    /// How long a test waits for the send pipeline to reach its next
+    /// observable signal before calling the arrangement broken (never hit in
+    /// a healthy pipeline; keeps a stalled test diagnosable).
+    /// </summary>
+    private static readonly TimeSpan SendWaitBudget = TimeSpan.FromSeconds(10);
+
+    #region Visibility
+
     /// <summary>
     /// No persisted choice (the third-party default read) keeps the panel the
     /// layout every session had before the toggle existed.
@@ -161,27 +177,316 @@ public sealed class ChatViewModelTests
             true);
     }
 
+    #endregion
+
+    #region Send Pipeline
+
+    /// <summary>
+    /// An answered send: the user turn lands first with its localizer label,
+    /// the answer appends as an assistant turn, and the accepted message
+    /// yields the input to the answer (not kept waiting for it).
+    /// </summary>
+    [Fact]
+    public async Task SendTextCommand_AnAnsweredRequest_AppendsTheAssistantTurnAndClearsTheInput()
+    {
+        // Arrange
+        var kit = ChatTests.CreateKit();
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<ChatTurn>>(),
+                Arg.Any<CancellationToken>())
+            .Returns("The workspace frame is a display fact, not a trading signal.");
+        kit.Chat.AiChatInput = "How is the market?";
+
+        // Act
+        await kit.Chat.SendTextCommand.Execute(RxVoid.Default);
+
+        // Assert
+        kit.Chat.ChatMessages
+            .Select(message => (message.Kind, message.Content))
+            .Should().Equal(
+                (ChatMessageKind.UserTurn, "How is the market?"),
+                (ChatMessageKind.AssistantTurn, "The workspace frame is a display fact, not a trading signal."));
+        kit.Chat.ChatMessages[0].Role.Should().Be("AI.Chat.RoleUser");
+        kit.Chat.ChatMessages[1].Role.Should().Be("AI.Chat.RoleAssistant");
+        kit.Chat.AiChatInput.Should().BeEmpty("the accepted message yields the input to the answer");
+        kit.Chat.IsBusy.Should().BeFalse("the send finished before the assertion");
+    }
+
+    /// <summary>
+    /// The provider receives a composed workspace prompt (the assistant's
+    /// identity in ZettaTrade, the current exchange) and exactly the session
+    /// history: the user turn rides, nothing invented does.
+    /// </summary>
+    [Fact]
+    public async Task SendTextCommand_TheFirstSend_ComposesTheWorkspacePromptAndSendsTheUserTurn()
+    {
+        // Arrange
+        var kit = ChatTests.CreateKit();
+        var prompts = new List<string>();
+        var histories = new List<IReadOnlyList<ChatTurn>>();
+        kit.Completion
+            .CompleteAsync(
+                Arg.Do<string>(prompts.Add),
+                Arg.Do<IReadOnlyList<ChatTurn>>(histories.Add),
+                Arg.Any<CancellationToken>())
+            .Returns("placeholder answer");
+        kit.Chat.AiChatInput = "How is the market?";
+
+        // Act
+        await kit.Chat.SendTextCommand.Execute(RxVoid.Default);
+
+        // Assert
+        prompts.Should().ContainSingle()
+            .Which.Should().Contain("ZettaTrade", "the identity line states the assistant's home")
+                .And.Contain(ChatTests.IdleExchangeName, "the current exchange rides the prompt");
+        histories.Should().ContainSingle();
+        histories[0].Should().Equal(new ChatTurn(ChatTurn.UserRole, "How is the market?"));
+    }
+
+    /// <summary>
+    /// The later send rides the honest session history: the answered first
+    /// exchange (both turns) and the new question go to the model, while an
+    /// in-chat error line from an unavailable assistant stays out — it is
+    /// rendered for the trader, never sent as conversation.
+    /// </summary>
+    [Fact]
+    public async Task SendTextCommand_TheLaterExchange_RidesTheHistorySansErrorLines()
+    {
+        // Arrange: each send reaches the provider in order; the plan scripts
+        // one answered exchange, an unavailable assistant, then a recovery
+        var kit = ChatTests.CreateKit();
+        var prompts = new List<string>();
+        var histories = new List<IReadOnlyList<ChatTurn>>();
+        var sends = 0;
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<ChatTurn>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                prompts.Add(call.ArgAt<string>(0));
+                histories.Add(call.ArgAt<IReadOnlyList<ChatTurn>>(1));
+
+                return sends++ switch
+                {
+                    0 => Task.FromResult("first answer"),
+                    1 => Task.FromException<string>(new HttpRequestException("the local model server is off")),
+                    _ => Task.FromResult("third answer"),
+                };
+            });
+
+        kit.Chat.AiChatInput = "first question";
+        await kit.Chat.SendTextCommand.Execute(RxVoid.Default);
+
+        kit.Chat.AiChatInput = "second question";
+        await kit.Chat.SendTextCommand.Execute(RxVoid.Default);
+
+        kit.Chat.AiChatInput = "third question";
+        await kit.Chat.SendTextCommand.Execute(RxVoid.Default);
+
+        // Assert
+        prompts.Should().HaveCount(3);
+        histories.Should().HaveCount(3);
+
+        // The second question's user turn stays in the honest history even
+        // though its answer failed; only the error line stays out
+        histories[2].Should().Equal(
+            new ChatTurn(ChatTurn.UserRole, "first question"),
+            new ChatTurn(ChatTurn.AssistantRole, "first answer"),
+            new ChatTurn(ChatTurn.UserRole, "second question"),
+            new ChatTurn(ChatTurn.UserRole, "third question"));
+        kit.Chat.ChatMessages
+            .Select(message => message.Kind)
+            .Should().Equal(
+                new[]
+                {
+                    ChatMessageKind.UserTurn,
+                    ChatMessageKind.AssistantTurn,
+                    ChatMessageKind.UserTurn,
+                    ChatMessageKind.ErrorLine,
+                    ChatMessageKind.UserTurn,
+                    ChatMessageKind.AssistantTurn,
+                },
+                "the unavailable send keeps its question, explains itself, and the recovery answers the next ask");
+    }
+
+    /// <summary>
+    /// An unavailable assistant reports honestly: the user turn stays (the
+    /// trader sees what was asked), the in-chat error line carries the
+    /// localized failure text with the underlying reason, the input cleared
+    /// (the request was accepted), and the bus went idle again.
+    /// </summary>
+    [Fact]
+    public async Task SendTextCommand_AnUnavailableAssistant_KeepsTheUserTurnAndReportsAnHonestErrorLine()
+    {
+        // Arrange
+        var kit = ChatTests.CreateKit();
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<ChatTurn>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<string>(new HttpRequestException("the local model server is off")));
+        kit.Localization
+            .GetString("AI.Chat.Error", "the local model server is off")
+            .Returns("The assistant is unavailable: the local model server is off");
+        kit.Chat.AiChatInput = "How is the market?";
+
+        // Act
+        await kit.Chat.SendTextCommand.Execute(RxVoid.Default);
+
+        // Assert
+        kit.Chat.ChatMessages
+            .Select(message => message.Kind)
+            .Should().Equal(ChatMessageKind.UserTurn, ChatMessageKind.ErrorLine);
+        kit.Chat.ChatMessages[1].Content
+            .Should().Be("The assistant is unavailable: the local model server is off");
+        kit.Chat.AiChatInput.Should().BeEmpty("the failed request was still accepted");
+        kit.Chat.IsBusy.Should().BeFalse("the failure finished before the assertion");
+    }
+
+    /// <summary>
+    /// An abandoned request (the send gave up before its answer — a shutdown
+    /// or a canceled request) leaves the accepted user turn in place with no
+    /// fabricated answer and no error line, and the bus goes idle again.
+    /// </summary>
+    [Fact]
+    public async Task SendTextCommand_AbandonedRequest_KeepsTheTurnWithoutAnAnswerOrAnErrorLine()
+    {
+        // Arrange
+        using var abandonment = new CancellationTokenSource();
+        abandonment.Cancel();
+        var kit = ChatTests.CreateKit();
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<ChatTurn>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromCanceled<string>(abandonment.Token));
+        kit.Chat.AiChatInput = "How is the market?";
+
+        // Act
+        await kit.Chat.SendTextCommand.Execute(RxVoid.Default);
+
+        // Assert
+        kit.Chat.ChatMessages
+            .Select(message => message.Kind)
+            .Should().Equal(ChatMessageKind.UserTurn);
+        kit.Chat.AiChatInput.Should().BeEmpty("the accepted request still cleared its input");
+        kit.Chat.IsBusy.Should().BeFalse("the abandoned request finished before the assertion");
+    }
+
+    /// <summary>
+    /// One assistant request at a time: while the first request is in flight
+    /// the send is locked, so a fast second send cannot race a duplicate
+    /// request past the guard — the command refuses the invocation (a vetoed
+    /// error) or drops it (a no-op), and never a second completion.
+    /// </summary>
+    [Fact]
+    public async Task SendTextCommand_AnotherRequestInFlight_CannotDoubleSend()
+    {
+        // Arrange
+        var kit = ChatTests.CreateKit();
+        var pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<ChatTurn>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+        kit.Chat.AiChatInput = "first question";
+
+        var parked = kit.Chat
+            .WhenAnyValue(x => x.IsBusy)
+            .Where(busy => busy)
+            .FirstAsync()
+            .Timeout(SendWaitBudget)
+            .ToTask();
+        var firstDone = new TaskCompletionSource<RxVoid>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var firstWatcher = kit.Chat.SendTextCommand.Execute(RxVoid.Default).Subscribe(
+            value => firstDone.TrySetResult(value),
+            exception => firstDone.SetException(exception),
+            () => firstDone.TrySetResult(RxVoid.Default));
+        await parked;
+
+        // Act: the second send while parked — refused, never raced
+        using var secondWatcher = kit.Chat.SendTextCommand.Execute(RxVoid.Default).Subscribe(
+            _ => { },
+            _ => { },
+            () => { });
+
+        pending.TrySetResult("the only answer");
+        await firstDone.Task;
+
+        // Assert
+        await kit.Completion.Received(1).CompleteAsync(
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<ChatTurn>>(),
+            Arg.Any<CancellationToken>());
+        kit.Chat.ChatMessages
+            .Select(message => (message.Kind, message.Content))
+            .Should().Equal(
+                (ChatMessageKind.UserTurn, "first question"),
+                (ChatMessageKind.AssistantTurn, "the only answer"));
+        kit.Chat.IsBusy.Should().BeFalse();
+        kit.Chat.AiChatInput.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// No send without text: the empty box and the whitespace-only box keep
+    /// the send locked, and typing a real message unlocks it.
+    /// </summary>
+    [Fact]
+    public void SendTextCommand_WithoutUsableText_TheSendStaysLocked()
+    {
+        // Arrange: the guard emits its current state at subscribe, so one
+        // subscription reads the standing lock as the input changes
+        var kit = ChatTests.CreateKit();
+        bool? unlocked = null;
+        using var watch = kit.Chat.SendTextCommand.CanExecute.Subscribe(guard => unlocked = guard);
+
+        unlocked.Should().BeFalse("no text, no send");
+
+        // Act: whitespace is not a message either
+        kit.Chat.AiChatInput = "   ";
+
+        // Assert
+        unlocked.Should().BeFalse("only whitespace, still no send");
+
+        // Act: a real message unlocks the send
+        kit.Chat.AiChatInput = "How is the market?";
+
+        // Assert
+        unlocked.Should().BeTrue();
+    }
+
+    #endregion
+
+    #region Factories
+
     /// <summary>Create a chat whose persisted read returns <paramref name="persistedValue"/>.</summary>
     private static ChatViewModel CreateChat(
         out ISettingsService settings,
         bool persistedValue)
     {
-        var (chat, _, substitute) = CreateChatWithChanges(persistedValue);
+        var kit = ChatTests.CreateKit(persistedValue);
 
-        settings = substitute;
+        settings = kit.Settings;
 
-        return chat;
+        return kit.Chat;
     }
 
+    /// <summary>A chat with its changes stream and settings substitute at hand.</summary>
     private static (ChatViewModel Chat, Subject<SettingsChange> Changes, ISettingsService Settings)
         CreateChatWithChanges(bool persistedValue)
     {
-        var settings = Substitute.For<ISettingsService>();
-        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
-            .Returns(persistedValue);
-        var changes = new Subject<SettingsChange>();
-        settings.Changes.Returns(changes);
+        var kit = ChatTests.CreateKit(persistedValue);
 
-        return (new ChatViewModel(settings, NullLogger<ChatViewModel>.Instance), changes, settings);
+        return (kit.Chat, kit.Changes, kit.Settings);
     }
+
+    #endregion
 }
