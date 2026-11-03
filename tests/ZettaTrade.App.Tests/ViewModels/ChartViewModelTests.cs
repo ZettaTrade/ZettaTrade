@@ -26,9 +26,11 @@ using ZettaTrade.Core.ValueObjects;
 /// and an exchange switch re-targets both the symbols bootstrap and the bars
 /// load at the new adapter, cancelling the in-flight load of the previous
 /// one. UI-thread hopping is not exercised — the assignments land through
-/// ObserveOnUiThread, which a test process does not pump; the preselection
-/// DECISION is pinned in its pure form via
-/// <see cref="ChartViewModel.Preselect"/>.
+/// ObserveOnUiThread, which a test process does not pump; every fact below
+/// asserts only marshal-invariant state (the adapter's call records and the
+/// raw Rx paths), and the marshalled deliveries are covered by the real
+/// dispatcher in the acceptance probe. The preselection DECISION is pinned
+/// in its pure form via <see cref="ChartViewModel.Preselect"/>.
 /// </summary>
 public sealed class ChartViewModelTests
 {
@@ -73,6 +75,14 @@ public sealed class ChartViewModelTests
 
         public List<CancellationToken> BarsCancellationTokens { get; } = new();
 
+        /// <summary>The request window (from/to/limit) of every bars load,
+        /// in call order: the paging facts verify the fetch shape against
+        /// the delivered series' head.</summary>
+        public List<BarsWindow> BarsWindowRequests { get; } = new();
+
+        /// <summary>One request window record: the adapter's from/to/limit.</summary>
+        public sealed record BarsWindow(DateTimeOffset From, DateTimeOffset? To, int Limit);
+
         public string Id { get; }
 
         public string Name { get; }
@@ -96,6 +106,7 @@ public sealed class ChartViewModelTests
             int limit = 500,
             CancellationToken ct = default)
         {
+            BarsWindowRequests.Add(new BarsWindow(from, to, limit));
             BarsRequested.Add(symbol);
             BarsTimeFrames.Add(timeFrame);
             BarsCancellationTokens.Add(ct);
@@ -110,6 +121,7 @@ public sealed class ChartViewModelTests
                 await Task.Delay(_barDelayMs, ct);
             }
 
+            // The standing behavior: one bar at the requested start edge.
             // The symbol is marked in the close so delivered bars are verified
             // by value, not by timing.
             var close = CloseFor(symbol);
@@ -790,6 +802,66 @@ public sealed class ChartViewModelTests
     [InlineData("garbage", null)]
     public void ParseStoredTimeFrame_PinsTheRestoreContract(string? stored, TimeFrame? expected) =>
         ChartViewModel.ParseStoredTimeFrame(stored).Should().Be(expected);
+
+    #region Older History Paging
+
+    /// <summary>The boot depth on the default H1 frame (hours).</summary>
+    private const int InitialDepthHours = 200;
+
+    [Fact]
+    public void BarsLoad_FetchesTheFullInitialDepthAndTheFreshEdge()
+    {
+        var marketData = new FakeMarketData();
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+
+        // The fact drives its own load: the bootstrap preselection applies
+        // through a marshalled subscriber (inline in a solo run, posted into
+        // an unpumped queue in a full-suite run), so only an explicit
+        // assignment makes the asserted fetch land deterministically. The
+        // raw load machine subscribes inline — the record is on the adapter
+        // before the statement returns, in every dispatcher world.
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        // The boot shape: the H1 depth walked back from now, running to the
+        // live edge, and the limit one over the depth (the boundary candle
+        // the merge dedupes — a saturated limit would cut the fresh edge).
+        marketData.BarsRequested[^1].Should().Be(Symbol.Parse("BTC/USDT"));
+        marketData.BarsTimeFrames[^1].Should().Be(TimeFrame.H1);
+        var window = marketData.BarsWindowRequests[^1];
+        window.Limit.Should().Be(InitialDepthHours + 1);
+        window.To.Should().BeNull("the initial load always runs to the live edge");
+        window.From.Should().BeCloseTo(
+            DateTimeOffset.UtcNow.AddHours(-InitialDepthHours),
+            TimeSpan.FromHours(2),
+            "the H1 depth walks 200 candles back (a small clock slack)");
+    }
+
+    [Fact]
+    public async Task PagingRequest_BeforeAnyDelivery_DropsQuietly()
+    {
+        var marketData = new FakeMarketData(barDelayMs: 30);
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+
+        // An explicit assignment makes the recorded load deterministic (see
+        // BarsLoad above). The 30 ms delay moves the load's completion off
+        // the test thread, so its delivery lands as a posted marshal into an
+        // unpumped queue — Bars stays empty in every dispatcher world.
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        var recorded = marketData.BarsWindowRequests.Count;
+        recorded.Should().BePositive("the fact's own load must be in flight");
+
+        // Act: a paging request while no delivery has ever landed.
+        await chart.RequestOlderBarsAsync();
+
+        marketData.BarsWindowRequests.Should().HaveCount(
+            recorded,
+            "a request before any delivery has no target and drops quietly");
+        marketData.BarsWindowRequests.Should().OnlyContain(
+            window => window.To == null,
+            "no paging window (To = the series head) was ever fetched");
+    }
+
+    #endregion
 
     #endregion
 }

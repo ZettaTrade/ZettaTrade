@@ -2,6 +2,7 @@ namespace ZettaTrade.App.ViewModels;
 
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
@@ -185,6 +186,65 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     public IObservable<IReadOnlyList<Bar>> BarsUpdates { get; }
 
+    /// <summary>
+    /// The prepend slices produced by older-history paging: every emission
+    /// is the strictly-ascending, deduped slice that arrived older than the
+    /// series' current head (see <see cref="BarSeriesMerge.PrependOlder"/>).
+    /// Raw — the UI-thread subscriber inserts it at the head of
+    /// <see cref="Bars"/>; a test consumer reads the semantics off the raw
+    /// stream. Empty and null-guard results never emit (the request path
+    /// resolves them into exhaustion or a logged rejection).
+    /// </summary>
+    public IObservable<IReadOnlyList<Bar>> OlderBarsUpdates { get; }
+
+    /// <summary>
+    /// One delivered full load, with the (symbol, time frame, adapter) triple
+    /// that produced it: the private payload the delivered subscriber uses to
+    /// pin <see cref="_loadedTarget"/> for the paging path.
+    /// </summary>
+    private sealed record ChartBarsPage(
+        Symbol Symbol,
+        TimeFrame TimeFrame,
+        IMarketDataAdapter Adapter,
+        IReadOnlyList<Bar> Bars);
+
+    #endregion
+
+    #region Older History State
+
+    /// <summary>
+    /// The (symbol, time frame, exchange) pair the LAST delivered full load
+    /// produced: paging rides exactly it. A page racing a rebase (the
+    /// delivered bundle replaced the series underneath the pending fetch) is
+    /// dropped — the rebase owns the series, not the stale page.
+    /// </summary>
+    private (Symbol Symbol, TimeFrame TimeFrame, string ExchangeId)? _loadedTarget;
+
+    /// <summary>The adapter the last load delivered through; paging fetches through it (recorded with <see cref="_loadedTarget"/>).</summary>
+    private IMarketDataAdapter? _loadedAdapter;
+
+    /// <summary>Whether an older-history fetch is in flight (the request path serializes on it; a request racing the release is dropped and the next pan crossing re-raises it).</summary>
+    private bool _olderFetchInFlight;
+
+    /// <summary>Prepend slices queued on the UI thread but not inserted yet: a new request waits for the series' head to move (a duplicate fetch would dedupe to zero and fake exhaustion).</summary>
+    private int _olderAppendsPending;
+
+    /// <summary>Whether deeper history proved absent at the current anchor (the empty prepend result); a rebase clears it so the fresh series pages again.</summary>
+    private bool _olderHistoryExhausted;
+
+    /// <summary>Cancels the in-flight older-history fetch when a rebase lands (the loading pipeline owns the series; a stale page never merges into a fresh one).</summary>
+    private CancellationTokenSource? _olderFetchEpoch;
+
+    /// <summary>The paging requests' sink (hot; see <see cref="OlderBarsUpdates"/>).</summary>
+    private readonly Subject<IReadOnlyList<Bar>> _olderPages = new();
+
+    /// <summary>
+    /// The full-load pipeline carrying each delivered load with its triple
+    /// (see <see cref="ChartBarsPage"/>): <see cref="BarsUpdates"/> maps the
+    /// raw bars off it, the delivered subscriber reads the page.
+    /// </summary>
+    private IObservable<ChartBarsPage> _barsPages = default!;
+
     #endregion
 
     #region Constructors
@@ -220,15 +280,67 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         // each load serves precisely its triggering change, and the Switch
         // drops the in-flight load of a superseded triple (atomic by
         // construction) — a rapid time frame flip leaves exactly one load.
-        BarsUpdates = SymbolSelections
+        // Every delivered load rides its triple as a private page: the
+        // public BarsUpdates stays the raw bars, the delivered subscriber
+        // reads the page to pin the paging target.
+        _barsPages = SymbolSelections
             .CombineLatest(
                 this.WhenAnyValue(x => x.SelectedTimeFrame),
                 activeExchanges.AdapterChanges,
                 (symbol, timeFrame, adapter) => (Symbol: symbol, TimeFrame: timeFrame, Adapter: adapter))
-            .Select(triple => LoadBars(triple.Symbol, triple.TimeFrame, triple.Adapter))
+            .Select(triple =>
+                LoadBars(triple.Symbol, triple.TimeFrame, triple.Adapter)
+                    .Select(bars => new ChartBarsPage(triple.Symbol, triple.TimeFrame, triple.Adapter, bars)))
             .Switch()
             .Replay(1)
             .RefCount();
+
+        BarsUpdates = _barsPages.Select(static page => page.Bars);
+        OlderBarsUpdates = _olderPages;
+
+        // The ViewModel lives as long as the application (singleton), so this
+        // subscription mirrors it and needs no explicit disposal. The marshal
+        // chain keeps <see cref="Bars"/> on the Avalonia UI thread.
+        _barsPages.ObserveOnUiThread()
+            .Subscribe(
+                page =>
+                {
+                    // A full load is a rebase: the series belongs to the new
+                    // triple. The paging state resets with it — the in-flight
+                    // stale fetch is cancelled, exhaustion clears, and the
+                    // new series pages from its own head.
+                    _olderFetchEpoch?.Cancel();
+                    _olderFetchEpoch = null;
+                    _olderAppendsPending = 0;
+                    _olderHistoryExhausted = false;
+                    _loadedTarget = (page.Symbol, page.TimeFrame, page.Adapter.Id);
+                    _loadedAdapter = page.Adapter;
+
+                    Bars = new ObservableCollection<Bar>(page.Bars);
+                    _logger.LogInformation("Chart bars delivered: {Count} candles", page.Bars.Count);
+                },
+                ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
+
+        // The prepend slices insert at the series' head on the UI thread;
+        // the request path serialized them (one in flight, one queued at
+        // most) and counts them pending until this insertion runs.
+        _olderPages.ObserveOnUiThread()
+            .Subscribe(
+                prepend =>
+                {
+                    _olderAppendsPending--;
+                    for (var i = prepend.Count - 1; i >= 0; i--)
+                    {
+                        Bars.Insert(0, prepend[i]);
+                    }
+
+                    _logger.LogInformation(
+                        "Chart bars appended: {Count} older candles for {Symbol} {TimeFrame}",
+                        prepend.Count,
+                        _loadedTarget?.Symbol.Normalized,
+                        _loadedTarget?.TimeFrame);
+                },
+                ex => _logger.LogError(ex, "The chart older-bars stream stopped unexpectedly"));
 
         // The time frame persists: every USER change writes the enum name
         // into the UI settings section (the debounced settings service calls
@@ -284,17 +396,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 use12HourClock => Use12HourClock = use12HourClock,
                 ex => _logger.LogError(ex, "The chart clock format stream stopped unexpectedly"));
 
-        // The ViewModel lives as long as the application (singleton), so this
-        // subscription mirrors it and needs no explicit disposal. The marshal
-        // chain keeps <see cref="Bars"/> on the Avalonia UI thread.
-        BarsUpdates.ObserveOnUiThread()
-            .Subscribe(
-                bars =>
-                {
-                    Bars = new ObservableCollection<Bar>(bars);
-                    _logger.LogInformation("Chart bars delivered: {Count} candles", bars.Count);
-                },
-                ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
 
         // The symbol list belongs to the exchange: the bootstrap re-runs on
         // every adapter change (the behavioral stream also performs the first
@@ -656,6 +757,114 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 _logger.LogError(ex, "Failed to load chart data for {Symbol}", symbol);
                 return Observable.Empty<IReadOnlyList<Bar>>();
             });
+    }
+
+    #endregion
+
+    #region Older History Paging
+
+    /// <summary>
+    /// Fetch and prepend the PREVIOUS window for the loaded series (the
+    /// chart pan crossed the left edge of the loaded history — see the
+    /// chart's fetch threshold). The request rides the LAST delivered load's
+    /// triple exactly: an anchor before any delivery, a duplicate racing
+    /// release, or an exhausted history drops quietly, and a page racing a
+    /// rebase is dropped with the view untouched — the rebase (symbol, time
+    /// frame or exchange change) owns the series.
+    /// </summary>
+    /// <param name="ct">The caller's cancellation: an abandoned request
+    /// (shutdown) stops its fetch without throwing.</param>
+    public async Task RequestOlderBarsAsync(CancellationToken ct = default)
+    {
+        if (_olderFetchInFlight)
+        {
+            return;
+        }
+
+        if (_olderHistoryExhausted || _olderAppendsPending > 0)
+        {
+            return;
+        }
+
+        if (Bars.Count == 0 || _loadedTarget is not { } target || _loadedAdapter is null)
+        {
+            return;
+        }
+
+        _olderFetchInFlight = true;
+        _olderFetchEpoch = new CancellationTokenSource();
+        try
+        {
+            // The anchor and the series snapshot are the same object: a
+            // rebase replaces the collection between them, and the fetch's
+            // result dedupes against exactly the series it was captured on.
+            var series = Bars;
+            var anchor = series[0].Time;
+
+            var page = await _loadedAdapter.GetBarsAsync(
+                target.Symbol,
+                target.TimeFrame,
+                HistoryStart(anchor, target.TimeFrame, InitialBarCount),
+                to: anchor,
+                limit: InitialBarCount + 1,
+                ct: CancellationTokenSource.CreateLinkedTokenSource(ct, _olderFetchEpoch.Token).Token);
+
+            // The rebase check: a delivered full load replaced the collection
+            // (and cancelled this epoch) while the page was in flight — the
+            // page answers a series that no longer exists.
+            if (!ReferenceEquals(Bars, series))
+            {
+                _logger.LogInformation(
+                    "Chart older-bars page dropped: the series was rebased during the fetch ({Symbol} {TimeFrame} on {Exchange})",
+                    target.Symbol.Normalized,
+                    target.TimeFrame,
+                    target.ExchangeId);
+                return;
+            }
+
+            var prepend = BarSeriesMerge.PrependOlder(series, page);
+            if (prepend is null)
+            {
+                _logger.LogError(
+                    "Chart older-bars page rejected: bars are not strictly ascending ({Symbol} {TimeFrame} on {Exchange})",
+                    target.Symbol.Normalized,
+                    target.TimeFrame,
+                    target.ExchangeId);
+                return;
+            }
+
+            if (prepend.Count == 0)
+            {
+                // Nothing older arrived at this anchor: the loaded series
+                // already reaches the adapter's first candle for this triple.
+                // Deeper panning stays on the loaded bars until a rebase.
+                _olderHistoryExhausted = true;
+                _logger.LogInformation(
+                    "Chart older history exhausted for {Symbol} {TimeFrame} on {Exchange}",
+                    target.Symbol.Normalized,
+                    target.TimeFrame,
+                    target.ExchangeId);
+                return;
+            }
+
+            _olderAppendsPending++;
+            _olderPages.OnNext(prepend);
+        }
+        catch (OperationCanceledException)
+        {
+            // A cancelled request is normal: the rebase dropped the page or
+            // the caller (shutdown) abandoned it — the view stays as it was.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load older chart data for {Symbol}", _loadedTarget?.Symbol.Normalized);
+        }
+        finally
+        {
+            _olderFetchEpoch?.Dispose();
+            _olderFetchEpoch = null;
+            _olderFetchInFlight = false;
+        }
     }
 
     #endregion
