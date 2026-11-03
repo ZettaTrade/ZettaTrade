@@ -40,7 +40,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-033 Chart pan + older-history paging | feat/chart-pan | queued | — |
 | T-034 Indicator seam MVP (a plugin draws an SMA overlay) | feat/indicators | queued | — |
 | T-035 Chart axis labels clip at the canvas edges + zoom never re-buckets the axes (user-reported) | fix/chart-axes | done | — |
-| T-036 Chart history depth + candle-size cap (user-reported: W1/MN render one full-width candle) | fix/chart-history | queued | — |
+| T-036 Chart history depth + candle-size cap (user-reported: W1/MN render one full-width candle) | fix/chart-history | done | — |
 | T-037 Exchange-grade time axis: density, calendar anchors, year labels (user-reported) | feat/time-grid | queued | — |
 
 ---
@@ -618,6 +618,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** `ChartViewModel.cs` (+ the TF-duration history-start math as a testable pure piece), `CandlestickChart.cs` bar layout + time mapping for the capped case, tests (App.Tests history-start facts; UI.Tests bar-layout facts). No Core, no resx.
 - **Acceptance:** pixel probe (the T-035 harness): W1/MN1 show the exchange picture — many candles and NO full-width candle; the H4 state keeps the T-035 verdict (label bands inked, zero edge ink).
 - **Tests:** the TF→duration history-start math for every enum member, the pitch cap + right-anchor mapping (pure facts), the snapshot/zoom window unchanged.
+- **Status:** done. Canon: the feature commit `7dc6d07` is on develop (merge `8e6bad8`, non-FF — develop had the T-037 docs commits past the branch's cut base). Outcome: per-TF history window (`ChartViewModel.HistoryStart`, MN1→30d…M1→1m switch; the load limit holds one over the bar count so the exchange's oldest-first answer keeps the fresh edge), capped pitch + right-anchored slots in a new pure `ChartBarLayout` (21 UI tests: cap/uncap, legacy-equivalence, slot snapping, gap/one-bar/empty edges), App.Tests +11 (per-TF 200-bar walk-back theory, unknown frame → error). Gate: `GATE PASSED`, 348 tests (13 Core + 152 App + 90 UI + 93 Infra). Pixel probe `PROBE PASSED` (harness `t036-probe.ps1`, TF switching via UIA + delivered-log gating): delivered M1=200/H4=200/W1=201/MN1=104 (was 7-day window: H4 42, W1 1–2, MN1 1), max candle paint run ≤ 44·s px on every state (no full-width walls), H4 keeps the T-035 verdict incl. zoom re-bucketing (TG diffs 3534/3874 over jitter), the persisted TF was restored after the probe. The user's follow-up review (W1/D1 axis labels: backward-drifting day-of-month, no years, off-month day grids) grew T-037's scope on develop (`8c3ffc4`).
 
 ## T-037 — Exchange-grade time axis: density, calendar anchors, year labels (user-reported)
 
