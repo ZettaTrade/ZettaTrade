@@ -20,8 +20,8 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to show order history view.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowOrderHistoryCommand { get; }
 
-    /// <summary>Command to open AI chat.</summary>
-    public ReactiveCommand<RxVoid, RxVoid> OpenAiChatCommand { get; }
+    /// <summary>Command to toggle the AI chat panel column.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleAiChatCommand { get; }
 
     /// <summary>Command to manage MCP servers.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ManageMcpServersCommand { get; }
@@ -49,11 +49,12 @@ public sealed class MenuViewModel : ReactiveObject
     public Interaction<RxVoid, RxVoid> ShowOrderHistoryRequested { get; }
 
     /// <summary>
-    /// Interaction that routes the open-AI-chat request to the View, which
-    /// focuses the assistant panel input (same pattern as
+    /// Interaction that routes the focus-AI-chat request to the View, which
+    /// focuses the assistant panel input. Fired only when the toggle SHOWS
+    /// the panel: a hide needs no View cooperation (same pattern as
     /// <see cref="NewOrderRequested"/>).
     /// </summary>
-    public Interaction<RxVoid, RxVoid> OpenAiChatRequested { get; }
+    public Interaction<RxVoid, RxVoid> FocusAiChatRequested { get; }
 
     /// <summary>
     /// Interaction that routes the new-order request to the View, which hosts
@@ -71,20 +72,48 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>
     /// Create a new MenuViewModel instance.
     /// </summary>
-    public MenuViewModel()
+    /// <param name="chat">The AI chat ViewModel: the toggle flips its
+    /// persisted visibility and the checkable menu item mirrors the applied
+    /// state live (the panel state lives where the column binds it).</param>
+    public MenuViewModel(ChatViewModel chat)
     {
+        _chat = chat;
+
         OpenSettingsRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
         ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
         ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
-        OpenAiChatRequested = new Interaction<RxVoid, RxVoid>();
+        FocusAiChatRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
-        OpenAiChatCommand = ReactiveCommand.CreateFromTask(HandleOpenAiChatAsync);
+        ToggleAiChatCommand = ReactiveCommand.CreateFromTask(HandleToggleAiChatAsync);
         ManageMcpServersCommand = ReactiveCommand.CreateFromTask(HandleManageMcpServersAsync);
         OpenSettingsCommand = ReactiveCommand.CreateFromTask(HandleOpenSettingsAsync);
         ExitCommand = ReactiveCommand.Create(HandleExit);
+
+        // The checkable item mirrors the panel state: the when-any-value
+        // subscription emits the current (already restored) value at once and
+        // follows every flip. The subscription mirrors the app-lifetime
+        // singletons (same contract as the menu interactions' handlers); a
+        // property stream never errors, so a plain Subscribe suffices.
+        chat.WhenAnyValue(x => x.IsAiChatVisible)
+            .Subscribe(visible => IsAiChatVisible = visible);
+    }
+
+    private readonly ChatViewModel _chat;
+
+    private bool _isAiChatVisible = UiSettingsKeys.DefaultShowAiPanel;
+
+    /// <summary>
+    /// Checkable mirror of the AI chat panel visibility for the menu item;
+    /// driven by the chat ViewModel (OneWay in XAML — the command owns the
+    /// flips, the mirror never writes back).
+    /// </summary>
+    public bool IsAiChatVisible
+    {
+        get => _isAiChatVisible;
+        private set => this.RaiseAndSetIfChanged(ref _isAiChatVisible, value);
     }
 
     #endregion Constructor
@@ -110,11 +139,19 @@ public sealed class MenuViewModel : ReactiveObject
     private Task HandleShowOrderHistoryAsync() => ShowOrderHistoryRequested.Handle(RxVoid.Default);
 
     /// <summary>
-    /// Route the open-AI-chat request to the View, which focuses the
-    /// assistant panel input (window plumbing stays out of the ViewModel,
-    /// same as the settings window).
+    /// Toggle the assistant panel; when the toggle SHOWS it, route the
+    /// focus request to the View (the input becomes reachable only now).
+    /// Hiding needs no View cooperation.
     /// </summary>
-    private Task HandleOpenAiChatAsync() => OpenAiChatRequested.Handle(RxVoid.Default);
+    private async Task HandleToggleAiChatAsync()
+    {
+        var becameVisible = await _chat.ToggleAsync();
+
+        if (becameVisible)
+        {
+            await FocusAiChatRequested.Handle(RxVoid.Default);
+        }
+    }
 
     private Task HandleManageMcpServersAsync() => Task.CompletedTask;
 

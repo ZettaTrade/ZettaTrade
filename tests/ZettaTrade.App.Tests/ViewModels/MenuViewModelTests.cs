@@ -2,14 +2,19 @@ namespace ZettaTrade.App.Tests.ViewModels;
 
 using System.Reactive.Linq;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using ReactiveUI.Primitives;
 using Xunit;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Core.Interfaces;
 
 /// <summary>
-/// Tests for the menu command routing: the settings command must raise the
-/// <see cref="MenuViewModel.OpenSettingsRequested"/> interaction for the View
-/// to host the window, keeping window plumbing out of the ViewModel.
+/// Tests for the menu command routing: the dialog commands raise their
+/// <see cref="MenuViewModel"/> interactions for the View to host the windows,
+/// and the AI chat command TOGGLES the persisted panel visibility — the
+/// focus interaction fires only when the toggle shows the panel, and the
+/// checkable item mirrors the applied state live.
 /// </summary>
 public sealed class MenuViewModelTests
 {
@@ -17,7 +22,7 @@ public sealed class MenuViewModelTests
     public async Task ShowPositionsCommand_Executed_RoutesThroughShowPositionsInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel();
+        var menu = new MenuViewModel(CreateChat());
         var handled = 0;
         menu.ShowPositionsRequested.RegisterHandler(context =>
         {
@@ -37,7 +42,7 @@ public sealed class MenuViewModelTests
     public async Task OpenSettingsCommand_Executed_RoutesThroughOpenSettingsInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel();
+        var menu = new MenuViewModel(CreateChat());
         var handled = 0;
         menu.OpenSettingsRequested.RegisterHandler(context =>
         {
@@ -57,7 +62,7 @@ public sealed class MenuViewModelTests
     public async Task ShowOrderHistoryCommand_Executed_RoutesThroughShowOrderHistoryInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel();
+        var menu = new MenuViewModel(CreateChat());
         var handled = 0;
         menu.ShowOrderHistoryRequested.RegisterHandler(context =>
         {
@@ -73,23 +78,83 @@ public sealed class MenuViewModelTests
         handled.Should().Be(1);
     }
 
+    /// <summary>
+    /// The chat toggle hides a visible panel without any focus request and
+    /// shows a hidden one WITH one (the input is reachable only now).
+    /// </summary>
     [Fact]
-    public async Task OpenAiChatCommand_Executed_RoutesThroughOpenAiChatInteraction()
+    public async Task ToggleAiChatCommand_Executed_AsksFocusOnlyWhenThePanelShows()
     {
         // Arrange
-        var menu = new MenuViewModel();
+        var menu = new MenuViewModel(CreateChat());
         var handled = 0;
-        menu.OpenAiChatRequested.RegisterHandler(context =>
+        menu.FocusAiChatRequested.RegisterHandler(context =>
         {
             Interlocked.Increment(ref handled);
             context.SetOutput(RxVoid.Default);
             return Task.CompletedTask;
         });
 
-        // Act
-        await menu.OpenAiChatCommand.Execute(RxVoid.Default);
+        // Act: the default state is visible — the first toggle hides
+        await menu.ToggleAiChatCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(0);
+        menu.IsAiChatVisible.Should().BeFalse("the first toggle hides the default-visible panel");
+
+        // Act: the second toggle shows it again
+        await menu.ToggleAiChatCommand.Execute(RxVoid.Default);
 
         // Assert
         handled.Should().Be(1);
+        menu.IsAiChatVisible.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The checkable item is a live mirror: the subscription emits the
+    /// current state as it lands and follows every flip of the chat ViewModel.
+    /// </summary>
+    [Fact]
+    public async Task TheChatPanelMirror_FollowsEveryFlip()
+    {
+        var (menu, chat) = CreateMenuWithChat();
+
+        menu.IsAiChatVisible.Should().BeTrue("the subscription emits the current state when it lands");
+
+        await chat.ToggleAsync();
+
+        menu.IsAiChatVisible.Should().BeFalse("the mirror follows the chat ViewModel, never writes back");
+    }
+
+    /// <summary>
+    /// The menu may already be constructed when the startup walk restores the
+    /// persisted state — the mirror lands on the restored visibility, not on
+    /// the constructor moment.
+    /// </summary>
+    [Fact]
+    public async Task TheStartupRestoreArrivesAfterTheMenuLanded_MirrorsTheRestoredState()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(false);
+        var chat = new ChatViewModel(settings, NullLogger<ChatViewModel>.Instance);
+        var menu = new MenuViewModel(chat);
+
+        menu.IsAiChatVisible.Should().BeTrue("the restore has not applied yet");
+
+        await chat.InitializeAsync();
+
+        menu.IsAiChatVisible.Should().BeFalse("the mirror follows the restored persisted state");
+    }
+
+    private static ChatViewModel CreateChat() => new(
+        Substitute.For<ISettingsService>(),
+        NullLogger<ChatViewModel>.Instance);
+
+    private static (MenuViewModel Menu, ChatViewModel Chat) CreateMenuWithChat()
+    {
+        var chat = CreateChat();
+
+        return (new MenuViewModel(chat), chat);
     }
 }

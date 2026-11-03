@@ -32,4 +32,16 @@ public static class UiSettingsKeys
 
     /// <summary>The clock format applied until a stored setting is loaded: the 24-hour clock the axis always printed before the preference existed.</summary>
     public const bool DefaultUse12HourClock = false;
+
+    /// <summary>
+    /// Settings key of the persisted AI assistant panel visibility: written on
+    /// every toggle, restored by the startup walk before any window opens.
+    /// </summary>
+    public const string ShowAiPanel = "ShowAiPanel";
+
+    /// <summary>
+    /// The panel visibility applied until a stored setting is loaded: visible,
+    /// the layout every session saw before the toggle existed.
+    /// </summary>
+    public const bool DefaultShowAiPanel = true;
 }
