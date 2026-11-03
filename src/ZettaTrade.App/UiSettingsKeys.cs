@@ -44,4 +44,17 @@ public static class UiSettingsKeys
     /// the layout every session saw before the toggle existed.
     /// </summary>
     public const bool DefaultShowAiPanel = true;
+
+    /// <summary>
+    /// Settings section holding persisted workspace context choices; the
+    /// active-exchange facade keeps its ExchangeId in the same section.
+    /// </summary>
+    public const string WorkspaceSection = "Workspace";
+
+    /// <summary>
+    /// Settings key of the persisted workspace symbol (a normalized Symbol
+    /// name, e.g. ETH/BTC): written on every confirmed user selection and
+    /// applied as the symbols bootstrap's first-choice preference.
+    /// </summary>
+    public const string WorkspaceSymbolId = "SymbolId";
 }
