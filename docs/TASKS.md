@@ -41,7 +41,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-034 Indicator seam MVP (a plugin draws an SMA overlay) | feat/indicators | queued | — |
 | T-035 Chart axis labels clip at the canvas edges + zoom never re-buckets the axes (user-reported) | fix/chart-axes | done | — |
 | T-036 Chart history depth + candle-size cap (user-reported: W1/MN render one full-width candle) | fix/chart-history | queued | — |
-| T-037 Exchange-grade time-grid density (one-rung-above-the-step grids on zoom) | feat/time-grid | queued | — |
+| T-037 Exchange-grade time axis: density, calendar anchors, year labels (user-reported) | feat/time-grid | queued | — |
 
 ---
 
@@ -619,11 +619,15 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Acceptance:** pixel probe (the T-035 harness): W1/MN1 show the exchange picture — many candles and NO full-width candle; the H4 state keeps the T-035 verdict (label bands inked, zero edge ink).
 - **Tests:** the TF→duration history-start math for every enum member, the pitch cap + right-anchor mapping (pure facts), the snapshot/zoom window unchanged.
 
-## T-037 — Exchange-grade time-grid density
+## T-037 — Exchange-grade time axis: density, calendar anchors, year labels (user-reported)
 
-- **Branch:** queued 2026-11-02 (from the same user review: at the 20-bar zoom floor the M1 chart grids every 5 minutes, M5 → 10 min, M15 → 30 min — the time step always lands one ladder rung above the bar step).
-- **Origin:** the time axis uses a FIXED 10-tick budget (`ChartAxisFormatting.TimeTickBudget`) and a ladder without fine rungs: a ~20-bar window then always picks one rung above (1m→5m, 5m→10m, 15m→30m). Terminals derive the tick budget from the plot width (~80–100 px per label ⇒ 12–20 ticks) and run fine rungs (2m, 3m, 2h, 4h), so a deep-zoomed M1 shows a 1–2-minute grid.
-- **What:** the tick budget becomes measured from the label font (max label width + gap, clamped to a sane band), the ladder gains 2m/3m/2h/4h; everything else stays the T-035 machine (epoch anchoring, clamping, midnight→date labels).
-- **Scope:** `ChartAxisFormatting.cs` + the draw pass consuming the measured budget in `CandlestickChart.cs`, tests.
-- **Acceptance:** pixel probe (the T-035 harness): at the zoom floor M1 grids below 5 minutes; wide windows re-bucket exactly as before (the diff-based re-bucket assertions hold); no glyph clipping (edge asserts stay 0).
+- **Branch:** queued 2026-11-02 (from the same user review: at the 20-bar zoom floor the M1 chart grids every 5 minutes, M5 → 10 min, M15 → 30 min — the time step always lands one ladder rung above the bar step). Scope EXTENDED 2026-11-03 from the user's live review of the T-036 build: the COARSE end of the axis fails the same class of way.
+- **Origin (all proven against the current ladder):** (a) the time axis uses a FIXED 10-tick budget (`ChartAxisFormatting.TimeTickBudget`) and a ladder without fine rungs: a ~20-bar window then always picks one rung above (1m→5m, 5m→10m, 15m→30m); (b) between 28 d and 730 d the ladder holds only uniform epoch multiples (91/182/365/730 d), so a ~3.5-year W1 window picks the 182-day rung: the labels alternate февр./авг. while the day-of-month DRIFTS BACKWARD each half-year cycle (февр. 6 → февр. 5 → февр. 3 → февр. 2 — reads like time running in reverse; the user asked "будто наоборот?"), the "MMM d" format prints NO year so four "февр." labels across three years are indistinguishable, and the epoch-anchored lines slice arbitrary weekdays BETWEEN the Monday-opened weekly candles; (c) a D1 window's 28-day grid lands on random calendar dates (апр. 27, мая 25, июн. 22 — no month starts), while terminals anchor calendar events: a daily chart grids month starts, a weekly chart grids months, a monthly chart grids years.
+- **What:**
+  1. the tick budget becomes measured from the label font (max label width + gap, clamped to a sane band), and the intraday ladder gains 2m/3m/2h/4h;
+  2. the day-and-coarser scale switches from uniform epoch multiples to CALENDAR ticks: steps land on month starts (1/2/3/6 months) and year starts (1/2/5/10 years), so a W1 window grids month boundaries, an MN1 window grids January-only, a D1 window never shows "апр. 27";
+  3. the label format becomes span-aware: intraday → "HH:mm" with midnight→date (unchanged); spans inside one year → "MMM d"; multi-year spans → month + year ("MMM 'yy"); year-scale steps → "yyyy" — no more yearless February triplets.
+- **Scope:** `ChartAxisFormatting.cs` (ladder, anchor policy, format policy), the draw pass consuming the measured budget in `CandlestickChart.cs`, tests. No Core, no resx.
+- **Acceptance:** pixel probe (the T-035/T-036 harness): the W1 repro reads as month-start labels WITH years; the D1 repro grids month starts; at the zoom floor M1 grids below 5 minutes; wide windows re-bucket exactly as before (the diff-based re-bucket assertions hold); no glyph clipping (edge asserts stay 0).
+- **Tests:** the rung picker bands for every TF×window pairing from the reports, the calendar anchor policy (month/year starts, leap years, the Feb-day-backward repro pinned as a pure fact), the format policy (the span thresholds "MMM d" vs "MMM 'yy" vs "yyyy"), the measured-budget calibration against the on-screen font.
 - **Tests:** budget picker (width bands), the new rungs at window boundaries, the measured-budget calibration against the on-screen font.
