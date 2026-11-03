@@ -51,6 +51,12 @@ public class CandlestickChart : Control
     private const float TimeAxisGutterPadPx = 6f;
 
     /// <summary>
+    /// Horizontal spacing the measured time-label budget reserves between
+    /// neighboring labels in addition to the widest label itself.
+    /// </summary>
+    private const float TimeLabelGapPx = 24f;
+
+    /// <summary>
     /// Vertical headroom the price mapping keeps inside the plot at its top
     /// and bottom: extreme candles, gridlines and the centered labels of the
     /// extreme ticks all stay clear of the plot edges.
@@ -431,17 +437,18 @@ public class CandlestickChart : Control
             var openTimes = ChartBarLayout.CollectOpenTimes(visibleBars);
             var firstTime = openTimes[0];
             var lastTime = openTimes[^1];
-            var timeStep = ChartAxisFormatting.PickTimeStep(lastTime - firstTime);
-            var timeTicks = ChartAxisFormatting.PickTimeTicks(firstTime, lastTime, timeStep);
+
+            // The time-label budget calibrates against the plot width the
+            // labels will actually span (the width minus the measured price
+            // gutter), so it is cut before the plot rect exists.
+            var plotWidth = Math.Max(1d, width - priceGutter);
+            var (timeRung, timeTicks, timeTexts) = PickTimeLabels(firstTime, lastTime, plotWidth, font);
+
             var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
             var timeGutter = textHeight + (2f * TimeAxisGutterPadPx);
 
             // At least a one-pixel plot on an absurdly small window.
-            var plotRect = new Rect(
-                0,
-                0,
-                Math.Max(1d, width - priceGutter),
-                Math.Max(1d, height - timeGutter));
+            var plotRect = new Rect(0, 0, plotWidth, Math.Max(1d, height - timeGutter));
 
             // The bar pitch is window-driven and capped: when fewer bars are
             // loaded than the window wants, they keep a normal candle width
@@ -463,7 +470,7 @@ public class CandlestickChart : Control
 
             DrawCandles(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minPrice, priceRange, priceTicks, priceTexts);
-            DrawTimeAxis(canvas, font, textPaint, plotRect, timeStep, barPitch, openTimes, timeTicks);
+            DrawTimeAxis(canvas, font, textPaint, plotRect, barPitch, openTimes, timeTicks, timeTexts);
         }
 
         private void DrawNoDataMessage(SKCanvas canvas, double width, double height)
@@ -608,29 +615,72 @@ public class CandlestickChart : Control
         }
 
         /// <summary>
+        /// Two-pass time-label pick. The default budget anchors the first
+        /// estimate; the widest label it produced then measures the REAL
+        /// budget for this plot width, and a differing budget re-picks.
+        /// Re-picking moves finer for a widened budget (shorter labels, so
+        /// the measurement stays a valid upper bound) or coarser onto
+        /// calendar scales whose labels stay within the measured width, so
+        /// one measurement pass suffices. The rung, ticks and texts always
+        /// belong to the same final pick.
+        /// </summary>
+        private static (TimeTickRung Rung, IReadOnlyList<DateTimeOffset> Ticks, string[] Texts) PickTimeLabels(
+            DateTimeOffset firstTime,
+            DateTimeOffset lastTime,
+            double plotWidth,
+            SKFont font)
+        {
+            var culture = CultureInfo.CurrentCulture;
+            var timeSpan = lastTime - firstTime;
+            var rung = ChartAxisFormatting.PickTimeStep(timeSpan, ChartAxisFormatting.DefaultTimeTickBudget);
+            var ticks = ChartAxisFormatting.PickTimeTicks(firstTime, lastTime, rung, ChartAxisFormatting.DefaultTimeTickBudget);
+            var texts = FormatTimeTexts(ticks, rung, timeSpan, culture);
+            var widest = WidestLabelPx(texts, font);
+            var budget = ChartAxisFormatting.TimeTickBudgetFor(plotWidth, widest, TimeLabelGapPx);
+
+            if (budget == ChartAxisFormatting.DefaultTimeTickBudget)
+            {
+                return (rung, ticks, texts);
+            }
+
+            rung = ChartAxisFormatting.PickTimeStep(timeSpan, budget);
+            ticks = ChartAxisFormatting.PickTimeTicks(firstTime, lastTime, rung, budget);
+
+            return (rung, ticks, FormatTimeTexts(ticks, rung, timeSpan, culture));
+        }
+
+        private static string[] FormatTimeTexts(
+            IReadOnlyList<DateTimeOffset> ticks,
+            TimeTickRung rung,
+            TimeSpan timeSpan,
+            IFormatProvider culture) =>
+            [.. ticks.Select(tick => ChartAxisFormatting.FormatTimeTick(tick, rung, timeSpan, culture))];
+
+        private static double WidestLabelPx(IReadOnlyList<string> texts, SKFont font) =>
+            texts.Count == 0 ? 0 : texts.Max(text => font.MeasureText(text));
+
+        /// <summary>
         /// Time labels centered under their ticks inside the bottom gutter
         /// (metrics-based baseline), with the center-x clamped INSIDE the
         /// plot horizontally: the old placement centered the first label on
-        /// the exact canvas edge and half of the text fell off. Ticks already
-        /// sit on the step grid inside the visible window.
+        /// the exact canvas edge and half of the text fell off. The label
+        /// pick already formatted the texts in tick order.
         /// </summary>
         private static void DrawTimeAxis(
             SKCanvas canvas,
             SKFont font,
             SKPaint paint,
             Rect plotRect,
-            TimeSpan step,
             double barPitch,
             IReadOnlyList<DateTimeOffset> openTimes,
-            IReadOnlyList<DateTimeOffset> ticks)
+            IReadOnlyList<DateTimeOffset> ticks,
+            IReadOnlyList<string> texts)
         {
-            var culture = CultureInfo.CurrentCulture;
-
-            foreach (var tick in ticks)
+            for (var i = 0; i < ticks.Count; i++)
             {
-                var text = ChartAxisFormatting.FormatTimeTick(tick, step, culture);
+                var text = texts[i];
                 var halfWidth = font.MeasureText(text) / 2f;
-                var centered = (float)ChartBarLayout.BarXForTime(plotRect.Right, barPitch, openTimes, tick);
+                var centered = (float)ChartBarLayout.BarXForTime(plotRect.Right, barPitch, openTimes, ticks[i]);
                 var minCenter = halfWidth + TimeLabelClampPadPx;
                 var maxCenter = (float)plotRect.Right - halfWidth - TimeLabelClampPadPx;
 
