@@ -63,8 +63,5 @@ Stack: .NET 10, C# 13, Avalonia UI 12, ReactiveUI.Avalonia 12.1, SkiaSharp, EF C
 - Nothing may write to stdout except MCP protocol messages. Serilog logs to files only.
 - Never use real exchange keys. Testnet and mocks only.
 
-## Known debt (do not copy or extend these patterns)
-- `LocalizedViewModelBase` and a Serilog console sink exist in the current code and violate the rules above. Remove this section after the cleanup PR.
-
 ## Performance targets
 Order book 60 fps with 1000+ levels; WebSocket message < 1 ms; 100k-candle chart pans smoothly; cold start < 3 s; typical memory < 500 MB.
