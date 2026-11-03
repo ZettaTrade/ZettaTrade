@@ -128,7 +128,8 @@
                             
                             <!-- Chart -->
                             <charting:CandlestickChart Grid.Row="1"
-                                                       Bars="{Binding Bars}" />
+                                                       Bars="{Binding Bars}"
+                                                       Use12HourClock="{Binding Use12HourClock}" />
                         </Grid>
                     </Border>
                 </Grid>

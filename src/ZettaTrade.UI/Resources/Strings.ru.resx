@@ -135,6 +135,15 @@
   <data name="Chart.TimeFrame" xml:space="preserve">
     <value>Таймфрейм</value>
   </data>
+  <data name="Chart.TimeFormat" xml:space="preserve">
+    <value>Формат времени</value>
+  </data>
+  <data name="Chart.TimeFormat.Hours24" xml:space="preserve">
+    <value>24-часовой</value>
+  </data>
+  <data name="Chart.TimeFormat.Hours12" xml:space="preserve">
+    <value>12-часовой</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>

@@ -23,4 +23,13 @@ public static class UiSettingsKeys
 
     /// <summary>Settings key of the persisted chart time frame (a TimeFrame enum name, e.g. H1).</summary>
     public const string ChartTimeFrame = "ChartTimeFrame";
+
+    /// <summary>
+    /// Settings key of the persisted chart clock format: true selects the
+    /// 12-hour clock, false (the default) the 24-hour one.
+    /// </summary>
+    public const string ChartUse12HourClock = "ChartUse12HourClock";
+
+    /// <summary>The clock format applied until a stored setting is loaded: the 24-hour clock the axis always printed before the preference existed.</summary>
+    public const bool DefaultUse12HourClock = false;
 }

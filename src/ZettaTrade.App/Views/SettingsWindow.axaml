@@ -19,7 +19,7 @@
                    FontWeight="Bold"
                    FontSize="14" />
 
-        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
             <TextBlock Grid.Row="0" Grid.Column="0"
                        Text="{loc:Localized Settings.Theme}"
                        VerticalAlignment="Center" />
@@ -72,6 +72,20 @@
                         <TextBlock Text="{Binding NativeName}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <!-- The chart clock format: the option rows print the localized
+                 labels directly (static strings stay out of the ViewModel);
+                 the index is the only state crossing the binding. -->
+            <TextBlock Grid.Row="2" Grid.Column="0"
+                       Text="{loc:Localized Chart.TimeFormat}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Row="2" Grid.Column="1"
+                      SelectedIndex="{Binding SelectedTimeFormatIndex}"
+                      MinWidth="220"
+                      HorizontalAlignment="Left">
+                <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours24}" />
+                <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours12}" />
             </ComboBox>
         </Grid>
 

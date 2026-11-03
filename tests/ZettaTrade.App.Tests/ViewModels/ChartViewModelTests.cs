@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -481,6 +482,85 @@ public sealed class ChartViewModelTests
         await chart.InitializeAsync();
 
         chart.SelectedTimeFrame.Should().Be(TimeFrame.H1);
+    }
+
+    /// <summary>
+    /// The persisted <c>UI.ChartUse12HourClock</c> applies at the startup
+    /// walk, and the walk never writes the value back (the chart pipeline is
+    /// a pure consumer of the clock setting — the settings window writes it).
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_RestoresThePersistedClockFormat_WithoutRewritingIt()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns("M15");
+        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(true);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.Use12HourClock.Should().BeFalse("the default stays the 24-hour clock until the walk applies the stored choice");
+
+        await chart.InitializeAsync();
+
+        chart.Use12HourClock.Should().BeTrue();
+        await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>());
+    }
+
+    /// <summary>
+    /// No persisted clock choice (the third-party default read) keeps the
+    /// 24-hour clock the axis always printed before the preference existed.
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_NoPersistedClockChoice_KeepsThe24HourDefault()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(UiSettingsKeys.DefaultUse12HourClock);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        await chart.InitializeAsync();
+
+        chart.Use12HourClock.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// A settings-service change re-applies the clock format WITHOUT a
+    /// restart: matching keys apply, unrelated setting changes and non-bool
+    /// values are dropped (the applied choice stays in charge).
+    /// </summary>
+    [Fact]
+    public void TheSettingsServiceChange_AppliesTheClockFormatLive()
+    {
+        var changes = new Subject<SettingsChange>();
+        var settings = Substitute.For<ISettingsService>();
+        settings.Changes.Returns(changes);
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(UiSettingsKeys.DefaultUse12HourClock);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.Use12HourClock.Should().BeFalse();
+
+        changes.OnNext(new SettingsChange(UiSettingsKeys.Section, UiSettingsKeys.ChartUse12HourClock, false, true));
+
+        chart.Use12HourClock.Should().BeTrue("a settings change must reach the chart without a restart");
+
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartTimeFrame,
+            "M1",
+            "M5"));
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartUse12HourClock,
+            true,
+            "true"));
+
+        chart.Use12HourClock.Should().BeTrue("an unrelated key and a non-bool value both leave the clock format alone");
     }
 
     [Fact]
