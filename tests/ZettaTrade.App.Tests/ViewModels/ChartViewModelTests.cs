@@ -336,21 +336,89 @@ public sealed class ChartViewModelTests
         var empty = Array.Empty<Symbol>();
 
         // Still listed: the user's context survives the switch.
-        ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), listed)
+        ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), null, listed)
             .Should().Be(Symbol.Parse("BTC/USDT"));
-        ChartViewModel.Preselect(Symbol.Parse("ETH/BTC"), listed)
+        ChartViewModel.Preselect(Symbol.Parse("ETH/BTC"), null, listed)
             .Should().Be(Symbol.Parse("ETH/BTC"));
 
         // Not listed or absent: the first entry owns the workspace default.
-        ChartViewModel.Preselect(Symbol.Parse("DOGE/USDT"), listed)
+        ChartViewModel.Preselect(Symbol.Parse("DOGE/USDT"), null, listed)
             .Should().Be(Symbol.Parse("BTC/USDT"));
-        ChartViewModel.Preselect(null, listed)
+        ChartViewModel.Preselect(null, null, listed)
             .Should().Be(Symbol.Parse("BTC/USDT"));
 
         // An empty list clears the selection with no substitute.
-        ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), empty)
+        ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), null, empty)
             .Should().BeNull();
     }
+
+    /// <summary>
+    /// The workspace preference is the FIRST choice: while the exchange's
+    /// list carries the persisted symbol it beats even a still-listed
+    /// current selection; an unlisted or absent preference falls through to
+    /// the preserved-current → first-entry → empty branches with no silent
+    /// substitute.
+    /// </summary>
+    [Fact]
+    public void Preselect_ThePersistedPreferenceWinsWhenTheListCarriesIt()
+    {
+        var listed = new[] { Symbol.Parse("BTC/USDT"), Symbol.Parse("ETH/BTC") };
+
+        // Listed preference beats everything, including a listed current.
+        ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), Symbol.Parse("ETH/BTC"), listed)
+            .Should().Be(Symbol.Parse("ETH/BTC"));
+        ChartViewModel.Preselect(null, Symbol.Parse("ETH/BTC"), listed)
+            .Should().Be(Symbol.Parse("ETH/BTC"));
+
+        // Unlisted preference falls through to the preserved current when
+        // the list still carries it, otherwise to the first entry.
+        ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), Symbol.Parse("DOGE/USDT"), listed)
+            .Should().Be(Symbol.Parse("BTC/USDT"));
+        ChartViewModel.Preselect(Symbol.Parse("SOL/USDC"), Symbol.Parse("DOGE/USDT"), listed)
+            .Should().Be(Symbol.Parse("BTC/USDT"));
+        ChartViewModel.Preselect(null, Symbol.Parse("DOGE/USDT"), listed)
+            .Should().Be(Symbol.Parse("BTC/USDT"));
+
+        // An empty list leaves nothing to select, preference or not.
+        ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), Symbol.Parse("ETH/BTC"), Array.Empty<Symbol>())
+            .Should().BeNull();
+    }
+
+    /// <summary>
+    /// A satisfied choice is delivered as the LIST's own instance, so the
+    /// combo's SelectedItem always points at an item of its own source (the
+    /// persisted string and the previous exchange's list parse into fresh
+    /// instances — value-equal, never the same reference).
+    /// </summary>
+    [Fact]
+    public void Preselect_TheSatisfiedChoiceIsTheListOwnInstance()
+    {
+        var listed = new[] { Symbol.Parse("BTC/USDT"), Symbol.Parse("ETH/BTC") };
+
+        ChartViewModel.Preselect(null, Symbol.Parse("ETH/BTC"), listed)
+            .Should().BeSameAs(listed[1]);
+        ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), null, listed)
+            .Should().BeSameAs(listed[0]);
+    }
+
+    /// <summary>
+    /// The persisted-symbol parse contract: a non-blank normalized symbol
+    /// string (any case, trimmed) yields its Symbol; blank values and
+    /// malformed inputs yield null — the parse never throws, the caller logs
+    /// the fall-through instead of substituting silently.
+    /// </summary>
+    [Theory]
+    [InlineData("ETH/BTC", "ETH/BTC")]
+    [InlineData("eth/btc", "ETH/BTC")]
+    [InlineData("  ETH/BTC  ", "ETH/BTC")]
+    [InlineData("AAPL", "AAPL")]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData("/USDT", null)]
+    public void TryParseStoredSymbol_PinsTheRestoreContract(string? stored, string? expected) =>
+        ChartViewModel.TryParseStoredSymbol(stored).Should().Be(
+            expected is null ? null : Symbol.Parse(expected));
 
     /// <summary>
     /// The history depth is pinned per time frame: the same bar count walks
@@ -590,6 +658,88 @@ public sealed class ChartViewModelTests
             UiSettingsKeys.Section,
             UiSettingsKeys.ChartTimeFrame,
             "M5");
+    }
+
+    /// <summary>
+    /// Every user selection persists the normalized symbol into the
+    /// Workspace section — the same value the next cold start restores as
+    /// the workspace preference (the settings service serves the in-memory
+    /// value immediately, even with the debounce window open).
+    /// </summary>
+    [Fact]
+    public async Task SelectedSymbol_Change_PersistsTheWorkspaceSymbol()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.SelectedSymbol = Symbol.Parse("ETH/BTC");
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        await settings.Received().SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceSymbolId,
+            "ETH/BTC");
+        await settings.Received().SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceSymbolId,
+            "BTC/USDT");
+    }
+
+    /// <summary>
+    /// An identity echo (the same instance re-raised through the two-way
+    /// combo binding) writes nothing: RaiseAndSetIfChanged suppresses the
+    /// raise, so the persistence pipeline sees no emission at all.
+    /// </summary>
+    [Fact]
+    public async Task SelectedSymbol_ReAssigningTheSameInstance_WritesOnce()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.SelectedSymbol = Symbol.Parse("ETH/BTC");
+        var unchanged = chart.SelectedSymbol;
+        chart.SelectedSymbol = unchanged;
+
+        await settings.Received(1).SetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>());
+    }
+
+    /// <summary>
+    /// A cleared selection never erases the preference: the null assignment
+    /// passes no writer, so the last confirmed choice stays persisted for
+    /// the next cold start.
+    /// </summary>
+    [Fact]
+    public async Task SelectedSymbol_ClearedByTheBootstrapEcho_PersistsNothing()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.SelectedSymbol = Symbol.Parse("ETH/BTC");
+        chart.SelectedSymbol = null;
+
+        await settings.Received().SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceSymbolId,
+            "ETH/BTC");
+        await settings.Received(1).SetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>());
     }
 
     [Fact]

@@ -33,6 +33,13 @@ using ZettaTrade.UI.Extensions;
 /// The clock format is a pure consumer of the settings service: the startup
 /// walk applies the stored <c>UI.ChartUse12HourClock</c> and every settings
 /// change re-applies it live (the settings window is its only writer).
+/// The workspace symbol persists as <c>Workspace.SymbolId</c>: every
+/// bootstrap reads the preference first and the preselection prefers it
+/// (persisted → preserved-current → first entry → empty), every user
+/// selection writes it back, and a bootstrap application never rewrites —
+/// it either re-applies the just-read preference (no duplicate write) or
+/// records the logged fall-through (the persisted value is a preference,
+/// never a silently substituted default).
 /// The ViewModel lives as long as the application (singleton), so the
 /// subscriptions mirror it and need no explicit disposal.
 /// </remarks>
@@ -69,6 +76,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     private bool _isRestoringTimeFrame;
 
+    /// <summary>
+    /// Whether the symbols bootstrap is applying its own selection: the
+    /// symbol persistence chain suppresses exactly those assignments. A
+    /// bootstrap either re-applies the workspace preference it just read
+    /// (repersisting it would be a duplicate write with no information) or
+    /// applies the documented fall-through (writing the substitute would
+    /// overwrite the preference it merely deferred).
+    /// </summary>
+    private bool _isApplyingBootstrapSelection;
+
     private ObservableCollection<Bar> _bars = new();
 
     /// <summary>Collection of bars to display in the chart.</summary>
@@ -80,7 +97,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     private Symbol? _selectedSymbol;
 
-    /// <summary>Currently selected trading symbol.</summary>
+    /// <summary>
+    /// Currently selected trading symbol. Every user change persists as
+    /// <c>Workspace.SymbolId</c> (bootstrap applications never rewrite it —
+    /// see the class remarks), and the confirmed selections flow through
+    /// <see cref="SymbolSelections"/> for the whole workspace.
+    /// </summary>
     public Symbol? SelectedSymbol
     {
         get => _selectedSymbol;
@@ -165,7 +187,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <param name="settings">The app settings service; the time frame
     /// restore reads <see cref="UiSettingsKeys.ChartTimeFrame"/> and every
     /// user change persists there, the clock formats read and live-apply
-    /// <see cref="UiSettingsKeys.ChartUse12HourClock"/>.</param>
+    /// <see cref="UiSettingsKeys.ChartUse12HourClock"/>, and the workspace
+    /// symbol reads and persists
+    /// <see cref="UiSettingsKeys.WorkspaceSymbolId"/>.</param>
     public ChartViewModel(
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
@@ -212,6 +236,29 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 _ => { },
                 ex => _logger.LogError(ex, "Failed to persist the chart time frame"));
 
+        // The workspace symbol persists: every USER selection writes the
+        // normalized name into the Workspace section (the order book and the
+        // order dialog follow the same stream). The subscribe-time
+        // current-value echo is skipped and the bootstrap pipeline's own
+        // assignments are suppressed by <see cref="_isApplyingBootstrapSelection"/>:
+        // a bootstrap either re-applies the just-read preference (a duplicate
+        // write with no information) or applies the logged fall-through
+        // (persisting the substitute would destroy the preference it
+        // deferred). The two-way combo binding is the only writer that gets
+        // through; a cleared selection never erases the preference.
+        this.WhenAnyValue(x => x.SelectedSymbol)
+            .Skip(1)
+            .Where(_ => !_isApplyingBootstrapSelection)
+            .Where(symbol => symbol is not null)
+            .Select(symbol => symbol!)
+            .SelectMany(symbol => Observable.FromAsync(() => _settings.SetAsync(
+                UiSettingsKeys.WorkspaceSection,
+                UiSettingsKeys.WorkspaceSymbolId,
+                symbol.Normalized)))
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "Failed to persist the workspace symbol"));
+
         // The clock format follows the settings service live: the settings
         // window writes UI.ChartUse12HourClock and this property re-applies
         // it without a restart. Non-bool values are dropped — the value the
@@ -242,11 +289,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         // The symbol list belongs to the exchange: the bootstrap re-runs on
         // every adapter change (the behavioral stream also performs the first
         // load right at construction) and keeps the previous selection alive
-        // while the new exchange's list still carries it.
+        // while the new exchange's list still carries it. The triggering
+        // adapter names the exchange in the fall-through warnings.
         activeExchanges
             .AdapterChanges
             .Subscribe(
-                _ => BootstrapSymbols(),
+                adapter => BootstrapSymbols(adapter),
                 ex => _logger.LogError(ex, "The chart symbols stream stopped unexpectedly"));
     }
 
@@ -361,40 +409,170 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>
     /// Load the symbol list for the current exchange and preselect. The
-    /// selection decision is computed raw (pinned by tests through
+    /// persisted workspace preference is read first and the selection
+    /// decision is computed raw (pinned by tests through
     /// <see cref="Preselect"/>); the marshaled subscribe side only applies
-    /// the assignments, and a failure stays logged, leaving the combo empty.
+    /// the assignments under the bootstrap gate, a failure stays logged and
+    /// leaves the combo empty.
     /// </summary>
-    private void BootstrapSymbols()
+    private void BootstrapSymbols(IMarketDataAdapter trigger)
     {
-        Observable.FromAsync(LoadSymbolsAsync)
-            .Select(symbols => (
-                Symbols: symbols,
-                Selection: Preselect(SelectedSymbol, symbols)))
+        var exchangeName = trigger.Name;
+        Observable
+            .FromAsync(token => LoadBootstrapAsync(token))
             .ObserveOnUiThread()
             .Subscribe(
-                page =>
+                bootstrap =>
                 {
-                    AvailableSymbols = new ObservableCollection<Symbol>(page.Symbols);
-                    SelectedSymbol = page.Selection;
+                    LogPersistedSymbolOutcome(bootstrap, exchangeName);
+
+                    // A bootstrap either re-applies the persisted preference
+                    // it just read (no duplicate write — nothing changed) or
+                    // applies the logged fall-through (writing the substitute
+                    // would destroy the deferred preference). The gate makes
+                    // the persistence chain skip exactly this assignment; the
+                    // two-way combo adds user edits everywhere else.
+                    _isApplyingBootstrapSelection = true;
+                    try
+                    {
+                        AvailableSymbols = new ObservableCollection<Symbol>(bootstrap.Symbols);
+                        SelectedSymbol = bootstrap.Selection;
+                    }
+                    finally
+                    {
+                        _isApplyingBootstrapSelection = false;
+                    }
+
                     _logger.LogInformation(
                         "Symbols loaded: {Count}; selected {Symbol}",
-                        AvailableSymbols.Count,
-                        SelectedSymbol);
+                        bootstrap.Symbols.Count,
+                        bootstrap.Selection);
                 },
                 ex => _logger.LogError(ex, "Failed to load symbols"));
     }
 
     /// <summary>
-    /// The preselection decision, in its pure form (pinned directly by
-    /// tests): the current selection survives while the new list carries
-    /// it, otherwise the first entry owns the workspace default; an empty
-    /// list clears the selection with no substitute.
+    /// The persisted-symbol warnings for one bootstrap outcome: a stored
+    /// value that parses to nothing is an unsupported preference (logged,
+    /// never silently substituted — the trading-safety rule), and a parsed
+    /// preference the exchange does not list falls through to the decided
+    /// selection.
     /// </summary>
-    internal static Symbol? Preselect(Symbol? currentSelection, IReadOnlyList<Symbol> symbols) =>
-        currentSelection is { } kept && symbols.Contains(kept)
-            ? kept
-            : symbols.FirstOrDefault();
+    private void LogPersistedSymbolOutcome(
+        SymbolBootstrap bootstrap,
+        string exchangeName)
+    {
+        if (bootstrap.StoredSymbol is { } stored && bootstrap.PersistedSymbol is null)
+        {
+            _logger.LogWarning(
+                "Persisted workspace symbol '{Stored}' is not a valid symbol; starting on '{Symbol}'",
+                stored,
+                bootstrap.Selection);
+        }
+        else if (bootstrap.PersistedSymbol is { } wanted && !Equals(wanted, bootstrap.Selection))
+        {
+            _logger.LogWarning(
+                "Persisted workspace symbol '{Symbol}' is not listed on {Exchange}; starting on '{Selected}'",
+                wanted,
+                exchangeName,
+                bootstrap.Selection);
+        }
+    }
+
+    /// <summary>
+    /// Everything one symbols bootstrap decided: the symbol page to list, the
+    /// persisted preference and its raw stored form (non-null exactly when it
+    /// failed to parse — the unsupported-fall-through warning source), and
+    /// the preselected symbol.
+    /// </summary>
+    private sealed record SymbolBootstrap(
+        IReadOnlyList<Symbol> Symbols,
+        string? StoredSymbol,
+        Symbol? PersistedSymbol,
+        Symbol? Selection);
+
+    /// <summary>
+    /// One bootstrap load: the persisted workspace preference first, then the
+    /// symbol fetch (the cache-backed provider answers from memory after the
+    /// startup warm-up), then the Preselect decision composed with the
+    /// current selection.
+    /// </summary>
+    private async Task<SymbolBootstrap> LoadBootstrapAsync(CancellationToken ct)
+    {
+        var stored = await _settings.GetAsync<string>(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceSymbolId);
+
+        var persistedTrimmed = stored?.Trim();
+        var persisted = TryParseStoredSymbol(persistedTrimmed);
+        var symbols = await LoadSymbolsAsync(ct);
+
+        return new SymbolBootstrap(
+            Symbols: symbols,
+            StoredSymbol: persisted is null ? persistedTrimmed : null,
+            PersistedSymbol: persisted,
+            Selection: Preselect(SelectedSymbol, persisted, symbols));
+    }
+
+    /// <summary>
+    /// The preselection decision, in its pure form (pinned directly by
+    /// tests), priority in the order the board fixed: the persisted workspace
+    /// preference wins while the list carries it, the current selection
+    /// survives while the new list carries it, the first entry owns the
+    /// workspace default, an empty list clears the selection with no
+    /// substitute. A satisfied choice is delivered as the LIST's own
+    /// instance, so the combo's SelectedItem always points at an item of its
+    /// own source.
+    /// </summary>
+    internal static Symbol? Preselect(
+        Symbol? currentSelection,
+        Symbol? persistedSymbol,
+        IReadOnlyList<Symbol> symbols)
+    {
+        if (persistedSymbol is { } preferred)
+        {
+            var listed = symbols.FirstOrDefault(symbol => symbol == preferred);
+            if (listed is not null)
+            {
+                return listed;
+            }
+        }
+
+        if (currentSelection is { } kept)
+        {
+            var stillListed = symbols.FirstOrDefault(symbol => symbol == kept);
+            if (stillListed is not null)
+            {
+                return stillListed;
+            }
+        }
+
+        return symbols.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// The persisted-symbol parse, in its pure form (pinned by tests): the
+    /// stored value must be a non-blank normalized symbol string; a valid
+    /// parse yields the Symbol (upper-cased, normalized), a blank or
+    /// malformed one yields null — the caller logs the fall-through instead
+    /// of substituting silently. This never throws.
+    /// </summary>
+    internal static Symbol? TryParseStoredSymbol(string? stored)
+    {
+        if (string.IsNullOrWhiteSpace(stored))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Symbol.Parse(stored.Trim());
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// History window start for one time frame: the nominal bar count walked
