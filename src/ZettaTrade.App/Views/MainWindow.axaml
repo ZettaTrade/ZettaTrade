@@ -19,11 +19,13 @@
                                 order dialog replaced the placeholder).
              - Alt+F4        -> OS window-close gesture: works without a binding;
                                 adding one would double-handle the close.
-             - Ctrl+Shift+A (AI chat): gesture removed because the command is
-               still a placeholder; the label returns with the feature. -->
+             - Ctrl+Shift+A  -> ToggleAiChatCommand: bound, real behavior —
+                                toggles the assistant panel (shows + focuses the
+                                input, or hides it); the AI menu item is a
+                                checkable one-way mirror of the visibility. -->
         <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding Menu.OpenSettingsCommand}" />
         <KeyBinding Gesture="Ctrl+N" Command="{Binding Menu.NewOrderCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+A" Command="{Binding Menu.OpenAiChatCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+A" Command="{Binding Menu.ToggleAiChatCommand}" />
     </Window.KeyBindings>
 
     <DockPanel>
@@ -40,7 +42,11 @@
                 <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Localized Menu.AI}">
-                <MenuItem Header="{loc:Localized Menu.AI.Chat}" Command="{Binding OpenAiChatCommand}" InputGesture="Ctrl+Shift+A" />
+                <MenuItem Header="{loc:Localized Menu.AI.Chat}"
+                          Command="{Binding ToggleAiChatCommand}"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding IsAiChatVisible, Mode=OneWay}"
+                          InputGesture="Ctrl+Shift+A" />
                 <MenuItem Header="{loc:Localized Menu.AI.Servers}" Command="{Binding ManageMcpServersCommand}" />
             </MenuItem>
         </Menu>
@@ -76,8 +82,10 @@
             </Grid>
         </Border>
 
-        <!-- Main content area -->
-        <Grid ColumnDefinitions="*,300">
+        <!-- Main content area: the right column is Auto so a HIDDEN assistant
+             releases its width to the workspace — a fixed column would leave
+             an empty gutter where the panel used to be. -->
+        <Grid ColumnDefinitions="*,Auto">
             <!-- Left: Trading workspace (charts, order book, etc.) -->
             <Border Grid.Column="0" Padding="8">
                 <Grid ColumnDefinitions="*,300">
@@ -135,8 +143,11 @@
                 </Grid>
             </Border>
 
-            <!-- Right: AI Chat panel -->
+            <!-- Right: AI Chat panel (pinned to the same 300 px the layout
+                 always gave the column; one way visibility binding) -->
             <Border Grid.Column="1"
+                    Width="300"
+                    IsVisible="{Binding IsAiChatVisible}"
                     BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                     BorderThickness="1,0,0,0"
                     DataContext="{Binding Chat}">

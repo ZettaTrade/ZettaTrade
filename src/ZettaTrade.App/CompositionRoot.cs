@@ -100,7 +100,10 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ActiveExchangeService>(),
                 AppVersion.Current,
                 logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>()));
-        services.AddSingleton<ChatViewModel>();
+        services.AddSingleton<ChatViewModel>(sp =>
+            new ChatViewModel(
+                sp.GetRequiredService<ISettingsService>(),
+                sp.GetRequiredService<ILogger<ChatViewModel>>()));
         services.AddSingleton<SettingsViewModel>(sp =>
             new SettingsViewModel(
                 sp.GetRequiredService<ISettingsService>(),

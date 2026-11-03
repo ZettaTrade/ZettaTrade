@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
@@ -14,11 +15,12 @@ namespace ZettaTrade.App.Views;
 
 /// <summary>
 /// Main application window. Owns the menu interaction handlers: creating and
-/// showing windows is View behavior, and focusing the assistant input is a
-/// View concern too, so the ViewModel only raises
+/// showing windows is View behavior, and the deferred focus of the assistant
+/// input is a View concern too, so the ViewModel only raises
 /// <see cref="MenuViewModel.OpenSettingsRequested"/>,
 /// <see cref="MenuViewModel.NewOrderRequested"/>, … and
-/// <see cref="MenuViewModel.OpenAiChatRequested"/>.
+/// <see cref="MenuViewModel.FocusAiChatRequested"/> (fired when the toggle
+/// shows the panel).
 /// </summary>
 public partial class MainWindow : ReactiveWindow<MainViewModel>
 {
@@ -41,7 +43,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.NewOrderRequested.RegisterHandler(OpenNewOrderAsync);
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
-        ViewModel?.Menu.OpenAiChatRequested.RegisterHandler(FocusChatAsync);
+        ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
 
         // The book panel lives for the whole window lifetime too: its level
         // presses feed a click stream that channels the prefill into the
@@ -57,11 +59,32 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     /// <summary>Subscription of the book level click stream; disposed with the window.</summary>
     private IDisposable? _bookClicks;
 
-    private Task FocusChatAsync(IInteractionContext<RxVoid, RxVoid> context)
+    /// <summary>
+    /// The frames (queued below the render priority) the chat focus is
+    /// allowed to stay refused for before giving up: the toggle only just
+    /// made the panel visible, and the startup can take more than one frame
+    /// to arrange it.
+    /// </summary>
+    private const int MaxChatFocusFrames = 8;
+
+    /// <summary>
+    /// Land the keyboard focus on the chat input AFTER layout, then complete
+    /// the request. An immediate Focus would hit the not-yet-arranged text
+    /// box and be refused, so every attempt is queued below the render
+    /// priority and awaited; the interaction resolves only when the focus
+    /// landed (or the budget ran out).
+    /// </summary>
+    private async Task FocusChatAsync(IInteractionContext<RxVoid, RxVoid> context)
     {
-        ChatInput.Focus();
+        var focused = false;
+        for (var attempt = MaxChatFocusFrames; attempt > 0 && !focused; attempt--)
+        {
+            focused = await Dispatcher.UIThread.InvokeAsync(
+                () => ChatInput.Focus(),
+                DispatcherPriority.Background);
+        }
+
         context.SetOutput(RxVoid.Default);
-        return Task.CompletedTask;
     }
 
     private async Task OpenNewOrderAsync(IInteractionContext<RxVoid, RxVoid> context)
