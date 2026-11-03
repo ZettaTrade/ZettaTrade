@@ -52,6 +52,30 @@ public static class ChartBarLayout
     }
 
     /// <summary>
+    /// The slot index whose center band contains the given x — the selection
+    /// math of the hover crosshair's OHLC readout. A bar owns the half-pitch
+    /// band around its center (Nearest-center: the boundary between two
+    /// adjacent centers ties UP to the further index, a deterministic
+    /// convention); an x outside the slot space — the left empty zone of a
+    /// capped window, or the plot's right half-open band end — is
+    /// <c>-1</c>: no bar is hovered, never a wrapped or clamped substitute.
+    /// A starved or degenerate input (<paramref name="barCount"/> below one,
+    /// non-positive pitch) is <c>-1</c> too.
+    /// </summary>
+    public static int SlotIndexForX(double plotRight, double pitch, int barCount, double x)
+    {
+        if ((barCount < 1) || (pitch <= 0d))
+        {
+            return -1;
+        }
+
+        var firstCenter = BarCenterX(plotRight, pitch, barCount, 0);
+        var raw = (int)Math.Floor(((x - firstCenter) / pitch) + 0.5d);
+
+        return (raw < 0) || (raw >= barCount) ? -1 : raw;
+    }
+
+    /// <summary>
     /// Maps a time tick onto the bar-slot axis: the tick belongs to the bar
     /// whose own open-time interval contains it (the terminal way — grid
     /// lines ride the bars, never float between them), and inside that slot

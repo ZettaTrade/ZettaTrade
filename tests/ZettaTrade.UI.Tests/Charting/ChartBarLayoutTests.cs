@@ -108,6 +108,73 @@ public sealed class ChartBarLayoutTests
 
     #endregion
 
+    #region Slot Selection
+
+    /// <summary>
+    /// The bar selection the hover readout uses: every bar's own center x
+    /// selects that bar back (the inverse of the placement math).
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(9)]
+    public void SlotIndexForX_EveryBarCenterSelectsItsOwnBar(int index)
+    {
+        var center = ChartBarLayout.BarCenterX(PlotWidth, CappedPitch, 10, index);
+
+        ChartBarLayout.SlotIndexForX(PlotWidth, CappedPitch, 10, center)
+            .Should().Be(index, "the selection math inverts the placement math");
+    }
+
+    /// <summary>
+    /// A bar owns the half-pitch band around its center; the boundary
+    /// between two adjacent centers ties UP to the further index. Off-center
+    /// pixels, the exact band edges and the half-open right end all select
+    /// predictably.
+    /// </summary>
+    [Fact]
+    public void SlotIndexForX_TheHalfPitchBandBehaviorIsPinned()
+    {
+        // Bar 9's center is 1180, its band is [1160, 1200); bar 8's band ends at 1160.
+        ChartBarLayout.SlotIndexForX(PlotWidth, CappedPitch, 10, 1159.9).Should().Be(8);
+        ChartBarLayout.SlotIndexForX(PlotWidth, CappedPitch, 10, 1160.0)
+            .Should().Be(9, "the boundary tie rounds up to the closer-index bar");
+        ChartBarLayout.SlotIndexForX(PlotWidth, CappedPitch, 10, 1160.1).Should().Be(9);
+        ChartBarLayout.SlotIndexForX(PlotWidth, CappedPitch, 10, 1199.9).Should().Be(9);
+        ChartBarLayout.SlotIndexForX(PlotWidth, CappedPitch, 10, 1200.0)
+            .Should().Be(-1, "the band is half-open: the plot's rightmost pixel belongs to the gutter");
+        ChartBarLayout.SlotIndexForX(PlotWidth, CappedPitch, 10, 1200.1).Should().Be(-1);
+    }
+
+    /// <summary>
+    /// The capped window's empty left space (bars hang off the right edge)
+    /// selects no bar: a left-of-first-center-open x is -1, never a wrapped
+    /// or clamped substitute.
+    /// </summary>
+    [Fact]
+    public void SlotIndexForX_TheCappedWindowSEmptyLeftZoneIsMinusOne()
+    {
+        // Ten capped slots hang at [800, 1200); everything left selects nothing.
+        ChartBarLayout.SlotIndexForX(PlotWidth, CappedPitch, 10, 799.9).Should().Be(-1);
+        ChartBarLayout.SlotIndexForX(PlotWidth, CappedPitch, 10, 400.0).Should().Be(-1);
+    }
+
+    /// <summary>
+    /// The degenerate inputs stay silent: no bars, or a non-positive pitch
+    /// (the draw pass never feeds them, but the selection never throws).
+    /// </summary>
+    [Theory]
+    [InlineData(0, 12.0)]
+    [InlineData(-3, 12.0)]
+    [InlineData(10, 0.0)]
+    [InlineData(10, -1.0)]
+    public void SlotIndexForX_ADegenerateInputSelectsNoBar(int barCount, double pitch)
+    {
+        ChartBarLayout.SlotIndexForX(PlotWidth, pitch, barCount, 600.0).Should().Be(-1);
+    }
+
+    #endregion
+
     #region Time Mapping
 
     /// <summary>
