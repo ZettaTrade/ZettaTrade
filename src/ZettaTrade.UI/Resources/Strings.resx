@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:element name="root" msIsDataSet="true">
@@ -128,6 +128,21 @@
   </data>
   <data name="AI.Assistant" xml:space="preserve">
     <value>AI Assistant</value>
+  </data>
+  <data name="AI.Chat.Send" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="AI.Chat.Placeholder" xml:space="preserve">
+    <value>Ask the assistant about the market...</value>
+  </data>
+  <data name="AI.Chat.Error" xml:space="preserve">
+    <value>The assistant is unavailable: {0}</value>
+  </data>
+  <data name="AI.Chat.RoleUser" xml:space="preserve">
+    <value>Trader</value>
+  </data>
+  <data name="AI.Chat.RoleAssistant" xml:space="preserve">
+    <value>Assistant</value>
   </data>
   <data name="Chart.NoDataMessage" xml:space="preserve">
     <value>No data available</value>

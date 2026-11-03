@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
+using ZettaTrade.AI.Chat;
 using ZettaTrade.AI.Mcp;
 using ZettaTrade.AI.Mcp.Tools;
 using ZettaTrade.App.Services;
@@ -83,6 +84,10 @@ internal static class CompositionRoot
         // consumer VM is constructed.
         services.AddActiveExchange();
 
+        // AI chat: the Ollama completion service (local models first) and its
+        // named HttpClient; the workspace context rides the existing seams.
+        services.AddAiServices();
+
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
 
@@ -100,9 +105,20 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ActiveExchangeService>(),
                 AppVersion.Current,
                 logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>()));
+        services.AddSingleton<ChatContextService>(sp =>
+            new ChatContextService(
+                sp.GetRequiredService<IMarketDataAdapter>(),
+                sp.GetRequiredService<ChartViewModel>().SymbolSelections,
+                sp.GetRequiredService<ChartViewModel>().TimeFrameSelections,
+                sp.GetRequiredService<ILogger<ChatContextService>>()));
+        services.AddSingleton<WorkspacePromptComposer>();
         services.AddSingleton<ChatViewModel>(sp =>
             new ChatViewModel(
                 sp.GetRequiredService<ISettingsService>(),
+                sp.GetRequiredService<IChatCompletion>(),
+                sp.GetRequiredService<ChatContextService>(),
+                sp.GetRequiredService<WorkspacePromptComposer>(),
+                sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<ChatViewModel>>()));
         services.AddSingleton<SettingsViewModel>(sp =>
             new SettingsViewModel(
