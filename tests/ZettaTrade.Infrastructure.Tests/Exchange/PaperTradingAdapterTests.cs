@@ -16,8 +16,9 @@ using NSubstitute;
 using Xunit;
 
 /// <summary>
-/// Tests for the paper trading adapter: immediate fills against reference prices,
-/// balance and netted-position bookkeeping, and cancellation validation.
+/// Tests for the paper trading adapter: immediate fills for market, stop and
+/// market-crossing limit orders, resting (Pending) limits placed away from the
+/// market plus their cancellation, and balance and netted-position bookkeeping.
 /// All market data comes from an NSubstitute <see cref="IMarketDataAdapter"/>, so
 /// these tests are exchange-agnostic by construction.
 /// </summary>
@@ -28,8 +29,17 @@ public sealed class PaperTradingAdapterTests
     /// <summary>Close of the simulated latest reference bar.</summary>
     private const decimal ReferenceClose = 50_000m;
 
-    /// <summary>Limit price used for limit orders.</summary>
-    private const decimal LimitPrice = 49_000m;
+    /// <summary>Buy limit placed BELOW the reference close — it cannot cross, so it rests.</summary>
+    private const decimal RestingBuyLimitPrice = 49_000m;
+
+    /// <summary>Buy limit placed ABOVE the reference close — it crosses and fills immediately.</summary>
+    private const decimal CrossingBuyLimitPrice = 50_500m;
+
+    /// <summary>Sell limit placed ABOVE the reference close — it cannot cross, so it rests.</summary>
+    private const decimal RestingSellLimitPrice = 51_000m;
+
+    /// <summary>Sell limit placed BELOW the reference close — it crosses and fills immediately.</summary>
+    private const decimal CrossingSellLimitPrice = 49_500m;
 
     /// <summary>Common order quantity in base asset.</summary>
     private const decimal OrderQuantity = 0.2m;
@@ -37,8 +47,11 @@ public sealed class PaperTradingAdapterTests
     /// <summary>Notional of a market fill at the reference close.</summary>
     private const decimal MarketNotional = 10_000m;
 
-    /// <summary>Notional of a limit fill at the limit price.</summary>
-    private const decimal LimitNotional = 9_800m;
+    /// <summary>Notional of a crossing buy limit fill at its limit price.</summary>
+    private const decimal CrossingBuyNotional = 10_100m;
+
+    /// <summary>Notional of a crossing sell limit fill at its limit price.</summary>
+    private const decimal CrossingSellNotional = 9_900m;
 
     /// <summary>Multiplier producing a buy order that exceeds the simulated balance.</summary>
     private const decimal ExcessiveQuantityFactor = 25m;
@@ -105,31 +118,6 @@ public sealed class PaperTradingAdapterTests
     }
 
     [Fact]
-    public async Task PlaceOrder_LimitBuy_FillsAtLimitPriceWithoutMarketData()
-    {
-        // Arrange
-        var marketData = CreateMarketData();
-        var adapter = CreateAdapter(marketData);
-
-        // Act
-        var order = await adapter.PlaceOrderAsync(LimitOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity, LimitPrice));
-        var balances = await adapter.GetBalancesAsync();
-
-        // Assert
-        order.Price!.Value.Should().Be(LimitPrice);
-        balances[PaperTradingAdapter.QuoteCurrency].Amount
-            .Should().Be(PaperTradingAdapter.InitialQuoteAmount - LimitNotional);
-
-        await marketData.DidNotReceive().GetBarsAsync(
-            Arg.Any<Symbol>(),
-            Arg.Any<TimeFrame>(),
-            Arg.Any<DateTimeOffset>(),
-            Arg.Any<DateTimeOffset?>(),
-            Arg.Any<int>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task PlaceOrder_MarketSell_OpensShortPositionAndCreditsQuote()
     {
         // Arrange
@@ -153,7 +141,8 @@ public sealed class PaperTradingAdapterTests
     [Fact]
     public async Task PlaceOrder_SellThenBuySameQuantity_NetsPositionToZero()
     {
-        // Arrange
+        // Arrange: the round-trip buy limit sits exactly at the reference close,
+        // so it crosses the market and fills immediately at its limit price.
         var adapter = CreateAdapter(CreateMarketData());
 
         // Act
@@ -166,6 +155,135 @@ public sealed class PaperTradingAdapterTests
         positions.Should().BeEmpty();
         balances[PaperTradingAdapter.QuoteCurrency].Amount
             .Should().Be(PaperTradingAdapter.InitialQuoteAmount);
+    }
+
+    #endregion
+
+    #region Limit Resting
+
+    [Fact]
+    public async Task PlaceOrder_CrossingLimitBuy_FillsAtLimitPrice()
+    {
+        // Arrange
+        var marketData = CreateMarketData();
+        var adapter = CreateAdapter(marketData);
+        var symbol = BtcUsdt();
+
+        // Act: a buy at or above the reference close would execute at once.
+        var order = await adapter.PlaceOrderAsync(LimitOrder(symbol, OrderSide.Buy, OrderQuantity, CrossingBuyLimitPrice));
+        var balances = await adapter.GetBalancesAsync();
+        var positions = await adapter.GetPositionsAsync();
+
+        // Assert
+        order.Status.Should().Be(OrderStatus.Filled);
+        order.Price!.Value.Should().Be(CrossingBuyLimitPrice);
+        order.FilledQuantity.Value.Should().Be(OrderQuantity);
+        balances[PaperTradingAdapter.QuoteCurrency].Amount
+            .Should().Be(PaperTradingAdapter.InitialQuoteAmount - CrossingBuyNotional);
+        positions.Should().ContainSingle().Which.EntryPrice.Value.Should().Be(CrossingBuyLimitPrice);
+
+        // The crossing decision reads the reference close from the wrapped adapter.
+        await marketData.Received(1).GetBarsAsync(
+            symbol,
+            ReferenceTimeFrame,
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset?>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlaceOrder_RestingLimitBuy_StaysPendingWithoutTouchingPortfolio()
+    {
+        // Arrange
+        var marketData = CreateMarketData();
+        var adapter = CreateAdapter(marketData);
+        var symbol = BtcUsdt();
+
+        // Act: a buy below the reference close cannot cross, so the order rests.
+        var order = await adapter.PlaceOrderAsync(LimitOrder(symbol, OrderSide.Buy, OrderQuantity, RestingBuyLimitPrice));
+        var balances = await adapter.GetBalancesAsync();
+        var positions = await adapter.GetPositionsAsync();
+        var open = await adapter.GetOpenOrdersAsync();
+
+        // Assert
+        order.Status.Should().Be(OrderStatus.Pending);
+        order.Price!.Value.Should().Be(RestingBuyLimitPrice);
+        order.FilledQuantity.Value.Should().Be(Quantity.Zero.Value);
+        balances.Should().BeEmpty("a resting order must not touch balances or positions");
+        positions.Should().BeEmpty();
+        open.Should().ContainSingle().Which.Id.Should().Be(order.Id);
+
+        // The resting decision also reads the reference close from the wrapped adapter.
+        await marketData.Received(1).GetBarsAsync(
+            symbol,
+            ReferenceTimeFrame,
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset?>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlaceOrder_CrossingLimitSell_FillsAtLimitPrice()
+    {
+        // Arrange
+        var adapter = CreateAdapter(CreateMarketData());
+
+        // Act: a sell at or below the reference close would execute at once.
+        var order = await adapter.PlaceOrderAsync(LimitOrder(BtcUsdt(), OrderSide.Sell, OrderQuantity, CrossingSellLimitPrice));
+        var balances = await adapter.GetBalancesAsync();
+        var positions = await adapter.GetPositionsAsync();
+
+        // Assert
+        order.Status.Should().Be(OrderStatus.Filled);
+        order.Price!.Value.Should().Be(CrossingSellLimitPrice);
+        order.FilledQuantity.Value.Should().Be(OrderQuantity);
+        balances[PaperTradingAdapter.QuoteCurrency].Amount
+            .Should().Be(PaperTradingAdapter.InitialQuoteAmount + CrossingSellNotional);
+        positions.Should().ContainSingle().Which.Side.Should().Be(OrderSide.Sell);
+        positions.Should().ContainSingle().Which.EntryPrice.Value.Should().Be(CrossingSellLimitPrice);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_RestingLimitSell_StaysPendingWithoutTouchingPortfolio()
+    {
+        // Arrange
+        var adapter = CreateAdapter(CreateMarketData());
+
+        // Act: a sell above the reference close cannot cross, so the order rests.
+        var order = await adapter.PlaceOrderAsync(LimitOrder(BtcUsdt(), OrderSide.Sell, OrderQuantity, RestingSellLimitPrice));
+        var balances = await adapter.GetBalancesAsync();
+        var positions = await adapter.GetPositionsAsync();
+
+        // Assert
+        order.Status.Should().Be(OrderStatus.Pending);
+        order.Price!.Value.Should().Be(RestingSellLimitPrice);
+        order.FilledQuantity.Value.Should().Be(Quantity.Zero.Value);
+        balances.Should().BeEmpty("a resting order must not touch balances or positions");
+        positions.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CancelOrder_RestingLimit_CancelsAndNeverTouchedPortfolio()
+    {
+        // Arrange
+        var adapter = CreateAdapter(CreateMarketData());
+        var order = await adapter.PlaceOrderAsync(LimitOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity, RestingBuyLimitPrice));
+
+        // Act
+        await adapter.CancelOrderAsync(BtcUsdt(), order.Id);
+
+        // Assert: the order left the working list and never carried a portfolio effect.
+        (await adapter.GetOpenOrdersAsync()).Should().BeEmpty();
+        (await adapter.GetBalancesAsync()).Should().BeEmpty();
+        (await adapter.GetPositionsAsync()).Should().BeEmpty();
+
+        // There is no order getter, so a second cancel serves as the status probe:
+        // only Pending/Submitted orders can be cancelled, and Cancelled is neither.
+        var again = async () => await adapter.CancelOrderAsync(BtcUsdt(), order.Id);
+        await again.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*already Cancelled*");
     }
 
     #endregion
@@ -191,6 +309,30 @@ public sealed class PaperTradingAdapterTests
         var act = async () => await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
 
         // Assert: a market order without reference data must fail loudly, not silently fill.
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*reference bar*");
+    }
+
+    [Fact]
+    public async Task PlaceOrder_LimitWithoutReferenceBars_Throws()
+    {
+        // Arrange: a limit order needs the reference close to decide whether it crosses.
+        var marketData = Substitute.For<IMarketDataAdapter>();
+        marketData.GetBarsAsync(
+                Arg.Any<Symbol>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<DateTimeOffset?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns([]);
+        var adapter = CreateAdapter(marketData);
+
+        // Act
+        var act = async () => await adapter.PlaceOrderAsync(
+            LimitOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity, CrossingBuyLimitPrice));
+
+        // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*reference bar*");
     }
@@ -231,9 +373,9 @@ public sealed class PaperTradingAdapterTests
     [Fact]
     public async Task CancelOrder_MismatchedSymbol_Throws()
     {
-        // Arrange
+        // Arrange: the limit rests (it does not cross the reference close), so it exists.
         var adapter = CreateAdapter(CreateMarketData());
-        var order = await adapter.PlaceOrderAsync(LimitOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity, LimitPrice));
+        var order = await adapter.PlaceOrderAsync(LimitOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity, RestingBuyLimitPrice));
 
         // Act
         var act = async () => await adapter.CancelOrderAsync(OtherSymbol(), order.Id);
@@ -246,9 +388,9 @@ public sealed class PaperTradingAdapterTests
     [Fact]
     public async Task CancelOrder_AlreadyFilledOrder_Throws()
     {
-        // Arrange: the paper adapter fills immediately, so any placed order is no longer cancellable.
+        // Arrange: market orders fill immediately, so a filled order is no longer cancellable.
         var adapter = CreateAdapter(CreateMarketData());
-        var order = await adapter.PlaceOrderAsync(LimitOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity, LimitPrice));
+        var order = await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
 
         // Act
         var act = async () => await adapter.CancelOrderAsync(BtcUsdt(), order.Id);
@@ -269,7 +411,7 @@ public sealed class PaperTradingAdapterTests
         var open = await adapter.GetOpenOrdersAsync();
 
         // Assert
-        open.Should().BeEmpty("paper fills are immediate; there are no resting orders");
+        open.Should().BeEmpty("a market order fills immediately and leaves nothing working");
     }
 
     #endregion
