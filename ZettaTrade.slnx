@@ -4,8 +4,10 @@
   <Project Path="src/ZettaTrade.Core/ZettaTrade.Core.csproj" />
   <Project Path="src/ZettaTrade.Infrastructure/ZettaTrade.Infrastructure.csproj" />
   <Project Path="src/ZettaTrade.UI/ZettaTrade.UI.csproj" />
-  <Project Path="tests/ZettaTrade.App.Tests/ZettaTrade.App.Tests.csproj" />
-  <Project Path="tests/ZettaTrade.Core.Tests/ZettaTrade.Core.Tests.csproj" />
-  <Project Path="tests/ZettaTrade.Infrastructure.Tests/ZettaTrade.Infrastructure.Tests.csproj" />
-  <Project Path="tests/ZettaTrade.UI.Tests/ZettaTrade.UI.Tests.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/ZettaTrade.App.Tests/ZettaTrade.App.Tests.csproj" />
+    <Project Path="tests/ZettaTrade.Core.Tests/ZettaTrade.Core.Tests.csproj" />
+    <Project Path="tests/ZettaTrade.Infrastructure.Tests/ZettaTrade.Infrastructure.Tests.csproj" />
+    <Project Path="tests/ZettaTrade.UI.Tests/ZettaTrade.UI.Tests.csproj" />
+  </Folder>
 </Solution>
