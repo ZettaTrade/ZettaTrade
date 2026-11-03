@@ -1,13 +1,16 @@
 namespace ZettaTrade.App.ViewModels;
 
 using System.Globalization;
+using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
-using ReactiveUI.Primitives;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Shell;
 using ZettaTrade.UI.Themes;
+
+/// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
 /// ViewModel for the settings window (theme, language, etc.).
@@ -28,12 +31,29 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>Combo box index meaning "nothing selected".</summary>
     private const int NoSelection = -1;
 
+    /// <summary>Combo box index of the default 24-hour clock option.</summary>
+    private const int Hours24Index = 0;
+
+    /// <summary>Combo box index of the 12-hour clock option.</summary>
+    private const int Hours12Index = 1;
+
     #endregion Constants
 
     #region Properties
 
     private int _selectedThemeIndex = NoSelection;
     private int _selectedLanguageIndex = NoSelection;
+
+    /// <summary>
+    /// The applied clock format, synced from the settings service (the
+    /// source of truth): the async initial read seeds it at construction,
+    /// and the changes stream keeps it current — the selections sync from
+    /// this cache on every window open.
+    /// </summary>
+    private bool _persistedUse12HourClock = UiSettingsKeys.DefaultUse12HourClock;
+
+    /// <summary>Selected time format index (0 = 24-hour, 1 = 12-hour); <see cref="NoSelection"/> while the initial read has not landed.</summary>
+    private int _selectedTimeFormatIndex = NoSelection;
     private IReadOnlyList<ThemeFileLoadError> _themeFileErrors = Array.Empty<ThemeFileLoadError>();
 
     /// <summary>Selected theme index (combo box); <see cref="NoSelection"/> when nothing is selected.</summary>
@@ -48,6 +68,13 @@ public sealed class SettingsViewModel : ReactiveObject
     {
         get => _selectedLanguageIndex;
         set => this.RaiseAndSetIfChanged(ref _selectedLanguageIndex, value);
+    }
+
+    /// <summary>Selected time format index (0 = 24-hour, 1 = 12-hour); <see cref="NoSelection"/> when nothing is selected.</summary>
+    public int SelectedTimeFormatIndex
+    {
+        get => _selectedTimeFormatIndex;
+        set => this.RaiseAndSetIfChanged(ref _selectedTimeFormatIndex, value);
     }
 
     /// <summary>Available themes from ThemeManager (no duplication).</summary>
@@ -138,6 +165,33 @@ public sealed class SettingsViewModel : ReactiveObject
                 ex => _logger.LogError(ex, "Theme load error stream failed"));
         }
 
+        // The clock format lives in the settings service (no manager owns its
+        // applied state, unlike the theme and the language): one async read
+        // seeds the cache the selections sync from, the changes stream keeps
+        // it current, and both subscriptions mirror the app-lifetime
+        // singleton. Non-bool values are dropped — the cached choice stays
+        // in charge until a real change arrives.
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartUse12HourClock,
+                UiSettingsKeys.DefaultUse12HourClock))
+            .Subscribe(
+                use12HourClock => _persistedUse12HourClock = use12HourClock,
+                ex => _logger.LogError(ex, "Failed to read the chart clock format"));
+
+        // The changes stream keeps the cached choice current — non-bool
+        // values are dropped, the cached choice stays in charge until a real
+        // change arrives. Both subscriptions mirror the app-lifetime
+        // singleton.
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartUse12HourClock)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                use12HourClock => _persistedUse12HourClock = use12HourClock,
+                ex => _logger.LogError(ex, "The chart clock format stream stopped unexpectedly"));
+
         ResetSelections();
     }
 
@@ -155,6 +209,7 @@ public sealed class SettingsViewModel : ReactiveObject
     {
         SelectedThemeIndex = IndexOfAppliedTheme();
         SelectedLanguageIndex = IndexOfAppliedLanguage();
+        SelectedTimeFormatIndex = _persistedUse12HourClock ? Hours12Index : Hours24Index;
     }
 
     /// <summary>
@@ -181,6 +236,21 @@ public sealed class SettingsViewModel : ReactiveObject
                 UiSettingsKeys.Section,
                 UiSettingsKeys.Language,
                 language.Code);
+        }
+
+        // The chart clock format: only a real difference applies (the same
+        // no-op discipline the theme and language choices follow).
+        if (_selectedTimeFormatIndex != NoSelection)
+        {
+            var use12HourClock = _selectedTimeFormatIndex == Hours12Index;
+            if (use12HourClock != _persistedUse12HourClock)
+            {
+                await _settings.SetAsync(
+                    UiSettingsKeys.Section,
+                    UiSettingsKeys.ChartUse12HourClock,
+                    use12HourClock);
+                _persistedUse12HourClock = use12HourClock;
+            }
         }
     }
 

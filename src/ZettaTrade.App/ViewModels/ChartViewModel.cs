@@ -30,6 +30,9 @@ using ZettaTrade.UI.Extensions;
 /// constructor restore (a startup-walk <see cref="InitializeAsync"/> call
 /// applies the stored choice before any window binds) re-loads the chart
 /// through the same machine a combo flip drives, and user changes persist.
+/// The clock format is a pure consumer of the settings service: the startup
+/// walk applies the stored <c>UI.ChartUse12HourClock</c> and every settings
+/// change re-applies it live (the settings window is its only writer).
 /// The ViewModel lives as long as the application (singleton), so the
 /// subscriptions mirror it and need no explicit disposal.
 /// </remarks>
@@ -98,6 +101,21 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         set => this.RaiseAndSetIfChanged(ref _selectedTimeFrame, value);
     }
 
+    private bool _use12HourClock;
+
+    /// <summary>
+    /// Whether the chart time axis prints the 12-hour clock ("11:45 PM");
+    /// false — the default — prints the 24-hour one. The settings service is
+    /// the single source of truth: the startup walk seeds the persisted
+    /// value and every settings change re-applies it live, so the settings
+    /// window needs no direct wiring into the chart pipeline.
+    /// </summary>
+    public bool Use12HourClock
+    {
+        get => _use12HourClock;
+        private set => this.RaiseAndSetIfChanged(ref _use12HourClock, value);
+    }
+
     /// <summary>Every time frame the picker offers, in enum order (M1…MN1).</summary>
     public IReadOnlyList<TimeFrame> TimeFrames { get; } =
     [
@@ -146,7 +164,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     /// <param name="settings">The app settings service; the time frame
     /// restore reads <see cref="UiSettingsKeys.ChartTimeFrame"/> and every
-    /// user change persists there.</param>
+    /// user change persists there, the clock formats read and live-apply
+    /// <see cref="UiSettingsKeys.ChartUse12HourClock"/>.</param>
     public ChartViewModel(
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
@@ -192,6 +211,21 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 _ => { },
                 ex => _logger.LogError(ex, "Failed to persist the chart time frame"));
+
+        // The clock format follows the settings service live: the settings
+        // window writes UI.ChartUse12HourClock and this property re-applies
+        // it without a restart. Non-bool values are dropped — the value the
+        // startup walk applied stays in charge until a real change arrives
+        // (the settings change stream publishes synchronously, so a plain
+        // subscription is UI-thread safe, same contract as the bars hop).
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartUse12HourClock)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                use12HourClock => Use12HourClock = use12HourClock,
+                ex => _logger.LogError(ex, "The chart clock format stream stopped unexpectedly"));
 
         // The ViewModel lives as long as the application (singleton), so this
         // subscription mirrors it and needs no explicit disposal. The marshal
@@ -270,6 +304,17 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         }
 
         _logger.LogInformation("Restored persisted chart time frame '{Value}'", restored);
+
+        // The clock format is a pure consumer of the setting (nothing in the
+        // chart pipeline writes it), so the restore is a plain assignment.
+        Use12HourClock = await _settings.GetAsync<bool>(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartUse12HourClock,
+            UiSettingsKeys.DefaultUse12HourClock);
+
+        _logger.LogInformation(
+            "Restored persisted chart clock format: '{Clock}'",
+            Use12HourClock ? "12-hour" : "24-hour");
     }
 
     /// <summary>

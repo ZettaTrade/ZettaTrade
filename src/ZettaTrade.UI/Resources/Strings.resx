@@ -135,6 +135,15 @@
   <data name="Chart.TimeFrame" xml:space="preserve">
     <value>Time frame</value>
   </data>
+  <data name="Chart.TimeFormat" xml:space="preserve">
+    <value>Time format</value>
+  </data>
+  <data name="Chart.TimeFormat.Hours24" xml:space="preserve">
+    <value>24-hour</value>
+  </data>
+  <data name="Chart.TimeFormat.Hours12" xml:space="preserve">
+    <value>12-hour</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>

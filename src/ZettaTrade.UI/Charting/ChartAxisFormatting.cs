@@ -2,6 +2,7 @@ namespace ZettaTrade.UI.Charting;
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 /// <summary>
 /// Pure axis-label math for the Skia candlestick chart: rung selection on the
@@ -40,6 +41,21 @@ public static class ChartAxisFormatting
     /// literal: in a plain one the C# escape would eat the backslash.
     /// </summary>
     private const string MultiYearLabelFormat = @"MMM \'yy";
+
+    /// <summary>
+    /// The in-day clock label ("23:45") of the default 24-hour convention.
+    /// </summary>
+    private const string ClockLabelFormat = "HH:mm";
+
+    /// <summary>
+    /// The half-day clock label ("11:45 PM") of the user-selected 12-hour
+    /// format, culture-mapped. No designator fallback: ICU's date data ships
+    /// the AM/PM designators for every installed culture on .NET 10 (verified
+    /// empirically — zero designatorless cultures; the Latin "AM"/"PM" comes
+    /// even for the languages whose legacy NLS data had none, Russian
+    /// included), so the glyphs below always read the half-day convention.
+    /// </summary>
+    private const string TwelveHourLabelFormat = "h:mm tt";
 
     /// <summary>
     /// Candidate rungs, fine to coarse. Clock multiples divide the day
@@ -189,14 +205,15 @@ public static class ChartAxisFormatting
     /// ("февр. '25"); the rest print month + day for calendar ticks and
     /// coinciding midnights (so an intraday grid keeps its day context at
     /// midnight), clock times otherwise. Culture follows the app language
-    /// (the localization manager resets CultureInfo on every language
-    /// switch).
+    /// (the caller passes <see cref="ChartTickCulture"/>), and the clock
+    /// itself prints 24-hour by default or the user-selected 12-hour one.
     /// </summary>
     public static string FormatTimeTick(
         DateTimeOffset tick,
         TimeTickRung rung,
         TimeSpan span,
-        IFormatProvider culture)
+        IFormatProvider culture,
+        bool use12HourClock)
     {
         if (rung.Scale == TimeTickScale.Year)
         {
@@ -213,7 +230,9 @@ public static class ChartAxisFormatting
             return tick.ToString("MMM d", culture);
         }
 
-        return tick.ToString("HH:mm", culture);
+        return use12HourClock
+            ? tick.ToString(TwelveHourLabelFormat, culture)
+            : tick.ToString(ClockLabelFormat, culture);
     }
 
     /// <summary>

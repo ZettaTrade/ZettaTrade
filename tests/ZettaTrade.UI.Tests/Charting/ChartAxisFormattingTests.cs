@@ -380,9 +380,9 @@ public sealed class ChartAxisFormattingTests
         var midnight = new DateTimeOffset(2026, 11, 3, 0, 0, 0, TimeSpan.Zero);
         var twoDays = TimeSpan.FromDays(2);
 
-        ChartAxisFormatting.FormatTimeTick(noon, ClockRung30, twoDays, EnUs).Should().Be("14:30");
-        ChartAxisFormatting.FormatTimeTick(midnight, ClockRung30, twoDays, EnUs).Should().Be("Nov 3");
-        ChartAxisFormatting.FormatTimeTick(midnight, DayRung1, TimeSpan.FromDays(30), EnUs).Should().Be("Nov 3");
+        ChartAxisFormatting.FormatTimeTick(noon, ClockRung30, twoDays, EnUs, use12HourClock: false).Should().Be("14:30");
+        ChartAxisFormatting.FormatTimeTick(midnight, ClockRung30, twoDays, EnUs, use12HourClock: false).Should().Be("Nov 3");
+        ChartAxisFormatting.FormatTimeTick(midnight, DayRung1, TimeSpan.FromDays(30), EnUs, use12HourClock: false).Should().Be("Nov 3");
     }
 
     /// <summary>
@@ -397,11 +397,11 @@ public sealed class ChartAxisFormattingTests
         var feb25 = new DateTimeOffset(2025, 2, 6, 0, 0, 0, TimeSpan.Zero);
         var feb26 = new DateTimeOffset(2026, 2, 4, 0, 0, 0, TimeSpan.Zero);
 
-        ChartAxisFormatting.FormatTimeTick(feb25, MonthRung1, span, EnUs).Should().Be("Feb '25");
-        ChartAxisFormatting.FormatTimeTick(feb26, MonthRung1, span, EnUs).Should().Be("Feb '26");
+        ChartAxisFormatting.FormatTimeTick(feb25, MonthRung1, span, EnUs, use12HourClock: false).Should().Be("Feb '25");
+        ChartAxisFormatting.FormatTimeTick(feb26, MonthRung1, span, EnUs, use12HourClock: false).Should().Be("Feb '26");
 
         new[] { feb25, feb26 }
-            .Select(tick => ChartAxisFormatting.FormatTimeTick(tick, MonthRung1, span, EnUs))
+            .Select(tick => ChartAxisFormatting.FormatTimeTick(tick, MonthRung1, span, EnUs, use12HourClock: false))
             .Distinct()
             .Should().HaveCount(2, "the repeated month names of different years must read apart");
     }
@@ -415,9 +415,9 @@ public sealed class ChartAxisFormattingTests
     {
         var novFirst = new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
 
-        ChartAxisFormatting.FormatTimeTick(novFirst, MonthRung1, TimeSpan.FromDays(365), EnUs)
+        ChartAxisFormatting.FormatTimeTick(novFirst, MonthRung1, TimeSpan.FromDays(365), EnUs, use12HourClock: false)
             .Should().Be("Nov 1", "exactly-one-year spans still read as plain dates");
-        ChartAxisFormatting.FormatTimeTick(novFirst, MonthRung1, TimeSpan.FromDays(366), EnUs)
+        ChartAxisFormatting.FormatTimeTick(novFirst, MonthRung1, TimeSpan.FromDays(366), EnUs, use12HourClock: false)
             .Should().Be("Nov '26");
     }
 
@@ -430,8 +430,88 @@ public sealed class ChartAxisFormattingTests
     {
         var newYear2026 = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
-        ChartAxisFormatting.FormatTimeTick(newYear2026, YearRung2, TimeSpan.FromDays(6100), EnUs)
+        ChartAxisFormatting.FormatTimeTick(newYear2026, YearRung2, TimeSpan.FromDays(6100), EnUs, use12HourClock: false)
             .Should().Be("2026");
+    }
+
+    #endregion
+
+    #region Twelve-Hour Clock
+
+    /// <summary>
+    /// The 12-hour clock pins: the hours read the half-day convention with
+    /// no leading zero, noon and just-after-midnight ride their AM/PM sides.
+    /// </summary>
+    [Fact]
+    public void FormatTimeTick_TheTwelveHourClock_PrintsTheHalfDayConvention()
+    {
+        var afternoon = new DateTimeOffset(2026, 11, 2, 14, 30, 0, TimeSpan.Zero);
+        var justAfterMidnight = new DateTimeOffset(2026, 11, 2, 0, 30, 0, TimeSpan.Zero);
+        var noon = new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
+        var morning = new DateTimeOffset(2026, 11, 2, 9, 15, 0, TimeSpan.Zero);
+
+        ChartAxisFormatting.FormatTimeTick(afternoon, ClockRung30, TimeSpan.FromDays(2), EnUs, use12HourClock: true)
+            .Should().Be("2:30 PM");
+        ChartAxisFormatting.FormatTimeTick(justAfterMidnight, ClockRung30, TimeSpan.FromDays(2), EnUs, use12HourClock: true)
+            .Should().Be("12:30 AM");
+        ChartAxisFormatting.FormatTimeTick(noon, ClockRung30, TimeSpan.FromDays(2), EnUs, use12HourClock: true)
+            .Should().Be("12:00 PM");
+        ChartAxisFormatting.FormatTimeTick(morning, ClockRung30, TimeSpan.FromDays(2), EnUs, use12HourClock: true)
+            .Should().Be("9:15 AM", "the 12-hour hour glyph carries no leading zero");
+    }
+
+    /// <summary>
+    /// The half-day clock in a non-English language (the Russian one): the
+    /// hour and minute glyphs stay the culture's own and the designators come
+    /// from its culture data — Latin "AM"/"PM" on .NET 10's ICU (verified
+    /// empirically: every installed culture carries designators there, even
+    /// the languages whose legacy NLS data had none), and an en-US-style
+    /// format string in front of it yields the same half-day convention as
+    /// the English UI language.
+    /// </summary>
+    [Fact]
+    public void FormatTimeTick_TheTwelveHourClock_DesignatorsComeFromTheCulture()
+    {
+        var ru = CultureInfo.GetCultureInfo("ru-RU");
+        var afternoon = new DateTimeOffset(2026, 11, 2, 14, 30, 0, TimeSpan.Zero);
+        var beforeDawn = new DateTimeOffset(2026, 11, 2, 2, 5, 0, TimeSpan.Zero);
+
+        ChartAxisFormatting.FormatTimeTick(afternoon, ClockRung30, TimeSpan.FromDays(2), ru, use12HourClock: true)
+            .Should().Be("2:30 PM");
+        ChartAxisFormatting.FormatTimeTick(beforeDawn, ClockRung30, TimeSpan.FromDays(2), ru, use12HourClock: true)
+            .Should().Be("2:05 AM");
+    }
+
+    /// <summary>
+    /// Midnight hands off to the full-date label in the 12-hour mode too
+    /// (the T-035 handoff is a span rule, not a clock-format one), and the
+    /// 24-hour mode keeps exactly the glyphs it always printed.
+    /// </summary>
+    [Fact]
+    public void FormatTimeTick_MidnightStillHandsOffToTheDateLabel()
+    {
+        var midnight = new DateTimeOffset(2026, 11, 3, 0, 0, 0, TimeSpan.Zero);
+
+        ChartAxisFormatting.FormatTimeTick(midnight, ClockRung30, TimeSpan.FromDays(2), EnUs, use12HourClock: true)
+            .Should().Be("Nov 3");
+        ChartAxisFormatting.FormatTimeTick(midnight, ClockRung30, TimeSpan.FromDays(2), EnUs, use12HourClock: false)
+            .Should().Be("Nov 3", "the handoff is format-agnostic");
+    }
+
+    /// <summary>
+    /// The user-selected clock format touches ONLY the clock text: the
+    /// 24-hour glyphs stay and calendar / multi-year labels ignore it.
+    /// </summary>
+    [Fact]
+    public void FormatTimeTick_TheClockFormatTouchesOnlyTheClockText()
+    {
+        var afternoon = new DateTimeOffset(2026, 11, 2, 14, 30, 0, TimeSpan.Zero);
+        var multiYear = new DateTimeOffset(2026, 2, 4, 0, 0, 0, TimeSpan.Zero);
+
+        ChartAxisFormatting.FormatTimeTick(afternoon, ClockRung30, TimeSpan.FromDays(2), EnUs, use12HourClock: false)
+            .Should().Be("14:30");
+        ChartAxisFormatting.FormatTimeTick(multiYear, MonthRung1, TimeSpan.FromDays(700), EnUs, use12HourClock: true)
+            .Should().Be("Feb '26");
     }
 
     #endregion

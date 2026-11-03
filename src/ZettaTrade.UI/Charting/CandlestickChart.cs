@@ -107,6 +107,24 @@ public class CandlestickChart : Control
         set => SetValue(BarsProperty, value);
     }
 
+    /// <summary>
+    /// StyledProperty for the half-day clock of the time axis.
+    /// </summary>
+    public static readonly StyledProperty<bool> Use12HourClockProperty =
+        AvaloniaProperty.Register<CandlestickChart, bool>(nameof(Use12HourClock));
+
+    /// <summary>
+    /// Whether the time axis prints the 12-hour clock ("11:45 PM"); false —
+    /// the default — prints the 24-hour "23:45". The chart owns no
+    /// persistence: the settings service is the source of truth, rendering
+    /// flows the applied value in through this StyledProperty binding.
+    /// </summary>
+    public bool Use12HourClock
+    {
+        get => GetValue(Use12HourClockProperty);
+        set => SetValue(Use12HourClockProperty, value);
+    }
+
     #endregion
 
     #region Fields & Properties
@@ -186,6 +204,10 @@ public class CandlestickChart : Control
     static CandlestickChart()
     {
         BarsProperty.Changed.AddClassHandler<CandlestickChart>((x, e) => x.OnBarsPropertyChanged(e));
+
+        // A clock-format flip re-inks the axis labels on the next pass.
+        Use12HourClockProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
     }
 
     public CandlestickChart()
@@ -317,16 +339,32 @@ public class CandlestickChart : Control
                 visible[i] = bars[start + i];
         }
 
-        return new ChartSnapshot(visible, BackgroundColor, BullishColor, BearishColor, GridColor, TextColor);
+        return new ChartSnapshot(
+            visible,
+            BackgroundColor,
+            BullishColor,
+            BearishColor,
+            GridColor,
+            TextColor,
+            ChartTickCulture.Resolve(),
+            Use12HourClock);
     }
 
+    /// <summary>
+    /// Immutable per-redraw state the render thread sees: the visible bars,
+    /// the theme colors, and the label culture + clock format resolved on the
+    /// UI thread (the render thread reads no live chart state — an ambient
+    /// CultureInfo there belongs to the process default, not the app).
+    /// </summary>
     private sealed record ChartSnapshot(
         Bar[] VisibleBars,
         SKColor Background,
         SKColor Bullish,
         SKColor Bearish,
         SKColor Grid,
-        SKColor Text);
+        SKColor Text,
+        CultureInfo Culture,
+        bool Use12HourClock);
 
     /// <summary>
     /// Draws the chart straight onto Avalonia's own SKCanvas (render thread).
@@ -430,7 +468,7 @@ public class CandlestickChart : Control
             var priceTicks = ChartAxisFormatting.PickPriceTicks(minPrice, maxPrice, PriceAxisLabelCount);
             var priceDecimals = ChartAxisFormatting.PickPriceDecimals(priceRange / PriceAxisLabelCount);
             var priceTexts = priceTicks
-                .Select(tick => ChartAxisFormatting.FormatPriceTick(tick, priceDecimals, CultureInfo.CurrentCulture))
+                .Select(tick => ChartAxisFormatting.FormatPriceTick(tick, priceDecimals, _snapshot.Culture))
                 .ToArray();
             var priceGutter = priceTexts.Max(text => font.MeasureText(text)) + (2f * PriceAxisGutterPadPx);
 
@@ -442,7 +480,13 @@ public class CandlestickChart : Control
             // labels will actually span (the width minus the measured price
             // gutter), so it is cut before the plot rect exists.
             var plotWidth = Math.Max(1d, width - priceGutter);
-            var (timeRung, timeTicks, timeTexts) = PickTimeLabels(firstTime, lastTime, plotWidth, font);
+            var (timeRung, timeTicks, timeTexts) = PickTimeLabels(
+                firstTime,
+                lastTime,
+                plotWidth,
+                font,
+                _snapshot.Culture,
+                _snapshot.Use12HourClock);
 
             var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
             var timeGutter = textHeight + (2f * TimeAxisGutterPadPx);
@@ -622,19 +666,22 @@ public class CandlestickChart : Control
         /// the measurement stays a valid upper bound) or coarser onto
         /// calendar scales whose labels stay within the measured width, so
         /// one measurement pass suffices. The rung, ticks and texts always
-        /// belong to the same final pick.
+        /// belong to the same final pick. The culture and the clock format
+        /// ride the snapshot (the render thread reads no ambient state) —
+        /// every redraw resolves them from the applied UI language.
         /// </summary>
         private static (TimeTickRung Rung, IReadOnlyList<DateTimeOffset> Ticks, string[] Texts) PickTimeLabels(
             DateTimeOffset firstTime,
             DateTimeOffset lastTime,
             double plotWidth,
-            SKFont font)
+            SKFont font,
+            CultureInfo culture,
+            bool use12HourClock)
         {
-            var culture = CultureInfo.CurrentCulture;
             var timeSpan = lastTime - firstTime;
             var rung = ChartAxisFormatting.PickTimeStep(timeSpan, ChartAxisFormatting.DefaultTimeTickBudget);
             var ticks = ChartAxisFormatting.PickTimeTicks(firstTime, lastTime, rung, ChartAxisFormatting.DefaultTimeTickBudget);
-            var texts = FormatTimeTexts(ticks, rung, timeSpan, culture);
+            var texts = FormatTimeTexts(ticks, rung, timeSpan, culture, use12HourClock);
             var widest = WidestLabelPx(texts, font);
             var budget = ChartAxisFormatting.TimeTickBudgetFor(plotWidth, widest, TimeLabelGapPx);
 
@@ -646,15 +693,16 @@ public class CandlestickChart : Control
             rung = ChartAxisFormatting.PickTimeStep(timeSpan, budget);
             ticks = ChartAxisFormatting.PickTimeTicks(firstTime, lastTime, rung, budget);
 
-            return (rung, ticks, FormatTimeTexts(ticks, rung, timeSpan, culture));
+            return (rung, ticks, FormatTimeTexts(ticks, rung, timeSpan, culture, use12HourClock));
         }
 
         private static string[] FormatTimeTexts(
             IReadOnlyList<DateTimeOffset> ticks,
             TimeTickRung rung,
             TimeSpan timeSpan,
-            IFormatProvider culture) =>
-            [.. ticks.Select(tick => ChartAxisFormatting.FormatTimeTick(tick, rung, timeSpan, culture))];
+            IFormatProvider culture,
+            bool use12HourClock) =>
+            [.. ticks.Select(tick => ChartAxisFormatting.FormatTimeTick(tick, rung, timeSpan, culture, use12HourClock))];
 
         private static double WidestLabelPx(IReadOnlyList<string> texts, SKFont font) =>
             texts.Count == 0 ? 0 : texts.Max(text => font.MeasureText(text));

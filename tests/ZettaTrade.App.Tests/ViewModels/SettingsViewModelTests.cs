@@ -46,6 +46,62 @@ public sealed class SettingsViewModelTests
         viewModel.SelectedLanguageIndex.Should().Be(1); // "ru"
     }
 
+    /// <summary>
+    /// The stored clock format drives the time format combo on open: the
+    /// persisted 12-hour choice selects the second row, the default (no
+    /// 12-hour shown) the first — reset on every window open.
+    /// </summary>
+    [Fact]
+    public void Constructor_ThePersistedClockChoice_DrivesTheTimeFormatIndex()
+    {
+        var (viewModel, _, _, _, _, _) = CreateViewModel(
+            currentTheme: "Dark",
+            currentLanguage: "en",
+            persistedUse12HourClock: true);
+
+        viewModel.SelectedTimeFormatIndex.Should().Be(1); // "12-hour"
+
+        viewModel.ResetSelections();
+
+        viewModel.SelectedTimeFormatIndex.Should().Be(1, "an open re-sync keeps the persisted choice");
+    }
+
+    [Fact]
+    public void ResetSelections_AfterUnsavedClockSelection_DiscardsTheChange()
+    {
+        var (viewModel, _, _, _, _, _) = CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
+
+        viewModel.SelectedTimeFormatIndex = 1; // "12-hour", unsaved
+        viewModel.ResetSelections();
+
+        viewModel.SelectedTimeFormatIndex.Should().Be(0); // applied: the 24-hour default
+    }
+
+    /// <summary>
+    /// Saving a changed clock selection persists the bool key; an unchanged
+    /// selection is a no-op (the same threshold the theme/language choices
+    /// apply).
+    /// </summary>
+    [Fact]
+    public async Task SaveAsync_TheClockSelection_PersistsOnlyARealDifference()
+    {
+        var (viewModel, settings, _, _, _, _) =
+            CreateViewModel(currentTheme: "Dark", currentLanguage: "en",
+                persistedUse12HourClock: false);
+
+        viewModel.SelectedTimeFormatIndex = 0;
+        await viewModel.SaveAsync();
+        await settings.DidNotReceiveWithAnyArgs().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>());
+
+        viewModel.SelectedTimeFormatIndex = 1; // "12-hour"
+        await viewModel.SaveAsync();
+
+        await settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartUse12HourClock,
+            true);
+    }
+
     [Fact]
     public void ResetSelections_AfterUnsavedSelectionChange_DiscardsTheChange()
     {
@@ -221,9 +277,12 @@ public sealed class SettingsViewModelTests
         CreateViewModel(
             string currentTheme,
             string currentLanguage,
-            BehaviorSubject<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null)
+            BehaviorSubject<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null,
+            bool persistedUse12HourClock = false)
     {
         var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(persistedUse12HourClock);
         var themeManager = Substitute.For<IThemeManager>();
         themeManager.CurrentTheme.Returns(currentTheme);
         themeManager.AvailableThemes.Returns(Themes);
