@@ -98,6 +98,13 @@ internal static class CompositionRoot
         services.AddSingleton<IMcpClient, McpClientService>();
         services.AddSingleton<IMcpServerHost, McpServerHost>();
 
+        // MCP host runner: the startup walk reads the enable choice and
+        // starts the stdio server per it; the settings window's save applies
+        // the flip live and the state stream renders the honest rows. Registered
+        // AFTER the settings service (the walk initializes that first) and
+        // BEFORE every consumer VM.
+        services.AddSingleton<McpHostService>();
+
         services.AddSingleton<IRiskManager, DefaultRiskManager>();
         services.AddSingleton<IConfirmationService>(sp => new UiConfirmationService(
             sp.GetRequiredService<ILogger<UiConfirmationService>>(),
@@ -133,6 +140,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<IThemeManager>(),
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<IShellUtils>(),
+                sp.GetRequiredService<McpHostService>(),
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ILogger<SettingsViewModel>>(),

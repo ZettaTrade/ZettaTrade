@@ -199,6 +199,10 @@ public sealed class SettingsViewModelTests
             themeManager,
             localization,
             Substitute.For<IShellUtils>(),
+            new McpHostService(
+                settings,
+                Substitute.For<IMcpServerHost>(),
+                NullLogger<McpHostService>.Instance),
             activeExchanges,
             symbolList,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
@@ -233,6 +237,10 @@ public sealed class SettingsViewModelTests
             themeManager,
             localization,
             Substitute.For<IShellUtils>(),
+            new McpHostService(
+                settings,
+                Substitute.For<IMcpServerHost>(),
+                NullLogger<McpHostService>.Instance),
             activeExchanges,
             symbolList,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
@@ -741,6 +749,13 @@ public sealed class SettingsViewModelTests
         var shellUtils = Substitute.For<IShellUtils>();
         themeLoadErrors ??= new BehaviorSubject<IReadOnlyList<ThemeFileLoadError>>([]);
 
+        // The MCP runner stands un-initialized: the ctor subscription rides
+        // its replaying state (Stopped), the host never starts in these tests.
+        var mcpHosts = new McpHostService(
+            settings,
+            Substitute.For<IMcpServerHost>(),
+            NullLogger<McpHostService>.Instance);
+
         var (activeExchanges, symbolList, adapter) = CreatePairSources(settings, symbolNames);
         if (listingFails)
         {
@@ -754,6 +769,7 @@ public sealed class SettingsViewModelTests
             themeManager,
             localization,
             shellUtils,
+            mcpHosts,
             activeExchanges,
             symbolList,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>(),
