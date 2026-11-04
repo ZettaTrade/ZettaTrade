@@ -36,6 +36,9 @@ public sealed class MainViewModel : ReactiveObject
     /// <summary>Order book ViewModel for the depth panel.</summary>
     public OrderBookViewModel OrderBook { get; }
 
+    /// <summary>Workspace layout ViewModel owning the persisted splitter column widths.</summary>
+    public WorkspaceLayoutViewModel Layout { get; }
+
     /// <summary>
     /// Create a new MainViewModel instance.
     /// </summary>
@@ -46,6 +49,7 @@ public sealed class MainViewModel : ReactiveObject
         SettingsViewModel settings,
         ChartViewModel chart,
         OrderBookViewModel orderBook,
+        WorkspaceLayoutViewModel layout,
         ActiveExchangeService activeExchanges,
         ILogger<MainViewModel> logger)
     {
@@ -55,6 +59,7 @@ public sealed class MainViewModel : ReactiveObject
         Settings = settings;
         Chart = chart;
         OrderBook = orderBook;
+        Layout = layout;
         _logger = logger;
 
         // The status chip mirrors the adapter connection state. The Core
