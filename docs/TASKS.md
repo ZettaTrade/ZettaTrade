@@ -51,7 +51,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-044 UI color hygiene: XAML literals and HTML entities out, colors into constants/themes (supervisor-direct) | feat/ui-colors | done | - |
 | T-045 Workflow bookkeeping codified: develop-based branches, TASKS.md statuses, app version bump | feat/skill-rules | done | - |
 | T-046 [Critical] DPAPI secret store wipes all stored secrets after a silent load failure (BUG-001) | feat/dpapi-store-wipe | done | - |
-| T-047 [Critical] MCP server drops every response for numeric JSON-RPC ids (BUG-002) | fix/mcp-numeric-ids | queued | - |
+| T-047 [Critical] MCP server drops every response for numeric JSON-RPC ids (BUG-002) | feat/mcp-numeric-ids | done | - |
 | T-048 [Critical] Bybit reconnect resubscribes cancel each other (reconnect churn with 2+ symbols) (BUG-003) | fix/bybit-resubscribe | queued | - |
 | T-049 Secret stores: silent data loss and rule violations across DPAPI/Keychain/secret-tool/encrypted file | fix/secrets-stores | queued | - |
 | T-050 MCP pipelines: host lock stall, client id matching, unread stderr, tools enum defaults | fix/mcp-pipelines | queued | - |
@@ -133,12 +133,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-047 — MCP server drops every response for numeric JSON-RPC ids (BUG-002, Critical)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/mcp-numeric-ids (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** every mainline MCP client numbers its JSON-RPC requests (`"id": 1, 2, ...`); against our server they all hang forever - the basic handshake with real clients is broken.
 - **What:** `BUG-002` - the response id is parsed with `GetString()`, which returns null for numeric ids, so the `id != null` gate drops every response; compounded by the initialize reply hardcoding `id = "1"` instead of echoing the request's id.
 - **Scope:** `src/ZettaTrade.AI/Mcp/McpServerHost.cs`.
 - **Acceptance:** ids travel through unchanged: string, numeric and null ids all produce correctly matched replies; the initialize reply echoes the initialize request's id; a numeric-id client completes handshake + a tool call without hanging.
 - **Tests:** the id-shape matrix (string / integer / null / missing) against the request loop; an end-to-end numeric-id round-trip (tools/call) with a scripted client.
+- **Status:** done. Canon: commit `524a1ed` is on feat/mcp-numeric-ids; the gate prints `GATE PASSED` (baseline develop) and the scripted stdio harness carries 4 green facts: the string-id handshake (version/protocol/capabilities pinned, garbage lines only ever reach the logger), the full numeric round-trip (initialize id 1 + tools/call id 2, both echoed as numbers with the tool content verified), the explicit-null id answered with an echoed null, and the id-less notification processed but never answered (the trailing string-id request proves the loop read both lines in order). The id travels as a cloned raw `JsonElement` gated on presence, not on JSON null being falsy; a missing id stays a true notification. The real-client e2e probe (an external mainline MCP client) stays with merge review — the scripted in-process client stands in its place. Wave note: the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-048 — Bybit reconnect resubscribes cancel each other (reconnect churn with 2+ symbols) (BUG-003, Critical)
 
