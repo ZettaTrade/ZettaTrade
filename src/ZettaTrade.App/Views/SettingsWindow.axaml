@@ -8,20 +8,38 @@
         x:Class="ZettaTrade.App.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="{loc:Localized Settings.Title}"
-        Width="420" SizeToContent="Height"
+        Width="560" Height="640"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         ShowInTaskbar="False"
         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
-    <StackPanel Margin="20" Spacing="16">
-        <!-- The settings sections live on tabs: the window grows section by
-             section (MCP, notifications), and one flat list would not scale.
-             Save/Close stay outside the tab area as the dialog's bottom row.
-             Each tab's content root carries a top margin - the breathing room
-             between the tab strip and the section (the theme default hugs
-             the strip, and TabControl.Padding does not reach the content). -->
-        <TabControl>
+    <!-- A fixed window: switching tabs must never resize the dialog, and
+         Save/Close must never travel out of sight — the buttons ride a
+         pinned bottom row while the tab area owns the rest. Nothing scrolls
+         the dialog itself: each long list scrolls inside its own viewport
+         (the theme-error list and both pairs lists carry their own
+         scrollbars). -->
+    <Window.Styles>
+        <!-- The row star: dim while the pair is unmarked, gold once the
+             star pins the pair to the list head (a plain Button has no
+             checked state of its own, so the state rides a class). -->
+        <Style Selector="Button.pair-star">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+        </Style>
+        <Style Selector="Button.pair-star.on">
+            <Setter Property="Foreground" Value="Gold"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="16">
+        <!-- The settings sections live on tabs (MCP, notifications grow into
+             further items, and one flat list would not scale). Each tab's
+             content root carries a top margin - the breathing room between
+             the tab strip and the section (the theme default hugs the strip,
+             and TabControl.Padding does not reach the content). -->
+        <TabControl Grid.Row="0">
             <TabItem Header="{loc:Localized Settings.Tab.Appearance}">
                 <StackPanel Spacing="16" Margin="0,12,0,0">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
@@ -107,19 +125,23 @@
                     </StackPanel>
 
                     <!-- Broken theme files (theme files that failed to parse): hidden
-                         while every file loads. -->
+                         while every file loads. The list can grow with the broken
+                         files' count — it scrolls its own viewport, the bottom row
+                         stays pinned. -->
                     <StackPanel IsVisible="{Binding HasThemeFileErrors}" Spacing="6">
                         <TextBlock Text="{loc:Localized Settings.ThemeErrors.Header}"
                                    FontWeight="Bold" />
-                        <ItemsControl ItemsSource="{Binding ThemeFileErrors}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="themes:ThemeFileLoadError">
-                                    <TextBlock Text="{Binding FileName}"
-                                               TextTrimming="CharacterEllipsis"
-                                               ToolTip.Tip="{Binding FilePath}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <ScrollViewer MaxHeight="160">
+                            <ItemsControl ItemsSource="{Binding ThemeFileErrors}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="themes:ThemeFileLoadError">
+                                        <TextBlock Text="{Binding FileName}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding FilePath}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </StackPanel>
                 </StackPanel>
             </TabItem>
@@ -167,9 +189,95 @@
                     </StackPanel>
                 </Grid>
             </TabItem>
+
+            <TabItem Header="{loc:Localized Settings.Tab.Pairs}">
+                <!-- Both workspace marks live here: the classic two-list
+                     dialog shape — the left list holds the workspace
+                     exchange's all pairs with a star button on every row
+                     (a starred pair pins to the list head and never hides
+                     until unstarred), the right one the hidden names, and
+                     the move buttons sit in the center column: '>' hides
+                     the picked (unstarred) pair, '<' brings it back. Each
+                     list fills the tab's height and scrolls its own rows
+                     (one scrollbar per list). Everything lands in the
+                     draft; Save applies and persists it. The modal window
+                     cannot race an exchange switch, so the lists are
+                     rebuilt per open for the exchange behind the
+                     workspace. -->
+                <Grid RowDefinitions="*,Auto" RowSpacing="10" Margin="0,12,0,0">
+                    <Grid Grid.Row="0"
+                          ColumnDefinitions="*,Auto,*"
+                          ColumnSpacing="12"
+                          RowDefinitions="Auto,*"
+                          RowSpacing="10">
+                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                   Text="{loc:Localized Settings.Pairs.All}" />
+                        <TextBlock Grid.Row="0" Grid.Column="2"
+                                   Text="{loc:Localized Settings.Pairs.Hidden}" />
+                        <ListBox Grid.Row="1" Grid.Column="0"
+                                 ItemsSource="{Binding AllPairs}"
+                                 SelectedItem="{Binding SelectedAllPair}">
+                            <ListBox.ItemTemplate>
+                                <!-- One row: the pair name with the star button
+                                     on the right. The row record carries the
+                                     star state (rebuilt on every draft move),
+                                     so the template binds within its own data
+                                     type; the window's DataContext supplies the
+                                     toggle command. -->
+                                <DataTemplate x:DataType="vm:PairRow">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Name}"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="1"
+                                                Content="★"
+                                                FontSize="14"
+                                                Padding="6,2"
+                                                MinWidth="28"
+                                                VerticalAlignment="Center"
+                                                Margin="0,-2,0,-2"
+                                                Classes="pair-star"
+                                                Classes.on="{Binding IsFavorite}"
+                                                ToolTip.Tip="{loc:Localized Settings.Pairs.Star}"
+                                                AutomationProperties.Name="{loc:Localized Settings.Pairs.Star}"
+                                                CommandParameter="{Binding}"
+                                                Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).TogglePairFavoriteCommand}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <ListBox Grid.Row="1" Grid.Column="2"
+                                 ItemsSource="{Binding HiddenPairs}"
+                                 SelectedItem="{Binding SelectedHiddenPair}" />
+                        <StackPanel Grid.Row="1" Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Spacing="8">
+                            <!-- The caption glyphs carry the flow direction; the
+                                 readable captions ride the automation name and
+                                 the tooltip (assistive tech and hover alike). -->
+                            <Button Width="34" Padding="0"
+                                    Content=">"
+                                    ToolTip.Tip="{loc:Localized Settings.Pairs.Hide}"
+                                    AutomationProperties.Name="{loc:Localized Settings.Pairs.Hide}"
+                                    Command="{Binding HidePairCommand}" />
+                            <Button Width="34" Padding="0"
+                                    Content="&lt;"
+                                    ToolTip.Tip="{loc:Localized Settings.Pairs.Reveal}"
+                                    AutomationProperties.Name="{loc:Localized Settings.Pairs.Reveal}"
+                                    Command="{Binding RevealPairCommand}" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Grid.Row="1"
+                               Text="{loc:Localized Settings.Pairs.Hint}"
+                               TextWrapping="Wrap"
+                               FontSize="12" />
+                </Grid>
+            </TabItem>
         </TabControl>
 
-        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+        <!-- The dialog's bottom row: pinned outside the tab area, never
+             scrolled away. -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
             <Button x:Name="SaveButton"
                     Content="{loc:Localized Settings.Save}"
                     MinWidth="90"
@@ -179,5 +287,5 @@
                     MinWidth="90"
                     Click="OnCloseClick" />
         </StackPanel>
-    </StackPanel>
+    </Grid>
 </Window>

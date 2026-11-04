@@ -70,4 +70,19 @@ public static class UiSettingsKeys
     /// applied as the symbols bootstrap's first-choice preference.
     /// </summary>
     public const string WorkspaceSymbolId = "SymbolId";
+
+    /// <summary>
+    /// Settings key of the persisted per-exchange favorite symbols: a JSON
+    /// map (see <c>SymbolMarkMap</c>) of exchange id to the array of the
+    /// starred symbols' normalized names. Written on every favorite toggle,
+    /// read by the symbols bootstrap on every exchange switch.
+    /// </summary>
+    public const string WorkspaceFavoriteSymbols = "FavoriteSymbols";
+
+    /// <summary>
+    /// Settings key of the persisted per-exchange hidden symbols: the same
+    /// JSON map shape as <see cref="WorkspaceFavoriteSymbols"/>, for the
+    /// pairs the picker stops listing until the reveal toggle is on.
+    /// </summary>
+    public const string WorkspaceHiddenSymbols = "HiddenSymbols";
 }

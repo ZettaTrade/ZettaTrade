@@ -78,6 +78,27 @@
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Indicators</value>
   </data>
+  <data name="Settings.Tab.Pairs" xml:space="preserve">
+    <value>Pairs</value>
+  </data>
+  <data name="Settings.Pairs.All" xml:space="preserve">
+    <value>All pairs</value>
+  </data>
+  <data name="Settings.Pairs.Hidden" xml:space="preserve">
+    <value>Hidden pairs</value>
+  </data>
+  <data name="Settings.Pairs.Hide" xml:space="preserve">
+    <value>Hide</value>
+  </data>
+  <data name="Settings.Pairs.Reveal" xml:space="preserve">
+    <value>Reveal</value>
+  </data>
+  <data name="Settings.Pairs.Star" xml:space="preserve">
+    <value>Star — pin the pair to the list head (a starred pair is never hidden until unstarred)</value>
+  </data>
+  <data name="Settings.Pairs.Hint" xml:space="preserve">
+    <value>The '&gt;' and '&lt;' buttons move a picked pair between the lists; hidden pairs leave the workspace symbol picker, and at least one visible pair stays. The '★' button pins a pair to the head of the list — a starred pair is never hidden until it is unstarred. The lists apply to the current exchange; changes apply on Save.</value>
+  </data>
   <data name="Settings.Theme" xml:space="preserve">
     <value>Theme</value>
   </data>
