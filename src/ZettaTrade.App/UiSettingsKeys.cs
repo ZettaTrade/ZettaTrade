@@ -46,6 +46,19 @@ public static class UiSettingsKeys
     public const bool DefaultShowAiPanel = true;
 
     /// <summary>
+    /// Settings key of the persisted chart indicator overlay configuration:
+    /// a JSON array of indicator rows (the ChartIndicatorConfig shape).
+    /// </summary>
+    public const string ChartIndicators = "ChartIndicators";
+
+    /// <summary>
+    /// The indicator overlay configuration applied until a stored setting is
+    /// loaded: the classic SMA at period 20 enabled, so a fresh install shows
+    /// the seam working over the candles.
+    /// </summary>
+    public const string DefaultChartIndicators = """[{"name":"SMA","enabled":true,"period":20}]""";
+
+    /// <summary>
     /// Settings section holding persisted workspace context choices; the
     /// active-exchange facade keeps its ExchangeId in the same section.
     /// </summary>

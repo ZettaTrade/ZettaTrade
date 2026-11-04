@@ -159,6 +159,12 @@
   <data name="Chart.TimeFormat.Hours12" xml:space="preserve">
     <value>12-часовой</value>
   </data>
+  <data name="Chart.Indicators" xml:space="preserve">
+    <value>Индикаторы</value>
+  </data>
+  <data name="Chart.Indicators.Period" xml:space="preserve">
+    <value>Период</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>

@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZettaTrade.App\ZettaTrade.App.csproj" />
+    <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Sma\ZettaTrade.Plugins.Sma.csproj" />
   </ItemGroup>
 
 </Project>
