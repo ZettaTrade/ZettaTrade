@@ -1,5 +1,6 @@
 #Requires -Version 5
-# Usage: pwsh scripts/new-worktree.ps1 -Name chart   (creates ..\zt-chart on branch feat/chart)
+# Usage: pwsh scripts/new-worktree.ps1 -Name chart -Base develop   (creates ..\zt-chart on branch feat/chart)
+# Feature branches base on develop — pass -Base develop explicitly (the default base is main).
 param(
     [Parameter(Mandatory)][string]$Name,
     [string]$Base = 'main'
