@@ -15,146 +15,156 @@
         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
     <StackPanel Margin="20" Spacing="16">
-        <TextBlock Text="{loc:Localized Settings.Appearance}"
-                   FontWeight="Bold"
-                   FontSize="14" />
+        <!-- The settings sections live on tabs: the window grows section by
+             section (MCP, notifications), and one flat list would not scale.
+             Save/Close stay outside the tab area as the dialog's bottom row. -->
+        <TabControl>
+            <TabItem Header="{loc:Localized Settings.Tab.Appearance}">
+                <StackPanel Spacing="16">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                   Text="{loc:Localized Settings.Theme}"
+                                   VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="0" Grid.Column="1"
+                                  ItemsSource="{Binding AvailableThemes}"
+                                  SelectedIndex="{Binding SelectedThemeIndex}"
+                                  MinWidth="220"
+                                  HorizontalAlignment="Left">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="core:ThemeInfo">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding DisplayName}"
+                                                   VerticalAlignment="Center" />
+                                        <!-- Preview motif from the theme file's previewColors;
+                                             skipped hex values and an empty list render no
+                                             strip (converter drops unparseable entries). -->
+                                        <ItemsControl Grid.Column="1"
+                                                      VerticalAlignment="Center"
+                                                      ItemsSource="{Binding PreviewColors, Converter={x:Static themes:PreviewColorsToBrushesConverter.Instance}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" Spacing="3" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="media:ISolidColorBrush">
+                                                    <Border Width="10"
+                                                            Height="10"
+                                                            CornerRadius="2"
+                                                            Background="{Binding}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
 
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
-            <TextBlock Grid.Row="0" Grid.Column="0"
-                       Text="{loc:Localized Settings.Theme}"
-                       VerticalAlignment="Center" />
-            <ComboBox Grid.Row="0" Grid.Column="1"
-                      ItemsSource="{Binding AvailableThemes}"
-                      SelectedIndex="{Binding SelectedThemeIndex}"
-                      MinWidth="220"
-                      HorizontalAlignment="Left">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="core:ThemeInfo">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0"
-                                       Text="{Binding DisplayName}"
-                                       VerticalAlignment="Center" />
-                            <!-- Preview motif from the theme file's previewColors;
-                                 skipped hex values and an empty list render no
-                                 strip (converter drops unparseable entries). -->
-                            <ItemsControl Grid.Column="1"
-                                          VerticalAlignment="Center"
-                                          ItemsSource="{Binding PreviewColors, Converter={x:Static themes:PreviewColorsToBrushesConverter.Instance}}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="3" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="media:ISolidColorBrush">
-                                        <Border Width="10"
-                                                Height="10"
-                                                CornerRadius="2"
-                                                Background="{Binding}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Grid>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                   Text="{loc:Localized Settings.Language}"
+                                   VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="1" Grid.Column="1"
+                                  ItemsSource="{Binding AvailableLanguages}"
+                                  SelectedIndex="{Binding SelectedLanguageIndex}"
+                                  MinWidth="220"
+                                  HorizontalAlignment="Left">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="core:LanguageInfo">
+                                    <TextBlock Text="{Binding NativeName}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
 
-            <TextBlock Grid.Row="1" Grid.Column="0"
-                       Text="{loc:Localized Settings.Language}"
-                       VerticalAlignment="Center" />
-            <ComboBox Grid.Row="1" Grid.Column="1"
-                      ItemsSource="{Binding AvailableLanguages}"
-                      SelectedIndex="{Binding SelectedLanguageIndex}"
-                      MinWidth="220"
-                      HorizontalAlignment="Left">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="core:LanguageInfo">
-                        <TextBlock Text="{Binding NativeName}" />
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+                        <!-- The chart clock format: the option rows print the localized
+                             labels directly (static strings stay out of the ViewModel);
+                             the index is the only state crossing the binding. -->
+                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                   Text="{loc:Localized Chart.TimeFormat}"
+                                   VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="2" Grid.Column="1"
+                                  SelectedIndex="{Binding SelectedTimeFormatIndex}"
+                                  MinWidth="220"
+                                  HorizontalAlignment="Left">
+                            <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours24}" />
+                            <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours12}" />
+                        </ComboBox>
+                    </Grid>
 
-            <!-- The chart clock format: the option rows print the localized
-                 labels directly (static strings stay out of the ViewModel);
-                 the index is the only state crossing the binding. -->
-            <TextBlock Grid.Row="2" Grid.Column="0"
-                       Text="{loc:Localized Chart.TimeFormat}"
-                       VerticalAlignment="Center" />
-            <ComboBox Grid.Row="2" Grid.Column="1"
-                      SelectedIndex="{Binding SelectedTimeFormatIndex}"
-                      MinWidth="220"
-                      HorizontalAlignment="Left">
-                <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours24}" />
-                <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours12}" />
-            </ComboBox>
+                    <!-- Theme folder and schema hint: customization is file-based, so the
+                         button hands the folder over to the OS file manager. -->
+                    <StackPanel Spacing="10">
+                        <Button Content="{loc:Localized Settings.ThemesFolder.Open}"
+                                Command="{Binding OpenThemesFolderCommand}"
+                                MinWidth="160"
+                                HorizontalAlignment="Left" />
+                        <TextBlock Text="{loc:Localized Settings.ThemeErrors.Hint}"
+                                   TextWrapping="Wrap"
+                                   FontSize="12" />
+                    </StackPanel>
 
-            <!-- The chart indicator overlay: the SMA row (enable + period).
-                 "SMA" is the plugin's canonical name - a product name, not a
-                 localized string; the row label and the period caption are. -->
-            <TextBlock Grid.Row="3" Grid.Column="0"
-                       Text="{loc:Localized Chart.Indicators}"
-                       VerticalAlignment="Center" />
-            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                <CheckBox Content="SMA"
-                          IsChecked="{Binding IsSmaEnabled}"
-                          VerticalAlignment="Center" />
-                <!-- The info affordance: the tooltip lives HERE, not on the
-                     checkbox, so the icon itself signals that an explanation
-                     is available. The text wraps so a long translation stays
-                     readable. -->
-                <Border Width="16" Height="16"
-                        CornerRadius="8"
-                        Background="Transparent"
-                        BorderThickness="1"
-                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
-                        VerticalAlignment="Center">
-                    <ToolTip.Tip>
-                        <TextBlock MaxWidth="260"
-                                   Text="{loc:Localized Chart.Indicators.SmaTip}"
-                                   TextWrapping="Wrap" />
-                    </ToolTip.Tip>
-                    <TextBlock Text="i"
-                               FontSize="10"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
-                               HorizontalAlignment="Center"
+                    <!-- Broken theme files (theme files that failed to parse): hidden
+                         while every file loads. -->
+                    <StackPanel IsVisible="{Binding HasThemeFileErrors}" Spacing="6">
+                        <TextBlock Text="{loc:Localized Settings.ThemeErrors.Header}"
+                                   FontWeight="Bold" />
+                        <ItemsControl ItemsSource="{Binding ThemeFileErrors}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="themes:ThemeFileLoadError">
+                                    <TextBlock Text="{Binding FileName}"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip.Tip="{Binding FilePath}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="{loc:Localized Settings.Tab.Indicators}">
+                <!-- The indicator overlay rows: the SMA row today, future rows
+                     land here one grid row each. -->
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto" RowSpacing="10">
+                    <!-- "SMA" is the plugin's canonical name - a product name, not a
+                         localized string; the row label and the period caption are. -->
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{loc:Localized Chart.Indicators}"
                                VerticalAlignment="Center" />
-                </Border>
-                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                           VerticalAlignment="Center" />
-                <TextBox Text="{Binding SmaPeriodText}"
-                         MinWidth="64"
-                         VerticalAlignment="Center" />
-            </StackPanel>
-        </Grid>
-
-        <!-- Theme folder and schema hint: customization is file-based, so the
-             button hands the folder over to the OS file manager. -->
-        <StackPanel Spacing="10">
-            <Button Content="{loc:Localized Settings.ThemesFolder.Open}"
-                    Command="{Binding OpenThemesFolderCommand}"
-                    MinWidth="160"
-                    HorizontalAlignment="Left" />
-            <TextBlock Text="{loc:Localized Settings.ThemeErrors.Hint}"
-                       TextWrapping="Wrap"
-                       FontSize="12" />
-        </StackPanel>
-
-        <!-- Broken theme files (theme files that failed to parse): hidden
-             while every file loads. -->
-        <StackPanel IsVisible="{Binding HasThemeFileErrors}" Spacing="6">
-            <TextBlock Text="{loc:Localized Settings.ThemeErrors.Header}"
-                       FontWeight="Bold" />
-            <ItemsControl ItemsSource="{Binding ThemeFileErrors}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="themes:ThemeFileLoadError">
-                        <TextBlock Text="{Binding FileName}"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip.Tip="{Binding FilePath}" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </StackPanel>
+                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                        <CheckBox Content="SMA"
+                                  IsChecked="{Binding IsSmaEnabled}"
+                                  VerticalAlignment="Center" />
+                        <!-- The info affordance: the tooltip lives HERE, not on the
+                             checkbox, so the icon itself signals that an explanation
+                             is available. The text wraps so a long translation stays
+                             readable. -->
+                        <Border Width="16" Height="16"
+                                CornerRadius="8"
+                                Background="Transparent"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                VerticalAlignment="Center">
+                            <ToolTip.Tip>
+                                <TextBlock MaxWidth="260"
+                                           Text="{loc:Localized Chart.Indicators.SmaTip}"
+                                           TextWrapping="Wrap" />
+                            </ToolTip.Tip>
+                            <TextBlock Text="i"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                                   VerticalAlignment="Center" />
+                        <TextBox Text="{Binding SmaPeriodText}"
+                                 MinWidth="64"
+                                 VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
 
         <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
             <Button x:Name="SaveButton"

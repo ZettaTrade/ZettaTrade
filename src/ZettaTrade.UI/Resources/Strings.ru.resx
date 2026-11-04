@@ -72,8 +72,11 @@
   <data name="Settings.Title" xml:space="preserve">
     <value>Настройки</value>
   </data>
-  <data name="Settings.Appearance" xml:space="preserve">
+  <data name="Settings.Tab.Appearance" xml:space="preserve">
     <value>Оформление</value>
+  </data>
+  <data name="Settings.Tab.Indicators" xml:space="preserve">
+    <value>Индикаторы</value>
   </data>
   <data name="Settings.Theme" xml:space="preserve">
     <value>Тема</value>
