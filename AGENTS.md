@@ -4,7 +4,7 @@ Cross-platform desktop trading terminal (crypto + stocks) with first-class AI in
 Stack: .NET 10, C# 13, Avalonia UI 12, ReactiveUI.Avalonia 12.1, SkiaSharp, EF Core + SQLite, Serilog, xUnit + NSubstitute + FluentAssertions. MIT, open source. Targets: Windows, macOS, Linux.
 
 ## Workflow (read first)
-1. Work only in your own git worktree on your own branch. Feature branches are based on `develop` — never on `main`: create them with `pwsh scripts/new-worktree.ps1 -Name <name> -Base develop` (the script's default base is `main`, so pass `-Base develop` explicitly). Never commit directly to `main` or `develop`.
+1. Work only in your own git worktree on your own branch. Feature branches are based on `develop` — never on `main`: create them with `pwsh scripts/new-worktree.ps1 -Name <name> -Base develop` (the script's default base is `main`, so pass `-Base develop` explicitly). Never commit directly to `main` or `develop`. Once the task is done and merged, remove its worktree folder and its branch: `git worktree remove <folder>` (it refuses on uncommitted files — resolve those first), then `git branch -d <name>`; no stale task folders linger around the repo.
 2. Stay inside the scope named in your task. If you need a change outside it (Core contracts, shared files), stop and ask the supervisor.
 3. Before reporting done run `pwsh scripts/gate.ps1 -BaseBranch develop`. It must print `GATE PASSED`. Never report done otherwise.
 4. Add tests for new domain logic.

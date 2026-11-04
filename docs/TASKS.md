@@ -67,6 +67,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-060 Localization: culture race in the cached lookup + suspected binding lifetime leak | fix/localization-races | queued | - |
 | T-061 Order history store: terminal-status rewrite + upsert check-then-act race | fix/order-history-store | queued | - |
 | T-062 XDG path resolver returns CWD-relative paths for empty environment variables | fix/xdg-paths | queued | - |
+| T-063 The closed-task archive: sections leave the board, the archive rule and the reply language codified (supervisor-direct) | feat/task-archive | done | - |
+| T-064 Worktree lifecycle: remove the task folder and branch after merge (supervisor-direct) | feat/worktree-cleanup | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -321,3 +323,16 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `src/ZettaTrade.Infrastructure/Configuration/ConfigPathResolver.cs`.
 - **Acceptance:** unset OR empty environment variables both fall back to the platform defaults; a non-empty variable wins as before.
 - **Tests:** the env matrix (unset / empty / valid) pinned per resolved directory.
+
+## T-063 — The closed-task archive: sections leave the board, the archive rule and the reply language codified (supervisor-direct)
+
+- **Branch:** feat/task-archive (supervisor-direct task, not board-originated; stacked on `feat/bug-board@e25c96a`, merged first).
+- **What:** the closed-task sections (T-001...T-037, T-039, T-042, T-043) moved verbatim from `docs/TASKS.md` into the new `docs/TASKS-ARCHIVE.md` (canonical T order; the queued sections T-038/T-040/T-041 stayed on the board); the board header names the archive path; rule 5 of `AGENTS.md` + the registered skill `.opencode/skills/zettatrade/SKILL.md` (bodies kept byte-identical) gained the archive-once-done-and-merged step, and the new rule 9 pins the working language: reason in English, answer in Russian; everything shipped in the repo stays English.
+- **Status:** done. Canon: the branch carried `b0192ee` (the archive split + the two rules) + `34e1b91` (three queued sections restored to the board) and landed as a fast-forward on develop. Docs-only: no version bump (rule 6). Worktree `zt-task-archive` and the branch were removed after the merge (rule 1, see T-064).
+
+## T-064 — Worktree lifecycle: remove the task folder and branch after merge (supervisor-direct)
+
+- **Branch:** feat/worktree-cleanup (supervisor-direct task, not board-originated; based on develop after the T-063 merge).
+- **Origin:** rule 1 spelled out only the worktree creation; the merged tasks' folders lingered on the disk (`zt-ui-colors`, `zt-skill-rules`, `zt-bug-board`, `zt-task-archive`) with their branches live.
+- **What:** rule 1 of `AGENTS.md` (+ the registered skill, identical bodies) and `.opencode/agents/zt-supervisor.md` now say it: once the task is done and merged, remove its worktree folder (`git worktree remove <folder>` — it refuses on uncommitted files, resolve those first) and delete its branch (`git branch -d <name>`); no stale task folders linger around the repo. The first sweep ran alongside this rule: the four merged worktrees above were removed (each was clean and fully merged) and the branches `feat/ui-colors`, `feat/skill-rules`, `feat/bug-board`, `feat/task-archive` were deleted.
+- **Status:** done. Canon: this branch's single docs commit (see git log). Docs-only: no version bump (rule 6).
