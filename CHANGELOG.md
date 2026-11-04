@@ -9,6 +9,24 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.21] - 2026-11-04
+
+Build of the ui-colors refactor (supervisor-direct task; branch `feat/ui-colors`).
+
+### Changed
+- The XAML carries no color literals anymore: the favorite stars consume
+  the new `Highlight` theme key, the three error texts (`ErrorMessage`)
+  the new `Error` key, the chat timestamps the existing
+  `TextSecondary` key.
+- The `Highlight` and `Error` keys ship in every theme file
+  (`dark`, `light`, `midnight`, `oled`, the repo example `trading-pro`)
+  and into the sample custom theme; the theme-key docs lists follow.
+
+### Removed
+- HTML entities from source XML docs; the Skia fallback colors became
+  named `static readonly` constants (`CandlestickChart`,
+  `OrderBookWidget`). No behavior change.
+
 ## [0.1.0-alpha.20] - 2026-11-04
 
 Build of task T-039 (symbol favorites + hidden pairs).
