@@ -12,6 +12,7 @@ using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.UI.Extensions;
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
 /// Chart panel state: the available symbols list, the selected symbol and the
@@ -42,6 +43,14 @@ using ZettaTrade.UI.Extensions;
 /// it either re-applies the just-read preference (no duplicate write) or
 /// records the logged fall-through (the persisted value is a preference,
 /// never a silently substituted default).
+/// The per-symbol marks persist per workspace exchange as the
+/// <c>Workspace.FavoriteSymbols</c> / <c>Workspace.HiddenSymbols</c> JSON
+/// maps (see <see cref="Services.SymbolMarkMap"/>): the bootstrap reads
+/// both on every exchange switch and builds the rows favorites-first with
+/// the hidden pairs filtered, every toolbar toggle writes the toggled map
+/// back, and a hidden-but-selected symbol stays in the list as an invisible
+/// row so the selection (and the live series it owns) never rebases. The
+/// reveal toggle is a session affordance and is not persisted.
 /// The ViewModel lives as long as the application (singleton), so the
 /// subscriptions mirror it and need no explicit disposal.
 /// </remarks>
@@ -154,13 +163,143 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         TimeFrame.MN1,
     ];
 
-    private ObservableCollection<Symbol> _availableSymbols = new();
+    private readonly ObservableCollection<SymbolRow> _availableSymbols = new();
 
-    /// <summary>List of available trading symbols.</summary>
-    public ObservableCollection<Symbol> AvailableSymbols
+    /// <summary>
+    /// Rows of the symbols combo: the exchange's list with the persisted
+    /// marks applied (favorites first, hidden pairs filtered unless the
+    /// reveal toggle is on — see <see cref="ShowHiddenSymbols"/>). Rebuilt
+    /// on every marks, selection and exchange change — in place: the
+    /// collection identity never changes (a swap makes the combo's selection
+    /// machinery reset and re-point, and the deferred re-point then writes a
+    /// stale row back through the two-way binding, rebasing the selection).
+    /// </summary>
+    public ObservableCollection<SymbolRow> AvailableSymbols => _availableSymbols;
+
+    /// <summary>
+    /// Whether a rows rebuild (or the bootstrap's rows application) is in
+    /// progress: the two-way combo binding's write-backs arriving in here
+    /// (clicks' own echoes, selection-machinery re-points) carry no
+    /// information — the rebuild re-commits the correct row itself, and the
+    /// write-back must not substitute its stale symbol for the selection.
+    /// </summary>
+    private bool _isUpdatingSymbolRows;
+
+    /// <summary>
+    /// Replace the rows in place with the rebuilt list: positional diffing
+    /// keeps unchanged rows untouched (records compare by value, so a
+    /// rebuild that changed nothing raises no events at all — the combo's
+    /// selection stays exactly as the interaction committed it), removed
+    /// rows leave the tail, added rows land on top of it.
+    /// </summary>
+    private void UpdateRowsInPlace(IReadOnlyList<SymbolRow> rows)
     {
-        get => _availableSymbols;
-        private set => this.RaiseAndSetIfChanged(ref _availableSymbols, value);
+        for (var index = 0; index < rows.Count; index++)
+        {
+            if (index < _availableSymbols.Count &&
+                Equals(_availableSymbols[index], rows[index]))
+            {
+                continue;
+            }
+
+            if (index < _availableSymbols.Count)
+            {
+                _availableSymbols[index] = rows[index];
+            }
+            else
+            {
+                _availableSymbols.Add(rows[index]);
+            }
+        }
+
+        while (_availableSymbols.Count > rows.Count)
+        {
+            _availableSymbols.RemoveAt(_availableSymbols.Count - 1);
+        }
+    }
+
+    private bool _showHiddenSymbols;
+
+    /// <summary>
+    /// Whether the hidden symbol rows show in the combo again: the reveal
+    /// toggle behind the un-hiding flow. A session affordance by design —
+    /// it never persists (the marks themselves do).
+    /// </summary>
+    public bool ShowHiddenSymbols
+    {
+        get => _showHiddenSymbols;
+        set => this.RaiseAndSetIfChanged(ref _showHiddenSymbols, value);
+    }
+
+    private bool _isSelectedSymbolFavorite;
+
+    /// <summary>
+    /// Whether the selected symbol is a favorite: the star toggle's state.
+    /// Re-raised with every rows rebuild.
+    /// </summary>
+    public bool IsSelectedSymbolFavorite
+    {
+        get => _isSelectedSymbolFavorite;
+        private set => this.RaiseAndSetIfChanged(ref _isSelectedSymbolFavorite, value);
+    }
+
+    private bool _isSelectedSymbolHidden;
+
+    /// <summary>
+    /// Whether the selected symbol is hidden: the hide toggle's state.
+    /// Re-raised with every rows rebuild.
+    /// </summary>
+    public bool IsSelectedSymbolHidden
+    {
+        get => _isSelectedSymbolHidden;
+        private set => this.RaiseAndSetIfChanged(ref _isSelectedSymbolHidden, value);
+    }
+
+    private SymbolRow? _selectedSymbolRow;
+
+    /// <summary>
+    /// The combo's selected ROW: the two-way shim between the combo and
+    /// <see cref="SelectedSymbol"/> (the row list cannot bind SelectedItem
+    /// to a Symbol directly, and SelectedValueBinding broke item container
+    /// generation on Avalonia 12). Reading returns the row matching the
+    /// canonical selection (kept current by every rows rebuild); writing a
+    /// row forwards its symbol into <see cref="SelectedSymbol"/> — except
+    /// while a rebuild is in flight (<see cref="_isUpdatingSymbolRows"/>):
+    /// the rebuild re-commits the correct row itself, so a write-back
+    /// arriving in here (the click's own echo, the selection machinery
+    /// re-pointing on collection changes) must not substitute its symbol
+    /// for the selection — that write-back is what rebased the selection
+    /// to the list head before the rebuilds stopped replacing the rows
+    /// collection.
+    /// </summary>
+    public SymbolRow? SelectedSymbolRow
+    {
+        get => _selectedSymbolRow;
+        set
+        {
+            if (_isUpdatingSymbolRows)
+            {
+                if (!EqualityComparer<SymbolRow?>.Default.Equals(_selectedSymbolRow, value))
+                {
+                    _selectedSymbolRow = value;
+                    this.RaisePropertyChanged(nameof(SelectedSymbolRow));
+                }
+
+                return;
+            }
+
+            if (EqualityComparer<SymbolRow?>.Default.Equals(_selectedSymbolRow, value))
+            {
+                return;
+            }
+
+            _selectedSymbolRow = value;
+            this.RaisePropertyChanged(nameof(SelectedSymbolRow));
+            if (value is not null)
+            {
+                SelectedSymbol = value.Symbol;
+            }
+        }
     }
 
     /// <summary>
@@ -295,6 +434,38 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     #endregion
 
+    #region Symbol Marks State
+
+    /// <summary>The last bootstrap's full symbol list (before the marks are applied): every rows rebuild re-reads it.</summary>
+    private IReadOnlyList<Symbol> _exchangeSymbols = [];
+
+    /// <summary>The persisted favorites map (all exchanges): seeded at bootstrap, kept current by the changes stream and the toggles.</summary>
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> _favoriteMarks =
+        new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
+
+    /// <summary>The persisted hidden map (all exchanges): the same lifecycle as <see cref="_favoriteMarks"/>.</summary>
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> _hiddenMarks =
+        new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
+
+    /// <summary>The exchange the cached lists apply to: the marks resolve per workspace exchange.</summary>
+    private string _marksExchangeId = string.Empty;
+
+    /// <summary>
+    /// Star/unstar the selected symbol: the toolbar's favorite toggle. The
+    /// write persists the whole favorites map (the other exchanges' entries
+    /// included) and the rebuild applies the mark at once.
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleFavoriteCommand { get; }
+
+    /// <summary>
+    /// Hide/unhide the selected symbol: the toolbar's hide toggle. A hidden
+    /// symbol leaves the everyday list; when it is the selected one it stays
+    /// as an invisible row (the selection never rebases).
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleHiddenCommand { get; }
+
+    #endregion
+
     #region Constructors
 
     /// <summary>
@@ -303,9 +474,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <param name="settings">The app settings service; the time frame
     /// restore reads <see cref="UiSettingsKeys.ChartTimeFrame"/> and every
     /// user change persists there, the clock formats read and live-apply
-    /// <see cref="UiSettingsKeys.ChartUse12HourClock"/>, and the workspace
+    /// <see cref="UiSettingsKeys.ChartUse12HourClock"/>, the workspace
     /// symbol reads and persists
-    /// <see cref="UiSettingsKeys.WorkspaceSymbolId"/>.</param>
+    /// <see cref="UiSettingsKeys.WorkspaceSymbolId"/>, and the symbol marks
+    /// read <see cref="UiSettingsKeys.WorkspaceFavoriteSymbols"/> /
+    /// <see cref="UiSettingsKeys.WorkspaceHiddenSymbols"/> at every
+    /// bootstrap while the toolbar toggles persist the toggled map.</param>
     /// <param name="indicatorCatalog">The plugin seam the indicator overlay
     /// rows resolve through; the enabled rows compute against the current
     /// series on every delivery, prepend and settings change.</param>
@@ -493,6 +667,29 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 ex => _logger.LogError(ex, "The chart indicator lines stream stopped unexpectedly"));
 
 
+        // The symbol marks follow the settings service live (the same pure
+        // -consumer contract the clock format keeps): a change to either
+        // marks key re-parses the map, re-applies it against the current
+        // exchange's list and rebuilds the rows. Non-string payloads drop —
+        // the applied marks stay in charge.
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.WorkspaceSection &&
+                             (change.Key == UiSettingsKeys.WorkspaceFavoriteSymbols ||
+                              change.Key == UiSettingsKeys.WorkspaceHiddenSymbols))
+            .Subscribe(
+                change => ApplyMarksChange(change),
+                ex => _logger.LogError(ex, "The workspace symbol marks stream stopped unexpectedly"));
+
+        // The rows re-decide on every selection change: the hidden-pinned
+        // row (the invisible selection holder) follows the selection. The
+        // reveal toggle rebuilds the same way.
+        this.WhenAnyValue(x => x.SelectedSymbol).Subscribe(
+            _ => RebuildSymbolRows(),
+            ex => _logger.LogError(ex, "The chart symbol rows stream stopped unexpectedly"));
+        this.WhenAnyValue(x => x.ShowHiddenSymbols).Subscribe(
+            _ => RebuildSymbolRows(),
+            ex => _logger.LogError(ex, "The chart symbol rows stream stopped unexpectedly"));
+
         // The symbol list belongs to the exchange: the bootstrap re-runs on
         // every adapter change (the behavioral stream also performs the first
         // load right at construction) and keeps the previous selection alive
@@ -503,6 +700,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 adapter => BootstrapSymbols(adapter),
                 ex => _logger.LogError(ex, "The chart symbols stream stopped unexpectedly"));
+
+        // The mark toggles act on the selection: no selection, no mark.
+        var hasSelectedSymbol = this
+            .WhenAnyValue(x => x.SelectedSymbol)
+            .Select(static symbol => symbol is not null);
+        ToggleFavoriteCommand = ReactiveCommand.CreateFromTask(ToggleFavoriteAsync, hasSelectedSymbol);
+        ToggleHiddenCommand = ReactiveCommand.CreateFromTask(ToggleHiddenAsync, hasSelectedSymbol);
     }
 
     #endregion
@@ -636,13 +840,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// application run per exchange serves the chart combo and the order
     /// dialog autocomplete alike; the provider is warmed at startup and
     /// flushed on every exchange switch, so this bootstrap usually awaits a
-    /// fetch or a ready cache), trimmed to the combo capacity. Failures
-    /// belong to the subscribe side (logged there, the combo stays empty).
+    /// fetch or a ready cache). The FULL parsed list returns — the marks
+    /// sort runs before the combo cap (a favorite deep in the exchange's
+    /// order still pins to the head). Failures belong to the subscribe side
+    /// (logged there, the combo stays empty).
     /// </summary>
     private async Task<IReadOnlyList<Symbol>> LoadSymbolsAsync(CancellationToken ct)
     {
         var names = await _symbolList.GetSymbolsAsync(ct);
-        return names.Select(Symbol.Parse).Take(MaxVisibleSymbols).ToList();
+        return names.Select(Symbol.Parse).ToList();
     }
 
     /// <summary>
@@ -656,8 +862,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private void BootstrapSymbols(IMarketDataAdapter trigger)
     {
         var exchangeName = trigger.Name;
+
+        // The marks resolve per exchange synchronously: a toggle that races
+        // the fetch still persists into the right exchange's map.
+        _marksExchangeId = trigger.Id;
+
         Observable
-            .FromAsync(token => LoadBootstrapAsync(token))
+            .FromAsync(token => LoadBootstrapAsync(trigger.Id, token))
             .ObserveOnUiThread()
             .Subscribe(
                 bootstrap =>
@@ -670,10 +881,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // would destroy the deferred preference). The gate makes
                     // the persistence chain skip exactly this assignment; the
                     // two-way combo adds user edits everywhere else.
+                    _favoriteMarks = bootstrap.FavoriteMarks;
+                    _hiddenMarks = bootstrap.HiddenMarks;
                     _isApplyingBootstrapSelection = true;
                     try
                     {
-                        AvailableSymbols = new ObservableCollection<Symbol>(bootstrap.Symbols);
+                        _exchangeSymbols = bootstrap.Symbols;
+                        RebuildSymbolRows();
                         SelectedSymbol = bootstrap.Selection;
                     }
                     finally
@@ -718,38 +932,62 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     /// <summary>
-    /// Everything one symbols bootstrap decided: the symbol page to list, the
-    /// persisted preference and its raw stored form (non-null exactly when it
-    /// failed to parse — the unsupported-fall-through warning source), and
-    /// the preselected symbol.
+    /// Everything one symbols bootstrap decided: the full symbol list, the
+    /// persisted marks maps (re-cached by the subscribe side so the toggles
+    /// serialize the other exchanges' entries untouched), the exchange the
+    /// marks apply to, the persisted preference and its raw stored form
+    /// (non-null exactly when it failed to parse — the unsupported-fall
+    /// -through warning source), and the preselected symbol.
     /// </summary>
     private sealed record SymbolBootstrap(
         IReadOnlyList<Symbol> Symbols,
+        IReadOnlyDictionary<string, IReadOnlySet<string>> FavoriteMarks,
+        IReadOnlyDictionary<string, IReadOnlySet<string>> HiddenMarks,
+        string ExchangeId,
         string? StoredSymbol,
         Symbol? PersistedSymbol,
         Symbol? Selection);
 
     /// <summary>
-    /// One bootstrap load: the persisted workspace preference first, then the
-    /// symbol fetch (the cache-backed provider answers from memory after the
-    /// startup warm-up), then the Preselect decision composed with the
-    /// current selection.
+    /// One bootstrap load: the persisted workspace preference and the
+    /// persisted marks maps first, then the symbol fetch (the cache-backed
+    /// provider answers from memory after the startup warm-up), then the
+    /// Preselect decision composed with the current selection. The rows the
+    /// subscribe side lists are rebuilt on the spot (the single rows writer
+    /// — the in-place updater — see <see cref="RebuildSymbolRows"/>).
     /// </summary>
-    private async Task<SymbolBootstrap> LoadBootstrapAsync(CancellationToken ct)
+    private async Task<SymbolBootstrap> LoadBootstrapAsync(
+        string exchangeId,
+        CancellationToken ct)
     {
         var stored = await _settings.GetAsync<string>(
             UiSettingsKeys.WorkspaceSection,
             UiSettingsKeys.WorkspaceSymbolId);
 
+        var favoritesJson = await _settings.GetAsync<string>(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceFavoriteSymbols);
+
+        var hiddenJson = await _settings.GetAsync<string>(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceHiddenSymbols);
+
+        var favoriteMarks = SymbolMarkMap.Parse(favoritesJson);
+        var hiddenMarks = SymbolMarkMap.Parse(hiddenJson);
+
         var persistedTrimmed = stored?.Trim();
         var persisted = TryParseStoredSymbol(persistedTrimmed);
         var symbols = await LoadSymbolsAsync(ct);
+        var selection = Preselect(SelectedSymbol, persisted, symbols);
 
         return new SymbolBootstrap(
             Symbols: symbols,
+            FavoriteMarks: favoriteMarks,
+            HiddenMarks: hiddenMarks,
+            ExchangeId: exchangeId,
             StoredSymbol: persisted is null ? persistedTrimmed : null,
             PersistedSymbol: persisted,
-            Selection: Preselect(SelectedSymbol, persisted, symbols));
+            Selection: selection);
     }
 
     /// <summary>
@@ -786,6 +1024,185 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         }
 
         return symbols.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// The rows a rebuild or a bootstrap lists, in its pure form (pinned by
+    /// tests): favorites first (the exchange's own order inside the group),
+    /// then the unmarked symbols, the hidden pairs filtered out — except the
+    /// selected symbol when it is hidden (the selection never rebases, the
+    /// row exists only to hold it, and the dropdown skips the row while the
+    /// reveal toggle is off). A marked symbol that vanished from the list
+    /// leaves no ghost; the capped page rides the rebuild.
+    /// </summary>
+    /// <param name="symbols">The exchange's full symbol list (exchange
+    /// order).</param>
+    /// <param name="favoriteNames">The exchange's favorite names
+    /// (normalized).</param>
+    /// <param name="hiddenNames">The exchange's hidden names
+    /// (normalized).</param>
+    /// <param name="selectedSymbol">The currently selected symbol, or
+    /// null.</param>
+    /// <param name="showHidden">Whether the reveal toggle is on.</param>
+    /// <param name="maxRows">The combo capacity cap.</param>
+    /// <returns>The rows in combo order.</returns>
+    internal static IReadOnlyList<SymbolRow> BuildSymbolRows(
+        IReadOnlyList<Symbol> symbols,
+        IReadOnlySet<string> favoriteNames,
+        IReadOnlySet<string> hiddenNames,
+        Symbol? selectedSymbol,
+        bool showHidden,
+        int maxRows)
+    {
+        List<SymbolRow> favorites = [];
+        List<SymbolRow> others = [];
+        foreach (var symbol in symbols)
+        {
+            var isFavorite = favoriteNames.Contains(symbol.Normalized);
+            var isHidden = hiddenNames.Contains(symbol.Normalized);
+            if (isHidden && !showHidden && !Equals(symbol, selectedSymbol))
+            {
+                continue;
+            }
+
+            (isFavorite ? favorites : others).Add(
+                new SymbolRow(symbol, isFavorite, isHidden && !showHidden));
+        }
+
+        favorites.AddRange(others);
+        return favorites.Take(maxRows).ToList();
+    }
+
+    /// <summary>
+    /// Rebuild the combo from the cached exchange list and marks: the
+    /// current selection decides the hidden-pinned row, the reveal toggle
+    /// re-filters, and the toggle states re-raise. A rebuild never touches
+    /// the selection itself.
+    /// </summary>
+    private void RebuildSymbolRows()
+    {
+        _isUpdatingSymbolRows = true;
+        try
+        {
+            if (_exchangeSymbols.Count == 0)
+            {
+                IsSelectedSymbolFavorite = false;
+                IsSelectedSymbolHidden = false;
+                UpdateRowsInPlace([]);
+                SelectedSymbolRow = null;
+                return;
+            }
+
+            IReadOnlySet<string> favorites =
+                _favoriteMarks.GetValueOrDefault(_marksExchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
+            IReadOnlySet<string> hidden =
+                _hiddenMarks.GetValueOrDefault(_marksExchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
+            var rows = BuildSymbolRows(
+                _exchangeSymbols,
+                favorites,
+                hidden,
+                SelectedSymbol,
+                ShowHiddenSymbols,
+                MaxVisibleSymbols);
+
+            UpdateRowsInPlace(rows);
+            var selectedName = SelectedSymbol?.Normalized;
+            IsSelectedSymbolFavorite = selectedName is not null && favorites.Contains(selectedName);
+            IsSelectedSymbolHidden = selectedName is not null && hidden.Contains(selectedName);
+
+            // The combo shim follows the canonical selection: the row matching
+            // it (the rebuilt rows' own instance). Records compare by value,
+            // so an unchanged rebuild keeps the shim silent and the combo's
+            // selection exactly as the interaction committed it.
+            SelectedSymbolRow = selectedName is null
+                ? null
+                : rows.FirstOrDefault(row => row.Symbol.Normalized == selectedName);
+        }
+        finally
+        {
+            _isUpdatingSymbolRows = false;
+        }
+    }
+
+    /// <summary>
+    /// Apply one settings change of either marks key (the same pure-consumer
+    /// contract the clock format keeps): the new document parses, lands in
+    /// the per-exchange cache and the rows rebuild. Unusable values parse to
+    /// an empty map (the fail-safe) — the rows just unmark.
+    /// </summary>
+    private void ApplyMarksChange(SettingsChange change)
+    {
+        if (change.NewValue is not string json)
+        {
+            _logger.LogWarning(
+                "The '{Key}' setting change carried a non-string payload; the marks keep their applied state",
+                change.Key);
+            return;
+        }
+
+        var parsed = SymbolMarkMap.Parse(json);
+        if (change.Key == UiSettingsKeys.WorkspaceFavoriteSymbols)
+        {
+            _favoriteMarks = parsed;
+        }
+        else
+        {
+            _hiddenMarks = parsed;
+        }
+
+        RebuildSymbolRows();
+        _logger.LogInformation("The workspace '{Key}' map was re-applied", change.Key);
+    }
+
+    /// <summary>
+    /// Toggle the selected symbol's favorite mark: the cache updates with
+    /// the toggled map, the rebuild applies the mark at once, and the
+    /// persist writes the whole map (the other exchanges' entries included).
+    /// The changes stream re-applies the write as an echo — a rebuild on
+    /// identical data, no visible effect. Internal because the async facts
+    /// exercise the toggle directly (the command's canExecute gate is pinned
+    /// separately); the UI ships it through
+    /// <see cref="ToggleFavoriteCommand"/>.
+    /// </summary>
+    internal async Task ToggleFavoriteAsync()
+    {
+        if (SelectedSymbol is not { } selected)
+        {
+            return;
+        }
+
+        _favoriteMarks = SymbolMarkMap.WithToggled(
+            _favoriteMarks,
+            _marksExchangeId,
+            selected.Normalized);
+        RebuildSymbolRows();
+        await _settings.SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceFavoriteSymbols,
+            SymbolMarkMap.Serialize(_favoriteMarks));
+    }
+
+    /// <summary>
+    /// Toggle the selected symbol's hidden mark: the same cache-rebuild
+    /// -persist cycle the favorite toggle keeps. Internal for the same
+    /// reason <see cref="ToggleFavoriteAsync"/> is.
+    /// </summary>
+    internal async Task ToggleHiddenAsync()
+    {
+        if (SelectedSymbol is not { } selected)
+        {
+            return;
+        }
+
+        _hiddenMarks = SymbolMarkMap.WithToggled(
+            _hiddenMarks,
+            _marksExchangeId,
+            selected.Normalized);
+        RebuildSymbolRows();
+        await _settings.SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceHiddenSymbols,
+            SymbolMarkMap.Serialize(_hiddenMarks));
     }
 
     /// <summary>

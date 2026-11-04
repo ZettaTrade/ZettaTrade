@@ -171,6 +171,21 @@
   <data name="Chart.Indicators.SmaTip" xml:space="preserve">
     <value>Простая скользящая средняя: среднее закрытие за последние N баров, линия поверх свечей.</value>
   </data>
+  <data name="Chart.Symbols.FavoriteTip" xml:space="preserve">
+    <value>Закрепить выбранный инструмент в начале списка (звёздочка помечает избранное).</value>
+  </data>
+  <data name="Chart.Symbols.Hide" xml:space="preserve">
+    <value>Скрыть</value>
+  </data>
+  <data name="Chart.Symbols.HideTip" xml:space="preserve">
+    <value>Убрать выбранный инструмент из списка; останется доступен под «Показать скрытые».</value>
+  </data>
+  <data name="Chart.Symbols.ShowHidden" xml:space="preserve">
+    <value>Показать скрытые</value>
+  </data>
+  <data name="Chart.Symbols.ShowHiddenTip" xml:space="preserve">
+    <value>Показать инструменты, скрытые из списка.</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>

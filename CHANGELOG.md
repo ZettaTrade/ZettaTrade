@@ -9,6 +9,23 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.20] - 2026-11-04
+
+Build of task T-039 (symbol favorites + hidden pairs).
+
+### Added (T-039 — symbol marks)
+- The symbols combo gained per-symbol marks persisted per workspace exchange
+  (`Workspace.FavoriteSymbols` / `Workspace.HiddenSymbols` JSON maps): a
+  favorite renders a star badge in every row and pins to the head of the
+  list; a hidden pair leaves the everyday list but stays available under the
+  toolbar's "Show hidden" reveal toggle.
+- The toolbar next to the symbol combo: a star toggle (favorite/unfavorite
+  the selected symbol), a Hide toggle and the Show hidden reveal toggle. A
+  hidden-but-selected symbol keeps its selection and its live series (no
+  silent rebase), and un-hiding restores it.
+- The marks fail safe: a malformed stored map drops to no marks instead of
+  crashing the picker, and the bootstrap never rewrites the maps it reads.
+
 ## [0.1.0-alpha.19] - 2026-11-02
 
 Build of task T-024 (the demo seeded-walk underflow).

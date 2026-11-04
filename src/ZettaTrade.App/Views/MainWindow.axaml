@@ -11,6 +11,15 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
+    <Window.Styles>
+        <!-- The toolbar mark toggles light up while the selected symbol
+             carries the mark (a plain Button has no checked state of its
+             own, so the state rides a class instead). -->
+        <Style Selector="Button.mark-active">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight2}"/>
+        </Style>
+    </Window.Styles>
+
     <Window.KeyBindings>
         <!-- Gesture audit of the menu labels: all InputGesture strings here are
              backed or explained below.
@@ -109,26 +118,73 @@
                     <!-- Chart workspace -->
                     <Border Grid.Column="0" DataContext="{Binding Chart}">
                         <Grid RowDefinitions="Auto,*">
-                            <!-- Header: the symbol context on the left; the
-                                 time frame picker rides the same load key, so
-                                 a flip reloads the chart live. -->
+                            <!-- Header: the symbol context on the left with the
+                                 mark toggles next to it (star = favorite,
+                                 hide = out of the everyday list, reveal =
+                                 the hidden rows back); the time frame picker
+                                 rides the same load key, so a flip reloads
+                                 the chart live. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
-                                          SelectedItem="{Binding SelectedSymbol}">
+                                          SelectedItem="{Binding SelectedSymbolRow}">
                                     <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Normalized}" />
+                                        <!-- One row: the star badge on the favorites,
+                                             the symbol name. The row record carries the
+                                             marks (rebuilt on every change), so the
+                                             template binds within its own data type. -->
+                                        <DataTemplate x:DataType="vm:SymbolRow">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="★"
+                                                           Foreground="Gold"
+                                                           FontSize="14"
+                                                           VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsFavorite}" />
+                                                <TextBlock Text="{Binding Symbol.Normalized}"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
+                                    <ComboBox.Styles>
+                                        <!-- A hidden row exists only to hold the
+                                             selection (the pinned symbol while the
+                                             reveal toggle is off): the dropdown skips
+                                             it, the selection stays. -->
+                                        <Style Selector="ComboBoxItem">
+                                            <Setter Property="IsVisible" Value="{ReflectionBinding !HiddenFromList}"/>
+                                        </Style>
+                                    </ComboBox.Styles>
                                 </ComboBox>
-                                <TextBlock Grid.Column="1"
+                                <Button Grid.Column="1"
+                                        Content="★"
+                                        FontSize="14"
+                                        Padding="6,3"
+                                        MinWidth="28"
+                                        VerticalAlignment="Center"
+                                        Margin="6,0,0,0"
+                                        ToolTip.Tip="{loc:Localized Chart.Symbols.FavoriteTip}"
+                                        Classes.mark-active="{Binding IsSelectedSymbolFavorite}"
+                                        Command="{Binding ToggleFavoriteCommand}" />
+                                <Button Grid.Column="2"
+                                        Content="{loc:Localized Chart.Symbols.Hide}"
+                                        VerticalAlignment="Center"
+                                        Margin="6,0,0,0"
+                                        ToolTip.Tip="{loc:Localized Chart.Symbols.HideTip}"
+                                        Classes.mark-active="{Binding IsSelectedSymbolHidden}"
+                                        Command="{Binding ToggleHiddenCommand}" />
+                                <ToggleButton Grid.Column="3"
+                                              Content="{loc:Localized Chart.Symbols.ShowHidden}"
+                                              VerticalAlignment="Center"
+                                              Margin="6,0,0,0"
+                                              ToolTip.Tip="{loc:Localized Chart.Symbols.ShowHiddenTip}"
+                                              IsChecked="{Binding ShowHiddenSymbols}" />
+                                <TextBlock Grid.Column="4"
                                            Text="{loc:Localized Chart.TimeFrame}"
                                            VerticalAlignment="Center"
                                            Margin="12,0,6,0" />
-                                <ComboBox Grid.Column="2"
+                                <ComboBox Grid.Column="5"
                                           MinWidth="72"
                                           ItemsSource="{Binding TimeFrames}"
                                           SelectedItem="{Binding SelectedTimeFrame}" />
