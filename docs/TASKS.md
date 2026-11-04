@@ -46,7 +46,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-039 Symbol favorites (star badge, pinned on top) + hiding pairs (user idea) | feat/symbol-favorites | queued | - |
 | T-040 MCP server settings in the settings window (user idea) | feat/mcp-settings | queued | - |
 | T-041 Telegram trade notifications (user idea, post-beta) | feat/telegram-notifier | queued | - |
-| T-042 Settings window polish: the time-format label collision + the SMA tooltip (user-reported) | feat/settings-window-polish | queued | - |
+| T-042 Settings window polish: the time-format label collision + the SMA tooltip (user-reported) | feat/settings-window-polish | done | - |
+| T-043 Settings window: split the sections into tabs (user-reported) | feat/settings-tabs | queued | - |
 
 ---
 
@@ -708,4 +709,14 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** `SettingsWindow.axaml` (grid columns, ToolTip.Tip), resx `Chart.Indicators.SmaTip` en+ru.
 - **Acceptance:** probe (the T-030/T-038 settings harness): in BOTH en and ru the time-format label's UIA rect intersects no combo rect; hovering the SMA checkbox pops the tooltip with the localized text (en asserted by text, ru by the resx-extracted prefix + screenshot).
 - **Tests:** no VM logic changes; the resx keys land in both languages.
+- **Status:** done. Canon: the merge commit `b43aebe` is on develop (the user merged `feat/settings-window-polish` as a fast-forward; two commits - the layout fix `7c5bf72` and the icon-tooltip rework `b43aebe`). The label column sizes to its content (Auto + a 14 px column gap) so no language's label collides with its combo; the SMA explanation lives on a small circled-i info icon next to the checkbox (the checkbox itself stays quiet) with the text wrapped at 260 DIP. Probe `PROBE PASSED` (`t042-probe.ps1`, UIA geometry + tooltip popups, en and ru): the label rect intersects no combo rect, hovering the checkbox pops nothing, hovering the icon pops the localized tooltip within the cap. The icon needed `Background="Transparent"` - a Border without a background is not hit-testable, so its ToolTip.Tip never fired.
+
+## T-043 — Settings window: split the sections into tabs (user-reported)
+
+- **Branch:** queued 2026-11-04 (user feedback after the T-042 merge: «у нас сейчас смешиваются настройки дизайна и индикаторов, дальше пойдут ещё настройки. Лучше бы их по табам или секциям разнести»)
+- **Origin:** the settings window grew a second concern in T-034 (the indicator overlay row next to the theme/language/clock rows); T-040 (MCP settings) and T-041 (notifications) will add more - one flat list does not scale.
+- **What:** a TabControl with an Appearance tab (theme, language, clock format, the themes folder + the broken-theme errors) and an Indicators tab (the SMA row; future indicator rows land here); Save/Close stay outside the tab area as the dialog's bottom row; the default tab is Appearance.
+- **Scope:** `SettingsWindow.axaml`, resx `Settings.Tab.Appearance` + `Settings.Tab.Indicators` en+ru (the flat `Settings.Appearance` header key dies with the restructure), the T-042 probe learns the tab switch.
+- **Acceptance:** probe (the T-042 harness): both tabs resolve by their localized headers; the Appearance tab keeps the no-overlap assertion for the time-format label; selecting the Indicators tab reveals the SMA row and the tooltip assertions still hold (checkbox quiet, icon tooltip, capped width) in en and ru.
+- **Tests:** no VM logic changes (pure view restructuring); the resx keys land in both languages.
 - **Status:** queued
