@@ -12,12 +12,14 @@ Cross-platform desktop trading terminal (crypto + stocks) with first-class AI in
 Stack: .NET 10, C# 13, Avalonia UI 12, ReactiveUI.Avalonia 12.1, SkiaSharp, EF Core + SQLite, Serilog, xUnit + NSubstitute + FluentAssertions. MIT, open source. Targets: Windows, macOS, Linux.
 
 ## Workflow (read first)
-1. Work only in your own git worktree on your own branch (`feat/<name>`). Never commit to `main`.
+1. Work only in your own git worktree on your own branch. Feature branches are based on `develop` — never on `main`: create them with `pwsh scripts/new-worktree.ps1 -Name <name> -Base develop` (the script's default base is `main`, so pass `-Base develop` explicitly). Never commit directly to `main` or `develop`.
 2. Stay inside the scope named in your task. If you need a change outside it (Core contracts, shared files), stop and ask the supervisor.
-3. Before reporting done run `pwsh scripts/gate.ps1`. It must print `GATE PASSED`. Never report done otherwise.
+3. Before reporting done run `pwsh scripts/gate.ps1 -BaseBranch develop`. It must print `GATE PASSED`. Never report done otherwise.
 4. Add tests for new domain logic.
-5. Finish every task with an English conventional-commit message (feat:, fix:, refactor:, docs:), 2-4 lines.
-6. At most 2 review rounds per task, then escalate to the human.
+5. Keep `docs/TASKS.md` truthful: whenever a task's status moves (`planned` → `in-progress` → `review` → `done`), update it in the same commit series as the work — the board row and the task's own section (the `## T-0NN …` heading with its **Status** bullet).
+6. One alpha release per board task that changes the app: bump the `VersionSuffix` in `Directory.Build.props` (`alpha.N` → `alpha.N+1`) and add the matching `CHANGELOG.md` section in the same work. Docs-only tasks do not bump the version.
+7. Finish every task with an English conventional-commit message (feat:, fix:, refactor:, docs:), 2-4 lines.
+8. At most 2 review rounds per task, then escalate to the human.
 
 ## Shared files (conflict hotspots)
 - `ZettaTrade.Core/Interfaces/*`: supervisor only. Keep public interfaces backward compatible.

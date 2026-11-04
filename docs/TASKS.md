@@ -1,6 +1,6 @@
 # ZettaTrade — Task Board
 
-Statuses: `planned` → `in-progress` → `review` → `done`. One task per feature. Agents work only in their own worktree/branch, within the listed scope. Branches are created with `pwsh scripts/new-worktree.ps1 -Name <name>`.
+Statuses: `planned` → `in-progress` → `review` → `done`. One task per feature. Agents work only in their own worktree/branch, within the listed scope. Branches are created with `pwsh scripts/new-worktree.ps1 -Name <name> -Base develop` (feature branches base on `develop`; the script's default base is `main`).
 
 | Task | Branch | State | Blocker |
 |------|--------|-------|---------|
@@ -43,7 +43,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-036 Chart history depth + candle-size cap (user-reported: W1/MN render one full-width candle) | fix/chart-history | done | — |
 | T-037 Exchange-grade time axis: density, calendar anchors, year labels (user-reported) | feat/time-grid | done | — |
 | T-038 Draggable splitters: resize the chart / depth / assistant columns (user-reported) | feat/layout-splitters | queued | - |
-| T-039 Symbol favorites (star badge, pinned on top) + hiding pairs (user idea) | feat/symbol-favorites | queued | - |
+| T-039 Symbol favorites (star badge, pinned on top) + hiding pairs (user idea) | feat/symbol-favorites | done | - |
 | T-040 MCP server settings in the settings window (user idea) | feat/mcp-settings | queued | - |
 | T-041 Telegram trade notifications (user idea, post-beta) | feat/telegram-notifier | queued | - |
 | T-042 Settings window polish: the time-format label collision + the SMA tooltip (user-reported) | feat/settings-window-polish | done | - |
@@ -682,6 +682,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** the ChartViewModel symbols pipeline (sort + filter + marks), the combo ItemTemplate (star badge), the settings keys + reactive updates, the toolbar reveal affordance, tests.
 - **Acceptance:** probe: star a pair → restart → it heads the list with the badge visible; hide a pair → it leaves the default list and returns under the reveal toggle; marks survive a time frame / symbol change without losing the current selection.
 - **Tests:** the sort/filter/mark facts, the persistence round-trip (restore-without-rewrite discipline), the garbage-marked-values fail-safe (unknown/malformed marks drop to none, never crash the picker).
+- **Status:** done. Canon: the merge commit `3f31a7d` is on develop (a merge of `origin/feat/symbol-favorites`, branch tip `9b9bece`); the build shipped as `0.1.0-alpha.20` (see CHANGELOG.md).
 
 ## T-040 — MCP server settings in the settings window (user idea)
 
