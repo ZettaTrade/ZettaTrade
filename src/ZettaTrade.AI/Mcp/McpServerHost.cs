@@ -201,20 +201,29 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     {
         using var doc = JsonDocument.Parse(json);
         var method = doc.RootElement.GetProperty("method").GetString();
-        var id = doc.RootElement.TryGetProperty("id", out var idP) ? idP.GetString() : null;
+
+        // The request id travels raw and verbatim: JSON-RPC 2.0 permits the
+        // string, number and null id shapes, and every kind must echo back
+        // byte-exact (GetString() returned null for a numeric id, which both
+        // mislabeled the request a notification and would have corrupted the
+        // echo). Clone() detaches the token from the disposed document; a
+        // missing id is a true JSON-RPC notification and gets no reply.
+        JsonElement? requestId = doc.RootElement.TryGetProperty("id", out var idP)
+            ? idP.Clone()
+            : null;
 
         string? response = method switch
         {
-            InitializeMethod => BuildInitializeResponse(),
-            ToolsListMethod => await HandleToolsListAsync(id, ct),
-            ToolsCallMethod => await HandleToolCallAsync(doc.RootElement, id, ct),
-            ResourcesListMethod => await HandleResourcesListAsync(id, ct),
-            ResourcesReadMethod => await HandleResourceReadAsync(doc.RootElement, id, ct),
-            PromptsListMethod => await HandlePromptsListAsync(id, ct),
+            InitializeMethod => BuildInitializeResponse(requestId),
+            ToolsListMethod => await HandleToolsListAsync(requestId, ct),
+            ToolsCallMethod => await HandleToolCallAsync(doc.RootElement, requestId, ct),
+            ResourcesListMethod => await HandleResourcesListAsync(requestId, ct),
+            ResourcesReadMethod => await HandleResourceReadAsync(doc.RootElement, requestId, ct),
+            PromptsListMethod => await HandlePromptsListAsync(requestId, ct),
             _ => null
         };
 
-        if (response != null && id != null)
+        if (response != null && requestId.HasValue)
         {
             await Console.Out.WriteLineAsync(response.AsMemory(), ct);
             await Console.Out.FlushAsync(ct);
@@ -222,12 +231,13 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     }
 
     /// <summary>
-    /// Build the MCP initialize response from server constants (single source of truth).
+    /// Build the MCP initialize response from server constants (single source of truth),
+    /// echoing the raw request id the client sent (numeric ids must round-trip).
     /// </summary>
-    private static string BuildInitializeResponse() => JsonSerializer.Serialize(new
+    private static string BuildInitializeResponse(JsonElement? requestId) => JsonSerializer.Serialize(new
     {
         jsonrpc = JsonRpcVersion,
-        id = "1",
+        id = requestId,
         result = new
         {
             protocolVersion = ProtocolVersion,
@@ -236,7 +246,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         },
     });
 
-    private async Task<string> HandleToolsListAsync(string? id, CancellationToken ct)
+    private async Task<string> HandleToolsListAsync(JsonElement? id, CancellationToken ct)
     {
         await _lock.WaitAsync(ct);
         try
@@ -255,7 +265,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         }
     }
 
-    private async Task<string> HandleToolCallAsync(JsonElement root, string? id, CancellationToken ct)
+    private async Task<string> HandleToolCallAsync(JsonElement root, JsonElement? id, CancellationToken ct)
     {
         var name = root.GetProperty("params").GetProperty("name").GetString() ?? "";
 
@@ -285,7 +295,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         }
     }
 
-    private async Task<string> HandleResourcesListAsync(string? id, CancellationToken ct)
+    private async Task<string> HandleResourcesListAsync(JsonElement? id, CancellationToken ct)
     {
         await _lock.WaitAsync(ct);
         try
@@ -299,7 +309,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         }
     }
 
-    private async Task<string> HandleResourceReadAsync(JsonElement root, string? id, CancellationToken ct)
+    private async Task<string> HandleResourceReadAsync(JsonElement root, JsonElement? id, CancellationToken ct)
     {
         var uri = root.GetProperty("params").GetProperty("uri").GetString() ?? "";
 
@@ -325,7 +335,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         }
     }
 
-    private async Task<string> HandlePromptsListAsync(string? id, CancellationToken ct)
+    private async Task<string> HandlePromptsListAsync(JsonElement? id, CancellationToken ct)
     {
         await _lock.WaitAsync(ct);
         try
