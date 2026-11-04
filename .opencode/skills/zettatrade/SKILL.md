@@ -16,10 +16,11 @@ Stack: .NET 10, C# 13, Avalonia UI 12, ReactiveUI.Avalonia 12.1, SkiaSharp, EF C
 2. Stay inside the scope named in your task. If you need a change outside it (Core contracts, shared files), stop and ask the supervisor.
 3. Before reporting done run `pwsh scripts/gate.ps1 -BaseBranch develop`. It must print `GATE PASSED`. Never report done otherwise.
 4. Add tests for new domain logic.
-5. Keep `docs/TASKS.md` truthful: whenever a task's status moves (`planned` → `in-progress` → `review` → `done`), update it in the same commit series as the work — the board row and the task's own section (the `## T-0NN …` heading with its **Status** bullet).
+5. Keep `docs/TASKS.md` truthful: whenever a task's status moves (`planned` → `in-progress` → `review` → `done`), update it in the same commit series as the work — the board row and the task's own section (the `## T-0NN …` heading with its **Status** bullet). Once a task is done and merged, move its detail section verbatim to `docs/TASKS-ARCHIVE.md`, in canonical T order; the one-line board row stays on the board.
 6. One alpha release per board task that changes the app: bump the `VersionSuffix` in `Directory.Build.props` (`alpha.N` → `alpha.N+1`) and add the matching `CHANGELOG.md` section in the same work. Docs-only tasks do not bump the version.
 7. Finish every task with an English conventional-commit message (feat:, fix:, refactor:, docs:), 2-4 lines.
 8. At most 2 review rounds per task, then escalate to the human.
+9. Reason in English and answer in Russian (token economy): internal thinking, plans and scratch notes are English; user-facing replies are Russian. Everything shipped in the repo stays English (see Localization).
 
 ## Shared files (conflict hotspots)
 - `ZettaTrade.Core/Interfaces/*`: supervisor only. Keep public interfaces backward compatible.
