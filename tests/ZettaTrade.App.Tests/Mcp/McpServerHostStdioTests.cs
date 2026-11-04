@@ -15,10 +15,14 @@ using ZettaTrade.AI.Mcp;
 /// The MCP stdio host's stdout purity, exercised end to end inside the test
 /// process: the host answers the initialize handshake and lists its tools,
 /// and the ONLY bytes that ever reach stdout are the JSON-RPC envelopes —
-/// a malformed request line is reported through <c>ILogger</c> and writes
-/// nothing to the protocol stream (the composition rule: nothing may write
-/// to stdout except MCP protocol messages; Serilog logs to files only).
+/// a malformed request line is reported through <c>ILogger</c> and earns
+/// exactly the spec's -32700 parse-error envelope (which is itself protocol
+/// JSON; the composition rule: nothing may write to stdout except MCP
+/// protocol messages; Serilog logs to files only). Shares a collection with
+/// <see cref="McpServerHostErrorTests"/>: both suites own the process-wide
+/// Console primitives and must never overlap.
 /// </summary>
+[Collection("McpStdioConsoleSerial")]
 public sealed class McpServerHostStdioTests
 {
     #region Constants
@@ -75,16 +79,18 @@ public sealed class McpServerHostStdioTests
         {
             await host.StartAsync(lifetime.Token);
 
-            // The run loop processes the lines sequentially, so BOTH protocol
+            // The run loop processes the lines sequentially, so ALL protocol
             // responses being written proves the garbage line was already
-            // handled (and found nothing to say on stdout).
+            // handled — and it EARNS the -32700 error reply now: every
+            // request-shaped line the client sends gets an answer (the
+            // pre-fix loop swallowed it silently).
             var deadline = DateTime.UtcNow + ResponseWait;
-            while (ProtocolLineCount(captured.ToString()) < 2)
+            while (ProtocolLineCount(captured.ToString()) < 3)
             {
                 if (DateTime.UtcNow > deadline)
                 {
                     throw new TimeoutException(
-                        "the MCP host never answered both protocol lines; stdout: " +
+                        "the MCP host never answered the three protocol lines; stdout: " +
                         (captured.ToString().Length == 0 ? "<empty>" : captured.ToString()));
                 }
 
@@ -98,7 +104,7 @@ public sealed class McpServerHostStdioTests
 
             var lines = captured.ToString()
                 .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-            lines.Should().HaveCount(2, "only the two protocol envelopes reach stdout");
+            lines.Should().HaveCount(3, "the initialize, the parse error and the tools/list envelopes reach stdout");
 
             using var initialize = JsonDocument.Parse(lines[0]);
             initialize.RootElement.GetProperty("jsonrpc").GetString().Should().Be("2.0");
@@ -112,14 +118,22 @@ public sealed class McpServerHostStdioTests
             result.GetProperty("capabilities").TryGetProperty("tools", out _)
                 .Should().BeTrue();
 
-            using var tools = JsonDocument.Parse(lines[1]);
+            using var parseError = JsonDocument.Parse(lines[1]);
+            parseError.RootElement.GetProperty("jsonrpc").GetString().Should().Be("2.0");
+            parseError.RootElement.GetProperty("id").ValueKind.Should().Be(JsonValueKind.Null);
+            var parseBody = parseError.RootElement.GetProperty("error");
+            parseBody.GetProperty("code").GetInt32().Should().Be(-32700);
+            parseBody.GetProperty("message").GetString().Should().NotBeNullOrEmpty();
+
+            using var tools = JsonDocument.Parse(lines[2]);
             tools.RootElement.GetProperty("jsonrpc").GetString().Should().Be("2.0");
             tools.RootElement.GetProperty("id").GetString().Should().Be("2");
             tools.RootElement.GetProperty("result").GetProperty("tools").ValueKind
                 .Should().Be(JsonValueKind.Array);
 
-            // The garbage line went to the HONEST channel: the logger. Stdout
-            // saw none of it (counted above) — the leak pin lives here.
+            // The garbage line's failure went to the HONEST channel: the
+            // logger (the -32700 reply rides stdout as protocol JSON). The
+            // leak pin lives in the count above.
             logger.Levels.Should().Contain(LogLevel.Error);
         }
         finally

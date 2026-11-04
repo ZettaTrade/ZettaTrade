@@ -13,10 +13,23 @@ using ZettaTrade.Core.Interfaces;
 /// </summary>
 public sealed class McpClientService : IMcpClient
 {
+    #region Constants
+
     private const int HttpTimeoutSeconds = 30;
 
+    /// <summary>The initialize request's id (its reply is matched by id like any other).</summary>
+    private const string InitializeRequestId = "init-1";
+
+    /// <summary>The bounded wait for the stderr drain to leave its (uninterruptible) read.</summary>
+    private static readonly TimeSpan DrainStopWait = TimeSpan.FromSeconds(2);
+
+    #endregion
+
     private readonly ILogger<McpClientService> _logger;
+    private readonly ISecretStore _secrets;
     private Process? _serverProcess;
+    private bool _serverStarted;
+    private Task? _stderrDrain;
     private HttpClient? _httpClient;
     private McpServerConfig? _config;
     private bool _isConnected;
@@ -25,9 +38,12 @@ public sealed class McpClientService : IMcpClient
     /// <summary>
     /// Create a new McpClientService instance.
     /// </summary>
-    public McpClientService(ILogger<McpClientService> logger)
+    /// <param name="logger">The class logger.</param>
+    /// <param name="secrets">The secret store every HTTP auth reference resolves from (BUG-024).</param>
+    public McpClientService(ILogger<McpClientService> logger, ISecretStore secrets)
     {
         _logger = logger;
+        _secrets = secrets;
     }
 
     public string Name => _config?.Name ?? "Not connected";
@@ -42,6 +58,14 @@ public sealed class McpClientService : IMcpClient
         {
             _logger.LogInformation("MCP server {Name} is disabled, skipping", config.Name);
             return;
+        }
+
+        // Reconnecting while connected tears the previous connection down
+        // first: the pre-fix code overwrote _serverProcess/_httpClient and
+        // leaked the previous child process (BUG-022).
+        if (_isConnected)
+        {
+            await DisconnectAsync(ct);
         }
 
         switch (config.Transport)
@@ -60,21 +84,11 @@ public sealed class McpClientService : IMcpClient
         _logger.LogInformation("Connected to MCP server {Name} via {Transport}", config.Name, config.Transport);
     }
 
-    public Task DisconnectAsync(CancellationToken ct = default)
+    public async Task DisconnectAsync(CancellationToken ct = default)
     {
-        if (_serverProcess is { HasExited: false })
-        {
-            _serverProcess.Kill(entireProcessTree: true);
-            _serverProcess.Dispose();
-            _serverProcess = null;
-        }
-
-        _httpClient?.Dispose();
-        _httpClient = null;
-        _isConnected = false;
+        await TeardownAsync();
 
         _logger.LogInformation("Disconnected from MCP server {Name}", _config?.Name);
-        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<McpToolInfo>> ListToolsAsync(CancellationToken ct = default)
@@ -90,10 +104,12 @@ public sealed class McpClientService : IMcpClient
         if (!IsConnected)
             return new McpToolResult(IsError: true, Content: [McpContent.CreateText("Not connected to MCP server")]);
 
+        var requestId = Guid.NewGuid().ToString();
+
         var request = new
         {
             jsonrpc = "2.0",
-            id = Guid.NewGuid().ToString(),
+            id = requestId,
             method = "tools/call",
             @params = new
             {
@@ -104,22 +120,13 @@ public sealed class McpClientService : IMcpClient
 
         var json = JsonSerializer.Serialize(request);
 
-        if (_config?.Transport == McpTransport.Stdio && _serverProcess is not null)
+        if (_config?.Transport == McpTransport.Stdio && _serverProcess is { } process)
         {
-            await _serverProcess.StandardInput.WriteLineAsync(json.AsMemory(), ct);
-            await _serverProcess.StandardInput.FlushAsync(ct);
+            await process.StandardInput.WriteLineAsync(json.AsMemory(), ct);
+            await process.StandardInput.FlushAsync(ct);
 
-            var responseLine = await _serverProcess.StandardOutput.ReadLineAsync(ct);
-            if (responseLine is null)
-                return new McpToolResult(IsError: true, Content: [McpContent.CreateText("No response from server")]);
-
-            using var doc = JsonDocument.Parse(responseLine);
-            if (doc.RootElement.TryGetProperty("error", out var error))
-                return new McpToolResult(IsError: true, Content: [McpContent.CreateText(error.ToString())]);
-
-            var result = doc.RootElement.GetProperty("result");
-            var content = result.TryGetProperty("content", out var c) ? c.ToString() : "";
-            return new McpToolResult(IsError: false, Content: [McpContent.CreateText(content)]);
+            var reply = await ReadMatchingReplyAsync(process.StandardOutput, requestId, ct);
+            return reply ?? new McpToolResult(IsError: true, Content: [McpContent.CreateText("No response from server")]);
         }
 
         if (_httpClient is not null && _config?.Url is not null)
@@ -140,6 +147,71 @@ public sealed class McpClientService : IMcpClient
         return new McpToolResult(IsError: true, Content: [McpContent.CreateText("No transport available")]);
     }
 
+    /// <summary>
+    /// Read stdout lines until the reply whose id matches the request: a
+    /// non-JSON line, a notification or another request's reply is SKIPPED —
+    /// the reply matching tolerates stream desynchronization (BUG-023). The
+    /// child's pipe closing (EOF) yields null. Internal for the framing
+    /// test suite (InternalsVisibleTo ZettaTrade.App.Tests).
+    /// </summary>
+    internal async Task<McpToolResult?> ReadMatchingReplyAsync(
+        StreamReader stdout,
+        string requestId,
+        CancellationToken ct)
+    {
+        while (true)
+        {
+            var line = await stdout.ReadLineAsync(ct);
+            if (line is null)
+            {
+                return null;
+            }
+
+            var reply = ExtractReply(line, requestId);
+            if (reply is not null)
+            {
+                return reply;
+            }
+
+            _logger.LogDebug("MCP: skipped a non-matching stdout line while waiting for {Id}", requestId);
+        }
+    }
+
+    /// <summary>Extract a reply for one request id from one envelope line; null for strangers.</summary>
+    private McpToolResult? ExtractReply(string line, string requestId)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(line);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        using (doc)
+        {
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("id", out var idEl) ||
+                !string.Equals(idEl.GetString(), requestId, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            if (root.TryGetProperty("error", out var error))
+            {
+                return new McpToolResult(IsError: true, Content: [McpContent.CreateText(error.ToString())]);
+            }
+
+            var result = root.TryGetProperty("result", out var r) ? r : (JsonElement?)null;
+            var content = result.HasValue && result.Value.TryGetProperty("content", out var c)
+                ? c.ToString()
+                : "";
+            return new McpToolResult(IsError: false, Content: [McpContent.CreateText(content)]);
+        }
+    }
+
     public Task<IReadOnlyList<McpResourceInfo>> ListResourcesAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<McpResourceInfo>>([]);
 
@@ -154,16 +226,16 @@ public sealed class McpClientService : IMcpClient
         yield break;
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        if (_disposed) return ValueTask.CompletedTask;
+        if (_disposed) return;
         _disposed = true;
 
-        _serverProcess?.Kill(entireProcessTree: true);
-        _serverProcess?.Dispose();
-        _httpClient?.Dispose();
-
-        return ValueTask.CompletedTask;
+        // The async teardown keeps disposal silent for every failure mode the
+        // teardown already guards (a never-started process must not make
+        // Kill throw out of disposal — BUG-022); the stderr drain gets a
+        // bounded wait (BUG-021).
+        await TeardownAsync();
     }
 
     private async Task ConnectStdioAsync(McpServerConfig config, CancellationToken ct)
@@ -194,14 +266,91 @@ public sealed class McpClientService : IMcpClient
         }
 
         _serverProcess.Start();
+        _serverStarted = true;
 
-        _ = Task.Run(async () =>
-        {
-            while (await _serverProcess.StandardError.ReadLineAsync() is { } line)
-                _logger.LogDebug("[MCP:{Name} stderr] {Line}", config.Name, line);
-        }, ct);
+        StartStderrDrain(config.Name);
 
         await SendInitializeAsync(ct);
+    }
+
+    /// <summary>
+    /// Start the stderr drain the connection owns: the child's stderr pipe
+    /// must never fill (a filled pipe blocks the server process), so the
+    /// drain runs for the connection's whole life and AWAITS its
+    /// cancellation or completion at teardown — the pre-fix fire-and-forget
+    /// task was unobserved and could die silently (BUG-021).
+    /// </summary>
+    private void StartStderrDrain(string serverName)
+    {
+        if (_serverProcess is not { } process)
+        {
+            return;
+        }
+
+        _stderrDrain = Task.Run(async () =>
+        {
+            try
+            {
+                // The loop reads until the pipe closes: the teardown kills
+                // the child FIRST, which closes the pipe and ends the loop,
+                // so no cancellation token rides a half-consumed line here.
+                while (await process.StandardError.ReadLineAsync() is { } line)
+                {
+                    _logger.LogDebug("[MCP:{Name} stderr] {Line}", serverName, line);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[MCP:{Name} stderr] drain ended unexpectedly", serverName);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Tear the current connection down: kill a STARTED child (a
+    /// never-started process must not make Kill throw out of disposal —
+    /// BUG-022), wait for the stderr drain bounded (BUG-021), and dispose the
+    /// HTTP client. Every step is idempotent.
+    /// </summary>
+    private async Task TeardownAsync()
+    {
+        if (_serverProcess is { } process)
+        {
+            if (_serverStarted && !process.HasExited)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "The MCP child process could not be killed");
+                }
+            }
+
+            process.Dispose();
+            _serverProcess = null;
+        }
+
+        _serverStarted = false;
+
+        if (_stderrDrain is { } drain)
+        {
+            try
+            {
+                // The bounded wait: the pipe's close usually ends the reader
+                // instantly; a wedged reader never holds the teardown.
+                await Task.WhenAny(drain, Task.Delay(DrainStopWait));
+            }
+            finally
+            {
+                _stderrDrain = null;
+            }
+        }
+
+        _httpClient?.Dispose();
+        _httpClient = null;
+        _isConnected = false;
     }
 
     private async Task ConnectStreamableHttpAsync(McpServerConfig config, CancellationToken ct)
@@ -217,8 +366,23 @@ public sealed class McpClientService : IMcpClient
 
         if (!string.IsNullOrEmpty(config.AuthSecretRef))
         {
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "placeholder-token");
+            // The secret travels only through the secret store — never as a
+            // process argument, never a hardcoded placeholder (BUG-024). A
+            // missing secret warns and connects unauthenticated (the server
+            // then rejects with its own error).
+            var secret = await _secrets.GetAsync(config.AuthSecretRef, ct);
+            if (string.IsNullOrEmpty(secret))
+            {
+                _logger.LogWarning(
+                    "MCP server {Name}: the secret {Ref} is unavailable; connecting without authentication",
+                    config.Name,
+                    config.AuthSecretRef);
+            }
+            else
+            {
+                _httpClient.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", secret);
+            }
         }
 
         _logger.LogInformation("Streamable HTTP transport connecting to {Url}", config.Url);
@@ -232,7 +396,7 @@ public sealed class McpClientService : IMcpClient
         var initRequest = new
         {
             jsonrpc = "2.0",
-            id = "init-1",
+            id = InitializeRequestId,
             method = "initialize",
             @params = new
             {
@@ -246,8 +410,8 @@ public sealed class McpClientService : IMcpClient
         await _serverProcess.StandardInput.WriteLineAsync(json.AsMemory(), ct);
         await _serverProcess.StandardInput.FlushAsync(ct);
 
-        var response = await _serverProcess.StandardOutput.ReadLineAsync(ct);
-        _logger.LogDebug("MCP init response: {Response}", response);
+        var reply = await ReadMatchingReplyAsync(_serverProcess.StandardOutput, InitializeRequestId, ct);
+        _logger.LogDebug("MCP init response received: {Received}", reply is not null);
 
         var notification = """{"jsonrpc":"2.0","method":"notifications/initialized"}""";
         await _serverProcess.StandardInput.WriteLineAsync(notification.AsMemory(), ct);

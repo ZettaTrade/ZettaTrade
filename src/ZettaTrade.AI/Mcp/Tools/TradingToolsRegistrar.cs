@@ -33,6 +33,19 @@ public sealed class TradingToolsRegistrar(ILogger<TradingToolsRegistrar> logger)
     /// <summary>Historical window for the get_market_data tool, in days.</summary>
     private const int MarketDataLookbackDays = 7;
 
+    /// <summary>
+    /// The tool args' deserialization to the model's keys: the schema's keys
+    /// are camelCase, so the binding rides the camel-naming policy with
+    /// case-insensitive member matching — without it, the same schema-shaped
+    /// arguments came back null and the tool answered "Symbol is required"
+    /// for the simplest honest call.
+    /// </summary>
+    private static readonly JsonSerializerOptions ToolArgsOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+    };
+
     #endregion
 
     #region Fields
@@ -98,7 +111,7 @@ public sealed class TradingToolsRegistrar(ILogger<TradingToolsRegistrar> logger)
                     if (argsJson is null)
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText("Arguments required")]);
 
-                    var args = argsJson.Value.Deserialize<PlaceOrderArgs>();
+                    var args = argsJson.Value.Deserialize<PlaceOrderArgs>(ToolArgsOptions);
                     if (args is null)
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText("Invalid arguments")]);
 
@@ -109,13 +122,21 @@ public sealed class TradingToolsRegistrar(ILogger<TradingToolsRegistrar> logger)
                     if (!Symbol.TryParseExchangeFormat(args.Symbol, exchange.Id, out var symbol) || symbol is null)
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid symbol format: {args.Symbol}")]);
 
-                    // Don't default to Sell - require explicit side
-                    if (!Enum.TryParse<OrderSide>(args.Side, ignoreCase: true, out var side))
-                        return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid side: {args.Side}. Must be 'Buy' or 'Sell'")]);
+                    // Trade-critical enums: only a defined member passes (a
+                    // numeric or undefined string is an explicit error, never
+                    // a definition ride-through; trading-safety rule).
+                    if (!ToolEnumParser.TryParseDefined(args.Side, out OrderSide side))
+                        return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid side: {args.Side}. Must be one of: {ToolEnumParser.AllowedNames<OrderSide>()}")]);
 
-                    // Don't default to Market - require explicit type
-                    if (!Enum.TryParse<OrderType>(args.OrderType, ignoreCase: true, out var orderType))
-                        return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid orderType: {args.OrderType}. Must be 'Market', 'Limit', 'StopMarket', or 'StopLimit'")]);
+                    if (!ToolEnumParser.TryParseDefined(args.OrderType, out OrderType orderType))
+                        return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid orderType: {args.OrderType}. Must be one of: {ToolEnumParser.AllowedNames<OrderType>()}")]);
+
+                    // timeInForce is optional (an omitted row keeps the order
+                    // request's GTC semantic), but a PROVIDED unparsable value
+                    // is an explicit error - never a silent default (BUG-008).
+                    TimeInForce timeInForce = TimeInForce.GTC;
+                    if (args.TimeInForce is not null && !ToolEnumParser.TryParseDefined(args.TimeInForce, out timeInForce))
+                        return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid timeInForce: {args.TimeInForce}. Must be one of: {ToolEnumParser.AllowedNames<TimeInForce>()}")]);
 
                     var request = new OrderRequest
                     {
@@ -125,7 +146,7 @@ public sealed class TradingToolsRegistrar(ILogger<TradingToolsRegistrar> logger)
                         Quantity = new Quantity(args.Quantity),
                         Price = args.Price.HasValue ? new Price(args.Price.Value) : null,
                         StopPrice = args.StopPrice.HasValue ? new Price(args.StopPrice.Value) : null,
-                        TimeInForce = Enum.TryParse<TimeInForce>(args.TimeInForce, true, out var tif) ? tif : TimeInForce.GTC,
+                        TimeInForce = timeInForce,
                         Expiry = args.Expiry,
                     };
 
@@ -234,7 +255,7 @@ public sealed class TradingToolsRegistrar(ILogger<TradingToolsRegistrar> logger)
                     if (argsJson is null)
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText("Arguments required")]);
 
-                    var args = argsJson.Value.Deserialize<CancelOrderArgs>();
+                    var args = argsJson.Value.Deserialize<CancelOrderArgs>(ToolArgsOptions);
                     if (args?.OrderId is null || string.IsNullOrWhiteSpace(args.Symbol))
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText("orderId and symbol are required")]);
 
@@ -340,21 +361,25 @@ public sealed class TradingToolsRegistrar(ILogger<TradingToolsRegistrar> logger)
                     if (argsJson is null)
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText("Arguments required")]);
 
-                    var args = argsJson.Value.Deserialize<MarketDataArgs>();
+                    var args = argsJson.Value.Deserialize<MarketDataArgs>(ToolArgsOptions);
                     if (string.IsNullOrWhiteSpace(args?.Symbol))
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText("Symbol is required")]);
 
                     if (!Symbol.TryParseExchangeFormat(args.Symbol, exchange.Id, out var symbol) || symbol is null)
                         return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid symbol format: {args.Symbol}")]);
 
-                    // Timeframe is a read-only parameter: falling back to H1 keeps the tool usable;
-                    // trade-critical enums (side/type) are never defaulted.
-                    var tf = Enum.TryParse<TimeFrame>(args.Timeframe, true, out var timeFrame) ? timeFrame : TimeFrame.H1;
+                    // timeframe is optional (an omitted row keeps the H1
+                    // semantic), but a PROVIDED unparsable value is an
+                    // explicit error - never a silent default (BUG-008).
+                    TimeFrame timeFrame = TimeFrame.H1;
+                    if (args.Timeframe is not null && !ToolEnumParser.TryParseDefined(args.Timeframe, out timeFrame))
+                        return new McpToolResult(IsError: true, Content: [McpContent.CreateText($"Invalid timeframe: {args.Timeframe}. Must be one of: {ToolEnumParser.AllowedNames<TimeFrame>()}")]);
+
                     var limit = args.Limit ?? DefaultMarketDataLimit;
 
                     var bars = await exchange.GetBarsAsync(
                         symbol,
-                        tf,
+                        timeFrame,
                         DateTimeOffset.UtcNow.AddDays(-MarketDataLookbackDays),
                         limit: limit,
                         ct: ct);
