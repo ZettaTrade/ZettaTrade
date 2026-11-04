@@ -24,11 +24,13 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// window starts from selections synced to the applied state
 /// (<see cref="ResetSelectionsAsync"/>) and only a real difference is applied and
 /// persisted, so closing without saving never leaves a half-applied state.
-/// The pairs tab manages the hidden pairs of the workspace exchange: two lists
-/// (the visible pairs and the hidden ones) form a draft — a hide move or a
-/// reveal lands in the draft at once, and only Save applies and persists the
-/// real difference. The favorites are not managed here (the chart toolbar's
-/// star owns that mark).
+/// The pairs tab manages both workspace marks: the all-pairs list and the
+/// hidden list form the hidden draft (a hide move or a reveal lands in it
+/// at once), and every all-pairs row carries a star button feeding the
+/// favorites draft. A starred pair pins to the list head and is never
+/// hidden until unstarred (the marks are mutually exclusive by rule: a
+/// favorite beats a stored hidden entry). Only Save applies and persists
+/// the real difference.
 /// Theme diagnostics are read-only: broken files are listed
 /// (<see cref="ThemeFileErrors"/>) and the user themes folder opens through
 /// the injected <see cref="IShellUtils"/> (platform code stays in
@@ -119,11 +121,12 @@ public sealed class SettingsViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _smaPeriodText, value);
     }
 
-    private string? _selectedAllPair;
+    private PairRow? _selectedAllPair;
 
-    /// <summary>The pair picked in the all-pairs list (the hide command's input);
-    /// null while nothing is picked — a fresh reset clears both picks.</summary>
-    public string? SelectedAllPair
+    /// <summary>The row picked in the all-pairs list (the hide command's
+    /// input); null while nothing is picked — a fresh reset clears both
+    /// picks.</summary>
+    public PairRow? SelectedAllPair
     {
         get => _selectedAllPair;
         set => this.RaiseAndSetIfChanged(ref _selectedAllPair, value);
@@ -140,10 +143,11 @@ public sealed class SettingsViewModel : ReactiveObject
     }
 
     /// <summary>
-    /// The workspace exchange's visible pairs, in the exchange's own order
-    /// (the hidden names are not here — they form the other list).
+    /// The workspace exchange's all pairs as selectable rows, starred pairs
+    /// pinned to the head (the exchange's own order inside each group; the
+    /// hidden names are not here — they form the other list).
     /// </summary>
-    public ObservableCollection<string> AllPairs => _allPairs;
+    public ObservableCollection<PairRow> AllPairs => _allPairs;
 
     /// <summary>The workspace exchange's hidden pairs: the listed names in the
     /// exchange's order, then the stale ones (still hidden yet no longer
@@ -186,7 +190,8 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>
     /// Hide the pair picked in the all-pairs list: the pair moves into the
     /// hidden draft (the lists repaint at once; only Save applies and
-    /// persists the map).
+    /// persists the map). A starred pick never hides — the canExecute gate
+    /// refuses it until the star is removed.
     /// </summary>
     public ReactiveCommand<RxVoid, RxVoid> HidePairCommand { get; }
 
@@ -196,6 +201,14 @@ public sealed class SettingsViewModel : ReactiveObject
     /// map).
     /// </summary>
     public ReactiveCommand<RxVoid, RxVoid> RevealPairCommand { get; }
+
+    /// <summary>
+    /// Star or unstar the given all-pairs row: the favorites draft updates,
+    /// the lists repaint (a starred pair pins to the head) and only Save
+    /// applies and persists the map — the same draft contract the moves
+    /// follow.
+    /// </summary>
+    public ReactiveCommand<PairRow, RxVoid> TogglePairFavoriteCommand { get; }
 
     #endregion Commands
 
@@ -219,6 +232,14 @@ public sealed class SettingsViewModel : ReactiveObject
         new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
 
     /// <summary>
+    /// The persisted favorites map (all exchanges) as last read: the same
+    /// seed-and-save contract as the hidden map (the star drafts seed from
+    /// it, the save rewrites the draft exchange's entry).
+    /// </summary>
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> _persistedFavoriteMarks =
+        new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
+
+    /// <summary>
     /// The exchange the pair lists and drafts were built for, captured at
     /// every reset (the modal window cannot race an exchange switch). Empty
     /// until the first reset — the save never writes a draft with no
@@ -231,13 +252,18 @@ public sealed class SettingsViewModel : ReactiveObject
     /// save's diff.</summary>
     private HashSet<string> _draftHiddenNames = new(StringComparer.Ordinal);
 
+    /// <summary>The favorites draft: re-seeded from the persisted map at
+    /// every reset, mutated by the row star buttons, consumed by the save's
+    /// diff.</summary>
+    private HashSet<string> _draftFavoriteNames = new(StringComparer.Ordinal);
+
     /// <summary>The workspace exchange's listing (normalized names, exchange
     /// order): the lists repaint from it and the draft edits.</summary>
     private IReadOnlyList<string> _listingNames = [];
 
     /// <summary>The all-pairs list backing (rebuilt wholesale at every reset
     /// and draft move; the identity never changes for the binding).</summary>
-    private readonly ObservableCollection<string> _allPairs = new();
+    private readonly ObservableCollection<PairRow> _allPairs = new();
 
     /// <summary>The hidden list backing (the same rebuild contract).</summary>
     private readonly ObservableCollection<string> _hiddenPairs = new();
@@ -371,23 +397,47 @@ public sealed class SettingsViewModel : ReactiveObject
                 CacheHiddenMarks,
                 ex => _logger.LogError(ex, "The hidden-pairs map stream stopped unexpectedly"));
 
+        // The favorites map: the pairs tab reads it (the star drafts seed
+        // from it) and writes it on Save. The same seed + changes pattern as
+        // the hidden map.
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                UiSettingsKeys.WorkspaceSection,
+                UiSettingsKeys.WorkspaceFavoriteSymbols))
+            .Subscribe(
+                CacheFavoriteMarks,
+                ex => _logger.LogError(ex, "Failed to read the favorites map"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.WorkspaceSection &&
+                             change.Key == UiSettingsKeys.WorkspaceFavoriteSymbols)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                CacheFavoriteMarks,
+                ex => _logger.LogError(ex, "The favorites map stream stopped unexpectedly"));
+
         // The pairs tab's commands act on a pick: no pick, no move. A hide
-        // move also needs more than one visible pair — the workspace keeps
-        // at least one tradable context (the '>' button grays out on the
-        // last row). The lists repaint through CollectionChanged events, so
-        // the count rides the same observable.
+        // move needs an unstarred pick (a starred pair never hides — that is
+        // the point of the star) and more than one visible pair — the
+        // workspace keeps at least one tradable context (the '>' button
+        // grays out on a starred pick and on the last row). The lists
+        // repaint through CollectionChanged events, so the count rides the
+        // same observable.
         var allPairCount = Observable
             .FromEventPattern<NotifyCollectionChangedEventHandler, NotifyCollectionChangedEventArgs>(
                 handler => _allPairs.CollectionChanged += handler,
                 handler => _allPairs.CollectionChanged -= handler)
             .Select(_ => _allPairs.Count)
             .StartWith(_allPairs.Count);
-        var hasAllPairPick = this.WhenAnyValue(x => x.SelectedAllPair).Select(static name => name is not null);
+        var hasHideablePick = this
+            .WhenAnyValue(x => x.SelectedAllPair)
+            .Select(static pick => pick is not null && !pick.IsFavorite);
         var hasHiddenPairPick = this.WhenAnyValue(x => x.SelectedHiddenPair).Select(static name => name is not null);
         HidePairCommand = ReactiveCommand.Create(
             HideSelectedPair,
-            hasAllPairPick.CombineLatest(allPairCount, static (picked, count) => picked && count > 1));
+            hasHideablePick.CombineLatest(allPairCount, static (hideable, count) => hideable && count > 1));
         RevealPairCommand = ReactiveCommand.Create(RevealSelectedPair, hasHiddenPairPick);
+        TogglePairFavoriteCommand = ReactiveCommand.Create<PairRow>(TogglePairFavorite);
 
         ResetAppearanceSelections();
     }
@@ -496,6 +546,20 @@ public sealed class SettingsViewModel : ReactiveObject
                     written);
                 CacheHiddenMarks(written);
             }
+
+            // The favorites draft: the same no-op discipline as the hidden
+            // one (the other exchanges' entries ride untouched).
+            var appliedFavorites = (IReadOnlySet<string>?)(_persistedFavoriteMarks.GetValueOrDefault(_draftExchangeId));
+            if (!_draftFavoriteNames.SetEquals(appliedFavorites ?? new HashSet<string>(StringComparer.Ordinal)))
+            {
+                var updatedMap = SymbolMarkMap.WithSet(_persistedFavoriteMarks, _draftExchangeId, _draftFavoriteNames);
+                var written = SymbolMarkMap.Serialize(updatedMap);
+                await _settings.SetAsync(
+                    UiSettingsKeys.WorkspaceSection,
+                    UiSettingsKeys.WorkspaceFavoriteSymbols,
+                    written);
+                CacheFavoriteMarks(written);
+            }
         }
     }
 
@@ -521,10 +585,10 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>
     /// Repaint the pairs tab for the current exchange: the workspace
     /// exchange's listing seeds the all-pairs list and the persisted hidden
-    /// map seeds the hidden one (the draft re-derives from the applied
-    /// state, so an unsaved draft dies at the next open). A failed listing
-    /// fetch logs and leaves the lists stale — the theme rows keep working,
-    /// the window must not fail to open over a listing hiccup.
+    /// and favorites maps seed the drafts (a draft re-derives from the
+    /// applied state, so an unsaved draft dies at the next open). A failed
+    /// listing fetch logs and leaves the lists stale — the theme rows keep
+    /// working, the window must not fail to open over a listing hiccup.
     /// </summary>
     private async Task RefreshSymbolPairsAsync(CancellationToken ct)
     {
@@ -537,6 +601,9 @@ public sealed class SettingsViewModel : ReactiveObject
             _draftExchangeId = exchangeId;
             _draftHiddenNames = new HashSet<string>(
                 _persistedHiddenMarks.GetValueOrDefault(exchangeId) ?? new HashSet<string>(StringComparer.Ordinal),
+                StringComparer.Ordinal);
+            _draftFavoriteNames = new HashSet<string>(
+                _persistedFavoriteMarks.GetValueOrDefault(exchangeId) ?? new HashSet<string>(StringComparer.Ordinal),
                 StringComparer.Ordinal);
             _listingNames = listing.Select(symbol => symbol.Normalized).ToList();
 
@@ -553,28 +620,40 @@ public sealed class SettingsViewModel : ReactiveObject
     }
 
     /// <summary>
-    /// Repaint the two pair lists from the listing and the draft: the
-    /// all-pairs list keeps the exchange's own order minus the hidden names;
-    /// the hidden list keeps that order for the listed names and appends the
+    /// Repaint the two pair lists from the listing and the drafts: the
+    /// all-pairs list pins the starred names to the head (the exchange's own
+    /// order inside each group), the rest follows that order; the hidden
+    /// list keeps the hidden names in the exchange's order and appends the
     /// stale ones (still hidden, no longer listed) in their normalized
-    /// order. Both picks reset — the lists repainted, the inputs died.
+    /// order. The marks are mutually exclusive by rule: a favorite beats a
+    /// stored hidden entry (the legacy-collision decision — a starred name
+    /// never shows as hidden; the moves and the save repair the document).
+    /// Both picks reset — the lists repainted, the inputs died.
     /// </summary>
     private void RebuildPairCollections()
     {
         _allPairs.Clear();
-        foreach (var name in _listingNames.Where(name => !_draftHiddenNames.Contains(name)))
+        foreach (var name in _listingNames.Where(_draftFavoriteNames.Contains))
         {
-            _allPairs.Add(name);
+            _allPairs.Add(new PairRow(name, IsFavorite: true));
+        }
+
+        foreach (var name in _listingNames.Where(name =>
+            !_draftHiddenNames.Contains(name) && !_draftFavoriteNames.Contains(name)))
+        {
+            _allPairs.Add(new PairRow(name, IsFavorite: false));
         }
 
         _hiddenPairs.Clear();
-        foreach (var name in _listingNames.Where(_draftHiddenNames.Contains))
+        foreach (var name in _listingNames.Where(name =>
+            _draftHiddenNames.Contains(name) && !_draftFavoriteNames.Contains(name)))
         {
             _hiddenPairs.Add(name);
         }
 
         foreach (var name in _draftHiddenNames
             .Except(_listingNames)
+            .Where(name => !_draftFavoriteNames.Contains(name))
             .OrderBy(static name => name, StringComparer.Ordinal))
         {
             _hiddenPairs.Add(name);
@@ -587,17 +666,18 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>
     /// The all-pairs pick joins the hidden draft; the lists repaint and the
     /// pick lands on the pair that took the moved row's slot (the next row
-    /// heading up, the new last one when the list tail moved).
+    /// heading up, the new last one when the list tail moved). A starred
+    /// pick never reaches this code — the canExecute gate refuses it.
     /// </summary>
     private void HideSelectedPair()
     {
-        if (SelectedAllPair is not { } name)
+        if (SelectedAllPair is not { } picked)
         {
             return;
         }
 
-        var movedIndex = _allPairs.IndexOf(name);
-        _draftHiddenNames.Add(name);
+        var movedIndex = _allPairs.IndexOf(picked);
+        _draftHiddenNames.Add(picked.Name);
         RebuildPairCollections();
         if (_allPairs.Count > 0)
         {
@@ -627,12 +707,48 @@ public sealed class SettingsViewModel : ReactiveObject
     }
 
     /// <summary>
+    /// Star or unstar the given row's pair: the favorites draft updates, the
+    /// lists repaint (a starred pair pins to the head) and the pick lands on
+    /// the toggled row's fresh slot — the reassignment raises the pick
+    /// observable, so the move buttons' gates recompute against the new star
+    /// state. Nothing persists here: the save applies the draft.
+    /// </summary>
+    private void TogglePairFavorite(PairRow row)
+    {
+        var name = row.Name;
+        if (!_draftFavoriteNames.Contains(name))
+        {
+            _draftFavoriteNames.Add(name);
+        }
+        else
+        {
+            _draftFavoriteNames.Remove(name);
+        }
+
+        RebuildPairCollections();
+        var fresh = _allPairs.FirstOrDefault(candidate => candidate.Name == name);
+        if (fresh is not null)
+        {
+            SelectedAllPair = fresh;
+        }
+    }
+
+    /// <summary>
     /// Cache the persisted hidden-pairs document (fail-safe parse, garbage
     /// drops — see <see cref="SymbolMarkMap"/>).
     /// </summary>
     private void CacheHiddenMarks(string? json)
     {
         _persistedHiddenMarks = SymbolMarkMap.Parse(json);
+    }
+
+    /// <summary>
+    /// Cache the persisted favorites document (fail-safe parse, garbage
+    /// drops — see <see cref="SymbolMarkMap"/>).
+    /// </summary>
+    private void CacheFavoriteMarks(string? json)
+    {
+        _persistedFavoriteMarks = SymbolMarkMap.Parse(json);
     }
 
     /// <summary>

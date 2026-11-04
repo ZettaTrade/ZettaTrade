@@ -11,15 +11,6 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
-    <Window.Styles>
-        <!-- The toolbar mark toggles light up while the selected symbol
-             carries the mark (a plain Button has no checked state of its
-             own, so the state rides a class instead). -->
-        <Style Selector="Button.mark-active">
-            <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight2}"/>
-        </Style>
-    </Window.Styles>
-
     <Window.KeyBindings>
         <!-- Gesture audit of the menu labels: all InputGesture strings here are
              backed or explained below.
@@ -118,13 +109,13 @@
                     <!-- Chart workspace -->
                     <Border Grid.Column="0" DataContext="{Binding Chart}">
                         <Grid RowDefinitions="Auto,*">
-                            <!-- Header: the symbol context on the left with the
-                                 favorite star next to it (hidden pairs are managed
-                                 in the settings window's pairs tab); the time
-                                 frame picker rides the same load key, so a flip
-                                 reloads the chart live. -->
+                            <!-- Header: the symbol picker on the left (the star badge
+                                 marks the favorites; both marks are managed in the
+                                 settings window's pairs tab); the time frame picker
+                                 rides the same load key, so a flip reloads the
+                                 chart live. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
@@ -147,21 +138,11 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Grid.Column="1"
-                                        Content="★"
-                                        FontSize="14"
-                                        Padding="6,3"
-                                        MinWidth="28"
-                                        VerticalAlignment="Center"
-                                        Margin="6,0,0,0"
-                                        ToolTip.Tip="{loc:Localized Chart.Symbols.FavoriteTip}"
-                                        Classes.mark-active="{Binding IsSelectedSymbolFavorite}"
-                                        Command="{Binding ToggleFavoriteCommand}" />
-                                <TextBlock Grid.Column="2"
+                                <TextBlock Grid.Column="1"
                                            Text="{loc:Localized Chart.TimeFrame}"
                                            VerticalAlignment="Center"
                                            Margin="12,0,6,0" />
-                                <ComboBox Grid.Column="3"
+                                <ComboBox Grid.Column="2"
                                           MinWidth="72"
                                           ItemsSource="{Binding TimeFrames}"
                                           SelectedItem="{Binding SelectedTimeFrame}" />
