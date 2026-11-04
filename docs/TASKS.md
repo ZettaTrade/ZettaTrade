@@ -42,7 +42,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-035 Chart axis labels clip at the canvas edges + zoom never re-buckets the axes (user-reported) | fix/chart-axes | done | — |
 | T-036 Chart history depth + candle-size cap (user-reported: W1/MN render one full-width candle) | fix/chart-history | done | — |
 | T-037 Exchange-grade time axis: density, calendar anchors, year labels (user-reported) | feat/time-grid | done | — |
-| T-038 Draggable splitters: resize the chart / depth / assistant columns (user-reported) | feat/layout-splitters | queued | - |
+| T-038 Draggable splitters: resize the chart / depth / assistant columns (user-reported) | feat/layout-splitters | done | - |
 | T-039 Symbol favorites (star badge, pinned on top) + hiding pairs (user idea) | feat/symbol-favorites | done | - |
 | T-040 MCP server settings in the settings window (user idea) | feat/mcp-settings | queued | - |
 | T-041 Telegram trade notifications (user idea, post-beta) | feat/telegram-notifier | queued | - |
@@ -85,11 +85,12 @@ the end of that file, so no effort is duplicated.
 
 ## T-038 — Draggable splitters: resize the chart / depth / assistant columns (user-reported)
 
-- **Branch:** queued 2026-11-03 (user-reported right after merging T-027: «хотелось бы менять размер (сдвигать) график/стакан/аи-панель» — the user wants to resize/shift the chart, the order book and the AI assistant panel columns). Grounding: `MainWindow.axaml` pins the workspace as a fixed `*,300` inner pair (chart/book) and, after T-027, the outer `*,Auto` grid gives the assistant a fixed `Width="300"` Border — nothing in the layout is draggable today.
+- **Branch:** feat/layout-splitters (user-reported 2026-11-03 right after merging T-027: «хотелось бы менять размер (сдвигать) график/стакан/аи-панель» — the user wants to resize/shift the chart, the order book and the AI assistant panel columns). Grounding: `MainWindow.axaml` pinned the workspace as a fixed `*,300` inner pair (chart/book) and, after T-027, the outer `*,Auto` grid gave the assistant a fixed `Width="300"` Border — nothing in the layout was draggable.
 - **What:** two vertical `GridSplitter`s — between the chart and the book, and between the book and the assistant panel. The dragged widths persist as `UI.*` keys (UiSettingsKeys, the reactive settings pipeline) and restore BEFORE the first frame (startup-walk parity with `ShowAiPanel`: no relayout flash). The assistant's fixed `Width` pin becomes the persisted bound width of its column when visible; the AI-side splitter hides together with the panel (`IsAiChatVisible` false ⇒ no grab handle parked in an empty gutter). Min-width clamps per column (the book and the chat need usable minimums; the chart keeps the rest).
 - **Scope:** `MainWindow.axaml` (+ the width-owning ViewModel mirror of `ChatViewModel`'s real-difference persistence discipline), `UiSettingsKeys`, tests. Core untouched; no resx (splitters carry no labels).
 - **Acceptance:** probe (UIA geometry, the T-027 harness pattern): drag the chart/book splitter → the book column reflows (its left edge follows the drag), restart → the positions survive cold start; with the AI panel hidden the AI-side splitter is absent from the UIA tree; both widths round-trip.
 - **Tests:** the persisted-clamp/restore facts (mirror `ChatViewModelTests`: restore without rewrite, changes-stream echo absorbed, min-width clamp on garbage/stored-out-of-range values), the hide-follows-show wiring when the panel toggles while a custom width is stored.
+- **Status:** done. Canon: commit `168879b` is on feat/layout-splitters. The UIA geometry probe (drag → reflow, the hidden splitter absent from the UIA tree) is left for the merge review; the identical mechanics are verified headless against Avalonia 12.1.4: a TwoWay `GridLength` binding on `ColumnDefinition.Width` writes back through a real `GridSplitter` resize, the star workspace stays one and the pixel column resizes alone, `MinWidth` clamps the drag, programmatic pushes still reflow after a splitter left a local value behind, and the drag persists once per settled burst (the probe used the keyboard route, which runs the same `MoveSplitter` path a mouse drag does). Wave note: the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-040 — MCP server settings in the settings window (user idea)
 
