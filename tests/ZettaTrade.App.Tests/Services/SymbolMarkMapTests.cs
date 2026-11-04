@@ -150,4 +150,61 @@ public sealed class SymbolMarkMapTests
 
         string.Join(',', marks["fake"]).Should().Be(before, "the input map is immutable by contract");
     }
+
+    [Fact]
+    public void WithSet_ReplacesTheWholeExchangeEntry()
+    {
+        var marks = SymbolMarkMap.Parse("""{"demo":["SOL/USDC"],"bybit":["ETH/BTC"]}""");
+
+        var replaced = SymbolMarkMap.WithSet(marks, "demo", ["BTC/USDT", "ETH/BTC"]);
+
+        replaced["demo"].Should().BeEquivalentTo(["BTC/USDT", "ETH/BTC"]);
+        replaced["bybit"].Should().BeEquivalentTo(
+            ["ETH/BTC"],
+            "the other exchange's entry passes through untouched");
+    }
+
+    [Fact]
+    public void WithSet_AnEmptySet_DropsTheExchange()
+    {
+        var marks = SymbolMarkMap.Parse("""{"demo":["SOL/USDC"],"bybit":["ETH/BTC"]}""");
+
+        var replaced = SymbolMarkMap.WithSet(marks, "demo", Array.Empty<string>());
+
+        replaced.Keys.Should().BeEquivalentTo(
+            ["bybit"],
+            "a cleared exchange's entry never stays behind as an empty shell");
+    }
+
+    [Fact]
+    public void WithSet_AnUnknownExchange_CreatesTheEntry()
+    {
+        var marks = SymbolMarkMap.Parse("""{"bybit":["SOL/USDT"]}""");
+
+        var replaced = SymbolMarkMap.WithSet(marks, "demo", ["BTC/USDT"]);
+
+        replaced["demo"].Should().ContainSingle().Which.Should().Be("BTC/USDT");
+    }
+
+    [Fact]
+    public void WithSet_NeverMutatesTheInputMap()
+    {
+        var marks = SymbolMarkMap.Parse("""{"demo":["SOL/USDC"]}""");
+
+        _ = SymbolMarkMap.WithSet(marks, "demo", ["ETH/BTC"]);
+
+        marks["demo"].Should().BeEquivalentTo(
+            ["SOL/USDC"],
+            "the input map is immutable by contract");
+    }
+
+    [Fact]
+    public void Serialize_SortsEachExchangeNamesInNormalizedOrder()
+    {
+        var marks = SymbolMarkMap.Parse("""{"demo":["SOL/USDC","BTC/USDT"]}""");
+
+        SymbolMarkMap.Serialize(marks).Should().Be(
+            """{"demo":["BTC/USDT","SOL/USDC"]}""",
+            "a stable document for the same marks: no save-order noise");
+    }
 }

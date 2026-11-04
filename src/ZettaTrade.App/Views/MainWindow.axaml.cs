@@ -191,8 +191,9 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         try
         {
             // The ViewModel is an app-lifetime singleton: resync its selections
-            // to the applied state so unsaved changes never leak into a new dialog.
-            ViewModel!.Settings.ResetSelections();
+            // to the applied state (the pairs tab re-reads the exchange listing)
+            // so unsaved changes never leak into a new dialog.
+            await ViewModel!.Settings.ResetSelectionsAsync();
 
             var dialog = new SettingsWindow
             {

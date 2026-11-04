@@ -47,10 +47,10 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// <c>Workspace.FavoriteSymbols</c> / <c>Workspace.HiddenSymbols</c> JSON
 /// maps (see <see cref="Services.SymbolMarkMap"/>): the bootstrap reads
 /// both on every exchange switch and builds the rows favorites-first with
-/// the hidden pairs filtered, every toolbar toggle writes the toggled map
-/// back, and a hidden-but-selected symbol stays in the list as an invisible
-/// row so the selection (and the live series it owns) never rebases. The
-/// reveal toggle is a session affordance and is not persisted.
+/// the hidden pairs filtered, the favorite toolbar toggle writes the
+/// favorites map back (the settings window's pairs tab writes the hidden
+/// one), and a hidden-but-selected symbol stays in the list as an invisible
+/// row so the selection (and the live series it owns) never rebases.
 /// The ViewModel lives as long as the application (singleton), so the
 /// subscriptions mirror it and need no explicit disposal.
 /// </remarks>
@@ -167,8 +167,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>
     /// Rows of the symbols combo: the exchange's list with the persisted
-    /// marks applied (favorites first, hidden pairs filtered unless the
-    /// reveal toggle is on — see <see cref="ShowHiddenSymbols"/>). Rebuilt
+    /// marks applied (favorites first, hidden pairs filtered — a hidden
+    /// row stays only while it holds the selection). Rebuilt
     /// on every marks, selection and exchange change — in place: the
     /// collection identity never changes (a swap makes the combo's selection
     /// machinery reset and re-point, and the deferred re-point then writes a
@@ -218,19 +218,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         }
     }
 
-    private bool _showHiddenSymbols;
-
-    /// <summary>
-    /// Whether the hidden symbol rows show in the combo again: the reveal
-    /// toggle behind the un-hiding flow. A session affordance by design —
-    /// it never persists (the marks themselves do).
-    /// </summary>
-    public bool ShowHiddenSymbols
-    {
-        get => _showHiddenSymbols;
-        set => this.RaiseAndSetIfChanged(ref _showHiddenSymbols, value);
-    }
-
     private bool _isSelectedSymbolFavorite;
 
     /// <summary>
@@ -241,18 +228,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     {
         get => _isSelectedSymbolFavorite;
         private set => this.RaiseAndSetIfChanged(ref _isSelectedSymbolFavorite, value);
-    }
-
-    private bool _isSelectedSymbolHidden;
-
-    /// <summary>
-    /// Whether the selected symbol is hidden: the hide toggle's state.
-    /// Re-raised with every rows rebuild.
-    /// </summary>
-    public bool IsSelectedSymbolHidden
-    {
-        get => _isSelectedSymbolHidden;
-        private set => this.RaiseAndSetIfChanged(ref _isSelectedSymbolHidden, value);
     }
 
     private SymbolRow? _selectedSymbolRow;
@@ -453,16 +428,10 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>
     /// Star/unstar the selected symbol: the toolbar's favorite toggle. The
     /// write persists the whole favorites map (the other exchanges' entries
-    /// included) and the rebuild applies the mark at once.
+    /// included) and the rebuild applies the mark at once. The hidden map
+    /// has no toolbar toggle: the settings window's pairs tab writes it.
     /// </summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleFavoriteCommand { get; }
-
-    /// <summary>
-    /// Hide/unhide the selected symbol: the toolbar's hide toggle. A hidden
-    /// symbol leaves the everyday list; when it is the selected one it stays
-    /// as an invisible row (the selection never rebases).
-    /// </summary>
-    public ReactiveCommand<RxVoid, RxVoid> ToggleHiddenCommand { get; }
 
     #endregion
 
@@ -681,12 +650,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 ex => _logger.LogError(ex, "The workspace symbol marks stream stopped unexpectedly"));
 
         // The rows re-decide on every selection change: the hidden-pinned
-        // row (the invisible selection holder) follows the selection. The
-        // reveal toggle rebuilds the same way.
+        // row (the invisible selection holder) follows the selection.
         this.WhenAnyValue(x => x.SelectedSymbol).Subscribe(
-            _ => RebuildSymbolRows(),
-            ex => _logger.LogError(ex, "The chart symbol rows stream stopped unexpectedly"));
-        this.WhenAnyValue(x => x.ShowHiddenSymbols).Subscribe(
             _ => RebuildSymbolRows(),
             ex => _logger.LogError(ex, "The chart symbol rows stream stopped unexpectedly"));
 
@@ -706,7 +671,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .WhenAnyValue(x => x.SelectedSymbol)
             .Select(static symbol => symbol is not null);
         ToggleFavoriteCommand = ReactiveCommand.CreateFromTask(ToggleFavoriteAsync, hasSelectedSymbol);
-        ToggleHiddenCommand = ReactiveCommand.CreateFromTask(ToggleHiddenAsync, hasSelectedSymbol);
     }
 
     #endregion
@@ -1031,9 +995,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// tests): favorites first (the exchange's own order inside the group),
     /// then the unmarked symbols, the hidden pairs filtered out — except the
     /// selected symbol when it is hidden (the selection never rebases, the
-    /// row exists only to hold it, and the dropdown skips the row while the
-    /// reveal toggle is off). A marked symbol that vanished from the list
-    /// leaves no ghost; the capped page rides the rebuild.
+    /// row exists only to hold it, and the dropdown skips that row). A
+    /// marked symbol that vanished from the list leaves no ghost; the capped
+    /// page rides the rebuild.
     /// </summary>
     /// <param name="symbols">The exchange's full symbol list (exchange
     /// order).</param>
@@ -1043,7 +1007,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// (normalized).</param>
     /// <param name="selectedSymbol">The currently selected symbol, or
     /// null.</param>
-    /// <param name="showHidden">Whether the reveal toggle is on.</param>
     /// <param name="maxRows">The combo capacity cap.</param>
     /// <returns>The rows in combo order.</returns>
     internal static IReadOnlyList<SymbolRow> BuildSymbolRows(
@@ -1051,7 +1014,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         IReadOnlySet<string> favoriteNames,
         IReadOnlySet<string> hiddenNames,
         Symbol? selectedSymbol,
-        bool showHidden,
         int maxRows)
     {
         List<SymbolRow> favorites = [];
@@ -1060,13 +1022,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         {
             var isFavorite = favoriteNames.Contains(symbol.Normalized);
             var isHidden = hiddenNames.Contains(symbol.Normalized);
-            if (isHidden && !showHidden && !Equals(symbol, selectedSymbol))
+            if (isHidden && !Equals(symbol, selectedSymbol))
             {
                 continue;
             }
 
             (isFavorite ? favorites : others).Add(
-                new SymbolRow(symbol, isFavorite, isHidden && !showHidden));
+                new SymbolRow(symbol, isFavorite, isHidden));
         }
 
         favorites.AddRange(others);
@@ -1075,9 +1037,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>
     /// Rebuild the combo from the cached exchange list and marks: the
-    /// current selection decides the hidden-pinned row, the reveal toggle
-    /// re-filters, and the toggle states re-raise. A rebuild never touches
-    /// the selection itself.
+    /// current selection decides the hidden-pinned row and the favorite
+    /// state re-raises. A rebuild never touches the selection itself.
     /// </summary>
     private void RebuildSymbolRows()
     {
@@ -1087,7 +1048,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             if (_exchangeSymbols.Count == 0)
             {
                 IsSelectedSymbolFavorite = false;
-                IsSelectedSymbolHidden = false;
                 UpdateRowsInPlace([]);
                 SelectedSymbolRow = null;
                 return;
@@ -1102,13 +1062,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 favorites,
                 hidden,
                 SelectedSymbol,
-                ShowHiddenSymbols,
                 MaxVisibleSymbols);
 
             UpdateRowsInPlace(rows);
             var selectedName = SelectedSymbol?.Normalized;
             IsSelectedSymbolFavorite = selectedName is not null && favorites.Contains(selectedName);
-            IsSelectedSymbolHidden = selectedName is not null && hidden.Contains(selectedName);
 
             // The combo shim follows the canonical selection: the row matching
             // it (the rebuilt rows' own instance). Records compare by value,
@@ -1180,29 +1138,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             UiSettingsKeys.WorkspaceSection,
             UiSettingsKeys.WorkspaceFavoriteSymbols,
             SymbolMarkMap.Serialize(_favoriteMarks));
-    }
-
-    /// <summary>
-    /// Toggle the selected symbol's hidden mark: the same cache-rebuild
-    /// -persist cycle the favorite toggle keeps. Internal for the same
-    /// reason <see cref="ToggleFavoriteAsync"/> is.
-    /// </summary>
-    internal async Task ToggleHiddenAsync()
-    {
-        if (SelectedSymbol is not { } selected)
-        {
-            return;
-        }
-
-        _hiddenMarks = SymbolMarkMap.WithToggled(
-            _hiddenMarks,
-            _marksExchangeId,
-            selected.Normalized);
-        RebuildSymbolRows();
-        await _settings.SetAsync(
-            UiSettingsKeys.WorkspaceSection,
-            UiSettingsKeys.WorkspaceHiddenSymbols,
-            SymbolMarkMap.Serialize(_hiddenMarks));
     }
 
     /// <summary>

@@ -950,7 +950,6 @@ public sealed class ChartViewModelTests
             favorites,
             new HashSet<string>(StringComparer.Ordinal),
             selectedSymbol: null,
-            showHidden: false,
             maxRows: 50);
 
         // The favorites lead in the list's own order; the unmarked follow.
@@ -962,7 +961,7 @@ public sealed class ChartViewModelTests
     }
 
     [Fact]
-    public void BuildSymbolRows_HiddenPairsLeaveAndReturnUnderReveal()
+    public void BuildSymbolRows_HiddenPairsLeaveTheEverydayList()
     {
         var symbols = new[] { Symbol.Parse("BTC/USDT"), Symbol.Parse("ETH/BTC"), Symbol.Parse("SOL/USDC") };
         var hidden = new HashSet<string>(StringComparer.Ordinal) { "BTC/USDT" };
@@ -972,23 +971,11 @@ public sealed class ChartViewModelTests
             new HashSet<string>(StringComparer.Ordinal),
             hidden,
             selectedSymbol: null,
-            showHidden: false,
             maxRows: 50);
 
-        // The hidden pair leaves the everyday list.
+        // The hidden pair leaves the everyday list (the settings window's
+        // pairs tab is its only way back).
         filtered.Select(row => row.Symbol.Normalized).Should().Equal("ETH/BTC", "SOL/USDC");
-
-        var revealed = ChartViewModel.BuildSymbolRows(
-            symbols,
-            new HashSet<string>(StringComparer.Ordinal),
-            hidden,
-            selectedSymbol: null,
-            showHidden: true,
-            maxRows: 50);
-
-        // The reveal toggle brings the hidden pair back at its own place.
-        revealed.Select(row => row.Symbol.Normalized).Should().Equal("BTC/USDT", "ETH/BTC", "SOL/USDC");
-        revealed.Should().OnlyContain(row => !row.HiddenFromList);
     }
 
     [Fact]
@@ -1002,13 +989,12 @@ public sealed class ChartViewModelTests
             new HashSet<string>(StringComparer.Ordinal),
             hidden,
             selectedSymbol: Symbol.Parse("BTC/USDT"),
-            showHidden: false,
             maxRows: 50);
 
         // The hidden-but-selected symbol stays in the collection.
         rows.Select(row => row.Symbol.Normalized).Should().Equal("BTC/USDT", "ETH/BTC", "SOL/USDC");
         rows[0].HiddenFromList.Should().BeTrue(
-            "the dropdown skips the pinned row while the reveal toggle is off");
+            "the dropdown skips the pinned row while the hidden pair holds the selection");
         rows.Skip(1).Should().OnlyContain(row => !row.HiddenFromList);
         rows[0].IsFavorite.Should().BeFalse();
     }
@@ -1031,7 +1017,6 @@ public sealed class ChartViewModelTests
             favorites,
             new HashSet<string>(StringComparer.Ordinal),
             selectedSymbol: null,
-            showHidden: false,
             maxRows: 5);
 
         rows.Should().HaveCount(5, "the cap still bounds the page");
@@ -1076,42 +1061,12 @@ public sealed class ChartViewModelTests
     }
 
     /// <summary>
-    /// The hide toggle persists under its own key and leaves the favorites
-    /// map untouched: two marks, two documents.
-    /// </summary>
-    [Fact]
-    public async Task TogglingHidden_PersistsItsOwnKey_AndLeavesTheFavoritesUntouched()
-    {
-        var settings = Substitute.For<ISettingsService>();
-        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
-            .Returns(string.Empty);
-        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
-        var chart = CreateChart(
-            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
-            settings);
-
-        chart.SelectedSymbol = Symbol.Parse("SOL/USDC");
-
-        await chart.ToggleHiddenAsync();
-
-        await settings.Received(1).SetAsync(
-            UiSettingsKeys.WorkspaceSection,
-            UiSettingsKeys.WorkspaceHiddenSymbols,
-            """{"fake":["SOL/USDC"]}""");
-        await settings.DidNotReceive().SetAsync(
-            UiSettingsKeys.WorkspaceSection,
-            UiSettingsKeys.WorkspaceFavoriteSymbols,
-            Arg.Any<string>());
-    }
-
-    /// <summary>
-    /// The mark toggles act on a selection: with none, the commands are
-    /// disabled (the toolbar buttons gray out) and the direct call drops
+    /// The mark toggle acts on a selection: with none, the command is
+    /// disabled (the toolbar star grays out) and the direct call drops
     /// without writing anything.
     /// </summary>
     [Fact]
-    public void TheMarkToggles_RequireASelection()
+    public void TheFavoriteToggle_RequiresASelection()
     {
         var settings = Substitute.For<ISettingsService>();
         settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
@@ -1127,14 +1082,8 @@ public sealed class ChartViewModelTests
             .Subscribe(value => favoriteEnabled = value);
         favoriteEnabled.Should().BeFalse("no symbol is selected at construction");
 
-        bool hiddenEnabled = true;
-        using var hiddenSubscription = chart.ToggleHiddenCommand.CanExecute
-            .Subscribe(value => hiddenEnabled = value);
-        hiddenEnabled.Should().BeFalse();
-
         chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
-        favoriteEnabled.Should().BeTrue("the selection arms the toggles");
-        hiddenEnabled.Should().BeTrue();
+        favoriteEnabled.Should().BeTrue("the selection arms the toggle");
     }
 
     /// <summary>

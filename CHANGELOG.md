@@ -17,14 +17,25 @@ Build of task T-039 (symbol favorites + hidden pairs).
 - The symbols combo gained per-symbol marks persisted per workspace exchange
   (`Workspace.FavoriteSymbols` / `Workspace.HiddenSymbols` JSON maps): a
   favorite renders a star badge in every row and pins to the head of the
-  list; a hidden pair leaves the everyday list but stays available under the
-  toolbar's "Show hidden" reveal toggle.
+  list; hidden pairs leave the everyday list.
 - The toolbar next to the symbol combo: a star toggle (favorite/unfavorite
-  the selected symbol), a Hide toggle and the Show hidden reveal toggle. A
-  hidden-but-selected symbol keeps its selection and its live series (no
-  silent rebase), and un-hiding restores it.
+  the selected symbol). A hidden-but-selected symbol keeps its selection and
+  its live series (no silent rebase).
 - The marks fail safe: a malformed stored map drops to no marks instead of
   crashing the picker, and the bootstrap never rewrites the maps it reads.
+
+### Changed (T-039 review round — hidden pairs move to Settings)
+- The hidden pairs are managed in the settings window's new "Pairs" tab: two
+  lists — all pairs of the workspace exchange and the hidden ones. A pick
+  plus the Hide/Reveal button moves the pair between the lists (a draft
+  repaint); the document is written only by the window's Save, and the
+  changes stream re-applies the marks in the open chart live.
+- The toolbar Hide and Show hidden toggles are removed (their job moved to
+  the tab); the favorite star stays. `Chart.Symbols.Hide` /
+  `ShowHidden` strings are gone (en + ru), the pairs-tab strings are in.
+- The marks document is serialized with each exchange's names sorted, so the
+  same marks always produce the same bytes.
+- The order book header is inset from the divider like the assistant panel's.
 
 ## [0.1.0-alpha.19] - 2026-11-02
 
