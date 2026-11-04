@@ -12,7 +12,9 @@
     "Buy": "#22c55e",
     "Sell": "#ef4444",
     "CandleUp": "#22c55e",
-    "CandleDown": "#ef4444"
+    "CandleDown": "#ef4444",
+    "Highlight": "#ffd700",
+    "Error": "#ef4444"
   },
   "previewColors": ["#0a0a0f", "#1a1a2e", "#16213e", "#0f3460"]
 }

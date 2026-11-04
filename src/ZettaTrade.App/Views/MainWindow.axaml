@@ -128,7 +128,7 @@
                                         <DataTemplate x:DataType="vm:SymbolRow">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <TextBlock Text="★"
-                                                           Foreground="Gold"
+                                                           Foreground="{DynamicResource Highlight}"
                                                            FontSize="14"
                                                            VerticalAlignment="Center"
                                                            IsVisible="{Binding IsFavorite}" />
@@ -203,7 +203,7 @@
                                 <StackPanel Margin="4">
                                     <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="12" />
                                     <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}" FontSize="10" Foreground="Gray" />
+                                    <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}" FontSize="10" Foreground="{DynamicResource TextSecondary}" />
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

@@ -58,7 +58,7 @@
         <!-- Load failure -->
         <TextBlock Grid.Row="1"
                    Text="{Binding ErrorMessage}"
-                   Foreground="Red"
+                   Foreground="{DynamicResource Error}"
                    TextWrapping="Wrap"
                    IsVisible="{Binding HasErrorMessage}" />
 

@@ -69,7 +69,7 @@
 
         <!-- Flow errors (parse failure, risk rejection, adapter failure) -->
         <TextBlock Text="{Binding ErrorMessage}"
-                   Foreground="Red"
+                   Foreground="{DynamicResource Error}"
                    TextWrapping="Wrap"
                    IsVisible="{Binding HasErrorMessage}" />
 
