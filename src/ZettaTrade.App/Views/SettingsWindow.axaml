@@ -8,21 +8,25 @@
         x:Class="ZettaTrade.App.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="{loc:Localized Settings.Title}"
-        Width="420" SizeToContent="Height"
+        Width="420" Height="440"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         ShowInTaskbar="False"
         Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
 
-    <StackPanel Margin="20" Spacing="16">
-        <!-- The settings sections live on tabs: the window grows section by
-             section (MCP, notifications), and one flat list would not scale.
-             Save/Close stay outside the tab area as the dialog's bottom row.
-             Each tab's content root carries a top margin - the breathing room
-             between the tab strip and the section (the theme default hugs
-             the strip, and TabControl.Padding does not reach the content). -->
-        <TabControl>
-            <TabItem Header="{loc:Localized Settings.Tab.Appearance}">
+    <!-- A fixed window height: switching tabs must never resize the dialog
+         (the tallest tab sizes the window; the ScrollViewer is the safety
+         net for the rare theme-error list). -->
+    <ScrollViewer>
+        <StackPanel Margin="20" Spacing="16">
+            <!-- The settings sections live on tabs: the window grows section by
+                 section (MCP, notifications), and one flat list would not scale.
+                 Save/Close stay outside the tab area as the dialog's bottom row.
+                 Each tab's content root carries a top margin - the breathing room
+                 between the tab strip and the section (the theme default hugs
+                 the strip, and TabControl.Padding does not reach the content). -->
+            <TabControl>
+                <TabItem Header="{loc:Localized Settings.Tab.Appearance}">
                 <StackPanel Spacing="16" Margin="0,12,0,0">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
                         <TextBlock Grid.Row="0" Grid.Column="0"
@@ -122,9 +126,9 @@
                         </ItemsControl>
                     </StackPanel>
                 </StackPanel>
-            </TabItem>
+                </TabItem>
 
-            <TabItem Header="{loc:Localized Settings.Tab.Indicators}">
+                <TabItem Header="{loc:Localized Settings.Tab.Indicators}">
                 <!-- The indicator overlay rows: the SMA row today, future rows
                      land here one grid row each. -->
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto" RowSpacing="10" Margin="0,12,0,0">
@@ -166,62 +170,71 @@
                                  VerticalAlignment="Center" />
                     </StackPanel>
                 </Grid>
-            </TabItem>
+                </TabItem>
 
-            <TabItem Header="{loc:Localized Settings.Tab.Pairs}">
+                <TabItem Header="{loc:Localized Settings.Tab.Pairs}">
                 <!-- The hidden-pairs management (the chart toolbar's star owns
                      the favorites): the left list holds the workspace
-                     exchange's visible pairs, the right one the hidden names;
-                     a pick + the button moves the pair between the lists —
-                     the move lands in the draft, Save applies and persists
-                     it. The modal window cannot race an exchange switch, so
-                     the lists are rebuilt per open for the exchange behind
-                     the workspace. -->
-                <Grid ColumnDefinitions="*,*"
-                      ColumnSpacing="16"
-                      RowDefinitions="Auto,Auto,Auto,Auto"
+                     exchange's visible pairs, the right one the hidden names.
+                     The move buttons sit in the center column, the classic
+                     two-list dialog shape: '>' hides the picked pair, '<'
+                     brings it back. The move lands in the draft, Save
+                     applies and persists it. The modal window cannot race an
+                     exchange switch, so the lists are rebuilt per open for
+                     the exchange behind the workspace. -->
+                <Grid ColumnDefinitions="*,Auto,*"
+                      ColumnSpacing="12"
+                      RowDefinitions="Auto,Auto,Auto"
                       RowSpacing="10"
                       Margin="0,12,0,0">
                     <TextBlock Grid.Row="0" Grid.Column="0"
                                Text="{loc:Localized Settings.Pairs.All}" />
-                    <TextBlock Grid.Row="0" Grid.Column="1"
+                    <TextBlock Grid.Row="0" Grid.Column="2"
                                Text="{loc:Localized Settings.Pairs.Hidden}" />
                     <ListBox Grid.Row="1" Grid.Column="0"
-                             MinHeight="168"
+                             MinHeight="190"
                              ItemsSource="{Binding AllPairs}"
                              SelectedItem="{Binding SelectedAllPair}" />
-                    <ListBox Grid.Row="1" Grid.Column="1"
-                             MinHeight="168"
+                    <ListBox Grid.Row="1" Grid.Column="2"
+                             MinHeight="190"
                              ItemsSource="{Binding HiddenPairs}"
                              SelectedItem="{Binding SelectedHiddenPair}" />
-                    <Button Grid.Row="2" Grid.Column="0"
-                            Content="{loc:Localized Settings.Pairs.Hide}"
-                            MinWidth="120"
-                            HorizontalAlignment="Left"
-                            Command="{Binding HidePairCommand}" />
-                    <Button Grid.Row="2" Grid.Column="1"
-                            Content="{loc:Localized Settings.Pairs.Reveal}"
-                            MinWidth="120"
-                            HorizontalAlignment="Left"
-                            Command="{Binding RevealPairCommand}" />
-                    <TextBlock Grid.Row="3" Grid.Column="0"
-                               Grid.ColumnSpan="2"
+                    <StackPanel Grid.Row="1" Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Spacing="8">
+                        <!-- The caption glyphs carry the flow direction; the
+                             readable captions ride the automation name and
+                             the tooltip (assistive tech and hover alike). -->
+                        <Button Width="34" Padding="0"
+                                Content=">"
+                                ToolTip.Tip="{loc:Localized Settings.Pairs.Hide}"
+                                AutomationProperties.Name="{loc:Localized Settings.Pairs.Hide}"
+                                Command="{Binding HidePairCommand}" />
+                        <Button Width="34" Padding="0"
+                                Content="&lt;"
+                                ToolTip.Tip="{loc:Localized Settings.Pairs.Reveal}"
+                                AutomationProperties.Name="{loc:Localized Settings.Pairs.Reveal}"
+                                Command="{Binding RevealPairCommand}" />
+                    </StackPanel>
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Grid.ColumnSpan="3"
                                Text="{loc:Localized Settings.Pairs.Hint}"
                                TextWrapping="Wrap"
                                FontSize="12" />
                 </Grid>
-            </TabItem>
-        </TabControl>
+                </TabItem>
+            </TabControl>
 
-        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
-            <Button x:Name="SaveButton"
-                    Content="{loc:Localized Settings.Save}"
-                    MinWidth="90"
-                    Click="OnSaveClick" />
-            <Button x:Name="CloseButton"
-                    Content="{loc:Localized Settings.Close}"
-                    MinWidth="90"
-                    Click="OnCloseClick" />
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                <Button x:Name="SaveButton"
+                        Content="{loc:Localized Settings.Save}"
+                        MinWidth="90"
+                        Click="OnSaveClick" />
+                <Button x:Name="CloseButton"
+                        Content="{loc:Localized Settings.Close}"
+                        MinWidth="90"
+                        Click="OnCloseClick" />
+            </StackPanel>
         </StackPanel>
-    </StackPanel>
+    </ScrollViewer>
 </Window>

@@ -94,7 +94,7 @@
     <value>Reveal</value>
   </data>
   <data name="Settings.Pairs.Hint" xml:space="preserve">
-    <value>Hidden pairs leave the workspace symbol picker; the lists apply to the current exchange. Favorites are managed by the chart toolbar's star.</value>
+    <value>The '&gt;' and '&lt;' buttons move a picked pair between the lists; hidden pairs leave the workspace symbol picker, and at least one visible pair stays. The lists apply to the current exchange. Favorites are managed by the chart toolbar's star.</value>
   </data>
   <data name="Settings.Theme" xml:space="preserve">
     <value>Theme</value>

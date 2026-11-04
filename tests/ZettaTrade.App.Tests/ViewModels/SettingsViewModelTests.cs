@@ -442,6 +442,87 @@ public sealed class SettingsViewModelTests
     }
 
     /// <summary>
+    /// The workspace keeps at least one visible pair: with the last visible
+    /// row picked, the hide move stays disarmed (the '>' button grays out) —
+    /// a fully hidden list would leave the chart without any tradable
+    /// context.
+    /// </summary>
+    [Fact]
+    public async Task TheHideMove_RequiresMoreThanOneVisiblePair()
+    {
+        var (viewModel, _, _, _, _, _, _, _) =
+            CreateViewModel(
+                currentTheme: "Dark",
+                currentLanguage: "en",
+                persistedHiddenMap: """{"demo":["ETH/BTC","SOL/USDC"]}""");
+
+        await viewModel.ResetSelectionsAsync();
+        viewModel.AllPairs.Should().Equal(["BTC/USDT"]);
+
+        bool hideEnabled = true;
+        using var hideSubscription = viewModel.HidePairCommand.CanExecute
+            .Subscribe(value => hideEnabled = value);
+
+        viewModel.SelectedAllPair = "BTC/USDT";
+
+        hideEnabled.Should().BeFalse("the last visible pair never hides");
+    }
+
+    /// <summary>
+    /// A hide move carries the pick to the pair that took the moved row's
+    /// slot: the next row heading up, the (new) last row when the tail
+    /// moved — the keyboard flow never falls back to an unpicked list.
+    /// </summary>
+    [Fact]
+    public async Task TheHideMove_CarriesThePickToTheMovedRowsSlot()
+    {
+        var (viewModel, _, _, _, _, _, _, _) = CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
+
+        await viewModel.ResetSelectionsAsync();
+
+        viewModel.SelectedAllPair = "ETH/BTC";
+        await viewModel.HidePairCommand.Execute(RxVoid.Default);
+
+        viewModel.SelectedAllPair.Should().Be("SOL/USDC", "the next row heading up takes the moved slot");
+        viewModel.AllPairs.Should().Equal("BTC/USDT", "SOL/USDC");
+
+        viewModel.SelectedAllPair = "SOL/USDC";
+        await viewModel.HidePairCommand.Execute(RxVoid.Default);
+
+        viewModel.SelectedAllPair.Should().Be("BTC/USDT", "the (new) last row takes the pick at the tail");
+        viewModel.AllPairs.Should().Equal(["BTC/USDT"]);
+    }
+
+    /// <summary>
+    /// The reveal move carries the pick the same way; draining the whole
+    /// hidden list releases the pick (nothing left to select).
+    /// </summary>
+    [Fact]
+    public async Task TheRevealMove_CarriesThePickToTheMovedRowsSlot()
+    {
+        var (viewModel, _, _, _, _, _, _, _) =
+            CreateViewModel(
+                currentTheme: "Dark",
+                currentLanguage: "en",
+                persistedHiddenMap: """{"demo":["ETH/BTC","SOL/USDC"]}""");
+
+        await viewModel.ResetSelectionsAsync();
+        viewModel.HiddenPairs.Should().Equal("ETH/BTC", "SOL/USDC");
+
+        viewModel.SelectedHiddenPair = "SOL/USDC";
+        await viewModel.RevealPairCommand.Execute(RxVoid.Default);
+
+        viewModel.SelectedHiddenPair.Should().Be("ETH/BTC", "the next row heading up takes the pick");
+        viewModel.HiddenPairs.Should().Equal("ETH/BTC");
+
+        viewModel.SelectedHiddenPair = "ETH/BTC";
+        await viewModel.RevealPairCommand.Execute(RxVoid.Default);
+
+        viewModel.SelectedHiddenPair.Should().BeNull("the drained hidden list holds nothing selectable");
+        viewModel.HiddenPairs.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// A listing fetch failure must not break the window: the appearance
     /// selections still reset, the pair lists stay stale and the save never
     /// writes a draft with no exchange context behind it.

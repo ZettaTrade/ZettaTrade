@@ -132,7 +132,7 @@
                                     <ComboBox.ItemTemplate>
                                         <!-- One row: the star badge on the favorites,
                                              the symbol name. The row record carries the
-                                             marks (rebuilt on every change), so the
+                                             mark (rebuilt on every change), so the
                                              template binds within its own data type. -->
                                         <DataTemplate x:DataType="vm:SymbolRow">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -146,15 +146,6 @@
                                             </StackPanel>
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
-                                    <ComboBox.Styles>
-                                        <!-- A hidden row exists only to hold the
-                                             selection (the pinned symbol while the
-                                             reveal toggle is off): the dropdown skips
-                                             it, the selection stays. -->
-                                        <Style Selector="ComboBoxItem">
-                                            <Setter Property="IsVisible" Value="{ReflectionBinding !HiddenFromList}"/>
-                                        </Style>
-                                    </ComboBox.Styles>
                                 </ComboBox>
                                 <Button Grid.Column="1"
                                         Content="★"

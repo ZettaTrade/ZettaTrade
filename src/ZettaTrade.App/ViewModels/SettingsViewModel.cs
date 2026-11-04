@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.ViewModels;
 
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
@@ -370,10 +371,22 @@ public sealed class SettingsViewModel : ReactiveObject
                 CacheHiddenMarks,
                 ex => _logger.LogError(ex, "The hidden-pairs map stream stopped unexpectedly"));
 
-        // The pairs tab's commands act on a pick: no pick, no move.
+        // The pairs tab's commands act on a pick: no pick, no move. A hide
+        // move also needs more than one visible pair — the workspace keeps
+        // at least one tradable context (the '>' button grays out on the
+        // last row). The lists repaint through CollectionChanged events, so
+        // the count rides the same observable.
+        var allPairCount = Observable
+            .FromEventPattern<NotifyCollectionChangedEventHandler, NotifyCollectionChangedEventArgs>(
+                handler => _allPairs.CollectionChanged += handler,
+                handler => _allPairs.CollectionChanged -= handler)
+            .Select(_ => _allPairs.Count)
+            .StartWith(_allPairs.Count);
         var hasAllPairPick = this.WhenAnyValue(x => x.SelectedAllPair).Select(static name => name is not null);
         var hasHiddenPairPick = this.WhenAnyValue(x => x.SelectedHiddenPair).Select(static name => name is not null);
-        HidePairCommand = ReactiveCommand.Create(HideSelectedPair, hasAllPairPick);
+        HidePairCommand = ReactiveCommand.Create(
+            HideSelectedPair,
+            hasAllPairPick.CombineLatest(allPairCount, static (picked, count) => picked && count > 1));
         RevealPairCommand = ReactiveCommand.Create(RevealSelectedPair, hasHiddenPairPick);
 
         ResetAppearanceSelections();
@@ -571,7 +584,11 @@ public sealed class SettingsViewModel : ReactiveObject
         SelectedHiddenPair = null;
     }
 
-    /// <summary>The all-pairs pick joins the hidden draft; the lists repaint.</summary>
+    /// <summary>
+    /// The all-pairs pick joins the hidden draft; the lists repaint and the
+    /// pick lands on the pair that took the moved row's slot (the next row
+    /// heading up, the new last one when the list tail moved).
+    /// </summary>
     private void HideSelectedPair()
     {
         if (SelectedAllPair is not { } name)
@@ -579,11 +596,20 @@ public sealed class SettingsViewModel : ReactiveObject
             return;
         }
 
+        var movedIndex = _allPairs.IndexOf(name);
         _draftHiddenNames.Add(name);
         RebuildPairCollections();
+        if (_allPairs.Count > 0)
+        {
+            SelectedAllPair = _allPairs[Math.Min(Math.Max(movedIndex, 0), _allPairs.Count - 1)];
+        }
     }
 
-    /// <summary>The hidden pick leaves the hidden draft; the lists repaint.</summary>
+    /// <summary>
+    /// The hidden pick leaves the hidden draft; the lists repaint and the
+    /// pick lands on the pair that took the moved row's slot (the next row
+    /// heading up, the new last one when the list tail moved).
+    /// </summary>
     private void RevealSelectedPair()
     {
         if (SelectedHiddenPair is not { } name)
@@ -591,8 +617,13 @@ public sealed class SettingsViewModel : ReactiveObject
             return;
         }
 
+        var movedIndex = _hiddenPairs.IndexOf(name);
         _draftHiddenNames.Remove(name);
         RebuildPairCollections();
+        if (_hiddenPairs.Count > 0)
+        {
+            SelectedHiddenPair = _hiddenPairs[Math.Min(Math.Max(movedIndex, 0), _hiddenPairs.Count - 1)];
+        }
     }
 
     /// <summary>
