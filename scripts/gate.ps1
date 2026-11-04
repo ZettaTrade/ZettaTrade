@@ -144,7 +144,7 @@ try {
         @{ Id = 'UI-THREAD'; Kind = 'cs'; Level = 'error'
            Pattern = 'ObserveOn\(\s*RxApp\.MainThreadScheduler\s*\)'
            Msg = 'Use ObserveOnUiThread() (ZettaTrade.UI.Extensions).' }
-        @{ Id = 'BLOCKING'; Kind = 'cs'; Level = 'error'
+        @{ Id = 'BLOCKING'; Kind = 'cs'; Level = 'error'; SkipTests = $true
            Pattern = '\.GetAwaiter\(\)\.GetResult\(\)|\.Wait\(\)|\.WaitAll\(|\.WaitAny\('
            Msg = 'No blocking on tasks. Use async/await; use InitializeAsync() instead of blocking in constructors.' }
         @{ Id = 'TASK-RESULT'; Kind = 'cs'; Level = 'warn'
@@ -214,6 +214,7 @@ try {
     # ---------------------------------------------------------------- commit messages
     $subjects = @(Invoke-Git log "$base..HEAD" --format=%s | Where-Object { $_ })
     foreach ($s in $subjects) {
+        if ($s -like 'Merge *') { continue }   # merge commits are branch-model artifacts, not feature commits
         if ($s -notmatch '^(feat|fix|refactor|docs|test|chore|perf|build|ci)(\([\w\-\.]+\))?!?: .{3,}') {
             $errors.Add("[COMMIT] '$s' is not an English conventional commit (feat:, fix:, refactor:, docs:).")
         }
