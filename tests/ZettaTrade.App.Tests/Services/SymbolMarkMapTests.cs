@@ -105,53 +105,6 @@ public sealed class SymbolMarkMapTests
     }
 
     [Fact]
-    public void WithToggled_AnUnmarkedSymbol_JoinsTheMap()
-    {
-        var marks = SymbolMarkMap.Parse("""{"bybit":["SOL/USDT"],"fake":["ETH/BTC"]}""");
-
-        var toggled = SymbolMarkMap.WithToggled(marks, "fake", "BTC/USDT");
-
-        toggled["fake"].Should().BeEquivalentTo(["ETH/BTC", "BTC/USDT"]);
-        toggled["bybit"].Should().BeEquivalentTo(
-            ["SOL/USDT"],
-            "the other exchange's entry passes through untouched");
-        toggled.Should().HaveCount(2);
-    }
-
-    [Fact]
-    public void WithToggled_AMarkedSymbol_DropsAndTheEmptyEntryLeaves()
-    {
-        var marks = SymbolMarkMap.Parse("""{"fake":["BTC/USDT"],"bybit":["SOL/USDT"]}""");
-
-        var toggled = SymbolMarkMap.WithToggled(marks, "fake", "BTC/USDT");
-
-        toggled.Keys.Should().BeEquivalentTo(
-            ["bybit"],
-            "a cleared exchange's entry never stays behind as an empty shell");
-    }
-
-    [Fact]
-    public void WithToggled_AnUnknownExchange_CreatesTheEntry()
-    {
-        var marks = SymbolMarkMap.Parse("""{"bybit":["SOL/USDT"]}""");
-
-        var toggled = SymbolMarkMap.WithToggled(marks, "demo", "BTC/USDT");
-
-        toggled["demo"].Should().ContainSingle().Which.Should().Be("BTC/USDT");
-    }
-
-    [Fact]
-    public void WithToggled_NeverMutatesTheInputMap()
-    {
-        var marks = SymbolMarkMap.Parse("""{"fake":["BTC/USDT"]}""");
-        var before = string.Join(',', marks["fake"]);
-
-        _ = SymbolMarkMap.WithToggled(marks, "fake", "ETH/BTC");
-
-        string.Join(',', marks["fake"]).Should().Be(before, "the input map is immutable by contract");
-    }
-
-    [Fact]
     public void WithSet_ReplacesTheWholeExchangeEntry()
     {
         var marks = SymbolMarkMap.Parse("""{"demo":["SOL/USDC"],"bybit":["ETH/BTC"]}""");

@@ -1062,6 +1062,30 @@ public sealed class ChartViewModelTests
         filtered.Select(row => row.Symbol.Normalized).Should().Equal("ETH/BTC", "SOL/USDC");
     }
 
+    /// <summary>
+    /// The marks are mutually exclusive by rule: a favorite beats a stored
+    /// hidden entry (the legacy collision left by earlier releases' shape
+    /// freedom). The starred pair stays listed (pinned to the head), and the
+    /// rebuild callers feed the preselection the same effective hidden set —
+    ///<c>raw hidden minus favorites</c>.
+    /// </summary>
+    [Fact]
+    public void BuildSymbolRows_AFavoriteBeatsAStoredHiddenEntry()
+    {
+        var symbols = new[] { Symbol.Parse("BTC/USDT"), Symbol.Parse("ETH/BTC") };
+        var favorites = new HashSet<string>(StringComparer.Ordinal) { "BTC/USDT" };
+        var hidden = new HashSet<string>(StringComparer.Ordinal) { "BTC/USDT", "SOL/USDC" };
+
+        var rows = ChartViewModel.BuildSymbolRows(
+            symbols,
+            favorites,
+            hidden,
+            maxRows: 50);
+
+        rows.Select(row => row.Symbol.Normalized).Should().Equal("BTC/USDT", "ETH/BTC");
+        rows[0].IsFavorite.Should().BeTrue("the star wins the legacy collision");
+    }
+
     [Fact]
     public void BuildSymbolRows_TheCapNeverCutsAFavorite()
     {
@@ -1110,67 +1134,6 @@ public sealed class ChartViewModelTests
         var allHidden = new HashSet<string>(StringComparer.Ordinal) { "BTC/USDT", "ETH/BTC", "SOL/USDC" };
         ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), null, listed, allHidden)
             .Should().BeNull("a fully hidden list clears the selection with no substitute");
-    }
-
-    /// <summary>
-    /// The toggle persists the whole toggled map under the workspace
-    /// favorites key (the exchange the bootstrap resolved), and a second
-    /// toggle clears the entry instead of leaving an empty shell.
-    /// </summary>
-    [Fact]
-    public async Task TogglingFavorite_PersistsTheToggledMap_AndThenClearsIt()
-    {
-        var settings = Substitute.For<ISettingsService>();
-        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
-            .Returns(string.Empty);
-        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
-        var chart = CreateChart(
-            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
-            settings);
-
-        chart.SelectedSymbol = Symbol.Parse("ETH/BTC");
-
-        await chart.ToggleFavoriteAsync();
-
-        await settings.Received(1).SetAsync(
-            UiSettingsKeys.WorkspaceSection,
-            UiSettingsKeys.WorkspaceFavoriteSymbols,
-            """{"fake":["ETH/BTC"]}""");
-
-        await chart.ToggleFavoriteAsync();
-
-        // The second toggle's document carries no empty shell behind.
-        await settings.Received(1).SetAsync(
-            UiSettingsKeys.WorkspaceSection,
-            UiSettingsKeys.WorkspaceFavoriteSymbols,
-            "{}");
-    }
-
-    /// <summary>
-    /// The mark toggle acts on a selection: with none, the command is
-    /// disabled (the toolbar star grays out) and the direct call drops
-    /// without writing anything.
-    /// </summary>
-    [Fact]
-    public void TheFavoriteToggle_RequiresASelection()
-    {
-        var settings = Substitute.For<ISettingsService>();
-        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
-            .Returns(string.Empty);
-        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
-        var chart = CreateChart(
-            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
-            settings);
-
-        bool favoriteEnabled = true;
-        using var favoriteSubscription = chart.ToggleFavoriteCommand.CanExecute
-            .Subscribe(value => favoriteEnabled = value);
-        favoriteEnabled.Should().BeFalse("no symbol is selected at construction");
-
-        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
-        favoriteEnabled.Should().BeTrue("the selection arms the toggle");
     }
 
     /// <summary>

@@ -109,31 +109,6 @@ public static class SymbolMarkMap
     }
 
     /// <summary>
-    /// Toggle one symbol's mark for one exchange and return the updated map:
-    /// a marked name drops, an unmarked one joins. The exchange's entry is
-    /// removed when its set empties (the same no-empty-shells contract the
-    /// serializer keeps), and the other exchanges' entries pass through
-    /// untouched.
-    /// </summary>
-    /// <param name="marks">The current map.</param>
-    /// <param name="exchangeId">The exchange whose entry toggles.</param>
-    /// <param name="symbolName">The normalized symbol name to toggle.</param>
-    /// <returns>The updated map (the input is never mutated).</returns>
-    public static IReadOnlyDictionary<string, IReadOnlySet<string>> WithToggled(
-        IReadOnlyDictionary<string, IReadOnlySet<string>> marks,
-        string exchangeId,
-        string symbolName)
-    {
-        HashSet<string> updated = [.. (marks.GetValueOrDefault(exchangeId) ?? new HashSet<string>(StringComparer.Ordinal))];
-        if (!updated.Remove(symbolName))
-        {
-            updated.Add(symbolName);
-        }
-
-        return WithSet(marks, exchangeId, updated);
-    }
-
-    /// <summary>
     /// Replace one exchange's whole mark entry and return the updated map:
     /// the entry becomes exactly the given names (the caller decides add and
     /// drop), an empty set removes the entry (the same no-empty-shells

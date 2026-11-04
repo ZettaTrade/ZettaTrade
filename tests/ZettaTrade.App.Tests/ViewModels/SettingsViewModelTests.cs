@@ -21,12 +21,12 @@ using ZettaTrade.UI.Themes;
 /// applied state (reset on every open, unsaved picks are discarded), and the
 /// explicit save applies and persists only real differences — an unchanged
 /// selection produces no manager calls and no settings rewrite. The pairs
-/// tab manages the hidden pairs as a draft: a hide or reveal move only
-/// repaints the two lists, Save alone parses the draft against the applied
-/// map and persists a real difference (the other exchanges' entries ride).
-/// The themes folder button must hand the config themes directory to the
-/// injected shell abstraction, and theme load errors surface as a live
-/// warning list.
+/// tab manages both workspace marks as drafts: a hide or reveal move and a
+/// row star toggle only repaint the two lists, Save alone parses the drafts
+/// against the applied maps and persists a real difference (the other
+/// exchanges' entries ride). A starred pair never hides. The themes folder
+/// button must hand the config themes directory to the injected shell
+/// abstraction, and theme load errors surface as a live warning list.
 /// </summary>
 public sealed class SettingsViewModelTests
 {
@@ -282,8 +282,8 @@ public sealed class SettingsViewModelTests
 
     /// <summary>
     /// The pairs tab opens on the two lists: the workspace exchange's
-    /// listing minus the persisted hidden names (left) and the persisted
-    /// hidden names (right), the exchange's guard order preserved.
+    /// listing (minus the persisted hidden names) on the left and the
+    /// persisted hidden names (right), the exchange's guard order preserved.
     /// </summary>
     [Fact]
     public async Task ResetSelectionsAsync_PopulatesTheTwoPairLists()
@@ -295,7 +295,7 @@ public sealed class SettingsViewModelTests
 
         await viewModel.ResetSelectionsAsync();
 
-        viewModel.AllPairs.Should().Equal("BTC/USDT", "ETH/BTC");
+        AllPairNames(viewModel).Should().Equal("BTC/USDT", "ETH/BTC");
         viewModel.HiddenPairs.Should().Equal("SOL/USDC");
     }
 
@@ -313,10 +313,10 @@ public sealed class SettingsViewModelTests
                 persistedHiddenMap: """{"demo":["SOL/USDC"]}""");
 
         await viewModel.ResetSelectionsAsync();
-        viewModel.SelectedAllPair = "ETH/BTC";
+        PickAllPair(viewModel, "ETH/BTC");
         await viewModel.HidePairCommand.Execute(RxVoid.Default);
 
-        viewModel.AllPairs.Should().Equal("BTC/USDT");
+        AllPairNames(viewModel).Should().Equal("BTC/USDT");
         viewModel.HiddenPairs.Should().Equal("ETH/BTC", "SOL/USDC");
         await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>());
     }
@@ -343,7 +343,7 @@ public sealed class SettingsViewModelTests
             UiSettingsKeys.WorkspaceHiddenSymbols,
             Arg.Any<string>());
 
-        viewModel.SelectedAllPair = "ETH/BTC";
+        PickAllPair(viewModel, "ETH/BTC");
         await viewModel.HidePairCommand.Execute(RxVoid.Default);
         await viewModel.SaveAsync();
 
@@ -351,6 +351,141 @@ public sealed class SettingsViewModelTests
             UiSettingsKeys.WorkspaceSection,
             UiSettingsKeys.WorkspaceHiddenSymbols,
             """{"demo":["ETH/BTC","SOL/USDC"]}""");
+    }
+
+    /// <summary>
+    /// The favorites draft: a row star toggle only repaints the lists — the
+    /// starred pair pins to the head, the pick rides the toggled row, and
+    /// nothing persists until Save.
+    /// </summary>
+    [Fact]
+    public async Task TheStarToggle_PinsThePairToTheHead_WithoutAnySettingsWrite()
+    {
+        var (viewModel, settings, _, _, _, _, _, _) =
+            CreateViewModel(
+                currentTheme: "Dark",
+                currentLanguage: "en",
+                persistedFavoriteMap: """{"demo":["BTC/USDT"]}""");
+
+        await viewModel.ResetSelectionsAsync();
+        AllPairNames(viewModel).Should().Equal("BTC/USDT", "ETH/BTC", "SOL/USDC");
+        viewModel.AllPairs[0].IsFavorite.Should().BeTrue("the persisted star came from the applied map");
+
+        await viewModel.TogglePairFavoriteCommand.Execute(viewModel.AllPairs.First(row => row.Name == "SOL/USDC"));
+
+        AllPairNames(viewModel).Should().Equal("BTC/USDT", "SOL/USDC", "ETH/BTC");
+        viewModel.AllPairs[1].IsFavorite.Should().BeTrue("the starred pair pins to the head");
+        viewModel.AllPairs[1].IsFavorite.Should().BeTrue();
+        viewModel.HiddenPairs.Should().BeEmpty("stars and hidden never share a row");
+        viewModel.SelectedAllPair.Should()
+            .Be(new PairRow("SOL/USDC", IsFavorite: true), "the pick rides the toggled row");
+        await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>());
+    }
+
+    /// <summary>
+    /// The save applies the favorites draft: the map is rewritten with the
+    /// draft exchange's entry replaced (sorted), and nothing is written
+    /// while the draft matches the applied state.
+    /// </summary>
+    [Fact]
+    public async Task SaveAsync_TheFavoritesDraft_PersistsOnlyARealDifference()
+    {
+        var (viewModel, settings, _, _, _, _, _, _) =
+            CreateViewModel(
+                currentTheme: "Dark",
+                currentLanguage: "en",
+                persistedFavoriteMap: """{"demo":["BTC/USDT"]}""");
+
+        await viewModel.ResetSelectionsAsync();
+        await viewModel.SaveAsync();
+
+        await settings.DidNotReceive().SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceFavoriteSymbols,
+            Arg.Any<string>());
+
+        await viewModel.TogglePairFavoriteCommand.Execute(viewModel.AllPairs.First(row => row.Name == "ETH/BTC"));
+        await viewModel.SaveAsync();
+
+        await settings.Received(1).SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceFavoriteSymbols,
+            """{"demo":["BTC/USDT","ETH/BTC"]}""");
+
+        // The second save is a no-op: the cache took the written document.
+        await viewModel.SaveAsync();
+        await settings.Received(1).SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceFavoriteSymbols,
+            Arg.Any<string>());
+    }
+
+    /// <summary>
+    /// A starred pick never hides: the '>' move's gate refuses the pick
+    /// while the row is starred and arms it again after the unstar.
+    /// </summary>
+    [Fact]
+    public async Task TheHideMove_RefusesAStarredPick()
+    {
+        var (viewModel, _, _, _, _, _, _, _) = CreateViewModel(currentTheme: "Dark", currentLanguage: "en");
+
+        await viewModel.ResetSelectionsAsync();
+        PickAllPair(viewModel, "BTC/USDT");
+
+        bool hideEnabled = true;
+        using var hideSubscription = viewModel.HidePairCommand.CanExecute
+            .Subscribe(value => hideEnabled = value);
+        hideEnabled.Should().BeTrue("an unstarred pick arms the hide move");
+
+        await viewModel.TogglePairFavoriteCommand.Execute(viewModel.AllPairs.First(row => row.Name == "BTC/USDT"));
+
+        hideEnabled.Should().BeFalse("a starred pick never hides until the star is removed");
+        viewModel.HiddenPairs.Should().BeEmpty("the refused move left no draft trace");
+
+        await viewModel.TogglePairFavoriteCommand.Execute(viewModel.AllPairs.First(row => row.Name == "BTC/USDT"));
+
+        hideEnabled.Should().BeTrue("the unstarred pick arms the hide move again");
+    }
+
+    /// <summary>
+    /// The marks are mutually exclusive by rule: a legacy document may hold
+    /// one name in BOTH maps (the earlier releases' shape freedom). The
+    /// star wins the render — the pair shows in the all-pairs list (pinned)
+    /// and never in the hidden list — and a save with the star removed
+    /// repairs the document: the favorites map drops the name while the
+    /// hidden map keeps it (the hidden row shows again, then).
+    /// </summary>
+    [Fact]
+    public async Task ALegacyCollision_TheFavoriteWinsUntilTheStarIsRemoved()
+    {
+        var (viewModel, settings, _, _, _, _, _, _) =
+            CreateViewModel(
+                currentTheme: "Dark",
+                currentLanguage: "en",
+                persistedHiddenMap: """{"demo":["ETH/BTC"]}""",
+                persistedFavoriteMap: """{"demo":["ETH/BTC"]}""");
+
+        await viewModel.ResetSelectionsAsync();
+
+        AllPairNames(viewModel).Should().Equal("ETH/BTC", "BTC/USDT", "SOL/USDC");
+        viewModel.AllPairs[0].IsFavorite.Should().BeTrue();
+        viewModel.HiddenPairs.Should().BeEmpty("a starred pair never renders as hidden");
+
+        await viewModel.TogglePairFavoriteCommand.Execute(viewModel.AllPairs[0]);
+        await viewModel.SaveAsync();
+
+        // The unstar re-opens the hidden side: the favorites document drops
+        // the name; the hidden document is unchanged (no rewrite).
+        AllPairNames(viewModel).Should().Equal("BTC/USDT", "SOL/USDC");
+        viewModel.HiddenPairs.Should().Equal("ETH/BTC");
+        await settings.Received(1).SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceFavoriteSymbols,
+            "{}");
+        await settings.DidNotReceive().SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceHiddenSymbols,
+            Arg.Any<string>());
     }
 
     /// <summary>
@@ -370,7 +505,7 @@ public sealed class SettingsViewModelTests
         viewModel.SelectedHiddenPair = "SOL/USDC";
         await viewModel.RevealPairCommand.Execute(RxVoid.Default);
 
-        viewModel.AllPairs.Should().Equal("BTC/USDT", "ETH/BTC", "SOL/USDC");
+        AllPairNames(viewModel).Should().Equal("BTC/USDT", "ETH/BTC", "SOL/USDC");
         viewModel.HiddenPairs.Should().BeEmpty();
 
         await viewModel.SaveAsync();
@@ -397,7 +532,7 @@ public sealed class SettingsViewModelTests
 
         await viewModel.ResetSelectionsAsync();
 
-        viewModel.AllPairs.Should().Equal("BTC/USDT", "ETH/BTC", "SOL/USDC");
+        AllPairNames(viewModel).Should().Equal("BTC/USDT", "ETH/BTC", "SOL/USDC");
         viewModel.HiddenPairs.Should().Equal("GONE/USDT");
 
         viewModel.SelectedHiddenPair = "GONE/USDT";
@@ -431,7 +566,7 @@ public sealed class SettingsViewModelTests
         hideEnabled.Should().BeFalse("no pair is picked right after the reset");
         revealEnabled.Should().BeFalse();
 
-        viewModel.SelectedAllPair = "ETH/BTC";
+        PickAllPair(viewModel, "ETH/BTC");
         hideEnabled.Should().BeTrue("the all-pairs pick arms the hide move");
         revealEnabled.Should().BeFalse();
 
@@ -457,13 +592,13 @@ public sealed class SettingsViewModelTests
                 persistedHiddenMap: """{"demo":["ETH/BTC","SOL/USDC"]}""");
 
         await viewModel.ResetSelectionsAsync();
-        viewModel.AllPairs.Should().Equal(["BTC/USDT"]);
+        AllPairNames(viewModel).Should().Equal("BTC/USDT");
 
         bool hideEnabled = true;
         using var hideSubscription = viewModel.HidePairCommand.CanExecute
             .Subscribe(value => hideEnabled = value);
 
-        viewModel.SelectedAllPair = "BTC/USDT";
+        PickAllPair(viewModel, "BTC/USDT");
 
         hideEnabled.Should().BeFalse("the last visible pair never hides");
     }
@@ -480,17 +615,19 @@ public sealed class SettingsViewModelTests
 
         await viewModel.ResetSelectionsAsync();
 
-        viewModel.SelectedAllPair = "ETH/BTC";
+        PickAllPair(viewModel, "ETH/BTC");
         await viewModel.HidePairCommand.Execute(RxVoid.Default);
 
-        viewModel.SelectedAllPair.Should().Be("SOL/USDC", "the next row heading up takes the moved slot");
-        viewModel.AllPairs.Should().Equal("BTC/USDT", "SOL/USDC");
+        viewModel.SelectedAllPair.Should()
+            .Be(new PairRow("SOL/USDC", IsFavorite: false), "the next row heading up takes the moved slot");
+        AllPairNames(viewModel).Should().Equal("BTC/USDT", "SOL/USDC");
 
-        viewModel.SelectedAllPair = "SOL/USDC";
+        PickAllPair(viewModel, "SOL/USDC");
         await viewModel.HidePairCommand.Execute(RxVoid.Default);
 
-        viewModel.SelectedAllPair.Should().Be("BTC/USDT", "the (new) last row takes the pick at the tail");
-        viewModel.AllPairs.Should().Equal(["BTC/USDT"]);
+        viewModel.SelectedAllPair.Should()
+            .Be(new PairRow("BTC/USDT", IsFavorite: false), "the (new) last row takes the pick at the tail");
+        AllPairNames(viewModel).Should().Equal("BTC/USDT");
     }
 
     /// <summary>
@@ -548,6 +685,19 @@ public sealed class SettingsViewModelTests
         await settings.DidNotReceiveWithAnyArgs().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>());
     }
 
+    /// <summary>
+    /// Pick one all-pairs row by its name (the pick is a row record, the
+    /// tests address rows by name).
+    /// </summary>
+    private static void PickAllPair(SettingsViewModel viewModel, string name) =>
+        viewModel.SelectedAllPair = viewModel.AllPairs.First(row => row.Name == name);
+
+    /// <summary>
+    /// The names the all-pairs list holds (its rows' site order).
+    /// </summary>
+    private static IEnumerable<string> AllPairNames(SettingsViewModel viewModel) =>
+        viewModel.AllPairs.Select(row => row.Name);
+
     private static (
         SettingsViewModel ViewModel,
         ISettingsService Settings,
@@ -563,6 +713,7 @@ public sealed class SettingsViewModelTests
             BehaviorSubject<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null,
             bool persistedUse12HourClock = false,
             string persistedHiddenMap = "",
+            string persistedFavoriteMap = "",
             IReadOnlyList<string>? symbolNames = null,
             bool listingFails = false)
     {
@@ -571,6 +722,16 @@ public sealed class SettingsViewModelTests
             .Returns(persistedUse12HourClock);
         settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>())
             .Returns(persistedHiddenMap);
+        // The two workspace marks live in two keys: the specific setups must
+        // ride AFTER the generic one (the last matching setup wins).
+        settings.GetAsync<string>(
+                UiSettingsKeys.WorkspaceSection,
+                UiSettingsKeys.WorkspaceHiddenSymbols)
+            .Returns(persistedHiddenMap);
+        settings.GetAsync<string>(
+                UiSettingsKeys.WorkspaceSection,
+                UiSettingsKeys.WorkspaceFavoriteSymbols)
+            .Returns(persistedFavoriteMap);
         var themeManager = Substitute.For<IThemeManager>();
         themeManager.CurrentTheme.Returns(currentTheme);
         themeManager.AvailableThemes.Returns(Themes);

@@ -20,6 +20,19 @@
          the dialog itself: each long list scrolls inside its own viewport
          (the theme-error list and both pairs lists carry their own
          scrollbars). -->
+    <Window.Styles>
+        <!-- The row star: dim while the pair is unmarked, gold once the
+             star pins the pair to the list head (a plain Button has no
+             checked state of its own, so the state rides a class). -->
+        <Style Selector="Button.pair-star">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+        </Style>
+        <Style Selector="Button.pair-star.on">
+            <Setter Property="Foreground" Value="Gold"/>
+        </Style>
+    </Window.Styles>
+
     <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="16">
         <!-- The settings sections live on tabs (MCP, notifications grow into
              further items, and one flat list would not scale). Each tab's
@@ -178,16 +191,18 @@
             </TabItem>
 
             <TabItem Header="{loc:Localized Settings.Tab.Pairs}">
-                <!-- The hidden-pairs management (the chart toolbar's star owns
-                     the favorites): the classic two-list dialog shape — the
-                     left list holds the workspace exchange's visible pairs,
-                     the right one the hidden names, and the move buttons sit
-                     in the center column: '>' hides the picked pair, '<'
-                     brings it back. Each list fills the tab's height and
-                     scrolls its own rows (one scrollbar per list). The move
-                     lands in the draft, Save applies and persists it. The
-                     modal window cannot race an exchange switch, so the
-                     lists are rebuilt per open for the exchange behind the
+                <!-- Both workspace marks live here: the classic two-list
+                     dialog shape — the left list holds the workspace
+                     exchange's all pairs with a star button on every row
+                     (a starred pair pins to the list head and never hides
+                     until unstarred), the right one the hidden names, and
+                     the move buttons sit in the center column: '>' hides
+                     the picked (unstarred) pair, '<' brings it back. Each
+                     list fills the tab's height and scrolls its own rows
+                     (one scrollbar per list). Everything lands in the
+                     draft; Save applies and persists it. The modal window
+                     cannot race an exchange switch, so the lists are
+                     rebuilt per open for the exchange behind the
                      workspace. -->
                 <Grid RowDefinitions="*,Auto" RowSpacing="10" Margin="0,12,0,0">
                     <Grid Grid.Row="0"
@@ -201,7 +216,36 @@
                                    Text="{loc:Localized Settings.Pairs.Hidden}" />
                         <ListBox Grid.Row="1" Grid.Column="0"
                                  ItemsSource="{Binding AllPairs}"
-                                 SelectedItem="{Binding SelectedAllPair}" />
+                                 SelectedItem="{Binding SelectedAllPair}">
+                            <ListBox.ItemTemplate>
+                                <!-- One row: the pair name with the star button
+                                     on the right. The row record carries the
+                                     star state (rebuilt on every draft move),
+                                     so the template binds within its own data
+                                     type; the window's DataContext supplies the
+                                     toggle command. -->
+                                <DataTemplate x:DataType="vm:PairRow">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Name}"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="1"
+                                                Content="★"
+                                                FontSize="14"
+                                                Padding="6,2"
+                                                MinWidth="28"
+                                                VerticalAlignment="Center"
+                                                Margin="0,-2,0,-2"
+                                                Classes="pair-star"
+                                                Classes.on="{Binding IsFavorite}"
+                                                ToolTip.Tip="{loc:Localized Settings.Pairs.Star}"
+                                                AutomationProperties.Name="{loc:Localized Settings.Pairs.Star}"
+                                                CommandParameter="{Binding}"
+                                                Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).TogglePairFavoriteCommand}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                         <ListBox Grid.Row="1" Grid.Column="2"
                                  ItemsSource="{Binding HiddenPairs}"
                                  SelectedItem="{Binding SelectedHiddenPair}" />

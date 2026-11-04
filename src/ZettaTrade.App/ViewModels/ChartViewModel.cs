@@ -12,7 +12,6 @@ using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.UI.Extensions;
-using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
 /// Chart panel state: the available symbols list, the selected symbol and the
@@ -47,11 +46,11 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// <c>Workspace.FavoriteSymbols</c> / <c>Workspace.HiddenSymbols</c> JSON
 /// maps (see <see cref="Services.SymbolMarkMap"/>): the bootstrap reads
 /// both on every exchange switch and builds the rows favorites-first with
-/// the hidden pairs filtered, the favorite toolbar toggle writes the
-/// favorites map back (the settings window's pairs tab writes the hidden
-/// one), and a hidden symbol never takes the chart — when a save hides the
-/// shown pair the chart switches to the first visible one (persisted, so a
-/// restart does not re-open it either).
+/// the hidden pairs filtered, the settings window's pairs tab writes both
+/// maps back (the favorites and the hidden ones), and a hidden symbol never
+/// takes the chart — when a save hides the shown pair the chart switches to
+/// the first visible one (persisted, so a restart does not re-open it
+/// either).
 /// The ViewModel lives as long as the application (singleton), so the
 /// subscriptions mirror it and need no explicit disposal.
 /// </remarks>
@@ -216,18 +215,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         {
             _availableSymbols.RemoveAt(_availableSymbols.Count - 1);
         }
-    }
-
-    private bool _isSelectedSymbolFavorite;
-
-    /// <summary>
-    /// Whether the selected symbol is a favorite: the star toggle's state.
-    /// Re-raised with every rows rebuild.
-    /// </summary>
-    public bool IsSelectedSymbolFavorite
-    {
-        get => _isSelectedSymbolFavorite;
-        private set => this.RaiseAndSetIfChanged(ref _isSelectedSymbolFavorite, value);
     }
 
     private SymbolRow? _selectedSymbolRow;
@@ -422,16 +409,10 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private IReadOnlyDictionary<string, IReadOnlySet<string>> _hiddenMarks =
         new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
 
-    /// <summary>The exchange the cached lists apply to: the marks resolve per workspace exchange.</summary>
-    private string _marksExchangeId = string.Empty;
-
     /// <summary>
-    /// Star/unstar the selected symbol: the toolbar's favorite toggle. The
-    /// write persists the whole favorites map (the other exchanges' entries
-    /// included) and the rebuild applies the mark at once. The hidden map
-    /// has no toolbar toggle: the settings window's pairs tab writes it.
+    /// The exchange the cached lists apply to: the marks resolve per workspace exchange.
     /// </summary>
-    public ReactiveCommand<RxVoid, RxVoid> ToggleFavoriteCommand { get; }
+    private string _marksExchangeId = string.Empty;
 
     #endregion
 
@@ -665,12 +646,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 adapter => BootstrapSymbols(adapter),
                 ex => _logger.LogError(ex, "The chart symbols stream stopped unexpectedly"));
-
-        // The mark toggles act on the selection: no selection, no mark.
-        var hasSelectedSymbol = this
-            .WhenAnyValue(x => x.SelectedSymbol)
-            .Select(static symbol => symbol is not null);
-        ToggleFavoriteCommand = ReactiveCommand.CreateFromTask(ToggleFavoriteAsync, hasSelectedSymbol);
     }
 
     #endregion
@@ -906,8 +881,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         }
         else if (bootstrap.PersistedSymbol is { } wanted && !Equals(wanted, bootstrap.Selection))
         {
+            // The same mutual exclusivity rule the rows keep: a favorite
+            // beats a stored hidden entry, so only unstarred names count as
+            // hidden here.
+            var exchangeFavorites =
+                bootstrap.FavoriteMarks.GetValueOrDefault(bootstrap.ExchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
             var hiddenNames =
-                bootstrap.HiddenMarks.GetValueOrDefault(bootstrap.ExchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
+                (bootstrap.HiddenMarks.GetValueOrDefault(bootstrap.ExchangeId) ?? new HashSet<string>(StringComparer.Ordinal))
+                .Where(name => !exchangeFavorites.Contains(name))
+                .ToHashSet(StringComparer.Ordinal);
             if (hiddenNames.Contains(wanted.Normalized))
             {
                 _logger.LogWarning(
@@ -974,8 +956,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         var persistedTrimmed = stored?.Trim();
         var persisted = TryParseStoredSymbol(persistedTrimmed);
         var symbols = await LoadSymbolsAsync(ct);
+
+        // The marks are mutually exclusive by rule: a favorite beats a stored
+        // hidden entry (the legacy-collision decision), so only the unstarred
+        // names weigh into the preselection decision.
+        var exchangeFavorites =
+            favoriteMarks.GetValueOrDefault(exchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
         var hiddenNames =
-            hiddenMarks.GetValueOrDefault(exchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
+            (hiddenMarks.GetValueOrDefault(exchangeId) ?? new HashSet<string>(StringComparer.Ordinal))
+            .Where(name => !exchangeFavorites.Contains(name))
+            .ToHashSet(StringComparer.Ordinal);
         var selection = Preselect(SelectedSymbol, persisted, symbols, hiddenNames);
 
         return new SymbolBootstrap(
@@ -1032,10 +1022,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>
     /// The rows a rebuild or a bootstrap lists, in its pure form (pinned by
     /// tests): favorites first (the exchange's own order inside the group),
-    /// then the unmarked symbols, the hidden pairs filtered out — no
-    /// exceptions: a hidden symbol never takes the chart, the settings tab's
-    /// reveals are its only way back. A marked symbol that vanished from the
-    /// list leaves no ghost; the capped page rides the rebuild.
+    /// then the unmarked symbols, the hidden pairs filtered out. The marks
+    /// are mutually exclusive by rule: a found favorite beats a stored
+    /// hidden entry (legacy collision — the star wins, the settings tab's
+    /// moves repair the document on the next save). A symbol that vanished
+    /// from the list leaves no ghost; the capped page rides the rebuild.
     /// </summary>
     /// <param name="symbols">The exchange's full symbol list (exchange
     /// order).</param>
@@ -1056,7 +1047,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         foreach (var symbol in symbols)
         {
             var isFavorite = favoriteNames.Contains(symbol.Normalized);
-            if (hiddenNames.Contains(symbol.Normalized))
+            if (!isFavorite && hiddenNames.Contains(symbol.Normalized))
             {
                 continue;
             }
@@ -1083,8 +1074,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         {
             IReadOnlySet<string> favorites =
                 _favoriteMarks.GetValueOrDefault(_marksExchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
+
+            // The marks are mutually exclusive by rule: a favorite beats a
+            // stored hidden entry (the legacy-collision decision), so only
+            // the unstarred names count as hidden here.
             IReadOnlySet<string> hidden =
-                _hiddenMarks.GetValueOrDefault(_marksExchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
+                (_hiddenMarks.GetValueOrDefault(_marksExchangeId) ?? new HashSet<string>(StringComparer.Ordinal))
+                .Where(name => !favorites.Contains(name))
+                .ToHashSet(StringComparer.Ordinal);
             IReadOnlyList<SymbolRow> rows = _exchangeSymbols.Count == 0
                 ? []
                 : BuildSymbolRows(
@@ -1107,12 +1104,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 // is nothing to rebase to; the bootstrap decides next).
                 var rebased = rows.FirstOrDefault();
                 SelectedSymbol = rebased?.Symbol;
-                IsSelectedSymbolFavorite = rebased is not null && favorites.Contains(rebased.Symbol.Normalized);
                 SelectedSymbolRow = rebased;
                 return;
             }
-
-            IsSelectedSymbolFavorite = selectedName is not null && favorites.Contains(selectedName);
 
             // The combo shim follows the canonical selection: the row matching
             // it (the rebuilt rows' own instance). Records compare by value,
@@ -1156,34 +1150,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
         RebuildSymbolRows();
         _logger.LogInformation("The workspace '{Key}' map was re-applied", change.Key);
-    }
-
-    /// <summary>
-    /// Toggle the selected symbol's favorite mark: the cache updates with
-    /// the toggled map, the rebuild applies the mark at once, and the
-    /// persist writes the whole map (the other exchanges' entries included).
-    /// The changes stream re-applies the write as an echo — a rebuild on
-    /// identical data, no visible effect. Internal because the async facts
-    /// exercise the toggle directly (the command's canExecute gate is pinned
-    /// separately); the UI ships it through
-    /// <see cref="ToggleFavoriteCommand"/>.
-    /// </summary>
-    internal async Task ToggleFavoriteAsync()
-    {
-        if (SelectedSymbol is not { } selected)
-        {
-            return;
-        }
-
-        _favoriteMarks = SymbolMarkMap.WithToggled(
-            _favoriteMarks,
-            _marksExchangeId,
-            selected.Normalized);
-        RebuildSymbolRows();
-        await _settings.SetAsync(
-            UiSettingsKeys.WorkspaceSection,
-            UiSettingsKeys.WorkspaceFavoriteSymbols,
-            SymbolMarkMap.Serialize(_favoriteMarks));
     }
 
     /// <summary>

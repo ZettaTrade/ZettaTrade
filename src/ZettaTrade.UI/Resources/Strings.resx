@@ -93,8 +93,11 @@
   <data name="Settings.Pairs.Reveal" xml:space="preserve">
     <value>Reveal</value>
   </data>
+  <data name="Settings.Pairs.Star" xml:space="preserve">
+    <value>Star — pin the pair to the list head (a starred pair is never hidden until unstarred)</value>
+  </data>
   <data name="Settings.Pairs.Hint" xml:space="preserve">
-    <value>The '&gt;' and '&lt;' buttons move a picked pair between the lists; hidden pairs leave the workspace symbol picker, and at least one visible pair stays. The lists apply to the current exchange. Favorites are managed by the chart toolbar's star.</value>
+    <value>The '&gt;' and '&lt;' buttons move a picked pair between the lists; hidden pairs leave the workspace symbol picker, and at least one visible pair stays. The '★' button pins a pair to the head of the list — a starred pair is never hidden until it is unstarred. The lists apply to the current exchange; changes apply on Save.</value>
   </data>
   <data name="Settings.Theme" xml:space="preserve">
     <value>Theme</value>
@@ -188,9 +191,6 @@
   </data>
   <data name="Chart.Indicators.SmaTip" xml:space="preserve">
     <value>Simple Moving Average: the mean close over the last N bars, drawn as a line over the candles.</value>
-  </data>
-  <data name="Chart.Symbols.FavoriteTip" xml:space="preserve">
-    <value>Pin the selected symbol to the top of the list (the star badge marks favorites).</value>
   </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>

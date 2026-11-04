@@ -24,6 +24,25 @@ Build of task T-039 (symbol favorites + hidden pairs).
 - The marks fail safe: a malformed stored map drops to no marks instead of
   crashing the picker, and the bootstrap never rewrites the maps it reads.
 
+### Changed (T-039 review round — the favorite stars move into the pairs tab)
+- The star leaves the chart toolbar: the "Pairs" tab's all-pairs list carries
+  a star button on every row (next to the name). Pressing it stars the pair
+  in the draft: the row pins to the list head at once; the toolbar star
+  toggle is gone.
+- A starred pair is never hidden: the marks are mutually exclusive by rule,
+  so the Hide move refuses a starred pick (the `>` button grays out) and a
+  starred row never shows up in the hidden list. A stored document may still
+  hold one name in both maps (earlier releases' shape freedom): the settings
+  render the favorite and drop the hidden view for it, and the next save
+  repairs the document (the star wins until the user unstars).
+- The star joins the draft: starring lands in the window's lists at once and
+  the map applies and persists only on Save (the same contract the moves
+  follow); the chart combo re-applies the lands live through the settings
+  changes stream.
+- The `★` badge in the combo picker rows and the rebase/keep-one rules stay
+  as they were; `Chart.Symbols.FavoriteTip` is gone (en + ru),
+  `Settings.Pairs.Star` names the row buttons.
+
 ### Changed (T-039 review round — hidden pairs move to Settings)
 - The hidden pairs are managed in the settings window's new "Pairs" tab: two
   lists — all pairs of the workspace exchange and the hidden ones. The move

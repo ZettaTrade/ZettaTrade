@@ -93,8 +93,11 @@
   <data name="Settings.Pairs.Reveal" xml:space="preserve">
     <value>Показать</value>
   </data>
+  <data name="Settings.Pairs.Star" xml:space="preserve">
+    <value>Звезда — закрепить пару в начале списка (избранная пара не скрывается, пока звёздочка не снята)</value>
+  </data>
   <data name="Settings.Pairs.Hint" xml:space="preserve">
-    <value>Кнопки «&gt;» и «&lt;» переносят выбранную пару между списками; скрытые пары уходят из списка инструментов рабочего места, а хотя бы одна видимая пара всегда остаётся. Списки относятся к текущей бирже. Избранное управляется звёздочкой на панели графика.</value>
+    <value>Кнопки «&gt;» и «&lt;» переносят выбранную пару между списками; скрытые пары уходят из списка инструментов рабочего места, а хотя бы одна видимая пара всегда остаётся. Кнопка «★» закрепляет пару в начале списка — избранная пара не скрывается, пока звёздочка не снята. Списки относятся к текущей бирже; изменения применяются по «Сохранить».</value>
   </data>
   <data name="Settings.Theme" xml:space="preserve">
     <value>Тема</value>
@@ -188,9 +191,6 @@
   </data>
   <data name="Chart.Indicators.SmaTip" xml:space="preserve">
     <value>Простая скользящая средняя: среднее закрытие за последние N баров, линия поверх свечей.</value>
-  </data>
-  <data name="Chart.Symbols.FavoriteTip" xml:space="preserve">
-    <value>Закрепить выбранный инструмент в начале списка (звёздочка помечает избранное).</value>
   </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
