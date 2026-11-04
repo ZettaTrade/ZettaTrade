@@ -19,23 +19,39 @@ Build of task T-039 (symbol favorites + hidden pairs).
   favorite renders a star badge in every row and pins to the head of the
   list; hidden pairs leave the everyday list.
 - The toolbar next to the symbol combo: a star toggle (favorite/unfavorite
-  the selected symbol). A hidden-but-selected symbol keeps its selection and
-  its live series (no silent rebase).
+  the selected symbol). Hidden pairs never take the chart (the review round
+  decided the rebase — below).
 - The marks fail safe: a malformed stored map drops to no marks instead of
   crashing the picker, and the bootstrap never rewrites the maps it reads.
 
 ### Changed (T-039 review round — hidden pairs move to Settings)
 - The hidden pairs are managed in the settings window's new "Pairs" tab: two
-  lists — all pairs of the workspace exchange and the hidden ones. A pick
-  plus the Hide/Reveal button moves the pair between the lists (a draft
-  repaint); the document is written only by the window's Save, and the
-  changes stream re-applies the marks in the open chart live.
+  lists — all pairs of the workspace exchange and the hidden ones. The move
+  buttons sit in the center column between the lists, the classic two-list
+  dialog shape: `>` hides the picked pair, `<` brings it back (the former
+  bottom row of full buttons is gone). A pick plus a move repaints the
+  draft lists and carries the pick to the pair that took the moved row's
+  slot (the next row heading up, the tail row at the list end); the
+  document is written only by the window's Save, and the changes stream
+  re-applies the marks in the open chart live.
+- The last visible pair can never hide: the Hide move disarms when one
+  visible pair remains, so the workspace always keeps a tradable context.
+- The settings save that hides the pair whose chart is shown switches the
+  chart to the first visible pair and persists the switch — the hidden
+  pair never holds the selection (the round-1 invisible pinned row is
+  gone), and a restart never re-opens a hidden chart either. A hidden pair
+  leaves the picker unconditionally; the tab's reveal is its only way back.
 - The toolbar Hide and Show hidden toggles are removed (their job moved to
   the tab); the favorite star stays. `Chart.Symbols.Hide` /
   `ShowHidden` strings are gone (en + ru), the pairs-tab strings are in.
 - The marks document is serialized with each exchange's names sorted, so the
   same marks always produce the same bytes.
 - The order book header is inset from the divider like the assistant panel's.
+
+### Fixed (T-039 review round)
+- The settings window no longer resizes when switching tabs: the dialog is
+  pinned to a fixed 420×440 and the tab content scrolls instead (the rare
+  long error list included).
 
 ## [0.1.0-alpha.19] - 2026-11-02
 

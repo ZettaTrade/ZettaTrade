@@ -49,8 +49,9 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// both on every exchange switch and builds the rows favorites-first with
 /// the hidden pairs filtered, the favorite toolbar toggle writes the
 /// favorites map back (the settings window's pairs tab writes the hidden
-/// one), and a hidden-but-selected symbol stays in the list as an invisible
-/// row so the selection (and the live series it owns) never rebases.
+/// one), and a hidden symbol never takes the chart — when a save hides the
+/// shown pair the chart switches to the first visible one (persisted, so a
+/// restart does not re-open it either).
 /// The ViewModel lives as long as the application (singleton), so the
 /// subscriptions mirror it and need no explicit disposal.
 /// </remarks>
@@ -167,8 +168,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>
     /// Rows of the symbols combo: the exchange's list with the persisted
-    /// marks applied (favorites first, hidden pairs filtered — a hidden
-    /// row stays only while it holds the selection). Rebuilt
+    /// marks applied (favorites first, hidden pairs filtered out). Rebuilt
     /// on every marks, selection and exchange change — in place: the
     /// collection identity never changes (a swap makes the combo's selection
     /// machinery reset and re-point, and the deferred re-point then writes a
@@ -649,8 +649,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 change => ApplyMarksChange(change),
                 ex => _logger.LogError(ex, "The workspace symbol marks stream stopped unexpectedly"));
 
-        // The rows re-decide on every selection change: the hidden-pinned
-        // row (the invisible selection holder) follows the selection.
+        // The rows re-decide on every selection change: the favorite state
+        // and the combo shim follow the selection.
         this.WhenAnyValue(x => x.SelectedSymbol).Subscribe(
             _ => RebuildSymbolRows(),
             ex => _logger.LogError(ex, "The chart symbol rows stream stopped unexpectedly"));
@@ -835,44 +835,63 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .FromAsync(token => LoadBootstrapAsync(trigger.Id, token))
             .ObserveOnUiThread()
             .Subscribe(
-                bootstrap =>
-                {
-                    LogPersistedSymbolOutcome(bootstrap, exchangeName);
-
-                    // A bootstrap either re-applies the persisted preference
-                    // it just read (no duplicate write — nothing changed) or
-                    // applies the logged fall-through (writing the substitute
-                    // would destroy the deferred preference). The gate makes
-                    // the persistence chain skip exactly this assignment; the
-                    // two-way combo adds user edits everywhere else.
-                    _favoriteMarks = bootstrap.FavoriteMarks;
-                    _hiddenMarks = bootstrap.HiddenMarks;
-                    _isApplyingBootstrapSelection = true;
-                    try
-                    {
-                        _exchangeSymbols = bootstrap.Symbols;
-                        RebuildSymbolRows();
-                        SelectedSymbol = bootstrap.Selection;
-                    }
-                    finally
-                    {
-                        _isApplyingBootstrapSelection = false;
-                    }
-
-                    _logger.LogInformation(
-                        "Symbols loaded: {Count}; selected {Symbol}",
-                        bootstrap.Symbols.Count,
-                        bootstrap.Selection);
-                },
+                bootstrap => ApplySymbolBootstrap(bootstrap, exchangeName),
                 ex => _logger.LogError(ex, "Failed to load symbols"));
     }
 
     /// <summary>
+    /// Apply one symbols bootstrap on the UI thread: the persisted warnings
+    /// log, the marks re-cache (so the toggles serialize the other exchanges'
+    /// entries untouched) and the exchange's list lands with the decided
+    /// selection. The assignment runs under the bootstrap gate — the
+    /// persistence chain skips exactly it, the two-way combo adds user edits
+    /// everywhere else.
+    /// </summary>
+    private void ApplySymbolBootstrap(SymbolBootstrap bootstrap, string exchangeName)
+    {
+        LogPersistedSymbolOutcome(bootstrap, exchangeName);
+
+        _favoriteMarks = bootstrap.FavoriteMarks;
+        _hiddenMarks = bootstrap.HiddenMarks;
+        _isApplyingBootstrapSelection = true;
+        try
+        {
+            _exchangeSymbols = bootstrap.Symbols;
+            RebuildSymbolRows();
+            SelectedSymbol = bootstrap.Selection;
+        }
+        finally
+        {
+            _isApplyingBootstrapSelection = false;
+        }
+
+        _logger.LogInformation(
+            "Symbols loaded: {Count}; selected {Symbol}",
+            bootstrap.Symbols.Count,
+            bootstrap.Selection);
+    }
+
+    /// <summary>
+    /// Land the symbols bootstrap synchronously for the marshal-invariant
+    /// facts: the shared test-process dispatcher pins to a foreign owner
+    /// (the posted apply is never pumped there), so a fact drives the load
+    /// and the apply through this single seam instead. Not part of the
+    /// runtime UI contract — the ViewModel ships the assignment through
+    /// <see cref="ZettaTrade.UI.Extensions.ObservableExtensions.ObserveOnUiThread"/>
+    /// like every other assignment.
+    /// </summary>
+    internal async Task ApplyBootstrapForFactsAsync(IMarketDataAdapter adapter) =>
+        ApplySymbolBootstrap(
+            await LoadBootstrapAsync(adapter.Id, CancellationToken.None),
+            adapter.Name);
+
+    /// <summary>
     /// The persisted-symbol warnings for one bootstrap outcome: a stored
     /// value that parses to nothing is an unsupported preference (logged,
-    /// never silently substituted — the trading-safety rule), and a parsed
+    /// never silently substituted — the trading-safety rule), a parsed
     /// preference the exchange does not list falls through to the decided
-    /// selection.
+    /// selection, and a listed but hidden preference yields the chart to
+    /// the first visible pair (the settings tab's reveal is its way back).
     /// </summary>
     private void LogPersistedSymbolOutcome(
         SymbolBootstrap bootstrap,
@@ -887,11 +906,24 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         }
         else if (bootstrap.PersistedSymbol is { } wanted && !Equals(wanted, bootstrap.Selection))
         {
-            _logger.LogWarning(
-                "Persisted workspace symbol '{Symbol}' is not listed on {Exchange}; starting on '{Selected}'",
-                wanted,
-                exchangeName,
-                bootstrap.Selection);
+            var hiddenNames =
+                bootstrap.HiddenMarks.GetValueOrDefault(bootstrap.ExchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
+            if (hiddenNames.Contains(wanted.Normalized))
+            {
+                _logger.LogWarning(
+                    "Persisted workspace symbol '{Symbol}' is hidden on {Exchange}; starting on '{Selected}'",
+                    wanted,
+                    exchangeName,
+                    bootstrap.Selection);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Persisted workspace symbol '{Symbol}' is not listed on {Exchange}; starting on '{Selected}'",
+                    wanted,
+                    exchangeName,
+                    bootstrap.Selection);
+            }
         }
     }
 
@@ -942,7 +974,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         var persistedTrimmed = stored?.Trim();
         var persisted = TryParseStoredSymbol(persistedTrimmed);
         var symbols = await LoadSymbolsAsync(ct);
-        var selection = Preselect(SelectedSymbol, persisted, symbols);
+        var hiddenNames =
+            hiddenMarks.GetValueOrDefault(exchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
+        var selection = Preselect(SelectedSymbol, persisted, symbols, hiddenNames);
 
         return new SymbolBootstrap(
             Symbols: symbols,
@@ -957,19 +991,24 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>
     /// The preselection decision, in its pure form (pinned directly by
     /// tests), priority in the order the board fixed: the persisted workspace
-    /// preference wins while the list carries it, the current selection
-    /// survives while the new list carries it, the first entry owns the
-    /// workspace default, an empty list clears the selection with no
-    /// substitute. A satisfied choice is delivered as the LIST's own
-    /// instance, so the combo's SelectedItem always points at an item of its
-    /// own source.
+    /// preference wins while the list carries it and it is not hidden, the
+    /// current selection survives while the new list carries it and it is
+    /// not hidden, the first visible entry owns the workspace default, an
+    /// empty (or fully hidden) list clears the selection with no substitute.
+    /// A satisfied choice is delivered as the LIST's own instance, so the
+    /// combo's SelectedItem always points at an item of its own source.
+    /// Hidden pairs never take the chart: the settings tab's reveals are
+    /// their only way back.
     /// </summary>
     internal static Symbol? Preselect(
         Symbol? currentSelection,
         Symbol? persistedSymbol,
-        IReadOnlyList<Symbol> symbols)
+        IReadOnlyList<Symbol> symbols,
+        IReadOnlySet<string>? hiddenNames = null)
     {
-        if (persistedSymbol is { } preferred)
+        hiddenNames ??= new HashSet<string>(StringComparer.Ordinal);
+
+        if (persistedSymbol is { } preferred && !hiddenNames.Contains(preferred.Normalized))
         {
             var listed = symbols.FirstOrDefault(symbol => symbol == preferred);
             if (listed is not null)
@@ -978,7 +1017,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             }
         }
 
-        if (currentSelection is { } kept)
+        if (currentSelection is { } kept && !hiddenNames.Contains(kept.Normalized))
         {
             var stillListed = symbols.FirstOrDefault(symbol => symbol == kept);
             if (stillListed is not null)
@@ -987,17 +1026,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             }
         }
 
-        return symbols.FirstOrDefault();
+        return symbols.FirstOrDefault(symbol => !hiddenNames.Contains(symbol.Normalized));
     }
 
     /// <summary>
     /// The rows a rebuild or a bootstrap lists, in its pure form (pinned by
     /// tests): favorites first (the exchange's own order inside the group),
-    /// then the unmarked symbols, the hidden pairs filtered out — except the
-    /// selected symbol when it is hidden (the selection never rebases, the
-    /// row exists only to hold it, and the dropdown skips that row). A
-    /// marked symbol that vanished from the list leaves no ghost; the capped
-    /// page rides the rebuild.
+    /// then the unmarked symbols, the hidden pairs filtered out — no
+    /// exceptions: a hidden symbol never takes the chart, the settings tab's
+    /// reveals are its only way back. A marked symbol that vanished from the
+    /// list leaves no ghost; the capped page rides the rebuild.
     /// </summary>
     /// <param name="symbols">The exchange's full symbol list (exchange
     /// order).</param>
@@ -1005,15 +1043,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// (normalized).</param>
     /// <param name="hiddenNames">The exchange's hidden names
     /// (normalized).</param>
-    /// <param name="selectedSymbol">The currently selected symbol, or
-    /// null.</param>
     /// <param name="maxRows">The combo capacity cap.</param>
     /// <returns>The rows in combo order.</returns>
     internal static IReadOnlyList<SymbolRow> BuildSymbolRows(
         IReadOnlyList<Symbol> symbols,
         IReadOnlySet<string> favoriteNames,
         IReadOnlySet<string> hiddenNames,
-        Symbol? selectedSymbol,
         int maxRows)
     {
         List<SymbolRow> favorites = [];
@@ -1021,14 +1056,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         foreach (var symbol in symbols)
         {
             var isFavorite = favoriteNames.Contains(symbol.Normalized);
-            var isHidden = hiddenNames.Contains(symbol.Normalized);
-            if (isHidden && !Equals(symbol, selectedSymbol))
+            if (hiddenNames.Contains(symbol.Normalized))
             {
                 continue;
             }
 
-            (isFavorite ? favorites : others).Add(
-                new SymbolRow(symbol, isFavorite, isHidden));
+            (isFavorite ? favorites : others).Add(new SymbolRow(symbol, isFavorite));
         }
 
         favorites.AddRange(others);
@@ -1036,36 +1069,49 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     /// <summary>
-    /// Rebuild the combo from the cached exchange list and marks: the
-    /// current selection decides the hidden-pinned row and the favorite
-    /// state re-raises. A rebuild never touches the selection itself.
+    /// Rebuild the combo from the cached exchange list and marks. A rebuild
+    /// never moves the selection on its own — except when the current
+    /// selection is not among the visible rows (the settings save that hid
+    /// the shown pair, or a vanished symbol): the chart switches to the
+    /// first visible pair and the selection stream persists the switch, so
+    /// a restart never re-opens a hidden chart either.
     /// </summary>
     private void RebuildSymbolRows()
     {
         _isUpdatingSymbolRows = true;
         try
         {
-            if (_exchangeSymbols.Count == 0)
-            {
-                IsSelectedSymbolFavorite = false;
-                UpdateRowsInPlace([]);
-                SelectedSymbolRow = null;
-                return;
-            }
-
             IReadOnlySet<string> favorites =
                 _favoriteMarks.GetValueOrDefault(_marksExchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
             IReadOnlySet<string> hidden =
                 _hiddenMarks.GetValueOrDefault(_marksExchangeId) ?? new HashSet<string>(StringComparer.Ordinal);
-            var rows = BuildSymbolRows(
-                _exchangeSymbols,
-                favorites,
-                hidden,
-                SelectedSymbol,
-                MaxVisibleSymbols);
-
+            IReadOnlyList<SymbolRow> rows = _exchangeSymbols.Count == 0
+                ? []
+                : BuildSymbolRows(
+                    _exchangeSymbols,
+                    favorites,
+                    hidden,
+                    MaxVisibleSymbols);
             UpdateRowsInPlace(rows);
+
             var selectedName = SelectedSymbol?.Normalized;
+            if (selectedName is not null &&
+                _exchangeSymbols.Count > 0 &&
+                rows.All(row => row.Symbol.Normalized != selectedName))
+            {
+                // The shown pair is hidden (or vanished): the first visible
+                // row takes the chart. The setter's stream persists the
+                // switch; the assignments below keep the shim exact on the
+                // rare no-change edge (the rows already updated). The list
+                // -not-yet-loaded state keeps the user's last choice (there
+                // is nothing to rebase to; the bootstrap decides next).
+                var rebased = rows.FirstOrDefault();
+                SelectedSymbol = rebased?.Symbol;
+                IsSelectedSymbolFavorite = rebased is not null && favorites.Contains(rebased.Symbol.Normalized);
+                SelectedSymbolRow = rebased;
+                return;
+            }
+
             IsSelectedSymbolFavorite = selectedName is not null && favorites.Contains(selectedName);
 
             // The combo shim follows the canonical selection: the row matching

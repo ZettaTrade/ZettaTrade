@@ -31,7 +31,10 @@ using ZettaTrade.Core.ValueObjects;
 /// asserts only marshal-invariant state (the adapter's call records and the
 /// raw Rx paths), and the marshalled deliveries are covered by the real
 /// dispatcher in the acceptance probe. The preselection DECISION is pinned
-/// in its pure form via <see cref="ChartViewModel.Preselect"/>.
+/// in its pure form via <see cref="ChartViewModel.Preselect"/>, and the
+/// bootstrap apply is landed synchronously through
+/// <see cref="ChartViewModel.ApplyBootstrapForFactsAsync"/> where a fact
+/// needs the exchange's list on the VM.
 /// </summary>
 public sealed class ChartViewModelTests
 {
@@ -211,6 +214,36 @@ public sealed class ChartViewModelTests
 
     #region Tests
 
+    /// <summary>
+    /// The chart facts are UI-marshal invariant by contract: the bootstrap
+    /// apply rides <c>ObserveOnUiThread</c>, whose Avalonia dispatcher
+    /// behavior depends on which thread first touches it. Pin the
+    /// test-process dispatcher to a foreign owner thread ONCE, so every
+    /// test thread is off-owner and the apply mode is deterministically
+    /// "posted and never pumped" (an xUnit method can otherwise run on any
+    /// thread pool thread, making the same facts order-dependent).
+    /// </summary>
+    static ChartViewModelTests()
+    {
+        using var pinned = new ManualResetEventSlim(false);
+        var initializer = new Thread(() =>
+        {
+            try
+            {
+                _ = Avalonia.Threading.Dispatcher.UIThread;
+            }
+            finally
+            {
+                pinned.Set();
+            }
+        })
+        {
+            IsBackground = true,
+        };
+        initializer.Start();
+        pinned.Wait();
+    }
+
     [Fact]
     public void Ctor_StartsTheSymbolsLoadWithoutActivation()
     {
@@ -235,6 +268,57 @@ public sealed class ChartViewModelTests
         selections.Should().BeEquivalentTo(
             [Symbol.Parse("ETH/BTC"), Symbol.Parse("SOL/USDC")],
             options => options.WithStrictOrdering());
+    }
+
+    /// <summary>
+    /// The settings save that hides the pair whose chart is shown switches
+    /// the chart to the first visible pair and persists the switch: the live
+    /// marks change lands through the synchronous changes stream, the rebuild
+    /// drops the hidden row outright, and the rebase assignment rides the
+    /// selection stream into the workspace settings key (a restart never
+    /// re-opens the hidden chart either).
+    /// </summary>
+    [Fact]
+    public async Task TheHiddenShownChart_RebasesToTheFirstVisiblePair_OnTheSave()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var changes = new Subject<SettingsChange>();
+        settings.Changes.Returns(changes);
+
+        var marketData = new FakeMarketData();
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            settings);
+
+        // The posted bootstrap apply is never pumped (foreign-owned test
+        // dispatcher): the fact lands it through the facts seam instead.
+        await chart.ApplyBootstrapForFactsAsync(marketData);
+
+        chart.SelectedSymbol.Should().Be(
+            Symbol.Parse("BTC/USDT"),
+            "the empty workspace preference falls to the first visible entry");
+        chart.AvailableSymbols.Select(row => row.Symbol.Normalized).Should()
+            .Equal("BTC/USDT", "ETH/BTC", "SOL/USDC");
+
+        // The user hides the SHOWN pair in the settings pairs tab and saves.
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceHiddenSymbols,
+            null,
+            """{"fake":["BTC/USDT"]}"""));
+
+        chart.SelectedSymbol.Should().Be(
+            Symbol.Parse("ETH/BTC"),
+            "the hidden shown chart re-bases to the first visible pair");
+        chart.AvailableSymbols.Select(row => row.Symbol.Normalized).Should().Equal("ETH/BTC", "SOL/USDC");
+        await settings.Received(1).SetAsync(
+            UiSettingsKeys.WorkspaceSection,
+            UiSettingsKeys.WorkspaceSymbolId,
+            "ETH/BTC");
     }
 
     [Fact]
@@ -935,9 +1019,8 @@ public sealed class ChartViewModelTests
     /// The rows a rebuild or a bootstrap lists, pinned in its pure form
     /// (T-039): favorites pin to the head of the list (the exchange's own
     /// order inside each group), the hidden pairs leave the everyday list
-    /// and return under the reveal toggle, and a hidden-but-selected symbol
-    /// stays as an invisible row — the selection (and the live series it
-    /// owns) never rebases.
+    /// unconditionally — a hidden symbol never takes the chart, the
+    /// settings tab's reveals are its only way back.
     /// </summary>
     [Fact]
     public void BuildSymbolRows_FavoritesPinToTheHeadStably()
@@ -949,7 +1032,6 @@ public sealed class ChartViewModelTests
             symbols,
             favorites,
             new HashSet<string>(StringComparer.Ordinal),
-            selectedSymbol: null,
             maxRows: 50);
 
         // The favorites lead in the list's own order; the unmarked follow.
@@ -957,9 +1039,14 @@ public sealed class ChartViewModelTests
         rows[0].IsFavorite.Should().BeTrue();
         rows[1].IsFavorite.Should().BeTrue();
         rows[2].IsFavorite.Should().BeFalse();
-        rows.Should().OnlyContain(row => !row.HiddenFromList, "no mark exists yet");
     }
 
+    /// <summary>
+    /// The hidden pair leaves the everyday list no matter what holds the
+    /// selection: the save that hid the shown chart rebases the chart to the
+    /// first visible pair (the rebuild decides, the selection stream
+    /// persists it — see the rebuild facts below).
+    /// </summary>
     [Fact]
     public void BuildSymbolRows_HiddenPairsLeaveTheEverydayList()
     {
@@ -970,33 +1057,9 @@ public sealed class ChartViewModelTests
             symbols,
             new HashSet<string>(StringComparer.Ordinal),
             hidden,
-            selectedSymbol: null,
             maxRows: 50);
 
-        // The hidden pair leaves the everyday list (the settings window's
-        // pairs tab is its only way back).
         filtered.Select(row => row.Symbol.Normalized).Should().Equal("ETH/BTC", "SOL/USDC");
-    }
-
-    [Fact]
-    public void BuildSymbolRows_TheHiddenSelection_StaysAsAnInvisibleRow()
-    {
-        var symbols = new[] { Symbol.Parse("BTC/USDT"), Symbol.Parse("ETH/BTC"), Symbol.Parse("SOL/USDC") };
-        var hidden = new HashSet<string>(StringComparer.Ordinal) { "BTC/USDT" };
-
-        var rows = ChartViewModel.BuildSymbolRows(
-            symbols,
-            new HashSet<string>(StringComparer.Ordinal),
-            hidden,
-            selectedSymbol: Symbol.Parse("BTC/USDT"),
-            maxRows: 50);
-
-        // The hidden-but-selected symbol stays in the collection.
-        rows.Select(row => row.Symbol.Normalized).Should().Equal("BTC/USDT", "ETH/BTC", "SOL/USDC");
-        rows[0].HiddenFromList.Should().BeTrue(
-            "the dropdown skips the pinned row while the hidden pair holds the selection");
-        rows.Skip(1).Should().OnlyContain(row => !row.HiddenFromList);
-        rows[0].IsFavorite.Should().BeFalse();
     }
 
     [Fact]
@@ -1016,13 +1079,37 @@ public sealed class ChartViewModelTests
             symbols,
             favorites,
             new HashSet<string>(StringComparer.Ordinal),
-            selectedSymbol: null,
             maxRows: 5);
 
         rows.Should().HaveCount(5, "the cap still bounds the page");
         rows.Take(3).Should().OnlyContain(
             row => row.IsFavorite,
             "the favorites sort ahead of the cap, so a starred symbol is never trimmed");
+    }
+
+    /// <summary>
+    /// A hidden persisted preference never takes the chart: the preselection
+    /// falls through the preserved current (also hidden-checked) to the
+    /// first visible entry.
+    /// </summary>
+    [Fact]
+    public void Preselect_TheHiddenPersistedPair_YieldsToTheFirstVisible()
+    {
+        var listed = new[] { Symbol.Parse("BTC/USDT"), Symbol.Parse("ETH/BTC"), Symbol.Parse("SOL/USDC") };
+        var hidden = new HashSet<string>(StringComparer.Ordinal) { "ETH/BTC" };
+
+        ChartViewModel.Preselect(null, Symbol.Parse("ETH/BTC"), listed, hidden)
+            .Should().Be(Symbol.Parse("BTC/USDT"), "the hidden preference never takes the chart");
+
+        // A listed current that is hidden yields as well: the hidden pair
+        // cannot carry the workspace across an exchange switch either.
+        ChartViewModel.Preselect(Symbol.Parse("ETH/BTC"), null, listed, hidden)
+            .Should().Be(Symbol.Parse("BTC/USDT"));
+
+        // Everything visible and hidden alike leaves nothing to select.
+        var allHidden = new HashSet<string>(StringComparer.Ordinal) { "BTC/USDT", "ETH/BTC", "SOL/USDC" };
+        ChartViewModel.Preselect(Symbol.Parse("BTC/USDT"), null, listed, allHidden)
+            .Should().BeNull("a fully hidden list clears the selection with no substitute");
     }
 
     /// <summary>
