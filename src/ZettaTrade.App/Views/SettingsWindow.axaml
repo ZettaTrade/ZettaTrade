@@ -17,10 +17,13 @@
     <StackPanel Margin="20" Spacing="16">
         <!-- The settings sections live on tabs: the window grows section by
              section (MCP, notifications), and one flat list would not scale.
-             Save/Close stay outside the tab area as the dialog's bottom row. -->
+             Save/Close stay outside the tab area as the dialog's bottom row.
+             Each tab's content root carries a top margin - the breathing room
+             between the tab strip and the section (the theme default hugs
+             the strip, and TabControl.Padding does not reach the content). -->
         <TabControl>
             <TabItem Header="{loc:Localized Settings.Tab.Appearance}">
-                <StackPanel Spacing="16">
+                <StackPanel Spacing="16" Margin="0,12,0,0">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
                         <TextBlock Grid.Row="0" Grid.Column="0"
                                    Text="{loc:Localized Settings.Theme}"
@@ -124,7 +127,7 @@
             <TabItem Header="{loc:Localized Settings.Tab.Indicators}">
                 <!-- The indicator overlay rows: the SMA row today, future rows
                      land here one grid row each. -->
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto" RowSpacing="10">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto" RowSpacing="10" Margin="0,12,0,0">
                     <!-- "SMA" is the plugin's canonical name - a product name, not a
                          localized string; the row label and the period caption are. -->
                     <TextBlock Grid.Row="0" Grid.Column="0"
