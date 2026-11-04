@@ -452,7 +452,9 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                 ["Buy"] = "#00ff88",
                 ["Sell"] = "#ff0055",
                 ["CandleUp"] = "#00ff88",
-                ["CandleDown"] = "#ff0055"
+                ["CandleDown"] = "#ff0055",
+                ["Highlight"] = "#ffd700",
+                ["Error"] = "#ff0055"
             },
             PreviewColors = new[] { "#1a1a2e", "#16213e", "#0f3460", "#e94560" }
         };
