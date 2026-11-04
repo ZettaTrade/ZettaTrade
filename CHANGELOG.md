@@ -50,8 +50,10 @@ Build of task T-039 (symbol favorites + hidden pairs).
 
 ### Fixed (T-039 review round)
 - The settings window no longer resizes when switching tabs: the dialog is
-  pinned to a fixed 420×440 and the tab content scrolls instead (the rare
-  long error list included).
+  pinned to a fixed 560×640, Save/Close ride a pinned bottom row (never
+  scrolled out of sight), and the long lists scroll their own viewports
+  (the pairs lists, the theme-error list) instead of one dialog-wide
+  scrollbar.
 
 ## [0.1.0-alpha.19] - 2026-11-02
 
