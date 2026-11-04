@@ -9,6 +9,71 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.20] - 2026-11-04
+
+Build of task T-039 (symbol favorites + hidden pairs).
+
+### Added (T-039 — symbol marks)
+- The symbols combo gained per-symbol marks persisted per workspace exchange
+  (`Workspace.FavoriteSymbols` / `Workspace.HiddenSymbols` JSON maps): a
+  favorite renders a star badge in every row and pins to the head of the
+  list; hidden pairs leave the everyday list.
+- The toolbar next to the symbol combo: a star toggle (favorite/unfavorite
+  the selected symbol). Hidden pairs never take the chart (the review round
+  decided the rebase — below).
+- The marks fail safe: a malformed stored map drops to no marks instead of
+  crashing the picker, and the bootstrap never rewrites the maps it reads.
+
+### Changed (T-039 review round — the favorite stars move into the pairs tab)
+- The star leaves the chart toolbar: the "Pairs" tab's all-pairs list carries
+  a star button on every row (next to the name). Pressing it stars the pair
+  in the draft: the row pins to the list head at once; the toolbar star
+  toggle is gone.
+- A starred pair is never hidden: the marks are mutually exclusive by rule,
+  so the Hide move refuses a starred pick (the `>` button grays out) and a
+  starred row never shows up in the hidden list. A stored document may still
+  hold one name in both maps (earlier releases' shape freedom): the settings
+  render the favorite and drop the hidden view for it, and the next save
+  repairs the document (the star wins until the user unstars).
+- The star joins the draft: starring lands in the window's lists at once and
+  the map applies and persists only on Save (the same contract the moves
+  follow); the chart combo re-applies the lands live through the settings
+  changes stream.
+- The `★` badge in the combo picker rows and the rebase/keep-one rules stay
+  as they were; `Chart.Symbols.FavoriteTip` is gone (en + ru),
+  `Settings.Pairs.Star` names the row buttons.
+
+### Changed (T-039 review round — hidden pairs move to Settings)
+- The hidden pairs are managed in the settings window's new "Pairs" tab: two
+  lists — all pairs of the workspace exchange and the hidden ones. The move
+  buttons sit in the center column between the lists, the classic two-list
+  dialog shape: `>` hides the picked pair, `<` brings it back (the former
+  bottom row of full buttons is gone). A pick plus a move repaints the
+  draft lists and carries the pick to the pair that took the moved row's
+  slot (the next row heading up, the tail row at the list end); the
+  document is written only by the window's Save, and the changes stream
+  re-applies the marks in the open chart live.
+- The last visible pair can never hide: the Hide move disarms when one
+  visible pair remains, so the workspace always keeps a tradable context.
+- The settings save that hides the pair whose chart is shown switches the
+  chart to the first visible pair and persists the switch — the hidden
+  pair never holds the selection (the round-1 invisible pinned row is
+  gone), and a restart never re-opens a hidden chart either. A hidden pair
+  leaves the picker unconditionally; the tab's reveal is its only way back.
+- The toolbar Hide and Show hidden toggles are removed (their job moved to
+  the tab); the favorite star stays. `Chart.Symbols.Hide` /
+  `ShowHidden` strings are gone (en + ru), the pairs-tab strings are in.
+- The marks document is serialized with each exchange's names sorted, so the
+  same marks always produce the same bytes.
+- The order book header is inset from the divider like the assistant panel's.
+
+### Fixed (T-039 review round)
+- The settings window no longer resizes when switching tabs: the dialog is
+  pinned to a fixed 560×640, Save/Close ride a pinned bottom row (never
+  scrolled out of sight), and the long lists scroll their own viewports
+  (the pairs lists, the theme-error list) instead of one dialog-wide
+  scrollbar.
+
 ## [0.1.0-alpha.19] - 2026-11-02
 
 Build of task T-024 (the demo seeded-walk underflow).

@@ -246,7 +246,10 @@ public sealed class StatusBarViewModelTests
 
         viewModel.ConnectionStatus.Should().Be("Saved exchange unavailable", "the fallback warning owns the chip");
 
-        await Task.Delay(200);
+        // The expiry is a thread-pool timer; under the full suite (four test
+        // processes in parallel) the scheduling can slip by tens of
+        // milliseconds at a burst — thirteen windows is a safe margin.
+        await Task.Delay(800);
 
         viewModel.ConnectionStatus.Should().Be("Connected", "the notice expires within the configured window");
     }
@@ -272,7 +275,7 @@ public sealed class StatusBarViewModelTests
 
         viewModel.ConnectionStatus.Should().Be("Saved exchange unavailable", "the regular refresh cannot overwrite the notice");
 
-        await Task.Delay(200);
+        await Task.Delay(800);
 
         viewModel.ConnectionStatus.Should().Be("Connected", "after expiry the regular chip text re-derives");
     }

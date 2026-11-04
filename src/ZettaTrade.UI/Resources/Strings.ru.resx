@@ -78,6 +78,27 @@
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Индикаторы</value>
   </data>
+  <data name="Settings.Tab.Pairs" xml:space="preserve">
+    <value>Пары</value>
+  </data>
+  <data name="Settings.Pairs.All" xml:space="preserve">
+    <value>Все пары</value>
+  </data>
+  <data name="Settings.Pairs.Hidden" xml:space="preserve">
+    <value>Скрытые пары</value>
+  </data>
+  <data name="Settings.Pairs.Hide" xml:space="preserve">
+    <value>Скрыть</value>
+  </data>
+  <data name="Settings.Pairs.Reveal" xml:space="preserve">
+    <value>Показать</value>
+  </data>
+  <data name="Settings.Pairs.Star" xml:space="preserve">
+    <value>Звезда — закрепить пару в начале списка (избранная пара не скрывается, пока звёздочка не снята)</value>
+  </data>
+  <data name="Settings.Pairs.Hint" xml:space="preserve">
+    <value>Кнопки «&gt;» и «&lt;» переносят выбранную пару между списками; скрытые пары уходят из списка инструментов рабочего места, а хотя бы одна видимая пара всегда остаётся. Кнопка «★» закрепляет пару в начале списка — избранная пара не скрывается, пока звёздочка не снята. Списки относятся к текущей бирже; изменения применяются по «Сохранить».</value>
+  </data>
   <data name="Settings.Theme" xml:space="preserve">
     <value>Тема</value>
   </data>

@@ -101,7 +101,7 @@
                                        Text="{loc:Localized OrderBook.Title}"
                                        FontWeight="Bold"
                                        FontSize="14"
-                                       Margin="0,0,0,4" />
+                                       Margin="8,0,0,4" />
                             <charting:OrderBookWidget x:Name="BookWidget" Grid.Row="1" Book="{Binding Book}" />
                         </Grid>
                     </Border>
@@ -109,18 +109,32 @@
                     <!-- Chart workspace -->
                     <Border Grid.Column="0" DataContext="{Binding Chart}">
                         <Grid RowDefinitions="Auto,*">
-                            <!-- Header: the symbol context on the left; the
-                                 time frame picker rides the same load key, so
-                                 a flip reloads the chart live. -->
+                            <!-- Header: the symbol picker on the left (the star badge
+                                 marks the favorites; both marks are managed in the
+                                 settings window's pairs tab); the time frame picker
+                                 rides the same load key, so a flip reloads the
+                                 chart live. -->
                             <Grid Grid.Row="0"
                                   ColumnDefinitions="*,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
-                                          SelectedItem="{Binding SelectedSymbol}">
+                                          SelectedItem="{Binding SelectedSymbolRow}">
                                     <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Normalized}" />
+                                        <!-- One row: the star badge on the favorites,
+                                             the symbol name. The row record carries the
+                                             mark (rebuilt on every change), so the
+                                             template binds within its own data type. -->
+                                        <DataTemplate x:DataType="vm:SymbolRow">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="★"
+                                                           Foreground="Gold"
+                                                           FontSize="14"
+                                                           VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsFavorite}" />
+                                                <TextBlock Text="{Binding Symbol.Normalized}"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
