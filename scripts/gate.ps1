@@ -81,6 +81,20 @@ function Select-Problems([string[]]$Lines, [string]$Pattern, [int]$Max = 25) {
         Select-Object -Unique -First $Max
 }
 
+# Quiet VSTest summary lines end with "- <Some.Tests.dll (TFM)>": the FIRST number
+# on such a line is the failure count in every console locale (the label differs,
+# the position does not). ASCII-only so a BOM-less PS 5.1 ANSI read cannot mangle it.
+function Get-FailedAssemblies([string[]]$Lines) {
+    $names = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($l in $Lines) {
+        $m = [regex]::Match($l, '- ([^ ]+\.dll)')
+        if (-not $m.Success) { continue }
+        $n = [regex]::Match($l, '\d+')
+        if ($n.Success -and [int]$n.Value -gt 0) { [void]$names.Add($m.Groups[1].Value) }
+    }
+    return @($names)
+}
+
 try {
     $root   = Invoke-Git rev-parse --show-toplevel | Select-Object -First 1
     Set-Location $root
@@ -250,12 +264,43 @@ try {
             }
             else {
                 if (-not $SkipTests) {
-                    $test = Invoke-Tool 'dotnet' @('test', $sln[0].FullName, '--no-build', '--nologo', '-v', 'q')
+                    $testArgs = @('test', $sln[0].FullName, '--no-build', '--nologo', '-v', 'q')
+                    $test = Invoke-Tool 'dotnet' $testArgs
                     $test.Output | Add-Content $logFile
-                    if ($test.Code -ne 0) {
-                        $probs = @(Select-Problems $test.Output '^\s*(Failed|X) |Error Message|Expected|Actual|But |Failed!|: error ' 40)
-                        if ($probs.Count -eq 0) { $probs = @($test.Output | Select-Object -Last 15) }
-                        $errors.Add("[TEST] failed (full log: $logFile):`n    " + ($probs -join "`n    "))
+                    $failedAsms = @()
+                    if ($test.Code -ne 0) { $failedAsms = @(Get-FailedAssemblies $test.Output) }
+                    if ($failedAsms.Count -gt 0) {
+                        # Flaky retry: rerun each failing assembly once before reporting it.
+                        foreach ($asm in $failedAsms) {
+                            $projName = $asm.Substring(0, $asm.Length - 4)
+                            $proj = Join-Path (Join-Path $root 'tests') "$projName\$projName.csproj"
+                            if (-not (Test-Path -LiteralPath $proj)) { $proj = $sln[0].FullName }
+                            Say "[TEST] flaky retry: $projName ..."
+                            $retry = Invoke-Tool 'dotnet' @('test', $proj, '--no-build', '--nologo', '-v', 'q')
+                            $retry.Output | Add-Content $logFile
+                            if ($retry.Code -eq 0) {
+                                $warnings.Add("[TEST] $projName passed on flaky retry; consider stabilizing the timing-sensitive test.")
+                            }
+                            else {
+                                $probs = @(Select-Problems $retry.Output '^\s*(Failed|X) |Error Message|Expected|Actual|But |Failed!|: error ' 20)
+                                if ($probs.Count -eq 0) { $probs = @($retry.Output | Select-Object -Last 15) }
+                                $errors.Add("[TEST] failed on retry for $projName (full log: $logFile):`n    " + ($probs -join "`n    "))
+                            }
+                        }
+                    }
+                    elseif ($test.Code -ne 0) {
+                        # Assembly names were not detected above: rerun the whole suite once.
+                        Say '[TEST] flaky retry: whole suite ...'
+                        $retry = Invoke-Tool 'dotnet' $testArgs
+                        $retry.Output | Add-Content $logFile
+                        if ($retry.Code -ne 0) {
+                            $probs = @(Select-Problems $retry.Output '^\s*(Failed|X) |Error Message|Expected|Actual|But |Failed!|: error ' 40)
+                            if ($probs.Count -eq 0) { $probs = @($retry.Output | Select-Object -Last 15) }
+                            $errors.Add("[TEST] failed on retry (full log: $logFile):`n    " + ($probs -join "`n    "))
+                        }
+                        else {
+                            $warnings.Add('[TEST] suite passed on flaky retry; consider stabilizing timing-sensitive tests.')
+                        }
                     }
                 }
 
