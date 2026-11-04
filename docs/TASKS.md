@@ -52,7 +52,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-045 Workflow bookkeeping codified: develop-based branches, TASKS.md statuses, app version bump | feat/skill-rules | done | - |
 | T-046 [Critical] DPAPI secret store wipes all stored secrets after a silent load failure (BUG-001) | feat/dpapi-store-wipe | done | - |
 | T-047 [Critical] MCP server drops every response for numeric JSON-RPC ids (BUG-002) | fix/mcp-numeric-ids | queued | - |
-| T-048 [Critical] Bybit reconnect resubscribes cancel each other (reconnect churn with 2+ symbols) (BUG-003) | fix/bybit-resubscribe | queued | - |
+| T-048 [Critical] Bybit reconnect resubscribes cancel each other (reconnect churn with 2+ symbols) (BUG-003) | feat/bybit-resubscribe | done | - |
 | T-049 Secret stores: silent data loss and rule violations across DPAPI/Keychain/secret-tool/encrypted file | fix/secrets-stores | queued | - |
 | T-050 MCP pipelines: host lock stall, client id matching, unread stderr, tools enum defaults | fix/mcp-pipelines | queued | - |
 | T-051 Paper trading ledger: corrupted entry price, stale reference price, phantom fills | fix/paper-ledger | queued | - |
@@ -142,12 +142,14 @@ the end of that file, so no effort is duplicated.
 
 ## T-048 — Bybit reconnect resubscribes cancel each other (reconnect churn with 2+ symbols) (BUG-003, Critical)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/bybit-resubscribe (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** after any network blip a user tracking 2+ symbols enters an unrecoverable reconnect loop with no market data until a restart - the feed degenerates to nothing silently.
 - **What:** `BUG-003` - the resubscribe pipeline is `_resubscribeStreams.Select(...).Switch()`: a new emission disposes (cancels) the previous in-flight inner subscription. `HandleConnectionStateChanged` emits all tracked symbols synchronously in one `foreach` without awaiting, so with >= 2 symbols every resubscribe send but the last is cancelled mid-`SendAsync`; cancelling an in-flight send aborts the socket and re-triggers the reconnect. The same flaw rides the gap-recovery path (a new gap frame kills an in-flight resubscribe).
 - **Scope:** `src/ZettaTrade.Infrastructure/Exchange/BybitAdapter.cs`.
 - **Acceptance:** with 3 tracked symbols a reconnect resubscribes all three to completion (no in-flight send aborted); gap recovery serializes against in-flight resubscribes; no reconnect churn loop.
 - **Tests:** a loopback WebSocket fake that counts overlapping `SendAsync` calls and records cancellations; the 2- and 3-symbol reconnect scenarios; a gap-frame-during-resubscribe scenario.
+- **Status:** done. Canon: commit `6d89920` is on feat/bybit-resubscribe; the gate prints `GATE PASSED` (baseline develop); 3 new facts over the loopback Kestrel server (the 2- and 3-symbol reconnect scenarios resubscribe every tracked symbol to the exact frame counts with the connection pinned on the recovered session - one ticker per session per symbol proves the topics survived - and the gap-during-resubscribe scenario proves two gap deltas plus the burst complete with zero re-subscribe failures logged, both books rebuilt from the recovery snapshots). The fix replaces the `_resubscribeStreams.Subject + Select/FromAsync/Catch/Switch` pipeline with an unbounded `Channel<Symbol>` served by ONE tracked consumer task (`RunResubscribeLoopAsync`, awaited on disposal like the keepalive loop): requests are honored FIFO and every send runs to completion - a newer request (a reconnect burst, a gap frame) queues behind and never cancels an in-flight send, because a cancelled send aborts the whole socket and churns the reconnect; per-request failure logging stays local, and disposal cancellation is unchanged.
+- **Wave note:** the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges - a supervisor-approved deviation from rule 6 for parallel work (same as T-040/T-047/T-050).
 
 ## T-049 — Secret stores: silent data loss and rule violations across platforms (BUG-009, BUG-010, BUG-011, BUG-036...BUG-041)
 
