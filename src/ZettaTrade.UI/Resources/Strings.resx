@@ -165,6 +165,9 @@
   <data name="Chart.Indicators.Period" xml:space="preserve">
     <value>Period</value>
   </data>
+  <data name="Chart.Indicators.SmaTip" xml:space="preserve">
+    <value>Simple Moving Average: the mean close over the last N bars, drawn as a line over the candles.</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>
