@@ -11,7 +11,7 @@ using ZettaTrade.Core.ValueObjects;
 /// <param name="IsFavorite">Whether the row renders the star badge (the
 /// favorites pin to the head of the list).</param>
 /// <param name="HiddenFromList">Whether the row exists only to hold the
-/// selection: the symbol is hidden and the reveal toggle is off, so the
-/// dropdown skips the row (invisible container) while the selection — and
-/// the live series it owns — stays untouched.</param>
+/// selection: the symbol is hidden (dropped from the settings window's
+/// pairs tab), so the dropdown skips the row (invisible container) while
+/// the selection — and the live series it owns — stays untouched.</param>
 public sealed record SymbolRow(Symbol Symbol, bool IsFavorite, bool HiddenFromList);

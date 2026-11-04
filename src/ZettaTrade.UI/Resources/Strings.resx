@@ -78,6 +78,24 @@
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Indicators</value>
   </data>
+  <data name="Settings.Tab.Pairs" xml:space="preserve">
+    <value>Pairs</value>
+  </data>
+  <data name="Settings.Pairs.All" xml:space="preserve">
+    <value>All pairs</value>
+  </data>
+  <data name="Settings.Pairs.Hidden" xml:space="preserve">
+    <value>Hidden pairs</value>
+  </data>
+  <data name="Settings.Pairs.Hide" xml:space="preserve">
+    <value>Hide</value>
+  </data>
+  <data name="Settings.Pairs.Reveal" xml:space="preserve">
+    <value>Reveal</value>
+  </data>
+  <data name="Settings.Pairs.Hint" xml:space="preserve">
+    <value>Hidden pairs leave the workspace symbol picker; the lists apply to the current exchange. Favorites are managed by the chart toolbar's star.</value>
+  </data>
   <data name="Settings.Theme" xml:space="preserve">
     <value>Theme</value>
   </data>
@@ -173,18 +191,6 @@
   </data>
   <data name="Chart.Symbols.FavoriteTip" xml:space="preserve">
     <value>Pin the selected symbol to the top of the list (the star badge marks favorites).</value>
-  </data>
-  <data name="Chart.Symbols.Hide" xml:space="preserve">
-    <value>Hide</value>
-  </data>
-  <data name="Chart.Symbols.HideTip" xml:space="preserve">
-    <value>Hide the selected symbol from the list; it stays available under Show hidden.</value>
-  </data>
-  <data name="Chart.Symbols.ShowHidden" xml:space="preserve">
-    <value>Show hidden</value>
-  </data>
-  <data name="Chart.Symbols.ShowHiddenTip" xml:space="preserve">
-    <value>Reveal the symbols hidden from the list.</value>
   </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>

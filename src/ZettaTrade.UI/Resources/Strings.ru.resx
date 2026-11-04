@@ -78,6 +78,24 @@
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Индикаторы</value>
   </data>
+  <data name="Settings.Tab.Pairs" xml:space="preserve">
+    <value>Пары</value>
+  </data>
+  <data name="Settings.Pairs.All" xml:space="preserve">
+    <value>Все пары</value>
+  </data>
+  <data name="Settings.Pairs.Hidden" xml:space="preserve">
+    <value>Скрытые пары</value>
+  </data>
+  <data name="Settings.Pairs.Hide" xml:space="preserve">
+    <value>Скрыть</value>
+  </data>
+  <data name="Settings.Pairs.Reveal" xml:space="preserve">
+    <value>Показать</value>
+  </data>
+  <data name="Settings.Pairs.Hint" xml:space="preserve">
+    <value>Скрытые пары уходят из списка инструментов рабочего места; списки относятся к текущей бирже. Избранное управляется звёздочкой на панели графика.</value>
+  </data>
   <data name="Settings.Theme" xml:space="preserve">
     <value>Тема</value>
   </data>
@@ -173,18 +191,6 @@
   </data>
   <data name="Chart.Symbols.FavoriteTip" xml:space="preserve">
     <value>Закрепить выбранный инструмент в начале списка (звёздочка помечает избранное).</value>
-  </data>
-  <data name="Chart.Symbols.Hide" xml:space="preserve">
-    <value>Скрыть</value>
-  </data>
-  <data name="Chart.Symbols.HideTip" xml:space="preserve">
-    <value>Убрать выбранный инструмент из списка; останется доступен под «Показать скрытые».</value>
-  </data>
-  <data name="Chart.Symbols.ShowHidden" xml:space="preserve">
-    <value>Показать скрытые</value>
-  </data>
-  <data name="Chart.Symbols.ShowHiddenTip" xml:space="preserve">
-    <value>Показать инструменты, скрытые из списка.</value>
   </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>

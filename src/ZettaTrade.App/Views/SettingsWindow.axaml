@@ -167,6 +167,50 @@
                     </StackPanel>
                 </Grid>
             </TabItem>
+
+            <TabItem Header="{loc:Localized Settings.Tab.Pairs}">
+                <!-- The hidden-pairs management (the chart toolbar's star owns
+                     the favorites): the left list holds the workspace
+                     exchange's visible pairs, the right one the hidden names;
+                     a pick + the button moves the pair between the lists —
+                     the move lands in the draft, Save applies and persists
+                     it. The modal window cannot race an exchange switch, so
+                     the lists are rebuilt per open for the exchange behind
+                     the workspace. -->
+                <Grid ColumnDefinitions="*,*"
+                      ColumnSpacing="16"
+                      RowDefinitions="Auto,Auto,Auto,Auto"
+                      RowSpacing="10"
+                      Margin="0,12,0,0">
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{loc:Localized Settings.Pairs.All}" />
+                    <TextBlock Grid.Row="0" Grid.Column="1"
+                               Text="{loc:Localized Settings.Pairs.Hidden}" />
+                    <ListBox Grid.Row="1" Grid.Column="0"
+                             MinHeight="168"
+                             ItemsSource="{Binding AllPairs}"
+                             SelectedItem="{Binding SelectedAllPair}" />
+                    <ListBox Grid.Row="1" Grid.Column="1"
+                             MinHeight="168"
+                             ItemsSource="{Binding HiddenPairs}"
+                             SelectedItem="{Binding SelectedHiddenPair}" />
+                    <Button Grid.Row="2" Grid.Column="0"
+                            Content="{loc:Localized Settings.Pairs.Hide}"
+                            MinWidth="120"
+                            HorizontalAlignment="Left"
+                            Command="{Binding HidePairCommand}" />
+                    <Button Grid.Row="2" Grid.Column="1"
+                            Content="{loc:Localized Settings.Pairs.Reveal}"
+                            MinWidth="120"
+                            HorizontalAlignment="Left"
+                            Command="{Binding RevealPairCommand}" />
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Grid.ColumnSpan="2"
+                               Text="{loc:Localized Settings.Pairs.Hint}"
+                               TextWrapping="Wrap"
+                               FontSize="12" />
+                </Grid>
+            </TabItem>
         </TabControl>
 
         <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">

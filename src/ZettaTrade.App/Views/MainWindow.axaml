@@ -119,13 +119,12 @@
                     <Border Grid.Column="0" DataContext="{Binding Chart}">
                         <Grid RowDefinitions="Auto,*">
                             <!-- Header: the symbol context on the left with the
-                                 mark toggles next to it (star = favorite,
-                                 hide = out of the everyday list, reveal =
-                                 the hidden rows back); the time frame picker
-                                 rides the same load key, so a flip reloads
-                                 the chart live. -->
+                                 favorite star next to it (hidden pairs are managed
+                                 in the settings window's pairs tab); the time
+                                 frame picker rides the same load key, so a flip
+                                 reloads the chart live. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
@@ -167,24 +166,11 @@
                                         ToolTip.Tip="{loc:Localized Chart.Symbols.FavoriteTip}"
                                         Classes.mark-active="{Binding IsSelectedSymbolFavorite}"
                                         Command="{Binding ToggleFavoriteCommand}" />
-                                <Button Grid.Column="2"
-                                        Content="{loc:Localized Chart.Symbols.Hide}"
-                                        VerticalAlignment="Center"
-                                        Margin="6,0,0,0"
-                                        ToolTip.Tip="{loc:Localized Chart.Symbols.HideTip}"
-                                        Classes.mark-active="{Binding IsSelectedSymbolHidden}"
-                                        Command="{Binding ToggleHiddenCommand}" />
-                                <ToggleButton Grid.Column="3"
-                                              Content="{loc:Localized Chart.Symbols.ShowHidden}"
-                                              VerticalAlignment="Center"
-                                              Margin="6,0,0,0"
-                                              ToolTip.Tip="{loc:Localized Chart.Symbols.ShowHiddenTip}"
-                                              IsChecked="{Binding ShowHiddenSymbols}" />
-                                <TextBlock Grid.Column="4"
+                                <TextBlock Grid.Column="2"
                                            Text="{loc:Localized Chart.TimeFrame}"
                                            VerticalAlignment="Center"
                                            Margin="12,0,6,0" />
-                                <ComboBox Grid.Column="5"
+                                <ComboBox Grid.Column="3"
                                           MinWidth="72"
                                           ItemsSource="{Binding TimeFrames}"
                                           SelectedItem="{Binding SelectedTimeFrame}" />

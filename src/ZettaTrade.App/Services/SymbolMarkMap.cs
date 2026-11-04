@@ -86,7 +86,9 @@ public static class SymbolMarkMap
 
     /// <summary>
     /// Serialize a marks map back into the stored shape. Exchanges without
-    /// marks are omitted, so the file never carries empty shells.
+    /// marks are omitted, so the file never carries empty shells, and each
+    /// exchange's names are written in their normalized (ordinal) order — a
+    /// stable document for the same marks (no save-order noise).
     /// </summary>
     /// <param name="marks">The exchange-id to marked-names map.</param>
     /// <returns>The JSON document (an empty map serializes to <c>{}</c>).</returns>
@@ -97,7 +99,9 @@ public static class SymbolMarkMap
         {
             if (names.Count > 0)
             {
-                payload[exchangeId] = [.. names];
+                payload[exchangeId] = names
+                    .OrderBy(static name => name, StringComparer.Ordinal)
+                    .ToList();
             }
         }
 
@@ -125,6 +129,27 @@ public static class SymbolMarkMap
         {
             updated.Add(symbolName);
         }
+
+        return WithSet(marks, exchangeId, updated);
+    }
+
+    /// <summary>
+    /// Replace one exchange's whole mark entry and return the updated map:
+    /// the entry becomes exactly the given names (the caller decides add and
+    /// drop), an empty set removes the entry (the same no-empty-shells
+    /// contract the serializer keeps), and the other exchanges' entries pass
+    /// through untouched.
+    /// </summary>
+    /// <param name="marks">The current map.</param>
+    /// <param name="exchangeId">The exchange whose entry replaces.</param>
+    /// <param name="symbolNames">The entry's new normalized names.</param>
+    /// <returns>The updated map (the input is never mutated).</returns>
+    public static IReadOnlyDictionary<string, IReadOnlySet<string>> WithSet(
+        IReadOnlyDictionary<string, IReadOnlySet<string>> marks,
+        string exchangeId,
+        IEnumerable<string> symbolNames)
+    {
+        HashSet<string> updated = new(symbolNames, StringComparer.Ordinal);
 
         Dictionary<string, IReadOnlySet<string>> updatedMap = new(StringComparer.Ordinal);
         foreach (var (exchange, names) in marks)
