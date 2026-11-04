@@ -127,6 +127,16 @@ internal static class CompositionRoot
                 sp.GetRequiredService<WorkspacePromptComposer>(),
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<ChatViewModel>>()));
+        // Workspace layout: the persisted column widths of the draggable
+        // splitters. Registered AFTER ChatViewModel on purpose — the startup
+        // walk runs registrations in order, and the layout restore must
+        // follow the chat's visibility restore so the collapsed/visible
+        // assistant geometry applies before any window opens (T-038).
+        services.AddSingleton<WorkspaceLayoutViewModel>(sp =>
+            new WorkspaceLayoutViewModel(
+                sp.GetRequiredService<ISettingsService>(),
+                sp.GetRequiredService<ChatViewModel>(),
+                sp.GetRequiredService<ILogger<WorkspaceLayoutViewModel>>()));
         services.AddSingleton<SettingsViewModel>(sp =>
             new SettingsViewModel(
                 sp.GetRequiredService<ISettingsService>(),
@@ -157,6 +167,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<SettingsViewModel>(),
                 sp.GetRequiredService<ChartViewModel>(),
                 sp.GetRequiredService<OrderBookViewModel>(),
+                sp.GetRequiredService<WorkspaceLayoutViewModel>(),
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();
