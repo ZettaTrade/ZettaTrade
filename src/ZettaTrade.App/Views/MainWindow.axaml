@@ -137,7 +137,8 @@
                             <!-- Chart -->
                             <charting:CandlestickChart x:Name="CandlesChart" Grid.Row="1"
                                                        Bars="{Binding Bars}"
-                                                       Use12HourClock="{Binding Use12HourClock}" />
+                                                       Use12HourClock="{Binding Use12HourClock}"
+                                                       IndicatorLines="{Binding IndicatorLines}" />
                         </Grid>
                     </Border>
                 </Grid>

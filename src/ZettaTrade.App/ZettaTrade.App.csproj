@@ -50,6 +50,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ZettaTrade.AI\ZettaTrade.AI.csproj" />
+    <ProjectReference Include="..\ZettaTrade.Charting\ZettaTrade.Charting.csproj" />
     <ProjectReference Include="..\ZettaTrade.Infrastructure\ZettaTrade.Infrastructure.csproj" />
     <ProjectReference Include="..\ZettaTrade.UI\ZettaTrade.UI.csproj" />
   </ItemGroup>

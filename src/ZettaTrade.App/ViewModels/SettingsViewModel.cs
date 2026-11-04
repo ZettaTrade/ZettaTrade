@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Shell;
@@ -37,6 +38,12 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>Combo box index of the 12-hour clock option.</summary>
     private const int Hours12Index = 1;
 
+    /// <summary>The SMA row name the indicator overlay settings hold (the catalog resolves it).</summary>
+    private const string SmaIndicatorName = "SMA";
+
+    /// <summary>The persisted SMA period sentinel meaning "no readable SMA row is cached yet" (the selection shows empty).</summary>
+    private const int NoSmaPeriod = 0;
+
     #endregion Constants
 
     #region Properties
@@ -55,6 +62,10 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>Selected time format index (0 = 24-hour, 1 = 12-hour); <see cref="NoSelection"/> while the initial read has not landed.</summary>
     private int _selectedTimeFormatIndex = NoSelection;
     private IReadOnlyList<ThemeFileLoadError> _themeFileErrors = Array.Empty<ThemeFileLoadError>();
+
+    private bool _isSmaEnabled;
+
+    private string _smaPeriodText = string.Empty;
 
     /// <summary>Selected theme index (combo box); <see cref="NoSelection"/> when nothing is selected.</summary>
     public int SelectedThemeIndex
@@ -75,6 +86,28 @@ public sealed class SettingsViewModel : ReactiveObject
     {
         get => _selectedTimeFormatIndex;
         set => this.RaiseAndSetIfChanged(ref _selectedTimeFormatIndex, value);
+    }
+
+    /// <summary>
+    /// Whether the SMA overlay row is enabled. A selection - like every other
+    /// one here - applies only on the explicit Save: the checkbox is the
+    /// selection, the persisted row is the applied state.
+    /// </summary>
+    public bool IsSmaEnabled
+    {
+        get => _isSmaEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isSmaEnabled, value);
+    }
+
+    /// <summary>
+    /// The SMA period as typed. Free text on purpose: an unparsable value
+    /// simply fails the save (the cached config stays in charge - nothing
+    /// defaults or clamps), the invariant culture parses it.
+    /// </summary>
+    public string SmaPeriodText
+    {
+        get => _smaPeriodText;
+        set => this.RaiseAndSetIfChanged(ref _smaPeriodText, value);
     }
 
     /// <summary>Available themes from ThemeManager (no duplication).</summary>
@@ -119,6 +152,17 @@ public sealed class SettingsViewModel : ReactiveObject
     private readonly ILocalizationManager _localization;
     private readonly IShellUtils _shellUtils;
     private readonly ILogger<SettingsViewModel> _logger;
+
+    /// <summary>
+    /// The persisted indicator config as last read (seed + changes stream):
+    /// the SMA row's own cache derives from it and the save rewrites the
+    /// whole row array (future rows survive a save untouched).
+    /// </summary>
+    private string _persistedIndicatorConfig = UiSettingsKeys.DefaultChartIndicators;
+
+    /// <summary>The cached SMA row pieces (the sentinel period means "no row cached").</summary>
+    private bool _persistedSmaEnabled;
+    private int _persistedSmaPeriod = NoSmaPeriod;
 
     #endregion Private Fields
 
@@ -192,6 +236,27 @@ public sealed class SettingsViewModel : ReactiveObject
                 use12HourClock => _persistedUse12HourClock = use12HourClock,
                 ex => _logger.LogError(ex, "The chart clock format stream stopped unexpectedly"));
 
+        // The indicator overlay config: the same seed + changes pattern as
+        // the clock. The SMA row's cache derives from the whole array (the
+        // first SMA row wins), the save rewrites the array keeping the
+        // other rows.
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartIndicators,
+                UiSettingsKeys.DefaultChartIndicators))
+            .Subscribe(
+                CacheIndicatorConfig,
+                ex => _logger.LogError(ex, "Failed to read the chart indicator config"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartIndicators)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                CacheIndicatorConfig,
+                ex => _logger.LogError(ex, "The chart indicator config stream stopped unexpectedly"));
+
         ResetSelections();
     }
 
@@ -210,6 +275,10 @@ public sealed class SettingsViewModel : ReactiveObject
         SelectedThemeIndex = IndexOfAppliedTheme();
         SelectedLanguageIndex = IndexOfAppliedLanguage();
         SelectedTimeFormatIndex = _persistedUse12HourClock ? Hours12Index : Hours24Index;
+        IsSmaEnabled = _persistedSmaEnabled;
+        SmaPeriodText = _persistedSmaPeriod > NoSmaPeriod
+            ? _persistedSmaPeriod.ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
     }
 
     /// <summary>
@@ -252,11 +321,70 @@ public sealed class SettingsViewModel : ReactiveObject
                 _persistedUse12HourClock = use12HourClock;
             }
         }
+
+        // The indicator overlay row: the period must read as an integer for
+        // the row to save at all (an unparsable text skips the row with a
+        // logged warning - nothing defaults, the cached config stays in
+        // charge). A real difference rewrites the row array: the SMA row is
+        // replaced, every other (future) row rides untouched.
+        if (TryReadSmaSelection(out var smaEnabled, out var smaPeriod))
+        {
+            if (smaEnabled != _persistedSmaEnabled || smaPeriod != _persistedSmaPeriod)
+            {
+                var (configs, _) = ChartIndicatorConfig.ParseList(_persistedIndicatorConfig);
+                var updated = configs
+                    .Where(config => !string.Equals(config.Name, SmaIndicatorName, StringComparison.Ordinal))
+                    .ToList();
+                updated.Add(new ChartIndicatorConfig(SmaIndicatorName, smaEnabled, smaPeriod));
+
+                var written = ChartIndicatorConfig.Write(updated);
+                await _settings.SetAsync(UiSettingsKeys.Section, UiSettingsKeys.ChartIndicators, written);
+                CacheIndicatorConfig(written);
+            }
+        }
+        else
+        {
+            _logger.LogWarning(
+                "The SMA period '{PeriodText}' is not a readable integer; the indicator selection is not saved",
+                SmaPeriodText);
+        }
     }
 
     #endregion Public Methods
 
     #region Private Methods
+
+    /// <summary>
+    /// Cache the persisted indicator config and derive the SMA row's pieces
+    /// (the first SMA row in the array wins; no row caches the sentinel
+    /// period, the selections show an empty box).
+    /// </summary>
+    private void CacheIndicatorConfig(string indicatorSettingsJson)
+    {
+        _persistedIndicatorConfig = indicatorSettingsJson;
+
+        var (configs, _) = ChartIndicatorConfig.ParseList(indicatorSettingsJson);
+        var sma = configs.FirstOrDefault(config =>
+            string.Equals(config.Name, SmaIndicatorName, StringComparison.Ordinal));
+
+        _persistedSmaEnabled = sma?.Enabled ?? false;
+        _persistedSmaPeriod = sma?.Period ?? NoSmaPeriod;
+    }
+
+    /// <summary>
+    /// Parse the SMA selection: the period text must read as an integer
+    /// (invariant culture, trimmed). Invalid text returns false - the save
+    /// skips the row, nothing substitutes a default.
+    /// </summary>
+    private bool TryReadSmaSelection(out bool enabled, out int period)
+    {
+        enabled = IsSmaEnabled;
+        return int.TryParse(
+            SmaPeriodText.Trim(),
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out period);
+    }
 
     /// <summary>
     /// Open the user themes folder in the OS file manager; the platform

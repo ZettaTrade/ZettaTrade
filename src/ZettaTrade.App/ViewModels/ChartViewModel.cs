@@ -6,6 +6,7 @@ using System.Reactive.Subjects;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
@@ -198,6 +199,29 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     public IObservable<IReadOnlyList<Bar>> OlderBarsUpdates { get; }
 
     /// <summary>
+    /// The indicator overlay lines computed for the current series (see
+    /// <see cref="ChartIndicatorPipeline.Compute"/>). Raw - not UI-marshaled;
+    /// the property assignment is the marshalled hop, this stream lets tests
+    /// and future consumers read the semantics off the raw publish path.
+    /// </summary>
+    public IObservable<IReadOnlyList<ChartIndicatorLine>> IndicatorLinesUpdates { get; }
+
+    private IReadOnlyList<ChartIndicatorLine> _indicatorLines = [];
+
+    /// <summary>
+    /// The indicator overlays the chart draws: one line per enabled settings
+    /// row, values aligned with <see cref="Bars"/> by index. The compute runs
+    /// on the caller's thread and only this assignment marshals (the same
+    /// discipline as <see cref="Bars"/>), so the draw pass can slice it with
+    /// the visible window without any cross-thread grid.
+    /// </summary>
+    public IReadOnlyList<ChartIndicatorLine> IndicatorLines
+    {
+        get => _indicatorLines;
+        private set => this.RaiseAndSetIfChanged(ref _indicatorLines, value);
+    }
+
+    /// <summary>
     /// One delivered full load, with the (symbol, time frame, adapter) triple
     /// that produced it: the private payload the delivered subscriber uses to
     /// pin <see cref="_loadedTarget"/> for the paging path.
@@ -247,6 +271,30 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     #endregion
 
+    #region Indicator Overlay State
+
+    /// <summary>
+    /// The indicator overlay publishes here; the marshalled subscription
+    /// assigns <see cref="IndicatorLines"/>. The compute itself is pure -
+    /// the publish runs wherever its callers land and only the assignment
+    /// crosses onto the UI thread.
+    /// </summary>
+    private readonly Subject<IReadOnlyList<ChartIndicatorLine>> _indicatorPublishes = new();
+
+    /// <summary>The catalog the indicator settings rows resolve through (the plugin seam).</summary>
+    private readonly IIndicatorCatalog _indicatorCatalog;
+
+    /// <summary>
+    /// The persisted indicator configuration: seeded from the settings
+    /// service, kept current by the changes stream, recomputed against on
+    /// every bars delivery and prepend. The compute is cheap (two 200-bar
+    /// averages), so the config rides by value and never needs a cache
+    /// invalidation dance.
+    /// </summary>
+    private string _persistedIndicatorConfig = UiSettingsKeys.DefaultChartIndicators;
+
+    #endregion
+
     #region Constructors
 
     /// <summary>
@@ -258,15 +306,20 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <see cref="UiSettingsKeys.ChartUse12HourClock"/>, and the workspace
     /// symbol reads and persists
     /// <see cref="UiSettingsKeys.WorkspaceSymbolId"/>.</param>
+    /// <param name="indicatorCatalog">The plugin seam the indicator overlay
+    /// rows resolve through; the enabled rows compute against the current
+    /// series on every delivery, prepend and settings change.</param>
     public ChartViewModel(
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
         ISettingsService settings,
+        IIndicatorCatalog indicatorCatalog,
         ILogger<ChartViewModel> logger)
     {
         _activeExchanges = activeExchanges;
         _symbolList = symbolList;
         _settings = settings;
+        _indicatorCatalog = indicatorCatalog;
         _logger = logger;
 
         SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
@@ -297,6 +350,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
         BarsUpdates = _barsPages.Select(static page => page.Bars);
         OlderBarsUpdates = _olderPages;
+        IndicatorLinesUpdates = _indicatorPublishes;
 
         // The ViewModel lives as long as the application (singleton), so this
         // subscription mirrors it and needs no explicit disposal. The marshal
@@ -318,6 +372,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
                     Bars = new ObservableCollection<Bar>(page.Bars);
                     _logger.LogInformation("Chart bars delivered: {Count} candles", page.Bars.Count);
+
+                    // The overlays re-compute against the fresh series: the
+                    // delivered list IS the compute input (a 200-bar copy of
+                    // the collection's content, marshal-free).
+                    PublishIndicatorLines(page.Bars);
                 },
                 ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
 
@@ -339,6 +398,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                         prepend.Count,
                         _loadedTarget?.Symbol.Normalized,
                         _loadedTarget?.TimeFrame);
+
+                    // The prepends GROW the series: the overlay values must
+                    // re-align with the grown series (the compute runs over
+                    // the whole collection right here on the UI thread).
+                    PublishIndicatorLines(Bars);
                 },
                 ex => _logger.LogError(ex, "The chart older-bars stream stopped unexpectedly"));
 
@@ -395,6 +459,38 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 use12HourClock => Use12HourClock = use12HourClock,
                 ex => _logger.LogError(ex, "The chart clock format stream stopped unexpectedly"));
+
+        // The indicator overlay follows the settings service live: the
+        // settings window writes UI.ChartIndicators and every row re-applies
+        // without a restart. One async read seeds the persisted config
+        // (the default SMA row stands until it lands) and the changes stream
+        // keeps it current; non-string values are dropped the same way the
+        // clock drops them.
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartIndicators,
+                UiSettingsKeys.DefaultChartIndicators))
+            .Subscribe(
+                ApplyIndicatorConfig,
+                ex => _logger.LogError(ex, "Failed to read the chart indicator config"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartIndicators)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                ApplyIndicatorConfig,
+                ex => _logger.LogError(ex, "The chart indicator config stream stopped unexpectedly"));
+
+        // The computed overlays ride the same marshal chain the Bars do: the
+        // publishes land on whatever thread ran the compute (delivered and
+        // prepend subscribers are already marshalled, the settings paths run
+        // synchronously), only the property assignment hops.
+        _indicatorPublishes.ObserveOnUiThread()
+            .Subscribe(
+                lines => IndicatorLines = lines,
+                ex => _logger.LogError(ex, "The chart indicator lines stream stopped unexpectedly"));
 
 
         // The symbol list belongs to the exchange: the bootstrap re-runs on
@@ -500,6 +596,37 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     #endregion Public Methods
+
+    #region Indicator Overlay
+
+    /// <summary>
+    /// Re-key the overlays to a settings value (the seed read and every
+    /// changes-stream emission route here): the config carries by value and
+    /// the current series recomputes against it right away.
+    /// </summary>
+    private void ApplyIndicatorConfig(string indicatorSettingsJson)
+    {
+        _persistedIndicatorConfig = indicatorSettingsJson;
+        PublishIndicatorLines(Bars);
+    }
+
+    /// <summary>
+    /// Compute the overlays for the given series and publish them. The
+    /// compute is pure and marshal-free; the publication lands wherever the
+    /// caller runs (delivered/prepend subscribers are already marshalled,
+    /// the settings paths run synchronously) and the property assignment is
+    /// the single UI-thread hop.
+    /// </summary>
+    private void PublishIndicatorLines(IReadOnlyList<Bar> bars)
+    {
+        _indicatorPublishes.OnNext(ChartIndicatorPipeline.Compute(
+            bars,
+            _persistedIndicatorConfig,
+            _indicatorCatalog,
+            _logger));
+    }
+
+    #endregion
 
     #region Private Methods
 

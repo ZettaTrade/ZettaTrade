@@ -1,0 +1,198 @@
+namespace ZettaTrade.Infrastructure.Tests.Indicators;
+
+using System;
+using System.IO;
+using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using Xunit;
+using ZettaTrade.Infrastructure.Indicators;
+using ZettaTrade.Plugins.Sma;
+
+/// <summary>
+/// The plugin loader matrix: a valid plugin assembly resolves (the
+/// ctor(int) convention preferred), a rejected period skips with a logged
+/// warning, an unknown name resolves quietly to null, a garbage dll warns
+/// without crashing the scan and a missing plugins directory means no
+/// indicators at all. The scan loads the dlls (the file stays locked for
+/// the process lifetime), so the temp fixtures clean up what they can and
+/// tolerate the locked leftovers.
+/// </summary>
+public sealed class PluginIndicatorCatalogTests
+{
+    #region Fixture
+
+    /// <summary>
+    /// A per-fact plugins directory: optionally staged with the real SMA
+    /// plugin assembly (copied from the test run's own output) and a garbage
+    /// dll for the failure path.
+    /// </summary>
+    private sealed class PluginsDirectoryFixture : IDisposable
+    {
+        public string Path { get; } = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "zettatrade-indicator-tests",
+            Guid.NewGuid().ToString("N"));
+
+        public PluginsDirectoryFixture()
+        {
+            Directory.CreateDirectory(Path);
+        }
+
+        public string StageValidSmaPlugin()
+        {
+            var target = System.IO.Path.Combine(Path, "ZettaTrade.Plugins.Sma.dll");
+            File.Copy(typeof(SmaIndicator).Assembly.Location, target, overwrite: true);
+            return target;
+        }
+
+        public void StageGarbagePlugin()
+        {
+            File.WriteAllText(System.IO.Path.Combine(Path, "not-a-plugin.dll"), "this is not an assembly");
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                // The LoadFrom'd assemblies hold their files locked: delete
+                // what unlocks, tolerate the rest (the OS cleans %TEMP%).
+                foreach (var file in Directory.EnumerateFiles(Path))
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (IOException)
+                    {
+                    }
+                }
+
+                Directory.Delete(Path, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    /// <summary>The logger spy: records the level + message pairs.</summary>
+    private sealed class SpyLogger : ILogger<PluginIndicatorCatalog>
+    {
+        public System.Collections.Generic.List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception)));
+    }
+
+    #endregion
+
+    [Fact]
+    public void Scan_AValidPluginAssembly_RegistersAndBuildsThroughThePeriodCtor()
+    {
+        using var fixture = new PluginsDirectoryFixture();
+        fixture.StageValidSmaPlugin();
+        var logger = new SpyLogger();
+
+        var catalog = new PluginIndicatorCatalog(fixture.Path, logger);
+
+        var indicator = catalog.Create("SMA", 2);
+        indicator.Should().NotBeNull("the SMA plugin assembly registers under its canonical name");
+        indicator!.Name.Should().Be("SMA");
+
+        // The ctor(int) convention: the row's period reaches the indicator.
+        // The parameterless fallback (period 20) would have produced all
+        // nulls over a three-bar series; period 2 rolls the mean.
+        var start = DateTimeOffset.FromUnixTimeSeconds(0);
+        var bars = new[]
+        {
+            new ZettaTrade.Core.Entities.Bar(start, 1m, 1m, 1m, 3m, 1),
+            new ZettaTrade.Core.Entities.Bar(start.AddMinutes(1), 1m, 1m, 1m, 5m, 1),
+            new ZettaTrade.Core.Entities.Bar(start.AddMinutes(2), 1m, 1m, 1m, 7m, 1),
+        };
+        var values = indicator.Apply(bars);
+        values[0].Should().BeNull("the warmup head");
+        values[1].Should().Be(4m, "the mean of closes 3,5");
+        values[2].Should().Be(6m, "the mean of closes 5,7");
+
+        logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Information &&
+            entry.Message.Contains("SMA"),
+            "the scan logs the discovered indicator names");
+    }
+
+    [Fact]
+    public void Create_ARejectedPeriod_WarnsAndResolvesToNull()
+    {
+        using var fixture = new PluginsDirectoryFixture();
+        fixture.StageValidSmaPlugin();
+        var logger = new SpyLogger();
+
+        var catalog = new PluginIndicatorCatalog(fixture.Path, logger);
+
+        catalog.Create("SMA", 0).Should().BeNull("the plugin rejects the period; nothing defaults");
+        logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("SMA"),
+            "the rejection is loud");
+    }
+
+    [Fact]
+    public void Create_AnUnknownName_ResolvesQuietlyToNull()
+    {
+        using var fixture = new PluginsDirectoryFixture();
+        fixture.StageValidSmaPlugin();
+        var logger = new SpyLogger();
+
+        var catalog = new PluginIndicatorCatalog(fixture.Path, logger);
+
+        catalog.Create("EMA", 9).Should().BeNull();
+        logger.Entries.Should().NotContain(entry =>
+            entry.Level == LogLevel.Warning && entry.Message.Contains("EMA"),
+            "an unknown name is a scan-time concern, not a per-create warning");
+    }
+
+    [Fact]
+    public void Scan_AGarbageDll_WarnsAndKeepsWorking()
+    {
+        using var fixture = new PluginsDirectoryFixture();
+        fixture.StageValidSmaPlugin();
+        fixture.StageGarbagePlugin();
+        var logger = new SpyLogger();
+
+        var catalog = new PluginIndicatorCatalog(fixture.Path, logger);
+
+        catalog.Create("SMA", 20).Should().NotBeNull("the malformed neighbor never breaks the scan");
+        logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("not-a-plugin.dll"),
+            "the malformed assembly skips loudly");
+    }
+
+    [Fact]
+    public void Scan_AMissingDirectory_MeansNoIndicators()
+    {
+        var logger = new SpyLogger();
+        var missing = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "zettatrade-indicator-tests",
+            Guid.NewGuid().ToString("N"));
+
+        var catalog = new PluginIndicatorCatalog(missing, logger);
+
+        catalog.Create("SMA", 20).Should().BeNull("no directory, no plugins, no indicators");
+        logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Information &&
+            entry.Message.Contains("does not exist"),
+            "the absence is recorded, not an error");
+    }
+}
