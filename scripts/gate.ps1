@@ -1,51 +1,305 @@
-#Requires -Version 5
-# Objective "done" check for every agent. Run from any worktree: pwsh scripts/gate.ps1
-# (also works under Windows PowerShell 5.1 on machines without PowerShell 7).
-$ErrorActionPreference = 'Stop'
-Set-Location (Split-Path -Parent $PSScriptRoot)
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+    ZettaTrade quality gate. Run it inside a feature worktree:
+      pwsh scripts/gate.ps1
+      powershell -File scripts/gate.ps1     (machines without PowerShell 7)
 
-function Step([string]$Name, [scriptblock]$Command) {
-    Write-Host "== $Name" -ForegroundColor Cyan
-    & $Command
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "GATE FAILED: $Name" -ForegroundColor Red
-        exit 1
-    }
-}
+.DESCRIPTION
+    1. Branch / protected files / scope check
+    2. Static rules from AGENTS.md, applied to ADDED lines only (existing debt is ignored)
+    3. .resx check via scripts/check-resx.ps1 (en/ru key sets in sync + module prefix rule)
+    4. Commit message check
+    5. dotnet build (warnings as errors), dotnet test, dotnet format --verify-no-changes
+    Prints GATE PASSED only when everything is green, otherwise GATE FAILED.
+    Output is deliberately short: it is meant to be read by an LLM (saves tokens).
 
-Step 'build'  { dotnet build -nodeReuse:false -warnaserror --nologo -v q }
-# resx: en/ru key sets in sync + module prefix rule (see scripts/check-resx.ps1);
-# runs with the same interpreter the gate was started with (pwsh or 5.1).
-$ResxScript = Join-Path $PSScriptRoot 'check-resx.ps1'
-Step 'resx'   { & (Get-Process -Id $PID).ProcessName -NoProfile -ExecutionPolicy Bypass -File $ResxScript }
-Step 'test'   { dotnet test --no-build --nologo -v q }
-Step 'format' { dotnet format --verify-no-changes --no-restore -v q }
+    Scope is read from <git-dir>/agent-scope.txt (written by supervisor.ps1 'new').
 
-if (-not (Test-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'tests'))) {
-    Write-Host 'WARNING: no tests directory - dotnet test did not verify anything' -ForegroundColor Yellow
-}
-
-# Text rules the analyzers cannot express
-$rules = @(
-    @{ Pattern = 'CommunityToolkit\.Mvvm';                  Message = 'Use ReactiveUI, not CommunityToolkit.Mvvm' },
-    @{ Pattern = '\[(ObservableProperty|RelayCommand)\]';   Message = 'Use RaiseAndSetIfChanged / ReactiveCommand' },
-    @{ Pattern = 'GetAwaiter\(\)\s*\.GetResult\(\)';        Message = 'No blocking on tasks' },
-    @{ Pattern = '\block\s*\(';                             Message = 'Use SemaphoreSlim instead of lock in async code' },
-    @{ Pattern = '^\s*_\s*=\s*.*Async\(';                   Message = 'No fire-and-forget' }
+    NOTE: keep this file ASCII-only. Windows PowerShell 5.1 reads a BOM-less file
+    as ANSI and would mangle UTF-8 characters.
+#>
+[CmdletBinding()]
+param(
+    [string]$BaseBranch = 'main',
+    [switch]$SkipTests,
+    [switch]$AllowProtected
 )
 
-$files = Get-ChildItem src, tests -Recurse -Filter *.cs -ErrorAction SilentlyContinue |
-    Where-Object { $_.FullName -notmatch '[\\/](obj|bin)[\\/]' }
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 
-$failed = $false
-foreach ($rule in $rules) {
-    $hits = $files | Select-String -Pattern $rule.Pattern
-    if ($hits) {
-        $failed = $true
-        Write-Host "RULE: $($rule.Message)" -ForegroundColor Red
-        $hits | ForEach-Object { "  $($_.Path):$($_.LineNumber)" }
+$errors   = [System.Collections.Generic.List[string]]::new()
+$warnings = [System.Collections.Generic.List[string]]::new()
+
+function Say([string]$Text) { [Console]::Out.WriteLine($Text) }
+
+# Always returns string[]. For a single value use: Invoke-Git ... | Select-Object -First 1
+function Invoke-Git {
+    # Windows PowerShell 5.1 turns native stderr output into a terminating error under 'Stop'
+    # (git warns about CRLF, for example). Exit codes are checked explicitly instead.
+    $ErrorActionPreference = 'Continue'
+    $out = & git -c core.quotepath=false @args 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git $($args -join ' ') failed: $($out -join ' ')" }
+    @($out | ForEach-Object { $_.ToString() })
+}
+
+# Runs a native tool and returns its exit code plus merged stdout/stderr.
+function Invoke-Tool([string]$Exe, [string[]]$Arguments) {
+    $ErrorActionPreference = 'Continue'   # same PowerShell 5.1 stderr issue as in Invoke-Git
+    $out = & $Exe @Arguments 2>&1 | ForEach-Object { $_.ToString() }
+    [pscustomobject]@{ Code = $LASTEXITCODE; Output = @($out) }
+}
+
+function Test-AnyLike([string]$Text, [string[]]$Patterns) {
+    foreach ($p in $Patterns) { if ($Text -like $p) { return $true } }
+    return $false
+}
+
+# Yields { File, Line, Text } for every added line in .cs / .axaml / .xaml files.
+function Get-AddedLines([string]$Base) {
+    $diff = Invoke-Git diff -U0 --no-color --diff-filter=AM $Base '--' '*.cs' '*.axaml' '*.xaml'
+    $file = $null
+    $line = 0
+    foreach ($l in $diff) {
+        if ($l -like '+++ b/*') { $file = $l.Substring(6); continue }
+        if ($l -match '^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@') { $line = [int]$Matches[1]; continue }
+        if ($l.StartsWith('+')) {
+            [pscustomobject]@{ File = $file; Line = $line; Text = $l.Substring(1) }
+            $line++
+        }
     }
 }
-if ($failed) { Write-Host 'GATE FAILED: rules' -ForegroundColor Red; exit 1 }
 
-Write-Host 'GATE PASSED' -ForegroundColor Green
+# Trims noisy tool output down to the lines that matter.
+function Select-Problems([string[]]$Lines, [string]$Pattern, [int]$Max = 25) {
+    $rootNative = [regex]::Escape((Resolve-Path $root).Path)
+    $Lines |
+        Where-Object { $_ -match $Pattern } |
+        ForEach-Object { ($_ -replace $rootNative, '.') -replace '\s*\[[^\]]*\.(csproj|sln|slnx)\]\s*$', '' } |
+        ForEach-Object { $_.Trim() } |
+        Select-Object -Unique -First $Max
+}
+
+try {
+    $root   = Invoke-Git rev-parse --show-toplevel | Select-Object -First 1
+    Set-Location $root
+    $gitDir = Invoke-Git rev-parse --absolute-git-dir | Select-Object -First 1
+    $branch = Invoke-Git rev-parse --abbrev-ref HEAD | Select-Object -First 1
+    $base   = Invoke-Git merge-base $BaseBranch HEAD | Select-Object -First 1
+
+    # Make untracked (new) files visible to `git diff`. Ignored files stay ignored.
+    Invoke-Git add -N . | Out-Null
+
+    if ($branch -eq $BaseBranch -or $branch -eq 'HEAD') {
+        $errors.Add("[BRANCH] Work on a feat/<name> branch, not '$branch'.")
+    }
+
+    $changed = @(Invoke-Git diff --name-only $base | Where-Object { $_ })
+
+    # ---------------------------------------------------------------- scope
+    $scopeFile = Join-Path $gitDir 'agent-scope.txt'
+    $scope = @()
+    if (Test-Path $scopeFile) {
+        $scope = @(Get-Content $scopeFile |
+            Where-Object { $_ -and -not $_.StartsWith('#') } |
+            ForEach-Object { ($_.Trim() -replace '\\', '/') -replace '\*\*', '*' })
+    }
+    else {
+        $warnings.Add('[SCOPE] No agent-scope.txt: scope is not enforced.')
+    }
+
+    # Shared files every feature may touch (see AGENTS.md "Shared files").
+    $alwaysAllowed = @('*.resx', 'CompositionRoot.cs', '*/CompositionRoot.cs')
+    $protectedPaths = @(
+        'src/ZettaTrade.Core/Interfaces/*', 'Directory.Build.props', 'Directory.Packages.props',
+        'AGENTS.md', 'scripts/*', '*.sln', '*.slnx', '.github/*'
+    )
+    $catchAllNames = @('Enums.cs', 'Models.cs', 'Utils.cs', 'Helpers.cs', 'Entities.cs', 'Common.cs')
+
+    foreach ($f in $changed) {
+        if (-not $AllowProtected -and (Test-AnyLike $f $protectedPaths)) {
+            $errors.Add("[PROTECTED] $f is supervisor-only. Revert it and report the needed change.")
+            continue
+        }
+        if ($scope.Count -gt 0 -and -not (Test-AnyLike $f ($scope + $alwaysAllowed))) {
+            $errors.Add("[SCOPE] $f is outside the task scope. Revert it or report to the human.")
+        }
+        if ($catchAllNames -contains (Split-Path $f -Leaf)) {
+            $errors.Add("[CATCH-ALL] ${f}: no catch-all files; one entity per file or a file named after the domain concept.")
+        }
+        if ($f -like '*.csproj') {
+            $warnings.Add("[PACKAGES] $f changed: check any new PackageReference.")
+        }
+    }
+
+    # ---------------------------------------------------------------- static rules (added lines only)
+    $rules = @(
+        @{ Id = 'MVVM-TOOLKIT'; Kind = 'cs'; Level = 'error'
+           Pattern = 'CommunityToolkit\.Mvvm|\[ObservableProperty\]|\[RelayCommand\]|\bObservableObject\b'
+           Msg = 'Use ReactiveUI: ReactiveObject, RaiseAndSetIfChanged, ReactiveCommand.' }
+        @{ Id = 'RX-UNIT'; Kind = 'cs'; Level = 'error'
+           Pattern = 'System\.Reactive\.Unit|\bUnit\.Default\b|Task<Unit>|ReactiveCommand<Unit\b|ReactiveCommand<[^>]*,\s*Unit>'
+           Msg = 'Use ReactiveUI.RxVoid, never System.Reactive.Unit.' }
+        @{ Id = 'UI-THREAD'; Kind = 'cs'; Level = 'error'
+           Pattern = 'ObserveOn\(\s*RxApp\.MainThreadScheduler\s*\)'
+           Msg = 'Use ObserveOnUiThread() (ZettaTrade.UI.Extensions).' }
+        @{ Id = 'BLOCKING'; Kind = 'cs'; Level = 'error'
+           Pattern = '\.GetAwaiter\(\)\.GetResult\(\)|\.Wait\(\)|\.WaitAll\(|\.WaitAny\('
+           Msg = 'No blocking on tasks. Use async/await; use InitializeAsync() instead of blocking in constructors.' }
+        @{ Id = 'TASK-RESULT'; Kind = 'cs'; Level = 'warn'
+           Pattern = '\.Result\b'
+           Msg = 'If this is Task.Result: do not block, await it.' }
+        @{ Id = 'LOCK'; Kind = 'cs'; Level = 'error'
+           Pattern = '\block\s*\('
+           Msg = 'No lock: use SemaphoreSlim, ConcurrentDictionary or Channel.' }
+        @{ Id = 'FIRE-FORGET'; Kind = 'cs'; Level = 'error'
+           Pattern = '^\s*_\s*=\s*[\w\.]+Async\s*\('
+           Msg = 'No fire-and-forget: await it or handle errors (Subscribe(onError: ...)).' }
+        @{ Id = 'STDOUT'; Kind = 'cs'; Level = 'error'; SkipTests = $true
+           Pattern = '\bConsole\.(Write|WriteLine|Out|OpenStandardOutput|SetOut)\b|WriteTo\.Console\('
+           Msg = 'Nothing may write to stdout (MCP protocol). Serilog logs to files only.' }
+        @{ Id = 'HTML-ENTITY'; Kind = 'cs'; Level = 'error'; Comments = $true
+           Pattern = '&(lt|gt|amp|quot|apos);'
+           Msg = 'No HTML entities in C# sources.' }
+        @{ Id = 'OLD-BASE'; Kind = 'cs'; Level = 'error'
+           Pattern = '\bLocalizedViewModelBase\b'
+           Msg = 'LocalizedViewModelBase is known debt: do not use or extend it. Use {loc:Localized Key} in XAML.' }
+        @{ Id = 'SECRET'; Kind = 'cs'; Level = 'error'; Comments = $true
+           Pattern = '(?i)(api[_-]?key|secret|token|password)\w*\s*=\s*"[A-Za-z0-9+/_\-]{16,}"'
+           Msg = 'Possible hard-coded secret. Secrets only via ISecretStore; never real keys.' }
+        @{ Id = 'TASK-FROMRESULT'; Kind = 'cs'; Level = 'warn'
+           Pattern = 'Task\.FromResult'
+           Msg = 'Do not wrap sync results in Task.FromResult unless an interface requires it.' }
+        @{ Id = 'HARDCODED-UI'; Kind = 'xaml'; Level = 'warn'
+           Pattern = '\b(Text|Content|Header|Title|Watermark)="(?!\{)(?=[^"]*[A-Za-z])[^"]*"'
+           Msg = 'Possible hard-coded UI string. Use {loc:Localized Key}.' }
+    )
+
+    foreach ($a in @(Get-AddedLines -Base $base)) {
+        $kind = if ([IO.Path]::GetExtension($a.File) -eq '.cs') { 'cs' } else { 'xaml' }
+        $isTestFile = $a.File -like 'tests/*'
+        $isComment = $a.Text.TrimStart().StartsWith('//')
+        foreach ($r in $rules) {
+            if ($r.Kind -ne $kind) { continue }
+            if ($isTestFile -and $r.ContainsKey('SkipTests')) { continue }
+            if ($isComment -and -not $r.ContainsKey('Comments')) { continue }
+            if ([regex]::IsMatch($a.Text, $r.Pattern)) {
+                $msg = "[$($r.Id)] $($a.File):$($a.Line) $($r.Msg)"
+                if ($r.Level -eq 'error') { $errors.Add($msg) } else { $warnings.Add($msg) }
+            }
+        }
+    }
+
+    if (-not $SkipTests -and -not (Test-Path (Join-Path $root 'tests'))) {
+        $warnings.Add('[TEST] No tests directory: dotnet test does not verify anything.')
+    }
+
+    # ---------------------------------------------------------------- resx (en/ru key sync + module prefix rule)
+    # Whole-repo check, delegated to scripts/check-resx.ps1 and run with the same
+    # interpreter the gate was started with (pwsh or Windows PowerShell 5.1).
+    $resxScript = Join-Path $root 'scripts/check-resx.ps1'
+    if (Test-Path $resxScript) {
+        $psExe = (Get-Process -Id $PID).ProcessName
+        $resx = Invoke-Tool $psExe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $resxScript)
+        if ($resx.Code -ne 0) {
+            $probs = @(Select-Problems $resx.Output '\S' 15)
+            $errors.Add("[RESX] check-resx.ps1 failed:`n    " + ($probs -join "`n    "))
+        }
+    }
+    else {
+        $errors.Add('[RESX] scripts/check-resx.ps1 not found.')
+    }
+
+    # ---------------------------------------------------------------- commit messages
+    $subjects = @(Invoke-Git log "$base..HEAD" --format=%s | Where-Object { $_ })
+    foreach ($s in $subjects) {
+        if ($s -notmatch '^(feat|fix|refactor|docs|test|chore|perf|build|ci)(\([\w\-\.]+\))?!?: .{3,}') {
+            $errors.Add("[COMMIT] '$s' is not an English conventional commit (feat:, fix:, refactor:, docs:).")
+        }
+    }
+    $dirty = @(Invoke-Git status --porcelain | Where-Object { $_ })
+    if ($dirty.Count -gt 0) {
+        $warnings.Add("[COMMIT] $($dirty.Count) uncommitted change(s). Commit with a conventional-commit message when done.")
+    }
+
+    # ---------------------------------------------------------------- high-risk routing flag
+    # Not a failure: tells the supervisor this diff needs a strong cloud reviewer plus a human look.
+    $riskPatterns = @('*Risk*', '*Order*', '*Secret*', '*Mcp*', '*Trading*', '*Confirmation*', '*ExchangeAdapter*')
+    $highRisk = @()
+    foreach ($f in $changed) {
+        if ($f -like 'tests/*') { continue }
+        if (Test-AnyLike $f $riskPatterns) { $highRisk += $f }
+    }
+
+    # ---------------------------------------------------------------- build, test, format (only if static checks are clean)
+    if ($errors.Count -eq 0) {
+        $sln = @(Get-ChildItem -LiteralPath $root -File | Where-Object { $_.Extension -in '.sln', '.slnx' })
+        if ($sln.Count -eq 0) {
+            $errors.Add('[BUILD] No .sln/.slnx in the repository root.')
+        }
+        else {
+            $logFile = Join-Path $gitDir 'gate-last.log'
+            $build = Invoke-Tool 'dotnet' @('build', $sln[0].FullName, '-nodeReuse:false', '-warnaserror', '--nologo', '-v', 'q', '-clp:NoSummary')
+            $build.Output | Set-Content $logFile
+            if ($build.Code -ne 0) {
+                $probs = @(Select-Problems $build.Output ': error ')
+                if ($probs.Count -eq 0) { $probs = @($build.Output | Select-Object -Last 15) }
+                $errors.Add("[BUILD] failed (full log: $logFile):`n    " + ($probs -join "`n    "))
+            }
+            else {
+                if (-not $SkipTests) {
+                    $test = Invoke-Tool 'dotnet' @('test', $sln[0].FullName, '--no-build', '--nologo', '-v', 'q')
+                    $test.Output | Add-Content $logFile
+                    if ($test.Code -ne 0) {
+                        $probs = @(Select-Problems $test.Output '^\s*(Failed|X) |Error Message|Expected|Actual|But |Failed!|: error ' 40)
+                        if ($probs.Count -eq 0) { $probs = @($test.Output | Select-Object -Last 15) }
+                        $errors.Add("[TEST] failed (full log: $logFile):`n    " + ($probs -join "`n    "))
+                    }
+                }
+
+                $format = Invoke-Tool 'dotnet' @('format', $sln[0].FullName, '--verify-no-changes', '--no-restore', '-v', 'q')
+                $format.Output | Add-Content $logFile
+                if ($format.Code -ne 0) {
+                    $probs = @(Select-Problems $format.Output ': error ')
+                    if ($probs.Count -eq 0) { $probs = @($format.Output | Select-Object -Last 15) }
+                    $errors.Add("[FORMAT] dotnet format found issues, run 'dotnet format' (full log: $logFile):`n    " + ($probs -join "`n    "))
+                }
+            }
+        }
+    }
+    else {
+        Say 'Build, tests and format skipped: fix the rule violations first.'
+    }
+
+    # ---------------------------------------------------------------- report
+    [pscustomobject]@{
+        branch   = $branch
+        head     = (Invoke-Git rev-parse HEAD | Select-Object -First 1)
+        time     = (Get-Date).ToString('s')
+        passed   = ($errors.Count -eq 0)
+        errors   = $errors.Count
+        warnings = $warnings.Count
+        highRisk = @($highRisk)
+    } | ConvertTo-Json | Set-Content (Join-Path $gitDir 'gate-report.json')
+
+    if ($warnings.Count -gt 0) {
+        Say "WARNINGS ($($warnings.Count)):"
+        $warnings | Select-Object -First 10 | ForEach-Object { Say "  $_" }
+    }
+    if ($highRisk.Count -gt 0) {
+        Say "HIGH-RISK paths touched (needs strong reviewer + human): $($highRisk -join ', ')"
+    }
+    if ($errors.Count -gt 0) {
+        Say "ERRORS ($($errors.Count)):"
+        $errors | ForEach-Object { Say "  $_" }
+        Say 'GATE FAILED'
+        exit 1
+    }
+    Say 'GATE PASSED'
+    exit 0
+}
+catch {
+    Say "GATE FAILED (internal error): $($_.Exception.Message)"
+    exit 2
+}
