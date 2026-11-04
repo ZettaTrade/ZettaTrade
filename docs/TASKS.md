@@ -47,7 +47,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-040 MCP server settings in the settings window (user idea) | feat/mcp-settings | queued | - |
 | T-041 Telegram trade notifications (user idea, post-beta) | feat/telegram-notifier | queued | - |
 | T-042 Settings window polish: the time-format label collision + the SMA tooltip (user-reported) | feat/settings-window-polish | done | - |
-| T-043 Settings window: split the sections into tabs (user-reported) | feat/settings-tabs | queued | - |
+| T-043 Settings window: split the sections into tabs (user-reported) | feat/settings-tabs | done | - |
 
 ---
 
@@ -719,4 +719,4 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** `SettingsWindow.axaml`, resx `Settings.Tab.Appearance` + `Settings.Tab.Indicators` en+ru (the flat `Settings.Appearance` header key dies with the restructure), the T-042 probe learns the tab switch.
 - **Acceptance:** probe (the T-042 harness): both tabs resolve by their localized headers; the Appearance tab keeps the no-overlap assertion for the time-format label; selecting the Indicators tab reveals the SMA row and the tooltip assertions still hold (checkbox quiet, icon tooltip, capped width) in en and ru.
 - **Tests:** no VM logic changes (pure view restructuring); the resx keys land in both languages.
-- **Status:** queued
+- **Status:** done. Canon: the merge commit `d006f7d` is on develop (the user merged `feat/settings-tabs` as a fast-forward; two commits - the tab split `c732aca` and the content breathing room `d006f7d`). The window is a TabControl now: an Appearance tab (theme, language, clock format, the themes folder + the broken-theme errors) and an Indicators tab (the SMA row; future indicator rows land one grid row each), Save/Close stay as the dialog's bottom row; each tab's content root carries a 12 DIP top margin (the theme default hugs the strip and TabControl.Padding does not reach the content presenter - verified by screenshot). The dead `Settings.Appearance` header key is removed. Probe `PROBE PASSED` (`t042-probe.ps1` extended): both tabs resolve by their localized headers, the Appearance tab keeps the no-overlap assertion, the Indicators tab reveals the SMA row and the tooltip assertions hold in en and ru.
