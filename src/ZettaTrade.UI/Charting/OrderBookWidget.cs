@@ -87,13 +87,20 @@ public class OrderBookWidget : Control
 
     #region Fields & Properties
 
-    // Defaults match the built-in dark theme; the live colors are refreshed
-    // from application resources on every snapshot (the chart's convention).
-    private SKColor _backgroundColor = new(20, 20, 30);
-    private SKColor _gridColor = new(40, 40, 50);
-    private SKColor _textColor = new(200, 200, 200);
-    private SKColor _bidColor = new(34, 197, 94);
-    private SKColor _askColor = new(239, 68, 68);
+    // Theme-agnostic fallback colors: the built-in dark set, named so the
+    // literals stay out of inline code; the live colors are refreshed from
+    // the application resources on every snapshot (the chart's convention).
+    private static readonly SKColor DefaultBackgroundColor = new(20, 20, 30);
+    private static readonly SKColor DefaultGridColor = new(40, 40, 50);
+    private static readonly SKColor DefaultTextColor = new(200, 200, 200);
+    private static readonly SKColor DefaultBidColor = new(34, 197, 94);
+    private static readonly SKColor DefaultAskColor = new(239, 68, 68);
+
+    private SKColor _backgroundColor = DefaultBackgroundColor;
+    private SKColor _gridColor = DefaultGridColor;
+    private SKColor _textColor = DefaultTextColor;
+    private SKColor _bidColor = DefaultBidColor;
+    private SKColor _askColor = DefaultAskColor;
 
     /// <summary>
     /// The level-presses stream sink (hot; see <see cref="LevelClicked"/>).

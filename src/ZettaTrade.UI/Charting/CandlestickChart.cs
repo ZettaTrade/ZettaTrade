@@ -174,14 +174,22 @@ public class CandlestickChart : Control
     /// </summary>
     private Point? _hoverPosition;
 
-    // Defaults match the built-in dark theme; the live colors are refreshed
-    // from application resources on every snapshot (see RefreshThemeColors).
-    private SKColor _backgroundColor = new(20, 20, 30);
-    private SKColor _bullishColor = new(34, 197, 94);
-    private SKColor _bearishColor = new(239, 68, 68);
-    private SKColor _gridColor = new(40, 40, 50);
-    private SKColor _textColor = new(200, 200, 200);
-    private SKColor _indicatorLineColor = new(245, 158, 11);
+    // Theme-agnostic fallback colors: the built-in dark set, named so the
+    // literals stay out of inline code; the live colors are refreshed from
+    // the application resources on every snapshot (see RefreshThemeColors).
+    private static readonly SKColor DefaultBackgroundColor = new(20, 20, 30);
+    private static readonly SKColor DefaultBullishColor = new(34, 197, 94);
+    private static readonly SKColor DefaultBearishColor = new(239, 68, 68);
+    private static readonly SKColor DefaultGridColor = new(40, 40, 50);
+    private static readonly SKColor DefaultTextColor = new(200, 200, 200);
+    private static readonly SKColor DefaultIndicatorLineColor = new(245, 158, 11);
+
+    private SKColor _backgroundColor = DefaultBackgroundColor;
+    private SKColor _bullishColor = DefaultBullishColor;
+    private SKColor _bearishColor = DefaultBearishColor;
+    private SKColor _gridColor = DefaultGridColor;
+    private SKColor _textColor = DefaultTextColor;
+    private SKColor _indicatorLineColor = DefaultIndicatorLineColor;
 
     private IDisposable? _themeChangeSubscription;
     private IDisposable? _languageChangeSubscription;

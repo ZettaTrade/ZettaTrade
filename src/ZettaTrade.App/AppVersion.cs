@@ -34,8 +34,8 @@ public static class AppVersion
 
     /// <summary>
     /// Trim the informational version for display: the SDK appends a
-    /// <c>+&lt;git commit&gt;</c> suffix in repositories, which is build
-    /// metadata noise for a chip — keep the semantic version only.
+    /// plus sign and the git commit as build metadata in repositories,
+    /// which is noise for a chip — keep the semantic version only.
     /// </summary>
     /// <param name="informationalVersion">Raw informational version or null.</param>
     /// <returns>The display version, never null or empty.</returns>
