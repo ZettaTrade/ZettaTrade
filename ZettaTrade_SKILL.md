@@ -192,7 +192,7 @@ Loc.GetObservable("Status.Ready")
 - **NEVER use fire-and-forget** — avoid underscore-equals async method pattern. Either await the task or use proper error handling with Subscribe(onError: ...) for reactive streams
 - **Avoid synchronous methods returning Task** — if a method is truly synchronous, return the value directly instead of wrapping in Task.FromResult. Only return Task when the method actually performs async I/O or when required by an interface contract
 - **NEVER use .GetAwaiter().GetResult() in constructors** — this blocks the thread and can cause deadlocks in UI applications. Use IAsyncInitializable pattern instead: implement InitializeAsync() method and call it from async context (e.g., App.OnFrameworkInitializationCompleted)
-- **Use RxVoid from ReactiveUI** — for commands without return value, use ReactiveCommand&lt;TParam, RxVoid&gt; (NOT System.Reactive.Unit). Methods should return Task (not Task&lt;Unit&gt;). Note: IObservable&lt;T&gt; is OK (it's from System.Reactive but used by ReactiveUI), but NEVER use System.Reactive.Unit — always use ReactiveUI.RxVoid instead
+- **Use RxVoid from ReactiveUI** — for commands without return value, use ReactiveCommand<TParam, RxVoid> (NOT System.Reactive.Unit). Methods should return Task (not Task<Unit>). Note: IObservable<T> is OK (it's from System.Reactive but used by ReactiveUI), but NEVER use System.Reactive.Unit — always use ReactiveUI.RxVoid instead
 - **NO HTML entities in C# code** — never use &lt;, &gt;, &amp;, etc. in C# source files. Use simple // comments for examples instead of XML documentation with HTML escapes
 
 ## Design Principles (MANDATORY)
