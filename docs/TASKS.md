@@ -35,14 +35,17 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-028 Candle OHLC + crosshair price on chart hover | feat/chart-hover | done | — |
 | T-029 Persist the workspace symbol | feat/persist-symbol | done | — |
 | T-030 Debt cleanup: LocalizedViewModelBase + Serilog console sink | chore/debt-cleanup | done | - |
-| T-031 Cancel a working order from the UI | feat/cancel-order | queued | — |
-| T-032 The assistant answers: local model first (Ollama) | feat/ai-chat-local | queued | — |
-| T-033 Chart pan + older-history paging | feat/chart-pan | queued | — |
+| T-031 Cancel a working order from the UI | feat/cancel-order | done | - |
+| T-032 The assistant answers: local model first (Ollama) | feat/ai-chat-local | done | - |
+| T-033 Chart pan + older-history paging | feat/chart-pan | done | - |
 | T-034 Indicator seam MVP (a plugin draws an SMA overlay) | feat/indicators | queued | — |
 | T-035 Chart axis labels clip at the canvas edges + zoom never re-buckets the axes (user-reported) | fix/chart-axes | done | — |
 | T-036 Chart history depth + candle-size cap (user-reported: W1/MN render one full-width candle) | fix/chart-history | done | — |
 | T-037 Exchange-grade time axis: density, calendar anchors, year labels (user-reported) | feat/time-grid | done | — |
-| T-038 Draggable splitters: resize the chart / depth / assistant columns (user-reported) | feat/layout-splitters | queued | — |
+| T-038 Draggable splitters: resize the chart / depth / assistant columns (user-reported) | feat/layout-splitters | queued | - |
+| T-039 Symbol favorites (star badge, pinned on top) + hiding pairs (user idea) | feat/symbol-favorites | queued | - |
+| T-040 MCP server settings in the settings window (user idea) | feat/mcp-settings | queued | - |
+| T-041 Telegram trade notifications (user idea, post-beta) | feat/telegram-notifier | queued | - |
 
 ---
 
@@ -596,6 +599,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** the panel VM + row action, the dialog composition reuse, tests. No Core changes (the cancel surface exists for MCP).
 - **Acceptance:** place a paper limit, cancel from the panel → confirmation dialog → the order ends Cancelled, history persists it, the panel refreshes from the adapter events; the user-declined confirmation changes nothing.
 - **Tests:** the VM flow (success/adapter-fail/user-declined), the symbol-always-present rule, no optimistic list mutations.
+- **Status:** done. Canon: the merge commit `a112900` is on develop (the user merged `origin/feat/cancel-order`, branch tip `604c962`). Probe `PROBE PASSED` (`t031-cancel-probe.ps1`, UIA + log needles, fresh `orders-history.db` with a bytes backup): a non-crossing paper BUY rests as Pending (the "Paper rest" log line, no fill), the panel lists the resting row with a Cancel button, the CONFIRMED cancel drives the same adapter path the MCP tool uses (the journal + history show Cancelled from the adapter events, no optimistic mutation), and the DECLINED confirmation leaves the row untouched with a logged decline.
 
 ## T-032 — The assistant answers: local model first (Ollama)
 
@@ -605,6 +609,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** `ChatViewModel` + chat XAML, a new chat service + its DI extension (`AddAiServices`), the settings section + keys (`Ai.*` prefix), resx en+ru (send placeholder, error lines), tests.
 - **Acceptance:** an e2e probe against a LOOPBACK stub (owned by the tests: timeout, HTTP 500, malformed JSON → honest errors asserted) plus a real-Ollama probe when the machine has one (the in-chat reply renders); settings allow switching the model at runtime.
 - **Tests:** the chat service e2e on the loopback stub, the VM send flow (success/error/busy), the context-injection contents (exchange/symbol/price present).
+- **Status:** done. Canon: the merge commit `70a5cb0` is on develop (the user merged `origin/feat/ai-chat-local`, branch tip `43472de`). The send command runs the local Ollama completion first (`AI` settings section keys); the workspace context (exchange, symbol, last price, time frame) rides the system prompt; an unreachable model answers an honest in-chat error line, never silence; the T-012 focus behavior rides unchanged; the loopback-stub e2e (timeout / HTTP 500 / malformed JSON) pins the error paths.
 
 ## T-033 — Chart pan + older-history paging
 
@@ -614,6 +619,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** `CandlestickChart` (pan + the fetch threshold), `ChartViewModel` (an append path beside the full reload), tests.
 - **Acceptance:** probe: pan left past the first candle → older candles appear (an appends log line distinct from the reload line); the ascending invariant holds visually and in the VM collection; a TF flip mid-pan rebases cleanly.
 - **Tests:** the window-merge math (overlap, dedupe, non-ascending guard), the append-vs-rebase ownership, no-throw under cancellation.
+- **Status:** done. Canon: the merge commit `0ddf272` is on develop (the user merged `origin/feat/chart-pan`, branch tip `a247fdc`). The left-drag pans in whole bar slots and reaching the loaded series' head pages the previous window, prepended in place so the pan state survives every append (pure pan/merge math: `ChartPanWindow`, `BarSeriesMerge`); probe `PROBE PASSED` (`t033-chart-pan-probe.ps1`, UIA + Serilog needles) — the wheel-out edge pins the window on the series head with no loads fired, H1 pan appends ×15 with exactly ONE delivered line (no rebase), the M5 flip produces its own request+delivery pair, M5 pans append under the new frame, and the delivered count never grows from panning.
 
 ## T-034 — Indicator seam MVP (a plugin draws an SMA overlay)
 
@@ -664,3 +670,30 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** `MainWindow.axaml` (+ the width-owning ViewModel mirror of `ChatViewModel`'s real-difference persistence discipline), `UiSettingsKeys`, tests. Core untouched; no resx (splitters carry no labels).
 - **Acceptance:** probe (UIA geometry, the T-027 harness pattern): drag the chart/book splitter → the book column reflows (its left edge follows the drag), restart → the positions survive cold start; with the AI panel hidden the AI-side splitter is absent from the UIA tree; both widths round-trip.
 - **Tests:** the persisted-clamp/restore facts (mirror `ChatViewModelTests`: restore without rewrite, changes-stream echo absorbed, min-width clamp on garbage/stored-out-of-range values), the hide-follows-show wiring when the panel toggles while a custom width is stored.
+
+## T-039 — Symbol favorites (star badge, pinned on top) + hiding pairs (user idea)
+
+- **Branch:** queued 2026-11-04 (user idea: «возможность добавлять в избранное некоторые пары в комбобоксе (рядом с такими будет отображаться звёздочка, чтобы было видно какие из них в избранном и они закреплены в верху списка), а какие-то скрывать, чтобы список не перегружать»)
+- **Origin:** the symbols combo prints the exchange's raw list straight through (hundreds of pairs on the real adapters); the trader keeps a handful and finds the rest noise, and the list only grows with every new listing.
+- **What:** two per-symbol marks persisted per workspace exchange: a FAVORITE (the row renders a star badge; favorites pin to the head of the list) and a HIDDEN (the row leaves the everyday list — the picker stops being overloaded; a small toggle exposes the hidden entries again so un-hiding stays possible). The marks live in the settings service (a `Workspace.*` JSON map or two keys, same reactive pipeline as the workspace symbol) and the symbols bootstrap applies them on every exchange switch: favorites first, hidden filtered (or grouped under the reveal toggle when it is on). A hidden-but-selected symbol stays selectable (no silent rebase of the live series).
+- **Scope:** the ChartViewModel symbols pipeline (sort + filter + marks), the combo ItemTemplate (star badge), the settings keys + reactive updates, the toolbar reveal affordance, tests.
+- **Acceptance:** probe: star a pair → restart → it heads the list with the badge visible; hide a pair → it leaves the default list and returns under the reveal toggle; marks survive a time frame / symbol change without losing the current selection.
+- **Tests:** the sort/filter/mark facts, the persistence round-trip (restore-without-rewrite discipline), the garbage-marked-values fail-safe (unknown/malformed marks drop to none, never crash the picker).
+
+## T-040 — MCP server settings in the settings window (user idea)
+
+- **Branch:** queued 2026-11-04 (user idea: «можно mcp вынести в окно настроек, также как и настройки ии ассистента»)
+- **Origin:** the local MCP server (the AI assistants' trading tools) is wired at startup with no user-facing control — its state lives only in config files, while the assistant itself already owns a settings surface (T-032).
+- **What:** a settings-window section for the MCP server: the enable state (+ persist) and the knobs the server host exposes — a live toggle starts/stops the local host in-process (or defers the start to the next launch when the transport cannot rebind), the running/stopped state renders honestly. Stdio purity stays untouched (nothing ever writes to stdout except MCP protocol messages — the gate pins it).
+- **Scope:** `SettingsViewModel` + `SettingsWindow.axaml`, the settings keys (`Mcp.*` prefix), `McpServerHost` wiring, resx en+ru, tests.
+- **Acceptance:** probe (the T-030/T-038 settings harness): the toggle round-trips (window open → flip → Save → restart → the state survives); the live toggle flips the host without a restart when possible, otherwise the note says the next launch applies it.
+- **Tests:** the toggle VM facts (persisted-state restore, echo absorption, real-difference discipline), the host start/stop path, the state surfacing (running / deferred / failed with a log).
+
+## T-041 — Telegram trade notifications (post-beta)
+
+- **Branch:** queued 2026-11-04 (user idea: «в дальнейшем я хочу чтобы программа отправляла информацию о сделках в телеграм (но это не срочно, после доведения до бета)») — deliberately parked after the beta milestone.
+- **Origin:** fills and order events land only in the journal and the logs today; the trader wants them pushed where he actually reads.
+- **What:** a notification sink that sends order/fill event messages (symbol, side, price, quantity, exchange, paper/live tag) to a user's Telegram chat through a bot token stored in `ISecretStore` (a token never travels as a command-line argument — stdin/secret-store only, the standing security rules). Opt-in per event type (fills, cancels, rejections), async and BEST-EFFORT: a failed send logs a warning and never blocks, retries or corrupts the trading flow; no third-party middleman services — the token is the user's own bot.
+- **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
+- **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
+- **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
