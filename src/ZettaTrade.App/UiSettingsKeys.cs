@@ -65,6 +65,28 @@ public static class UiSettingsKeys
     public const string WorkspaceSection = "Workspace";
 
     /// <summary>
+    /// Settings section holding the local MCP server preferences: the AI
+    /// assistants' trading tools ride this server, so every knob stays
+    /// user-facing and off by default.
+    /// </summary>
+    public const string McpSection = "Mcp";
+
+    /// <summary>
+    /// Settings key of the persisted MCP server enable state (a bool): the
+    /// settings window's save flips it; the host runner starts/stops the
+    /// server per it, live when the stdio transport can rebind.
+    /// </summary>
+    public const string McpServerEnabled = "ServerEnabled";
+
+    /// <summary>
+    /// The MCP server enable state applied until a stored setting is loaded:
+    /// off, because trading tools should never surface to clients the user
+    /// has not opted in (and the shipped behavior before the setting existed
+    /// was exactly that).
+    /// </summary>
+    public const bool DefaultMcpServerEnabled = false;
+
+    /// <summary>
     /// Settings key of the persisted workspace symbol (a normalized Symbol
     /// name, e.g. ETH/BTC): written on every confirmed user selection and
     /// applied as the symbols bootstrap's first-choice preference.
