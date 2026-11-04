@@ -13,6 +13,7 @@ using NSubstitute;
 using Xunit;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
@@ -191,7 +192,19 @@ public sealed class ChartViewModelTests
             service,
             new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
             timeFrameSettings,
+            new EmptyIndicatorCatalog(),
             NullLogger<ChartViewModel>.Instance);
+    }
+
+    /// <summary>
+    /// The catalog stub the chart facts run against: no plugin resolves,
+    /// so the overlay publishes stay empty and every pre-existing fact is
+    /// untouched by the indicator seam (the pipeline facts cover the
+    /// computing paths with their own fakes).
+    /// </summary>
+    private sealed class EmptyIndicatorCatalog : IIndicatorCatalog
+    {
+        public IIndicator? Create(string name, int period) => null;
     }
 
     #endregion
@@ -859,6 +872,63 @@ public sealed class ChartViewModelTests
         marketData.BarsWindowRequests.Should().OnlyContain(
             window => window.To == null,
             "no paging window (To = the series head) was ever fetched");
+    }
+
+    [Fact]
+    public void IndicatorConfig_ASettingsChange_PublishesTheRecompute()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(UiSettingsKeys.DefaultChartIndicators);
+        var changes = new Subject<SettingsChange>();
+        settings.Changes.Returns(changes);
+
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            settings);
+
+        // The raw publish path is marshal-free (the compute is pure), so the
+        // fact reads it directly - the marshalled property assignment stays
+        // unpumped in a test process and is covered by the probe.
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartIndicators,
+            null,
+            UiSettingsKeys.DefaultChartIndicators));
+
+        publications.Should().ContainSingle("the config change recomputes against the current series");
+        publications[0].Should().BeEmpty("no bars are loaded in the marshal-invariant world");
+    }
+
+    [Fact]
+    public void IndicatorConfig_AnEchoedChange_StillRecomputes()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(UiSettingsKeys.DefaultChartIndicators);
+        var changes = new Subject<SettingsChange>();
+        settings.Changes.Returns(changes);
+
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            settings);
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        // The VM's own save writes the config back: the changes stream
+        // echoes it and the recompute runs again (the same echo-absorption
+        // contract the clock format follows - a recompute is idempotent and
+        // cheap, no echo suppression needed).
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartIndicators,
+            UiSettingsKeys.DefaultChartIndicators,
+            UiSettingsKeys.DefaultChartIndicators));
+
+        publications.Should().HaveCount(1);
     }
 
     #endregion

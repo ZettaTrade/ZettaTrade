@@ -1,8 +1,10 @@
 <Solution>
   <Project Path="src/ZettaTrade.AI/ZettaTrade.AI.csproj" />
   <Project Path="src/ZettaTrade.App/ZettaTrade.App.csproj" />
+  <Project Path="src/ZettaTrade.Charting/ZettaTrade.Charting.csproj" />
   <Project Path="src/ZettaTrade.Core/ZettaTrade.Core.csproj" />
   <Project Path="src/ZettaTrade.Infrastructure/ZettaTrade.Infrastructure.csproj" />
+  <Project Path="src/ZettaTrade.Plugins.Sma/ZettaTrade.Plugins.Sma.csproj" />
   <Project Path="src/ZettaTrade.UI/ZettaTrade.UI.csproj" />
   <Folder Name="/tests/">
     <Project Path="tests/ZettaTrade.App.Tests/ZettaTrade.App.Tests.csproj" />

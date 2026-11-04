@@ -17,6 +17,7 @@ using Avalonia.Skia;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using SkiaSharp;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.UI.Localization;
 using ZettaTrade.UI.Resources;
@@ -101,6 +102,7 @@ public class CandlestickChart : Control
     private const string CandleDownColorKey = "CandleDown";
     private const string GridColorKey = "Border";
     private const string TextColorKey = "TextPrimary";
+    private const string IndicatorLineColorKey = "IndicatorLine";
 
     #endregion
 
@@ -128,6 +130,18 @@ public class CandlestickChart : Control
         AvaloniaProperty.Register<CandlestickChart, bool>(nameof(Use12HourClock));
 
     /// <summary>
+    /// StyledProperty for the indicator overlay lines: one
+    /// <see cref="ChartIndicatorLine"/> per enabled settings row, its values
+    /// aligned with <see cref="Bars"/> by index (the ViewModel computes them;
+    /// the draw pass slices with the visible window). Empty - the default -
+    /// draws no overlay.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<ChartIndicatorLine>> IndicatorLinesProperty =
+        AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<ChartIndicatorLine>>(
+            nameof(IndicatorLines),
+            defaultValue: []);
+
+    /// <summary>
     /// Whether the time axis prints the 12-hour clock ("11:45 PM"); false вЂ”
     /// the default вЂ” prints the 24-hour "23:45". The chart owns no
     /// persistence: the settings service is the source of truth, rendering
@@ -137,6 +151,13 @@ public class CandlestickChart : Control
     {
         get => GetValue(Use12HourClockProperty);
         set => SetValue(Use12HourClockProperty, value);
+    }
+
+    /// <summary>The indicator overlay lines drawn over the candles; a change re-inks on the next pass.</summary>
+    public IReadOnlyList<ChartIndicatorLine> IndicatorLines
+    {
+        get => GetValue(IndicatorLinesProperty);
+        set => SetValue(IndicatorLinesProperty, value);
     }
 
     #endregion
@@ -160,6 +181,7 @@ public class CandlestickChart : Control
     private SKColor _bearishColor = new(239, 68, 68);
     private SKColor _gridColor = new(40, 40, 50);
     private SKColor _textColor = new(200, 200, 200);
+    private SKColor _indicatorLineColor = new(245, 158, 11);
 
     private IDisposable? _themeChangeSubscription;
     private IDisposable? _languageChangeSubscription;
@@ -260,6 +282,11 @@ public class CandlestickChart : Control
         // A clock-format flip re-inks the axis labels on the next pass.
         Use12HourClockProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        // A new overlay set re-inks on the next pass: the draw operation
+        // snapshots the property per render anyway.
+        IndicatorLinesProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
     }
 
     public CandlestickChart()
@@ -315,6 +342,7 @@ public class CandlestickChart : Control
         _bearishColor = ResourceColor(CandleDownColorKey, _bearishColor);
         _gridColor = ResourceColor(GridColorKey, _gridColor);
         _textColor = ResourceColor(TextColorKey, _textColor);
+        _indicatorLineColor = ResourceColor(IndicatorLineColorKey, _indicatorLineColor);
     }
 
     private static SKColor ResourceColor(string key, SKColor fallback)
@@ -386,26 +414,75 @@ public class CandlestickChart : Control
 
         Bar[] visible = [];
         var bars = Bars;
+        var spanStart = 0;
+        var spanEnd = 0;
 
         if (bars is { Count: > 0 })
         {
-            var (start, end) = ChartPanWindow.VisibleSpan(bars.Count, _panOffset, _visibleBars);
+            (spanStart, spanEnd) = ChartPanWindow.VisibleSpan(bars.Count, _panOffset, _visibleBars);
 
-            visible = new Bar[end - start];
+            visible = new Bar[spanEnd - spanStart];
             for (var i = 0; i < visible.Length; i++)
-                visible[i] = bars[start + i];
+            {
+                visible[i] = bars[spanStart + i];
+            }
         }
 
         return new ChartSnapshot(
             visible,
-            BackgroundColor,
-            BullishColor,
-            BearishColor,
-            GridColor,
-            TextColor,
+            SliceIndicatorLines(bars, spanStart, spanEnd),
+            _backgroundColor,
+            _bullishColor,
+            _bearishColor,
+            _gridColor,
+            _textColor,
+            _indicatorLineColor,
             ChartTickCulture.Resolve(),
             Use12HourClock,
             _hoverPosition);
+    }
+
+    /// <summary>
+    /// Slice every overlay line with the SAME [start, end) window the bars
+    /// slice uses. A line whose values no longer align with the current
+    /// series (a stale publish racing the new Bars instance) is skipped
+    /// wholesale - a length mismatch can never reach the draw pass as a
+    /// silently shifted polyline.
+    /// </summary>
+    private IReadOnlyList<ChartIndicatorLine> SliceIndicatorLines(
+        ObservableCollection<Bar>? bars,
+        int spanStart,
+        int spanEnd)
+    {
+        if (bars is not { Count: > 0 })
+        {
+            return [];
+        }
+
+        var current = IndicatorLines;
+        if (current.Count == 0)
+        {
+            return [];
+        }
+
+        List<ChartIndicatorLine> slices = [];
+        foreach (var line in current)
+        {
+            if (line.Values.Count != bars.Count)
+            {
+                continue;
+            }
+
+            var slice = new decimal?[spanEnd - spanStart];
+            for (var i = 0; i < slice.Length; i++)
+            {
+                slice[i] = line.Values[spanStart + i];
+            }
+
+            slices.Add(new ChartIndicatorLine(line.Name, slice));
+        }
+
+        return slices;
     }
 
     /// <summary>
@@ -418,11 +495,13 @@ public class CandlestickChart : Control
     /// </summary>
     private sealed record ChartSnapshot(
         Bar[] VisibleBars,
+        IReadOnlyList<ChartIndicatorLine> Indicators,
         SKColor Background,
         SKColor Bullish,
         SKColor Bearish,
         SKColor Grid,
         SKColor Text,
+        SKColor IndicatorLine,
         CultureInfo Culture,
         bool Use12HourClock,
         Point? Hover);
@@ -566,6 +645,7 @@ public class CandlestickChart : Control
                 openTimes);
 
             DrawCandles(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange);
+            DrawIndicatorLines(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange, _snapshot.Indicators);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minPrice, priceRange, priceTicks, priceTexts);
             DrawTimeAxis(canvas, font, textPaint, plotRect, barPitch, openTimes, timeTicks, timeTexts);
 
@@ -697,6 +777,71 @@ public class CandlestickChart : Control
                     bodyWidth,
                     bodyHeight,
                     paint);
+            }
+        }
+
+        /// <summary>
+        /// The indicator overlay polylines drawn straight over the candles (before
+        /// the axis layers and the hover): every line rides the same bar slots and
+        /// the same price scale as the candles - never its own axis. A warmup null
+        /// breaks the polyline; the segments stay inside the plot rect (the canvas
+        /// clip exists, the own mapping guarantee is not needed).
+        /// </summary>
+        private void DrawIndicatorLines(
+            SKCanvas canvas,
+            Rect plotRect,
+            IReadOnlyList<Bar> bars,
+            double barPitch,
+            decimal minPrice,
+            decimal priceRange,
+            IReadOnlyList<ChartIndicatorLine> indicators)
+        {
+            if (indicators.Count == 0)
+            {
+                return;
+            }
+
+            using var paint = new SKPaint
+            {
+                Color = _snapshot.IndicatorLine,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 2,
+                IsAntialias = true
+            };
+
+            foreach (var indicator in indicators)
+            {
+                var values = indicator.Values;
+                if (values.Count != bars.Count)
+                {
+                    continue;
+                }
+
+                using var path = new SKPathBuilder();
+                var penDown = false;
+                for (var i = 0; i < bars.Count; i++)
+                {
+                    if (values[i] is not { } value)
+                    {
+                        penDown = false;
+                        continue;
+                    }
+
+                    var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, bars.Count, i);
+                    var y = ChartPriceScale.PriceToY(plotRect, value, minPrice, priceRange);
+
+                    if (!penDown)
+                    {
+                        path.MoveTo(x, y);
+                        penDown = true;
+                    }
+                    else
+                    {
+                        path.LineTo(x, y);
+                    }
+                }
+
+                canvas.DrawPath(path.Detach(), paint);
             }
         }
 
