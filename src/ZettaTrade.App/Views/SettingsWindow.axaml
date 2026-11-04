@@ -19,7 +19,7 @@
                    FontWeight="Bold"
                    FontSize="14" />
 
-        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
             <TextBlock Grid.Row="0" Grid.Column="0"
                        Text="{loc:Localized Settings.Theme}"
                        VerticalAlignment="Center" />
@@ -87,6 +87,23 @@
                 <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours24}" />
                 <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours12}" />
             </ComboBox>
+
+            <!-- The chart indicator overlay: the SMA row (enable + period).
+                 "SMA" is the plugin's canonical name - a product name, not a
+                 localized string; the row label and the period caption are. -->
+            <TextBlock Grid.Row="3" Grid.Column="0"
+                       Text="{loc:Localized Chart.Indicators}"
+                       VerticalAlignment="Center" />
+            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                <CheckBox Content="SMA"
+                          IsChecked="{Binding IsSmaEnabled}"
+                          VerticalAlignment="Center" />
+                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                           VerticalAlignment="Center" />
+                <TextBox Text="{Binding SmaPeriodText}"
+                         MinWidth="64"
+                         VerticalAlignment="Center" />
+            </StackPanel>
         </Grid>
 
         <!-- Theme folder and schema hint: customization is file-based, so the

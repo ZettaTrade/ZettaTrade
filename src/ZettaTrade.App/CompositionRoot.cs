@@ -8,9 +8,11 @@ using ZettaTrade.AI.Mcp;
 using ZettaTrade.AI.Mcp.Tools;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Indicators;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Infrastructure.Secrets;
 using ZettaTrade.Infrastructure.Shell;
@@ -75,6 +77,11 @@ internal static class CompositionRoot
         // Exchange adapters: transport settings live inside each adapter module (Infrastructure).
         services.AddExchangeAdapters();
 
+        // The indicator plugin seam: one catalog scans the plugins directory
+        // for IIndicator assemblies (SMA ships as the first plugin; the App
+        // carries no compile-time reference to any plugin).
+        services.AddIndicators();
+
         // Active-exchange facade over the concrete adapters: every market
         // data consumer resolves one IMarketDataAdapter that forwards to
         // the exchange picked in the toolbar selector, and trading rides the
@@ -117,6 +124,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ISettingsService>(),
+                sp.GetRequiredService<IIndicatorCatalog>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:element name="root" msIsDataSet="true">
@@ -143,6 +143,12 @@
   </data>
   <data name="Chart.TimeFormat.Hours12" xml:space="preserve">
     <value>12-часовой</value>
+  </data>
+  <data name="Chart.Indicators" xml:space="preserve">
+    <value>Индикаторы</value>
+  </data>
+  <data name="Chart.Indicators.Period" xml:space="preserve">
+    <value>Период</value>
   </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
