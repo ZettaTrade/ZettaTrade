@@ -38,7 +38,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-031 Cancel a working order from the UI | feat/cancel-order | done | - |
 | T-032 The assistant answers: local model first (Ollama) | feat/ai-chat-local | done | - |
 | T-033 Chart pan + older-history paging | feat/chart-pan | done | - |
-| T-034 Indicator seam MVP (a plugin draws an SMA overlay) | feat/indicators | queued | — |
+| T-034 Indicator seam MVP (a plugin draws an SMA overlay) | feat/indicators | done | - |
 | T-035 Chart axis labels clip at the canvas edges + zoom never re-buckets the axes (user-reported) | fix/chart-axes | done | — |
 | T-036 Chart history depth + candle-size cap (user-reported: W1/MN render one full-width candle) | fix/chart-history | done | — |
 | T-037 Exchange-grade time axis: density, calendar anchors, year labels (user-reported) | feat/time-grid | done | — |
@@ -46,6 +46,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-039 Symbol favorites (star badge, pinned on top) + hiding pairs (user idea) | feat/symbol-favorites | queued | - |
 | T-040 MCP server settings in the settings window (user idea) | feat/mcp-settings | queued | - |
 | T-041 Telegram trade notifications (user idea, post-beta) | feat/telegram-notifier | queued | - |
+| T-042 Settings window polish: the time-format label collision + the SMA tooltip (user-reported) | feat/settings-window-polish | queued | - |
 
 ---
 
@@ -629,6 +630,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** the seam + loader (App/Infrastructure services), the SMA assembly, the overlay render in `CandlestickChart`, the settings section, tests.
 - **Acceptance:** probe: SMA(N) renders over BTC/USDT (visually distinguishable overlay line via screenshot probe), toggling off removes it, a bad assembly warns without crashing, the settings round-trip.
 - **Tests:** the SMA golden vectors, the loader good/bad/missing matrix, the overlay point mapping (reuses the T-028 price↔pixel helpers if they landed).
+- **Status:** done. Canon: the merge commit `5c248b6` is on develop (the user merged `origin/feat/indicators`, branch tip `5d58502`). The seam ships as the `ZettaTrade.Charting` contracts + the first plugin assembly (`ZettaTrade.Plugins.Sma`) scanned from the plugins directory by the Infrastructure catalog (the ctor(int) convention, garbage dlls warn and skip); the chart recomputes the enabled rows on every delivery/prepend/settings change and draws the amber polyline over the candles; the settings window owns the SMA enable + period row (an unparsable period skips the row with a warning, nothing defaults). Probe `PROBE PASSED` (`t034-probe.ps1`, UIA + Serilog needles + amber-pixel sampling): the scan registers SMA and the overlay renders (909 amber pixels), the toggle-off removes it LIVE (909 to 0) and persists `"enabled":false`, a garbage dll warns without breaking the chart, the re-enable brings it back live with `"enabled":true` persisted.
 
 ## T-035 — Fix the clipped chart axis labels + adaptive axis labels on zoom (user-reported)
 
@@ -697,3 +699,13 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
+
+## T-042 — Settings window polish: the time-format label collision + the SMA tooltip (user-reported)
+
+- **Branch:** queued 2026-11-04 (user report right after the T-034 merge: «В настройках на текст "формат времени" налезает комбобокс. И к sma бы какой-нибудь тултип с описанием что это такое»)
+- **Origin:** the T-034 settings row added a fourth grid row whose longest label ("Формат времени") no longer fits the fixed 110 px label column — the combo overlaps the text; the new SMA row renders a bare "SMA" checkbox with no hint of what the indicator is.
+- **What:** the settings grid's label column sizes to its content (Auto + a column gap) instead of the fixed 110 px, so every language's labels clear their controls; the SMA checkbox carries a tooltip (a wrapped localized sentence) explaining the simple moving average.
+- **Scope:** `SettingsWindow.axaml` (grid columns, ToolTip.Tip), resx `Chart.Indicators.SmaTip` en+ru.
+- **Acceptance:** probe (the T-030/T-038 settings harness): in BOTH en and ru the time-format label's UIA rect intersects no combo rect; hovering the SMA checkbox pops the tooltip with the localized text (en asserted by text, ru by the resx-extracted prefix + screenshot).
+- **Tests:** no VM logic changes; the resx keys land in both languages.
+- **Status:** queued
