@@ -52,6 +52,18 @@ public sealed record OrderRequest
     /// <exception cref="InvalidOperationException">Thrown if validation fails.</exception>
     public void Validate()
     {
+        // Enum definedness: a record programmatically built with an out-of-set
+        // value (e.g. a numeric ride-through) must fail loudly here — never
+        // flow on as valid toward execution (BUG-007).
+        if (!Enum.IsDefined(Side))
+            throw new InvalidOperationException($"Undefined order side: {Side}.");
+
+        if (!Enum.IsDefined(Type))
+            throw new InvalidOperationException($"Undefined order type: {Type}.");
+
+        if (!Enum.IsDefined(TimeInForce))
+            throw new InvalidOperationException($"Undefined time-in-force: {TimeInForce}.");
+
         if (TimeInForce == TimeInForce.GTD && Expiry == null)
             throw new InvalidOperationException("Expiry is required for GTD orders.");
 
