@@ -29,7 +29,7 @@
             <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
         </Style>
         <Style Selector="Button.pair-star.on">
-            <Setter Property="Foreground" Value="Gold"/>
+            <Setter Property="Foreground" Value="{DynamicResource Highlight}"/>
         </Style>
     </Window.Styles>
 

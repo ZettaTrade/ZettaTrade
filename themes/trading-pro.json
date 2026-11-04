@@ -14,7 +14,9 @@
     "CandleUp": "#22c55e",
     "CandleDown": "#ef4444",
     "ChartBackground": "#0f172a",
-    "ChartGrid": "#1e293b"
+    "ChartGrid": "#1e293b",
+    "Highlight": "#ffd700",
+    "Error": "#ef4444"
   },
   "previewColors": ["#0a0e17", "#111827", "#1f2937", "#10b981"]
 }

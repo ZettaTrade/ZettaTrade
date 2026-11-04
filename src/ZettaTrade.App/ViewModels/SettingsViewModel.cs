@@ -815,7 +815,7 @@ public sealed class SettingsViewModel : ReactiveObject
         return NoSelection;
     }
 
-    /// <summary>Index of the applied language in AvailableLanguages: exact code, then two-letter fallback ("ru-RU" -&gt; "ru").</summary>
+    /// <summary>Index of the applied language in AvailableLanguages: exact code, then two-letter fallback ("ru-RU" -> "ru").</summary>
     private int IndexOfAppliedLanguage()
     {
         var languages = _localization.AvailableLanguages;
