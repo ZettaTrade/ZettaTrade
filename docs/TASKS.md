@@ -50,7 +50,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-043 Settings window: split the sections into tabs (user-reported) | feat/settings-tabs | done | - |
 | T-044 UI color hygiene: XAML literals and HTML entities out, colors into constants/themes (supervisor-direct) | feat/ui-colors | done | - |
 | T-045 Workflow bookkeeping codified: develop-based branches, TASKS.md statuses, app version bump | feat/skill-rules | done | - |
-| T-046 [Critical] DPAPI secret store wipes all stored secrets after a silent load failure (BUG-001) | fix/dpapi-store-wipe | queued | - |
+| T-046 [Critical] DPAPI secret store wipes all stored secrets after a silent load failure (BUG-001) | feat/dpapi-store-wipe | done | - |
 | T-047 [Critical] MCP server drops every response for numeric JSON-RPC ids (BUG-002) | fix/mcp-numeric-ids | queued | - |
 | T-048 [Critical] Bybit reconnect resubscribes cancel each other (reconnect churn with 2+ symbols) (BUG-003) | fix/bybit-resubscribe | queued | - |
 | T-049 Secret stores: silent data loss and rule violations across DPAPI/Keychain/secret-tool/encrypted file | fix/secrets-stores | queued | - |
@@ -123,12 +123,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-046 — DPAPI secret store wipes all stored secrets after a silent load failure (BUG-001, Critical)
 
-- **Branch:** queued 2026-11-04 (findings of the 2026-11-04 code review; full definitions and line references live in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/dpapi-store-wipe (findings of the 2026-11-04 code review; full definitions and line references live in `docs/CODE_REVIEW.md`)
 - **Origin:** the secret store is the last line of defense for user keys; a silent wipe destroys every stored secret on the first corrupt file - the exact scenario the trading-safety rule "never overwrite encrypted secrets when decryption fails" forbids.
 - **What:** `BUG-001` - `WindowsDpapiSecretStore.LoadStoreAsync` logs and swallows every load failure (corrupt JSON, invalid base64, transient read error) and continues with an empty/partial `_cache`; the very next `SetAsync` -> `SaveStoreAsync` rewrites the whole file from that cache, permanently destroying all previously stored secrets. `InitializeAsync` never surfaces the failure.
 - **Scope:** `src/ZettaTrade.Infrastructure/Secrets/WindowsDpapiSecretStore.cs` (a failure-surfacing path out of `InitializeAsync`; if an interface change is needed, escalate).
 - **Acceptance:** a corrupt/truncated/unreadable store file fails loudly at initialization and is never overwritten by a subsequent `SetAsync`; secrets become unusable-not-lost (an explicit error surfaced, a logged condition); the happy path is unchanged.
 - **Tests:** the load-failure matrix (missing / corrupt JSON / bad base64 / locked file) with the no-wipe invariant pinned (after a failed load, a `SetAsync` attempt leaves the file byte-identical and reports the error).
+- **Status:** done. Canon: commit `d6896a2` is on feat/dpapi-store-wipe; the load-failure matrix (corrupt/truncated JSON, invalid base64, locked file) + the happy-path roundtrip pass and the Initialize failure surfaces loudly (the store then refuses all operations; the on-disk secrets are never overwritten). The optional explicit `storePath` constructor override is a test seam (the interface is unchanged). Wave note: the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-047 — MCP server drops every response for numeric JSON-RPC ids (BUG-002, Critical)
 
