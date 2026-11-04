@@ -97,16 +97,29 @@
             <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="10">
                 <CheckBox Content="SMA"
                           IsChecked="{Binding IsSmaEnabled}"
-                          VerticalAlignment="Center">
-                    <!-- The tooltip explains the indicator to a trader who has
-                         never met the acronym; the text wraps so a long
-                         translation stays readable. -->
+                          VerticalAlignment="Center" />
+                <!-- The info affordance: the tooltip lives HERE, not on the
+                     checkbox, so the icon itself signals that an explanation
+                     is available. The text wraps so a long translation stays
+                     readable. -->
+                <Border Width="16" Height="16"
+                        CornerRadius="8"
+                        Background="Transparent"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                        VerticalAlignment="Center">
                     <ToolTip.Tip>
-                        <TextBlock MaxWidth="320"
+                        <TextBlock MaxWidth="260"
                                    Text="{loc:Localized Chart.Indicators.SmaTip}"
                                    TextWrapping="Wrap" />
                     </ToolTip.Tip>
-                </CheckBox>
+                    <TextBlock Text="i"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Border>
                 <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
                            VerticalAlignment="Center" />
                 <TextBox Text="{Binding SmaPeriodText}"
