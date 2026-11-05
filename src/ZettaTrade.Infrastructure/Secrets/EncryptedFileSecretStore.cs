@@ -20,6 +20,13 @@ public sealed class EncryptedFileSecretStore : ISecretStore
     private const int TagSizeBytes = 16;
     private const int SaltSizeBytes = 32;
 
+    /// <summary>
+    /// The smallest file size a valid store can have (nonce + at least one
+    /// byte of ciphertext + tag); anything shorter is truncated content, not
+    /// an empty store — an empty store is a MISSING file.
+    /// </summary>
+    private const int MinimumFileSizeBytes = NonceSizeBytes + TagSizeBytes;
+
     private readonly string _filePath;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -30,10 +37,15 @@ public sealed class EncryptedFileSecretStore : ISecretStore
     /// <summary>
     /// Create a new EncryptedFileSecretStore instance.
     /// </summary>
-    public EncryptedFileSecretStore(ILogger logger)
+    /// <param name="logger">The logger.</param>
+    /// <param name="filePath">
+    /// Optional explicit store file path override (a test seam). Defaults to
+    /// <c>secrets.enc</c> inside <see cref="ConfigPathResolver.DataDirectory"/>.
+    /// </param>
+    public EncryptedFileSecretStore(ILogger logger, string? filePath = null)
     {
         _logger = logger;
-        _filePath = Path.Combine(ConfigPathResolver.DataDirectory, "secrets.enc");
+        _filePath = filePath ?? Path.Combine(ConfigPathResolver.DataDirectory, "secrets.enc");
     }
 
     /// <summary>
@@ -169,26 +181,33 @@ public sealed class EncryptedFileSecretStore : ISecretStore
         if (!File.Exists(_filePath) || _encryptionKey is null)
             return;
 
+        var encryptedData = await File.ReadAllBytesAsync(_filePath, ct);
+
+        // A too-short file is TRUNCATED CONTENT, never an empty store: an
+        // empty store is a missing file, which the missing-file branch above
+        // already handles. Starting fresh here would mark the store healthy
+        // on unreadable bytes, so the next SetAsync would overwrite the
+        // undecryptable file — the standing never-overwrite rule forbids
+        // exactly that (BUG-041), so the corruption surfaces loudly instead.
+        if (encryptedData.Length < MinimumFileSizeBytes)
+        {
+            _logger.LogError(
+                "The encrypted secret store file {Path} is truncated ({Length} bytes < {Minimum}): the store refuses to start fresh so the unreadable content is never overwritten",
+                _filePath,
+                encryptedData.Length,
+                MinimumFileSizeBytes);
+            throw new InvalidOperationException(
+                $"The encrypted secret store file '{_filePath}' is truncated or corrupt "
+                + $"({encryptedData.Length} bytes < {MinimumFileSizeBytes}). Fix or remove the store "
+                + "file, then re-initialize; the store never overwrites the unreadable content.");
+        }
+
         try
         {
-            var encryptedData = await File.ReadAllBytesAsync(_filePath, ct);
-
-            if (encryptedData.Length < NonceSizeBytes)
-            {
-                _logger.LogWarning("Secret store file is too small, starting fresh");
-                return;
-            }
-
             var nonce = encryptedData[..NonceSizeBytes];
             var ciphertextWithTag = encryptedData[NonceSizeBytes..];
 
             using var aes = new AesGcm(_encryptionKey, TagSizeBytes);
-
-            if (ciphertextWithTag.Length < TagSizeBytes)
-            {
-                _logger.LogWarning("Secret store file is corrupted, starting fresh");
-                return;
-            }
 
             var ciphertext = ciphertextWithTag[..^TagSizeBytes];
             var tag = ciphertextWithTag[^TagSizeBytes..];
