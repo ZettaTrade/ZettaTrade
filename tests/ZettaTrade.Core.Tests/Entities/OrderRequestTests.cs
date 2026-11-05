@@ -124,4 +124,47 @@ public sealed class OrderRequestTests
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*Quantity*positive*");
     }
+
+    [Fact]
+    public void Validate_UndefinedSide_ShouldThrow()
+    {
+        // Arrange: a numeric ride-through casts to an out-of-set member —
+        // Validate is the last line refusing it toward execution (BUG-007).
+        var request = ValidOrder() with { Side = (OrderSide)999 };
+
+        // Act
+        var act = request.Validate;
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*side*999*");
+    }
+
+    [Fact]
+    public void Validate_UndefinedType_ShouldThrow()
+    {
+        // Arrange
+        var request = ValidOrder() with { Type = (OrderType)777 };
+
+        // Act
+        var act = request.Validate;
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*type*777*");
+    }
+
+    [Fact]
+    public void Validate_UndefinedTimeInForce_ShouldThrow()
+    {
+        // Arrange
+        var request = ValidOrder() with { TimeInForce = (TimeInForce)123 };
+
+        // Act
+        var act = request.Validate;
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*time-in-force*123*");
+    }
 }
