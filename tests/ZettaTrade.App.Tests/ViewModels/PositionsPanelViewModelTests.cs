@@ -1,7 +1,9 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
+using System.Globalization;
 using System.Linq;
+using System.Net.Http;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +23,10 @@ using ZettaTrade.Infrastructure.Persistence;
 /// precomputed display rows, and every cancellation goes through the
 /// confirmation and passes the order's own symbol and id to the adapter
 /// (the Symbol-first contract). An order not in an active status is never
-/// cancellable.
+/// cancellable. Every load or cancel fault reaches the user as a localized
+/// error line (no silently stale sections, no unobserved command
+/// exceptions), and one order renders the same wall-clock time in the panel
+/// and in the order history window.
 /// </summary>
 public sealed class PositionsPanelViewModelTests
 {
@@ -90,13 +95,18 @@ public sealed class PositionsPanelViewModelTests
         // Act
         await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
 
-        // Assert: positions carry localized, precomputed display values.
+        // Assert: positions carry localized, precomputed display values. The
+        // time expectation derives from the same fixture the row built from
+        // and converts to the local zone — zone-agnostic on any runner.
+        var expectedOpened = BuildPosition("BTC/USDT").OpenedAt
+            .ToLocalTime()
+            .ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture);
         viewModel.Positions.Should().HaveCount(1);
         viewModel.Positions[0].Symbol.Should().Be("BTC/USDT");
         viewModel.Positions[0].Side.Should().Be("[Order.Buy]");
         viewModel.Positions[0].Quantity.Should().Be("0.01");
         viewModel.Positions[0].EntryPrice.Should().Be("50000.00000000");
-        viewModel.Positions[0].Opened.Should().Be("2026-01-01 12:00");
+        viewModel.Positions[0].Opened.Should().Be(expectedOpened);
         viewModel.HasPositions.Should().BeTrue();
 
         viewModel.OpenOrders.Should().HaveCount(1);
@@ -150,6 +160,59 @@ public sealed class PositionsPanelViewModelTests
         // Assert
         viewModel.ErrorMessage.Should().Contain("Positions.LoadFailed").And.Contain("adapter offline");
         viewModel.HasErrorMessage.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// BUG-054: a load failure is not limited to validation refusals — the
+    /// read reaches the trading adapter over the network, so it can surface
+    /// as an <see cref="HttpRequestException"/> or as a
+    /// <see cref="TaskCanceledException"/> (the HttpClient timeout's shape).
+    /// Every one of them lands as the localized error line instead of
+    /// escaping into the unobserved ThrownExceptions (silently stale or
+    /// empty sections).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LoadCommand_WhenTheNetworkFails_ShowsLoadFailedError(bool isConnectionFault)
+    {
+        var viewModel = CreateViewModel();
+        _trading.GetOpenOrdersAsync().Returns([]);
+        _trading.GetPositionsAsync().Returns(_ => isConnectionFault
+            ? Task.FromException<IReadOnlyList<Position>>(new HttpRequestException("wire down"))
+            : Task.FromException<IReadOnlyList<Position>>(new TaskCanceledException("the request timed out")));
+
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().Contain("Positions.LoadFailed");
+        viewModel.HasErrorMessage.Should().BeTrue();
+        viewModel.Positions.Should().BeEmpty("a failed load reports instead of showing stale data");
+    }
+
+    /// <summary>
+    /// BUG-054: the cancellation request rides the same network surface and
+    /// can die on the wire; the panel reports it localized, keeps the
+    /// success line clear and never writes the terminal history state.
+    /// </summary>
+    [Fact]
+    public async Task CancelCommand_WhenTheNetworkFails_ShowsCancelFailedError()
+    {
+        var viewModel = CreateViewModel();
+        _journal.RecordPlaced(BuildOrder("paper-1", OrderStatus.Pending, "ETH/USDT"));
+        _trading.GetOpenOrdersAsync().Returns([]);
+        _trading.GetPositionsAsync().Returns([]);
+        _trading.CancelOrderAsync(Arg.Any<Symbol>(), Arg.Any<string>())
+            .Returns(_ => Task.FromException(new HttpRequestException("wire down")));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        await viewModel.RecentOrders.Single().CancelCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().Contain("Positions.CancelFailed").And.Contain("wire down");
+        viewModel.ResultMessage.Should().BeNull();
+        await _history.DidNotReceive().MarkCancelledAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -361,6 +424,41 @@ public sealed class PositionsPanelViewModelTests
         row.CancelCommand.CanExecute
             .Subscribe(value => canExecute = value);
         canExecute.Should().Be(expected);
+    }
+
+    /// <summary>
+    /// BUG-055: the same order must render the same wall-clock time in the
+    /// positions panel and in the order history window — one
+    /// UTC-to-local-time convention across the two windows (the panel used
+    /// to print the raw UTC field). The assertion is zone-agnostic: both
+    /// rows render in the runner's local zone and compare equal.
+    /// </summary>
+    [Fact]
+    public async Task TheSameOrder_RendersTheSameOpenedTime_InThePanelAndTheHistory()
+    {
+        // Arrange: one fixed true-UTC order, visible to both consumers —
+        // the panel reads the session journal, the history window reads the
+        // persistent store.
+        var order = BuildOrder("paper-1", OrderStatus.Pending, "ETH/USDT");
+        _journal.RecordPlaced(order);
+        _trading.GetOpenOrdersAsync().Returns([]);
+        _trading.GetPositionsAsync().Returns([]);
+        _history.GetRecentAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([order]);
+
+        var viewModel = CreateViewModel();
+        var history = new OrderHistoryViewModel(
+            _history,
+            _localization,
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderHistoryViewModel>>());
+
+        // Act: both windows load the same order.
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        await history.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: identical precomputed time strings.
+        viewModel.RecentOrders.Single(row => row.OrderId == "paper-1").Opened
+            .Should().Be(history.Rows.Single().Opened);
     }
 
     private static string FormatArgs(object[] args) => string.Join("|", args);

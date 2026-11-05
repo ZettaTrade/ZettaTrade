@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -36,6 +35,12 @@ using ZettaTrade.Core.ValueObjects;
 /// <see cref="ChartViewModel.ApplyBootstrapForFactsAsync"/> where a fact
 /// needs the exchange's list on the VM.
 /// </summary>
+/// <remarks>
+/// Runs inside <see cref="AvaloniaDispatcherSerialCollection"/> (the
+/// process-wide Avalonia dispatcher pin this class's static constructor
+/// establishes must stay exclusive).
+/// </remarks>
+[Collection("AvaloniaDispatcherSerial")]
 public sealed class ChartViewModelTests
 {
     #region Fake Adapter
@@ -228,33 +233,15 @@ public sealed class ChartViewModelTests
 
     /// <summary>
     /// The chart facts are UI-marshal invariant by contract: the bootstrap
-    /// apply rides <c>ObserveOnUiThread</c>, whose Avalonia dispatcher
-    /// behavior depends on which thread first touches it. Pin the
-    /// test-process dispatcher to a foreign owner thread ONCE, so every
-    /// test thread is off-owner and the apply mode is deterministically
+    /// apply rides <c>ObserveOnUiThread</c>, and the process-wide dispatcher
+    /// ownership is claimed ONCE by <see cref="AvaloniaDispatcherPump"/> —
+    /// every test thread is off-owner, so the apply mode is deterministically
     /// "posted and never pumped" (an xUnit method can otherwise run on any
-    /// thread pool thread, making the same facts order-dependent).
+    /// thread pool thread, making the same facts order-dependent). Nothing
+    /// in these facts drains the dispatcher; the pre-drain frozen state is
+    /// every assert's world.
     /// </summary>
-    static ChartViewModelTests()
-    {
-        using var pinned = new ManualResetEventSlim(false);
-        var initializer = new Thread(() =>
-        {
-            try
-            {
-                _ = Avalonia.Threading.Dispatcher.UIThread;
-            }
-            finally
-            {
-                pinned.Set();
-            }
-        })
-        {
-            IsBackground = true,
-        };
-        initializer.Start();
-        pinned.Wait();
-    }
+    static ChartViewModelTests() => AvaloniaDispatcherPump.EnsureInstalled();
 
     [Fact]
     public void Ctor_StartsTheSymbolsLoadWithoutActivation()

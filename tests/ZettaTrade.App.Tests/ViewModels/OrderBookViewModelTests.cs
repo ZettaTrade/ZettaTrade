@@ -26,6 +26,9 @@ using ZettaTrade.Core.ValueObjects;
 /// </summary>
 public sealed class OrderBookViewModelTests
 {
+    /// <summary>The marshal path posts to the shared dispatcher; install the deterministic pump world once.</summary>
+    static OrderBookViewModelTests() => AvaloniaDispatcherPump.EnsureInstalled();
+
     #region Fake Adapter
 
     /// <summary>

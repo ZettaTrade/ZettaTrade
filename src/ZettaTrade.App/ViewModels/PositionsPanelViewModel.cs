@@ -252,8 +252,14 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             // Refresh the sections so the cancelled order leaves the lists.
             await ReloadSectionsAsync();
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex)
         {
+            // Broader than the adapter's validation refusals: the cancel
+            // reaches the trading adapter over the same surface a network
+            // request rides, so a failed cancellation can surface as
+            // anything. Every failure lands as the localized error line
+            // instead of escaping to an unobserved
+            // ReactiveCommand.ThrownExceptions (stale lists, silent panel).
             _logger.LogError(ex, "Positions panel: cancellation failed");
             ErrorMessage = _localization.GetString(CancelFailedKey, ex.Message);
         }
@@ -281,8 +287,13 @@ public sealed class PositionsPanelViewModel : ReactiveObject
                 OpenOrders.Count,
                 RecentOrders.Count);
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex)
         {
+            // Broader than the adapter's validation refusals — same class of
+            // surface as the cancel path above: a load failure can be a
+            // network request as easily as a validation fault, and the
+            // panel must report it instead of showing stale/empty sections
+            // silently (unobserved ThrownExceptions are no reporting).
             _logger.LogError(ex, "Positions panel: load failed");
             ErrorMessage = _localization.GetString(LoadFailedKey, ex.Message);
         }
@@ -295,7 +306,11 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         Side = _localization.GetString($"Order.{position.Side}"),
         Quantity = position.Quantity.Value.ToString(CultureInfo.InvariantCulture),
         EntryPrice = position.EntryPrice.Value.ToString("F8", CultureInfo.InvariantCulture),
-        Opened = position.OpenedAt.ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
+
+        // The journal stores UTC; the display follows the local wall clock —
+        // the one convention the order history window renders too, so the
+        // same order shows the same time in both windows (BUG-055).
+        Opened = position.OpenedAt.ToLocalTime().ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
     };
 
     /// <summary>
@@ -318,7 +333,11 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             Quantity = order.Quantity.Value.ToString(CultureInfo.InvariantCulture),
             Price = order.Price.Value.ToString("F8", CultureInfo.InvariantCulture),
             Status = _localization.GetString($"Positions.Status{order.Status}"),
-            Opened = order.CreatedAt.ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
+
+            // The stored stamp is UTC; display converts to the local wall
+            // clock, the convention shared with the order history window
+            // (bug BUG-055: the panel used to print the raw UTC field).
+            Opened = order.CreatedAt.ToLocalTime().ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
             IsCancellable = isCancellable,
             CancelCommand = ReactiveCommand.CreateFromTask(
                 () => HandleCancelAsync(order),

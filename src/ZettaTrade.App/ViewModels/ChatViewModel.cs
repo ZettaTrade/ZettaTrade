@@ -92,21 +92,27 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         // Persist every user flip immediately (the same real-difference
-        // discipline the settings window applies): the cache is updated only
-        // when the write lands, so the restore's assignment (cached BEFORE
-        // the property is set) and the changes-stream echo never rewrite.
+        // discipline the settings window applies): the cache LEADS the
+        // pipeline — it is updated at ISSUE time, in issuance order
+        // (WhenAnyValue delivers on the calling thread, so property changes
+        // order the pipeline) and the writes serialize behind it — while
+        // the completion order of concurrent writes is out of our control.
+        // The pre-fix completion-driven cache made a stale value visible to
+        // the real-difference filter during an in-flight write: a rapid
+        // toggle-pair whose writes completed out of order could leave the
+        // second toggle dropped, so the settings file kept the older value
+        // and the restart restored the old visibility (BUG-053).
         this.WhenAnyValue(x => x.IsAiChatVisible)
             .Skip(1)
             .Where(value => value != _persistedShowAiPanel)
-            .SelectMany(value => Observable
-                .FromAsync(() => _settings.SetAsync(
-                    UiSettingsKeys.Section,
-                    UiSettingsKeys.ShowAiPanel,
-                    value))
+            .Do(value => _persistedShowAiPanel = value)
+            .Select(value => Observable
+                .FromAsync(() => SetShowAiPanelAsync(value))
                 .Select(_ => value))
+            .Concat()
             .Subscribe(
-                issuedValue => _persistedShowAiPanel = issuedValue,
-                ex => _logger.LogError(ex, "Failed to persist the AI panel visibility"));
+                _ => { },
+                ex => _logger.LogError(ex, "The AI panel visibility pipeline stopped unexpectedly"));
 
         // External writers apply live: the cache leads the property change so
         // the persistence pipeline above sees an equal value and skips it.
@@ -131,6 +137,36 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
                 x => x.AiChatInput,
                 x => x.IsBusy,
                 (input, busy) => !string.IsNullOrWhiteSpace(input) && !busy));
+    }
+
+    #endregion
+
+    #region Persistence
+
+    /// <summary>
+    /// One serialized persistence write for the AI panel visibility. A
+    /// failed write is logged and swallowed HERE (not at the stream): the
+    /// pipeline keeps serving later flips instead of dying on the first
+    /// fault. The issued value stays cached after a failure — the file
+    /// catches up with the property on the next real difference (the
+    /// failure is visible in the log, the panel stays responsive with the
+    /// trader's choice).
+    /// </summary>
+    /// <param name="visible">The issued visibility to persist.</param>
+    /// <returns>The completed write.</returns>
+    private async Task SetShowAiPanelAsync(bool visible)
+    {
+        try
+        {
+            await _settings.SetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ShowAiPanel,
+                visible);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist the AI panel visibility");
+        }
     }
 
     #endregion
