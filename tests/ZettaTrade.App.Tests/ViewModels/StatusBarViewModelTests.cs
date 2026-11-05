@@ -20,8 +20,20 @@ using ZettaTrade.Core.Interfaces;
 /// localized notice in the connection chip for a bounded window and is not
 /// silently overwritten by a regular state refresh before it expires.
 /// </summary>
+/// <remarks>
+/// Runs inside <see cref="AvaloniaDispatcherSerialCollection"/>: the
+/// fallback-notice writes ride <c>ObserveOnUiThread</c>, so their only
+/// execution path is the process-wide owner thread — the
+/// <see cref="AvaloniaDispatcherPump"/> every drain of these facts rides.
+/// Drains and assertions of different facts in the collection must stay
+/// serialized, which the collection guarantees.
+/// </remarks>
+[Collection("AvaloniaDispatcherSerial")]
 public sealed class StatusBarViewModelTests
 {
+    /// <summary>The notice facts drain through the pump; claim it once, before any fact.</summary>
+    static StatusBarViewModelTests() => AvaloniaDispatcherPump.EnsureInstalled();
+
     private static readonly ThemeInfo[] Themes =
     [
         new("dark", "Dark", true, []),
@@ -242,14 +254,28 @@ public sealed class StatusBarViewModelTests
         viewModel.UpdateConnectionStatus(true);
 
         // Act: the restore cannot honor the persisted choice and falls back.
+        // BUG-018 discipline: the notice write is POSTED to the UI thread,
+        // so BEFORE any drain nothing landed (the pre-fix code wrote the
+        // chip inline on the emitting thread).
         await service.InitializeAsync();
 
-        viewModel.ConnectionStatus.Should().Be("Saved exchange unavailable", "the fallback warning owns the chip");
+        viewModel.ConnectionStatus.Should().Be("Connected", "a posted notice cannot write the chip before the drain");
 
-        // The expiry is a thread-pool timer; under the full suite (four test
-        // processes in parallel) the scheduling can slip by tens of
-        // milliseconds at a burst — thirteen windows is a safe margin.
+        await AvaloniaDispatcherPump.DrainAsync();
+        viewModel.ConnectionStatus.Should().Be("Saved exchange unavailable", "the fallback warning owns the chip once its post executes");
+
+        // The expiry is a thread-pool timer; the 800 ms wait (the suite runs
+        // under sparse parallel processes) far exceeds the 60 ms window.
         await Task.Delay(800);
+
+        // BUG-018 discipline: the 60 ms expiry timer elapsed above, yet the
+        // chip still shows the notice — the timer thread wrote nothing; its
+        // refresh is posted to the dispatcher like every other write.
+        viewModel.ConnectionStatus.Should().Be(
+            "Saved exchange unavailable",
+            "an elapsed expiry timer must not write the chip from its own thread");
+
+        await AvaloniaDispatcherPump.DrainAsync();
 
         viewModel.ConnectionStatus.Should().Be("Connected", "the notice expires within the configured window");
     }
@@ -259,23 +285,40 @@ public sealed class StatusBarViewModelTests
     {
         // Arrange: the connection poll's first state report usually lands on
         // top of the notice — the loud warning must not be silently replaced.
+        // The window is a generous two seconds: the state report the fact
+        // drives must land DETERMINISTICALLY inside it (a 60 ms window used
+        // to be eaten between the pump drain and the report under the
+        // parallel full-suite load).
         _settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
             .Returns("gamma");
         _localizationManager.GetString("Status.ExchangeFallback").Returns("Saved exchange unavailable");
         _localizationManager.GetString("Status.Connected").Returns("Connected");
 
         var service = CreateService();
-        var viewModel = CreateViewModel(service, TimeSpan.FromMilliseconds(60));
+        var viewModel = CreateViewModel(service, TimeSpan.FromMilliseconds(2000));
 
         await service.InitializeAsync();
+
+        // BUG-018 discipline: the notice post has not executed — the chip is
+        // still in its untouched nothing-report state.
+        viewModel.ConnectionStatus.Should().BeEmpty("the posted notice waits for the dispatcher, unmarshaled writes would have landed already");
+
+        await AvaloniaDispatcherPump.DrainAsync();
+
         viewModel.ConnectionStatus.Should().Be("Saved exchange unavailable");
 
-        // Act: the state report arrives during the notice window.
+        // Act: the regular state report arrives during the notice window.
         viewModel.UpdateConnectionStatus(true);
 
         viewModel.ConnectionStatus.Should().Be("Saved exchange unavailable", "the regular refresh cannot overwrite the notice");
 
-        await Task.Delay(800);
+        await Task.Delay(2300);
+
+        viewModel.ConnectionStatus.Should().Be(
+            "Saved exchange unavailable",
+            "the expired timer's refresh is posted to the dispatcher, not executed from the timer thread");
+
+        await AvaloniaDispatcherPump.DrainAsync();
 
         viewModel.ConnectionStatus.Should().Be("Connected", "after expiry the regular chip text re-derives");
     }

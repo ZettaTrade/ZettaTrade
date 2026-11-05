@@ -19,6 +19,13 @@ using ZettaTrade.UI.Resources;
 /// language switch rewrites only the UI thread's culture) — an ambient read
 /// there was the mixed-language axis defect.
 /// </summary>
+/// <remarks>
+/// Runs in the localization-singleton collection: this fact resolves
+/// through <see cref="LocalizationManager"/>.Instance (the static), so any
+/// other manager-creating fact running concurrently would resolve the
+/// wrong instance's just-switched language.
+/// </remarks>
+[Collection("LocalizationManagerSingleton")]
 public sealed class ChartTickCultureTests
 {
     /// <summary>

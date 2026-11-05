@@ -38,6 +38,9 @@ public sealed class BybitAdapterResubscribeTests
     /// </summary>
     private static readonly TimeSpan ConnectionStabilityWait = TimeSpan.FromSeconds(2);
 
+    /// <summary>The order book depth the adapter subscribes (its spot depth topics: 1 and 50 — the depth contract is explicit since BUG-032).</summary>
+    private const int DepthLevelCount = 50;
+
     /// <summary>The exchange identity the adapter reports.</summary>
     private const string BybitId = "bybit";
 
@@ -81,13 +84,13 @@ public sealed class BybitAdapterResubscribeTests
         var server = stack.Server;
 
         var btcBooksTask = stack.Adapter
-            .SubscribeOrderBook(BtcUsdt)
+            .SubscribeOrderBook(BtcUsdt, DepthLevelCount)
             .Take(4)
             .ToList()
             .ToTask(TaskCreationOptions.RunContinuationsAsynchronously)
             .WaitAsync(EventWait);
         var ethBooksTask = stack.Adapter
-            .SubscribeOrderBook(EthUsdt)
+            .SubscribeOrderBook(EthUsdt, DepthLevelCount)
             .Take(2)
             .ToList()
             .ToTask(TaskCreationOptions.RunContinuationsAsynchronously)

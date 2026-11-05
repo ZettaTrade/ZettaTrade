@@ -68,9 +68,7 @@ public static class ConfigPathResolver
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ApplicationConstants.ApplicationName);
         if (OperatingSystem.IsMacOS())
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", ApplicationConstants.ApplicationName);
-        var xdg = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
-        return Path.Combine(xdg, ApplicationConstants.ApplicationName);
+        return LinuxConfigRoot(Environment.GetEnvironmentVariable("XDG_CONFIG_HOME"));
     }
 
     private static string GetDataRoot()
@@ -79,19 +77,57 @@ public static class ConfigPathResolver
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), ApplicationConstants.ApplicationName);
         if (OperatingSystem.IsMacOS())
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", ApplicationConstants.ApplicationName);
-        var xdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share");
-        return Path.Combine(xdg, ApplicationConstants.ApplicationName);
+        return LinuxDataRoot(Environment.GetEnvironmentVariable("XDG_DATA_HOME"));
     }
 
     private static string GetStateRoot()
     {
         if (OperatingSystem.IsLinux())
         {
-            var xdg = Environment.GetEnvironmentVariable("XDG_STATE_HOME")
-                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "state");
-            return Path.Combine(xdg, ApplicationConstants.ApplicationName);
+            return LinuxStateRoot(Environment.GetEnvironmentVariable("XDG_STATE_HOME"));
         }
         return GetDataRoot();
     }
+
+    /// <summary>
+    /// One XDG root: the variable's value wins when it carries a real path,
+    /// and the platform default applies when the variable is UNSET (null),
+    /// EMPTY or whitespace-only. The pre-fix fallback (`??`) caught only
+    /// null, so an empty variable fell through and <c>Path.Combine</c>
+    /// produced a CWD-relative path — broken locations in containers and
+    /// scripts that export variables without values (BUG-044). Whitespace
+    /// counts as unset too: it is a relative path the application could
+    /// never create nor write through.
+    /// </summary>
+    /// <param name="envValue">The raw <c>XDG_*</c> variable value.</param>
+    /// <param name="defaultRoot">The spec default the empty variable
+    /// falls back to.</param>
+    internal static string ResolveXdgRoot(string? envValue, string defaultRoot) =>
+        Path.Combine(
+            string.IsNullOrWhiteSpace(envValue) ? defaultRoot : envValue,
+            ApplicationConstants.ApplicationName);
+
+    /// <summary>
+    /// The Linux configuration root from the raw <c>XDG_CONFIG_HOME</c>
+    /// value (see <see cref="ResolveXdgRoot"/> for the fallback rule). The
+    /// parameter stands in for the process environment — the facts matrix
+    /// runs on Windows, where the OS-guarded resolvers above never reach
+    /// their XDG branches.
+    /// </summary>
+    internal static string LinuxConfigRoot(string? xdgConfigHome) =>
+        ResolveXdgRoot(
+            xdgConfigHome,
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config"));
+
+    /// <summary>The Linux data root from the raw <c>XDG_DATA_HOME</c> value.</summary>
+    internal static string LinuxDataRoot(string? xdgDataHome) =>
+        ResolveXdgRoot(
+            xdgDataHome,
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share"));
+
+    /// <summary>The Linux state root from the raw <c>XDG_STATE_HOME</c> value.</summary>
+    internal static string LinuxStateRoot(string? xdgStateHome) =>
+        ResolveXdgRoot(
+            xdgStateHome,
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "state"));
 }

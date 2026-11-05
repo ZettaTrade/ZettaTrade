@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -343,6 +344,47 @@ public sealed class NewOrderDialogViewModelTests
         viewModel.ErrorMessage.Should().Contain("NewOrder.PlaceFailed");
         viewModel.ErrorMessage.Should().Contain("Insufficient simulated balance");
         closes.Should().Be(0);
+    }
+
+    /// <summary>
+    /// BUG-017: a placement can fail BELOW the validation surface — the
+    /// paper adapter reaches its reference rate over REST, so the wire
+    /// failures land in the pipeline as an <see cref="HttpRequestException"/>
+    /// or as a <see cref="TaskCanceledException"/> (the HttpClient timeout's
+    /// shape). Each must end as the localized failure (the pre-fix catch let
+    /// them escape into ThrownExceptions nothing observes — the order was
+    /// silently not placed: no message, no journal entry).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PlaceOrderCommand_WhenTheAdapterFailsOnANetworkError_ShowsLocalizedError(bool isConnectionFault)
+    {
+        var viewModel = CreateViewModel();
+        FillValidLimitOrder(viewModel);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: true));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+        _trading.PlaceOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(_ => isConnectionFault
+                ? Task.FromException<Order>(new HttpRequestException("wire down"))
+                : Task.FromException<Order>(new TaskCanceledException("the request timed out")));
+
+        var closes = 0;
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref closes);
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: error shown, dialog stays open, pipeline re-runnable.
+        viewModel.ErrorMessage.Should().Contain("NewOrder.PlaceFailed");
+        viewModel.ErrorMessage.Should().Contain(isConnectionFault ? "wire down" : "the request timed out");
+        closes.Should().Be(0, "a failed placement must not close the dialog");
     }
 
     [Fact]

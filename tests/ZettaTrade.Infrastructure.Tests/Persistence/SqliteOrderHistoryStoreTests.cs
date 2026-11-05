@@ -17,9 +17,11 @@ using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
 /// Tests for the SQLite order history store: round-trip fidelity, upsert per
-/// (ExchangeId, OrderId), newest-first reading, cancellation marking, the
-/// restart story (a fresh store instance reads another store's rows from the
-/// same file), and the "no secrets" schema white-list.
+/// (ExchangeId, OrderId), newest-first reading, cancellation marking (a live
+/// order only — a terminal recorded status is final), placement concurrency
+/// (parallel placements and the place/cancel race), the restart story (a
+/// fresh store instance reads another store's rows from the same file), and
+/// the "no secrets" schema white-list.
 /// </summary>
 public sealed class SqliteOrderHistoryStoreTests
 {
@@ -152,7 +154,10 @@ public sealed class SqliteOrderHistoryStoreTests
         await WithTempDatabaseAsync(async (_, store) =>
         {
             await store.InitializeAsync();
-            await store.RecordPlacedAsync(BuildOrder());
+            // A cancel applies to a LIVE order: the journal holds a
+            // non-terminal status first (a terminal one is final — see the
+            // matrix below).
+            await store.RecordPlacedAsync(BuildOrder(status: OrderStatus.Pending));
 
             var cancelledAt = BaseTime.AddMinutes(5);
             await store.MarkCancelledAsync("paper", "paper-1", cancelledAt);
@@ -179,6 +184,34 @@ public sealed class SqliteOrderHistoryStoreTests
         });
     }
 
+    /// <summary>
+    /// BUG-042, the terminal matrix: once a row records a final outcome
+    /// (Filled, Cancelled, Rejected or Expired), a later or duplicate cancel
+    /// for it is ignored — the status and the never-touched UpdatedAt stay
+    /// exactly as placed, so the journal carries no silent rewrites.
+    /// </summary>
+    [Theory]
+    [InlineData(OrderStatus.Filled)]
+    [InlineData(OrderStatus.Cancelled)]
+    [InlineData(OrderStatus.Rejected)]
+    [InlineData(OrderStatus.Expired)]
+    public async Task MarkCancelledAsync_TerminalRecordedStatus_IsIgnoredWithoutARewrite(
+        OrderStatus terminalStatus)
+    {
+        await WithTempDatabaseAsync(async (_, store) =>
+        {
+            await store.InitializeAsync();
+            await store.RecordPlacedAsync(BuildOrder(status: terminalStatus));
+
+            await store.MarkCancelledAsync("paper", "paper-1", BaseTime.AddMinutes(5));
+
+            var orders = await store.GetRecentAsync(50);
+            orders.Should().ContainSingle("the cancel neither creates nor duplicates rows");
+            orders[0].Status.Should().Be(terminalStatus, "a terminal outcome is final");
+            orders[0].UpdatedAt.Should().BeNull("the cancel never rewrote the row");
+        });
+    }
+
     #endregion Happy Path
 
     #region Restart
@@ -192,7 +225,7 @@ public sealed class SqliteOrderHistoryStoreTests
         await WithTempDatabaseAsync(async (file, store) =>
         {
             await store.InitializeAsync();
-            await store.RecordPlacedAsync(BuildOrder());
+            await store.RecordPlacedAsync(BuildOrder(status: OrderStatus.Pending)); // live, then cancelled
             await store.MarkCancelledAsync("paper", "paper-1", BaseTime.AddMinutes(5));
 
             var restartedStore = CreateStore(file);
@@ -206,6 +239,69 @@ public sealed class SqliteOrderHistoryStoreTests
     }
 
     #endregion Restart
+
+    #region Concurrency
+
+    /// <summary>
+    /// BUG-043, the race the bug report names: two store instances on the
+    /// SAME database file place the SAME order concurrently. Both succeed —
+    /// the true ON CONFLICT upsert decides insert-or-update on the database
+    /// side, so the check-then-act window (both FindAsync calls see null,
+    /// the second SaveChanges dies on the unique constraint) is closed. The
+    /// single row ends in one of the two recorded statuses, whichever
+    /// committed last.
+    /// </summary>
+    [Fact]
+    public async Task RecordPlacedAsync_ConcurrentPlacementsOfTheSameOrder_NeverThrowAndLeaveOneRow()
+    {
+        await WithTempDatabaseAsync(async (file, store) =>
+        {
+            await store.InitializeAsync();
+            var second = CreateStore(file);
+            await second.InitializeAsync();
+
+            var act = async () => await Task.WhenAll(
+                store.RecordPlacedAsync(BuildOrder(status: OrderStatus.Pending)),
+                second.RecordPlacedAsync(BuildOrder(status: OrderStatus.Filled)));
+            await act.Should().NotThrowAsync();
+
+            var orders = await store.GetRecentAsync(50);
+            orders.Should().ContainSingle("the (ExchangeId, OrderId) identity merged the writers");
+            orders[0].Status.Should().BeOneOf(
+                new[] { OrderStatus.Pending, OrderStatus.Filled },
+                "each completed write is a valid final state");
+        });
+    }
+
+    /// <summary>
+    /// The place/cancel race smoke inside one store: a cancel can reach the
+    /// journal while the placement of the same order is still in flight.
+    /// Both complete without throwing and the row ends precisely in one of
+    /// the two valid outcomes — Cancelled (the cancel won) or Pending (the
+    /// cancel arrived first and was ignored as unrecorded) — never a partial
+    /// write and never two rows.
+    /// </summary>
+    [Fact]
+    public async Task RecordPlacedAndMarkCancelled_RacingOnOneStore_NeverThrowAndLeaveOneConsistentRow()
+    {
+        await WithTempDatabaseAsync(async (_, store) =>
+        {
+            await store.InitializeAsync();
+
+            var act = async () => await Task.WhenAll(
+                store.RecordPlacedAsync(BuildOrder(status: OrderStatus.Pending)),
+                store.MarkCancelledAsync("paper", "paper-1", BaseTime.AddMinutes(5)));
+            await act.Should().NotThrowAsync();
+
+            var orders = await store.GetRecentAsync(50);
+            orders.Should().ContainSingle();
+            orders[0].Status.Should().BeOneOf(
+                new[] { OrderStatus.Pending, OrderStatus.Cancelled },
+                "the cancel either defers to the placement or applies on it");
+        });
+    }
+
+    #endregion Concurrency
 
     #region Schema Safety
 

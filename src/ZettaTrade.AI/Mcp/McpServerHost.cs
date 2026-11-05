@@ -256,6 +256,16 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
                         ? BuildErrorResponse(requestId, UnknownRequestErrorCode, $"Unknown method: {method}")
                         : null,
                 };
+
+                // The handlers build their envelopes unconditionally (the id
+                // travels verbatim); an id-less line is a JSON-RPC
+                // notification — processed, never answered — so its envelope
+                // is swallowed here. The error branches above already guard on
+                // HasValue, and an explicit id:null still echoes, per spec.
+                if (!requestId.HasValue)
+                {
+                    response = null;
+                }
             }
         }
         catch (JsonException ex)

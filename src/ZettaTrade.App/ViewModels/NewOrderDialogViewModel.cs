@@ -523,8 +523,16 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
             await CloseRequested.Handle(RxVoid.Default);
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex)
         {
+            // Broader than the adapter's validation refusals: the placement
+            // reaches the paper adapter over the same surface its reference
+            // rate request rides, so a failed placement can surface as a
+            // network exception (HttpRequestException, TaskCanceledException)
+            // as easily as a validation fault. Every failure lands as the
+            // localized error line instead of escaping into the unobserved
+            // ReactiveCommand.ThrownExceptions — an order silently not
+            // placed, no message, no journal entry (BUG-017).
             _logger.LogError(ex, "Order dialog: placement failed");
             ErrorMessage = _localization.GetString(PlaceFailedKey, ex.Message);
         }
