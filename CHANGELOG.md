@@ -9,6 +9,25 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.31] - 2026-11-06
+
+Build of board task T-059 (branch `feat/theme-hot-reload`).
+
+### Fixed
+- BUG-046: the theme hot-reload debounces PER FILE, so a burst saving
+  several theme files inside one debounce window reloads every one of
+  them (before: only the last-changed file reloaded); a watcher error —
+  the internal-buffer-overflow case that permanently stops the current
+  watcher's raise loop — logs a warning and re-subscribes a fresh
+  `FileSystemWatcher` instead of silently dying.
+- BUG-047: `ThemeManager.AvailableThemes` returns an immutable snapshot
+  taken under the load lock instead of the live list the reload pipeline
+  mutates — no more `InvalidOperationException` racing a consumer that
+  enumerates it.
+- BUG-050: the order book widget re-renders on theme and language
+  changes (the chart's convention), so its colors and column headers
+  follow a switch live instead of staling until the next book snapshot.
+
 ## [0.1.0-alpha.30] - 2026-11-06
 
 Build of board task T-058 (branch `feat/ui-primitives`).

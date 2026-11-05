@@ -674,6 +674,28 @@ the board and its section below.
 - **Tests:** no VM logic changes (pure view restructuring); the resx keys land in both languages.
 - **Status:** done. Canon: the merge commit `84f9d47` is on develop (the user merged `feat/settings-tabs` as a fast-forward; two commits - the tab split `5a47554` and the content breathing room `84f9d47`). The window is a TabControl now: an Appearance tab (theme, language, clock format, the themes folder + the broken-theme errors) and an Indicators tab (the SMA row; future indicator rows land one grid row each), Save/Close stay as the dialog's bottom row; each tab's content root carries a 12 DIP top margin (the theme default hugs the strip and TabControl.Padding does not reach the content presenter - verified by screenshot). The dead `Settings.Appearance` header key is removed. Probe `PROBE PASSED` (`t042-probe.ps1` extended): both tabs resolve by their localized headers, the Appearance tab keeps the no-overlap assertion, the Indicators tab reveals the SMA row and the tooltip assertions hold in en and ru.
 
+## T-044 — UI color hygiene: XAML literals and HTML entities out, colors into constants/themes (supervisor-direct)
+
+- **Branch:** feat/ui-colors (supervisor-direct task, not board-originated)
+- **What:** the two HTML-entity escapes in XML docs replaced with plain text; the Skia fallback colors named as `static readonly` constants (`CandlestickChart`, `OrderBookWidget`); the XAML carries no color literals anymore: the favorite stars consume the new `Highlight` theme key, the three error texts the new `Error` key, the chat timestamps the existing `TextSecondary`; both keys ship in every theme file plus the sample theme and the theme-key doc lists follow.
+- **Status:** done. Canon: the branch carried `9d5610e` (the refactor) + `a2f3c64` (the version cut) and landed through the merges `1c3b955` + `b58328f`; the build shipped as `0.1.0-alpha.21` (see CHANGELOG.md).
+
+## T-045 — Workflow bookkeeping codified: develop-based branches, TASKS.md statuses, app version bump (supervisor-direct)
+
+- **Branch:** feat/skill-rules (supervisor-direct task, not board-originated)
+- **What:** `AGENTS.md` and the registered skill `.opencode/skills/zettatrade/SKILL.md` carry the three bookkeeping rules: feature branches base on `develop` (`scripts/new-worktree.ps1` defaults to `main`), a task's status moves are written into `docs/TASKS.md` while they happen (board row + section), and every app-changing task cuts its alpha version in `Directory.Build.props` + a `CHANGELOG.md` section; the gate is invoked with `-BaseBranch develop`; the stale T-039 row/section flipped to done (canon `9324fd9`, branch tip `3761bc0`, shipped as `0.1.0-alpha.20`).
+- **Status:** done. Canon: commit `24d9789` is on develop. Docs-only: no version bump (rule 6).
+
+## T-046 — DPAPI secret store wipes all stored secrets after a silent load failure (BUG-001, Critical)
+
+- **Branch:** feat/dpapi-store-wipe (findings of the 2026-11-04 code review; full definitions and line references live in `docs/CODE_REVIEW.md`)
+- **Origin:** the secret store is the last line of defense for user keys; a silent wipe destroys every stored secret on the first corrupt file - the exact scenario the trading-safety rule "never overwrite encrypted secrets when decryption fails" forbids.
+- **What:** `BUG-001` - `WindowsDpapiSecretStore.LoadStoreAsync` logs and swallows every load failure (corrupt JSON, invalid base64, transient read error) and continues with an empty/partial `_cache`; the very next `SetAsync` -> `SaveStoreAsync` rewrites the whole file from that cache, permanently destroying all previously stored secrets. `InitializeAsync` never surfaces the failure.
+- **Scope:** `src/ZettaTrade.Infrastructure/Secrets/WindowsDpapiSecretStore.cs` (a failure-surfacing path out of `InitializeAsync`; if an interface change is needed, escalate).
+- **Acceptance:** a corrupt/truncated/unreadable store file fails loudly at initialization and is never overwritten by a subsequent `SetAsync`; secrets become unusable-not-lost (an explicit error surfaced, a logged condition); the happy path is unchanged.
+- **Tests:** the load-failure matrix (missing / corrupt JSON / bad base64 / locked file) with the no-wipe invariant pinned (after a failed load, a `SetAsync` attempt leaves the file byte-identical and reports the error).
+- **Status:** done. Canon: commit `13c8b86` is on feat/dpapi-store-wipe; the load-failure matrix (corrupt/truncated JSON, invalid base64, locked file) + the happy-path roundtrip pass and the Initialize failure surfaces loudly (the store then refuses all operations; the on-disk secrets are never overwritten). The optional explicit `storePath` constructor override is a test seam (the interface is unchanged). Wave note: the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
+
 ## T-047 — MCP server drops every response for numeric JSON-RPC ids (BUG-002, Critical)
 
 - **Branch:** feat/mcp-numeric-ids (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
@@ -856,6 +878,19 @@ the board and its section below.
 - **Wave note:** the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 - **Landed:** merged into develop as merge commit `cbd5dbb` (the whole feat/xdg-paths wave rides one merge); shipped as `0.1.0-alpha.25` on `release/alpha.22-27` (see CHANGELOG.md).
 
+## T-058 — UI primitives: concurrent async helper vs contract, pan pitch mismatch, undisposed SKPath (BUG-025, BUG-048, BUG-049)
+
+- **Branch:** feat/ui-primitives (base `develop` at `46a4bc6`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Origin:** one seam, one theme: small contract violations with cumulative cost - serialized semantics silently running concurrently, a pan moving by the wrong distance, native memory churn on every redraw.
+- **What:**
+  - `BUG-025` - `ObservableAsyncExtensions` documents serialized-in-emission-order execution, but the implementation `.Select(...).Merge()` runs the per-notification tasks concurrently.
+  - `BUG-048` - pan pacing computes the bar pitch from `Bounds.Width` while the draw pass uses `plotRect.Width` (bounds minus the measured price gutter): dragging "one bar" moves the window by a different distance than the painted bar width.
+  - `BUG-049` - the `SKPath` returned by `path.Detach()` is never disposed (`DrawPath` copies; the wrapper waits for its finalizer): native memory churn on every redraw for every indicator line.
+- **Scope:** `src/ZettaTrade.UI/Extensions/ObservableAsyncExtensions.cs`, `src/ZettaTrade.UI/Charting/CandlestickChart.cs`, `src/ZettaTrade.UI/Charting/ChartPanWindow.cs` (the pure `SlotsForDrag` pan-slot seam), plus the matching `ZettaTrade.UI.Tests` files.
+- **Acceptance:** the helper runs its per-notification tasks strictly in order (the contract decides the mechanism, e.g. concatenation/queueing instead of `Merge`); pan pacing and painted pitch share one computed constant; the draw pass retains no undisposed `SKPath`.
+- **Tests:** the helper's serialization tests (queued runs park until the pending one completes; out-of-order completions never reorder the starts); the pan-parity asserts (one painted bar = one slot, measured through `ChartBarLayout` — the same layout the draw pass paints with); the path disposal rides the structural `using` scope at the single `Detach` site (the suite has no headless SKSurface harness — a leak assert would race the finalizer).
+- **Status:** done. Canon: the branch carries `f12c8a9` (the three fixes + their tests: 9 new asserts) and release commit `6a1a59a` (the alpha.30 cut + the status flip); shipped as `0.1.0-alpha.30` (see CHANGELOG.md). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
+
 ## T-060 — Localization: culture race in the cached lookup + suspected binding lifetime leak (BUG-051, BUG-052 suspected)
 
 - **Branch:** feat/xdg-paths (base `develop`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
@@ -922,3 +957,14 @@ the board and its section below.
 - **Acceptance:** runtime behavior byte-for-byte unchanged (theme hot-reload, live language switch, settings persistence); a fresh clone build + tests stay green; `GATE PASSED` (`-AllowProtected`: slnx + AGENTS).
 - **Tests:** the existing theme/localization/resx-sync suites ride along (namespace-only deltas); a constructor-validation test pins the required user-themes directory; no new domain logic.
 - **Status:** done. Canon: the branch carries `8a7c164` (the extraction), `8598604` (the alpha.28 cut + this section's status flip), `7540f66` (the Livery rename) and this docs commit (rename recorded on the board, T-069 queued); shipped as `0.1.0-alpha.28` (see CHANGELOG.md).
+
+
+## T-070 — The localized Strings catalog returns to ZettaTrade.UI: per-app strings, not library ones (supervisor-direct)
+
+- **Branch:** feat/livery-resx (supervisor-direct task, not board-originated; follow-up on merged T-065).
+- **Origin:** the first Livery consumer is a non-trading program, and `Strings(.resx/.ru/.Designer)` carries ZettaTrade's own UI vocabulary: the strings are a per-application artifact, not a library capability — the library's `LocalizationManager` only needs A ResourceManager, which its constructor already takes.
+- **What:** `Resources\Strings(.resx/.ru/.Designer)` move back into `ZettaTrade.UI` (manifest and namespace `ZettaTrade.UI.Resources` — the pre-T-065 home; the charting widgets consume `Strings.ResourceManager` directly again, and the composition root passes `ZettaTrade.UI.Resources.Strings.ResourceManager` into `LocalizationManager`); Livery sheds the resx ItemGroups, so its output carries no application strings while the keys-for-both-cultures resx gate stays in place. Nothing else changes; runtime behavior is byte-for-byte identical.
+- **Scope:** `src/Livery/Livery.csproj` (resx groups out), `src/ZettaTrade.UI` (the files back + csproj description), `CompositionRoot.cs` (the RM reference), the charting widget usings, `UI.Tests` chart-tick usings; board bookkeeping (rule 5 catch-up: the closed merged sections T-063–T-065 leave the board for the archive).
+- **Acceptance:** `Livery.dll` contains no resx-backed resources; the live language switch and the chart tick culture resolve through the relocated catalog exactly as before; a fresh-clone build + tests stay green; `GATE PASSED` (no protected files touched).
+- **Tests:** the existing localization/chart-tick suites ride along (using-only deltas).
+- **Status:** done. Canon: the branch carries the resx-move commit and release commit `46a4bc6` (the alpha.29 cut + this section); shipped as `0.1.0-alpha.29` (see CHANGELOG.md).
