@@ -9,6 +9,13 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.34] - 2026-11-06
+
+Build of board task T-068 (branch `feat/mcp-client-settings`).
+
+### Added
+- External MCP servers in the settings' Mcp tab: per-entry editing (name, transport Stdio/Streamable HTTP, command+args for stdio, address+port for HTTP, the enabled flag, an auth secret REFERENCE key that resolves through the secret store, and the optional HTTP timeout seconds) persisted under the new `McpClients` settings section, with per-entry honest state rows (Disabled/Connecting/Connected/Failed) fed by the new `McpClientManager` — enabled entries connect on startup and after each save through the same `McpClientService.ConnectAsync` path, unchanged saves keep live connections, removed/changed/disabled entries disconnect, outages pin Failed with the transport's own reason instead of hanging anything, and unparsable persisted rows are skipped loudly.
+
 ## [0.1.0-alpha.33] - 2026-11-06
 
 Build of board task T-067 (branch `feat/indicator-settings-gate`).
