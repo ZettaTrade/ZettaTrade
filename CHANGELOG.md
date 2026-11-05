@@ -9,6 +9,90 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.27] - 2026-11-05
+
+Build of board task T-056 (branch `fix/app-vm-error-paths`).
+
+### Fixed
+- Order placement and positions-panel load/cancel failures land as
+  localized error lines in every failure class, including network
+  faults, instead of escaping into unobserved command exceptions
+  (BUG-017, BUG-054).
+- The status bar's persisted-exchange fallback notice and its expiry
+  timer marshal onto the Avalonia UI thread instead of writing the
+  connection chip from their own threads (BUG-018).
+- The AI panel's visibility persistence leads its pipeline with the
+  latest value and serializes its writes, so a rapid toggle is neither
+  lost nor is one failed write able to kill the pipeline (BUG-053).
+- A crashed startup logs the error through Serilog before the process
+  exits (BUG-019).
+- The same order renders the same wall-clock time in the positions
+  panel and in the order history window (BUG-055).
+
+## [0.1.0-alpha.26] - 2026-11-05
+
+Build of board task T-060 (branch `fix/localization-races`).
+
+### Fixed
+- A concurrent language switch can no longer hand a racing caller a
+  wrong-culture localized string: `GetString` snapshots the current
+  culture once per call for both the cache key and the resource lookup
+  (BUG-051).
+
+### Investigated
+- The suspected `{loc:Localized}` binding lifetime leak (BUG-052) is
+  closed as a false positive with evidence: Avalonia 12.1.4's
+  observable bindings subscribe their observers weakly, so an abandoned
+  control drops the chain at the next emission. No code change; the
+  full framework-source analysis lives in the task section of
+  `docs/TASKS.md`.
+
+## [0.1.0-alpha.25] - 2026-11-05
+
+Build of board task T-057 (branch `fix/risk-cap`).
+
+### Fixed
+- Price-less orders can no longer bypass `MaxOrderValueHardCapUsd`
+  (BUG-026): a stop order is valued against its own trigger price and
+  runs the same cap/confirmation matrix, and an order with no estimable
+  value is rejected with an explicit reason instead of being silently
+  approved for human confirmation only.
+
+## [0.1.0-alpha.24] - 2026-11-05
+
+Build of board task T-062 (branch `fix/xdg-paths`).
+
+### Fixed
+- Empty or whitespace-only `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and
+  `XDG_STATE_HOME` values fall back to the platform defaults instead of
+  silently resolving CWD-relative paths (BUG-044); a non-empty value
+  still wins as before.
+
+## [0.1.0-alpha.23] - 2026-11-05
+
+Build of board task T-061 (branch `fix/order-history-store`).
+
+### Fixed
+- The persistent order journal became a true database upsert: concurrent
+  placements of the same order insert-or-update atomically instead of
+  failing on the unique constraint (BUG-043).
+- Terminal statuses are final: a late or duplicate cancel for an order
+  already Filled/Cancelled/Rejected/Expired is logged and ignored,
+  never rewriting the recorded outcome (BUG-042).
+
+## [0.1.0-alpha.22] - 2026-11-05
+
+Build of board task T-055 (branch `fix/chart-vm-restore`).
+
+### Fixed
+- The persisted 12-hour clock setting applies in every restore path of
+  the chart view model, including no stored time frame, an unparsable
+  stored value and the common default-`H1` restore (BUG-015).
+- A stale symbols bootstrap delivery can no longer overwrite a newer
+  exchange's symbol list or an explicit user pick: an epoch per fetch
+  drops superseded deliveries, and a pick made mid-fetch defers the
+  persisted preference (BUG-016).
+
 ## [0.1.0-alpha.21] - 2026-11-04
 
 Build of the ui-colors refactor (supervisor-direct task; branch `feat/ui-colors`).
