@@ -108,10 +108,21 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
     /// Get a localized string by key.
     /// Cached string lookup from .resx resources. Thread-safe and culture-aware.
     /// </summary>
+    /// <remarks>
+    /// The culture is snapshotted ONCE per call: the cache key and the
+    /// resource lookup must carry THE SAME culture. The pre-fix read raced
+    /// a concurrent language switch at two levels — the key read
+    /// <c>_currentCulture</c> inline and the factory re-read the field for
+    /// its lookup — so a switch landing between the reads stored a
+    /// wrong-culture value under the caller's key, where it stuck until the
+    /// next cache clear (BUG-051). A racing caller may still receive either
+    /// the pre-switch or the post-switch string, but always the one
+    /// consistent with its own snapshot.
+    /// </remarks>
     public string GetString(string key)
     {
-        var cacheKey = $"{_currentCulture.Name}:{key}";
-        return _cache.GetOrAdd(cacheKey, _ => GetStringFromResource(key));
+        var culture = _currentCulture;
+        return _cache.GetOrAdd($"{culture.Name}:{key}", _ => GetStringFromResource(key, culture));
     }
 
     public string GetString(string key, params object[] args)
@@ -160,14 +171,19 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
         }
     }
 
-    private string GetStringFromResource(string key)
+    /// <summary>
+    /// Fetch one resource under the EXACT culture the caller snapshotted:
+    /// the field is never re-read here, so a concurrent language switch
+    /// cannot land between the key construction and the lookup (BUG-051).
+    /// </summary>
+    private string GetStringFromResource(string key, CultureInfo culture)
     {
         try
         {
-            var value = _resourceManager.GetString(key, _currentCulture);
+            var value = _resourceManager.GetString(key, culture);
             if (value is null)
             {
-                _logger.LogWarning("Localization key not found: {Key} for culture {Culture}", key, _currentCulture.Name);
+                _logger.LogWarning("Localization key not found: {Key} for culture {Culture}", key, culture.Name);
                 return $"[{key}]";
             }
             return value;
