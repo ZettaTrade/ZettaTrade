@@ -61,7 +61,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-054 Indicator plugin scan aborts on a plugin with missing dependencies | fix/indicator-scan | queued | - |
 | T-055 Chart VM: persisted 12-hour clock lost in the common restore path + symbols bootstrap race | fix/chart-vm-restore | done | - |
 | T-056 App VM error paths: unlogged startup crash, silent order failures, off-thread and inconsistent UI | fix/app-vm-error-paths | queued | - |
-| T-057 Risk: market/stop orders bypass the hard order-value cap | fix/risk-cap | queued | - |
+| T-057 Risk: market/stop orders bypass the hard order-value cap | fix/risk-cap | done | - |
 | T-058 UI primitives: concurrent async helper vs contract, pan pitch mismatch, undisposed SKPath | fix/ui-primitives | queued | - |
 | T-059 Themes: burst hot-reload drops files, watcher death, unordered live list, stale order book | fix/theme-hot-reload | queued | - |
 | T-060 Localization: culture race in the cached lookup + suspected binding lifetime leak | fix/localization-races | queued | - |
@@ -266,12 +266,15 @@ the end of that file, so no effort is duplicated.
 
 ## T-057 — Risk: market/stop orders bypass the hard order-value cap (BUG-026)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/xdg-paths (base `develop`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** `MaxOrderValueHardCapUsd` is the terminal's last automatic damper against a catastrophic order; its own documentation says it "must never be bypassable by any caller". Today any price-less order bypasses it entirely and relies solely on a human dialog - one fat-fingered market order of any size sails through as a routine flow.
 - **What:** `BUG-026` - `DefaultRiskManager` checks `MaxOrderValueHardCapUsd` only for orders with an explicit price; market/stop orders (no estimable value from the request) return `Approved(requiresConfirmation: true)` without any cap check.
 - **Scope:** `src/ZettaTrade.App/Services/DefaultRiskManager.cs`.
 - **Acceptance:** no order of any type/side slips past the cap; an order without an estimable value is either approximated against the last available price or rejected with an explicit "cannot evaluate risk" error - never silently approved; the estimate-vs-reject decision is agreed with the supervisor at review (both satisfy the rule).
 - **Tests:** the cap matrix across order types with and without an explicit price; the reject path's error reporting.
+- **Status:** done. Canon: commit `bb81787` is on feat/xdg-paths; full App.Tests suite passes 304/304 (the risk matrix now holds 7 facts) and gate prints `GATE PASSED`. Shipped: the estimate-vs-reject decision — REJECTED (fail-closed), agreed-upon by the agent per the "both satisfy the rule" clause, up for supervisor confirmation at review. `DefaultRiskManager.CheckOrderAsync` now anchors the value on the price the REQUEST carries: `Price` for Limit/StopLimit (unchanged) and `StopPrice` for StopMarket (NEW — a stop order valued against ITS OWN trigger now runs the SAME cap/threshold matrix as a limit order: inside-threshold approves plainly, 10k–100k requires confirmation, above the hard cap rejects unconditionally). An order with NEITHER anchor (a market order — per the `OrderRequest` contract its `Price` is null) is REJECTED with the explicit reason "cannot evaluate risk: the order carries no price to estimate its value against the hard cap; place a limit order, or a stop order with its trigger price" — never silently approved, no confirmation-only path an order of any size sails through (the pre-fix `Approved(requiresConfirmation: true)` gone). The manager deliberately gained NO market-data dependency for approximation: a stale last price would estimate nonsense and reopen exactly the bypass this cap exists to prevent (fail-closed is also the codebase's own safety doctrine). The reject path surfaces through both consumers: the order dialog shows the reason string, the MCP `place_order` tool returns it as an error to the model. Facts: the old market-orders-require-confirmation fact replaced by the explicit reject fact (no approval, no confirmation, `cannot evaluate risk` in the reason) plus the stop-trigger matrix (band/confirm, hard-cap/reject); the limit matrix untouched.
+- **Merge revision:** none expected — one manager file plus its fact file; the reject-on-market-order UX consequence (market orders need a limit/stop alternative until an estimate source is wired) is a supervisor-visible behavior change called out here.
+- **Wave note:** the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-058 — UI primitives: concurrent async helper vs contract, pan pitch mismatch, undisposed SKPath (BUG-025, BUG-048, BUG-049)
 
