@@ -46,10 +46,22 @@ public sealed class WindowsDpapiSecretStore : ISecretStore, IAsyncInitializable
     /// Fails loudly when the store file exists but cannot be read or parsed:
     /// from then on every operation refuses with an explicit error and the
     /// store file is never overwritten (the on-disk secrets stay preserved).
+    /// The load runs under the same lock the read/write paths use: an early
+    /// concurrent <see cref="SetAsync"/> must never be clobbered by the load's
+    /// cache reassignment (and then erased from disk by the next save, BUG-039) —
+    /// it queues and applies itself on top of the loaded state instead.
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        await LoadStoreAsync();
+        await _lock.WaitAsync(ct);
+        try
+        {
+            await LoadStoreAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task<string?> GetAsync(string key, CancellationToken ct = default)
@@ -68,8 +80,14 @@ public sealed class WindowsDpapiSecretStore : ISecretStore, IAsyncInitializable
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to decrypt secret for key {Key}", key);
-                return null;
+                // A decryption failure must never masquerade as a missing key:
+                // the interface promises null ONLY for keys that are absent,
+                // so corrupt unreadable bytes surface loudly instead (BUG-040).
+                throw new InvalidOperationException(
+                    $"Failed to decrypt the secret for key '{key}': the stored value is corrupt or "
+                    + "unreadable (it is NOT a missing key, so nothing is silently substituted). The on-disk "
+                    + "value stays preserved.",
+                    ex);
             }
         }
         finally
@@ -110,14 +128,19 @@ public sealed class WindowsDpapiSecretStore : ISecretStore, IAsyncInitializable
         }
     }
 
-    public Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
+    /// <summary>
+    /// List the stored keys matching the prefix. Awaits the shared lock like
+    /// every other contract method: a synchronous <c>Wait</c> inside an async
+    /// contract method freezes (or deadlocks) the calling thread while a
+    /// concurrent write holds the semaphore across file I/O (BUG-011).
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
     {
         EnsureUsable();
-        _lock.Wait(ct);
+        await _lock.WaitAsync(ct);
         try
         {
-            var keys = _cache.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList();
-            return Task.FromResult<IReadOnlyList<string>>(keys);
+            return _cache.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList();
         }
         finally
         {
@@ -171,29 +194,29 @@ public sealed class WindowsDpapiSecretStore : ISecretStore, IAsyncInitializable
         }
     }
 
+    /// <summary>
+    /// Persist the cache atomically (write to a temp file, then rename). Any
+    /// failure propagates to the caller: a store whose disk write failed must
+    /// never claim success while keeping the secret memory-only (a reported
+    /// success that vanishes after restart), and a removal whose save failed
+    /// must not be silently undone (BUG-010).
+    /// </summary>
     private async Task SaveStoreAsync()
     {
-        try
-        {
-            var directory = Path.GetDirectoryName(_storePath);
-            if (!string.IsNullOrEmpty(directory))
-                Directory.CreateDirectory(directory);
+        var directory = Path.GetDirectoryName(_storePath);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
 
-            // Atomic write: write to temp file, then rename
-            var tempPath = _storePath + ".tmp";
-            var data = _cache.ToDictionary(kv => kv.Key, kv => Convert.ToBase64String(kv.Value));
-            var json = JsonSerializer.Serialize(data);
-            await File.WriteAllTextAsync(tempPath, json);
-            File.Move(tempPath, _storePath, overwrite: true);
+        // Atomic write: write to temp file, then rename
+        var tempPath = _storePath + ".tmp";
+        var data = _cache.ToDictionary(kv => kv.Key, kv => Convert.ToBase64String(kv.Value));
+        var json = JsonSerializer.Serialize(data);
+        await File.WriteAllTextAsync(tempPath, json);
+        File.Move(tempPath, _storePath, overwrite: true);
 
-            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
-            {
-                File.SetUnixFileMode(_storePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            }
-        }
-        catch (Exception ex)
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
-            _logger.LogError(ex, "Failed to save secret store to {Path}", _storePath);
+            File.SetUnixFileMode(_storePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
     }
 }

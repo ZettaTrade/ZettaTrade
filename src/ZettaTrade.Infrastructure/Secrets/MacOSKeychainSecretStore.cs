@@ -8,7 +8,8 @@ using ZettaTrade.Core.Interfaces;
 
 /// <summary>
 /// macOS Keychain-based secret store.
-/// Uses security CLI tool with stdin for secret values to prevent exposure in process list.
+/// Uses the <c>security</c> CLI; every secret value travels via stdin, never
+/// as a command-line argument (which would expose it in the process list).
 /// </summary>
 [SupportedOSPlatform("macos")]
 public sealed class MacOSKeychainSecretStore : ISecretStore
@@ -45,19 +46,15 @@ public sealed class MacOSKeychainSecretStore : ISecretStore
     {
         try
         {
-            try
-            {
-                await RunSecurityCommandAsync(
-                    ["delete-generic-password", "-s", SecretStoreConstants.ServiceName, "-a", key],
-                    stdinData: null,
-                    ct);
-            }
-            catch { /* Ignore if doesn't exist */ }
-
-            // Note: security add-generic-password doesn't support stdin for -w
+            // "-U" updates an existing item in place inside the same CLI call:
+            // the standalone destroy-then-create update was non-atomic (a
+            // failure or crash between the two steps lost the old secret,
+            // BUG-038). And with "-w" carrying no value, security reads the
+            // secret from STDIN (the secret never appears as a process
+            // argument, BUG-009).
             await RunSecurityCommandAsync(
-                ["add-generic-password", "-s", SecretStoreConstants.ServiceName, "-a", key, "-w", value, "-U"],
-                stdinData: null,
+                ["add-generic-password", "-s", SecretStoreConstants.ServiceName, "-a", key, "-U", "-w"],
+                stdinData: value + "\n",
                 ct);
 
             _logger.LogDebug("Secret stored for key {Key}", key);
@@ -84,9 +81,24 @@ public sealed class MacOSKeychainSecretStore : ISecretStore
         }
     }
 
-    public Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
+    /// <summary>
+    /// List the keys of this application's generic passwords by parsing the
+    /// keychain's attribute dump: <c>dump-keychain</c> reports each item's
+    /// metadata (service, account) without touching secret values, so no
+    /// keychain prompt fires; the service attribute selects ZettaTrade's own
+    /// items only (BUG-036).
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
     {
-        return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        var dump = await RunSecurityCommandAsync(
+            ["dump-keychain"],
+            stdinData: null,
+            ct);
+
+        return SecretListOutputParsers.ParseKeychainDumpAccounts(dump)
+            .Where(account => account.StartsWith(prefix, StringComparison.Ordinal))
+            .OrderBy(account => account, StringComparer.Ordinal)
+            .ToList();
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken ct = default)
@@ -121,26 +133,37 @@ public sealed class MacOSKeychainSecretStore : ISecretStore
             using var process = new Process { StartInfo = psi };
             process.Start();
 
-            if (stdinData != null)
+            try
             {
-                await process.StandardInput.WriteAsync(stdinData.AsMemory(), cts.Token);
-                process.StandardInput.Close();
+                if (stdinData != null)
+                {
+                    await process.StandardInput.WriteAsync(stdinData.AsMemory(), cts.Token);
+                    process.StandardInput.Close();
+                }
+
+                var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+                var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
+
+                await process.WaitForExitAsync(cts.Token);
+                var stdout = await stdoutTask;
+                var stderr = await stderrTask;
+
+                if (process.ExitCode != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"security command failed (exit {process.ExitCode}): {stderr}");
+                }
+
+                return stdout;
             }
-
-            var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
-            var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
-
-            await process.WaitForExitAsync(cts.Token);
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
-
-            if (process.ExitCode != 0)
+            catch (Exception)
             {
-                throw new InvalidOperationException(
-                    $"security command failed (exit {process.ExitCode}): {stderr}");
+                // The child must die with its invocation: a timeout (or any
+                // other failure) leaves no orphan still holding an open
+                // keychain prompt or lock (BUG-037).
+                SecretProcessGuard.KillUnfinished(process);
+                throw;
             }
-
-            return stdout;
         }
         finally
         {
