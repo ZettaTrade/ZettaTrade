@@ -9,6 +9,24 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.26] - 2026-11-05
+
+Build of board task T-060 (branch `fix/localization-races`).
+
+### Fixed
+- A concurrent language switch can no longer hand a racing caller a
+  wrong-culture localized string: `GetString` snapshots the current
+  culture once per call for both the cache key and the resource lookup
+  (BUG-051).
+
+### Investigated
+- The suspected `{loc:Localized}` binding lifetime leak (BUG-052) is
+  closed as a false positive with evidence: Avalonia 12.1.4's
+  observable bindings subscribe their observers weakly, so an abandoned
+  control drops the chain at the next emission. No code change; the
+  full framework-source analysis lives in the task section of
+  `docs/TASKS.md`.
+
 ## [0.1.0-alpha.25] - 2026-11-05
 
 Build of board task T-057 (branch `fix/risk-cap`).
