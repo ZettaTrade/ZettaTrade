@@ -102,6 +102,12 @@ public class OrderBookWidget : Control
     private SKColor _bidColor = DefaultBidColor;
     private SKColor _askColor = DefaultAskColor;
 
+    /// <summary>Subscription of the theme-changed stream; disposed on detach.</summary>
+    private IDisposable? _themeChangeSubscription;
+
+    /// <summary>Subscription of the language-changed stream; disposed on detach.</summary>
+    private IDisposable? _languageChangeSubscription;
+
     /// <summary>
     /// The level-presses stream sink (hot; see <see cref="LevelClicked"/>).
     /// </summary>
@@ -141,6 +147,46 @@ public class OrderBookWidget : Control
         VisualChildren.Add(hitSurface);
 
         ClipToBounds = true;
+    }
+
+    #endregion
+
+    #region Theme & Language Tracking
+
+    /// <summary>
+    /// While attached, re-render on every theme or language change (the
+    /// chart's convention): the draw operation takes a snapshot per render —
+    /// RefreshThemeColors re-reads the resources and the page layout
+    /// re-resolves the localized column headers — so invalidating is all it
+    /// takes to pick up new colors and header names. Without this, a theme
+    /// or language switch left the drawn book stale until the next Book
+    /// snapshot arrived — indefinitely while disconnected.
+    /// </summary>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        if (ThemeManager.IsInitialized && _themeChangeSubscription is null)
+        {
+            _themeChangeSubscription = ThemeManager.Instance.ThemeChanged.Subscribe(
+                _ => Dispatcher.UIThread.Post(InvalidateVisual));
+        }
+
+        if (LocalizationManager.IsInitialized && _languageChangeSubscription is null)
+        {
+            _languageChangeSubscription = LocalizationManager.Instance.LanguageChanged.Subscribe(
+                _ => Dispatcher.UIThread.Post(InvalidateVisual));
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+
+        _themeChangeSubscription?.Dispose();
+        _themeChangeSubscription = null;
+        _languageChangeSubscription?.Dispose();
+        _languageChangeSubscription = null;
     }
 
     #endregion
