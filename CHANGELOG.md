@@ -9,6 +9,26 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.27] - 2026-11-05
+
+Build of board task T-056 (branch `fix/app-vm-error-paths`).
+
+### Fixed
+- Order placement and positions-panel load/cancel failures land as
+  localized error lines in every failure class, including network
+  faults, instead of escaping into unobserved command exceptions
+  (BUG-017, BUG-054).
+- The status bar's persisted-exchange fallback notice and its expiry
+  timer marshal onto the Avalonia UI thread instead of writing the
+  connection chip from their own threads (BUG-018).
+- The AI panel's visibility persistence leads its pipeline with the
+  latest value and serializes its writes, so a rapid toggle is neither
+  lost nor is one failed write able to kill the pipeline (BUG-053).
+- A crashed startup logs the error through Serilog before the process
+  exits (BUG-019).
+- The same order renders the same wall-clock time in the positions
+  panel and in the order history window (BUG-055).
+
 ## [0.1.0-alpha.26] - 2026-11-05
 
 Build of board task T-060 (branch `fix/localization-races`).
