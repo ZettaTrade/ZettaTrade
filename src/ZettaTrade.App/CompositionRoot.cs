@@ -110,6 +110,17 @@ internal static class CompositionRoot
         // BEFORE every consumer VM.
         services.AddSingleton<McpHostService>();
 
+        // External MCP client manager (T-068): the startup walk reads the
+        // persisted server list and connects the enabled entries (a dead
+        // server pends behind the bounded grace, never the boot). Registered
+        // AFTER the settings service (the walk initializes that first) and
+        // BEFORE the settings VM, which saves through it and renders its
+        // per-entry states. The typed registration walks the walk; the
+        // interface aliased to the same instance.
+        services.AddSingleton<McpClientManager>();
+        services.AddSingleton<IMcpClientManager>(sp =>
+            sp.GetRequiredService<McpClientManager>());
+
         services.AddSingleton<IRiskManager, DefaultRiskManager>();
         services.AddSingleton<IConfirmationService>(sp => new UiConfirmationService(
             sp.GetRequiredService<ILogger<UiConfirmationService>>(),
@@ -159,6 +170,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<IIndicatorCatalog>(),
+                sp.GetRequiredService<IMcpClientManager>(),
                 sp.GetRequiredService<ILogger<SettingsViewModel>>(),
                 sp.GetRequiredService<ThemeManager>().LoadErrorsChanged));
         services.AddSingleton<ChartViewModel>(sp =>

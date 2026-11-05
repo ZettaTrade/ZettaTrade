@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ReactiveUI.Primitives;
 using Xunit;
+using ZettaTrade.AI.Mcp;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
@@ -207,6 +208,7 @@ public sealed class SettingsViewModelTests
             activeExchanges,
             symbolList,
             SmaLoadedCatalog(),
+            ClientManagerStub(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
 
         // Assert
@@ -246,6 +248,7 @@ public sealed class SettingsViewModelTests
             activeExchanges,
             symbolList,
             SmaLoadedCatalog(),
+            ClientManagerStub(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
 
         // Assert
@@ -776,6 +779,7 @@ public sealed class SettingsViewModelTests
             activeExchanges,
             symbolList,
             SmaLoadedCatalog(),
+            ClientManagerStub(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>(),
             themeLoadErrors);
 
@@ -791,6 +795,18 @@ public sealed class SettingsViewModelTests
         var catalog = Substitute.For<IIndicatorCatalog>();
         catalog.LoadedNames.Returns(["SMA"]);
         return catalog;
+    }
+
+    /// <summary>
+    /// The external MCP client manager stub: a telemetry-less substitute the
+    /// ViewModel constructor subscribes to (the settings tests do not
+    /// exercise the external-servers rows).
+    /// </summary>
+    private static IMcpClientManager ClientManagerStub()
+    {
+        var manager = Substitute.For<IMcpClientManager>();
+        manager.StatesChanged.Returns(Observable.Empty<IReadOnlyList<McpClientState>>());
+        return manager;
     }
 
     /// <summary>

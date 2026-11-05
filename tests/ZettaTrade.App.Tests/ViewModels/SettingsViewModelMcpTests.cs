@@ -1,12 +1,14 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
+using ZettaTrade.AI.Mcp;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
@@ -242,6 +244,7 @@ public sealed class SettingsViewModelMcpTests
             activeExchanges,
             symbolList,
             SmaLoadedCatalog(),
+            ClientManagerStub(),
             NullLogger<SettingsViewModel>.Instance);
 
         return new McpKit(viewModel, settings, changes, host, runner);
@@ -263,6 +266,18 @@ public sealed class SettingsViewModelMcpTests
     /// <summary>A task-shaped failure the host stub refuses with.</summary>
     private static Task FailedTask(Exception error) =>
         Task.FromException<object?>(error);
+
+    /// <summary>
+    /// The external MCP client manager stub: a telemetry-less substitute the
+    /// ViewModel constructor subscribes to (the MCP host facts do not
+    /// exercise the external-servers rows).
+    /// </summary>
+    private static IMcpClientManager ClientManagerStub()
+    {
+        var manager = Substitute.For<IMcpClientManager>();
+        manager.StatesChanged.Returns(Observable.Empty<IReadOnlyList<McpClientState>>());
+        return manager;
+    }
 
     #endregion
 }

@@ -234,6 +234,176 @@
                     <TextBlock Text="{loc:Localized Settings.Mcp.Hint}"
                                TextWrapping="Wrap"
                                FontSize="12" />
+
+                    <!-- ==================== External MCP client servers (T-068) ====================
+                         The editor drafts live in the rows (only Save applies —
+                         it persists the list and replays the manager's apply);
+                         the per-row honest state blocks repaint from the
+                         manager's snapshots (the name is the key both sides
+                         share). A disabled entry saves but never dials; every
+                         unusable field combination rides the entry verbatim
+                         and the transport boundary fails it loudly — the row's
+                         failed state shows the transport's own reason. -->
+                    <TextBlock Text="{loc:Localized Settings.McpClients.Caption}"
+                               FontWeight="SemiBold" />
+
+                    <ScrollViewer MaxHeight="280"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding McpServers}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="10" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:McpServerRow">
+                                    <Border BorderThickness="1"
+                                            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                                            CornerRadius="4"
+                                            Padding="10"
+                                            Margin="0,0,6,0">
+                                        <StackPanel Spacing="8">
+                                            <!-- The header: the entry's name (the key the connections and the states key
+                                                 by) with the enabled flag and the local-until-save remove button. -->
+                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                                <TextBox Grid.Column="0"
+                                                         Text="{Binding Name}"
+                                                         PlaceholderText="{loc:Localized Settings.McpClients.Name}"
+                                                         ToolTip.Tip="{loc:Localized Settings.McpClients.Name}" />
+                                                <CheckBox Grid.Column="1"
+                                                          Content="{loc:Localized Settings.McpClients.Enabled}"
+                                                          IsChecked="{Binding IsEnabled}"
+                                                          VerticalAlignment="Center" />
+                                                <Button Grid.Column="2"
+                                                        Content="{loc:Localized Settings.McpClients.Remove}"
+                                                        CommandParameter="{Binding}"
+                                                        Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).RemoveMcpServerCommand}" />
+                                            </Grid>
+
+                                            <!-- The transport pick: stdio entries edit command + args, HTTP entries
+                                                 the address/port (plus the optional seconds timeout). The names on
+                                                 the combo are the protocol's own proper names, not localized. -->
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{loc:Localized Settings.McpClients.Transport}"
+                                                           VerticalAlignment="Center" />
+                                                <ComboBox Grid.Column="1"
+                                                          SelectedIndex="{Binding TransportIndex}"
+                                                          MinWidth="170"
+                                                          HorizontalAlignment="Left">
+                                                    <ComboBoxItem Content="Stdio" />
+                                                    <ComboBoxItem Content="Streamable HTTP" />
+                                                </ComboBox>
+                                            </Grid>
+
+                                            <!-- The stdio fields: the command line pieces (the OS process API resolves
+                                                 the command over the PATH; the arguments ride space-separated —
+                                                 an argument containing spaces does not fit the text shape, the
+                                                 hint documents it). -->
+                                            <StackPanel IsVisible="{Binding IsStdio}" Spacing="8">
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Command}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding Command}"
+                                                             PlaceholderText="command"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Command}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Args}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding ArgsText}"
+                                                             PlaceholderText="arg1 arg2"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Args}" />
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <!-- The HTTP fields: address + port (empty port = the scheme's default,
+                                                 URL semantics, nothing substituted) and the optional connect
+                                                 timeout seconds (empty = the transport's shipped default). -->
+                                            <StackPanel IsVisible="{Binding IsHttp}" Spacing="8">
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Address}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding Address}"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Address}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Port}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding PortText}"
+                                                             PlaceholderText="{loc:Localized Settings.McpClients.Port.Empty}"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Port}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Timeout}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding TimeoutText}"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Timeout}" />
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <!-- The auth secret reference key ONLY: the store resolves it — the
+                                                 secret itself never rides config or the logs. -->
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{loc:Localized Settings.McpClients.AuthRef}"
+                                                           VerticalAlignment="Center" />
+                                                <TextBox Grid.Column="1"
+                                                         Text="{Binding AuthSecretRef}"
+                                                         ToolTip.Tip="{loc:Localized Settings.McpClients.AuthRef}" />
+                                            </Grid>
+
+                                            <!-- The honest per-entry state: exactly one label shows (the bools are
+                                                 mutually exclusive by construction); the failed row carries the
+                                                 transport's own reason. -->
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <TextBlock IsVisible="{Binding IsDisabled}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Disabled}"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding IsConnecting}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Connecting}"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding IsConnected}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Connected}"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding IsFailed}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Failed}"
+                                                           Foreground="{DynamicResource Error}"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding IsFailed}"
+                                                           Text="{Binding DetailText}"
+                                                           TextWrapping="Wrap"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding !IsStateKnown}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Empty}"
+                                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                                           FontSize="12" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <Button Content="{loc:Localized Settings.McpClients.Add}"
+                            Command="{Binding AddMcpServerCommand}"
+                            HorizontalAlignment="Left" />
+
+                    <TextBlock Text="{loc:Localized Settings.McpClients.Hint}"
+                               TextWrapping="Wrap"
+                               FontSize="12" />
                 </StackPanel>
             </TabItem>
 
