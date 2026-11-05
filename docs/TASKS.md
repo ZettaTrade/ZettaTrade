@@ -58,7 +58,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-051 Paper trading ledger: corrupted entry price, stale reference price, phantom fills | fix/paper-ledger | done | - |
 | T-052 WebSocket transport: dead feed after reconnect, send races, frame parser, ignored depth | fix/ws-transport | queued | - |
 | T-053 Settings service: reload races erase just-written values, changes never published | fix/settings-hot-reload | done | - |
-| T-054 Indicator plugin scan aborts on a plugin with missing dependencies | fix/indicator-scan | queued | - |
+| T-054 Indicator plugin scan aborts on a plugin with missing dependencies | fix/indicator-scan | done | - |
 | T-055 Chart VM: persisted 12-hour clock lost in the common restore path + symbols bootstrap race | fix/chart-vm-restore | queued | - |
 | T-056 App VM error paths: unlogged startup crash, silent order failures, off-thread and inconsistent UI | fix/app-vm-error-paths | queued | - |
 | T-057 Risk: market/stop orders bypass the hard order-value cap | fix/risk-cap | queued | - |
@@ -234,12 +234,15 @@ the end of that file, so no effort is duplicated.
 
 ## T-054 — Indicator plugin scan aborts on a plugin with missing dependencies (BUG-014)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/indicator-scan (base `develop`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** the documented plugin-loader contract says a malformed plugin is skipped with a logged warning and the chart keeps working; with a missing dependent assembly the scan instead throws - the whole indicator seam degrades into a startup failure.
 - **What:** `BUG-014` - `assembly.GetTypes()` is called outside the try (which only wraps `LoadFrom`): a plugin DLL whose dependencies are missing throws `ReflectionTypeLoadException` out of the catalog scan instead of skipping the file.
 - **Scope:** `src/ZettaTrade.Infrastructure/Indicators/PluginIndicatorCatalog.cs`.
 - **Acceptance:** a plugin that fails reflection logs its warning and is excluded; the remaining plugins of the directory still load; the scan itself never throws.
 - **Tests:** extend the loader matrix with a dependency-missing plugin fixture (the garbage-dll case exists; this one covers the `GetTypes()` unwrap step).
+- **Status:** done. Canon: commit `637e03b` is on feat/indicator-scan; full Infrastructure.Tests suite passes 125/125 (no warnings; the indicator matrix now holds 7 facts) and gate prints `GATE PASSED`. Shipped: `ScanAssembly` guards the reflection unwrap step the pre-fix code ran unguarded — `assembly.GetTypes()` wrapped in its own try with a specific `ReflectionTypeLoadException` catch (warn-and-skip the FILE, disposing the LoaderExceptions with it) plus a generic catch for any other inspection failure, and a per-type try around the registration loop so even a partially broken type that `GetTypes()` returned skips alone while the file's scan continues (the healthy neighbors keep registering). Fixture: `tests/ZettaTrade.Plugins.BrokenBase` + `tests/ZettaTrade.Plugins.Broken` — a valid plugin assembly whose base class lives in a dependency assembly DELIBERATELY never staged next to it (the test project references it compile-only, and the fixture deletes any leaked copy from the test output), so `GetTypes()` genuinely throws `ReflectionTypeLoadException` at scan time; the dll is located BY NAME in the test output (typeof on the fixture's own type would raise the very failure under test). New facts: the dependency-missing plugin warns (`fail to load`) and is skipped while SMA and the garbage neighbor keep working, and the healthy SMA assembly never shows up in a single warning (per-file precision).
+- **Merge revision:** supervisor action needed (forced, see the [PROTECTED] gate rule): add `tests/ZettaTrade.Plugins.Broken/ZettaTrade.Plugins.Broken.csproj` and `tests/ZettaTrade.Plugins.BrokenBase/ZettaTrade.Plugins.BrokenBase.csproj` to `ZettaTrade.slnx` — the solution file is supervisor-only, so the attempt was reverted and the projects still build/run as transitive ProjectReferences of the test project (the facts execute through the slnx membership of Infrastructure.Tests; only `dotnet format sln` does not lint the two fixture files).
+- **Wave note:** the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-055 — Chart VM: persisted 12-hour clock lost in the common restore path + symbols bootstrap race (BUG-015, BUG-016)
 
