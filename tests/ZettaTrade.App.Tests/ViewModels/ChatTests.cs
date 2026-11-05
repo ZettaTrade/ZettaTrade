@@ -2,6 +2,7 @@ namespace ZettaTrade.App.Tests.ViewModels;
 
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Livery.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ZettaTrade.AI.Chat;
@@ -139,3 +140,4 @@ internal sealed record ChatKit(
     Subject<SettingsChange> Changes,
     IChatCompletion Completion,
     ILocalizationManager Localization);
+

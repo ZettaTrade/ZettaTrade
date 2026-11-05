@@ -4,6 +4,8 @@ using System;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
+using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -323,3 +325,4 @@ public sealed class StatusBarViewModelTests
         viewModel.ConnectionStatus.Should().Be("Connected", "after expiry the regular chip text re-derives");
     }
 }
+

@@ -1,6 +1,5 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:core="using:ZettaTrade.Core.Interfaces"
         xmlns:media="using:Avalonia.Media"
         xmlns:themes="using:Livery.Themes"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
@@ -53,7 +52,7 @@
                                   MinWidth="220"
                                   HorizontalAlignment="Left">
                             <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:ThemeInfo">
+                                <DataTemplate x:DataType="themes:ThemeInfo">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding DisplayName}"
@@ -92,7 +91,7 @@
                                   MinWidth="220"
                                   HorizontalAlignment="Left">
                             <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:LanguageInfo">
+                                <DataTemplate x:DataType="loc:LanguageInfo">
                                     <TextBlock Text="{Binding NativeName}" />
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>

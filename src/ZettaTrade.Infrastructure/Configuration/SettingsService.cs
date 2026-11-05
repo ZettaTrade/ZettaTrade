@@ -5,6 +5,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Livery.Contracts;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 
@@ -369,3 +370,4 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
         _saveLock.Dispose();
     }
 }
+

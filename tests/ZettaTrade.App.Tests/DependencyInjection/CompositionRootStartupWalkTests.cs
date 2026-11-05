@@ -5,11 +5,11 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
-using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
@@ -117,3 +117,4 @@ public sealed class CompositionRootStartupWalkTests
         public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 }
+

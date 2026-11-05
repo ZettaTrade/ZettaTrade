@@ -3,6 +3,7 @@ namespace ZettaTrade.Infrastructure.Tests.Exchange;
 using System;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -327,3 +328,4 @@ public sealed class ExchangeEndpointRegistryTests
         build.Should().Throw<ArgumentException>();
     }
 }
+

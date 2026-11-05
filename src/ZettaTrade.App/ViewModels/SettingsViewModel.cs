@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Globalization;
 using System.Reactive.Linq;
+using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
@@ -1140,3 +1141,4 @@ public sealed class SettingsViewModel : ReactiveObject
 
     #endregion Private Methods
 }
+

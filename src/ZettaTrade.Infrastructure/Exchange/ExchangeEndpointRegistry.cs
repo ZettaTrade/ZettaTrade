@@ -3,6 +3,7 @@ namespace ZettaTrade.Infrastructure.Exchange;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Livery.Contracts;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 
@@ -122,3 +123,4 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
             configured.WsUrl);
     }
 }
+

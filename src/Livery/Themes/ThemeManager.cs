@@ -6,8 +6,8 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Livery.Contracts;
 using Microsoft.Extensions.Logging;
-using ZettaTrade.Core.Interfaces;
 
 /// <summary>
 /// Manages application themes. Every theme — built-in and custom — is a JSON
@@ -660,3 +660,4 @@ public sealed record ThemeFileLoadError(string FilePath, string Reason)
     /// <summary>File name without the directory (for compact display); the full path stays in <see cref="FilePath"/>.</summary>
     public string FileName => Path.GetFileName(FilePath);
 }
+

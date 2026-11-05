@@ -1,5 +1,6 @@
 namespace ZettaTrade.App;
 
+using Livery.Contracts;
 using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.DependencyInjection;
@@ -291,3 +292,4 @@ internal static class CompositionRoot
         return true;
     }
 }
+
