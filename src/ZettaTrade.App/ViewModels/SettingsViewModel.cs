@@ -121,6 +121,24 @@ public sealed class SettingsViewModel : ReactiveObject
     }
 
     /// <summary>
+    /// Whether the scanned plugin catalog actually registers the SMA
+    /// indicator: the indicators tab renders the SMA row only for a plugin
+    /// the scan loaded (a missing or skipped-by-scan plugin assembly would
+    /// otherwise render a dead row). The plugin set is fixed for the
+    /// session (the scan runs at startup only), so the flag is settled at
+    /// construction.
+    /// </summary>
+    public bool IsSmaPluginLoaded { get; }
+
+    /// <summary>
+    /// Whether the scanned plugin catalog registered no indicators at all:
+    /// the indicators tab shows the honest empty state (nothing was found
+    /// beside the application's plugin folder) instead of any row. Mutually
+    /// exclusive with <see cref="IsSmaPluginLoaded"/> by construction.
+    /// </summary>
+    public bool IsIndicatorCatalogEmpty { get; }
+
+    /// <summary>
     /// Whether the local MCP server is enabled. A selection - like every
     /// other one here - applies only on the explicit Save: the checkbox is
     /// the selection, the persisted row is the applied state, and the saved
@@ -243,6 +261,12 @@ public sealed class SettingsViewModel : ReactiveObject
     private readonly ILogger<SettingsViewModel> _logger;
 
     /// <summary>
+    /// The scanned indicator catalog (shared with the chart pipeline): its
+    /// loaded-name set decides whether the overlay rows render at all.
+    /// </summary>
+    private readonly IIndicatorCatalog _indicatorCatalog;
+
+    /// <summary>
     /// The persisted hidden-pairs map (all exchanges) as last read: the
     /// pairs tab's drafts seed from it and the save rewrites it with the
     /// current exchange's entry replaced (the other exchanges' entries
@@ -332,6 +356,7 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <param name="localization">Localization manager providing applied/available languages.</param>
     /// <param name="shellUtils">File manager launcher for the themes folder button.</param>
     /// <param name="mcpHosts">The MCP host runner: the save applies the enable choice live and the state stream renders the honest rows.</param>
+    /// <param name="indicatorCatalog">The scanned plugin catalog: the indicators tab renders its rows only for plugins the set actually loaded.</param>
     /// <param name="logger">Injected application logger.</param>
     /// <param name="themeLoadErrors">
     /// Stream of theme file load errors; when omitted (tests without the
@@ -345,6 +370,7 @@ public sealed class SettingsViewModel : ReactiveObject
         McpHostService mcpHosts,
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
+        IIndicatorCatalog indicatorCatalog,
         ILogger<SettingsViewModel> logger,
         IObservable<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null)
     {
@@ -355,7 +381,18 @@ public sealed class SettingsViewModel : ReactiveObject
         _mcpHosts = mcpHosts;
         _activeExchanges = activeExchanges;
         _symbolList = symbolList;
+        _indicatorCatalog = indicatorCatalog;
         _logger = logger;
+
+        // The plugin surface is settled at construction (the scan runs at
+        // startup only): the SMA row renders only when the catalog holds
+        // the plugin; a nameless (null) set reads as an empty one. A
+        // catalog that registered other plugins but not SMA renders
+        // neither the row nor the empty state — the two flags answer the
+        // two independent questions of the tab's honesty contract.
+        var loadedNames = indicatorCatalog.LoadedNames ?? Array.Empty<string>();
+        IsSmaPluginLoaded = loadedNames.Contains(SmaIndicatorName, StringComparer.Ordinal);
+        IsIndicatorCatalogEmpty = loadedNames.Count == 0;
 
         OpenThemesFolderCommand = ReactiveCommand.Create(HandleOpenThemesFolder);
 
@@ -579,27 +616,34 @@ public sealed class SettingsViewModel : ReactiveObject
         // the row to save at all (an unparsable text skips the row with a
         // logged warning - nothing defaults, the cached config stays in
         // charge). A real difference rewrites the row array: the SMA row is
-        // replaced, every other (future) row rides untouched.
-        if (TryReadSmaSelection(out var smaEnabled, out var smaPeriod))
+        // replaced, every other (future) row rides untouched. The block only
+        // runs when the catalog actually loaded the plugin: the save never
+        // fabricates a config row for a plugin the session does not have
+        // (the persisted config rides untouched otherwise — the chart
+        // pipeline skips unknown names on its own seam).
+        if (IsSmaPluginLoaded)
         {
-            if (smaEnabled != _persistedSmaEnabled || smaPeriod != _persistedSmaPeriod)
+            if (TryReadSmaSelection(out var smaEnabled, out var smaPeriod))
             {
-                var (configs, _) = ChartIndicatorConfig.ParseList(_persistedIndicatorConfig);
-                var updated = configs
-                    .Where(config => !string.Equals(config.Name, SmaIndicatorName, StringComparison.Ordinal))
-                    .ToList();
-                updated.Add(new ChartIndicatorConfig(SmaIndicatorName, smaEnabled, smaPeriod));
+                if (smaEnabled != _persistedSmaEnabled || smaPeriod != _persistedSmaPeriod)
+                {
+                    var (configs, _) = ChartIndicatorConfig.ParseList(_persistedIndicatorConfig);
+                    var updated = configs
+                        .Where(config => !string.Equals(config.Name, SmaIndicatorName, StringComparison.Ordinal))
+                        .ToList();
+                    updated.Add(new ChartIndicatorConfig(SmaIndicatorName, smaEnabled, smaPeriod));
 
-                var written = ChartIndicatorConfig.Write(updated);
-                await _settings.SetAsync(UiSettingsKeys.Section, UiSettingsKeys.ChartIndicators, written);
-                CacheIndicatorConfig(written);
+                    var written = ChartIndicatorConfig.Write(updated);
+                    await _settings.SetAsync(UiSettingsKeys.Section, UiSettingsKeys.ChartIndicators, written);
+                    CacheIndicatorConfig(written);
+                }
             }
-        }
-        else
-        {
-            _logger.LogWarning(
-                "The SMA period '{PeriodText}' is not a readable integer; the indicator selection is not saved",
-                SmaPeriodText);
+            else
+            {
+                _logger.LogWarning(
+                    "The SMA period '{PeriodText}' is not a readable integer; the indicator selection is not saved",
+                    SmaPeriodText);
+            }
         }
 
         // The MCP server enable: only a real difference applies (the same

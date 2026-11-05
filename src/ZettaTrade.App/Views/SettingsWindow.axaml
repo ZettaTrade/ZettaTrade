@@ -148,46 +148,61 @@
             </TabItem>
 
             <TabItem Header="{loc:Localized Settings.Tab.Indicators}">
-                <!-- The indicator overlay rows: the SMA row today, future rows
-                     land here one grid row each. -->
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto" RowSpacing="10" Margin="0,12,0,0">
-                    <!-- "SMA" is the plugin's canonical name - a product name, not a
-                         localized string; the row label and the period caption are. -->
-                    <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="{loc:Localized Chart.Indicators}"
-                               VerticalAlignment="Center" />
-                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                        <CheckBox Content="SMA"
-                                  IsChecked="{Binding IsSmaEnabled}"
-                                  VerticalAlignment="Center" />
-                        <!-- The info affordance: the tooltip lives HERE, not on the
-                             checkbox, so the icon itself signals that an explanation
-                             is available. The text wraps so a long translation stays
-                             readable. -->
-                        <Border Width="16" Height="16"
-                                CornerRadius="8"
-                                Background="Transparent"
-                                BorderThickness="1"
-                                BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
-                                VerticalAlignment="Center">
-                            <ToolTip.Tip>
-                                <TextBlock MaxWidth="260"
-                                           Text="{loc:Localized Chart.Indicators.SmaTip}"
-                                           TextWrapping="Wrap" />
-                            </ToolTip.Tip>
-                            <TextBlock Text="i"
-                                       FontSize="10"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
-                                       HorizontalAlignment="Center"
+                <!-- The indicator overlay rows: a row renders only for a plugin
+                     the scanned catalog actually loaded (the surface reflects
+                     the real catalog, it never assumes a shipped assembly);
+                     with a whole empty catalog the honest empty state shows
+                     instead. -->
+                <Grid ColumnDefinitions="*" ColumnSpacing="14" RowDefinitions="Auto,Auto" RowSpacing="10" Margin="0,12,0,0">
+                    <StackPanel Grid.Row="0" IsVisible="{Binding IsSmaPluginLoaded}">
+                        <!-- The row layout (label column + controls) as long
+                             as the SMA row renders. -->
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                            <!-- "SMA" is the plugin's canonical name - a product name, not a
+                                 localized string; the row label and the period caption are. -->
+                            <TextBlock Grid.Column="0"
+                                       Text="{loc:Localized Chart.Indicators}"
                                        VerticalAlignment="Center" />
-                        </Border>
-                        <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                                   VerticalAlignment="Center" />
-                        <TextBox Text="{Binding SmaPeriodText}"
-                                 MinWidth="64"
-                                 VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                <CheckBox Content="SMA"
+                                          IsChecked="{Binding IsSmaEnabled}"
+                                          VerticalAlignment="Center" />
+                                <!-- The info affordance: the tooltip lives HERE, not on the
+                                     checkbox, so the icon itself signals that an explanation
+                                     is available. The text wraps so a long translation stays
+                                     readable. -->
+                                <Border Width="16" Height="16"
+                                        CornerRadius="8"
+                                        Background="Transparent"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        VerticalAlignment="Center">
+                                    <ToolTip.Tip>
+                                        <TextBlock MaxWidth="260"
+                                                   Text="{loc:Localized Chart.Indicators.SmaTip}"
+                                                   TextWrapping="Wrap" />
+                                    </ToolTip.Tip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Text="{Binding SmaPeriodText}"
+                                         MinWidth="64"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
+                    <!-- The honest empty state: zero indicators registered by the
+                         scan (missing or skipped plugin assemblies). -->
+                    <TextBlock Grid.Row="1"
+                               IsVisible="{Binding IsIndicatorCatalogEmpty}"
+                               Text="{loc:Localized Settings.Indicators.Empty}"
+                               TextWrapping="Wrap" />
                 </Grid>
             </TabItem>
 

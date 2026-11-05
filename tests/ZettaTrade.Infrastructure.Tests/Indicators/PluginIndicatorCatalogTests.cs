@@ -273,4 +273,48 @@ public sealed class PluginIndicatorCatalogTests
             entry.Message.Contains("does not exist"),
             "the absence is recorded, not an error");
     }
+
+    /// <summary>
+    /// The loaded-name set the settings surface keys its rows against
+    /// (T-067): a staged plugin registers its canonical name, an empty or
+    /// missing plugins directory registers none — the scan gate reads
+    /// exactly one truth on every path.
+    /// </summary>
+    [Fact]
+    public void LoadedNames_TheStagedSmaPlugin_RegistersItsCanonicalName()
+    {
+        using var fixture = new PluginsDirectoryFixture();
+        fixture.StageValidSmaPlugin();
+        var logger = new SpyLogger();
+
+        var catalog = new PluginIndicatorCatalog(fixture.Path, logger);
+
+        catalog.LoadedNames.Should().Equal("SMA");
+    }
+
+    [Fact]
+    public void LoadedNames_AnEmptyDirectory_IsEmpty()
+    {
+        using var fixture = new PluginsDirectoryFixture();
+        var logger = new SpyLogger();
+
+        var catalog = new PluginIndicatorCatalog(fixture.Path, logger);
+
+        catalog.LoadedNames.Should().NotBeNull("the contract hands out a set, never null");
+        catalog.LoadedNames.Should().BeEmpty("no plugin assembly in the folder, no registration");
+    }
+
+    [Fact]
+    public void LoadedNames_AMissingDirectory_IsEmpty()
+    {
+        var logger = new SpyLogger();
+        var missing = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "zettatrade-indicator-tests",
+            Guid.NewGuid().ToString("N"));
+
+        var catalog = new PluginIndicatorCatalog(missing, logger);
+
+        catalog.LoadedNames.Should().BeEmpty("the early return leaves the initialized empty snapshot");
+    }
 }
