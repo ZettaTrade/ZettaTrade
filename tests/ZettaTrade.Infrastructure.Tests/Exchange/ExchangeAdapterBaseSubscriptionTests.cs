@@ -25,24 +25,35 @@ public sealed class ExchangeAdapterBaseSubscriptionTests
 
     /// <summary>
     /// Minimal concrete adapter for the base contract tests; the stream start
-    /// is a pending wait whose invocations and cancellations are recorded.
+    /// is a pending wait whose invocations, cancellations and requested book
+    /// depths are recorded.
     /// </summary>
     private sealed class TestAdapter : ExchangeAdapterBase
     {
         private readonly List<Symbol> _calledStarts = new();
         private readonly List<Symbol> _cancelledStarts = new();
+        private readonly List<int?> _requestedDepths = new();
         private readonly bool _blockStart;
         private CancellationToken? _observedStartToken;
 
-        public TestAdapter(bool blockStart)
+        public TestAdapter(bool blockStart, IReadOnlySet<int>? bookDepths = null)
             : base(NullLogger.Instance)
         {
             _blockStart = blockStart;
+            supportedBookDepths = bookDepths ?? new HashSet<int> { 20 };
         }
+
+        /// <inheritdoc/>
+        protected override IReadOnlySet<int> SupportedBookDepths => supportedBookDepths;
+
+        private readonly IReadOnlySet<int> supportedBookDepths;
 
         public IReadOnlyList<Symbol> CalledStarts => _calledStarts;
 
         public IReadOnlyList<Symbol> CancelledStarts => _cancelledStarts;
+
+        /// <summary>The depth each start was given, in call order (null for ticker/trade starts).</summary>
+        public IReadOnlyList<int?> RequestedDepths => _requestedDepths;
 
         /// <summary>The cancellation token the last start received.</summary>
         public CancellationToken? ObservedStartToken => _observedStartToken;
@@ -69,9 +80,13 @@ public sealed class ExchangeAdapterBaseSubscriptionTests
             CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<Bar>>(Array.Empty<Bar>());
 
-        protected override async Task StartSymbolStreamsAsync(Symbol symbol, CancellationToken ct)
+        protected override async Task StartSymbolStreamsAsync(
+            Symbol symbol,
+            int? bookDepth,
+            CancellationToken ct)
         {
             _observedStartToken = ct;
+            _requestedDepths.Add(bookDepth);
             _calledStarts.Add(symbol);
 
             if (!_blockStart)
@@ -184,6 +199,64 @@ public sealed class ExchangeAdapterBaseSubscriptionTests
             "the start token is live for the whole in-flight start");
 
         subscription.Dispose();
+    }
+
+    [Fact]
+    public void SupportedDepth_RidesTheStreamStart()
+    {
+        var adapter = new TestAdapter(
+            blockStart: false,
+            bookDepths: new HashSet<int> { 5, 10, 20 });
+        var symbol = Symbol.Parse("BTC/USDT");
+
+        using var subscription = adapter.SubscribeOrderBook(symbol, 5).Subscribe(_ => { });
+
+        adapter.RequestedDepths.Should().Equal(new int?[] { 5 });
+    }
+
+    [Fact]
+    public void TickerAndTradeStarts_CarryNoBookDepth()
+    {
+        var adapter = new TestAdapter(
+            blockStart: false,
+            bookDepths: new HashSet<int> { 5, 10, 20 });
+        var symbol = Symbol.Parse("BTC/USDT");
+
+        using (adapter.SubscribeTicker(symbol).Subscribe(_ => { }))
+        using (adapter.SubscribeTrades(symbol).Subscribe(_ => { }))
+        {
+        }
+
+        adapter.RequestedDepths.Should().Equal(new int?[] { null, null },
+            "a ticker or trade start carries no depth request at all");
+    }
+
+    [Fact]
+    public async Task RejectedDepth_ErrorsOnEverySubscribeWithoutAStart()
+    {
+        var adapter = new TestAdapter(
+            blockStart: false,
+            bookDepths: new HashSet<int> { 5, 10, 20 });
+        var symbol = Symbol.Parse("BTC/USDT");
+        var source = adapter.SubscribeOrderBook(symbol, 7);
+
+        var failures = new List<Exception>();
+        using (source.Subscribe(_ => { }, failures.Add))
+        {
+            await TestPoll.PollUntilAsync(() => failures.Count >= 1, TimeSpan.FromSeconds(5));
+        }
+
+        // The rejection is handed out per subscription, not a one-shot state.
+        using (source.Subscribe(_ => { }, failures.Add))
+        {
+            await TestPoll.PollUntilAsync(() => failures.Count >= 2, TimeSpan.FromSeconds(5));
+        }
+
+        failures.Should().HaveCount(2);
+        failures.Should().OnlyContain(failure => failure is ArgumentOutOfRangeException);
+        failures[0].Message.Should().Contain("5, 10, 20").And.Contain("requested 7");
+        adapter.CalledStarts.Should()
+            .BeEmpty("a rejected depth request never starts any stream");
     }
 
     #endregion
