@@ -9,6 +9,28 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.28] - 2026-11-05
+
+Build of board task T-065 (branch `feat/appearance`).
+
+### Changed
+- Localization and the theme engine leave `ZettaTrade.UI` for the new
+  lean `ZettaTrade.Appearance` library: `LocalizationManager` +
+  `LocalizedExtension`, `Strings` resx (namespace
+  `ZettaTrade.Appearance.Resources`), `ThemeManager` + `ThemeFileWatcher`
+  + `PreviewColorsToBrushesConverter`, and the UI-thread marshaller
+  `ObserveOnUiThread` (`ZettaTrade.Appearance.Extensions`). No diagram
+  change at runtime: theme hot-reload, live language switch and settings
+  persistence behave exactly as before.
+- `ThemeManager` takes the user themes directory as a REQUIRED
+  constructor argument: the library never reaches into
+  `Infrastructure.Configuration` for paths; the composition root passes
+  `ConfigPathResolver.ThemesDirectory`, and a blank value is rejected
+  loudly.
+- `ZettaTrade.UI` keeps charting/primitives, now references Appearance
+  (and directly `ZettaTrade.Charting`, already pulled transitively); the
+  app consumes both libraries.
+
 ## [0.1.0-alpha.27] - 2026-11-05
 
 Build of board task T-056 (branch `fix/app-vm-error-paths`).
