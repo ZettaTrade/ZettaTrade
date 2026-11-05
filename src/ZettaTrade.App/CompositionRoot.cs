@@ -75,7 +75,7 @@ internal static class CompositionRoot
         services.AddSingleton<ILocalizationManager>(sp =>
             new LocalizationManager(
                 sp.GetRequiredService<ILogger<LocalizationManager>>(),
-                Livery.Resources.Strings.ResourceManager));
+                ZettaTrade.UI.Resources.Strings.ResourceManager));
 
         // Exchange adapters: transport settings live inside each adapter module (Infrastructure).
         services.AddExchangeAdapters();

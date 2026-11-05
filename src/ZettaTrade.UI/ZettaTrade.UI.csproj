@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 	<RootNamespace>ZettaTrade.UI</RootNamespace>
     <AssemblyName>ZettaTrade.UI</AssemblyName>
-    <Description>Charting primitives, widgets and shared observer extensions.</Description>
+    <Description>Charting primitives, widgets, shared observer extensions, and the app's localized strings catalog.</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -17,11 +17,11 @@ using Avalonia.Skia;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Livery.Localization;
-using Livery.Resources;
 using Livery.Themes;
 using SkiaSharp;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.UI.Resources;
 
 /// <summary>
 /// Candlestick chart control that draws directly onto the Avalonia Skia canvas

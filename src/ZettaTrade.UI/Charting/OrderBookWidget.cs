@@ -17,12 +17,12 @@ using Avalonia.Skia;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Livery.Localization;
-using Livery.Resources;
 using Livery.Themes;
 using SkiaSharp;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.UI.Resources;
 
 /// <summary>
 /// Order book depth widget drawing directly onto the Avalonia Skia canvas
