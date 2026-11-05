@@ -95,7 +95,10 @@ internal static class CompositionRoot
         // named HttpClient; the workspace context rides the existing seams.
         services.AddAiServices();
 
-        services.AddSingleton<IMcpClient, McpClientService>();
+        services.AddSingleton<IMcpClient>(sp =>
+            new McpClientService(
+                sp.GetRequiredService<ILogger<McpClientService>>(),
+                sp.GetRequiredService<ISecretStore>()));
         services.AddSingleton<IMcpServerHost, McpServerHost>();
 
         // MCP host runner: the startup walk reads the enable choice and

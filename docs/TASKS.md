@@ -54,7 +54,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-047 [Critical] MCP server drops every response for numeric JSON-RPC ids (BUG-002) | feat/mcp-numeric-ids | done | - |
 | T-048 [Critical] Bybit reconnect resubscribes cancel each other (reconnect churn with 2+ symbols) (BUG-003) | feat/bybit-resubscribe | done | - |
 | T-049 Secret stores: silent data loss and rule violations across DPAPI/Keychain/secret-tool/encrypted file | fix/secrets-stores | done | - |
-| T-050 MCP pipelines: host lock stall, client id matching, unread stderr, tools enum defaults | fix/mcp-pipelines | queued | - |
+| T-050 MCP pipelines: host lock stall, client id matching, unread stderr, tools enum defaults | fix/mcp-pipelines | done | - |
 | T-051 Paper trading ledger: corrupted entry price, stale reference price, phantom fills | fix/paper-ledger | queued | - |
 | T-052 WebSocket transport: dead feed after reconnect, send races, frame parser, ignored depth | fix/ws-transport | queued | - |
 | T-053 Settings service: reload races erase just-written values, changes never published | fix/settings-hot-reload | queued | - |
@@ -177,7 +177,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-050 — MCP pipelines: host lock stall, client id matching, unread stderr, tools defaults (BUG-007, BUG-008, BUG-020...BUG-024, BUG-056)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/mcp-pipelines (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** the host and the client are the AI integration's two halves and the tools are its trading surface; the tools findings drop the "never substitute defaults for unparsable enums" rule - invalid orders flow toward execution.
 - **What:**
   - `BUG-007` - `TradingToolsRegistrar` parses side/type with `Enum.TryParse`: numeric and undefined values pass (`"999"` -> `(OrderSide)999`), and `OrderRequest.Validate` never checks enum definedness either (a Core concern if it needs a contract change - escalate).
@@ -191,6 +191,9 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `src/ZettaTrade.AI/Mcp/` (`McpServerHost.cs`, `McpClientService.cs`, `Tools/TradingToolsRegistrar.cs`), `src/ZettaTrade.Core/Entities/OrderRequest.cs`.
 - **Acceptance:** no defaults for unparsable/undefined enums (an explicit error per the rule); the host lock is held only over synchronous work (registrations never wait on tool calls); replies are matched by id with desync tolerance; the stderr drain is lifespan-owned; reconnect leaks no child process and disposal never throws; malformed requests get error replies; HTTP auth uses `ISecretStore`.
 - **Tests:** a scripted host client (registration while a tool call is in flight), a client framing/desync simulation, the tools parse-rejection matrix (`999`, undefined names, malformed JSON), the HTTP-transport secret path with a fake store.
+- **Status:** done. Canon: commit `b0b6b61` is on feat/mcp-pipelines; the gate prints `GATE PASSED` (baseline develop); 26 new facts (the tools parse matrix 9, the host error matrix + the parked-handler registration fact 7, the client framing/secrets/reconnect facts 7) plus 3 Core `OrderRequest.Validate` definedness facts (its suite 10/10), and the stdio purity fact now expects 3 envelopes. The tools parse side/orderType only from defined members (`ToolEnumParser` + `AllowedNames`), error on a PROVIDED unparsable timeInForce/timeframe and default exactly on omission; `OrderRequest.Validate` refuses undefined side/type/time-in-force toward execution. The host replies -32700/-32600/-32601/-32602 by request shape (parse errors ride id null, notifications stay silent), holds its lock only over the synchronous table read (a parked tool handler never blocks a registration - BUG-020), logs parse failures to the pipeline and waits bounded in `StopAsync`; the client matches replies by request id with framing tolerance (garbage and stranger lines are skipped, BUG-023), keeps the stderr drain owned and observed (BUG-021), sends the `ISecretStore` Bearer never a placeholder (loopback HTTP stub; a missing secret connects unauthenticated, BUG-024), tears the previous connection down before reconnecting and disposes a never-started client silently (BUG-022). Found along the tests: the args-to-DTO binding was case-sensitive against the camelCase schema keys (the simplest honest call answered "Symbol is required") - fixed with case-insensitive `ToolArgsOptions` riding the camel naming policy. Test infra: the two Console-owning suites (stdio purity, host errors) share one xUnit collection so the process-wide Console primitives never overlap.
+- **Merge revision:** T-047's pushed `McpServerHostStdioTests.cs` rewrite asserts garbage is SILENT on stdout (2 envelopes); after both branches merge the first stdio fact must keep T-050's 3-envelope expectation - the parse-error reply IS protocol JSON and the honest behavior (BUG-056) wins; the conflicting hunks sit in `Handshake_StdoutCarriesProtocolJsonOnly`'s count/assembles block.
+- **Wave note:** the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges - a supervisor-approved deviation from rule 6 for parallel work (same as T-040/T-047).
 
 ## T-051 — Paper trading ledger: corrupted entry price, stale reference price, phantom fills (BUG-005, BUG-006, BUG-033...BUG-035)
 

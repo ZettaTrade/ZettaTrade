@@ -31,6 +31,15 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     /// <summary>JSON-RPC error code for unknown tools and resources.</summary>
     private const int UnknownRequestErrorCode = -32601;
 
+    /// <summary>JSON-RPC error code for a malformed envelope (bad JSON).</summary>
+    private const int ParseErrorCode = -32700;
+
+    /// <summary>JSON-RPC error code for an invalid request (missing envelope members).</summary>
+    private const int InvalidRequestErrorCode = -32600;
+
+    /// <summary>JSON-RPC error code for invalid params (e.g. a missing tool name).</summary>
+    private const int InvalidParamsErrorCode = -32602;
+
     /// <summary>JSON-RPC method name for the MCP initialize handshake.</summary>
     private const string InitializeMethod = "initialize";
 
@@ -108,6 +117,9 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         }
     }
 
+    /// <summary>The bounded wait for the run loop to leave its (uninterruptible) console read.</summary>
+    private static readonly TimeSpan RunLoopStopWait = TimeSpan.FromSeconds(2);
+
     public async Task StopAsync(CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
@@ -120,6 +132,19 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
             }
 
             _cts?.Cancel();
+
+            // The console stdio reader cannot be interrupted by the token: the
+            // stop path gives the loop a BOUNDED wait to come home (between
+            // reads it exits promptly) and only then tears the CTS down — the
+            // pre-fix stop disposed while the loop could still be blocked
+            // inside ReadLineAsync (BUG-056). A loop left blocked ends on its
+            // own (the cancelled token is checked on every iteration); a
+            // faulted loop is already logged by the OnlyOnFaulted continuation.
+            if (_runLoopTask is { } loop)
+            {
+                await Task.WhenAny(loop, Task.Delay(RunLoopStopWait, ct));
+            }
+
             _cts?.Dispose();
             _cts = null;
             _isRunning = false;
@@ -199,36 +224,70 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
 
     private async Task HandleRequestAsync(string json, CancellationToken ct)
     {
-        using var doc = JsonDocument.Parse(json);
-        var method = doc.RootElement.GetProperty("method").GetString();
-
-        // The request id travels raw and verbatim: JSON-RPC 2.0 permits the
-        // string, number and null id shapes, and every kind must echo back
-        // byte-exact (GetString() returned null for a numeric id, which both
-        // mislabeled the request a notification and would have corrupted the
-        // echo). Clone() detaches the token from the disposed document; a
-        // missing id is a true JSON-RPC notification and gets no reply.
-        JsonElement? requestId = doc.RootElement.TryGetProperty("id", out var idP)
-            ? idP.Clone()
-            : null;
-
-        string? response = method switch
+        string? response = null;
+        try
         {
-            InitializeMethod => BuildInitializeResponse(requestId),
-            ToolsListMethod => await HandleToolsListAsync(requestId, ct),
-            ToolsCallMethod => await HandleToolCallAsync(doc.RootElement, requestId, ct),
-            ResourcesListMethod => await HandleResourcesListAsync(requestId, ct),
-            ResourcesReadMethod => await HandleResourceReadAsync(doc.RootElement, requestId, ct),
-            PromptsListMethod => await HandlePromptsListAsync(requestId, ct),
-            _ => null
-        };
+            using var doc = JsonDocument.Parse(json);
+            var requestId = TryGetRequestId(doc.RootElement);
 
-        if (response != null && requestId.HasValue)
+            if (!doc.RootElement.TryGetProperty("method", out var methodEl))
+            {
+                // A malformed request carrying an id must be answered: the
+                // pre-fix loop dropped it silently and the client waited
+                // forever (BUG-056). A notification stays silent per JSON-RPC.
+                response = requestId.HasValue
+                    ? BuildErrorResponse(requestId, InvalidRequestErrorCode, "Invalid request: missing method")
+                    : null;
+            }
+            else
+            {
+                var method = methodEl.GetString();
+                response = method switch
+                {
+                    InitializeMethod => BuildInitializeResponse(requestId),
+                    ToolsListMethod => await HandleToolsListAsync(requestId, ct),
+                    ToolsCallMethod => await HandleToolCallAsync(doc.RootElement, requestId, ct),
+                    ResourcesListMethod => await HandleResourcesListAsync(requestId, ct),
+                    ResourcesReadMethod => await HandleResourceReadAsync(doc.RootElement, requestId, ct),
+                    PromptsListMethod => await HandlePromptsListAsync(requestId, ct),
+                    // An unknown method with an id must be answered too; a
+                    // notification stays silent per JSON-RPC.
+                    _ => requestId.HasValue
+                        ? BuildErrorResponse(requestId, UnknownRequestErrorCode, $"Unknown method: {method}")
+                        : null,
+                };
+            }
+        }
+        catch (JsonException ex)
+        {
+            // The failure goes to the honest logging channel AND the client
+            // gets the spec's parse-error reply (id null, since bad JSON
+            // cannot reliably carry an id); the loop stays alive for the
+            // next request line.
+            _logger.LogError(ex, "MCP request parse error");
+            response = BuildErrorResponse(null, ParseErrorCode, "Parse error");
+        }
+
+        if (response != null)
         {
             await Console.Out.WriteLineAsync(response.AsMemory(), ct);
             await Console.Out.FlushAsync(ct);
         }
     }
+
+    /// <summary>
+    /// The request id travels raw and verbatim: the string, numeric and
+    /// explicit-null shapes all echo byte-exact (the loose GetString()
+    /// returned null for a numeric id, which both mislabeled the request a
+    /// notification and corrupted the echo). Clone() detaches the token from
+    /// the disposed document; a missing id is a JSON-RPC notification.
+    /// </summary>
+    private static JsonElement? TryGetRequestId(JsonElement root) =>
+        root.TryGetProperty("id", out var idP) ? idP.Clone() : null;
+
+    /// <summary>Build a JSON-RPC error envelope for one id.</summary>
+    private static string BuildErrorResponse(JsonElement? id, int code, string message) =>
+        JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, error = new { code, message } });
 
     /// <summary>
     /// Build the MCP initialize response from server constants (single source of truth),
@@ -267,32 +326,38 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
 
     private async Task<string> HandleToolCallAsync(JsonElement root, JsonElement? id, CancellationToken ct)
     {
-        var name = root.GetProperty("params").GetProperty("name").GetString() ?? "";
+        if (!root.TryGetProperty("params", out var @params) || !@params.TryGetProperty("name", out var nameEl))
+            return BuildErrorResponse(id, InvalidParamsErrorCode, "Invalid params: missing tool name");
 
+        var name = nameEl.GetString() ?? "";
+
+        // The lock covers ONLY the synchronous registration-table read: the
+        // tool handler runs OUTSIDE it (a tool may await a human confirmation
+        // dialog), so a UI-thread registration never waits on a tool call
+        // (BUG-020). The parsed document outlives this whole call, so the
+        // arguments element stays valid across the await.
+        JsonElement? arguments;
+        McpToolDefinition? tool;
         await _lock.WaitAsync(ct);
         try
         {
-            if (!_tools.TryGetValue(name, out var tool))
-            {
-                return JsonSerializer.Serialize(new
-                {
-                    jsonrpc = JsonRpcVersion,
-                    id,
-                    error = new { code = UnknownRequestErrorCode, message = "Unknown tool" },
-                });
-            }
-
-            var arguments = root.GetProperty("params").TryGetProperty("arguments", out var args)
+            _tools.TryGetValue(name, out tool);
+            arguments = @params.TryGetProperty("arguments", out var args)
                 ? args
-                : (JsonElement?)null;
-
-            var result = await tool.Handler(arguments, ct);
-            return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { content = result.Content } });
+                : null;
         }
         finally
         {
             _lock.Release();
         }
+
+        if (tool is null)
+        {
+            return BuildErrorResponse(id, UnknownRequestErrorCode, "Unknown tool");
+        }
+
+        var result = await tool.Handler(arguments, ct);
+        return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { content = result.Content } });
     }
 
     private async Task<string> HandleResourcesListAsync(JsonElement? id, CancellationToken ct)
@@ -311,28 +376,30 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
 
     private async Task<string> HandleResourceReadAsync(JsonElement root, JsonElement? id, CancellationToken ct)
     {
-        var uri = root.GetProperty("params").GetProperty("uri").GetString() ?? "";
+        if (!root.TryGetProperty("params", out var @params) || !@params.TryGetProperty("uri", out var uriEl))
+            return BuildErrorResponse(id, InvalidParamsErrorCode, "Invalid params: missing resource uri");
 
+        var uri = uriEl.GetString() ?? "";
+
+        McpResourceDefinition? resource;
         await _lock.WaitAsync(ct);
         try
         {
-            if (!_resources.TryGetValue(uri, out var resource))
-            {
-                return JsonSerializer.Serialize(new
-                {
-                    jsonrpc = JsonRpcVersion,
-                    id,
-                    error = new { code = UnknownRequestErrorCode, message = "Unknown resource" },
-                });
-            }
-
-            var content = await resource.Reader(ct);
-            return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { contents = content } });
+            _resources.TryGetValue(uri, out resource);
         }
         finally
         {
             _lock.Release();
         }
+
+        // The registered reader may await slower backends: it runs OUTSIDE
+        // the registration lock — the same release-before-await discipline
+        // the tool call keeps (BUG-020).
+        if (resource is null)
+            return BuildErrorResponse(id, UnknownRequestErrorCode, "Unknown resource");
+
+        var content = await resource.Reader(ct);
+        return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { contents = content } });
     }
 
     private async Task<string> HandlePromptsListAsync(JsonElement? id, CancellationToken ct)

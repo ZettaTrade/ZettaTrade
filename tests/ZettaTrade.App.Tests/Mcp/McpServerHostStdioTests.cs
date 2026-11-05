@@ -17,11 +17,14 @@ using ZettaTrade.Core.Interfaces;
 /// answers the initialize handshake, carries the client's requests through
 /// and echoes every id shape back byte-exact (string, numeric, explicit
 /// null), and the ONLY bytes that ever reach stdout are the JSON-RPC
-/// envelopes вЂ” a malformed request line is reported through <c>ILogger</c>
-/// and writes nothing to the protocol stream (the composition rule: nothing
-/// may write to stdout except MCP protocol messages; Serilog logs to files
-/// only).
+/// envelopes — a malformed request line is reported through <c>ILogger</c>
+/// and earns exactly the spec's -32700 parse-error envelope (which is itself
+/// protocol JSON; the composition rule: nothing may write to stdout except
+/// MCP protocol messages; Serilog logs to files only). Shares a collection
+/// with <see cref="McpServerHostErrorTests"/>: both suites own the
+/// process-wide Console primitives and must never overlap.
 /// </summary>
+[Collection("McpStdioConsoleSerial")]
 public sealed class McpServerHostStdioTests
 {
     #region Constants
@@ -30,7 +33,7 @@ public sealed class McpServerHostStdioTests
     private const string InitializeRequest =
         "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"initialize\",\"params\":{}}";
 
-    /// <summary>A non-protocol byte sequence the client never sends вЂ” the leak probe.</summary>
+    /// <summary>A non-protocol byte sequence the client never sends — the leak probe.</summary>
     private const string GarbageLine = "not-json";
 
     /// <summary>The tools/list request the discovery handshake follows with.</summary>
@@ -48,7 +51,7 @@ public sealed class McpServerHostStdioTests
     /// <summary>The tools/list with an explicit NULL id (JSON-RPC still counts it a request).</summary>
     private const string NullIdToolsListRequest = "{\"jsonrpc\":\"2.0\",\"id\":null,\"method\":\"tools/list\"}";
 
-    /// <summary>The tools/list WITHOUT an id вЂ” a JSON-RPC notification (no reply is allowed).</summary>
+    /// <summary>The tools/list WITHOUT an id — a JSON-RPC notification (no reply is allowed).</summary>
     private const string NotificationToolsListRequest = "{\"jsonrpc\":\"2.0\",\"method\":\"tools/list\"}";
 
     /// <summary>The echo-tool name the scripted client calls.</summary>
@@ -78,20 +81,22 @@ public sealed class McpServerHostStdioTests
 
     /// <summary>
     /// The full handshake: the host answers initialize and lists its tools,
-    /// the garbage line is reported to the logger (never stdout), and both
-    /// string ids echo back verbatim.
+    /// the garbage line earns exactly the spec's -32700 parse-error envelope
+    /// and is reported to the logger (never stdout) — every request-shaped
+    /// line the client sends gets an answer (the pre-fix loop swallowed the
+    /// malformed line silently) — and both string ids echo back verbatim.
     /// </summary>
     [Fact]
     public Task Handshake_StdoutCarriesProtocolJsonOnly() =>
         ExchangeScriptedAsync(
             InitializeRequest + "\n" + GarbageLine + "\n" + ToolsListRequest + "\n",
             setup: null,
-            complete: captured => StdoutLines(captured).Length >= 2,
+            complete: captured => StdoutLines(captured).Length >= 3,
             drainBeforeAsserts: true,
             (logger, captured) =>
             {
                 var lines = StdoutLines(captured);
-                lines.Should().HaveCount(2, "only the two protocol envelopes reach stdout");
+                lines.Should().HaveCount(3, "the initialize, the parse error and the tools/list envelopes reach stdout");
 
                 using var initialize = JsonDocument.Parse(lines[0]);
                 initialize.RootElement.GetProperty("jsonrpc").GetString().Should().Be("2.0");
@@ -105,23 +110,34 @@ public sealed class McpServerHostStdioTests
                 result.GetProperty("capabilities").TryGetProperty("tools", out _)
                     .Should().BeTrue();
 
-                using var tools = JsonDocument.Parse(lines[1]);
+                // The garbage line earns exactly the spec's -32700 parse-error
+                // envelope (itself protocol JSON: the id is the JSON null — a
+                // parse failure cannot know any request id).
+                using var parseError = JsonDocument.Parse(lines[1]);
+                parseError.RootElement.GetProperty("jsonrpc").GetString().Should().Be("2.0");
+                parseError.RootElement.GetProperty("id").ValueKind.Should().Be(JsonValueKind.Null);
+                var parseBody = parseError.RootElement.GetProperty("error");
+                parseBody.GetProperty("code").GetInt32().Should().Be(-32700);
+                parseBody.GetProperty("message").GetString().Should().NotBeNullOrEmpty();
+
+                using var tools = JsonDocument.Parse(lines[2]);
                 tools.RootElement.GetProperty("jsonrpc").GetString().Should().Be("2.0");
                 tools.RootElement.GetProperty("id").GetString().Should().Be("2");
                 tools.RootElement.GetProperty("result").GetProperty("tools").ValueKind
                     .Should().Be(JsonValueKind.Array);
 
-                // The garbage line went to the HONEST channel: the logger. Stdout
-                // saw none of it (counted above) вЂ” the leak pin lives here.
+                // The garbage line's failure went to the HONEST channel: the
+                // logger (the -32700 reply rides stdout as protocol JSON). The
+                // leak pin lives in the count above.
                 logger.Levels.Should().Contain(LogLevel.Error);
             });
 
     /// <summary>
     /// The exact capability a real client hangs on: NUMERIC request ids must
-    /// travel through and echo back вЂ” the scripted client drives initialize
+    /// travel through and echo back — the scripted client drives initialize
     /// and a tools/call with integer ids and receives both replies, each
-    /// echoing its own id (the pre-fix host dropped both вЂ” GetString()
-    /// turned a numeric id into null вЂ” and the client hung).
+    /// echoing its own id (the pre-fix host dropped both — GetString()
+    /// turned a numeric id into null — and the client hung).
     /// </summary>
     [Fact]
     public Task NumericIdRoundTrip_AnswersAndEchoesEveryId() =>
@@ -184,7 +200,7 @@ public sealed class McpServerHostStdioTests
     /// <summary>
     /// A request line without an id is a JSON-RPC notification: the server
     /// processes it (the trailing string-id request proves the loop read both
-    /// lines in order) but stdout must stay silent for it вЂ” no reply, no leak.
+    /// lines in order) but stdout must stay silent for it — no reply, no leak.
     /// </summary>
     [Fact]
     public Task ANotification_StaysSilentOnStdout() =>
@@ -287,9 +303,9 @@ public sealed class McpServerHostStdioTests
     #endregion
 
     /// <summary>
-    /// A recording test logger: it only collects the levels it was given, so
-    /// the test can assert the run loop reports its failures to the logging
-    /// pipeline (never to the console).
+    /// A recording test logger: it collects both the levels and the rendered
+    /// messages it was given, so the test can assert the run loop reports
+    /// its failures to the logging pipeline (never to the console).
     /// </summary>
     private sealed class RecordingLogger : ILogger<McpServerHost>
     {
