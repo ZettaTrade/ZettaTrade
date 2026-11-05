@@ -891,6 +891,19 @@ the board and its section below.
 - **Tests:** the helper's serialization tests (queued runs park until the pending one completes; out-of-order completions never reorder the starts); the pan-parity asserts (one painted bar = one slot, measured through `ChartBarLayout` — the same layout the draw pass paints with); the path disposal rides the structural `using` scope at the single `Detach` site (the suite has no headless SKSurface harness — a leak assert would race the finalizer).
 - **Status:** done. Canon: the branch carries `f12c8a9` (the three fixes + their tests: 9 new asserts) and release commit `6a1a59a` (the alpha.30 cut + the status flip); shipped as `0.1.0-alpha.30` (see CHANGELOG.md). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
+## T-059 — Themes: burst hot-reload drops files, watcher death, unordered live list, stale order book (BUG-046, BUG-047, BUG-050)
+
+- **Branch:** feat/theme-hot-reload (base `develop` at `6a1a59a`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Origin:** the hot-reload is a headline feature (edit your theme file, see it live) and its failure modes are silent (files dropped, the watcher dead, no error anywhere); a live-list race is a crash risk on every theme enumeration.
+- **What:**
+  - `BUG-046` - one global `Throttle` collapses a burst spanning different theme files into a single event: only the last-changed file reloads, others changed in the same 150 ms window never do; the FSW `Error` handler only logs: after an internal-buffer overflow the watcher stops raising events and hot-reload silently dies.
+  - `BUG-047` - `AvailableThemes` returns the live `List<ThemeInfo>` that the background hot-reload pipeline mutates under `_lock`: an unsynchronized consumer enumerating it throws `InvalidOperationException`.
+  - `BUG-050` - `OrderBookWidget` never subscribes to `ThemeChanged`/`LanguageChanged` (unlike the chart): after a theme or language switch the drawn book (colors, column headers) stays stale until the next `Book` snapshot arrives - indefinitely while disconnected.
+- **Scope:** `src/Livery/Themes/` (`ThemeFileWatcher.cs`, `ThemeManager.cs` — their home since the T-065 Livery extraction, the queued path naming predates the move), `src/ZettaTrade.UI/Charting/OrderBookWidget.cs`, `src/Livery/Livery.csproj` (one `InternalsVisibleTo` for the test seam).
+- **Acceptance:** a burst over N files reloads all N; a watcher error restarts the watch (a logged, not silent, failure); `AvailableThemes` hands out an immutable snapshot; the order book re-renders live on theme and language changes.
+- **Tests:** the burst integration test (a burst over two files reloads every one); the restart pin through the internal `RestartForever` seam (an error re-watches with a fresh source lap and logs the failure); the `AvailableThemes` copy-isolation pin (a snapshot survives the pipeline's in-place mutation); the existing hot-reload suites ride along. The queued "widget render test on theme/language change" wording resolved into the chart-convention wiring (attach-scoped subscriptions + per-render snapshot) — the widget has no headless render harness to drive, the assert rides the existing widget suites.
+- **Status:** done. Canon: the branch carries `ef67399` (the three fixes + their tests: 3 new tests; the registration is an immutable reference-swapped snapshot, so the `AvailableThemes` read never blocks) and release commit `8bc1d1f` (the alpha.31 cut + the status flip); shipped as `0.1.0-alpha.31` (see CHANGELOG.md).
+
 ## T-060 — Localization: culture race in the cached lookup + suspected binding lifetime leak (BUG-051, BUG-052 suspected)
 
 - **Branch:** feat/xdg-paths (base `develop`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)

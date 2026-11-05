@@ -9,6 +9,31 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.32] - 2026-11-06
+
+Build of board task T-066 (branch `feat/window-chrome`).
+
+### Added
+- Styled window chrome across the shell (all six windows): the `Livery`
+  `TitleBar` strip — localized title, drag, double-click maximize,
+  minimize/maximize/restore/close — mounts through the `Window.chrome` /
+  `Window.chrome-compact` templates on Avalonia 12 `BorderOnly` decorations,
+  so the native resize borders and AeroSnap survive while the system caption
+  disappears; the strip's window-wide key hook restores the Alt+F4 close
+  gesture that rode the dropped system menu.
+- Shell controls restyled off the palette (buttons, text inputs, combos,
+  tabs, menu with hover/pressed/focus states): generic hover keys onto
+  Accent, the close button onto Error.
+
+### Changed
+- New palette keys `TitleBar` / `TitleBarText` ship in every built-in theme
+  (dark, light, midnight, oled, trading-pro), the generated sample theme and
+  the theme-key list in `ZettaTrade_SKILL.md`; the chrome retints live on
+  theme and language switches.
+- The resx catalog gains the `Chrome.*` labels (en + ru) and window
+  backgrounds ride the `Background` palette key instead of the default
+  Fluent token; the main window title localizes.
+
 ## [0.1.0-alpha.31] - 2026-11-06
 
 Build of board task T-059 (branch `feat/theme-hot-reload`).
