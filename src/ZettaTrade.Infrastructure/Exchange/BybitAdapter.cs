@@ -3,11 +3,9 @@ namespace ZettaTrade.Infrastructure.Exchange;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Net.Http.Json;
-using System.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
@@ -110,18 +108,28 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <summary>
     /// Topic re-subscribe requests (a book gap or a fresh socket): each one
-    /// re-sends the symbol's subscribe frame, serialized through
-    /// <see cref="_sendGate"/> and never fire-and-forget.
+    /// lands in this queue and the ONE consumer task serves them FIFO,
+    /// serialized through <see cref="_sendGate"/> and never fire-and-forget.
     /// </summary>
-    private readonly Subject<Symbol> _resubscribeStreams = new();
+    private readonly Channel<Symbol> _resubscribeQueue = Channel.CreateUnbounded<Symbol>(
+        new UnboundedChannelOptions { SingleReader = true });
 
     private readonly IDisposable _messageSubscription;
     private readonly IDisposable _connectionSubscription;
-    private readonly IDisposable _resubscribeSubscription;
 
     /// <summary>Adapter-owned keepalive loop lifetime; the loop task is awaited on disposal, never abandoned.</summary>
     private readonly CancellationTokenSource _lifetimeCts = new();
     private readonly Task _keepaliveLoop;
+
+    /// <summary>
+    /// The queue's one consumer task: entries are served strictly one at a
+    /// time, so an in-flight re-subscribe send is NEVER cancelled by a newer
+    /// request — a cancelled send aborts the whole socket and churns the
+    /// reconnect with no market data (BUG-003). Awaited on disposal, never
+    /// abandoned.
+    /// </summary>
+    private readonly Task _resubscribeLoop;
+
     private int _disposed;
 
     #endregion
@@ -157,23 +165,8 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         _messageSubscription = _wsClient.MessageStream.Subscribe(HandleWebSocketMessage);
         _connectionSubscription = _wsClient.ConnectionStateStream.Subscribe(HandleConnectionStateChanged);
 
-        _resubscribeSubscription = _resubscribeStreams
-            .Select(symbol => Observable
-                .FromAsync(token => ResubscribeStreamsAsync(symbol, token))
-                .Catch<Unit, Exception>(ex =>
-                {
-                    // A failed re-subscribe must not tear the pipeline down:
-                    // the next book frame re-arms the recovery on its own.
-                    Logger.LogWarning(
-                        ex,
-                        "Bybit topic re-subscribe for {Symbol} failed",
-                        symbol.Normalized);
-                    return Observable.Empty<Unit>();
-                }))
-            .Switch()
-            .Subscribe();
-
         _keepaliveLoop = RunKeepaliveLoopAsync(_lifetimeCts.Token);
+        _resubscribeLoop = RunResubscribeLoopAsync(_lifetimeCts.Token);
     }
 
     #endregion
@@ -415,6 +408,41 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     }
 
     /// <summary>
+    /// The ONE consumer of the re-subscribe queue: every entry is served FIFO
+    /// and runs to completion — a newer request (a reconnect burst trailing
+    /// several symbols, a gap frame) queues behind and never cancels an
+    /// in-flight send, because a cancelled send aborts the whole socket and
+    /// churns the reconnect. The only cancellation left on this path is
+    /// disposal, which tears the transport down on its own.
+    /// </summary>
+    private async Task RunResubscribeLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var symbol in _resubscribeQueue.Reader.ReadAllAsync(ct))
+            {
+                try
+                {
+                    await ResubscribeStreamsAsync(symbol, ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // One failed re-subscribe must not kill the pump: the
+                    // next book frame re-arms the recovery on its own.
+                    Logger.LogWarning(
+                        ex,
+                        "Bybit topic re-subscribe for {Symbol} failed",
+                        symbol.Normalized);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposal: the only exit of the re-subscribe pump.
+        }
+    }
+
+    /// <summary>
     /// Re-subscribe every tracked symbol after a reconnection: the server
     /// holds no session state across sockets, so a silent reconnection would
     /// otherwise keep subscriptions "live" while no data flows (the first
@@ -440,7 +468,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
         foreach (var symbol in _subscribedSymbols.Values)
         {
-            _resubscribeStreams.OnNext(symbol);
+            _resubscribeQueue.Writer.TryWrite(symbol);
         }
     }
 
@@ -607,7 +635,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// Route an <c>orderbook.{depth}</c> frame into the per-symbol state
     /// machine: snapshots rebuild, deltas continue the sequence, a gap
     /// discards the state and re-subscribes the topic (via the serialized
-    /// re-subscribe pipeline, never fire-and-forget). Stale deltas are the
+    /// re-subscribe queue, never fire-and-forget). Stale deltas are the
     /// server's own races and are skipped silently — logging them would
     /// drown the real warnings at the 100 ms stream rate.
     /// </summary>
@@ -660,7 +688,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
                     "Bybit order book gap for {Symbol} at u={Sequence}; the state is discarded and the topic re-subscribed",
                     symbol.Normalized,
                     sequence);
-                _resubscribeStreams.OnNext(symbol);
+                _resubscribeQueue.Writer.TryWrite(symbol);
                 break;
         }
     }
@@ -850,11 +878,11 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
         _lifetimeCts.Cancel();
         await _keepaliveLoop;
+        await _resubscribeLoop;
         _lifetimeCts.Dispose();
 
         _messageSubscription.Dispose();
         _connectionSubscription.Dispose();
-        _resubscribeSubscription.Dispose();
 
         await base.DisposeAsync();
         await _wsClient.DisposeAsync();
