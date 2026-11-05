@@ -39,6 +39,15 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     /// <summary>Lookback window guaranteeing at least one reference bar exists.</summary>
     private const int ReferenceBarLookbackHours = 24;
 
+    /// <summary>
+    /// Reference-window fetch limit: one H1 bar per lookback hour plus one for
+    /// the partially open bar. Big enough to cover the whole window on every
+    /// backend, so the request can no longer page back exactly one bar: the
+    /// prior fixed <c>limit: 1</c> from <c>now - 24h</c> handed the adapter a
+    /// ~24-hour-old close on ascending-order backends (BUG-006).
+    /// </summary>
+    private const int ReferenceBarFetchLimit = ReferenceBarLookbackHours + 1;
+
     #endregion
 
     #region Fields
@@ -182,8 +191,13 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     private Order FillAndApply(OrderRequest request, Price fillPrice)
     {
         var order = FillOrder(request, fillPrice);
-        _orders[order.Id] = order;
+
+        // The portfolio applies BEFORE the order is recorded: a fill rejected
+        // for insufficient balance throws out of here and leaves no phantom
+        // Filled record behind — the caller receives the exception and every
+        // other caller-visible list stays honest (BUG-033).
         ApplyFillToPortfolio(order, fillPrice);
+        _orders[order.Id] = order;
 
         _logger.LogInformation(
             "Paper fill: {Side} {Quantity} {Symbol} at {Price} ({Type})",
@@ -202,12 +216,16 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         ArgumentException.ThrowIfNullOrWhiteSpace(orderId);
         ArgumentNullException.ThrowIfNull(symbol);
 
-        return CancelOrderCoreAsync(symbol, orderId);
+        return CancelOrderCoreAsync(symbol, orderId, ct);
     }
 
-    private async Task CancelOrderCoreAsync(Symbol symbol, string orderId)
+    private async Task CancelOrderCoreAsync(Symbol symbol, string orderId, CancellationToken ct)
     {
-        await _tradingLock.WaitAsync();
+        // The caller's cancellation token reaches the lock acquisition too: a
+        // wedged lock holder can no longer keep cancellation pending forever
+        // (BUG-035). The pre-acquisition await is outside the try, so a
+        // cancelled wait never releases an un-acquired semaphore.
+        await _tradingLock.WaitAsync(ct);
         try
         {
             if (!_orders.TryGetValue(orderId, out var order))
@@ -286,9 +304,14 @@ public sealed class PaperTradingAdapter : ITradingAdapter
 
     /// <summary>
     /// Latest H1 close from the wrapped adapter — the market's reference price: the
-    /// fill price of market orders and the crossing yardstick for limit orders. Fails
-    /// loudly when no reference data is available: a paper fill without a market
-    /// price would corrupt the simulation.
+    /// fill price of market orders and the crossing yardstick for limit orders. The
+    /// whole lookback window is fetched and the newest bar is selected BY ITS TIME,
+    /// never by list position: backends page bars differently (Binance klines are
+    /// oldest-first, Bybit/Demo serve the latest first), so the prior
+    /// position-based <c>bars[^1]</c> on a fixed <c>limit: 1</c> from
+    /// <c>now - 24h</c> silently took a ~24-hour-old close on ascending backends
+    /// (BUG-006). Fails loudly when no reference data is available: a paper fill
+    /// without a market price would corrupt the simulation.
     /// </summary>
     private async Task<Price> ResolveReferenceCloseAsync(OrderRequest request, CancellationToken ct)
     {
@@ -296,14 +319,16 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             request.Symbol,
             ReferenceTimeFrame,
             DateTimeOffset.UtcNow.AddHours(-ReferenceBarLookbackHours),
-            limit: 1,
+            limit: ReferenceBarFetchLimit,
             ct: ct);
 
         if (bars.Count == 0)
             throw new InvalidOperationException(
                 $"No reference bar available for {request.Symbol.Normalized}; cannot fill a {request.Type} order.");
 
-        return new Price(bars[^1].Close);
+        var newest = bars.Aggregate((latest, candidate) =>
+            candidate.Time > latest.Time ? candidate : latest);
+        return new Price(newest.Close);
     }
 
     /// <summary>The immediate-fill factory: the order records its full quantity.</summary>
@@ -382,39 +407,51 @@ public sealed class PaperTradingAdapter : ITradingAdapter
 
         if (newSigned == 0)
         {
+            // Flat: the position is fully closed and removed.
             _positions.TryRemove(symbolKey, out _);
             return;
         }
 
-        if (currentSigned == 0 || decimal.Sign(newSigned) == decimal.Sign(currentSigned))
+        if (currentSigned == 0)
         {
-            // Extending in the same direction (or opening): weighted average entry.
-            var previousAbs = Math.Abs(currentSigned);
-            var deltaAbs = Math.Abs(signedDelta);
-            var newAbs = Math.Abs(newSigned);
-
-            if (currentSigned == 0)
+            // Opening from flat: the fresh position is stamped at its own fill.
+            net.OpenedAt = order.CreatedAt;
+            net.EntryPrice = fillPrice.Value;
+            net.Quantity = Math.Abs(newSigned);
+        }
+        else if (decimal.Sign(newSigned) == decimal.Sign(currentSigned))
+        {
+            if (Math.Abs(newSigned) > Math.Abs(currentSigned))
             {
-                net.OpenedAt = order.CreatedAt;
-                net.EntryPrice = fillPrice.Value;
+                // Extending in the same direction: weighted average entry over
+                // the whole new size.
+                var previousAbs = Math.Abs(currentSigned);
+                var deltaAbs = Math.Abs(signedDelta);
+
+                net.EntryPrice = ((net.EntryPrice * previousAbs) + (fillPrice.Value * deltaAbs))
+                    / Math.Abs(newSigned);
+                net.Quantity = Math.Abs(newSigned);
             }
             else
             {
-                net.EntryPrice = ((net.EntryPrice * previousAbs) + (fillPrice.Value * deltaAbs)) / newAbs;
+                // Reducing (BUG-005): the fill closes part of the position at
+                // the fill price; the average entry of the REMAINING size stays
+                // exactly as it was (a partial close never re-averages it).
+                net.Quantity = Math.Abs(newSigned);
             }
-
-            net.Side = newSigned > 0 ? OrderSide.Buy : OrderSide.Sell;
-            net.Quantity = newAbs;
         }
         else
         {
-            // Crossing zero: the closing part is absorbed (realized PnL is out of scope here),
-            // the remainder opens a fresh position at the fill price.
-            net.Side = newSigned > 0 ? OrderSide.Buy : OrderSide.Sell;
-            net.Quantity = Math.Abs(newSigned);
+            // Crossing zero: the closing part is absorbed (realized PnL is out
+            // of scope here), the remainder opens a fresh position at the fill
+            // price — stamped at its OWN fill time, never inheriting the closed
+            // position's timestamp (BUG-034).
+            net.OpenedAt = order.CreatedAt;
             net.EntryPrice = fillPrice.Value;
+            net.Quantity = Math.Abs(newSigned);
         }
 
+        net.Side = newSigned > 0 ? OrderSide.Buy : OrderSide.Sell;
         net.LastPrice = fillPrice.Value;
     }
 
