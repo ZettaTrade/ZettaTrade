@@ -8,6 +8,13 @@ using ZettaTrade.Core.Interfaces;
 /// Default risk manager implementation.
 /// Provides basic risk checks for orders.
 /// </summary>
+/// <remarks>
+/// Fail-closed by design: when the request itself carries no price the
+/// value can be estimated from (the limit price, or the stop trigger for
+/// stop orders), the order is REJECTED with an explicit "cannot evaluate
+/// risk" reason — the hard cap is never bypassed by any caller, whatever
+/// order type or side it claims (BUG-026).
+/// </remarks>
 public sealed class DefaultRiskManager : IRiskManager
 {
     private readonly ILogger<DefaultRiskManager> _logger;
@@ -33,16 +40,25 @@ public sealed class DefaultRiskManager : IRiskManager
     {
         try
         {
-            // Market orders carry no explicit price: rather than estimating zero value
-            // (which would silently bypass confirmation), require a human decision.
-            var referencePrice = request.Price?.Value;
+            // The value anchors on the price the REQUEST carries: the limit
+            // price for Limit/StopLimit, the stop trigger for StopMarket.
+            // An order with NEITHER (a market order) cannot have its value
+            // estimated from the request — and this manager deliberately
+            // has no market-data dependency to approximate with (a stale
+            // last price would estimate nonsense and reopen the bypass it
+            // exists to prevent). Such an order is rejected explicitly:
+            // the pre-fix behavior approved it with a required confirmation
+            // and never met the cap, which its own documentation declares
+            // must never be bypassable by any caller (BUG-026).
+            var referencePrice = request.Price?.Value ?? request.StopPrice?.Value;
             if (referencePrice is null)
             {
                 _logger.LogWarning(
-                    "Order of {Quantity} {Symbol} has no price to estimate value; requiring confirmation",
+                    "Order of {Quantity} {Symbol} carries no price to estimate its value; risk cannot be evaluated and the order is rejected",
                     request.Quantity.Value,
                     request.Symbol.Normalized);
-                return Task.FromResult(RiskCheckResult.Approved(requiresConfirmation: true));
+                return Task.FromResult(RiskCheckResult.Rejected(
+                    "cannot evaluate risk: the order carries no price to estimate its value against the hard cap; place a limit order, or a stop order with its trigger price"));
             }
 
             var estimatedValue = request.Quantity.Value * referencePrice.Value;
