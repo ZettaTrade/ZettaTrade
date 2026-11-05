@@ -28,6 +28,29 @@ public sealed class SqliteOrderHistoryStore(
     /// <summary>Growth cap in <see cref="GetRecentAsync"/>; the history view is read-only.</summary>
     private const int MaxRecentBatch = 1000;
 
+    /// <summary>
+    /// The model converters, compiled once, for the raw upsert statement
+    /// (BUG-043): the interpolated SQL runs AROUND the EF value-conversion
+    /// pipeline, so its values must be pre-converted through the EXACT
+    /// converters the entity model keeps on each column — the stored TEXT
+    /// stays byte-consistent whether a row was written by <c>SaveChanges</c>
+    /// or by the upsert SQL.
+    /// </summary>
+    private static readonly Func<DateTimeOffset, string> TimestampText =
+        OrderHistoryConversions.Timestamp.ConvertToProviderExpression.Compile();
+
+    /// <summary>See <see cref="TimestampText"/>.</summary>
+    private static readonly Func<DateTimeOffset?, string> NullableTimestampText =
+        OrderHistoryConversions.NullableTimestamp.ConvertToProviderExpression.Compile();
+
+    /// <summary>See <see cref="TimestampText"/>.</summary>
+    private static readonly Func<decimal, string> AmountText =
+        OrderHistoryConversions.Amount.ConvertToProviderExpression.Compile();
+
+    /// <summary>See <see cref="TimestampText"/>.</summary>
+    private static readonly Func<decimal?, string> NullableAmountText =
+        OrderHistoryConversions.NullableAmount.ConvertToProviderExpression.Compile();
+
     #endregion Private Fields
 
     #region Public Methods
@@ -62,21 +85,64 @@ public sealed class SqliteOrderHistoryStore(
         ArgumentNullException.ThrowIfNull(order);
         await using var dbContext = new OrderHistoryDbContext(options);
 
-        // Upsert: the (ExchangeId, OrderId) pair is the identity; a re-record
-        // (e.g. an adapter status refresh) updates the existing row.
-        var entry = await dbContext.Orders.FindAsync(
-            [order.ExchangeId, order.Id],
-            cancellationToken);
-        if (entry is null)
-        {
-            dbContext.Orders.Add(ToEntry(order));
-        }
-        else
-        {
-            OverwriteEntry(entry, order);
-        }
+        // The placement is a TRUE DB upsert (BUG-043): the pre-fix
+        // check-then-act FindAsync/Add pair left a window where two concurrent
+        // placements for the same (ExchangeId, OrderId) both saw null and the
+        // second SaveChangesAsync died on the unique constraint. ONE statement
+        // decides insert-or-update on the database side; SQLite merges on the
+        // composite primary key, and a re-record (an adapter status refresh)
+        // is a full row rewrite by contract.
+        //
+        // The interpolated SQL runs AROUND the EF value converters, so every
+        // value is pre-converted through THE SAME converter the entity model
+        // keeps on that column — the stored TEXT stays byte-consistent with
+        // what the entity pipeline would have written.
+        var exchangeId = order.ExchangeId;
+        var orderId = order.Id;
+        var symbol = order.Symbol.Normalized;
+        var side = order.Side.ToString();
+        var type = order.Type.ToString();
+        var quantity = AmountText(order.Quantity.Value);
+        var price = AmountText(order.Price.Value);
+        var status = order.Status.ToString();
+        var timeInForce = order.TimeInForce.ToString();
+        var createdAt = TimestampText(order.CreatedAt);
+        var updatedAt = NullableTimestampText(order.UpdatedAt);
+        var filledQuantity = AmountText(order.FilledQuantity.Value);
+        var clientOrderId = order.ClientOrderId;
+        var stopPrice = NullableAmountText(order.StopPrice?.Value);
+        var exchangeOrderId = order.ExchangeOrderId;
+        var rejectReason = order.RejectReason;
+        var expiry = NullableTimestampText(order.Expiry);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO Orders (
+                ExchangeId, OrderId, Symbol, Side, Type, Quantity, Price, Status, TimeInForce,
+                CreatedAt, UpdatedAt, FilledQuantity, ClientOrderId, StopPrice, ExchangeOrderId,
+                RejectReason, Expiry)
+            VALUES (
+                {exchangeId}, {orderId}, {symbol}, {side}, {type}, {quantity}, {price}, {status},
+                {timeInForce}, {createdAt}, {updatedAt}, {filledQuantity}, {clientOrderId}, {stopPrice},
+                {exchangeOrderId}, {rejectReason}, {expiry})
+            ON CONFLICT (ExchangeId, OrderId) DO UPDATE SET
+                Symbol = {symbol},
+                Side = {side},
+                Type = {type},
+                Quantity = {quantity},
+                Price = {price},
+                Status = {status},
+                TimeInForce = {timeInForce},
+                CreatedAt = {createdAt},
+                UpdatedAt = {updatedAt},
+                FilledQuantity = {filledQuantity},
+                ClientOrderId = {clientOrderId},
+                StopPrice = {stopPrice},
+                ExchangeOrderId = {exchangeOrderId},
+                RejectReason = {rejectReason},
+                Expiry = {expiry}
+            """,
+            cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -102,6 +168,21 @@ public sealed class SqliteOrderHistoryStore(
                 "Order history: cancel for {ExchangeId}/{OrderId} has no recorded order; nothing to mark",
                 exchangeId,
                 orderId);
+            return;
+        }
+
+        // A terminal status is final (BUG-042): a late or duplicate cancel
+        // for an order that already Filled/Rejected/Expired — or whose
+        // cancellation was already recorded — must be ignored, never a
+        // silent rewrite of the recorded outcome. This store is the journal
+        // of record for trading activity; it has no revisions.
+        if (IsTerminal(entry.Status))
+        {
+            logger.LogWarning(
+                "Order history: cancel for {ExchangeId}/{OrderId} arrived after the terminal status {Status}; the recorded outcome is kept",
+                exchangeId,
+                orderId,
+                entry.Status);
             return;
         }
 
@@ -131,47 +212,18 @@ public sealed class SqliteOrderHistoryStore(
 
     #region Private Methods
 
-    /// <summary>Map an adapter order onto a journal row.</summary>
-    private static OrderHistoryEntry ToEntry(Order order) => new()
-    {
-        ExchangeId = order.ExchangeId,
-        OrderId = order.Id,
-        Symbol = order.Symbol.Normalized,
-        Side = order.Side,
-        Type = order.Type,
-        Quantity = order.Quantity.Value,
-        Price = order.Price.Value,
-        Status = order.Status,
-        TimeInForce = order.TimeInForce,
-        CreatedAt = order.CreatedAt,
-        UpdatedAt = order.UpdatedAt,
-        FilledQuantity = order.FilledQuantity.Value,
-        ClientOrderId = order.ClientOrderId,
-        StopPrice = order.StopPrice?.Value,
-        ExchangeOrderId = order.ExchangeOrderId,
-        RejectReason = order.RejectReason,
-        Expiry = order.Expiry,
-    };
-
-    /// <summary>Refresh an existing row from a re-recorded order.</summary>
-    private static void OverwriteEntry(OrderHistoryEntry entry, Order order)
-    {
-        entry.Symbol = order.Symbol.Normalized;
-        entry.Side = order.Side;
-        entry.Type = order.Type;
-        entry.Quantity = order.Quantity.Value;
-        entry.Price = order.Price.Value;
-        entry.Status = order.Status;
-        entry.TimeInForce = order.TimeInForce;
-        entry.CreatedAt = order.CreatedAt;
-        entry.UpdatedAt = order.UpdatedAt;
-        entry.FilledQuantity = order.FilledQuantity.Value;
-        entry.ClientOrderId = order.ClientOrderId;
-        entry.StopPrice = order.StopPrice?.Value;
-        entry.ExchangeOrderId = order.ExchangeOrderId;
-        entry.RejectReason = order.RejectReason;
-        entry.Expiry = order.Expiry;
-    }
+    /// <summary>
+    /// Whether an order status is final: Filled, Cancelled, Rejected and
+    /// Expired end the order's lifecycle, while Pending, Submitted and
+    /// PartiallyFilled can still transition anywhere. The journal-of-record
+    /// rule (BUG-042) keys on this: no later event rewrites a terminal
+    /// outcome.
+    /// </summary>
+    private static bool IsTerminal(OrderStatus status) =>
+        status is OrderStatus.Filled
+            or OrderStatus.Cancelled
+            or OrderStatus.Rejected
+            or OrderStatus.Expired;
 
     /// <summary>Map a journal row back onto the Core <see cref="Order"/> record.</summary>
     private static Order ToOrder(OrderHistoryEntry entry) => new()
