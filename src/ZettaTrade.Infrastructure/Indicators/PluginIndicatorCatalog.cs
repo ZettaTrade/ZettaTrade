@@ -124,14 +124,55 @@ public sealed class PluginIndicatorCatalog : IIndicatorCatalog
             return;
         }
 
-        foreach (var type in assembly.GetTypes())
-        {
-            if (!type.IsClass || type.IsAbstract || !typeof(IIndicator).IsAssignableFrom(type))
-            {
-                continue;
-            }
+        // The type enumeration needs its own guard: Assembly.GetTypes()
+        // throws on its own when ANY type of the plugin fails to load — a
+        // missing dependency assembly is the common cause — and the pre-fix
+        // code left it outside the guard that protects only the LoadFrom,
+        // so one broken file aborted the whole directory scan (BUG-014).
+        // The file is skipped loudly; the scan continues.
+        Type[] pluginTypes;
 
-            RegisterIndicator(type, filePath);
+        try
+        {
+            pluginTypes = assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Plugin assembly {Path} has types that fail to load (missing dependencies?); the file is skipped",
+                filePath);
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Plugin assembly {Path} could not be inspected and is skipped", filePath);
+            return;
+        }
+
+        foreach (var type in pluginTypes)
+        {
+            // Even a type GetTypes() returned can be partially broken (its
+            // members may still fail to resolve): inspecting it must never
+            // take the file — and the healthy neighbors — down with it. The
+            // type alone is skipped, the file's scan continues.
+            try
+            {
+                if (!type.IsClass || type.IsAbstract || !typeof(IIndicator).IsAssignableFrom(type))
+                {
+                    continue;
+                }
+
+                RegisterIndicator(type, filePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Indicator type {Type} in {Path} could not be inspected and is skipped",
+                    type.FullName,
+                    filePath);
+            }
         }
     }
 

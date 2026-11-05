@@ -12,10 +12,11 @@ using ZettaTrade.Plugins.Sma;
 /// The plugin loader matrix: a valid plugin assembly resolves (the
 /// ctor(int) convention preferred), a rejected period skips with a logged
 /// warning, an unknown name resolves quietly to null, a garbage dll warns
-/// without crashing the scan and a missing plugins directory means no
-/// indicators at all. The scan loads the dlls (the file stays locked for
-/// the process lifetime), so the temp fixtures clean up what they can and
-/// tolerate the locked leftovers.
+/// without crashing the scan, a plugin with a missing dependency fails the
+/// GetTypes() step and skips loudly (BUG-014) and a missing plugins
+/// directory means no indicators at all. The scan loads the dlls (the file
+/// stays locked for the process lifetime), so the temp fixtures clean up
+/// what they can and tolerate the locked leftovers.
 /// </summary>
 public sealed class PluginIndicatorCatalogTests
 {
@@ -48,6 +49,32 @@ public sealed class PluginIndicatorCatalogTests
         public void StageGarbagePlugin()
         {
             File.WriteAllText(System.IO.Path.Combine(Path, "not-a-plugin.dll"), "this is not an assembly");
+        }
+
+        /// <summary>
+        /// Stage the broken-dependency fixture: a VALID assembly whose base
+        /// class lives in <c>ZettaTrade.Plugins.BrokenBase.dll</c> — an
+        /// assembly deliberately never staged (it is compile-only for the
+        /// test project) and deleted from the test output if tooling leaks
+        /// it there, so the plugin's <c>GetTypes()</c> genuinely fails on a
+        /// missing dependency (BUG-014). The dll is located BY NAME in the
+        /// test output: loading the fixture's own type (typeof) would raise
+        /// the very failure under test.
+        /// </summary>
+        public void StageBrokenDependencyPlugin()
+        {
+            File.Copy(
+                System.IO.Path.Combine(AppContext.BaseDirectory, "ZettaTrade.Plugins.Broken.dll"),
+                System.IO.Path.Combine(Path, "ZettaTrade.Plugins.Broken.dll"),
+                overwrite: true);
+
+            var leaked = System.IO.Path.Combine(
+                AppContext.BaseDirectory,
+                "ZettaTrade.Plugins.BrokenBase.dll");
+            if (File.Exists(leaked))
+            {
+                File.Delete(leaked);
+            }
         }
 
         public void Dispose()
@@ -176,6 +203,57 @@ public sealed class PluginIndicatorCatalogTests
             entry.Level == LogLevel.Warning &&
             entry.Message.Contains("not-a-plugin.dll"),
             "the malformed assembly skips loudly");
+    }
+
+    /// <summary>
+    /// BUG-014: a plugin whose dependencies are missing fails INSIDE
+    /// assembly.GetTypes() (a ReflectionTypeLoadException the pre-fix code
+    /// let escape the whole scan). The file warns and is skipped, while the
+    /// neighboring plugins keep registering and building.
+    /// </summary>
+    [Fact]
+    public void Scan_APluginWithMissingDependencies_SkipsTheFileAndKeepsTheNeighborsWorking()
+    {
+        using var fixture = new PluginsDirectoryFixture();
+        fixture.StageValidSmaPlugin();
+        fixture.StageBrokenDependencyPlugin();
+        fixture.StageGarbagePlugin();
+        var logger = new SpyLogger();
+
+        var catalog = new PluginIndicatorCatalog(fixture.Path, logger);
+
+        catalog.Create("SMA", 2).Should().NotBeNull("the dependency-missing plugin never breaks its neighbors");
+        logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("ZettaTrade.Plugins.Broken.dll") &&
+            entry.Message.Contains("fail to load"),
+            "the dependency-missing plugin skips loudly, not silently");
+        logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("not-a-plugin.dll"),
+            "the garbage neighbor keeps its own warning");
+    }
+
+    /// <summary>
+    /// The scan's precision: only the broken plugin is accused — the healthy
+    /// SMA assembly never shows up in a warning (a false accusation would
+    /// hide which file actually failed the reflection step).
+    /// </summary>
+    [Fact]
+    public void Scan_APluginWithMissingDependencies_NeverWarnsAboutTheHealthyNeighbors()
+    {
+        using var fixture = new PluginsDirectoryFixture();
+        fixture.StageValidSmaPlugin();
+        fixture.StageBrokenDependencyPlugin();
+        var logger = new SpyLogger();
+
+        var catalog = new PluginIndicatorCatalog(fixture.Path, logger);
+
+        catalog.Create("SMA", 2).Should().NotBeNull("the scan itself never throws and the healthy plugin registers");
+        logger.Entries.Should().NotContain(entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("ZettaTrade.Plugins.Sma.dll"),
+            "the warnings are per-file precise");
     }
 
     [Fact]
