@@ -414,6 +414,20 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     private string _marksExchangeId = string.Empty;
 
+    /// <summary>
+    /// Monotonic counter of the symbol bootstraps STARTED so far (BUG-016):
+    /// every adapter change begins its own fetch and claims the next epoch;
+    /// a delivery applies only while its epoch is still the current one.
+    /// Two rapid exchange switches deliver out of order — the older fetch's
+    /// delivery lands AFTER the newer switch started its fetch and drops,
+    /// so an old exchange's list and selection never clobber the new one's.
+    /// The same epoch scheme the older-history machinery runs against a
+    /// rebase, stated on a counter over a cancellation token: dropping on
+    /// delivery (not cancelling the fetch) keeps the provider cache warm
+    /// for whichever exchange owns the workspace next.
+    /// </summary>
+    private int _symbolBootstrapEpoch;
+
     #endregion
 
     #region Constructors
@@ -663,6 +677,22 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
+        // The clock format restores FIRST and in EVERY path. The pre-fix
+        // restore sat at the tail of the time-frame restore below, so the
+        // early returns (no persisted time frame, an unparsable one, and —
+        // the common case — a persisted time frame equal to the default
+        // H1) skipped it and every restart silently reverted the user's
+        // 12-hour clock (BUG-015). It is an independent pure consumer of
+        // its setting; the time-frame restore does not stage it.
+        Use12HourClock = await _settings.GetAsync<bool>(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartUse12HourClock,
+            UiSettingsKeys.DefaultUse12HourClock);
+
+        _logger.LogInformation(
+            "Restored persisted chart clock format: '{Clock}'",
+            Use12HourClock ? "12-hour" : "24-hour");
+
         var persisted = await _settings.GetAsync<string>(
             UiSettingsKeys.Section,
             UiSettingsKeys.ChartTimeFrame);
@@ -702,17 +732,6 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         }
 
         _logger.LogInformation("Restored persisted chart time frame '{Value}'", restored);
-
-        // The clock format is a pure consumer of the setting (nothing in the
-        // chart pipeline writes it), so the restore is a plain assignment.
-        Use12HourClock = await _settings.GetAsync<bool>(
-            UiSettingsKeys.Section,
-            UiSettingsKeys.ChartUse12HourClock,
-            UiSettingsKeys.DefaultUse12HourClock);
-
-        _logger.LogInformation(
-            "Restored persisted chart clock format: '{Clock}'",
-            Use12HourClock ? "12-hour" : "24-hour");
     }
 
     /// <summary>
@@ -806,11 +825,18 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         // the fetch still persists into the right exchange's map.
         _marksExchangeId = trigger.Id;
 
+        // BUG-016: claim this bootstrap's epoch and snapshot the selection
+        // the fetch STARTS from — both sides of the delivery decision. A
+        // newer emission that starts after this fetch bumps the epoch and
+        // makes every pending delivery of this one stale.
+        var epoch = Interlocked.Increment(ref _symbolBootstrapEpoch);
+        var selectionAtStart = SelectedSymbol;
+
         Observable
-            .FromAsync(token => LoadBootstrapAsync(trigger.Id, token))
+            .FromAsync(token => LoadBootstrapAsync(trigger.Id, selectionAtStart, token))
             .ObserveOnUiThread()
             .Subscribe(
-                bootstrap => ApplySymbolBootstrap(bootstrap, exchangeName),
+                bootstrap => ApplySymbolBootstrap(bootstrap, epoch, exchangeName),
                 ex => _logger.LogError(ex, "Failed to load symbols"));
     }
 
@@ -822,8 +848,20 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// persistence chain skips exactly it, the two-way combo adds user edits
     /// everywhere else.
     /// </summary>
-    private void ApplySymbolBootstrap(SymbolBootstrap bootstrap, string exchangeName)
+    private void ApplySymbolBootstrap(SymbolBootstrap bootstrap, int epoch, string exchangeName)
     {
+        // BUG-016: only the CURRENT epoch delivers. A fetch outlived by a
+        // newer switch carries a stale epoch — the newer bootstrap already
+        // claimed its own — and drops: no older exchange's payload, marks
+        // re-cache or preselection ever lands after the newer one.
+        if (Volatile.Read(ref _symbolBootstrapEpoch) != epoch)
+        {
+            _logger.LogInformation(
+                "Symbols for {Exchange} delivered late; a newer bootstrap started already and the delivery is dropped",
+                exchangeName);
+            return;
+        }
+
         LogPersistedSymbolOutcome(bootstrap, exchangeName);
 
         _favoriteMarks = bootstrap.FavoriteMarks;
@@ -847,18 +885,58 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     /// <summary>
-    /// Land the symbols bootstrap synchronously for the marshal-invariant
-    /// facts: the shared test-process dispatcher pins to a foreign owner
-    /// (the posted apply is never pumped there), so a fact drives the load
-    /// and the apply through this single seam instead. Not part of the
-    /// runtime UI contract — the ViewModel ships the assignment through
+    /// The marshal-invariant facts seam. The shared test-process dispatcher
+    /// pins to a foreign owner (the posted apply is never pumped there), so
+    /// a fact lands the load-and-apply through the same machinery the VM
+    /// ships, synchronously and without the marshal hop:
+    /// <list type="bullet">
+    /// <item><see cref="StartBootstrapForFactsAsync"/> — the real start
+    /// (epoch bump, selection snapshot, load, applying with its own
+    /// epoch), for "a newer bootstrap wins" facts.</item>
+    /// <item><see cref="ApplyBootstrapForFactsAsync(IMarketDataAdapter, int)"/>
+    /// — a DELIVERY with a caller-declared epoch, including a stale one
+    /// (the reversed-completions repro real switches produce).</item>
+    /// <item><see cref="LoadBootstrapForFactsAsync"/> — the LOAD half
+    /// alone (no epoch, no apply): the facts that need the raw decision —
+    /// the persisted-deferral and preselection — while state stays
+    /// untouched.</item>
+    /// </list>
+    /// Not part of the runtime UI contract — the ViewModel ships the
+    /// assignment through
     /// <see cref="ZettaTrade.UI.Extensions.ObservableExtensions.ObserveOnUiThread"/>
     /// like every other assignment.
     /// </summary>
-    internal async Task ApplyBootstrapForFactsAsync(IMarketDataAdapter adapter) =>
-        ApplySymbolBootstrap(
-            await LoadBootstrapAsync(adapter.Id, CancellationToken.None),
-            adapter.Name);
+    internal async Task<int> StartBootstrapForFactsAsync(IMarketDataAdapter adapter)
+    {
+        var epoch = Interlocked.Increment(ref _symbolBootstrapEpoch);
+        var selectionAtStart = SelectedSymbol;
+
+        var bootstrap = await LoadBootstrapAsync(adapter.Id, selectionAtStart, CancellationToken.None);
+        ApplySymbolBootstrap(bootstrap, epoch, adapter.Name);
+
+        return epoch;
+    }
+
+    /// <summary>
+    /// Deliver one bootstrap as the CALLER-declared epoch (the reversed
+    /// completions repro: a fact fabricates the stale epoch a real switch
+    /// produces — its bump already happened at the newer start). The load
+    /// re-runs against the CURRENT exchange and the epoch guard decides.
+    /// </summary>
+    internal async Task ApplyBootstrapForFactsAsync(IMarketDataAdapter adapter, int epoch)
+    {
+        var bootstrap = await LoadBootstrapForFactsAsync(adapter);
+        ApplySymbolBootstrap(bootstrap, epoch, adapter.Name);
+    }
+
+    /// <summary>
+    /// The LOAD half of the facts seam: a real bootstrap load against the
+    /// given adapter, nothing applied and no epoch consumed. The returned
+    /// record carries the persisted-deferral and the preselection the
+    /// delivery WOULD carry.
+    /// </summary>
+    internal async Task<SymbolBootstrap> LoadBootstrapForFactsAsync(IMarketDataAdapter adapter) =>
+        await LoadBootstrapAsync(adapter.Id, SelectedSymbol, CancellationToken.None);
 
     /// <summary>
     /// The persisted-symbol warnings for one bootstrap outcome: a stored
@@ -878,6 +956,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 "Persisted workspace symbol '{Stored}' is not a valid symbol; starting on '{Symbol}'",
                 stored,
                 bootstrap.Selection);
+        }
+        else if (bootstrap.PersistedDeferred)
+        {
+            // A deferred preference is not a fall-through: the user picked
+            // while the fetch was in flight. Persist the fact quietly — the
+            // not-listed warnings below would lie about the reason.
+            _logger.LogInformation(
+                "Persisted workspace symbol '{Persisted}' was deferred: a symbol was picked while the fetch was in flight",
+                bootstrap.PersistedSymbol);
         }
         else if (bootstrap.PersistedSymbol is { } wanted && !Equals(wanted, bootstrap.Selection))
         {
@@ -915,15 +1002,18 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// serialize the other exchanges' entries untouched), the exchange the
     /// marks apply to, the persisted preference and its raw stored form
     /// (non-null exactly when it failed to parse — the unsupported-fall
-    /// -through warning source), and the preselected symbol.
+    /// -through warning source), whether the parsed preference was deferred
+    /// by a mid-flight pick (BUG-016 — a deferral is not a fall-through, it
+    /// must not warn) and the preselected symbol.
     /// </summary>
-    private sealed record SymbolBootstrap(
+    internal sealed record SymbolBootstrap(
         IReadOnlyList<Symbol> Symbols,
         IReadOnlyDictionary<string, IReadOnlySet<string>> FavoriteMarks,
         IReadOnlyDictionary<string, IReadOnlySet<string>> HiddenMarks,
         string ExchangeId,
         string? StoredSymbol,
         Symbol? PersistedSymbol,
+        bool PersistedDeferred,
         Symbol? Selection);
 
     /// <summary>
@@ -933,9 +1023,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// Preselect decision composed with the current selection. The rows the
     /// subscribe side lists are rebuilt on the spot (the single rows writer
     /// — the in-place updater — see <see cref="RebuildSymbolRows"/>).
+    /// <paramref name="selectionAtStart"/> is the selection the fetch
+    /// started from: a pick made WHILE the fetch was in flight supersedes
+    /// the read-before-fetch persisted preference (BUG-016 — the stale
+    /// snapshot must never overwrite an explicit user decision; the
+    /// deferred preference stays stored and wins on the next unpicked
+    /// switch).
     /// </summary>
     private async Task<SymbolBootstrap> LoadBootstrapAsync(
         string exchangeId,
+        Symbol? selectionAtStart,
         CancellationToken ct)
     {
         var stored = await _settings.GetAsync<string>(
@@ -955,7 +1052,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
         var persistedTrimmed = stored?.Trim();
         var persisted = TryParseStoredSymbol(persistedTrimmed);
+
         var symbols = await LoadSymbolsAsync(ct);
+
+        // BUG-016: the user picked while the fetch was in flight — the
+        // read-before-fetch preference is deferred, it must not weigh into
+        // the delivery (an explicit user decision beats a stale snapshot).
+        var pickedDuringFetch = !Equals(SelectedSymbol, selectionAtStart);
 
         // The marks are mutually exclusive by rule: a favorite beats a stored
         // hidden entry (the legacy-collision decision), so only the unstarred
@@ -966,7 +1069,19 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             (hiddenMarks.GetValueOrDefault(exchangeId) ?? new HashSet<string>(StringComparer.Ordinal))
             .Where(name => !exchangeFavorites.Contains(name))
             .ToHashSet(StringComparer.Ordinal);
-        var selection = Preselect(SelectedSymbol, persisted, symbols, hiddenNames);
+        var selection = Preselect(
+            SelectedSymbol,
+            pickedDuringFetch ? null : persisted,
+            symbols,
+            hiddenNames);
+
+        if (pickedDuringFetch && persisted is not null)
+        {
+            _logger.LogInformation(
+                "A symbol was picked while the {Exchange} symbols fetch was in flight; the persisted {Persisted} is deferred and stays stored for the next switch",
+                exchangeId,
+                persisted);
+        }
 
         return new SymbolBootstrap(
             Symbols: symbols,
@@ -975,6 +1090,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             ExchangeId: exchangeId,
             StoredSymbol: persisted is null ? persistedTrimmed : null,
             PersistedSymbol: persisted,
+            PersistedDeferred: pickedDuringFetch && persisted is not null,
             Selection: selection);
     }
 

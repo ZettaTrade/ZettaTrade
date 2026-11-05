@@ -95,11 +95,23 @@ public sealed class ChartViewModelTests
 
         public ExchangeCapabilities Capabilities => ExchangeCapabilities.MarketData;
 
-        public Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default)
+        /// <summary>
+        /// Optional gate for the symbols fetch: while set, the fetch hangs
+        /// — a fact parks a bootstrap inside its persisted-read → fetch
+        /// window and lands the mid-flight pick exactly there (BUG-016).
+        /// </summary>
+        public TaskCompletionSource? SymbolsGate { get; set; }
+
+        public async Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default)
         {
             SymbolsRequested.Add(Symbol.Parse("BTC/USDT"));
 
-            return Task.FromResult(_symbolList);
+            if (SymbolsGate is { } gate)
+            {
+                await gate.Task;
+            }
+
+            return _symbolList;
         }
 
         public async Task<IReadOnlyList<Bar>> GetBarsAsync(
@@ -296,7 +308,7 @@ public sealed class ChartViewModelTests
 
         // The posted bootstrap apply is never pumped (foreign-owned test
         // dispatcher): the fact lands it through the facts seam instead.
-        await chart.ApplyBootstrapForFactsAsync(marketData);
+        await chart.StartBootstrapForFactsAsync(marketData);
 
         chart.SelectedSymbol.Should().Be(
             Symbol.Parse("BTC/USDT"),
@@ -436,6 +448,124 @@ public sealed class ChartViewModelTests
         second.BarsRequested.Should().ContainSingle().Which.Should().Be(
             Symbol.Parse("BTC/USDT"),
             "the listed selection survives and reloads bars on the new exchange");
+    }
+
+    /// <summary>
+    /// BUG-016, the reversed completions: a bootstrap whose epoch a newer
+    /// switch already superseded delivers LATE and must drop — nothing of
+    /// the OLD exchange lands after the NEW one's list and preselection
+    /// (the pre-fix apply took whatever completion arrived last).
+    /// </summary>
+    [Fact]
+    public async Task BootstrapSymbols_AStaleDelivery_NeverClobbersTheNewestExchange()
+    {
+        var standard = new FakeMarketData();
+        var exotic = new FakeMarketData(
+            id: "fake2",
+            name: "Fake2",
+            symbolNames: ["DOGE/USDT", "LTC/USDT"]);
+        var service = CreateService(standard, exotic);
+        var chart = CreateChart(service);
+
+        // The REAL switch: the provider cache re-targets the new exchange
+        // and the switch's own bootstrap starts (its delivery rides the
+        // marshalled hop — inert in a test process — with the epoch it
+        // claimed at the start).
+        await service.SwitchToAsync("fake2");
+
+        // The newest bootstrap (the fact's own start after the switch)
+        // lands: the exotic list owns the combo, latestEpoch is its claim.
+        var latestEpoch = await chart.StartBootstrapForFactsAsync(exotic);
+        chart.AvailableSymbols.Select(row => row.Symbol.Normalized).Should()
+            .Equal(new[] { "DOGE/USDT", "LTC/USDT" });
+
+        // A delivery claiming the PREVIOUS epoch — exactly the switch's
+        // bootstrap whose fetch outlived this newer start — is stale and
+        // drops; the standard list never lands.
+        await chart.ApplyBootstrapForFactsAsync(standard, epoch: latestEpoch - 1);
+
+        chart.AvailableSymbols.Select(row => row.Symbol.Normalized).Should()
+            .Equal(
+                new[] { "DOGE/USDT", "LTC/USDT" },
+                "the stale delivery is dropped, so nothing of the old exchange lands");
+        chart.SelectedSymbol.Should().Be(
+            Symbol.Parse("DOGE/USDT"),
+            "the newest exchange's preselection stands");
+    }
+
+    /// <summary>
+    /// BUG-016, the mid-flight pick: with the persisted preference already
+    /// read and the symbol fetch parked, a user pick lands INSIDE the
+    /// bootstrap's window — the read-before-fetch preference is deferred
+    /// (it stays stored) and the delivery keeps the explicit pick. The
+    /// pre-fix load let the stale preference decide (it is still listed)
+    /// and overwrote the user's pick.
+    /// </summary>
+    [Fact]
+    public async Task BootstrapSymbols_AUserPickDuringTheFetch_SupersedesThePersistedPreference()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns("ETH/BTC");
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+
+        var marketData = new FakeMarketData();
+
+        // The gate is in place BEFORE the construction: the constructor's
+        // own bootstrap parks inside its fetch (its persisted preference is
+        // already read), so the whole fetch window stays open for the fact.
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        marketData.SymbolsGate = gate;
+
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        // A real load against the parked window: its persisted preference
+        // read completes synchronously, then the symbols fetch hangs on the
+        // same gate.
+        var decision = chart.LoadBootstrapForFactsAsync(marketData);
+
+        // The USER picks while the fetch is in flight (the pick persists —
+        // but the delivery must not honor a substitution of it).
+        chart.SelectedSymbol = Symbol.Parse("SOL/USDC");
+
+        gate.SetResult();
+        var bootstrap = await decision;
+
+        bootstrap.PersistedSymbol.Should().Be(
+            Symbol.Parse("ETH/BTC"),
+            "the raw read stays recorded for the warnings");
+
+        bootstrap.PersistedDeferred.Should().BeTrue(
+            "the pick raced the fetch; the preference is deferred, not a fall-through");
+
+        bootstrap.Selection.Should().Be(
+            Symbol.Parse("SOL/USDC"),
+            "an explicit pick beats the read-before-fetch preference");
+    }
+
+    /// <summary>
+    /// The complement of the mid-flight pick: without one racing the fetch,
+    /// the persisted preference keeps its first choice (the deferral is
+    /// scoped to the pick, never a blanket suppression).
+    /// </summary>
+    [Fact]
+    public async Task BootstrapSymbols_ThePersistedPreference_WeighsWhenNoPickRacedTheFetch()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns("ETH/BTC");
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        var bootstrap = await chart.LoadBootstrapForFactsAsync(new FakeMarketData());
+
+        bootstrap.PersistedDeferred.Should().BeFalse("no pick raced the fetch");
+        bootstrap.Selection.Should().Be(
+            Symbol.Parse("ETH/BTC"),
+            "the persisted preference stays first choice while the list carries it");
     }
 
     [Fact]
@@ -701,6 +831,74 @@ public sealed class ChartViewModelTests
         await chart.InitializeAsync();
 
         chart.Use12HourClock.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// BUG-015, the restore matrix: the persisted clock applies in EVERY
+    /// restore path — the time-frame restore's early returns no longer skip
+    /// it. Case: no persisted time frame at all.
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_NoPersistedTimeFrame_StillAppliesThePersistedClockFormat()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(true);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        await chart.InitializeAsync();
+
+        chart.Use12HourClock.Should().BeTrue("the clock restore is no longer gated on the time-frame restore");
+        await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>());
+    }
+
+    /// <summary>
+    /// BUG-015, the restore matrix: case — the stored time frame is not a
+    /// supported name. The unparsable path keeps H1 and still applies the
+    /// persisted clock (the old tail restore never reached this branch).
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_UnparsablePersistedTimeFrame_StillAppliesThePersistedClockFormat()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns("garbage");
+        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(true);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        await chart.InitializeAsync();
+
+        chart.SelectedTimeFrame.Should().Be(TimeFrame.H1);
+        chart.Use12HourClock.Should().BeTrue("the unparsable time frame skips the restore, not the clock");
+        await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>());
+    }
+
+    /// <summary>
+    /// BUG-015, the restore matrix — THE COMMON CASE: the persisted time
+    /// frame equals the default H1, so the old restore's equal-value early
+    /// return fired on every ordinary restart and silently reverted the
+    /// persisted 12-hour clock. The clock must apply here too.
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_PersistedDefaultTimeFrame_StillAppliesThePersistedClockFormat()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns("H1");
+        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(true);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.Use12HourClock.Should().BeFalse("the default stands until the walk applies the stored choice");
+
+        await chart.InitializeAsync();
+
+        chart.SelectedTimeFrame.Should().Be(TimeFrame.H1);
+        chart.Use12HourClock.Should().BeTrue("a restart on the default time frame must not revert the persisted clock");
+        await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>());
     }
 
     /// <summary>
