@@ -4,5 +4,8 @@
              RequestedThemeVariant="Dark">
     <Application.Styles>
         <FluentTheme />
+        <!-- The window chrome and the shell control restyling from Livery
+             (T-066); after FluentTheme so the palette setters win. -->
+        <StyleInclude Source="avares://Livery/Themes/Controls.axaml" />
     </Application.Styles>
 </Application>

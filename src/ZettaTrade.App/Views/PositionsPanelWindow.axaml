@@ -3,13 +3,14 @@
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.PositionsPanelWindow"
+        Classes="chrome"
         x:DataType="vm:PositionsPanelViewModel"
         Title="{loc:Localized Positions.Title}"
         Width="800" Height="560"
         WindowStartupLocation="CenterOwner"
         CanResize="True"
         ShowInTaskbar="False"
-        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+        Background="{DynamicResource Background}">
 
     <Grid Margin="16" RowDefinitions="*,Auto,Auto" RowSpacing="10">
 

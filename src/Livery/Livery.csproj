@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The library styles (window chrome templates + title bar + the
+         control restyling) ship as a compiled Avalonia resource; the host
+         includes them via <StyleInclude Source="avares://Livery/Themes/Controls.axaml" />. -->
+    <AvaloniaResource Include="Themes\Controls.axaml" />
     <InternalsVisibleTo Include="ZettaTrade.UI.Tests" />
     <PackageReference Include="Avalonia" Version="12.1.4" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />

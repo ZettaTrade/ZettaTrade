@@ -408,4 +408,19 @@
   <data name="OrderBook.SpreadFormat" xml:space="preserve">
     <value>Спред: {0}</value>
   </data>
+  <data name="Chrome.Title" xml:space="preserve">
+    <value>ZettaTrade</value>
+  </data>
+  <data name="Chrome.Minimize" xml:space="preserve">
+    <value>Свернуть</value>
+  </data>
+  <data name="Chrome.Maximize" xml:space="preserve">
+    <value>Развернуть</value>
+  </data>
+  <data name="Chrome.Restore" xml:space="preserve">
+    <value>Восстановить</value>
+  </data>
+  <data name="Chrome.Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
 </root>

@@ -3,13 +3,14 @@
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.OrderHistoryWindow"
+        Classes="chrome"
         x:DataType="vm:OrderHistoryViewModel"
         Title="{loc:Localized History.Title}"
         Width="920" Height="520"
         WindowStartupLocation="CenterOwner"
         CanResize="True"
         ShowInTaskbar="False"
-        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+        Background="{DynamicResource Background}">
 
     <Grid Margin="16" RowDefinitions="*,Auto,Auto" RowSpacing="10">
 

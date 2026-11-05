@@ -5,12 +5,13 @@
         xmlns:charting="using:ZettaTrade.UI.Charting"
         xmlns:app="using:ZettaTrade.App"
         x:Class="ZettaTrade.App.Views.MainWindow"
+        Classes="chrome"
         x:DataType="vm:MainViewModel"
-        Title="ZettaTrade"
+        Title="{loc:Localized Chrome.Title}"
         Width="1400" Height="900"
         MinWidth="1024" MinHeight="600"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+        Background="{DynamicResource Background}">
 
     <Window.KeyBindings>
         <!-- Gesture audit of the menu labels: all InputGesture strings here are
@@ -18,8 +19,9 @@
              - Ctrl+OemComma -> OpenSettingsCommand: bound, real behavior.
              - Ctrl+N        -> NewOrderCommand: bound, real behavior (the T-008
                                 order dialog replaced the placeholder).
-             - Alt+F4        -> OS window-close gesture: works without a binding;
-                                adding one would double-handle the close.
+             - Alt+F4        -> the chrome window has no system menu, so the
+                                gesture rides the title bar's window-wide key
+                                hook; on the main window it equals File > Exit.
              - Ctrl+Shift+A  -> ToggleAiChatCommand: bound, real behavior —
                                 toggles the assistant panel (shows + focuses the
                                 input, or hides it); the AI menu item is a

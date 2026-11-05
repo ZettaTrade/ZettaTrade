@@ -3,13 +3,14 @@
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.NewOrderDialogWindow"
+        Classes="chrome-compact"
         x:DataType="vm:NewOrderDialogViewModel"
         Title="{loc:Localized NewOrder.Title}"
         Width="440" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         ShowInTaskbar="False"
-        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+        Background="{DynamicResource Background}">
 
     <StackPanel Margin="16" Spacing="10">
         <!-- Header: the localized title plus the live active-exchange name —

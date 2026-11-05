@@ -3,13 +3,14 @@
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.ConfirmationDialogWindow"
+        Classes="chrome-compact"
         x:DataType="vm:ConfirmationDialogViewModel"
         Title="{loc:Localized Trading.ConfirmationTitle}"
         Width="400" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         ShowInTaskbar="False"
-        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+        Background="{DynamicResource Background}">
 
     <StackPanel Margin="20" Spacing="15">
         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />

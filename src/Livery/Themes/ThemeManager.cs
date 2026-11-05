@@ -472,6 +472,8 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
                 ["Surface"] = "#16213e",
                 ["Border"] = "#0f3460",
                 ["Accent"] = "#e94560",
+                ["TitleBar"] = "#14142b",
+                ["TitleBarText"] = "#ececf2",
                 ["TextPrimary"] = "#ffffff",
                 ["TextSecondary"] = "#a0a0a0",
                 ["Buy"] = "#00ff88",
