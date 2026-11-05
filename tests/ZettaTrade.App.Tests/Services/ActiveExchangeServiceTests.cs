@@ -13,14 +13,17 @@ using NSubstitute;
 using Xunit;
 using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
 /// Tests for the active-exchange facade: the behavioral change stream, the
 /// persisted-choice restore (available, missing and unregistered), the
 /// user-facing switch (persist-then-activate, no-op on repeat, exceptions on
-/// unknown ids) and the atomic stream switching over adapter changes.
+/// unknown ids), the atomic stream switching over adapter changes and the
+/// book-depth resolution against the active adapter's served depths.
 /// </summary>
 public sealed class ActiveExchangeServiceTests
 {
@@ -223,6 +226,54 @@ public sealed class ActiveExchangeServiceTests
     }
 
     [Fact]
+    public async Task Facade_SubscribeOrderBook_DefaultDepthRequest_ResolvesToTheServedDepth()
+    {
+        // The wire-adapter depth shape (Bybit serves 1 and 50 only): the
+        // generic display default of 20 used to hit the adapter's explicit
+        // rejection and leave the book widget empty on a stream error.
+        var book = CannedBook(BtcUsdt);
+        var stub = new StubDepthedAdapter(new HashSet<int> { 1, 50 }, book);
+        NoPersistedChoice();
+        var service = new ActiveExchangeService(
+            [stub],
+            _settings,
+            NullLogger<ActiveExchangeService>.Instance);
+
+        var received = await FirstWithin(
+            service.SubscribeOrderBook(BtcUsdt),
+            TimeSpan.FromSeconds(2));
+
+        received.Should().BeSameAs(book, "the resolved request is served, not rejected");
+        stub.Requests.Should().ContainSingle();
+        stub.Requests[0].Depth.Should().Be(
+            50,
+            "the generic default of 20 resolves to the smallest served deep-enough depth");
+    }
+
+    [Fact]
+    public async Task Facade_SubscribeOrderBook_DeclaredServedDepth_RidesUnchanged()
+    {
+        // A request inside the served set (Binance's stepped shape has 25)
+        // forwards untouched: resolution only escapes the impossible ones.
+        var book = CannedBook(BtcUsdt);
+        var stub = new StubDepthedAdapter(new HashSet<int> { 5, 10, 20, 25 }, book);
+        NoPersistedChoice();
+        var service = new ActiveExchangeService(
+            [stub],
+            _settings,
+            NullLogger<ActiveExchangeService>.Instance);
+
+        await FirstWithin(
+            service.SubscribeOrderBook(BtcUsdt, 25),
+            TimeSpan.FromSeconds(2));
+
+        stub.Requests.Should().ContainSingle();
+        stub.Requests[0].Depth.Should().Be(
+            25,
+            "a declared served depth must ride unchanged, not snapped");
+    }
+
+    [Fact]
     public async Task StreamFollowsSwitch_TheSubscriptionFlipsToTheNewAdapter()
     {
         var btcUsdt = Symbol.Parse("BTC/USDT");
@@ -260,4 +311,80 @@ public sealed class ActiveExchangeServiceTests
         winner.Should().Be(received.Task, $"the first snapshot must arrive within {wait}");
         return await received.Task;
     }
+
+    /// <summary>One stable BTC/USDT value object for the stub tests.</summary>
+    private static Symbol BtcUsdt { get; } = Symbol.Parse("BTC/USDT");
+
+    private static OrderBook CannedBook(Symbol symbol) =>
+        new()
+        {
+            Symbol = symbol,
+            Bids = [new PriceLevel(67000m, 1m)],
+            Asks = [new PriceLevel(67001m, 1m)],
+            Timestamp = DateTimeOffset.UtcNow,
+        };
+
+    #region Test Stub
+
+    /// <summary>One recorded book subscription request.</summary>
+    private sealed record StubBookRequest(Symbol Symbol, int Depth);
+
+    /// <summary>
+    /// A depth-locked adapter derived from the exchange base the way the
+    /// real wire adapters are, so the facade's depth resolution is exercised
+    /// through the base-class declaration path: a canned immediate snapshot
+    /// for the subscriber and recorded requests for the receipts.
+    /// </summary>
+    private sealed class StubDepthedAdapter : ExchangeAdapterBase
+    {
+        private const string StubId = "stubbook";
+
+        private const string StubName = "StubBook";
+
+        private readonly List<StubBookRequest> _requests = [];
+        private readonly IReadOnlySet<int> _servedBookDepths;
+        private readonly OrderBook _book;
+
+        public StubDepthedAdapter(IReadOnlySet<int> servedBookDepths, OrderBook book)
+            : base(NullLogger.Instance)
+        {
+            _servedBookDepths = servedBookDepths;
+            _book = book;
+        }
+
+        public IReadOnlyList<StubBookRequest> Requests => _requests;
+
+        public override string Id => StubId;
+
+        public override string Name => StubName;
+
+        public override ExchangeCapabilities Capabilities => ExchangeCapabilities.MarketData;
+
+        public override Task ConnectAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+        public override Task DisconnectAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+        public override Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default) => EmptySymbolsAsync();
+
+        /// <summary>An empty catalog, without a sync-result wrapper.</summary>
+        private static async Task<IReadOnlyList<Symbol>> EmptySymbolsAsync() => [];
+
+        public override async Task<IReadOnlyList<Bar>> GetBarsAsync(
+            Symbol symbol,
+            TimeFrame timeFrame,
+            DateTimeOffset from,
+            DateTimeOffset? to = null,
+            int limit = 500,
+            CancellationToken ct = default) => [];
+
+        protected override IReadOnlySet<int> SupportedBookDepths => _servedBookDepths;
+
+        public override IObservable<OrderBook> SubscribeOrderBook(Symbol symbol, int depth = 20)
+        {
+            _requests.Add(new StubBookRequest(symbol, depth));
+            return Observable.Return(_book);
+        }
+    }
+
+    #endregion Test Stub
 }
