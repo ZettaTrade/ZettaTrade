@@ -1,8 +1,10 @@
 namespace ZettaTrade.Infrastructure.Tests.Exchange;
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Core.Entities;
@@ -60,6 +62,34 @@ public sealed class PaperTradingAdapterTests
         new(2026, 10, 29, 12, 0, 0, TimeSpan.Zero);
 
     private const TimeFrame ReferenceTimeFrame = TimeFrame.H1;
+
+    #region T-051 Ledger Constants
+
+    /// <summary>Bounded wait for a cancel that must abort immediately.</summary>
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(10);
+
+    /// <summary>Close of the bar the reducing (partial-close) fill executes at.</summary>
+    private const decimal ReduceFillPrice = 51_000m;
+
+    /// <summary>Notional of that reducing fill (0.1 base at 51_000).</summary>
+    private const decimal ReduceFillNotional = 5_100m;
+
+    /// <summary>Close of the bar the second extending fill executes at.</summary>
+    private const decimal ExtensionFillPrice = 52_000m;
+
+    /// <summary>Bars in the fake 24-hour H1 history (one per hour).</summary>
+    private const int HistoryBarCount = 25;
+
+    /// <summary>Close of the OLDEST fake history bar (the anchor).</summary>
+    private const decimal HistoryBarsBaseClose = 46_000m;
+
+    /// <summary>Close step between consecutive fake history bars.</summary>
+    private const decimal HistoryCloseStep = 100m;
+
+    /// <summary>Close of the NEWEST fake history bar (<see cref="HistoryBarsBaseClose"/> + 24 steps).</summary>
+    private const decimal NewestHistoryClose = 48_400m;
+
+    #endregion
 
     #endregion
 
@@ -416,6 +446,216 @@ public sealed class PaperTradingAdapterTests
 
     #endregion
 
+    #region T-051 Ledger Rules
+
+    /// <summary>
+    /// BUG-005: a reducing fill closes part of the position at the fill price
+    /// and must never re-average the remaining size — the pre-fix branch fed
+    /// the fill into the weighted average with the WRONG denominator and
+    /// inflated the entry of what is left.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrder_PartialClose_KeepsTheAverageEntryOfTheRemainingSize()
+    {
+        var marketData = Substitute.For<IMarketDataAdapter>();
+        marketData.GetBarsAsync(
+                Arg.Any<Symbol>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<DateTimeOffset?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new[] { OpeningBar }, new[] { NewCloseBar(ReduceFillPrice) });
+        var adapter = CreateAdapter(marketData);
+
+        // Act: long 0.2 @ 50_000, then sell half @ 51_000.
+        await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
+        await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Sell, OrderQuantity / 2m));
+
+        // Assert: the remaining 0.1 long keeps the 50_000 entry (pre-fix: 151_000).
+        var remaining = (await adapter.GetPositionsAsync()).Should().ContainSingle().Which;
+        remaining.Side.Should().Be(OrderSide.Buy);
+        remaining.Quantity.Value.Should().Be(OrderQuantity / 2m);
+        remaining.EntryPrice.Value.Should().Be(
+            ReferenceClose, "a partial close never re-averages the remaining size");
+        remaining.CurrentPrice.Value.Should().Be(ReduceFillPrice);
+
+        (await adapter.GetBalancesAsync())[PaperTradingAdapter.QuoteCurrency].Amount
+            .Should().Be(PaperTradingAdapter.InitialQuoteAmount - MarketNotional + ReduceFillNotional);
+    }
+
+    /// <summary>
+    /// The companion invariance for the SAME branch: genuinely extending fills
+    /// DO keep streaming the entry toward a weighted average over the whole
+    /// new size.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrder_ExtendingFills_WeightTheAverageAcrossTheWholeSize()
+    {
+        var marketData = Substitute.For<IMarketDataAdapter>();
+        marketData.GetBarsAsync(
+                Arg.Any<Symbol>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<DateTimeOffset?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new[] { OpeningBar }, new[] { NewCloseBar(ExtensionFillPrice) });
+        var adapter = CreateAdapter(marketData);
+
+        await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
+        await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
+
+        var position = (await adapter.GetPositionsAsync()).Should().ContainSingle().Which;
+        position.Quantity.Value.Should().Be(OrderQuantity * 2m);
+        position.EntryPrice.Value.Should().Be(
+            (ReferenceClose + ExtensionFillPrice) / 2m,
+            "two equal-size extensions weigh their fills equally");
+    }
+
+    /// <summary>
+    /// BUG-006, ascending backend: Binance-style klines are oldest-first, so a
+    /// fixed <c>limit: 1</c> from <c>now - 24h</c> paged back the OLDEST bar in
+    /// the window — a ~24-hour-old close. The adapter must fetch the whole
+    /// window and select the reference close BY TIME.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrder_AscendingHistory_UsesTheNewestCloseNotTheOldest()
+    {
+        var marketData = CreateBackend(BuildHistory(), newestFirst: false);
+        var adapter = CreateAdapter(marketData);
+
+        // Act
+        var order = await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
+
+        // Assert: the fill rides the NEWEST close (pre-fix: the oldest, 46_000).
+        order.Price!.Value.Should().Be(NewestHistoryClose, "the reference close is the newest bar's close whatever the page order");
+        (await adapter.GetPositionsAsync()).Should().ContainSingle().Which.EntryPrice.Value
+            .Should().Be(NewestHistoryClose);
+
+        // The window is fetched in full, not page-capped to a single bar.
+        await marketData.Received(1).GetBarsAsync(
+            Arg.Any<Symbol>(),
+            Arg.Any<TimeFrame>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset?>(),
+            Arg.Is<int>(limit => limit >= HistoryBarCount),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// BUG-006, descending backend: the same contract on a Bybit-style
+    /// newest-first history — still the newest close, never a list-position
+    /// guess.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrder_DescendingHistory_UsesTheNewestCloseToo()
+    {
+        var marketData = CreateBackend(BuildHistory(), newestFirst: true);
+        var adapter = CreateAdapter(marketData);
+
+        // Act
+        var order = await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
+
+        // Assert
+        order.Price!.Value.Should().Be(NewestHistoryClose, "the selection is by the bar's time, never by list position");
+    }
+
+    /// <summary>
+    /// BUG-033: a fill rejected for insufficient balance leaves NO phantom
+    /// Filled record — the portfolio applies before anything is recorded, and
+    /// the adapter keeps trading normally afterwards.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrder_BalanceRejection_LeavesNoPhantomFilledRecord()
+    {
+        var adapter = CreateAdapter(CreateMarketData());
+        var hugeQuantity = (PaperTradingAdapter.InitialQuoteAmount / ReferenceClose) * ExcessiveQuantityFactor;
+
+        var act = async () => await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, hugeQuantity));
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Insufficient*");
+
+        // The private order store is the only surface that shows a phantom
+        // Filled record (fill orders never reappear in visible lists): it must
+        // stay empty after the rejection.
+        var orders = (ConcurrentDictionary<string, Order>)typeof(PaperTradingAdapter)
+            .GetField("_orders", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(adapter)!;
+        orders.Count.Should().Be(0, "a balance-rejected fill must not leave a phantom Filled record");
+
+        // And the adapter is still fully usable.
+        var followUp = await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
+        followUp.Status.Should().Be(OrderStatus.Filled);
+        (await adapter.GetBalancesAsync())[PaperTradingAdapter.QuoteCurrency].Amount
+            .Should().Be(PaperTradingAdapter.InitialQuoteAmount - MarketNotional);
+    }
+
+    /// <summary>
+    /// BUG-034: crossing zero opens a FRESH opposite position, which carries
+    /// its own fill-time stamp — never the closed position's OpenedAt.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrder_CrossingZeroFill_StampsTheFreshPositionWithItsOwnFillTime()
+    {
+        var adapter = CreateAdapter(CreateMarketData());
+
+        var buy = await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
+        (await adapter.GetPositionsAsync()).Should().ContainSingle().Which.OpenedAt
+            .Should().Be(buy.CreatedAt);
+
+        // Act: sell twice the size — the position crosses zero into a short.
+        var sell = await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Sell, OrderQuantity * 2m));
+
+        // Assert
+        var crossed = (await adapter.GetPositionsAsync()).Should().ContainSingle().Which;
+        crossed.Side.Should().Be(OrderSide.Sell);
+        crossed.Quantity.Value.Should().Be(OrderQuantity);
+        crossed.EntryPrice.Value.Should().Be(ReferenceClose);
+        crossed.OpenedAt.Should().Be(
+            sell.CreatedAt,
+            "the fresh opposite position is stamped at its own fill, never at the closed position's open");
+    }
+
+    /// <summary>
+    /// BUG-035: a cancel waiting on the trading lock honours the caller's
+    /// cancellation — a pre-cancelled token aborts the wait immediately even
+    /// while a wedged holder keeps the lock, and the wedged release normal
+    /// cancelling still works.
+    /// </summary>
+    [Fact]
+    public async Task CancelOrder_WithACancelledToken_AbortsTheWaitInsteadOfQueueingBehindAWedgedLock()
+    {
+        var adapter = CreateAdapter(CreateMarketData());
+        var order = await adapter.PlaceOrderAsync(
+            LimitOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity, RestingBuyLimitPrice));
+
+        // Wedge the trading lock exactly where the pre-fix cancel waited with
+        // no token at all.
+        var tradingLock = (SemaphoreSlim)typeof(PaperTradingAdapter)
+            .GetField("_tradingLock", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(adapter)!;
+        await tradingLock.WaitAsync();
+        try
+        {
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            var act = () => adapter.CancelOrderAsync(BtcUsdt(), order.Id, cts.Token).WaitAsync(EventWait);
+            await act.Should().ThrowAsync<OperationCanceledException>(
+                "the caller's cancellation aborts the lock wait immediately");
+        }
+        finally
+        {
+            tradingLock.Release();
+        }
+
+        // The untouched pending order survives, and cancelling still works.
+        await adapter.CancelOrderAsync(BtcUsdt(), order.Id);
+        (await adapter.GetOpenOrdersAsync()).Should().BeEmpty();
+    }
+
+    #endregion
+
     #region Helpers
 
     private static PaperTradingAdapter CreateAdapter(IMarketDataAdapter marketData) =>
@@ -439,6 +679,52 @@ public sealed class PaperTradingAdapterTests
 
     private static readonly Bar ReferenceBar =
         new(ReferenceBarTime, 49_500m, 50_500m, 49_000m, ReferenceClose, 1_000m);
+
+    /// <summary>The reference bar of the OPENING fill (the entry build moment).</summary>
+    private static readonly Bar OpeningBar = ReferenceBar;
+
+    /// <summary>A reference bar with another close (the next fill's price source).</summary>
+    private static Bar NewCloseBar(decimal close) =>
+        new(ReferenceBarTime, close, close, close, close, 1_000m);
+
+    /// <summary>The fake 24-hour H1 history: hourly bars, closes rising per hour.</summary>
+    private static IReadOnlyList<Bar> BuildHistory() =>
+        Enumerable.Range(0, HistoryBarCount)
+            .Select(i => NewCloseBar(HistoryBarsBaseClose + (i * HistoryCloseStep)) with
+            {
+                Time = ReferenceBarTime.AddHours(i),
+            })
+            .ToList();
+
+    /// <summary>
+    /// A paging-faithful history backend: serves the given bars in the given
+    /// page order, capped at the caller's <c>limit</c> — the ascending
+    /// Binance-klines shape or the descending Bybit/Demo shape. The from-window
+    /// is deliberately NOT modeled: the fixture's bars are stale relative to
+    /// the live clock anyway, and the tested contract is the ordering-vs-limit
+    /// interplay the reference-close selection must survive (BUG-006).
+    /// </summary>
+    private static IMarketDataAdapter CreateBackend(IReadOnlyList<Bar> bars, bool newestFirst)
+    {
+        var marketData = Substitute.For<IMarketDataAdapter>();
+        marketData.GetBarsAsync(
+                Arg.Any<Symbol>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<DateTimeOffset?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var limit = call.ArgAt<int>(4);
+                var paged = bars.Take(limit);
+                return (IReadOnlyList<Bar>)(newestFirst
+                    ? paged.OrderByDescending(bar => bar.Time).ToList()
+                    : paged.OrderBy(bar => bar.Time).ToList());
+            });
+
+        return marketData;
+    }
 
     private static Symbol BtcUsdt() => new("BTC", "USDT", AssetClass.Crypto);
 

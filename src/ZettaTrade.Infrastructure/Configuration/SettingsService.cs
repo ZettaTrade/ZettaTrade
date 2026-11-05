@@ -17,7 +17,7 @@ using ZettaTrade.Core.Interfaces;
 public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDisposable
 {
     /// <summary>Debounce window for external settings file reloads, in milliseconds.</summary>
-    private const int ExternalReloadDebounceMs = 1000;
+    internal const int ExternalReloadDebounceMs = 1000;
 
     private readonly string _settingsFilePath;
     private readonly ILogger<SettingsService> _logger;
@@ -29,7 +29,15 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
     private IDisposable? _reloadSubscription;
     private FileSystemWatcher? _watcher;
     private bool _disposed;
-    private bool _isSaving;
+
+    /// <summary>
+    /// The exact content the last successful save wrote. A file event carrying
+    /// byte-identical content is the save's own echo, not an external edit: it
+    /// is skipped on load regardless of WHEN it lands — the pre-fix
+    /// <c>_isSaving</c> flag reset before the file event was delivered, so the
+    /// guard never covered the whole delivery window (BUG-045).
+    /// </summary>
+    private string? _lastSavedContent;
 
     /// <summary>
     /// Create a new SettingsService instance.
@@ -94,22 +102,73 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
         var fullKey = $"{section}\0{key}";
         var jsonElement = JsonSerializer.SerializeToElement(value, _jsonOptions);
 
-        JsonElement? oldValue = _settings.TryGetValue(fullKey, out var old) ? old : null;
+        // The old-value payload shares the NEW value's type: the pre-fix event
+        // boxed the raw file-model element while the new value was the typed T,
+        // so subscribers comparing both always mis-handled one side (BUG-045).
+        // A prior value that fails to deserialize to T degrades to null (no
+        // substituted defaults).
+        object? oldValue = null;
+        if (_settings.TryGetValue(fullKey, out var oldElement))
+        {
+            try
+            {
+                oldValue = oldElement.Deserialize<T>(_jsonOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "The previous value of {Section}:{Key} does not deserialize to {Type}; the change reports it as absent",
+                    section,
+                    key,
+                    typeof(T).Name);
+            }
+        }
 
-        _settings.AddOrUpdate(fullKey, jsonElement, (_, _) => jsonElement);
+        // The memory mutation lives UNDER the save lock together with its
+        // save: the pre-fix unlocked AddOrUpdate left a window where the
+        // debounced reload ran between the set and its save, reloaded the
+        // STALE file over the fresh memory and made the queued save persist
+        // the stale snapshot — a lost write even with the reload serialized.
+        await _saveLock.WaitAsync();
+        try
+        {
+            _settings.AddOrUpdate(fullKey, jsonElement, (_, _) => jsonElement);
 
-        _changes.OnNext(new SettingsChange(section, key, oldValue, value));
+            _changes.OnNext(new SettingsChange(section, key, oldValue, value));
 
-        await SaveAsync();
+            await SaveCoreAsync();
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
     }
 
+    /// <summary>Persist all pending changes to the settings file, serialized against reloads and other saves.</summary>
     public async Task SaveAsync(CancellationToken ct = default)
     {
         await _saveLock.WaitAsync(ct);
         try
         {
-            _isSaving = true;
+            await SaveCoreAsync(ct);
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+    }
 
+    /// <summary>
+    /// The locked file write itself; every caller already holds
+    /// <see cref="_saveLock"/>, so the memory read, the byte-exact echo
+    /// fingerprint and the file swap happen as one unit. A failed write
+    /// propagates to the caller (it rethrows after logging).
+    /// </summary>
+    private async Task SaveCoreAsync(CancellationToken ct = default)
+    {
+        try
+        {
             var directory = Path.GetDirectoryName(_settingsFilePath);
             if (!string.IsNullOrEmpty(directory))
                 Directory.CreateDirectory(directory);
@@ -137,6 +196,11 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
             await File.WriteAllTextAsync(tempPath, json, ct);
             File.Move(tempPath, _settingsFilePath, overwrite: true);
 
+            // The fingerprint arms the echo guard only after a successful
+            // write: a failed save must not let an equal-content external
+            // write slip past unreported through a stale skip.
+            _lastSavedContent = json;
+
             _logger.LogDebug("Settings saved to {Path}", _settingsFilePath);
         }
         catch (Exception ex)
@@ -144,60 +208,127 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
             _logger.LogError(ex, "Failed to save settings to {Path}", _settingsFilePath);
             throw;
         }
-        finally
-        {
-            _isSaving = false;
-            _saveLock.Release();
-        }
     }
 
     public async Task ReloadAsync(CancellationToken ct = default)
     {
-        await LoadFromFileAsync();
+        await LoadFromFileAsync(ct);
     }
 
-    private async Task<int> LoadFromFileAsync()
+    /// <summary>
+    /// Load the file into memory. Every mutation of the shared state runs UNDER
+    /// the save lock: the pre-fix unlock mutation (<c>Clear()</c> + repopulate)
+    /// interleaved with <see cref="SetAsync{T}"/>/<see cref="SaveAsync"/> and
+    /// erased just-written values, and the next save persisted the stale
+    /// snapshot — the classic lost-write race (BUG-012). The same lock also
+    /// serializes two concurrent reloads against each other.
+    /// </summary>
+    private async Task<int> LoadFromFileAsync(CancellationToken ct = default)
     {
-        if (!File.Exists(_settingsFilePath))
-        {
-            _logger.LogInformation("Settings file not found at {Path}, using defaults", _settingsFilePath);
-            return 0;
-        }
-
+        await _saveLock.WaitAsync(ct);
         try
         {
-            var json = await File.ReadAllTextAsync(_settingsFilePath);
-            using var doc = JsonDocument.Parse(json);
-
-            var newSettings = new ConcurrentDictionary<string, JsonElement>();
-
-            foreach (var section in doc.RootElement.EnumerateObject())
+            if (!File.Exists(_settingsFilePath))
             {
-                if (section.Value.ValueKind == JsonValueKind.Object)
+                _logger.LogInformation("Settings file not found at {Path}, using defaults", _settingsFilePath);
+                return 0;
+            }
+
+            try
+            {
+                var json = await File.ReadAllTextAsync(_settingsFilePath, ct);
+                using var doc = JsonDocument.Parse(json);
+
+                var newSettings = new Dictionary<string, JsonElement>();
+
+                foreach (var section in doc.RootElement.EnumerateObject())
                 {
-                    foreach (var prop in section.Value.EnumerateObject())
+                    if (section.Value.ValueKind == JsonValueKind.Object)
                     {
-                        var fullKey = $"{section.Name}\0{prop.Name}";
-                        newSettings[fullKey] = prop.Value.Clone();
+                        foreach (var prop in section.Value.EnumerateObject())
+                        {
+                            var fullKey = $"{section.Name}\0{prop.Name}";
+                            newSettings[fullKey] = prop.Value.Clone();
+                        }
                     }
                 }
-            }
 
-            _settings.Clear();
-            foreach (var (key, value) in newSettings)
+                // The save's own echo: the file content is byte-identical to
+                // what the last successful save wrote, so nothing changed —
+                // applying it again (and publishing everything anew) would be
+                // a pure self-trigger (BUG-045). The equality check covers the
+                // whole delivery window no matter when the event lands.
+                if (_lastSavedContent is not null && json == _lastSavedContent)
+                {
+                    return _settings.Count;
+                }
+
+                var changes = ApplyAndCollect(newSettings);
+
+                _logger.LogInformation("Settings loaded from {Path} ({Count} keys)", _settingsFilePath, _settings.Count);
+
+                // The publication happens AFTER the lock is released: a
+                // subscriber re-entering the service must never find the save
+                // lock still held (a deadlock on the very reload that made it
+                // react).
+                foreach (var change in changes)
+                {
+                    _changes.OnNext(change);
+                }
+
+                return _settings.Count;
+            }
+            catch (Exception ex)
             {
-                _settings[key] = value;
+                _logger.LogError(ex, "Failed to load settings from {Path}", _settingsFilePath);
+                return 0;
             }
-
-            _logger.LogInformation("Settings loaded from {Path} ({Count} keys)", _settingsFilePath, _settings.Count);
-
-            return _settings.Count;
         }
-        catch (Exception ex)
+        finally
         {
-            _logger.LogError(ex, "Failed to load settings from {Path}", _settingsFilePath);
-            return 0;
+            _saveLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Apply the freshly parsed snapshot and collect one change per difference
+    /// between the old and the new state (BUG-013: the pre-fix reload replaced
+    /// values but never published, so hot-reload consumers kept operating on
+    /// stale data). Both payloads of a collected change are the file model's
+    /// <see cref="JsonElement"/> — a consumer comparing old and new always
+    /// sees one type; an absent side is null. The caller publishes the
+    /// returned list once the save lock is released.
+    /// </summary>
+    private List<SettingsChange> ApplyAndCollect(IReadOnlyDictionary<string, JsonElement> newSettings)
+    {
+        var changes = new List<SettingsChange>();
+
+        foreach (var fullKey in _settings.Keys.Union(newSettings.Keys))
+        {
+            var separator = fullKey.IndexOf('\0');
+            var section = fullKey[..separator];
+            var key = fullKey[(separator + 1)..];
+
+            var oldExists = _settings.TryGetValue(fullKey, out var oldElement);
+            var newExists = newSettings.TryGetValue(fullKey, out var newElement);
+
+            if (oldExists && newExists && JsonElement.DeepEquals(oldElement, newElement))
+                continue;
+
+            changes.Add(new SettingsChange(
+                section,
+                key,
+                oldExists ? (object)oldElement : null,
+                newExists ? (object)newElement : null));
+        }
+
+        _settings.Clear();
+        foreach (var (fullKey, element) in newSettings)
+        {
+            _settings[fullKey] = element;
+        }
+
+        return changes;
     }
 
     private void StartWatching()
@@ -219,7 +350,7 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        if (_isSaving || _disposed)
+        if (_disposed)
             return;
 
         _logger.LogInformation("Settings file changed externally, reloading");

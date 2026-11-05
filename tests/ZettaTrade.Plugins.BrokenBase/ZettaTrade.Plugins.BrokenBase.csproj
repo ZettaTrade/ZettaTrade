@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- T-054 (BUG-014) test fixture: the base assembly of the Broken plugin.
+       The plugin assembly is staged into the catalog's plugins directory
+       WITHOUT this assembly (it stays compile-only for the test project),
+       so the plugin's types genuinely cannot load at scan time. -->
+  <PropertyGroup>
+    <RootNamespace>ZettaTrade.Plugins.BrokenBase</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+
+</Project>
