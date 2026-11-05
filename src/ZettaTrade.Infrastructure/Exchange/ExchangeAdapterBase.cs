@@ -78,22 +78,50 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
     public virtual IObservable<Ticker> SubscribeTicker(Symbol symbol)
     {
         var subject = TickerSubjects.GetOrAdd(symbol.Normalized, _ => new Subject<Ticker>());
-        return SubscribeWithStreamStart(symbol, StartSymbolStreamsAsync, subject.AsObservable());
+        return SubscribeWithStreamStart(symbol, (sym, ct) => StartSymbolStreamsAsync(sym, null, ct), subject.AsObservable());
     }
 
     /// <inheritdoc/>
     public virtual IObservable<OrderBook> SubscribeOrderBook(Symbol symbol, int depth = 20)
     {
+        if (!SupportedBookDepths.Contains(depth))
+        {
+            // The depth contract is explicit: an out-of-set request is an
+            // error, never a silently served different level count (BUG-032).
+            // The error rides the subscription instead of a synchronous throw
+            // so a blind caller's switch (which guards its stream failures)
+            // survives the rejection.
+            return Observable.Throw<OrderBook>(
+                new ArgumentOutOfRangeException(
+                    nameof(depth),
+                    depth,
+                    $"The {Id} adapter serves only order book depths {SupportedBookDepthsText} " +
+                    $"(requested {depth}); the request is rejected, not defaulted."));
+        }
+
         var subject = OrderBookSubjects.GetOrAdd(symbol.Normalized, _ => new Subject<OrderBook>());
-        return SubscribeWithStreamStart(symbol, StartSymbolStreamsAsync, subject.AsObservable());
+        return SubscribeWithStreamStart(symbol, (sym, ct) => StartSymbolStreamsAsync(sym, depth, ct), subject.AsObservable());
     }
 
     /// <inheritdoc/>
     public virtual IObservable<MarketTrade> SubscribeTrades(Symbol symbol)
     {
         var subject = TradeSubjects.GetOrAdd(symbol.Normalized, _ => new Subject<MarketTrade>());
-        return SubscribeWithStreamStart(symbol, StartSymbolStreamsAsync, subject.AsObservable());
+        return SubscribeWithStreamStart(symbol, (sym, ct) => StartSymbolStreamsAsync(sym, null, ct), subject.AsObservable());
     }
+
+    #endregion
+
+    #region Protected Properties
+
+    /// <summary>
+    /// The order book depths this adapter honors on the wire (Binance serves
+    /// <c>@depth5/@depth10/@depth20</c>, Bybit serves <c>orderbook.1</c> and
+    /// <c>orderbook.50</c>). <see cref="SubscribeOrderBook"/> rejects any other
+    /// depth with a clear error instead of silently serving a different level
+    /// count than the one requested (BUG-032).
+    /// </summary>
+    protected abstract IReadOnlySet<int> SupportedBookDepths { get; }
 
     #endregion
 
@@ -108,10 +136,22 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
     /// default is a no-op for adapters that push into the subjects directly.
     /// The cancellation token covers the start only: it is reclaimed once the
     /// start completes, so resources pooled longer than one start (WebSocket
-    /// sessions) must run on adapter-owned lifetimes, not on this token.
+    /// sessions) must run on adapter-owned lifetimes, not on this token. In
+    /// particular the START'S SENDS must never ride this token when they go
+    /// through a transport shared by every feed: cancelling a mid-flight send
+    /// aborts the shared socket for all of them.
     /// </summary>
+    /// <param name="symbol">The symbol whose streams start.</param>
+    /// <param name="bookDepth">
+    /// The explicitly requested order book depth of a book-triggered start
+    /// (validated against <see cref="SupportedBookDepths"/> before the call),
+    /// or null when the start was triggered by the ticker/trade feeds — the
+    /// adapter then serves its own pinned depth.
+    /// </param>
+    /// <param name="ct">The start's lifetime token (see the summary).</param>
     protected virtual Task StartSymbolStreamsAsync(
         Symbol symbol,
+        int? bookDepth,
         CancellationToken ct) => Task.CompletedTask;
 
     /// <summary>
@@ -153,6 +193,9 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
     #endregion
 
     #region Private Methods
+
+    /// <summary>Sorted, comma-separated view of the supported depths for error messages.</summary>
+    private string SupportedBookDepthsText => string.Join(", ", SupportedBookDepths.OrderBy(depth => depth));
 
     /// <summary>
     /// Wrap a shared per-symbol feed subject so the FIRST subscription starts

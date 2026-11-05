@@ -1,8 +1,11 @@
 namespace ZettaTrade.Infrastructure.Tests.Demo;
 
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -33,6 +36,27 @@ public sealed class DemoMarketDataAdapterTests
     /// candles — the full chart range with headroom under the limit.</summary>
     private static readonly DateTimeOffset H1Anchor =
         DateTimeOffset.FromUnixTimeSeconds(1729998000);
+
+    /// <summary>Bounded wait for a two-tick trade feed (subscribe snapshot + one 2 s cadence tick).</summary>
+    private static readonly TimeSpan TradeFeedWait = TimeSpan.FromSeconds(5);
+
+    /// <summary>The price factor a Sell trade applies to its symbol's anchor (even sequence).</summary>
+    private const decimal SellPriceFactor = 0.9999m;
+
+    /// <summary>The price factor a Buy trade applies to its symbol's anchor (odd sequence).</summary>
+    private const decimal BuyPriceFactor = 1.0001m;
+
+    /// <summary>The documented anchor price per normalized symbol (the seeded walk's base).</summary>
+    private static readonly IReadOnlyDictionary<string, decimal> AnchorPrices =
+        new Dictionary<string, decimal>
+        {
+            ["BTC/USDT"] = 67000m,
+            ["ETH/USDT"] = 3500m,
+            ["SOL/USDT"] = 170m,
+            ["BTC/USDC"] = 67110m,
+            ["XRP/USDT"] = 0.62m,
+            ["ETH/BTC"] = 0.0522m,
+        };
 
     private static Symbol BtcUsdt() => Symbol.Parse("BTC/USDT");
 
@@ -179,6 +203,49 @@ public sealed class DemoMarketDataAdapterTests
         }
     }
 
+    /// <summary>
+    /// All six documented symbol cadences fire concurrently on pool threads:
+    /// every trade carries a GLOBALLY unique sequence number (the atomic
+    /// increment, BUG-031) and the side/price parity it encodes stays
+    /// consistent — a single lost increment would hand one sequence number to
+    /// two trades and flip the parity of the trade that shared it.
+    /// </summary>
+    [Fact]
+    public async Task SubscribeTrades_ConcurrentCadences_KeepEveryTradeSequenceGloballyUnique()
+    {
+        var symbols = await _adapter.GetSymbolsAsync();
+
+        var feedsTask = Task.WhenAll(symbols
+            .Select(symbol => _adapter
+                .SubscribeTrades(symbol)
+                .Take(2)
+                .ToList()
+                .ToTask(TaskCreationOptions.RunContinuationsAsynchronously)
+                .WaitAsync(TradeFeedWait))
+            .ToArray());
+
+        var feeds = await feedsTask;
+
+        var trades = feeds.SelectMany(feed => feed).ToList();
+        trades.Should().HaveCount(symbols.Count * 2, "every feed yields the subscribe snapshot plus one cadence tick");
+
+        var sequences = trades.Select(ParseSequence).ToList();
+        sequences.Should().OnlyHaveUniqueItems(
+            "the globally atomic sequence source never hands one number to two trades");
+
+        foreach (var trade in trades)
+        {
+            var sequence = ParseSequence(trade);
+            var anchor = AnchorPriceOf(trade.Symbol.Normalized);
+            var isSell = sequence % 2 == 0;
+
+            trade.Side.Should().Be(isSell ? OrderSide.Sell : OrderSide.Buy,
+                $"trade '{trade.Id}' encodes its sequence parity in the side");
+            trade.Price.Value.Should().Be(isSell ? anchor * SellPriceFactor : anchor * BuyPriceFactor,
+                $"trade '{trade.Id}' encodes its sequence parity in the price factor");
+        }
+    }
+
     [Fact]
     public void Ctor_IsConnectedImmediately()
     {
@@ -219,5 +286,15 @@ public sealed class DemoMarketDataAdapterTests
         }
 
         return result;
+    }
+
+    /// <summary>The documented anchor of a symbol (an unsupported symbol fails the lookup honestly).</summary>
+    private static decimal AnchorPriceOf(string normalized) => AnchorPrices[normalized];
+
+    /// <summary>The trade's sequence number: the id tail after the last separator.</summary>
+    private static uint ParseSequence(MarketTrade trade)
+    {
+        var separatorIndex = trade.Id.LastIndexOf('-');
+        return uint.Parse(trade.Id[(separatorIndex + 1)..], CultureInfo.InvariantCulture);
     }
 }

@@ -12,7 +12,7 @@ using Core.ValueObjects;
 using FluentAssertions;
 using Infrastructure.Exchange;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 /// <summary>
@@ -29,6 +29,9 @@ public sealed class BybitAdapterWsE2eTests
 
     /// <summary>Bounded wait for any expected observable event or connection.</summary>
     private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(10);
+
+    /// <summary>The adapter's pinned order book depth (the spot depth topics the suite asserts).</summary>
+    private const int DepthLevelCount = 50;
 
     /// <summary>Symbol used in every scenario; its exchange form is "BTCUSDT".</summary>
     private static readonly Symbol BtcUsdt = new("btc", "usdt", AssetClass.Crypto);
@@ -102,6 +105,16 @@ public sealed class BybitAdapterWsE2eTests
         {"success":true,"ret_msg":"subscribe","conn_id":"loopback-1","op":"subscribe"}
         """;
 
+    /// <summary>
+    /// A public trade frame whose array mixes malformed entries (a string, a
+    /// bare number) between two valid ones: the malformed entries are counted
+    /// and dropped, the valid ones publish (BUG-027 — they never abort the
+    /// frame or throw out of the handler).
+    /// </summary>
+    private const string TradeFrameWithMalformedEntries = """
+        {"topic":"publicTrade.BTCUSDT","ts":1699999999500,"type":"snapshot","data":[{"T":1699999999500,"s":"BTCUSDT","S":"Sell","v":"0.5","p":"49999.9","V":"24999.95","i":"42"},"not-an-object",42,{"T":1699999999600,"s":"BTCUSDT","S":"Buy","v":"0.75","p":"50000.25","V":"37500.19","i":"43"}]}
+        """;
+
     #endregion
 
     #region Tests
@@ -142,7 +155,7 @@ public sealed class BybitAdapterWsE2eTests
         var server = stack.Server;
 
         var booksTask = stack.Adapter
-            .SubscribeOrderBook(BtcUsdt)
+            .SubscribeOrderBook(BtcUsdt, DepthLevelCount)
             .Take(2)
             .ToList()
             .ToTask(TaskCreationOptions.RunContinuationsAsynchronously)
@@ -180,7 +193,7 @@ public sealed class BybitAdapterWsE2eTests
         var server = stack.Server;
 
         var booksTask = stack.Adapter
-            .SubscribeOrderBook(BtcUsdt)
+            .SubscribeOrderBook(BtcUsdt, DepthLevelCount)
             .Take(3)
             .ToList()
             .ToTask(TaskCreationOptions.RunContinuationsAsynchronously)
@@ -291,6 +304,77 @@ public sealed class BybitAdapterWsE2eTests
         adapter.IsConnected.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Malformed_trade_entries_are_counted_and_dropped_never_thrown()
+    {
+        await using var stack = await E2eStack.StartAsync();
+        var server = stack.Server;
+
+        var tradesTask = stack.Adapter
+            .SubscribeTrades(BtcUsdt)
+            .Take(2)
+            .ToList()
+            .ToTask(TaskCreationOptions.RunContinuationsAsynchronously)
+            .WaitAsync(EventWait);
+
+        var connection = await server.WaitForConnectionAsync(1, EventWait);
+        await server.WaitForFrameAsync(f => f.Contains("\"op\":\"subscribe\""), EventWait);
+
+        await connection.SendTextAsync(TradeFrameWithMalformedEntries);
+
+        // Both VALID entries of the frame publish; the non-object entries in
+        // the middle of the array are counted, not thrown (a thrown
+        // InvalidOperationException would publish NOTHING here).
+        var trades = await tradesTask;
+        trades[0].Id.Should().Be("42");
+        trades[0].Side.Should().Be(OrderSide.Sell);
+        trades[1].Id.Should().Be("43");
+        trades[1].Side.Should().Be(OrderSide.Buy);
+
+        await TestPoll.PollUntilAsync(
+            () => stack.Logger.Entries.Any(entry =>
+                entry.Message.Contains("2 of 4 Bybit public trades for BTC/USDT are malformed")),
+            EventWait);
+    }
+
+    [Fact]
+    public async Task A_supported_depth_is_honored_in_the_subscribed_topic()
+    {
+        await using var stack = await E2eStack.StartAsync();
+        var server = stack.Server;
+
+        using var subscription = stack.Adapter
+            .SubscribeOrderBook(BtcUsdt, 1)
+            .Subscribe(_ => { });
+
+        _ = await server.WaitForConnectionAsync(1, EventWait);
+        var subscribeFrame = await server.WaitForFrameAsync(
+            f => f.Contains("\"op\":\"subscribe\""),
+            EventWait);
+
+        subscribeFrame.Should().Contain("\"orderbook.1.BTCUSDT\"");
+        subscription.Dispose();
+    }
+
+    [Fact]
+    public async Task An_unsupported_depth_is_rejected_without_connecting()
+    {
+        await using var stack = await E2eStack.StartAsync();
+        var server = stack.Server;
+
+        var failures = new List<Exception>();
+        using var subscription = stack.Adapter
+            .SubscribeOrderBook(BtcUsdt, 20)
+            .Subscribe(_ => { }, failures.Add);
+
+        await TestPoll.PollUntilAsync(() => failures.Count >= 1, EventWait);
+
+        failures[0].Should().BeOfType<ArgumentOutOfRangeException>();
+        failures[0].Message.Should().Contain("1, 50").And.Contain("requested 20");
+        server.ConnectionCount.Should().Be(0, "the rejected depth never connects or starts streams");
+        subscription.Dispose();
+    }
+
     #endregion
 
     #region Helpers
@@ -309,8 +393,9 @@ public sealed class BybitAdapterWsE2eTests
     }
 
     /// <summary>
-    /// The adapter, its service provider and the loopback server disposed in
-    /// dependency order (adapter first, host last).
+    /// The adapter, its recording logger, its service provider and the
+    /// loopback server disposed in dependency order (adapter first, host
+    /// last).
     /// </summary>
     private sealed class E2eStack : IAsyncDisposable
     {
@@ -322,14 +407,18 @@ public sealed class BybitAdapterWsE2eTests
 
         #region Constructor / Properties
 
-        private E2eStack(LoopbackWebSocketServer server, ServiceProvider provider, BybitAdapter adapter)
+        private E2eStack(LoopbackWebSocketServer server, RecordingLogger logger, ServiceProvider provider, BybitAdapter adapter)
         {
             Server = server;
+            Logger = logger;
             _provider = provider;
             Adapter = adapter;
         }
 
         public LoopbackWebSocketServer Server { get; }
+
+        /// <summary>The recording logger: structured entries for the honest-drop assertions.</summary>
+        public RecordingLogger Logger { get; }
 
         public BybitAdapter Adapter { get; }
 
@@ -345,14 +434,15 @@ public sealed class BybitAdapterWsE2eTests
             services.AddHttpClient(BybitAdapter.HttpClientName);
             var provider = services.BuildServiceProvider();
 
+            var logger = new RecordingLogger();
             var adapter = new BybitAdapter(
-                NullLogger<BybitAdapter>.Instance,
+                logger,
                 provider.GetRequiredService<IHttpClientFactory>(),
                 new BybitEndpoints(
                     RestBaseUrl: $"http://127.0.0.1:{server.Port}",
                     WsUrl: server.CombinedStreamUrl));
 
-            return new E2eStack(server, provider, adapter);
+            return new E2eStack(server, logger, provider, adapter);
         }
 
         #endregion
@@ -367,6 +457,30 @@ public sealed class BybitAdapterWsE2eTests
         }
 
         #endregion
+    }
+
+    /// <summary>The recording logger: collects level + formatted message pairs.</summary>
+    private sealed class RecordingLogger : ILogger<BybitAdapter>
+    {
+        /// <summary>Every logged entry so far, in arrival order.</summary>
+        public List<(LogLevel Level, string Message)> Entries { get; } = new();
+
+        /// <inheritdoc/>
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        /// <inheritdoc/>
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        /// <inheritdoc/>
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add((logLevel, formatter(state, exception)));
+        }
     }
 
     #endregion

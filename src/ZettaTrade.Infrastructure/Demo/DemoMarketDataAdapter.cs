@@ -204,12 +204,18 @@ public sealed class DemoMarketDataAdapter : IMarketDataAdapter
         }
     }
 
-    private uint _tradeSequence;
+    /// <summary>
+    /// Globally incremented trade sequence source: the per-symbol cadence
+    /// timers fire concurrently on pool threads, so the increment is atomic
+    /// (BUG-031) — lost increments would duplicate the trade ids and flip
+    /// the side/price parity they encode.
+    /// </summary>
+    private int _tradeSequence;
 
     private MarketTrade BuildTrade(Symbol symbol)
     {
         var price = AnchorPrices[symbol.Normalized];
-        var sequence = ++_tradeSequence;
+        var sequence = (uint)Interlocked.Increment(ref _tradeSequence);
 
         return new MarketTrade
         {

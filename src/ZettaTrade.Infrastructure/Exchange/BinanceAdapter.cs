@@ -1,9 +1,11 @@
 namespace ZettaTrade.Infrastructure.Exchange;
 
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
@@ -38,6 +40,13 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <summary>Partial book depth update period in milliseconds.</summary>
     private const int DepthUpdatePeriodMs = 100;
+
+    /// <summary>
+    /// The partial book depth counts the exchange serves as streams
+    /// (<c>@depth5</c>, <c>@depth10</c>, <c>@depth20</c>); any other request
+    /// is rejected by the base subscription path, never silently defaulted.
+    /// </summary>
+    private static readonly IReadOnlySet<int> SupportedOrderBookDepths = new HashSet<int> { 5, 10, 20 };
 
     /// <summary>
     /// REST path of the symbol catalog: the priced-symbols list (~160 KB) instead
@@ -96,6 +105,9 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <summary>Configured combined WS URL (internal: the registration tests assert it).</summary>
     internal string WsUrl => _wsUrl;
 
+    /// <inheritdoc/>
+    protected override IReadOnlySet<int> SupportedBookDepths => SupportedOrderBookDepths;
+
     private readonly HttpClient _httpClient;
     private readonly WebSocketClient _wsClient;
     private readonly string _baseUrl;
@@ -103,8 +115,40 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     private readonly IDisposable _messageSubscription;
     private readonly IDisposable _connectionSubscription;
 
-    /// <summary>Serializes on-demand stream starts across concurrent first subscriptions.</summary>
+    /// <summary>
+    /// Serializes on-demand stream starts, the public subscribe/unsubscribe
+    /// API and the reconnect re-subscribes across concurrent callers: it is
+    /// THE one send gate of the shared socket, since a second overlapping
+    /// <c>ClientWebSocket.SendAsync</c> throws (BUG-028).
+    /// </summary>
     private readonly SemaphoreSlim _streamStartGate = new(1, 1);
+
+    /// <summary>
+    /// Currently tracked symbols with the book depth their streams were
+    /// requested at: the reconnect re-subscribe set (the server holds no
+    /// session state across sockets).
+    /// </summary>
+    private readonly ConcurrentDictionary<string, TrackedSubscription> _subscribedSymbols = new();
+
+    /// <summary>
+    /// Topic re-subscribe requests (a fresh socket): each one lands in this
+    /// queue and the ONE consumer task serves them FIFO, serialized through
+    /// <see cref="_streamStartGate"/> and never fire-and-forget.
+    /// </summary>
+    private readonly Channel<Symbol> _resubscribeQueue = Channel.CreateUnbounded<Symbol>(
+        new UnboundedChannelOptions { SingleReader = true });
+
+    /// <summary>
+    /// The queue's one consumer task: entries are served strictly one at a
+    /// time, so an in-flight re-subscribe send is NEVER cancelled by a newer
+    /// request — a cancelled send aborts the whole socket and silences every
+    /// feed behind the swap (BUG-004). Awaited on disposal, never abandoned.
+    /// </summary>
+    private readonly Task _resubscribeLoop;
+
+    /// <summary>Adapter-owned lifetime for the re-subscribe consumer and the socket sends it runs.</summary>
+    private readonly CancellationTokenSource _lifetimeCts = new();
+    private int _disposed;
 
     /// <summary>Last WS request id (the WS API echoes it back per request).</summary>
     private int _lastRequestId;
@@ -141,6 +185,8 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
         _messageSubscription = _wsClient.MessageStream.Subscribe(HandleWebSocketMessage);
         _connectionSubscription = _wsClient.ConnectionStateStream.Subscribe(HandleConnectionStateChanged);
+
+        _resubscribeLoop = RunResubscribeLoopAsync(_lifetimeCts.Token);
     }
 
     #endregion
@@ -165,11 +211,15 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// Start the streams for one symbol on demand (called by the first
     /// subscriber of any feed): connect once when not connected, then
     /// subscribe the symbol's ticker, partial order book and trade streams.
-    /// Serialized with a semaphore so concurrent first subscriptions cannot
-    /// interleave frames on the shared WebSocket.
+    /// Serialized with the gate so concurrent callers cannot interleave
+    /// frames on the shared WebSocket. The caller's token covers the gate
+    /// wait and the connect only: the SEND rides the adapter-owned lifetime —
+    /// cancelling it mid-send would abort the shared socket and leave every
+    /// feed silent behind the swap (BUG-004).
     /// </summary>
     protected override async Task StartSymbolStreamsAsync(
         Symbol symbol,
+        int? bookDepth,
         CancellationToken ct)
     {
         await _streamStartGate.WaitAsync(ct);
@@ -180,7 +230,14 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
                 await ConnectAsync(ct);
             }
 
-            await SubscribeSymbolAsync(symbol, ct);
+            var depth = bookDepth ?? CurrentBookDepth(symbol);
+            await _wsClient.SendJsonAsync(
+                new SubscriptionRequest(
+                    MethodNames.Subscribe,
+                    NextRequestId(),
+                    BuildStreamNames(symbol, depth)),
+                _lifetimeCts.Token);
+            _subscribedSymbols[symbol.Normalized] = new TrackedSubscription(symbol, depth);
         }
         finally
         {
@@ -289,28 +346,53 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <summary>
     /// Subscribe to ticker, partial order book, and trades for a symbol.
+    /// The send is serialized behind the same gate as the stream starts, and
+    /// it rides the adapter-owned lifetime: a caller's token only covers the
+    /// gate wait (a cancelled send would abort the shared socket, BUG-004).
     /// </summary>
     public async Task SubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
-        await _wsClient.SendJsonAsync(
-            new SubscriptionRequest(
-                MethodNames.Subscribe,
-                NextRequestId(),
-                BuildStreamNames(symbol)),
-            ct);
+        await _streamStartGate.WaitAsync(ct);
+        try
+        {
+            var depth = CurrentBookDepth(symbol);
+            await _wsClient.SendJsonAsync(
+                new SubscriptionRequest(
+                    MethodNames.Subscribe,
+                    NextRequestId(),
+                    BuildStreamNames(symbol, depth)),
+                _lifetimeCts.Token);
+            _subscribedSymbols[symbol.Normalized] = new TrackedSubscription(symbol, depth);
+        }
+        finally
+        {
+            _streamStartGate.Release();
+        }
     }
 
     /// <summary>
-    /// Unsubscribe from all streams for a symbol.
+    /// Unsubscribe from all streams for a symbol. Serialized behind the same
+    /// gate as the stream starts (BUG-028); its send rides the adapter-owned
+    /// lifetime like every other socket send.
     /// </summary>
     public async Task UnsubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
-        await _wsClient.SendJsonAsync(
-            new SubscriptionRequest(
-                MethodNames.Unsubscribe,
-                NextRequestId(),
-                BuildStreamNames(symbol)),
-            ct);
+        await _streamStartGate.WaitAsync(ct);
+        try
+        {
+            var depth = CurrentBookDepth(symbol);
+            await _wsClient.SendJsonAsync(
+                new SubscriptionRequest(
+                    MethodNames.Unsubscribe,
+                    NextRequestId(),
+                    BuildStreamNames(symbol, depth)),
+                _lifetimeCts.Token);
+            _subscribedSymbols.TryRemove(symbol.Normalized, out _);
+        }
+        finally
+        {
+            _streamStartGate.Release();
+        }
     }
 
     /// <summary>
@@ -323,18 +405,76 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     #region Private Methods
 
-    private string[] BuildStreamNames(Symbol symbol)
+    private string[] BuildStreamNames(Symbol symbol, int bookDepth)
     {
         // Partial book depth snapshot; the payload carries "bids"/"asks" (no symbol field).
         var streamSuffixes = new[]
         {
             "ticker",
-            $"depth{DepthLevelCount}@{DepthUpdatePeriodMs}ms",
+            $"depth{bookDepth}@{DepthUpdatePeriodMs}ms",
             "trade",
         };
 
         var symbolStr = symbol.GetExchangeFormat(Id).ToLowerInvariant();
         return streamSuffixes.Select(suffix => $"{symbolStr}@{suffix}").ToArray();
+    }
+
+    /// <summary>
+    /// The book depth this symbol's streams are currently tracked at, or the
+    /// adapter's pinned depth for a symbol that is not subscribed yet.
+    /// </summary>
+    private int CurrentBookDepth(Symbol symbol) =>
+        _subscribedSymbols.TryGetValue(symbol.Normalized, out var tracked)
+            ? tracked.BookDepth
+            : DepthLevelCount;
+
+    /// <summary>
+    /// The ONE consumer of the re-subscribe queue: after every reconnect the
+    /// tracked set is re-subscribed FIFO, each send running to completion — a
+    /// newer request queues behind and never cancels an in-flight send,
+    /// because a cancelled send aborts the whole socket and silences every
+    /// feed behind it (BUG-004). Runs on the adapter's owned lifetime; the
+    /// only exit is disposal.
+    /// </summary>
+    private async Task RunResubscribeLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var symbol in _resubscribeQueue.Reader.ReadAllAsync(ct))
+            {
+                try
+                {
+                    await _streamStartGate.WaitAsync(ct);
+                    try
+                    {
+                        if (_subscribedSymbols.TryGetValue(symbol.Normalized, out var tracked)
+                            && _wsClient.IsConnected)
+                        {
+                            await _wsClient.SendJsonAsync(
+                                new SubscriptionRequest(
+                                    MethodNames.Subscribe,
+                                    NextRequestId(),
+                                    BuildStreamNames(symbol, tracked.BookDepth)),
+                                ct);
+                        }
+                    }
+                    finally
+                    {
+                        _streamStartGate.Release();
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // One failed re-subscribe must not kill the pump: the
+                    // tracked set survives and the NEXT reconnect re-serves it.
+                    Logger.LogWarning(ex, "Binance stream re-subscribe for {Symbol} failed", symbol.Normalized);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposal: the only exit of the re-subscribe pump.
+        }
     }
 
     /// <summary>Extract the symbol part ("btcusdt") from a stream name ("btcusdt@depth20@100ms").</summary>
@@ -462,6 +602,20 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         IsConnected = isConnected;
         Logger.LogInformation("Binance WebSocket connection state: {State}", isConnected ? "Connected" : "Disconnected");
+
+        if (!isConnected || _subscribedSymbols.IsEmpty)
+        {
+            return;
+        }
+
+        // The server holds no session state across sockets: re-subscribe the
+        // whole tracked set through the queue (the first connect skips this
+        // — the tracked set is still empty and the per-symbol start already
+        // subscribed on its own).
+        foreach (var tracked in _subscribedSymbols.Values)
+        {
+            _resubscribeQueue.Writer.TryWrite(tracked.Symbol);
+        }
     }
 
     private static string ConvertTimeFrame(TimeFrame timeFrame)
@@ -487,6 +641,15 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     public override async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        {
+            return;
+        }
+
+        _lifetimeCts.Cancel();
+        await _resubscribeLoop;
+        _lifetimeCts.Dispose();
+
         await base.DisposeAsync();
         _messageSubscription.Dispose();
         _connectionSubscription.Dispose();
@@ -503,6 +666,9 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         [property: JsonPropertyName("method")] string Method,
         [property: JsonPropertyName("id")] int Id,
         [property: JsonPropertyName("params")] string[] Params);
+
+    /// <summary>A tracked symbol with the book depth its streams were requested at.</summary>
+    private sealed record TrackedSubscription(Symbol Symbol, int BookDepth);
 
     private static class MethodNames
     {
