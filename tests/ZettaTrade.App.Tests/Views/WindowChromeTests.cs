@@ -83,6 +83,28 @@ public sealed class WindowChromeTests
     }
 
     [Fact]
+    public void EveryChromeTemplate_PresentsTheWindowContent()
+    {
+        // Avalonia 12 presents ContentControl.Content only through the
+        // explicit Content template bindings in the template itself: a bare
+        // PART_ContentPresenter never receives the window's content and the
+        // window renders as the bare background (the black-window
+        // regression). Both chrome variants must carry the native set.
+        var source = File.ReadAllText(Path.Combine(RepoRoot, "src", "Livery", "Themes", "Controls.axaml"));
+
+        foreach (var binding in new[]
+                 {
+                     "Content=\"{TemplateBinding Content}\"",
+                     "ContentTemplate=\"{TemplateBinding ContentTemplate}\"",
+                 })
+        {
+            System.Text.RegularExpressions.Regex
+                .Matches(source, System.Text.RegularExpressions.Regex.Escape(binding))
+                .Should().HaveCount(2, "both chrome templates must present the window content");
+        }
+    }
+
+    [Fact]
     public void EveryBuiltInTheme_CarriesTheChromeColorKeys()
     {
         var themeFiles = Directory.GetFiles(Path.Combine(RepoRoot, "themes"), "*.json");
