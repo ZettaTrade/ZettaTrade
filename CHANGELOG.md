@@ -9,6 +9,19 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.22] - 2026-11-05
+
+Build of board task T-055 (branch `fix/chart-vm-restore`).
+
+### Fixed
+- The persisted 12-hour clock setting applies in every restore path of
+  the chart view model, including no stored time frame, an unparsable
+  stored value and the common default-`H1` restore (BUG-015).
+- A stale symbols bootstrap delivery can no longer overwrite a newer
+  exchange's symbol list or an explicit user pick: an epoch per fetch
+  drops superseded deliveries, and a pick made mid-fetch defers the
+  persisted preference (BUG-016).
+
 ## [0.1.0-alpha.21] - 2026-11-04
 
 Build of the ui-colors refactor (supervisor-direct task; branch `feat/ui-colors`).
