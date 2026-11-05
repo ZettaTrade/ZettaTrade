@@ -148,6 +148,62 @@ public sealed class ThemeManagerHotReloadTests
             .Should().Be(orderBefore, "a reload must replace in place, never reorder");
     }
 
+    [Fact]
+    public async Task ABurstOverTwoFiles_ReloadsEveryChangedFile()
+    {
+        // BUG-046: the old single global throttle collapsed the burst into
+        // one event — only the last-changed file reloaded. The debounce keys
+        // per file: both saves land inside the same debounce window and
+        // every one of them must reload.
+        using var builtInDir = new TempDirectory();
+        using var userDir = new TempDirectory();
+        var firstFile = Path.Combine(builtInDir.FolderPath, "night-shade.json");
+        var secondFile = Path.Combine(builtInDir.FolderPath, "aurora.json");
+        WriteThemeFile(firstFile, "night-shade", "Night Shade");
+        WriteThemeFile(secondFile, "aurora", "Aurora");
+        var manager = CreateManager(builtInDir, userDir);
+        await manager.InitializeAsync();
+
+        File.WriteAllText(firstFile, ThemeJson("night-shade", "Night Shade Bright"));
+        File.WriteAllText(secondFile, ThemeJson("aurora", "Aurora Bright"));
+
+        (await WaitUntilAsync(() =>
+            manager.AvailableThemes.Any(t =>
+                t.Name == "night-shade" &&
+                t.DisplayName == "Night Shade Bright") &&
+            manager.AvailableThemes.Any(t =>
+                t.Name == "aurora" &&
+                t.DisplayName == "Aurora Bright")))
+            .Should().BeTrue("a burst over different files must reload every changed file");
+    }
+
+    [Fact]
+    public async Task AvailableThemes_CopyIsIsolatedFromTheLiveRegistration()
+    {
+        // BUG-047: the getter exposed the live registration List that the
+        // reload pipeline mutates — an unsynchronized consumer enumerating
+        // it raced the mutation into InvalidOperationException. The copy is
+        // the isolation: it stays what it was at the read, whatever happens
+        // to the registration afterwards.
+        using var builtInDir = new TempDirectory();
+        using var userDir = new TempDirectory();
+        var themeFile = Path.Combine(builtInDir.FolderPath, "night-shade.json");
+        WriteThemeFile(themeFile, "night-shade", "Night Shade");
+        var manager = CreateManager(builtInDir, userDir);
+        await manager.InitializeAsync();
+
+        var snapshot = manager.AvailableThemes;
+
+        // The pipeline's own in-place registration mutation, driven directly.
+        File.WriteAllText(themeFile, ThemeJson("night-shade", "Night Shade Bright"));
+        await manager.LoadCustomThemeAsync(themeFile);
+
+        snapshot.Should().ContainSingle(t => t.Name == "night-shade")
+            .Which.DisplayName.Should().Be("Night Shade");
+        manager.AvailableThemes.Should().ContainSingle(t => t.Name == "night-shade")
+            .Which.DisplayName.Should().Be("Night Shade Bright");
+    }
+
     private static ThemeManager CreateManager(TempDirectory builtInDir, TempDirectory userDir) =>
         new(Substitute.For<ILogger>(), builtInDir.FolderPath, userDir.FolderPath);
 

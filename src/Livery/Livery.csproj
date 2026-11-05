@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ZettaTrade.UI.Tests" />
     <PackageReference Include="Avalonia" Version="12.1.4" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
     <PackageReference Include="System.Reactive" Version="7.0.0" />

@@ -59,12 +59,17 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     private readonly ILogger _logger;
     private readonly BehaviorSubject<string> _themeChanged;
     private readonly BehaviorSubject<IReadOnlyList<ThemeFileLoadError>> _loadErrorsSubject;
-    private readonly List<ThemeInfo> _themes = new();
+
+    /// <summary>
+    /// The theme registration as an immutable snapshot: mutators build a
+    /// fresh list and swap the reference, nothing ever mutates the list a
+    /// consumer could be enumerating (BUG-047).
+    /// </summary>
+    private IReadOnlyList<ThemeInfo> _themes = [];
     private readonly Dictionary<string, ThemeVariant> _variantOfTheme = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly string _builtInThemesDirectory;
     private readonly string _userThemesDirectory;
-    private ThemeFileWatcher? _fileWatcher;
     private IDisposable? _reloadSubscription;
     private string _current = DefaultThemeName;
     private IReadOnlyList<ThemeFileLoadError> _loadErrors = Array.Empty<ThemeFileLoadError>();
@@ -127,6 +132,16 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     /// </summary>
     public string CurrentTheme => _current;
 
+    /// <summary>
+    /// The registered themes, both built-in and custom — an immutable
+    /// snapshot (BUG-047): the background hot-reload pipeline mutates the
+    /// registration only by reference replacement (every load builds a
+    /// fresh list and swaps it in), so a consumer always enumerates a list
+    /// nobody is modifying. The old getter handed out the live List that
+    /// was mutated in place, and an unsynchronized consumer enumerating it
+    /// raced that mutation into <see cref="InvalidOperationException"/>.
+    /// No gating on the read path — the snapshot pattern is the gating.
+    /// </summary>
     public IReadOnlyList<ThemeInfo> AvailableThemes => _themes;
 
     /// <summary>
@@ -300,17 +315,22 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
 
             _variantOfTheme[themeInfo.Name] = ResolveVariant(themeDef.BaseTheme);
 
-            // Replace an existing registration in place (user override of a
-            // built-in); otherwise register a new theme at the end of the list.
-            var index = _themes.FindIndex(t => t.Name == themeInfo.Name);
+            // Replace an existing registration in place (user override of
+            // a built-in) or register a new theme at the end of the list —
+            // always through a fresh list swapped into the snapshot field
+            // (BUG-047: no consumer ever enumerates a mutating list).
+            var updated = new List<ThemeInfo>(_themes);
+            var index = updated.FindIndex(t => t.Name == themeInfo.Name);
             if (index >= 0)
             {
-                _themes[index] = themeInfo;
+                updated[index] = themeInfo;
             }
             else
             {
-                _themes.Add(themeInfo);
+                updated.Add(themeInfo);
             }
+
+            _themes = updated;
 
             // The file now loads: drop its recorded load error, so a fixed
             // file clears its warning without an app restart.
@@ -478,16 +498,19 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     /// <summary>
     /// Start watching both theme directories. Each debounced change is
     /// processed asynchronously and serially, so one malformed file must not
-    /// stop the pipeline.
+    /// stop the pipeline; the watcher subscription owns every FileSystemWatcher
+    /// it creates, an error there re-creates the watch (see
+    /// <see cref="ThemeFileWatcher"/>), and disposing the subscription tears
+    /// all of them down.
     /// </summary>
     private void StartThemeHotReload()
     {
-        _fileWatcher = new ThemeFileWatcher(
+        var fileChanged = new ThemeFileWatcher(
             _logger,
             _builtInThemesDirectory,
-            _userThemesDirectory);
+            _userThemesDirectory).FileChanged;
 
-        _reloadSubscription = _fileWatcher.FileChanged
+        _reloadSubscription = fileChanged
             .Select(change => Observable.FromAsync(token => HandleThemeFileChangeAsync(change, token)))
             .Concat()
             .Subscribe(_ => { }, ex => _logger.LogError(ex, "Theme hot-reload pipeline stopped"));
@@ -596,7 +619,6 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
         if (_disposed) return;
         _disposed = true;
         _reloadSubscription?.Dispose();
-        _fileWatcher?.Dispose();
         _themeChanged.Dispose();
         _loadErrorsSubject.Dispose();
         _lock.Dispose();
