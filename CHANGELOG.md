@@ -9,6 +9,18 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.23] - 2026-11-05
+
+Build of board task T-061 (branch `fix/order-history-store`).
+
+### Fixed
+- The persistent order journal became a true database upsert: concurrent
+  placements of the same order insert-or-update atomically instead of
+  failing on the unique constraint (BUG-043).
+- Terminal statuses are final: a late or duplicate cancel for an order
+  already Filled/Cancelled/Rejected/Expired is logged and ignored,
+  never rewriting the recorded outcome (BUG-042).
+
 ## [0.1.0-alpha.22] - 2026-11-05
 
 Build of board task T-055 (branch `fix/chart-vm-restore`).
