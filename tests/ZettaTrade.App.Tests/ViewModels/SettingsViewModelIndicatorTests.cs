@@ -1,10 +1,12 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
+using System.Reactive.Linq;
 using FluentAssertions;
 using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
+using ZettaTrade.AI.Mcp;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Charting;
@@ -83,6 +85,7 @@ public sealed class SettingsViewModelIndicatorTests
             activeExchanges,
             symbolList,
             CatalogOf(loadedIndicators),
+            ClientManagerStub(),
             NullLogger<SettingsViewModel>.Instance);
 
         return new IndicatorKit(viewModel, settings);
@@ -94,6 +97,18 @@ public sealed class SettingsViewModelIndicatorTests
         var catalog = Substitute.For<IIndicatorCatalog>();
         catalog.LoadedNames.Returns(loadedIndicators);
         return catalog;
+    }
+
+    /// <summary>
+    /// The external MCP client manager stub: a telemetry-less substitute the
+    /// ViewModel constructor subscribes to (the indicators facts do not
+    /// exercise the external-servers rows).
+    /// </summary>
+    private static IMcpClientManager ClientManagerStub()
+    {
+        var manager = Substitute.For<IMcpClientManager>();
+        manager.StatesChanged.Returns(Observable.Empty<IReadOnlyList<McpClientState>>());
+        return manager;
     }
 
     #endregion Kit

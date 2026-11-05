@@ -355,13 +355,12 @@ public sealed class McpClientService : IMcpClient
 
     private async Task ConnectStreamableHttpAsync(McpServerConfig config, CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(config.Url))
-            throw new ArgumentException("URL is required for Streamable HTTP transport");
+        var (endpoint, timeoutSeconds) = ValidateHttpOptions(config);
 
         _httpClient = new HttpClient
         {
-            BaseAddress = new Uri(config.Url),
-            Timeout = TimeSpan.FromSeconds(HttpTimeoutSeconds),
+            BaseAddress = new Uri(endpoint),
+            Timeout = TimeSpan.FromSeconds(timeoutSeconds),
         };
 
         if (!string.IsNullOrEmpty(config.AuthSecretRef))
@@ -387,6 +386,37 @@ public sealed class McpClientService : IMcpClient
 
         _logger.LogInformation("Streamable HTTP transport connecting to {Url}", config.Url);
         await SendHttpInitializeAsync(ct);
+    }
+
+    /// <summary>
+    /// Validate the HTTP entry before anything dials: an absolute
+    /// http/https URL (a bad endpoint is a LOUD argument exception the
+    /// caller pins as the entry's own error state, never a silent
+    /// substitution) and a positive timeout override.
+    /// </summary>
+    /// <returns>The resolved endpoint and the effective timeout in seconds.</returns>
+    private (string Endpoint, int TimeoutSeconds) ValidateHttpOptions(McpServerConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.Url))
+        {
+            throw new ArgumentException("URL is required for Streamable HTTP transport");
+        }
+
+        if (!Uri.TryCreate(config.Url, UriKind.Absolute, out var endpoint) ||
+            endpoint.Scheme is not ("http" or "https"))
+        {
+            throw new ArgumentException(
+                $"MCP server '{config.Name}': '{config.Url}' is not a usable http/https endpoint");
+        }
+
+        var timeout = config.HttpTimeoutSeconds ?? HttpTimeoutSeconds;
+        if (timeout <= 0)
+        {
+            throw new ArgumentException(
+                $"MCP server '{config.Name}': the HTTP timeout {timeout}s is not a positive value");
+        }
+
+        return (endpoint.ToString(), timeout);
     }
 
     private async Task SendInitializeAsync(CancellationToken ct)
@@ -438,12 +468,40 @@ public sealed class McpClientService : IMcpClient
         var json = JsonSerializer.Serialize(initRequest);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync("", content, ct);
+
+        // The initialize reply is the connect's whole handshake: a status
+        // error or a malformed body is a LOUD failure (the manager pins it
+        // as the entry's Failed state), never a silent "connection looks
+        // fine" the tools would later face-fail on.
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"MCP server '{_config?.Name}' replied {response.StatusCode} to the initialize request");
+        }
+
         var responseJson = await response.Content.ReadAsStringAsync(ct);
-        _logger.LogDebug("MCP HTTP init response: {Response}", responseJson);
+
+        try
+        {
+            using var document = JsonDocument.Parse(responseJson);
+            _logger.LogDebug("MCP HTTP init response parsed: {Response}", responseJson);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException(
+                $"MCP server '{_config?.Name}' replied to the initialize request with malformed JSON",
+                ex);
+        }
 
         var notification = new { jsonrpc = "2.0", method = "notifications/initialized" };
         var notifJson = JsonSerializer.Serialize(notification);
         var notifContent = new StringContent(notifJson, Encoding.UTF8, "application/json");
-        await _httpClient.PostAsync("", notifContent, ct);
+        var notifResponse = await _httpClient.PostAsync("", notifContent, ct);
+
+        if (!notifResponse.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"MCP server '{_config?.Name}' replied {notifResponse.StatusCode} to the initialized notification");
+        }
     }
 }
