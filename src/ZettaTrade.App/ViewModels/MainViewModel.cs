@@ -2,10 +2,10 @@ namespace ZettaTrade.App.ViewModels;
 
 using System;
 using System.Reactive.Linq;
+using Livery.Extensions;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
-using Livery.Extensions;
 
 /// <summary>
 /// Main window view model. Coordinates sub-ViewModels for menu, status bar, chat, and settings.

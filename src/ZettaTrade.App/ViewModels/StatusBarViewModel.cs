@@ -5,10 +5,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using Livery.Extensions;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
-using Livery.Extensions;
 using ZettaTrade.Core.Interfaces;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 

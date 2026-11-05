@@ -1,5 +1,7 @@
 namespace ZettaTrade.App;
 
+using Livery.Localization;
+using Livery.Themes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -9,8 +11,6 @@ using ZettaTrade.AI.Mcp;
 using ZettaTrade.AI.Mcp.Tools;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
-using Livery.Localization;
-using Livery.Themes;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;

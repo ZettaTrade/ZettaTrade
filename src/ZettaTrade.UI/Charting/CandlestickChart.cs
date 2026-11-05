@@ -16,10 +16,10 @@ using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using SkiaSharp;
 using Livery.Localization;
 using Livery.Resources;
 using Livery.Themes;
+using SkiaSharp;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 

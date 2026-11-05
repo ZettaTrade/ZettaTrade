@@ -2,9 +2,9 @@ namespace ZettaTrade.App.ViewModels;
 
 using System.Linq;
 using System.Reactive.Linq;
+using Livery.Extensions;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
-using Livery.Extensions;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;

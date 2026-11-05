@@ -6,8 +6,8 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Resources;
 using Avalonia.Threading;
-using Microsoft.Extensions.Logging;
 using Livery.Extensions;
+using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>

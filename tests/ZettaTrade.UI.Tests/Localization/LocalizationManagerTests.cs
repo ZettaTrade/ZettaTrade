@@ -6,10 +6,10 @@ using System.Linq;
 using System.Resources;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
-using Livery.Localization;
 
 /// <summary>
 /// The localization lookup under a live language switch (BUG-051): the

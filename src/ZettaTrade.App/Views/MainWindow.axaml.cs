@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using Livery.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
@@ -9,7 +10,6 @@ using ReactiveUI.Primitives;
 using Serilog;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
-using Livery.Extensions;
 using ZettaTrade.UI.Extensions;
 
 namespace ZettaTrade.App.Views;
