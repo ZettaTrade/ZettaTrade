@@ -66,7 +66,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-059 Themes: burst hot-reload drops files, watcher death, unordered live list, stale order book | fix/theme-hot-reload | queued | - |
 | T-060 Localization: culture race in the cached lookup + suspected binding lifetime leak | fix/localization-races | queued | - |
 | T-061 Order history store: terminal-status rewrite + upsert check-then-act race | fix/order-history-store | done | - |
-| T-062 XDG path resolver returns CWD-relative paths for empty environment variables | fix/xdg-paths | queued | - |
+| T-062 XDG path resolver returns CWD-relative paths for empty environment variables | fix/xdg-paths | done | - |
 | T-063 The closed-task archive: sections leave the board, the archive rule and the reply language codified (supervisor-direct) | feat/task-archive | done | - |
 | T-064 Worktree lifecycle: remove the task folder and branch after merge (supervisor-direct) | feat/worktree-cleanup | done | - |
 
@@ -324,12 +324,15 @@ the end of that file, so no effort is duplicated.
 
 ## T-062 — XDG path resolver returns CWD-relative paths for empty environment variables (BUG-044)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/xdg-paths (base `develop`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** the Linux platform contract (XDG Base Directory Specification) requires the default when a variable is empty; today an empty `XDG_CONFIG_HOME`/`XDG_DATA_HOME`/`XDG_STATE_HOME` silently produces CWD-relative paths - broken locations in containers and scripts that set variables without values.
 - **What:** `BUG-044` - `ConfigPathResolver` falls back only on null (`??`), so an empty-string variable fails the fallback: `Path.Combine` then resolves against the current working directory.
 - **Scope:** `src/ZettaTrade.Infrastructure/Configuration/ConfigPathResolver.cs`.
 - **Acceptance:** unset OR empty environment variables both fall back to the platform defaults; a non-empty variable wins as before.
 - **Tests:** the env matrix (unset / empty / valid) pinned per resolved directory.
+- **Status:** done. Canon: commit `b26d699` is on feat/xdg-paths; full Infrastructure.Tests suite passes 122/122 (the resolver matrix now holds 8 facts, of which 8 are new — the class had no test file before) and gate prints `GATE PASSED`. Shipped: the three resolvers' XDG fallback moved off the null-only `??` onto one shared rule — `ResolveXdgRoot(envValue, defaultRoot)`: null, empty AND whitespace-only values all fall back to the platform default (whitespace is counted as unset as well — it is a relative path the application could never create nor write through; strictly stronger than the acceptance's "empty"), while a non-empty value wins as before; each resolver still reads ITS OWN variable raw and passes ITS OWN spec default (`XDG_CONFIG_HOME`→`~/.config`, `XDG_DATA_HOME`→`~/.local/share`, `XDG_STATE_HOME`→`~/.local/state`), the app-name suffix lives in the shared helper. The facts surface: the OS-guarded resolvers never reach their XDG branches on a Windows CI process, so three internal one-line seams (`LinuxConfigRoot/LinuxDataRoot/LinuxStateRoot(envValue)`) stand in for the process environment — the exact code production runs — and the facts call them: the broken-values Theory (null / empty / whitespace) pins all three directories' own defaults, the valid-value fact keeps a non-empty override winning, the shared-rule Theory pins the fallback composition itself, and the Windows-surface fact pins the roaming/local profile split (`config` under `%APPDATA%`, `data`+`logs` under `%LOCALAPPDATA%`) so the refactor cannot drift the non-XDG roots.
+- **Merge revision:** none expected — one resolver file plus a new fact file.
+- **Wave note:** the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-063 — The closed-task archive: sections leave the board, the archive rule and the reply language codified (supervisor-direct)
 
