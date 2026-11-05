@@ -8,7 +8,7 @@ using ReactiveUI.Avalonia;
 using ReactiveUI.Primitives;
 using Serilog;
 using ZettaTrade.App.ViewModels;
-using ZettaTrade.Appearance.Extensions;
+using Livery.Extensions;
 
 /// <summary>
 /// New Order dialog. Owns the window plumbing: the view model's

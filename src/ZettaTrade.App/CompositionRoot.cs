@@ -9,8 +9,8 @@ using ZettaTrade.AI.Mcp;
 using ZettaTrade.AI.Mcp.Tools;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
-using ZettaTrade.Appearance.Localization;
-using ZettaTrade.Appearance.Themes;
+using Livery.Localization;
+using Livery.Themes;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
@@ -75,7 +75,7 @@ internal static class CompositionRoot
         services.AddSingleton<ILocalizationManager>(sp =>
             new LocalizationManager(
                 sp.GetRequiredService<ILogger<LocalizationManager>>(),
-                ZettaTrade.Appearance.Resources.Strings.ResourceManager));
+                Livery.Resources.Strings.ResourceManager));
 
         // Exchange adapters: transport settings live inside each adapter module (Infrastructure).
         services.AddExchangeAdapters();

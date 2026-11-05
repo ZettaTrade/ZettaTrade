@@ -1,4 +1,4 @@
-namespace ZettaTrade.Appearance.Localization;
+namespace Livery.Localization;
 
 using Avalonia;
 using Avalonia.Data;

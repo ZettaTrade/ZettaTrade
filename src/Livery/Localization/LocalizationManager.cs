@@ -1,4 +1,4 @@
-namespace ZettaTrade.Appearance.Localization;
+namespace Livery.Localization;
 
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -7,7 +7,7 @@ using System.Reactive.Subjects;
 using System.Resources;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
-using ZettaTrade.Appearance.Extensions;
+using Livery.Extensions;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>

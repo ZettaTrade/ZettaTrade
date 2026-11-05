@@ -5,7 +5,7 @@ using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
-using ZettaTrade.Appearance.Extensions;
+using Livery.Extensions;
 
 /// <summary>
 /// Main window view model. Coordinates sub-ViewModels for menu, status bar, chat, and settings.

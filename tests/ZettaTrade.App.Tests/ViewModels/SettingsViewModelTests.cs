@@ -10,7 +10,7 @@ using Xunit;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
-using ZettaTrade.Appearance.Themes;
+using Livery.Themes;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Configuration;

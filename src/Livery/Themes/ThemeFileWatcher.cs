@@ -1,4 +1,4 @@
-namespace ZettaTrade.Appearance.Themes;
+namespace Livery.Themes;
 
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;

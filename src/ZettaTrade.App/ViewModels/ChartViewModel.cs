@@ -6,7 +6,7 @@ using System.Reactive.Subjects;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
-using ZettaTrade.Appearance.Extensions;
+using Livery.Extensions;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
@@ -903,7 +903,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </list>
     /// Not part of the runtime UI contract — the ViewModel ships the
     /// assignment through
-    /// <see cref="ZettaTrade.Appearance.Extensions.ObservableExtensions.ObserveOnUiThread"/>
+    /// <see cref="Livery.Extensions.ObservableExtensions.ObserveOnUiThread"/>
     /// like every other assignment.
     /// </summary>
     internal async Task<int> StartBootstrapForFactsAsync(IMarketDataAdapter adapter)

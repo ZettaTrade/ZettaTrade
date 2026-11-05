@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
-        xmlns:loc="using:ZettaTrade.Appearance.Localization"
+        xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.OrderHistoryWindow"
         x:DataType="vm:OrderHistoryViewModel"
         Title="{loc:Localized History.Title}"

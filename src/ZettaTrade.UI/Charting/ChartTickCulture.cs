@@ -2,7 +2,7 @@ namespace ZettaTrade.UI.Charting;
 
 using System;
 using System.Globalization;
-using ZettaTrade.Appearance.Localization;
+using Livery.Localization;
 
 /// <summary>
 /// The culture the chart renders its numeric and date labels in: the APP's

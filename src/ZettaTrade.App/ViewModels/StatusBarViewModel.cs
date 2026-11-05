@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
-using ZettaTrade.Appearance.Extensions;
+using Livery.Extensions;
 using ZettaTrade.Core.Interfaces;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 

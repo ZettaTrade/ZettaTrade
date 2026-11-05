@@ -5,7 +5,7 @@ using System.Linq;
 using Avalonia.Media;
 using FluentAssertions;
 using Xunit;
-using ZettaTrade.Appearance.Themes;
+using Livery.Themes;
 
 /// <summary>
 /// Tests for the theme preview swatch conversion: valid hex colors produce

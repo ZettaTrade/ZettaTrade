@@ -7,8 +7,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
-using ZettaTrade.Appearance.Localization;
-using ZettaTrade.Appearance.Resources;
+using Livery.Localization;
+using Livery.Resources;
 using ZettaTrade.UI.Charting;
 
 /// <summary>
