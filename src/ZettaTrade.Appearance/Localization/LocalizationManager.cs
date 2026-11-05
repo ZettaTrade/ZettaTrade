@@ -1,4 +1,4 @@
-namespace ZettaTrade.UI.Localization;
+namespace ZettaTrade.Appearance.Localization;
 
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -7,8 +7,8 @@ using System.Reactive.Subjects;
 using System.Resources;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Appearance.Extensions;
 using ZettaTrade.Core.Interfaces;
-using ZettaTrade.UI.Extensions;
 
 /// <summary>
 /// Reactive localization service using ResourceManager and .resx resource files.

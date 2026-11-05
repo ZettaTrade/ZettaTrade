@@ -9,6 +9,8 @@ using ZettaTrade.AI.Mcp;
 using ZettaTrade.AI.Mcp.Tools;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Appearance.Localization;
+using ZettaTrade.Appearance.Themes;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
@@ -17,8 +19,6 @@ using ZettaTrade.Infrastructure.Indicators;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Infrastructure.Secrets;
 using ZettaTrade.Infrastructure.Shell;
-using ZettaTrade.UI.Localization;
-using ZettaTrade.UI.Themes;
 
 /// <summary>
 /// DI composition root. Registers all services and dependencies.
@@ -65,7 +65,9 @@ internal static class CompositionRoot
         // diagnostics surface — LoadErrors/LoadErrorsChanged — lives there,
         // not on the Core interface) and as the IThemeManager service.
         services.AddSingleton<ThemeManager>(sp =>
-            new ThemeManager(sp.GetRequiredService<ILogger<ThemeManager>>()));
+            new ThemeManager(
+                sp.GetRequiredService<ILogger<ThemeManager>>(),
+                ConfigPathResolver.ThemesDirectory));
         services.AddSingleton<IThemeManager>(sp => sp.GetRequiredService<ThemeManager>());
 
         services.AddSingleton<IShellUtils>(new ShellUtils());
@@ -73,7 +75,7 @@ internal static class CompositionRoot
         services.AddSingleton<ILocalizationManager>(sp =>
             new LocalizationManager(
                 sp.GetRequiredService<ILogger<LocalizationManager>>(),
-                ZettaTrade.UI.Resources.Strings.ResourceManager));
+                ZettaTrade.Appearance.Resources.Strings.ResourceManager));
 
         // Exchange adapters: transport settings live inside each adapter module (Infrastructure).
         services.AddExchangeAdapters();

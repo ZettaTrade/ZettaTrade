@@ -10,11 +10,11 @@ using Xunit;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Appearance.Themes;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Shell;
-using ZettaTrade.UI.Themes;
 
 /// <summary>
 /// Tests for the settings window: the selections start at the managers'

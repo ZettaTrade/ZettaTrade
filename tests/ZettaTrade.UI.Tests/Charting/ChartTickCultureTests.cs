@@ -7,9 +7,9 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
+using ZettaTrade.Appearance.Localization;
+using ZettaTrade.Appearance.Resources;
 using ZettaTrade.UI.Charting;
-using ZettaTrade.UI.Localization;
-using ZettaTrade.UI.Resources;
 
 /// <summary>
 /// Pins for the chart's label-culture resolution: the culture follows the

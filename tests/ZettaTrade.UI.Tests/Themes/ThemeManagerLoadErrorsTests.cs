@@ -5,8 +5,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
+using ZettaTrade.Appearance.Themes;
 using ZettaTrade.UI.Tests.Support;
-using ZettaTrade.UI.Themes;
 
 /// <summary>
 /// Tests for the ThemeManager diagnostics surface: theme files whose load

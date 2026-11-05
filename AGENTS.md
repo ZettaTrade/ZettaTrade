@@ -21,7 +21,7 @@ Stack: .NET 10, C# 13, Avalonia UI 12, ReactiveUI.Avalonia 12.1, SkiaSharp, EF C
 
 ## Architecture
 - Clean Architecture: Presentation -> Domain -> Infrastructure.
-- Target layout: `src/ZettaTrade.{App,Core,Infrastructure,AI,UI,Charting,Strategies,Plugins}`, `tests/*.Tests`. Not every project exists yet.
+- Target layout: `src/ZettaTrade.{App,Core,Infrastructure,AI,UI,Appearance,Charting,Strategies,Plugins}`, `tests/*.Tests`. Not every project exists yet.
 - Plugin-first: exchange adapters, indicators and strategies are separate assemblies. Never hardcode exchange-specific logic in core.
 - Platform-specific code lives only in Infrastructure.
 - Market data flows through `Channel<T>`; charts are rendered with SkiaSharp.
@@ -32,7 +32,7 @@ Stack: .NET 10, C# 13, Avalonia UI 12, ReactiveUI.Avalonia 12.1, SkiaSharp, EF C
 - ReactiveUI only. NEVER CommunityToolkit.Mvvm, `[ObservableProperty]`, `[RelayCommand]`, `ObservableObject`.
 - ViewModels inherit `ReactiveObject`; properties use `RaiseAndSetIfChanged`; commands are `ReactiveCommand`; lifecycle via `WhenActivated` + `DisposeWith(disposables)`.
 - Use `ReactiveUI.RxVoid`, never `System.Reactive.Unit`.
-- Use `ObserveOnUiThread()` (ZettaTrade.UI.Extensions), not `ObserveOn(RxApp.MainThreadScheduler)`.
+- Use `ObserveOnUiThread()` (ZettaTrade.Appearance.Extensions), not `ObserveOn(RxApp.MainThreadScheduler)`.
 - ViewModels coordinate only; business logic lives in services. Split large ViewModels by responsibility.
 - Avalonia 12: package is `ReactiveUI.Avalonia`, namespace `ReactiveUI.Avalonia` (not `Avalonia.ReactiveUI`).
 

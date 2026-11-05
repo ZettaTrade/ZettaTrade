@@ -1,4 +1,4 @@
-namespace ZettaTrade.UI.Themes;
+namespace ZettaTrade.Appearance.Themes;
 
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -8,7 +8,6 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
-using ZettaTrade.Infrastructure.Configuration;
 
 /// <summary>
 /// Manages application themes. Every theme — built-in and custom — is a JSON
@@ -79,22 +78,28 @@ public sealed class ThemeManager : IThemeManager, IAsyncInitializable, IDisposab
     /// startup, before any stored theme preference is applied.
     /// </summary>
     /// <param name="logger">Injected application logger.</param>
+    /// <param name="userThemesDirectory">
+    /// The user themes directory. Required: this library never resolves
+    /// application paths itself, the composition root passes the settings
+    /// themes folder and tests pass their temporary directory.
+    /// </param>
     /// <param name="builtInThemesDirectory">
     /// Overrides the shipped themes folder next to the executable; tests use
     /// this to stay away from real application files.
     /// </param>
-    /// <param name="userThemesDirectory">
-    /// Overrides the settings themes directory; tests use this to stay away
-    /// from the real user configuration.
-    /// </param>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="userThemesDirectory"/> is null, empty or whitespace.
+    /// </exception>
     public ThemeManager(
         ILogger logger,
-        string? builtInThemesDirectory = null,
-        string? userThemesDirectory = null)
+        string userThemesDirectory,
+        string? builtInThemesDirectory = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userThemesDirectory);
+
         _logger = logger;
         _builtInThemesDirectory = builtInThemesDirectory ?? Path.Combine(AppContext.BaseDirectory, BuiltInThemesFolder);
-        _userThemesDirectory = userThemesDirectory ?? ConfigPathResolver.ThemesDirectory;
+        _userThemesDirectory = userThemesDirectory;
         _themeChanged = new BehaviorSubject<string>(_current);
         _loadErrorsSubject = new BehaviorSubject<IReadOnlyList<ThemeFileLoadError>>(_loadErrors);
         _instance = this;

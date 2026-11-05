@@ -1,4 +1,4 @@
-namespace ZettaTrade.UI.Extensions;
+namespace ZettaTrade.Appearance.Extensions;
 
 using System;
 using System.Reactive.Linq;

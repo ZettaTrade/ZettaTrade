@@ -19,8 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ZettaTrade.Appearance\ZettaTrade.Appearance.csproj" />
+    <ProjectReference Include="..\ZettaTrade.Charting\ZettaTrade.Charting.csproj" />
     <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
-    <ProjectReference Include="..\ZettaTrade.Infrastructure\ZettaTrade.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

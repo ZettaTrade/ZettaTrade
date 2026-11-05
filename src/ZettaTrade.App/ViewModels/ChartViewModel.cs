@@ -6,12 +6,12 @@ using System.Reactive.Subjects;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
+using ZettaTrade.Appearance.Extensions;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
-using ZettaTrade.UI.Extensions;
 
 /// <summary>
 /// Chart panel state: the available symbols list, the selected symbol and the
@@ -903,7 +903,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </list>
     /// Not part of the runtime UI contract — the ViewModel ships the
     /// assignment through
-    /// <see cref="ZettaTrade.UI.Extensions.ObservableExtensions.ObserveOnUiThread"/>
+    /// <see cref="ZettaTrade.Appearance.Extensions.ObservableExtensions.ObserveOnUiThread"/>
     /// like every other assignment.
     /// </summary>
     internal async Task<int> StartBootstrapForFactsAsync(IMarketDataAdapter adapter)

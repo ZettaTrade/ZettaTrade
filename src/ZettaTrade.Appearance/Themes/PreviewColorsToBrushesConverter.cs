@@ -1,4 +1,4 @@
-namespace ZettaTrade.UI.Themes;
+namespace ZettaTrade.Appearance.Themes;
 
 using System;
 using System.Collections.Generic;
