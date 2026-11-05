@@ -9,6 +9,23 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.33] - 2026-11-06
+
+Build of board task T-067 (branch `feat/indicator-settings-gate`).
+
+### Added
+- The Indicators settings tab reflects the real plugin catalog: the SMA
+  overlay row renders only when the scanned catalog registered the plugin
+  (the new `IIndicatorCatalog.LoadedNames` snapshot drives the gate), and a
+  catalog with zero indicators shows the honest localized empty state
+  naming the app data directory's `plugins` folder.
+
+### Fixed
+- A settings save without the loaded plugin never fabricates its config
+  row: the indicator block of the save runs only when the session actually
+  owns the plugin — the persisted `ChartIndicators` config rides untouched
+  (the chart pipeline already skips unknown names on its own seam).
+
 ## [0.1.0-alpha.32] - 2026-11-06
 
 Build of board task T-066 (branch `feat/window-chrome`).
