@@ -62,6 +62,13 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <summary>Order book depth level count the adapter subscribes and publishes.</summary>
     private const int DepthLevelCount = 50;
 
+    /// <summary>The smallest order book depth Bybit spot serves as a topic.</summary>
+    private const int MinBookDepthCount = 1;
+
+    /// <summary>The order book depths Bybit spot serves (<c>orderbook.1</c>, <c>orderbook.50</c>); everything else is a rejected request, never a silent default.</summary>
+    private static readonly IReadOnlySet<int> SupportedOrderBookDepths =
+        new HashSet<int> { MinBookDepthCount, DepthLevelCount };
+
     /// <summary>Interval of the adapter-owned WebSocket keepalive ping, in seconds.</summary>
     private const int KeepaliveIntervalSeconds = 20;
 
@@ -91,6 +98,9 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <summary>Configured WS URL (internal: the registration tests assert it).</summary>
     internal string WsUrl => _wsUrl;
+
+    /// <inheritdoc/>
+    protected override IReadOnlySet<int> SupportedBookDepths => SupportedOrderBookDepths;
 
     private readonly HttpClient _httpClient;
     private readonly WebSocketClient _wsClient;
@@ -190,12 +200,15 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <summary>
     /// Start the streams for one symbol on demand (called by the first
     /// subscriber of any feed): connect once when not connected, then
-    /// subscribe the symbol's ticker, 50-level order book and trade topics.
-    /// Serialized with the send gate so concurrent starts cannot interleave
-    /// frames on the shared WebSocket.
+    /// subscribe the symbol's ticker, order book and trade topics. Serialized
+    /// with the send gate so concurrent starts cannot interleave frames on
+    /// the shared WebSocket. The caller's token covers the gate wait and the
+    /// connect only: the SEND rides the adapter-owned lifetime — cancelling
+    /// it mid-send would abort the shared socket for every feed (BUG-004).
     /// </summary>
     protected override async Task StartSymbolStreamsAsync(
         Symbol symbol,
+        int? bookDepth,
         CancellationToken ct)
     {
         await _sendGate.WaitAsync(ct);
@@ -207,8 +220,8 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
             }
 
             await _wsClient.SendJsonAsync(
-                new SubscriptionFrame(FrameOps.Subscribe, BuildTopics(symbol)),
-                ct);
+                new SubscriptionFrame(FrameOps.Subscribe, BuildTopics(symbol, bookDepth)),
+                _lifetimeCts.Token);
             _subscribedSymbols[symbol.GetExchangeFormat(Id)] = symbol;
         }
         finally
@@ -374,15 +387,16 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <summary>
     /// The exact topic names the adapter requests per symbol (deterministic
-    /// order; the depth level count is pinned by <see cref="DepthLevelCount"/>).
+    /// order; the depth level count is pinned by <see cref="DepthLevelCount"/>
+    /// unless the caller carries an explicit — already validated — request).
     /// </summary>
-    private string[] BuildTopics(Symbol symbol)
+    private string[] BuildTopics(Symbol symbol, int? bookDepth = null)
     {
         var symbolStr = symbol.GetExchangeFormat(Id);
         return
         [
             $"{TickerTopicPrefix}{symbolStr}",
-            $"{OrderBookTopicPrefix}{DepthLevelCount}.{symbolStr}",
+            $"{OrderBookTopicPrefix}{(bookDepth ?? DepthLevelCount)}.{symbolStr}",
             $"{PublicTradeTopicPrefix}{symbolStr}",
         ];
     }
@@ -720,9 +734,17 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         var dropped = 0;
         foreach (var item in data.EnumerateArray())
         {
-            var side = item.TryGetProperty("S", out var sideProp) ? sideProp.GetString() : null;
-            if (item.ValueKind != JsonValueKind.Object ||
-                side is not (FrameSides.Buy or FrameSides.Sell) ||
+            // Object check FIRST: a non-object entry has no properties, and
+            // TryGetProperty would throw on it and abort every remaining
+            // trade of the frame (BUG-027) instead of being counted.
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                dropped++;
+                continue;
+            }
+
+            if (!item.TryGetProperty("S", out var sideProp) ||
+                sideProp.GetString() is not (FrameSides.Buy or FrameSides.Sell) ||
                 !item.TryGetProperty("p", out var priceProp) ||
                 !item.TryGetProperty("v", out var quantityProp) ||
                 !item.TryGetProperty("T", out var timeProp) ||
@@ -731,6 +753,8 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
                 dropped++;
                 continue;
             }
+
+            var side = sideProp.GetString();
 
             published++;
             PublishTrade(new MarketTrade

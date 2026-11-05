@@ -1,8 +1,13 @@
 namespace ZettaTrade.Infrastructure.Tests.Exchange;
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
+using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using ZettaTrade.Infrastructure.Exchange;
@@ -163,6 +168,110 @@ public sealed class WebSocketClientTests
         await server.WaitForFrameAsync(f => f == TextFrameOne, EventWait);
     }
 
+    /// <summary>
+    /// Overlapping connects serialize on the lifecycle gate: the second call
+    /// tears the first session down orderly (cancel → the loop is reaped →
+    /// the socket is closed and disposed) BEFORE opening its own fresh
+    /// session — never a loop racing a token or socket swap (BUG-029).
+    /// </summary>
+    [Fact]
+    public async Task Overlapping_connects_serialize_their_sessions()
+    {
+        await using var server = await LoopbackWebSocketServer.StartAsync();
+        var logger = new RecordingLogger();
+        await using var client = CreateClient(
+            server.CombinedStreamUrl,
+            ShortReconnectDelay,
+            ReconnectAttempts,
+            logger);
+
+        // Two racing connects: each completes its own whole session, and the
+        // surviving (second) one carries frames on the wire.
+        var firstConnect = client.ConnectAsync();
+        var secondConnect = client.ConnectAsync();
+        await Task.WhenAll(firstConnect, secondConnect);
+
+        client.IsConnected.Should().BeTrue();
+
+        var framesTask = CollectAsync(client.MessageStream, 1);
+        var secondConnection = await server.WaitForConnectionAsync(2, EventWait);
+        await secondConnection.SendTextAsync(TextFrameOne);
+        (await framesTask).Should().Equal(new[] { TextFrameOne });
+
+        server.ConnectionCount.Should().Be(2, "the session replace keeps one upgrade per connect");
+        logger.Entries.Should().NotContain(
+            entry => entry.Level == LogLevel.Error,
+            "no overlapped session teardown may surface as a crashed background loop");
+    }
+
+    /// <summary>
+    /// An explicit disconnect tears the session down in dependency order —
+    /// cancel FIRST, then reap the loop, then close and dispose the socket —
+    /// so the blocked <c>ReceiveAsync</c> never aborts underneath the loop
+    /// and no spurious "background loop crashed" error is logged (BUG-030).
+    /// </summary>
+    [Fact]
+    public async Task Disconnect_closes_cleanly_without_a_spurious_loop_crash()
+    {
+        await using var server = await LoopbackWebSocketServer.StartAsync();
+        var logger = new RecordingLogger();
+        await using var client = CreateClient(
+            server.CombinedStreamUrl,
+            ShortReconnectDelay,
+            ReconnectAttempts,
+            logger);
+
+        // Seed false at subscribe, true on open, false on the disconnect.
+        var statesTask = CollectAsync(client.ConnectionStateStream, 3);
+
+        await client.ConnectAsync();
+        _ = await server.WaitForConnectionAsync(1, EventWait);
+
+        await client.DisconnectAsync();
+
+        client.IsConnected.Should().BeFalse();
+        (await statesTask).Should().Equal(new[] { false, true, false });
+        server.ConnectionCount.Should().Be(1, "an explicit disconnect never reconnects");
+
+        logger.Entries.Should().NotContain(
+            entry => entry.Level == LogLevel.Error,
+            "the cancel-before-teardown order keeps the blocked loop from crashing");
+    }
+
+    /// <summary>
+    /// Every connect call starts with a fresh attempt budget: two consecutive
+    /// connects against a refusing endpoint each burn their OWN attempts (two
+    /// honest per-session warnings each; a shared budget would make the
+    /// second call throw with none), so a failed session never shrinks the
+    /// next one (BUG-029).
+    /// </summary>
+    [Fact]
+    public async Task A_failed_session_keeps_a_full_attempt_budget_for_the_next_connect()
+    {
+        // A real server on a missing path answers plain HTTP, never an
+        // upgrade — a deterministic handshake refusal without port games.
+        await using var server = await LoopbackWebSocketServer.StartAsync();
+        var logger = new RecordingLogger();
+        await using var client = CreateClient(
+            $"ws://127.0.0.1:{server.Port}{MissingStreamPath}",
+            ShortReconnectDelay,
+            RefusedConnectAttempts,
+            logger);
+
+        Func<Task> firstConnect = () => client.ConnectAsync().WaitAsync(EventWait);
+        await firstConnect.Should().ThrowAsync<InvalidOperationException>();
+        logger.Entries.Count(entry => entry.Message.Contains("WebSocket connection failed"))
+            .Should().Be(RefusedConnectAttempts, "the whole budget is burned honestly");
+
+        // The second call starts from a FRESH budget: the failed previous
+        // session cannot shrink it — the refusal warning appears per attempt
+        // again, instead of the second call dying silently.
+        Func<Task> secondConnect = () => client.ConnectAsync().WaitAsync(EventWait);
+        await secondConnect.Should().ThrowAsync<InvalidOperationException>();
+        logger.Entries.Count(entry => entry.Message.Contains("WebSocket connection failed"))
+            .Should().Be(RefusedConnectAttempts * 2, "every fresh session owns the full attempt budget");
+    }
+
     #endregion
 
     #region Helpers
@@ -174,6 +283,17 @@ public sealed class WebSocketClientTests
             reconnectDelay: reconnectDelay,
             maxReconnectAttempts: maxConnectAttempts);
 
+    private static WebSocketClient CreateClient(
+        string url,
+        TimeSpan reconnectDelay,
+        int maxConnectAttempts,
+        ILogger logger) =>
+        new(
+            url,
+            logger,
+            reconnectDelay: reconnectDelay,
+            maxReconnectAttempts: maxConnectAttempts);
+
     /// <summary>Materialize the first <paramref name="expectedCount"/> stream events into a bounded task.</summary>
     private static Task<IList<T>> CollectAsync<T>(IObservable<T> source, int expectedCount) =>
         source
@@ -181,6 +301,34 @@ public sealed class WebSocketClientTests
             .ToList()
             .ToTask(TaskCreationOptions.RunContinuationsAsynchronously)
             .WaitAsync(EventWait);
+
+    /// <summary>
+    /// The recording logger: collects level + formatted message pairs, so the
+    /// tests can pin the absence of crash-style Error entries and count the
+    /// honest per-session attempt warnings.
+    /// </summary>
+    private sealed class RecordingLogger : ILogger
+    {
+        /// <summary>Every logged entry so far, in arrival order.</summary>
+        public List<(LogLevel Level, string Message)> Entries { get; } = new();
+
+        /// <inheritdoc/>
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        /// <inheritdoc/>
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        /// <inheritdoc/>
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add((logLevel, formatter(state, exception)));
+        }
+    }
 
     #endregion
 }
