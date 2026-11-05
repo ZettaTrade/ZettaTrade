@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -29,31 +30,61 @@ public partial class App : Application
     /// <inheritdoc/>
     public override async void OnFrameworkInitializationCompleted()
     {
-        ConfigPathResolver.EnsureDirectoriesExist();
-
-        Services = await CompositionRoot.BuildServiceProviderAsync();
-
-        await ApplyStoredUiSettingsAsync();
-
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        try
         {
-            var mainVm = Services.GetRequiredService<MainViewModel>();
-            var mainWindow = new MainWindow
+            ConfigPathResolver.EnsureDirectoriesExist();
+
+            Services = await CompositionRoot.BuildServiceProviderAsync();
+
+            await ApplyStoredUiSettingsAsync();
+
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                DataContext = mainVm,
-            };
-            desktop.MainWindow = mainWindow;
+                var mainVm = Services.GetRequiredService<MainViewModel>();
+                var mainWindow = new MainWindow
+                {
+                    DataContext = mainVm,
+                };
+                desktop.MainWindow = mainWindow;
 
-            // StartCore() shows MainWindow synchronously right after this callback returns.
-            // With a settings file present, our async initialization suspends on the first
-            // await, so the lifetime finds MainWindow still null and nothing shows the window
-            // later. Window.Show() is idempotent for non-modal windows (Window.ShowCore),
-            // making an explicit call safe in both sync and async cases.
-            mainWindow.Show();
+                // StartCore() shows MainWindow synchronously right after this callback returns.
+                // With a settings file present, our async initialization suspends on the first
+                // await, so the lifetime finds MainWindow still null and nothing shows the window
+                // later. Window.Show() is idempotent for non-modal windows (Window.ShowCore),
+                // making an explicit call safe in both sync and async cases.
+                mainWindow.Show();
+            }
+
+            base.OnFrameworkInitializationCompleted();
         }
-
-        base.OnFrameworkInitializationCompleted();
+        catch (Exception ex)
+        {
+            // BUG-019: OnFrameworkInitializationCompleted is async void, so an
+            // unhandled exception here crashes the process with nothing in
+            // the Serilog file log. The failure is logged through the Serilog
+            // static logger (configured as the composition root's first step)
+            // and the rethrow IS the fail-fast path: the process must not
+            // limp on with a half-built service tree and no main window.
+            LogStartupFailure(ex);
+            throw;
+        }
     }
+
+    /// <summary>
+    /// Write the startup failure into the file log. Existence of the entry
+    /// is guaranteed for every failure AFTER the composition root has
+    /// configured <see cref="Serilog.Log.Logger"/> (the store/theme corrupt
+    /// cases resolve in its initialization walk); only the directory-setup
+    /// step before them is unloggable by that design, because the log
+    /// directory itself may be the failed resource and the fail-fast exit
+    /// already surfaces it as the process error.
+    /// </summary>
+    internal static void LogStartupFailure(Exception exception) =>
+        Serilog.Log.Logger
+            .ForContext<App>()
+            .Error(
+                exception,
+                "Application startup failed; the process exits before the main window exists");
 
     /// <summary>
     /// Apply the stored UI preferences (language, theme) before the main window

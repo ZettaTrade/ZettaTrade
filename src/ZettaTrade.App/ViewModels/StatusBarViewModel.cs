@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.UI.Extensions;
 
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
@@ -203,8 +204,14 @@ public sealed class StatusBarViewModel : ReactiveObject
 
         // The loud fallback warning: the connection chip shows the localized
         // notice for a bounded moment, then returns to the regular state.
+        // The chip is UI-bound: the notice signal can arrive from the
+        // starter walk and the expiry callback runs on a .NET timer thread,
+        // so BOTH land on the UI thread through the shared marshal instead
+        // of writing the chip from their own (off-UI) thread (BUG-018).
         activeExchanges
             .UnavailablePersistedChoices
+            .Select(_ => RxVoid.Default)
+            .ObserveOnUiThread()
             .Subscribe(
                 _ => ShowFallbackNotice(),
                 ex => _logger.LogError(ex, "The fallback warning stream stopped unexpectedly"));
@@ -273,6 +280,13 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// Show the loud fallback notice in the connection chip for the bounded
     /// duration, then re-derive the regular chip text.
     /// </summary>
+    /// <remarks>
+    /// The caller delivers this method on the UI thread (the notice
+    /// subscription marshals upstream), so the chip write here is
+    /// UI-thread-backed. The expiry refresh is a .NET timer callback — a
+    /// thread-pool thread — and marshals onto the UI thread before it may
+    /// touch the chip (BUG-018).
+    /// </remarks>
     private void ShowFallbackNotice()
     {
         _noticeHeldUntil = DateTimeOffset.UtcNow + _fallbackNoticeDuration;
@@ -280,6 +294,8 @@ public sealed class StatusBarViewModel : ReactiveObject
 
         Observable
             .Timer(_fallbackNoticeDuration)
+            .Select(_ => RxVoid.Default)
+            .ObserveOnUiThread()
             .Subscribe(
                 _ => RefreshConnectionStatus(),
                 ex => _logger.LogError(ex, "The fallback notice timer stopped unexpectedly"));
