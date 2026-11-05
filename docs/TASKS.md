@@ -57,7 +57,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-050 MCP pipelines: host lock stall, client id matching, unread stderr, tools enum defaults | fix/mcp-pipelines | queued | - |
 | T-051 Paper trading ledger: corrupted entry price, stale reference price, phantom fills | fix/paper-ledger | done | - |
 | T-052 WebSocket transport: dead feed after reconnect, send races, frame parser, ignored depth | fix/ws-transport | queued | - |
-| T-053 Settings service: reload races erase just-written values, changes never published | fix/settings-hot-reload | queued | - |
+| T-053 Settings service: reload races erase just-written values, changes never published | fix/settings-hot-reload | done | - |
 | T-054 Indicator plugin scan aborts on a plugin with missing dependencies | fix/indicator-scan | queued | - |
 | T-055 Chart VM: persisted 12-hour clock lost in the common restore path + symbols bootstrap race | fix/chart-vm-restore | queued | - |
 | T-056 App VM error paths: unlogged startup crash, silent order failures, off-thread and inconsistent UI | fix/app-vm-error-paths | queued | - |
@@ -219,7 +219,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-053 — Settings service: reload races erase just-written values, changes never published (BUG-012, BUG-013, BUG-045)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/indicator-scan (base `develop`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** the settings service is the single persistence interface for every workspace preference; the reload race silently loses user edits - the most painful silently-losing bug inside a trading terminal.
 - **What:**
   - `BUG-012` - `LoadFromFileAsync` mutates the shared `_settings` (`Clear()` + repopulate) without `_saveLock`: a debounced external reload interleaved with `SetAsync`/`SaveAsync` erases just-written values and the next save persists the stale snapshot (lost writes).
@@ -228,6 +228,9 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `src/ZettaTrade.Infrastructure/Configuration/SettingsService.cs` (+ the change payload type; keep `SettingsChange` backward compatible or escalate).
 - **Acceptance:** external reloads serialize with saves (no lost writes); every external change publishes a well-typed `SettingsChange`; a save never self-triggers its own reload (the guard covers the whole delivery window); old and new values share one type.
 - **Tests:** the lost-write race repro pinned first, then the fix; the change-publication assertions; the save-produces-zero-reload-events assertion.
+- **Status:** done. Canon: commit `32909cb` is on feat/indicator-scan; full Infrastructure.Tests suite passes 123/123 (no warnings; the new settings suite holds 8 facts, the race fact stress-run green x4) and gate prints `GATE PASSED`. Shipped: BUG-012 — the WHOLE mutation set is serialized behind `_saveLock`: `LoadFromFileAsync` takes the lock around parse/apply (the pre-fix unlock `Clear()`+repopulate erased just-written values), and, the deeper hole the first review pass found, `SetAsync`'s memory mutation moved under the very same lock together with its save (the pre-fix unlocked `AddOrUpdate` left a window where a reload reloaded the STALE file over the fresh memory and the queued save persisted the stale snapshot); BUG-013 — every loaded snapshot now publishes one `SettingsChange` per difference (`ApplyAndCollect` diffs old/new by `JsonElement.DeepEquals`, applies, then publishes AFTER the lock release so a re-entering subscriber can never find the save lock held); BUG-045 — payloads are one-typed per event: a typed `SetAsync` reports the old value deserialized to the SAME `T` (a history value that fails to deserialize degrades to null, no substituted defaults), a reload publishes the file model's `JsonElement` for both sides (an absent side is null); the timing-guard `_isSaving` is replaced by a byte-exact `_lastSavedContent` fingerprint armed only after a successful write — a file event carrying the save's own content is skipped on load regardless of WHEN it lands, so the guard covers the whole delivery window (the pre-fix flag reset before the `File.Move` event was ever delivered). New facts: the lost-write race (reload racing set; the value survives in memory AND the follow-up save persists it), two concurrent sets both surviving serialized, one-event-per-difference reload publication (changed/added/removed), the full watcher pipeline surfacing an external rewrite within the debounce window, the typed old/new pair, the absent old side on a first set, and the zero-echo save assertion. `SettingsChange` itself is untouched (`object?` shape = backward compatible; all current App consumers stay `OfType<T>`-guarded — reload payloads degrade to filtered-out events there).
+- **Merge revision:** consumer-side follow-up (escalation note, NOT in scope): App ViewModels currently drop reload-published values (`OfType<bool/string>` filters, `ApplyMarksChange`'s `is not string` guard) — genuinely hot-applying them needs the VMs to handle `JsonElement` payloads or re-read via `ReloadAsync`; the publication and typing contract is ready for that.
+- **Wave note:** the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-054 — Indicator plugin scan aborts on a plugin with missing dependencies (BUG-014)
 
