@@ -85,7 +85,12 @@
          WS_SYSMENU) is absent and no managed decoration overlay is requested
          (the platform only asks for a drawn TitleBar with Full decorations).
          The Alt+F4 OS close gesture rides the system menu, so the title bar
-         control restores it: see TitleBar's keyboard hook. -->
+         control restores it: see TitleBar's keyboard hook.
+         The presenter must mirror the native window template's Content
+         bindings (Content, ContentTemplate and the padding/alignment set):
+         Avalonia 12 presents ContentControl.Content only through those
+         explicit template bindings — a bare PART_ContentPresenter stays
+         empty and the window renders as the bare background. -->
     <Style Selector="Window.chrome">
         <Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
         <Setter Property="WindowDecorations" Value="BorderOnly" />
@@ -93,7 +98,13 @@
             <ControlTemplate>
                 <Grid RowDefinitions="Auto,*" Background="{TemplateBinding Background}">
                     <livery:TitleBar Grid.Row="0" />
-                    <ContentPresenter Name="PART_ContentPresenter" Grid.Row="1" />
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Grid.Row="1"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      Content="{TemplateBinding Content}"
+                                      Margin="{TemplateBinding Padding}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
                 </Grid>
             </ControlTemplate>
         </Setter>
@@ -106,7 +117,13 @@
             <ControlTemplate>
                 <Grid RowDefinitions="Auto,*" Background="{TemplateBinding Background}">
                     <livery:TitleBar Grid.Row="0" ShowMinimizeButton="False" ShowMaximizeButton="False" />
-                    <ContentPresenter Name="PART_ContentPresenter" Grid.Row="1" />
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Grid.Row="1"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      Content="{TemplateBinding Content}"
+                                      Margin="{TemplateBinding Padding}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
                 </Grid>
             </ControlTemplate>
         </Setter>
