@@ -11,9 +11,9 @@ using ZettaTrade.UI.Extensions;
 
 /// <summary>
 /// The async subscription surface: every notification launches its awaited
-/// run in emission order (the SerializeDialog route of order book level
-/// presses), and an unhandled stream error reaches exactly one error
-/// callback while the handle stays disposable.
+/// run strictly serialized in emission order (the SerializeDialog route of
+/// order book level presses), and an unhandled stream error reaches
+/// exactly one error callback while the handle stays disposable.
 /// </summary>
 public sealed class ObservableAsyncExtensionsTests
 {
@@ -83,5 +83,105 @@ public sealed class ObservableAsyncExtensionsTests
         subject.OnNext(OrderSide.Sell);
 
         runs.Should().Equal([OrderSide.Sell]);
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_KeepsQueuedRunsParked_UntilThePendingRunCompletes()
+    {
+        // The serialization contract (BUG-025): three notifications fire
+        // while the first run pends — the queued runs start one at a time
+        // exactly when their predecessor completes, never concurrently
+        // (the old Merge route started all three simultaneously).
+        var subject = new Subject<int>();
+        var started = new List<int>();
+        var errors = new List<Exception>();
+        var gates = new TaskCompletionSource[3];
+        for (var i = 0; i < gates.Length; i++)
+        {
+            gates[i] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        using var subscription = subject.SubscribeAsync(
+            item =>
+            {
+                started.Add(item);
+                return gates[item - 1].Task;
+            },
+            errors.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+
+        started.Should().Equal([1]);
+
+        gates[0].SetResult();
+        await WaitUntilAsync(() => started.Count >= 2);
+        started.Should().Equal([1, 2]);
+
+        gates[1].SetResult();
+        await WaitUntilAsync(() => started.Count >= 3);
+        started.Should().Equal([1, 2, 3]);
+        errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SubscribeAsync_KeepsTheEmissionOrder_WhenRunsCompleteOutOfOrder()
+    {
+        // The pump advances strictly along the emission order: the last
+        // queued run completing first does nothing to the starts, and the
+        // parked runs light up exactly when their predecessors finished.
+        var subject = new Subject<int>();
+        var started = new List<int>();
+        var errors = new List<Exception>();
+        var gates = new TaskCompletionSource[3];
+        for (var i = 0; i < gates.Length; i++)
+        {
+            gates[i] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        using var subscription = subject.SubscribeAsync(
+            item =>
+            {
+                started.Add(item);
+                return gates[item - 1].Task;
+            },
+            errors.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+
+        started.Should().Equal([1]);
+
+        // The third run completes out of order — nothing may start.
+        gates[2].SetResult();
+        started.Should().Equal([1]);
+
+        gates[0].SetResult();
+        await WaitUntilAsync(() => started.Count >= 2);
+        started.Should().Equal([1, 2]);
+
+        gates[1].SetResult();
+        await WaitUntilAsync(() => started.Count >= 3);
+        started.Should().Equal([1, 2, 3]);
+        errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Waits (bounded) until the serialized pump has advanced: the
+    /// completion-to-start hop rides a task continuation, so the asserts
+    /// need an await point. Meditation on the timing never decides — the
+    /// pump settles within the window or the test fails.
+    /// </summary>
+    private static async Task WaitUntilAsync(Func<bool> met)
+    {
+        var limit = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (!met() && (DateTime.UtcNow < limit))
+        {
+            await Task.Delay(10);
+        }
+
+        met().Should().BeTrue("the serialized pump was expected to advance within the wait window");
     }
 }
