@@ -1,5 +1,6 @@
 namespace ZettaTrade.AI.Mcp;
 
+using Livery.Contracts;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
@@ -37,3 +38,4 @@ public interface IMcpClientManager : IAsyncInitializable
     /// </summary>
     Task ApplyAsync(IReadOnlyList<McpServerConfig> servers, CancellationToken ct = default);
 }
+

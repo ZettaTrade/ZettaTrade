@@ -5,6 +5,8 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
+using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -289,3 +291,4 @@ internal sealed record McpKit(
     Subject<SettingsChange> Changes,
     IMcpServerHost Host,
     McpHostService Runner);
+

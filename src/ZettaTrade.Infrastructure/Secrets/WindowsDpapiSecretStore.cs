@@ -4,6 +4,7 @@ using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Livery.Contracts;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
@@ -220,3 +221,4 @@ public sealed class WindowsDpapiSecretStore : ISecretStore, IAsyncInitializable
         }
     }
 }
+

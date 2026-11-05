@@ -1,4 +1,4 @@
-namespace ZettaTrade.Core.Interfaces;
+namespace Livery.Localization;
 
 /// <summary>
 /// Localization manager for runtime language switching.

@@ -2,6 +2,7 @@ namespace ZettaTrade.App.ViewModels;
 
 using System.Globalization;
 using System.Reactive.Disposables;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ReactiveUI.Primitives;
@@ -621,3 +622,4 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
     #endregion Private Methods
 }
+

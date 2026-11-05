@@ -6,6 +6,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -298,3 +299,4 @@ public sealed class SettingsViewModelMcpClientTests
 
     #endregion Save
 }
+

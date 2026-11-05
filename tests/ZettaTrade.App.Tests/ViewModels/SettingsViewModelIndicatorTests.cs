@@ -2,6 +2,7 @@ namespace ZettaTrade.App.Tests.ViewModels;
 
 using System.Reactive.Linq;
 using FluentAssertions;
+using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -221,3 +222,4 @@ public sealed class SettingsViewModelIndicatorTests
 
     #endregion Save Gate
 }
+

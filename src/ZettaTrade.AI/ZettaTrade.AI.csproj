@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Livery\Livery.csproj" />
     <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
   </ItemGroup>
 

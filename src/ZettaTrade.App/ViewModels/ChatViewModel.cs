@@ -2,12 +2,13 @@ namespace ZettaTrade.App.ViewModels;
 
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
+using Livery.Contracts;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.AI.Chat;
 using ZettaTrade.App.Services;
 using ZettaTrade.Core.Interfaces;
-
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
@@ -349,3 +350,4 @@ public sealed class ChatMessageViewModel : ReactiveObject
 
     #endregion
 }
+

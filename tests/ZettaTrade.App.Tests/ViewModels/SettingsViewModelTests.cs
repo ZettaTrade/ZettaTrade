@@ -3,6 +3,7 @@ namespace ZettaTrade.App.Tests.ViewModels;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using FluentAssertions;
+using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -845,3 +846,4 @@ public sealed class SettingsViewModelTests
         return (activeExchanges, symbolList, adapter);
     }
 }
+

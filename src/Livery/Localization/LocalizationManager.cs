@@ -8,7 +8,6 @@ using System.Resources;
 using Avalonia.Threading;
 using Livery.Extensions;
 using Microsoft.Extensions.Logging;
-using ZettaTrade.Core.Interfaces;
 
 /// <summary>
 /// Reactive localization service using ResourceManager and .resx resource files.

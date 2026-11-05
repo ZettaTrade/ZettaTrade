@@ -3,6 +3,7 @@ namespace ZettaTrade.App.ViewModels;
 using System.Globalization;
 using System.Linq;
 using System.Reactive.Linq;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ReactiveUI.Primitives;
@@ -347,3 +348,4 @@ public sealed class PositionsPanelViewModel : ReactiveObject
 
     #endregion Private Methods
 }
+
