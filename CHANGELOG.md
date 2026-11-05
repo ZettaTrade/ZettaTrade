@@ -9,6 +9,16 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.24] - 2026-11-05
+
+Build of board task T-062 (branch `fix/xdg-paths`).
+
+### Fixed
+- Empty or whitespace-only `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and
+  `XDG_STATE_HOME` values fall back to the platform defaults instead of
+  silently resolving CWD-relative paths (BUG-044); a non-empty value
+  still wins as before.
+
 ## [0.1.0-alpha.23] - 2026-11-05
 
 Build of board task T-061 (branch `fix/order-history-store`).
