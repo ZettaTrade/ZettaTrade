@@ -69,6 +69,10 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-062 XDG path resolver returns CWD-relative paths for empty environment variables | fix/xdg-paths | done | - |
 | T-063 The closed-task archive: sections leave the board, the archive rule and the reply language codified (supervisor-direct) | feat/task-archive | done | - |
 | T-064 Worktree lifecycle: remove the task folder and branch after merge (supervisor-direct) | feat/worktree-cleanup | done | - |
+| T-065 Localization + themes stand alone: a lean ZettaTrade.Appearance library (supervisor idea) | feat/appearance | queued | - |
+| T-066 Window chrome + control restyling: styled title bar, buttons, inputs across the shell (supervisor idea) | feat/window-chrome | queued | - |
+| T-067 Indicator plugin settings render only for plugins that are actually loaded (supervisor idea) | feat/indicator-settings-gate | queued | - |
+| T-068 MCP client settings: external servers with transport, address/port and task-level options (supervisor idea) | feat/mcp-client-settings | queued | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -153,3 +157,40 @@ the end of that file, so no effort is duplicated.
 - **Origin:** rule 1 spelled out only the worktree creation; the merged tasks' folders lingered on the disk (`zt-ui-colors`, `zt-skill-rules`, `zt-bug-board`, `zt-task-archive`) with their branches live.
 - **What:** rule 1 of `AGENTS.md` (+ the registered skill, identical bodies) and `.opencode/agents/zt-supervisor.md` now say it: once the task is done and merged, remove its worktree folder (`git worktree remove <folder>` — it refuses on uncommitted files, resolve those first) and delete its branch (`git branch -d <name>`); no stale task folders linger around the repo. The first sweep ran alongside this rule: the four merged worktrees above were removed (each was clean and fully merged) and the branches `feat/ui-colors`, `feat/skill-rules`, `feat/bug-board`, `feat/task-archive` were deleted.
 - **Status:** done. Canon: this branch's single docs commit (see git log). Docs-only: no version bump (rule 6).
+
+
+## T-065 — Localization + themes stand alone: a lean ZettaTrade.Appearance library (supervisor idea)
+
+- **Branch:** queued 2026-11-05 (supervisor idea).
+- **Origin:** `ZettaTrade.UI` bundles "shared UI components, themes, and localization infrastructure" together with the whole charting/widget world, and its project references (`ZettaTrade.Core`, `ZettaTrade.Infrastructure`) drag domain code into every consumer of a themed `TextBlock`. The supervisor wants the appearance layer (localization + the theme engine) reusable on its own — even as a local NuGet package later.
+- **What:** a new lean assembly `ZettaTrade.Appearance`: `Localization\LocalizationManager` + `LocalizedExtension`, `Resources\Strings(.Designer/.ru)` (namespace rehomed to `ZettaTrade.Appearance.Resources`), `Themes\ThemeManager` + `ThemeFileWatcher` + `PreviewColorsToBrushesConverter`, and the shared UI-thread marshaller `ObserveOnUiThread` (its only member's file moves from `UI.Extensions`). The composition root passes the protected file paths: the user themes directory is a REQUIRED constructor argument (the lib must not reach into `Infrastructure.Configuration` for `ConfigPathResolver`), built-ins keep the exe-adjacent `themes\` default; `ZettaTrade.UI` keeps charting/primitives and references the new lib; `App` consumes both; XAML `xmlns:loc`/`xmlns:themes` and every C# `using` rehomed. Packaging decision recorded in the section (NOT yet implemented): the library ships as a solution project reference; a local NuGet pack is deferred until a second consumer exists — in-repo self-packaging adds a build step and version drift with no reuse yet.
+- **Scope:** new `src\ZettaTrade.Appearance` (csproj + moved sources), `slnx` registration, `ZettaTrade.UI.csproj`/`App.csproj` reference graph, `CompositionRoot.cs` (paths + namespaces), the six XAML windows' `xmlns` lines, the touch-point C# files (charting widgets, `CandlestickChart`, `ChartTickCulture`, `OrderBookWidget`, `OrderBookPageLayout`, `SettingsViewModel`, `StatusBarViewModel`/`MainViewModel`/`OrderBookViewModel`/`ChartViewModel`/`MainWindow.axaml.cs`, `CompositionRoot`), test namespaces (`UI.Tests`Themes/Localization/Charting, `App.Tests` Settings), `AGENTS.md` layout line + the `ObserveOnUiThread` pointer, version bump + CHANGELOG.
+- **Acceptance:** runtime behavior byte-for-byte unchanged (theme hot-reload, live language switch, settings persistence); a fresh clone build + tests stay green; `GATE PASSED` (`-AllowProtected`: slnx + AGENTS).
+- **Tests:** the existing theme/localization/resx-sync suites ride along (namespace-only deltas); a constructor-validation test pins the required user-themes directory; no new domain logic.
+
+## T-066 — Window chrome + control restyling: styled title bar, buttons, inputs across the shell (supervisor idea)
+
+- **Branch:** queued 2026-11-05 (supervisor idea).
+- **Origin:** today every window rides the default Fluent chrome: native title bars, stock-styled buttons/inputs, nothing accent-keyed — the visual layer the supervisor asks to own.
+- **What:** a custom window chrome driven by the theme (a styled title bar over `ExtendClientAreaToDecorationsHint`: localized app title, working drag/maximize/restore/minimize/close, snap-friendly), plus a shared control style set (buttons, text inputs, combos, tabs, menu) living in the Appearance library as Avalonia styles + resource dictionaries; all chrome/control colors consume the theme JSON keys (new keys ship in every theme file + the sample + the theme-key doc lists — the T-044 discipline); no hardcoded color literals anywhere.
+- **Scope:** `ZettaTrade.Appearance` (styles/dictionaries mount from the theme palette), App windows (`MainWindow` + the dialog windows), resx en/ru keys for chrome labels, theme JSON + docs.
+- **Acceptance:** dragging/max/min/close behave on all five windows; theme and language switches retint the chrome LIVE; edge cases pinned (double-click title = maximize, Aero snap still works, RTL not required); visuals agree on Windows/macOS/Linux.
+- **Tests:** visual tests for chrome states where feasible (Avalonia headless), a regression assert that every window carries the chrome style and that the theme keys exist in every shipped theme; full matrix green.
+
+## T-067 — Indicator plugin settings render only for plugins that are actually loaded (supervisor idea)
+
+- **Branch:** queued 2026-11-05 (supervisor idea).
+- **Origin:** the Indicators tab hardcodes the SMA enable/period row: with the plugin-first architecture the surface must reflect the actual scanned catalog, not a shipped assumption — a missing (or skipped-by-scan) plugin assembly would still render a dead row.
+- **What:** the settings row appears ONLY when the scanned catalog contains the plugin (keyed by indicator name in the same catalog record); with zero plugins loaded the tab shows an honest empty state (localized hint: no plugins found next to the exe / scan skips logged); when loaded, the row behaves exactly as today (enable + period persist into `ChartIndicators` JSON). The chart pipeline keys plugin indicators by name — keep the association stable.
+- **Scope:** `SettingsViewModel` (availability flag driven by the scanned `IIndicatorCatalog`/`PluginIndicatorCatalog` state), `SettingsWindow.axaml` (conditional row + empty state), resx en/ru keys, existing `ChartIndicatorConfig` persistence.
+- **Acceptance:** same-state tests pass with the SMA plugin present (row visible, period + enable persisted as today); with the plugin assembly removed from the plugins folder the row vanishes and the hint shows; the settings save path never fabricates a missing plugin's config.
+- **Tests:** Settings VM tests with populated vs empty catalog; App tests pinned to the UI conditional.
+
+## T-068 — MCP client settings: external servers with transport, address/port and task-level options (supervisor idea)
+
+- **Branch:** queued 2026-11-05 (supervisor idea).
+- **Origin:** the Mcp tab today drives only the LOCAL server side (the trading-tools host: `ServerEnabled`). The MCP CLIENT surface (`IMcpClient`/`McpClientService` supports stdio AND Streamable HTTP transports) is code-only: nobody can attach an external MCP server without editing config files by hand; the supervisor asks for address/port (and other useful parameters) in settings.
+- **What:** the Mcp tab gains an external-servers block: per-server entry editing (name, transport Stdio/StreamableHttp, command+args for stdio, address+port for HTTP, enabled flag, optional auth secret-ref key resolving through `ISecretStore` — never a literal secret), a connect/disconnect state row per entry, and the task-level options the transport already exposes (HTTP timeout; bounded stderr drain cannot regress). Config persists under a new settings section; startup connects enabled entries the same `McpClientService.ConnectAsync` path; validation fails loudly (pinned error state + log), the local-server block stays byte-compatible.
+- **Scope:** `McpServerConfig` shape (additive fields only), `McpClientService` (config consumption, endpoint validation, auth-ref resolution), `SettingsViewModel` + `SettingsWindow.axaml` (the editor block + status rows), resx en/ru, secrets integration, tests.
+- **Acceptance:** e2e loopback HTTP MCP stub (the T-032 harness pattern): a configured address/port connects and lists tools; a stub outage shows the pinned error state, never a hang; stdio entries launch their configured command; a disabled entry never dials; secrets never appear in logs or config.
+- **Tests:** the settings round-trip (add/edit/disable entries), the HTTP loopback matrix (happy, 500, timeout, malformed), the stdio launch + stderr drain cases, auth-ref resolution from the fake store.
