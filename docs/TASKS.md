@@ -145,31 +145,6 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** a burst over N files reloads all N; a watcher error restarts the watch (a logged, not silent, failure); `AvailableThemes` hands out an immutable snapshot; the order book re-renders live on theme and language changes.
 - **Tests:** the watcher burst + overflow scenarios; the snapshot contract (no mutation while enumerated); a widget render test on theme/language change.
 
-
-## T-063 — The closed-task archive: sections leave the board, the archive rule and the reply language codified (supervisor-direct)
-
-- **Branch:** feat/task-archive (supervisor-direct task, not board-originated; stacked on `feat/bug-board@8cce8a3`, merged first).
-- **What:** the closed-task sections (T-001...T-037, T-039, T-042, T-043) moved verbatim from `docs/TASKS.md` into the new `docs/TASKS-ARCHIVE.md` (canonical T order; the queued sections T-038/T-040/T-041 stayed on the board); the board header names the archive path; rule 5 of `AGENTS.md` + the registered skill `.opencode/skills/zettatrade/SKILL.md` (bodies kept byte-identical) gained the archive-once-done-and-merged step, and the new rule 9 pins the working language: reason in English, answer in Russian; everything shipped in the repo stays English.
-- **Status:** done. Canon: the branch carried `f07dd17` (the archive split + the two rules) + `55a243f` (three queued sections restored to the board) and landed as a fast-forward on develop. Docs-only: no version bump (rule 6). Worktree `zt-task-archive` and the branch were removed after the merge (rule 1, see T-064).
-
-## T-064 — Worktree lifecycle: remove the task folder and branch after merge (supervisor-direct)
-
-- **Branch:** feat/worktree-cleanup (supervisor-direct task, not board-originated; based on develop after the T-063 merge).
-- **Origin:** rule 1 spelled out only the worktree creation; the merged tasks' folders lingered on the disk (`zt-ui-colors`, `zt-skill-rules`, `zt-bug-board`, `zt-task-archive`) with their branches live.
-- **What:** rule 1 of `AGENTS.md` (+ the registered skill, identical bodies) and `.opencode/agents/zt-supervisor.md` now say it: once the task is done and merged, remove its worktree folder (`git worktree remove <folder>` — it refuses on uncommitted files, resolve those first) and delete its branch (`git branch -d <name>`); no stale task folders linger around the repo. The first sweep ran alongside this rule: the four merged worktrees above were removed (each was clean and fully merged) and the branches `feat/ui-colors`, `feat/skill-rules`, `feat/bug-board`, `feat/task-archive` were deleted.
-- **Status:** done. Canon: this branch's single docs commit (see git log). Docs-only: no version bump (rule 6).
-
-
-## T-065 — Localization + themes stand alone: a lean Livery library (supervisor idea)
-
-- **Branch:** feat/appearance (queued 2026-11-05, supervisor idea; developed 2026-11-05).
-- **Origin:** `ZettaTrade.UI` bundles "shared UI components, themes, and localization infrastructure" together with the whole charting/widget world, and its project references (`ZettaTrade.Core`, `ZettaTrade.Infrastructure`) drag domain code into every consumer of a themed `TextBlock`. The supervisor wants the appearance layer (localization + the theme engine) reusable on its own — even as a local NuGet package later.
-- **What:** a new lean assembly `Livery`: `Localization\LocalizationManager` + `LocalizedExtension`, `Resources\Strings(.Designer/.ru)` (namespace rehomed to `Livery.Resources`), `Themes\ThemeManager` + `ThemeFileWatcher` + `PreviewColorsToBrushesConverter`, and the shared UI-thread marshaller `ObserveOnUiThread` (its only member's file moves from `UI.Extensions`). The composition root passes the protected file paths: the user themes directory is a REQUIRED constructor argument (the lib must not reach into `Infrastructure.Configuration` for `ConfigPathResolver`), built-ins keep the exe-adjacent `themes\` default; `ZettaTrade.UI` keeps charting/primitives and references the new lib (its direct `ZettaTrade.Charting` reference replaces the dropped transitive one); `App` consumes both; XAML `xmlns:loc`/`xmlns:themes` and every C# `using` rehomed. Packaging decision recorded in the section (NOT yet implemented): the library ships as a solution project reference; a local NuGet pack is deferred until a second consumer exists — in-repo self-packaging adds a build step and version drift with no reuse yet. The `ObserveOnUiThread` pointers in the convention docs follow the move (`Livery.Extensions`).
-- **Scope:** new `src\Livery` (csproj + moved sources), `slnx` registration, `ZettaTrade.UI.csproj`/`App.csproj` reference graph, `CompositionRoot.cs` (paths + namespaces), the six XAML windows' `xmlns` lines, the touch-point C# files (charting widgets, `CandlestickChart`, `ChartTickCulture`, `OrderBookWidget`, `OrderBookPageLayout`, `SettingsViewModel`, `StatusBarViewModel`/`MainViewModel`/`OrderBookViewModel`/`ChartViewModel`/`MainWindow.axaml.cs`, `CompositionRoot`), test namespaces (`UI.Tests`Themes/Localization/Charting, `App.Tests` Settings), `AGENTS.md` layout line + the `ObserveOnUiThread` pointer, version bump + CHANGELOG.
-- **Acceptance:** runtime behavior byte-for-byte unchanged (theme hot-reload, live language switch, settings persistence); a fresh clone build + tests stay green; `GATE PASSED` (`-AllowProtected`: slnx + AGENTS).
-- **Tests:** the existing theme/localization/resx-sync suites ride along (namespace-only deltas); a constructor-validation test pins the required user-themes directory; no new domain logic.
-- **Status:** done. Canon: the branch carries `8a7c164` (the extraction), `8598604` (the alpha.28 cut + this section's status flip), `7540f66` (the Livery rename) and this docs commit (rename recorded on the board, T-069 queued); shipped as `0.1.0-alpha.28` (see CHANGELOG.md).
-
 ## T-066 — Window chrome + control restyling: styled title bar, buttons, inputs across the shell (supervisor idea)
 
 - **Branch:** queued 2026-11-05 (supervisor idea).
@@ -205,3 +180,14 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `ZettaTrade.Core/Interfaces/*` (protected; supervisor-owned), `src/Livery` (csproj + the relocated contracts), consumer namespaces (`UI`, `App`, tests), `slnx` reference graph, `AGENTS.md` layout line.
 - **Acceptance:** `src/Livery` carries no ZettaTrade reference; a fresh-clone build + tests stay green; `GATE PASSED` (`-AllowProtected` for Core/Interfaces + board docs).
 - **Tests:** the existing theme/localization suites ride along (namespace + reference deltas); the build graph pins that Livery compiles before Core (dependency direction provable from the slnx order).
+
+
+## T-070 — The localized Strings catalog returns to ZettaTrade.UI: per-app strings, not library ones (supervisor-direct)
+
+- **Branch:** feat/livery-resx (supervisor-direct task, not board-originated; follow-up on merged T-065).
+- **Origin:** the first Livery consumer is a non-trading program, and `Strings(.resx/.ru/.Designer)` carries ZettaTrade's own UI vocabulary: the strings are a per-application artifact, not a library capability — the library's `LocalizationManager` only needs A ResourceManager, which its constructor already takes.
+- **What:** `Resources\Strings(.resx/.ru/.Designer)` move back into `ZettaTrade.UI` (manifest and namespace `ZettaTrade.UI.Resources` — the pre-T-065 home; the charting widgets consume `Strings.ResourceManager` directly again, and the composition root passes `ZettaTrade.UI.Resources.Strings.ResourceManager` into `LocalizationManager`); Livery sheds the resx ItemGroups, so its output carries no application strings while the keys-for-both-cultures resx gate stays in place. Nothing else changes; runtime behavior is byte-for-byte identical.
+- **Scope:** `src/Livery/Livery.csproj` (resx groups out), `src/ZettaTrade.UI` (the files back + csproj description), `CompositionRoot.cs` (the RM reference), the charting widget usings, `UI.Tests` chart-tick usings; board bookkeeping (rule 5 catch-up: the closed merged sections T-063–T-065 leave the board for the archive).
+- **Acceptance:** `Livery.dll` contains no resx-backed resources; the live language switch and the chart tick culture resolve through the relocated catalog exactly as before; a fresh-clone build + tests stay green; `GATE PASSED` (no protected files touched).
+- **Tests:** the existing localization/chart-tick suites ride along (using-only deltas).
+- **Status:** done. Canon: the branch carries the resx-move commit and the release docs commit (this section); shipped as `0.1.0-alpha.29` (see CHANGELOG.md).

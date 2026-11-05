@@ -9,6 +9,21 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.29] - 2026-11-05
+
+Build of board task T-070 (branch `feat/livery-resx`).
+
+### Changed
+- The localized Strings catalog (`Strings.resx` / `Strings.ru.resx`
+  (+ the generated `Strings.Designer.cs`)) leaves Livery and returns to
+  `ZettaTrade.UI`: the strings are a per-application artifact, while the
+  library only consumes a `ResourceManager` the host supplies. The
+  composition root binds `ZettaTrade.UI.Resources.Strings.ResourceManager`
+  into `LocalizationManager`; the charting widgets read the catalog
+  directly again; `Livery.dll` now ships no application strings.
+- Choreography: the closed merged sections T-063–T-065 archive off the
+  board (rule 5 catch-up), and the follow-up is recorded as T-070.
+
 ## [0.1.0-alpha.28] - 2026-11-05
 
 Build of board task T-065 (branch `feat/appearance`).
