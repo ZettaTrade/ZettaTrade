@@ -78,6 +78,24 @@
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Indicators</value>
   </data>
+  <data name="Settings.Tab.Mcp" xml:space="preserve">
+    <value>MCP</value>
+  </data>
+  <data name="Settings.Mcp.Enable" xml:space="preserve">
+    <value>Enable the MCP trading server</value>
+  </data>
+  <data name="Settings.Mcp.Running" xml:space="preserve">
+    <value>Running — the trading tools answer local MCP clients</value>
+  </data>
+  <data name="Settings.Mcp.Stopped" xml:space="preserve">
+    <value>Stopped</value>
+  </data>
+  <data name="Settings.Mcp.StartFailed" xml:space="preserve">
+    <value>Start failed — the saved choice is kept and applies on the next launch</value>
+  </data>
+  <data name="Settings.Mcp.Hint" xml:space="preserve">
+    <value>The local MCP server ("Zetta") exposes this terminal's trading tools to AI assistants over stdio. Nothing outside MCP protocol messages ever reaches stdout.</value>
+  </data>
   <data name="Settings.Tab.Pairs" xml:space="preserve">
     <value>Pairs</value>
   </data>

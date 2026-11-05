@@ -121,6 +121,27 @@ public sealed class SettingsViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _smaPeriodText, value);
     }
 
+    /// <summary>
+    /// Whether the local MCP server is enabled. A selection - like every
+    /// other one here - applies only on the explicit Save: the checkbox is
+    /// the selection, the persisted row is the applied state, and the saved
+    /// match starts/stops the host live (the state below renders what stuck).
+    /// </summary>
+    public bool IsMcpServerEnabled
+    {
+        get => _isMcpServerEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isMcpServerEnabled, value);
+    }
+
+    /// <summary>The MCP tab's honest running row: the server is live.</summary>
+    public bool IsMcpRunning => _mcpHostState == McpHostState.Running;
+
+    /// <summary>The MCP tab's honest stopped row (the default state until the server runs).</summary>
+    public bool IsMcpStopped => _mcpHostState == McpHostState.Stopped;
+
+    /// <summary>The MCP tab's honest failed row: the apply did not reach the server, the stored choice applies next launch.</summary>
+    public bool IsMcpFailed => _mcpHostState == McpHostState.Failed;
+
     private PairRow? _selectedAllPair;
 
     /// <summary>The row picked in the all-pairs list (the hide command's
@@ -279,6 +300,25 @@ public sealed class SettingsViewModel : ReactiveObject
     private bool _persistedSmaEnabled;
     private int _persistedSmaPeriod = NoSmaPeriod;
 
+    /// <summary>
+    /// The persisted MCP server enable choice as last read: the checkbox
+    /// drafts seed from it and the save persists only a real difference
+    /// (the same seed + changes pattern as the clock choice).
+    /// </summary>
+    private bool _persistedMcpServerEnabled = UiSettingsKeys.DefaultMcpServerEnabled;
+
+    /// <summary>The unsaved MCP enable checkbox (the draft the save applies).</summary>
+    private bool _isMcpServerEnabled;
+
+    /// <summary>
+    /// The MCP host's lifecycle state as the runner surfaces it: the three
+    /// honest rows derive from it and every transition raises the bools.
+    /// </summary>
+    private McpHostState _mcpHostState = McpHostState.Stopped;
+
+    /// <summary>The host runner (start/stop live on save, state surfacing).</summary>
+    private readonly McpHostService _mcpHosts;
+
     #endregion Private Fields
 
     #region Constructor
@@ -292,6 +332,7 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <param name="themeManager">Theme manager providing applied/available themes.</param>
     /// <param name="localization">Localization manager providing applied/available languages.</param>
     /// <param name="shellUtils">File manager launcher for the themes folder button.</param>
+    /// <param name="mcpHosts">The MCP host runner: the save applies the enable choice live and the state stream renders the honest rows.</param>
     /// <param name="logger">Injected application logger.</param>
     /// <param name="themeLoadErrors">
     /// Stream of theme file load errors; when omitted (tests without the
@@ -302,6 +343,7 @@ public sealed class SettingsViewModel : ReactiveObject
         IThemeManager themeManager,
         ILocalizationManager localization,
         IShellUtils shellUtils,
+        McpHostService mcpHosts,
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
         ILogger<SettingsViewModel> logger,
@@ -311,6 +353,7 @@ public sealed class SettingsViewModel : ReactiveObject
         _themeManager = themeManager;
         _localization = localization;
         _shellUtils = shellUtils;
+        _mcpHosts = mcpHosts;
         _activeExchanges = activeExchanges;
         _symbolList = symbolList;
         _logger = logger;
@@ -415,6 +458,39 @@ public sealed class SettingsViewModel : ReactiveObject
             .Subscribe(
                 CacheFavoriteMarks,
                 ex => _logger.LogError(ex, "The favorites map stream stopped unexpectedly"));
+
+        // The MCP server: the same seed + changes pattern as the clock; the
+        // enable choice drafts the checkbox and the save applies it live.
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                UiSettingsKeys.McpSection,
+                UiSettingsKeys.McpServerEnabled,
+                UiSettingsKeys.DefaultMcpServerEnabled))
+            .Subscribe(
+                enabled => _persistedMcpServerEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the MCP server enable state"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.McpSection &&
+                             change.Key == UiSettingsKeys.McpServerEnabled)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedMcpServerEnabled = enabled,
+                ex => _logger.LogError(ex, "The MCP server enable stream stopped unexpectedly"));
+
+        // The host's honest state (running / stopped / failed): the three
+        // rows derive and rise on every transition; both subscriptions
+        // mirror the app-lifetime singleton.
+        _mcpHosts.State
+            .Subscribe(
+                state =>
+                {
+                    _mcpHostState = state;
+                    this.RaisePropertyChanged(nameof(IsMcpRunning));
+                    this.RaisePropertyChanged(nameof(IsMcpStopped));
+                    this.RaisePropertyChanged(nameof(IsMcpFailed));
+                },
+                ex => _logger.LogError(ex, "The MCP host state stream stopped unexpectedly"));
 
         // The pairs tab's commands act on a pick: no pick, no move. A hide
         // move needs an unstarred pick (a starred pair never hides — that is
@@ -527,6 +603,20 @@ public sealed class SettingsViewModel : ReactiveObject
                 SmaPeriodText);
         }
 
+        // The MCP server enable: only a real difference applies (the same
+        // no-op discipline every other row keeps). The persisted write lands
+        // first, the host apply follows: the saved choice starts or stops
+        // the live server; the runner surfaces anything it could not reach.
+        if (_isMcpServerEnabled != _persistedMcpServerEnabled)
+        {
+            await _settings.SetAsync(
+                UiSettingsKeys.McpSection,
+                UiSettingsKeys.McpServerEnabled,
+                _isMcpServerEnabled);
+            _persistedMcpServerEnabled = _isMcpServerEnabled;
+            await _mcpHosts.ApplyAsync(_isMcpServerEnabled);
+        }
+
         // The hidden-pairs draft: only a real difference applies (the same
         // no-op discipline every other row keeps) and only with a real
         // exchange context behind it (a failed listing reset never wipes the
@@ -568,8 +658,9 @@ public sealed class SettingsViewModel : ReactiveObject
     #region Private Methods
 
     /// <summary>
-    /// Sync the appearance selections (theme, language, clock, indicator row)
-    /// with the currently applied state. A pure in-memory sync — no I/O.
+    /// Sync the appearance selections (theme, language, clock, indicator row,
+    /// the MCP enable draft) with the currently applied state. A pure
+    /// in-memory sync — no I/O.
     /// </summary>
     private void ResetAppearanceSelections()
     {
@@ -580,6 +671,7 @@ public sealed class SettingsViewModel : ReactiveObject
         SmaPeriodText = _persistedSmaPeriod > NoSmaPeriod
             ? _persistedSmaPeriod.ToString(CultureInfo.InvariantCulture)
             : string.Empty;
+        IsMcpServerEnabled = _persistedMcpServerEnabled;
     }
 
     /// <summary>
