@@ -9,6 +9,13 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.35] - 2026-11-06
+
+Build of board task T-069 (branch `feat/appearance-contracts`).
+
+### Changed
+- The appearance contracts leave `ZettaTrade.Core.Interfaces` for Livery: `IThemeManager` + `ThemeInfo` now live in `Livery.Themes`, `ILocalizationManager` + `LanguageInfo` in `Livery.Localization` and `IAsyncInitializable` in `Livery.Contracts` — the appearance library references nothing ZettaTrade-branded and can package standalone for its second consumer, the `App`/`AI`/`Infrastructure` consumers rehome their usings (AI and Infrastructure gain the Livery project reference), the settings window's XAML datatypes switch to the library prefixes, and the move ships as a clean flip with no backward-compat shims.
+
 ## [0.1.0-alpha.34] - 2026-11-06
 
 Build of board task T-068 (branch `feat/mcp-client-settings`).
