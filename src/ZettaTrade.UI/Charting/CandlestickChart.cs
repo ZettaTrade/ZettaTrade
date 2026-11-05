@@ -167,6 +167,19 @@ public class CandlestickChart : Control
     private int _visibleBars = DefaultVisibleBars;
 
     /// <summary>
+    /// The bar pitch the last draw pass painted with (BUG-048): the draw
+    /// pass computes it from the plot width (bounds minus the measured
+    /// price gutter), a value the pan step cannot re-derive without the
+    /// fonts, so the pan consumes this cached constant instead — one bar
+    /// of drag distance moves the window exactly one painted slot. The
+    /// pitch stands at the cap until the first paint, when nothing was
+    /// painted yet. The write happens on the render thread, the read on
+    /// the UI thread: the pan step never sees anything worse than the
+    /// previous frame's pitch — the very value it is meant to par with.
+    /// </summary>
+    private double _paintedBarPitch = MaxBarPitchPx;
+
+    /// <summary>
     /// The cursor's position in control coordinates, or null when the
     /// pointer has never entered the control or has left it. UI-thread
     /// state only: <see cref="CreateSnapshot"/> copies it into the snapshot
@@ -409,7 +422,7 @@ public class CandlestickChart : Control
 
         // The draw operation runs later, on the render thread: it must only see an immutable snapshot,
         // never the live (UI-thread) Bars collection.
-        context.Custom(new CandlestickDrawOperation(new Rect(size), CreateSnapshot()));
+        context.Custom(new CandlestickDrawOperation(new Rect(size), CreateSnapshot(), this));
     }
 
     /// <summary>
@@ -521,11 +534,16 @@ public class CandlestickChart : Control
     {
         private readonly Rect _bounds;
         private readonly ChartSnapshot _snapshot;
+        private readonly CandlestickChart _owner;
 
-        public CandlestickDrawOperation(Rect bounds, ChartSnapshot snapshot)
+        public CandlestickDrawOperation(
+            Rect bounds,
+            ChartSnapshot snapshot,
+            CandlestickChart owner)
         {
             _bounds = bounds;
             _snapshot = snapshot;
+            _owner = owner;
         }
 
         public Rect Bounds => _bounds;
@@ -640,6 +658,7 @@ public class CandlestickChart : Control
             // instead of stretching into a full-width wall. Grid lines and
             // label centers ride the SAME slots as the candles.
             var barPitch = ChartBarLayout.BarPitch(plotRect.Width, visibleBars.Length, MaxBarPitchPx);
+            _owner._paintedBarPitch = barPitch;
 
             DrawGrid(
                 canvas,
@@ -849,7 +868,12 @@ public class CandlestickChart : Control
                     }
                 }
 
-                canvas.DrawPath(path.Detach(), paint);
+                // DrawPath consumes a copy: the detached path is dead
+                // right after the call, so the native wrapper must not
+                // outlive it for the finalizer (BUG-049 — native memory
+                // churn on every redraw for every indicator line).
+                using var drawnPath = path.Detach();
+                canvas.DrawPath(drawnPath, paint);
             }
         }
 
@@ -1181,8 +1205,8 @@ public class CandlestickChart : Control
     /// <summary>
     /// One moved-slot step of the pan: converts the pixel distance dragged,
     /// relative to the anchor, into whole bar slots (the pan scrolls in
-    /// integer slots — the pitch is the same window-driven one the draw
-    /// pass paints with, so the scroll distance matches the bar width).
+    /// integer slots — the pitch is the painted one the draw pass last
+    /// charted with, so the scroll distance matches the bar width).
     /// </summary>
     private void ApplyPan(double draggedX)
     {
@@ -1194,13 +1218,12 @@ public class CandlestickChart : Control
 
         var barCount = bars.Count;
 
-        // The pan step paces the slots the draw pass paints per pixel: the
-        // pitch comes from the VISIBLE SPAN (the draw pass computes it from
-        // the same slice), not from the raw window size - a shrunken span
-        // (a starved series, or a start-clamped window) would otherwise
-        // scroll at a different speed than the candles.
-        var (spanStart, spanEnd) = ChartPanWindow.VisibleSpan(barCount, _panOffset, _visibleBars);
-        var pitch = ChartBarLayout.BarPitch(Bounds.Width, spanEnd - spanStart, MaxBarPitchPx);
+        // The pan step paces the slots the draw pass PAINTS per pixel: the
+        // pitch is the one the last draw pass computed from the plot width
+        // (bounds minus the measured price gutter) and cached — the old
+        // re-derivation from the RAW window size dragged "one bar" by a
+        // different distance than the painted bar width (BUG-048).
+        var pitch = _paintedBarPitch;
         if (pitch <= 0)
         {
             return;
@@ -1210,7 +1233,7 @@ public class CandlestickChart : Control
         // plot from the left, the offset grows. The distance is taken from
         // the drag's own anchor (not per-event deltas) so a wave of move
         // events accumulates without rounding drift.
-        var slots = (int)Math.Round((draggedX - anchorX) / pitch);
+        var slots = ChartPanWindow.SlotsForDrag(draggedX - anchorX, pitch);
         var moved = ChartPanWindow.ClampOffset(barCount, _panOffset + slots);
         if (moved == _panOffset)
         {

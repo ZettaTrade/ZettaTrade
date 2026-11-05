@@ -141,4 +141,51 @@ public sealed class ChartPanWindowTests
     }
 
     #endregion
+
+    #region Drag Slots
+
+    [Fact]
+    public void SlotsForDrag_OnePaintedBarWidth_MovesExactlyOneSlot()
+    {
+        // The parity contract (BUG-048): the pitch measured the same way
+        // the draw pass paints with (the plot width, not the raw window
+        // bounds) — dragging exactly one painted bar translates one slot.
+        var paintedPitch = ChartBarLayout.BarPitch(921.5, 100, 40);
+
+        ChartPanWindow.SlotsForDrag(paintedPitch, paintedPitch).Should().Be(1);
+        ChartPanWindow.SlotsForDrag(10 * paintedPitch, paintedPitch).Should().Be(10);
+    }
+
+    [Fact]
+    public void SlotsForDrag_AHundredPaintedBarsDrag_PacesWithThePaintedPitch()
+    {
+        // The witnessed regression: a 1000 px window with a 250 px price
+        // gutter paints 100 bars at a 7.5 px pitch, while the old pacing
+        // derived 10 px per "bar" from the raw window size. A drag as long
+        // as 100 painted bars must move 100 slots — the old derivation
+        // ate a quarter of the travel (75 slots for the same drag).
+        var paintedPitch = ChartBarLayout.BarPitch(750, 100, 40);
+
+        ChartPanWindow.SlotsForDrag(100 * paintedPitch, paintedPitch).Should().Be(100);
+        ChartPanWindow.SlotsForDrag(100 * paintedPitch, 10.0).Should().Be(75);
+    }
+
+    [Theory]
+    [InlineData(0.49, 0)]
+    [InlineData(-0.49, 0)]
+    [InlineData(1.5, 2)]
+    [InlineData(2.5, 2)]
+    [InlineData(-0.5, 0)]
+    public void SlotsForDrag_SubBarJitterAndTies_FollowTheRoundedBarMath(
+        double draggedDistance,
+        int expectedSlots)
+    {
+        // A drag shorter than half a painted bar parks the window (the
+        // anchor makes the wave of move events accumulate), ties round to
+        // even, and the sign carries: dragging toward the newest bar
+        // un-panns.
+        ChartPanWindow.SlotsForDrag(draggedDistance, 1.0).Should().Be(expectedSlots);
+    }
+
+    #endregion
 }

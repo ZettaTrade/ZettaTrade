@@ -53,4 +53,17 @@ public static class ChartPanWindow
     /// </summary>
     public static bool OlderFetchThresholdReached(int barCount, int panOffset, int visibleBars) =>
         VisibleSpan(barCount, panOffset, visibleBars).Start == 0;
+
+    /// <summary>
+    /// The whole bar slots a pan drag translates the visible window by:
+    /// the dragged distance (taken from the drag's own anchor, not from
+    /// per-event deltas) divided by the PAINTED bar pitch, rounded. The
+    /// pitch is the caller's cached painted pitch — the draw pass computes
+    /// it from the plot width (bounds minus the measured price gutter,
+    /// BUG-048) — so one painted bar width of dragging moves the window
+    /// exactly one slot. Ties round to even (the .NET default), the same
+    /// as the pre-extraction math.
+    /// </summary>
+    public static int SlotsForDrag(double draggedDistance, double paintedBarPitch) =>
+        (int)Math.Round(draggedDistance / paintedBarPitch);
 }
