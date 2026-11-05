@@ -100,9 +100,23 @@ public sealed class LinuxSecretServiceStore : ISecretStore
         }
     }
 
-    public Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
+    /// <summary>
+    /// List the keys of this application's Secret Service items: a
+    /// <c>secret-tool search --all</c> over our service attribute reports the
+    /// ITEMS' attributes (never secret values), parsed per block (BUG-036).
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ListKeysAsync(string prefix = "", CancellationToken ct = default)
     {
-        return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        var search = await RunSecretToolAsync(
+            "search",
+            ["--all", "service", SecretStoreConstants.ServiceName],
+            stdinData: null,
+            ct);
+
+        return SecretListOutputParsers.ParseSecretToolSearchKeys(search)
+            .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToList();
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken ct = default)
@@ -139,26 +153,37 @@ public sealed class LinuxSecretServiceStore : ISecretStore
             using var process = new Process { StartInfo = psi };
             process.Start();
 
-            if (stdinData != null)
+            try
             {
-                await process.StandardInput.WriteAsync(stdinData.AsMemory(), cts.Token);
-                process.StandardInput.Close();
+                if (stdinData != null)
+                {
+                    await process.StandardInput.WriteAsync(stdinData.AsMemory(), cts.Token);
+                    process.StandardInput.Close();
+                }
+
+                var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+                var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
+
+                await process.WaitForExitAsync(cts.Token);
+                var stdout = await stdoutTask;
+                var stderr = await stderrTask;
+
+                if (process.ExitCode != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"secret-tool {command} failed (exit {process.ExitCode}): {stderr}");
+                }
+
+                return stdout;
             }
-
-            var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
-            var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
-
-            await process.WaitForExitAsync(cts.Token);
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
-
-            if (process.ExitCode != 0)
+            catch (Exception)
             {
-                throw new InvalidOperationException(
-                    $"secret-tool {command} failed (exit {process.ExitCode}): {stderr}");
+                // The child must die with its invocation: a timeout (or any
+                // other failure) leaves no orphan child process behind
+                // (BUG-037).
+                SecretProcessGuard.KillUnfinished(process);
+                throw;
             }
-
-            return stdout;
         }
         finally
         {
