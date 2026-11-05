@@ -97,13 +97,13 @@ the end of that file, so no effort is duplicated.
 
 - **Branch:** feat/ui-colors (supervisor-direct task, not board-originated)
 - **What:** the two HTML-entity escapes in XML docs replaced with plain text; the Skia fallback colors named as `static readonly` constants (`CandlestickChart`, `OrderBookWidget`); the XAML carries no color literals anymore: the favorite stars consume the new `Highlight` theme key, the three error texts the new `Error` key, the chat timestamps the existing `TextSecondary`; both keys ship in every theme file plus the sample theme and the theme-key doc lists follow.
-- **Status:** done. Canon: the branch carried `f9bdfb3` (the refactor) + `77edb66` (the version cut) and landed through the merges `e3f3f8a` + `fd478ca`; the build shipped as `0.1.0-alpha.21` (see CHANGELOG.md).
+- **Status:** done. Canon: the branch carried `9d5610e` (the refactor) + `a2f3c64` (the version cut) and landed through the merges `1c3b955` + `b58328f`; the build shipped as `0.1.0-alpha.21` (see CHANGELOG.md).
 
 ## T-045 — Workflow bookkeeping codified: develop-based branches, TASKS.md statuses, app version bump (supervisor-direct)
 
 - **Branch:** feat/skill-rules (supervisor-direct task, not board-originated)
-- **What:** `AGENTS.md` and the registered skill `.opencode/skills/zettatrade/SKILL.md` carry the three bookkeeping rules: feature branches base on `develop` (`scripts/new-worktree.ps1` defaults to `main`), a task's status moves are written into `docs/TASKS.md` while they happen (board row + section), and every app-changing task cuts its alpha version in `Directory.Build.props` + a `CHANGELOG.md` section; the gate is invoked with `-BaseBranch develop`; the stale T-039 row/section flipped to done (canon `3f31a7d`, branch tip `9b9bece`, shipped as `0.1.0-alpha.20`).
-- **Status:** done. Canon: commit `8a0651a` is on develop. Docs-only: no version bump (rule 6).
+- **What:** `AGENTS.md` and the registered skill `.opencode/skills/zettatrade/SKILL.md` carry the three bookkeeping rules: feature branches base on `develop` (`scripts/new-worktree.ps1` defaults to `main`), a task's status moves are written into `docs/TASKS.md` while they happen (board row + section), and every app-changing task cuts its alpha version in `Directory.Build.props` + a `CHANGELOG.md` section; the gate is invoked with `-BaseBranch develop`; the stale T-039 row/section flipped to done (canon `9324fd9`, branch tip `3761bc0`, shipped as `0.1.0-alpha.20`).
+- **Status:** done. Canon: commit `24d9789` is on develop. Docs-only: no version bump (rule 6).
 
 ## T-046 — DPAPI secret store wipes all stored secrets after a silent load failure (BUG-001, Critical)
 
@@ -113,7 +113,7 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `src/ZettaTrade.Infrastructure/Secrets/WindowsDpapiSecretStore.cs` (a failure-surfacing path out of `InitializeAsync`; if an interface change is needed, escalate).
 - **Acceptance:** a corrupt/truncated/unreadable store file fails loudly at initialization and is never overwritten by a subsequent `SetAsync`; secrets become unusable-not-lost (an explicit error surfaced, a logged condition); the happy path is unchanged.
 - **Tests:** the load-failure matrix (missing / corrupt JSON / bad base64 / locked file) with the no-wipe invariant pinned (after a failed load, a `SetAsync` attempt leaves the file byte-identical and reports the error).
-- **Status:** done. Canon: commit `d6896a2` is on feat/dpapi-store-wipe; the load-failure matrix (corrupt/truncated JSON, invalid base64, locked file) + the happy-path roundtrip pass and the Initialize failure surfaces loudly (the store then refuses all operations; the on-disk secrets are never overwritten). The optional explicit `storePath` constructor override is a test seam (the interface is unchanged). Wave note: the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
+- **Status:** done. Canon: commit `13c8b86` is on feat/dpapi-store-wipe; the load-failure matrix (corrupt/truncated JSON, invalid base64, locked file) + the happy-path roundtrip pass and the Initialize failure surfaces loudly (the store then refuses all operations; the on-disk secrets are never overwritten). The optional explicit `storePath` constructor override is a test seam (the interface is unchanged). Wave note: the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 
 ## T-058 — UI primitives: concurrent async helper vs contract, pan pitch mismatch, undisposed SKPath (BUG-025, BUG-048, BUG-049)
@@ -143,9 +143,9 @@ the end of that file, so no effort is duplicated.
 
 ## T-063 — The closed-task archive: sections leave the board, the archive rule and the reply language codified (supervisor-direct)
 
-- **Branch:** feat/task-archive (supervisor-direct task, not board-originated; stacked on `feat/bug-board@e25c96a`, merged first).
+- **Branch:** feat/task-archive (supervisor-direct task, not board-originated; stacked on `feat/bug-board@8cce8a3`, merged first).
 - **What:** the closed-task sections (T-001...T-037, T-039, T-042, T-043) moved verbatim from `docs/TASKS.md` into the new `docs/TASKS-ARCHIVE.md` (canonical T order; the queued sections T-038/T-040/T-041 stayed on the board); the board header names the archive path; rule 5 of `AGENTS.md` + the registered skill `.opencode/skills/zettatrade/SKILL.md` (bodies kept byte-identical) gained the archive-once-done-and-merged step, and the new rule 9 pins the working language: reason in English, answer in Russian; everything shipped in the repo stays English.
-- **Status:** done. Canon: the branch carried `b0192ee` (the archive split + the two rules) + `34e1b91` (three queued sections restored to the board) and landed as a fast-forward on develop. Docs-only: no version bump (rule 6). Worktree `zt-task-archive` and the branch were removed after the merge (rule 1, see T-064).
+- **Status:** done. Canon: the branch carried `f07dd17` (the archive split + the two rules) + `55a243f` (three queued sections restored to the board) and landed as a fast-forward on develop. Docs-only: no version bump (rule 6). Worktree `zt-task-archive` and the branch were removed after the merge (rule 1, see T-064).
 
 ## T-064 — Worktree lifecycle: remove the task folder and branch after merge (supervisor-direct)
 
