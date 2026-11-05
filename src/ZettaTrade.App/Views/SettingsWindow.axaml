@@ -34,7 +34,7 @@
     </Window.Styles>
 
     <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="16">
-        <!-- The settings sections live on tabs (MCP, notifications grow into
+        <!-- The settings sections live on tabs (notifications grow into
              further items, and one flat list would not scale). Each tab's
              content root carries a top margin - the breathing room between
              the tab strip and the section (the theme default hugs the strip,
@@ -188,6 +188,37 @@
                                  VerticalAlignment="Center" />
                     </StackPanel>
                 </Grid>
+            </TabItem>
+
+            <TabItem Header="{loc:Localized Settings.Tab.Mcp}">
+                <StackPanel Spacing="16" Margin="0,12,0,0">
+                    <!-- The enable checkbox drafts exactly like every other
+                         selection here: only Save applies — it persists the
+                         choice and hands the flip to the host runner, which
+                         starts/stops the server live (a start the stdio
+                         transport refuses surfaces as the failed row and
+                         stays saved for the next launch). -->
+                    <CheckBox Content="{loc:Localized Settings.Mcp.Enable}"
+                              IsChecked="{Binding IsMcpServerEnabled}" />
+
+                    <!-- The honest state rows: exactly one shows (the bools
+                         derive from one state value, so they are mutually
+                         exclusive by construction). -->
+                    <TextBlock IsVisible="{Binding IsMcpRunning}"
+                               Text="{loc:Localized Settings.Mcp.Running}"
+                               FontSize="12" />
+                    <TextBlock IsVisible="{Binding IsMcpStopped}"
+                               Text="{loc:Localized Settings.Mcp.Stopped}"
+                               FontSize="12" />
+                    <TextBlock IsVisible="{Binding IsMcpFailed}"
+                               Text="{loc:Localized Settings.Mcp.StartFailed}"
+                               TextWrapping="Wrap"
+                               FontSize="12" />
+
+                    <TextBlock Text="{loc:Localized Settings.Mcp.Hint}"
+                               TextWrapping="Wrap"
+                               FontSize="12" />
+                </StackPanel>
             </TabItem>
 
             <TabItem Header="{loc:Localized Settings.Tab.Pairs}">

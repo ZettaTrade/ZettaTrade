@@ -44,7 +44,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-037 Exchange-grade time axis: density, calendar anchors, year labels (user-reported) | feat/time-grid | done | — |
 | T-038 Draggable splitters: resize the chart / depth / assistant columns (user-reported) | feat/layout-splitters | done | - |
 | T-039 Symbol favorites (star badge, pinned on top) + hiding pairs (user idea) | feat/symbol-favorites | done | - |
-| T-040 MCP server settings in the settings window (user idea) | feat/mcp-settings | queued | - |
+| T-040 MCP server settings in the settings window (user idea) | feat/mcp-settings | done | - |
 | T-041 Telegram trade notifications (user idea, post-beta) | feat/telegram-notifier | queued | - |
 | T-042 Settings window polish: the time-format label collision + the SMA tooltip (user-reported) | feat/settings-window-polish | done | - |
 | T-043 Settings window: split the sections into tabs (user-reported) | feat/settings-tabs | done | - |
@@ -94,12 +94,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-040 — MCP server settings in the settings window (user idea)
 
-- **Branch:** queued 2026-11-04 (user idea: «можно mcp вынести в окно настроек, также как и настройки ии ассистента»)
+- **Branch:** feat/mcp-settings (user idea 2026-11-04: «можно mcp вынести в окно настроек, также как и настройки ии ассистента»)
 - **Origin:** the local MCP server (the AI assistants' trading tools) is wired at startup with no user-facing control — its state lives only in config files, while the assistant itself already owns a settings surface (T-032).
 - **What:** a settings-window section for the MCP server: the enable state (+ persist) and the knobs the server host exposes — a live toggle starts/stops the local host in-process (or defers the start to the next launch when the transport cannot rebind), the running/stopped state renders honestly. Stdio purity stays untouched (nothing ever writes to stdout except MCP protocol messages — the gate pins it).
 - **Scope:** `SettingsViewModel` + `SettingsWindow.axaml`, the settings keys (`Mcp.*` prefix), `McpServerHost` wiring, resx en+ru, tests.
 - **Acceptance:** probe (the T-030/T-038 settings harness): the toggle round-trips (window open → flip → Save → restart → the state survives); the live toggle flips the host without a restart when possible, otherwise the note says the next launch applies it.
 - **Tests:** the toggle VM facts (persisted-state restore, echo absorption, real-difference discipline), the host start/stop path, the state surfacing (running / deferred / failed with a log).
+- **Status:** done. Canon: commit `269d33b` is on feat/mcp-settings; the gate prints `GATE PASSED` (baseline develop) and the 16 new tests (7 runner facts, 9 settings-tab facts) are green: the default keeps the server untouched (the shipped behavior survives), the stored enable choice starts the host at the walk, a refused start lands the honest Failed state with the choice stored for the next launch (nothing throws to the caller), the save persists only a real difference and applies the flip live both ways, external flips feed the next open's draft through the seed cache only, non-bool stream payloads cannot poison the choice, and the three state rows stay mutually exclusive. The manual UI round-trip probe (window open → flip → Save → restart) stays with merge review — the window itself was not probed headless. The host runner ships as `McpHostService` (registration in `CompositionRoot` after `IMcpServerHost`), keys `Mcp:ServerEnabled` defaulting to off. Wave note: the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-041 — Telegram trade notifications (post-beta)
 

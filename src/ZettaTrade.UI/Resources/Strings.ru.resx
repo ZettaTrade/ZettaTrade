@@ -78,6 +78,24 @@
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Индикаторы</value>
   </data>
+  <data name="Settings.Tab.Mcp" xml:space="preserve">
+    <value>MCP</value>
+  </data>
+  <data name="Settings.Mcp.Enable" xml:space="preserve">
+    <value>Включить MCP-сервер трейдинга</value>
+  </data>
+  <data name="Settings.Mcp.Running" xml:space="preserve">
+    <value>Работает — торговые инструменты отвечают локальным MCP-клиентам</value>
+  </data>
+  <data name="Settings.Mcp.Stopped" xml:space="preserve">
+    <value>Остановлен</value>
+  </data>
+  <data name="Settings.Mcp.StartFailed" xml:space="preserve">
+    <value>Запуск не удался — выбор сохранён и применится при следующем запуске</value>
+  </data>
+  <data name="Settings.Mcp.Hint" xml:space="preserve">
+    <value>Локальный MCP-сервер ("Zetta") отдаёт торговые инструменты этого терминала ИИ-ассистентам по stdio. В stdout не попадает ничего, кроме сообщений MCP-протокола.</value>
+  </data>
   <data name="Settings.Tab.Pairs" xml:space="preserve">
     <value>Пары</value>
   </data>
