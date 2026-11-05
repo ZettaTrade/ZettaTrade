@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 	<RootNamespace>ZettaTrade.UI</RootNamespace>
     <AssemblyName>ZettaTrade.UI</AssemblyName>
-    <Description>Shared UI components, themes, and localization infrastructure.</Description>
+    <Description>Charting primitives, widgets and shared observer extensions.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ZettaTrade.Appearance\ZettaTrade.Appearance.csproj" />
+    <ProjectReference Include="..\Livery\Livery.csproj" />
     <ProjectReference Include="..\ZettaTrade.Charting\ZettaTrade.Charting.csproj" />
     <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
   </ItemGroup>

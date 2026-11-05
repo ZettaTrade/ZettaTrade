@@ -17,9 +17,9 @@ using Avalonia.Skia;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using SkiaSharp;
-using ZettaTrade.Appearance.Localization;
-using ZettaTrade.Appearance.Resources;
-using ZettaTrade.Appearance.Themes;
+using Livery.Localization;
+using Livery.Resources;
+using Livery.Themes;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 

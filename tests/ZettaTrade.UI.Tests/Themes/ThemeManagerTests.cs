@@ -5,7 +5,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
-using ZettaTrade.Appearance.Themes;
+using Livery.Themes;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.UI.Tests.Support;
 

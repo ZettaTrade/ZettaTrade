@@ -1,4 +1,4 @@
-namespace ZettaTrade.Appearance.Extensions;
+namespace Livery.Extensions;
 
 using System;
 using System.Reactive.Linq;

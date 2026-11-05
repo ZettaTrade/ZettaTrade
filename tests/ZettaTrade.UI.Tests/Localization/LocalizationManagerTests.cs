@@ -9,7 +9,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
-using ZettaTrade.Appearance.Localization;
+using Livery.Localization;
 
 /// <summary>
 /// The localization lookup under a live language switch (BUG-051): the

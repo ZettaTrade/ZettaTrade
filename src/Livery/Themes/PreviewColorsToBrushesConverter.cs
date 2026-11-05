@@ -1,4 +1,4 @@
-namespace ZettaTrade.Appearance.Themes;
+namespace Livery.Themes;
 
 using System;
 using System.Collections.Generic;

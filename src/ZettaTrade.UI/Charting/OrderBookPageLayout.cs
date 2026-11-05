@@ -3,8 +3,8 @@ namespace ZettaTrade.UI.Charting;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using ZettaTrade.Appearance.Localization;
-using ZettaTrade.Appearance.Resources;
+using Livery.Localization;
+using Livery.Resources;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 

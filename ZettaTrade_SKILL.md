@@ -145,7 +145,7 @@ Loc.GetObservable("Status.Ready")
 - **ViewModel properties ONLY for dynamic data** — connection status, user input, etc.
 - Thread-safe caching with ConcurrentDictionary
 - Automatic cache invalidation on language change
-- **ObserveOnUiThread()** extension method in ZettaTrade.Appearance.Extensions namespace
+- **ObserveOnUiThread()** extension method in Livery.Extensions namespace
 - No manual subscription management — use DisposeWith()
 - GetObservable uses Observable.Defer for lazy start value
 - **Language switches on-the-fly** — all {loc:Localized} bindings update automatically

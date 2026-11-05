@@ -7,7 +7,7 @@ using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
-using ZettaTrade.Appearance.Themes;
+using Livery.Themes;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
