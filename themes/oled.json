@@ -7,6 +7,8 @@
     "Surface": "#0a0a0a",
     "Border": "#111111",
     "Accent": "#1a1a1a",
+    "TitleBar": "#050505",
+    "TitleBarText": "#e0e0e0",
     "TextPrimary": "#ffffff",
     "TextSecondary": "#888888",
     "Buy": "#22c55e",

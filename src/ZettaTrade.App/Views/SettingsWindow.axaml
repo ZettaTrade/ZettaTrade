@@ -6,13 +6,14 @@
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.SettingsWindow"
+        Classes="chrome-compact"
         x:DataType="vm:SettingsViewModel"
         Title="{loc:Localized Settings.Title}"
         Width="560" Height="640"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         ShowInTaskbar="False"
-        Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+        Background="{DynamicResource Background}">
 
     <!-- A fixed window: switching tabs must never resize the dialog, and
          Save/Close must never travel out of sight — the buttons ride a

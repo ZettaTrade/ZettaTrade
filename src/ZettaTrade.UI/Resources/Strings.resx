@@ -408,4 +408,19 @@
   <data name="OrderBook.SpreadFormat" xml:space="preserve">
     <value>Spread: {0}</value>
   </data>
+  <data name="Chrome.Title" xml:space="preserve">
+    <value>ZettaTrade</value>
+  </data>
+  <data name="Chrome.Minimize" xml:space="preserve">
+    <value>Minimize</value>
+  </data>
+  <data name="Chrome.Maximize" xml:space="preserve">
+    <value>Maximize</value>
+  </data>
+  <data name="Chrome.Restore" xml:space="preserve">
+    <value>Restore</value>
+  </data>
+  <data name="Chrome.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
 </root>
