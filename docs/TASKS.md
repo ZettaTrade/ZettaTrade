@@ -55,7 +55,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-048 [Critical] Bybit reconnect resubscribes cancel each other (reconnect churn with 2+ symbols) (BUG-003) | fix/bybit-resubscribe | queued | - |
 | T-049 Secret stores: silent data loss and rule violations across DPAPI/Keychain/secret-tool/encrypted file | fix/secrets-stores | queued | - |
 | T-050 MCP pipelines: host lock stall, client id matching, unread stderr, tools enum defaults | fix/mcp-pipelines | queued | - |
-| T-051 Paper trading ledger: corrupted entry price, stale reference price, phantom fills | fix/paper-ledger | queued | - |
+| T-051 Paper trading ledger: corrupted entry price, stale reference price, phantom fills | fix/paper-ledger | done | - |
 | T-052 WebSocket transport: dead feed after reconnect, send races, frame parser, ignored depth | fix/ws-transport | queued | - |
 | T-053 Settings service: reload races erase just-written values, changes never published | fix/settings-hot-reload | queued | - |
 | T-054 Indicator plugin scan aborts on a plugin with missing dependencies | fix/indicator-scan | queued | - |
@@ -186,7 +186,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-051 — Paper trading ledger: corrupted entry price, stale reference price, phantom fills (BUG-005, BUG-006, BUG-033...BUG-035)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/indicator-scan (base `develop`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** the paper adapter is the trading simulator behind every demo user; its average entry and unrealized PnL are the numbers the user acts on, and every defect here corrupts exactly them (or lies about a rejection).
 - **What:**
   - `BUG-005` - the net-position branch treats any same-sign fill as "extending": a reducing fill is re-averaged with the wrong denominator (long 1 @ 100 -> sell 0.5 @ 150 leaves entry 350 for the remaining 0.5 instead of 100), corrupting average entry and unrealized PnL on every partial close.
@@ -197,6 +197,9 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `src/ZettaTrade.Infrastructure/Exchange/PaperTradingAdapter.cs`.
 - **Acceptance:** a reducing fill never changes the average entry of the remaining size; the reference close is the newest bar on every backend (an explicit ordering contract with the adapters, e.g. a max-window fetch and a latest-close selection); a balance rejection persists no Filled order; a fresh position carries its own fill-time `OpenedAt`; cancel respects the caller's cancellation.
 - **Tests:** the ledger scenarios (extend / partial close / cross-zero / balance rejection) against an ascending and a descending history fake; the cancel-with-cancelled-token scenario.
+- **Status:** done. Canon: commit `9509f90` is on feat/indicator-scan; full Infrastructure.Tests suite passes 115/115 (no warnings; the paper suite now holds 23 facts) and gate prints `GATE PASSED`. Shipped: BUG-005 — `NetPositionFromFill` distinguishes extending from reducing: a same-sign fill smaller than the net exposure closes part of the position and leaves the average entry of the remainder intact (extension keeps the weighted average over the whole new size); BUG-006 — `ResolveReferenceCloseAsync` fetches the whole lookback window (`ReferenceBarFetchLimit = lookback hours + 1`, replacing the fixed `limit: 1`) and selects the newest bar BY ITS `Time` via a fold, never by list position, so ascending (Binance) and descending (Bybit/Demo) backends agree on the newest close; the by-time ordering contract is documented on the method (the Core `IMarketDataAdapter` interface is untouched — supervisor-owned); BUG-033 — `FillAndApply` applies the portfolio BEFORE recording the order, so a balance rejection throws and leaves no phantom Filled record (the private `_orders` store is the probe: pre-fix it kept the ghost); BUG-034 — the cross-zero branch stamps the fresh opposite position with its own fill-time `OpenedAt`; BUG-035 — `CancelOrderAsync` passes the caller's `ct` into `_tradingLock.WaitAsync(ct)` (acquisition outside the try/release, so a cancelled wait never releases an un-acquired semaphore). New facts: the partial-close entry invariance (+balance), the extension weighted average, the asc/desc newest-close pair (+ the full-window fetched assertion), the no-phantom after rejection (+ adapter stays usable), the cross-zero fresh stamp, and the cancelled-token cancel against a wedged lock (reflection-held `SemaphoreSlim`, the BUG-011 smoke precedent).
+- **Merge revision:** none expected — the ledger math rework is contained in one file with no nearby develop-side changes.
+- **Wave note:** the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-052 — WebSocket transport: dead feed after reconnect, send races, frame parser, ignored depth (BUG-004, BUG-027...BUG-032)
 
