@@ -40,7 +40,7 @@ Stack: .NET 10, C# 13, Avalonia UI 12, ReactiveUI.Avalonia 12.1, SkiaSharp, EF C
 - ReactiveUI only. NEVER CommunityToolkit.Mvvm, `[ObservableProperty]`, `[RelayCommand]`, `ObservableObject`.
 - ViewModels inherit `ReactiveObject`; properties use `RaiseAndSetIfChanged`; commands are `ReactiveCommand`; lifecycle via `WhenActivated` + `DisposeWith(disposables)`.
 - Use `ReactiveUI.RxVoid`, never `System.Reactive.Unit`.
-- Use `ObserveOnUiThread()` (ZettaTrade.UI.Extensions), not `ObserveOn(RxApp.MainThreadScheduler)`.
+- Use `ObserveOnUiThread()` (ZettaTrade.Appearance.Extensions), not `ObserveOn(RxApp.MainThreadScheduler)`.
 - ViewModels coordinate only; business logic lives in services. Split large ViewModels by responsibility.
 - Avalonia 12: package is `ReactiveUI.Avalonia`, namespace `ReactiveUI.Avalonia` (not `Avalonia.ReactiveUI`).
 

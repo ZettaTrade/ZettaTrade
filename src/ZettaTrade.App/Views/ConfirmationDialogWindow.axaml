@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
-        xmlns:loc="using:ZettaTrade.UI.Localization"
+        xmlns:loc="using:ZettaTrade.Appearance.Localization"
         x:Class="ZettaTrade.App.Views.ConfirmationDialogWindow"
         x:DataType="vm:ConfirmationDialogViewModel"
         Title="{loc:Localized Trading.ConfirmationTitle}"

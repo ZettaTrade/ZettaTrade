@@ -3,10 +3,10 @@ namespace ZettaTrade.UI.Charting;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using ZettaTrade.Appearance.Localization;
+using ZettaTrade.Appearance.Resources;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
-using ZettaTrade.UI.Localization;
-using ZettaTrade.UI.Resources;
 
 /// <summary>
 /// Frame-ready drawing plan for one order book snapshot: the visible rows of

@@ -5,9 +5,9 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
+using ZettaTrade.Appearance.Themes;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.UI.Tests.Support;
-using ZettaTrade.UI.Themes;
 
 /// <summary>
 /// Tests for file-driven theme registration: themes are JSON files loaded
@@ -25,7 +25,7 @@ public sealed class ThemeManagerTests
     {
         using var dir = new TempDirectory();
         var file = WriteTheme(dir, "trading-pro", "Trading Pro");
-        var manager = new ThemeManager(Substitute.For<ILogger>());
+        var manager = CreateManager(dir);
 
         await manager.LoadCustomThemeAsync(file);
 
@@ -45,7 +45,7 @@ public sealed class ThemeManagerTests
         using var dir = new TempDirectory();
         var first = WriteTheme(dir, "dark", "Dark");
         var second = WriteTheme(dir, "dark", "Dark Edited");
-        var manager = new ThemeManager(Substitute.For<ILogger>());
+        var manager = CreateManager(dir);
 
         await manager.LoadCustomThemeAsync(first);
         await manager.LoadCustomThemeAsync(second);
@@ -62,7 +62,7 @@ public sealed class ThemeManagerTests
         var json = JsonSerializer.Serialize(new ThemeDefinition { Name = "bare", Colors = new Dictionary<string, string>() }, JsonOptions);
         var file = Path.Combine(dir.FolderPath, "bare.json");
         await File.WriteAllTextAsync(file, json);
-        var manager = new ThemeManager(Substitute.For<ILogger>());
+        var manager = CreateManager(dir);
 
         await manager.LoadCustomThemeAsync(file);
 
@@ -77,7 +77,7 @@ public sealed class ThemeManagerTests
         using var dir = new TempDirectory();
         var file = Path.Combine(dir.FolderPath, "broken.json");
         await File.WriteAllTextAsync(file, "{ not valid json");
-        var manager = new ThemeManager(Substitute.For<ILogger>());
+        var manager = CreateManager(dir);
 
         var act = async () => await manager.LoadCustomThemeAsync(file);
 
@@ -92,7 +92,7 @@ public sealed class ThemeManagerTests
         var json = JsonSerializer.Serialize(new ThemeDefinition { DisplayName = "Nameless" }, JsonOptions);
         var file = Path.Combine(dir.FolderPath, "nameless.json");
         await File.WriteAllTextAsync(file, json);
-        var manager = new ThemeManager(Substitute.For<ILogger>());
+        var manager = CreateManager(dir);
 
         await manager.LoadCustomThemeAsync(file);
 
@@ -106,7 +106,7 @@ public sealed class ThemeManagerTests
         // must still switch the current theme and publish the change.
         using var dir = new TempDirectory();
         var file = WriteTheme(dir, "night-shade", "Night Shade");
-        var manager = new ThemeManager(Substitute.For<ILogger>());
+        var manager = CreateManager(dir);
         await manager.LoadCustomThemeAsync(file);
 
         var published = new List<string>();
@@ -126,7 +126,7 @@ public sealed class ThemeManagerTests
         // ambiguous.
         using var dir = new TempDirectory();
         var file = WriteTheme(dir, "night-shade", "Night Shade");
-        var manager = new ThemeManager(Substitute.For<ILogger>());
+        var manager = CreateManager(dir);
         await manager.LoadCustomThemeAsync(file);
 
         var published = new List<string>();
@@ -143,7 +143,7 @@ public sealed class ThemeManagerTests
         using var dir = new TempDirectory();
         var first = WriteTheme(dir, "dark", "Dark");
         var second = WriteTheme(dir, "user-dark", "Dark");
-        var manager = new ThemeManager(Substitute.For<ILogger>());
+        var manager = CreateManager(dir);
         await manager.LoadCustomThemeAsync(first);
         await manager.LoadCustomThemeAsync(second);
 
@@ -157,7 +157,8 @@ public sealed class ThemeManagerTests
     [Fact]
     public async Task ApplyThemeAsync_WithUnknownTheme_KeepsCurrentTheme()
     {
-        var manager = new ThemeManager(Substitute.For<ILogger>());
+        using var dir = new TempDirectory();
+        var manager = CreateManager(dir);
 
         var published = new List<string>();
         using var subscription = manager.ThemeChanged.Subscribe(published.Add);
@@ -166,6 +167,28 @@ public sealed class ThemeManagerTests
         manager.CurrentTheme.Should().Be("dark");
         published.Should().ContainSingle().Which.Should().Be("dark");
     }
+
+    /// <summary>
+    /// The user themes directory is a required constructor argument; every
+    /// test passes its own temporary directory so nothing reaches the real
+    /// user configuration.
+    /// </summary>
+    [Fact]
+    public void Constructor_WithBlankUserThemesDirectory_Throws()
+    {
+        // The lib never resolves application paths itself: the user themes
+        // directory is a required argument and a blank one is a wiring bug,
+        // not a silent fallback onto Infrastructure's config resolver.
+        foreach (var blank in new[] { string.Empty, "   " })
+        {
+            var act = () => new ThemeManager(Substitute.For<ILogger>(), blank);
+
+            act.Should().Throw<ArgumentException>();
+        }
+    }
+
+    private static ThemeManager CreateManager(TempDirectory dir) =>
+        new(Substitute.For<ILogger>(), dir.FolderPath);
 
     private static string WriteTheme(TempDirectory dir, string name, string displayName)
     {
@@ -186,3 +209,4 @@ public sealed class ThemeManagerTests
         return file;
     }
 }
+

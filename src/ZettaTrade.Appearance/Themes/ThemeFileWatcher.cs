@@ -1,4 +1,4 @@
-namespace ZettaTrade.UI.Themes;
+namespace ZettaTrade.Appearance.Themes;
 
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;

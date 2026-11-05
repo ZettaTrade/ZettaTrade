@@ -9,6 +9,7 @@ using ReactiveUI.Primitives;
 using Serilog;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Appearance.Extensions;
 using ZettaTrade.UI.Extensions;
 
 namespace ZettaTrade.App.Views;

@@ -1,4 +1,4 @@
-namespace ZettaTrade.UI.Localization;
+namespace ZettaTrade.Appearance.Localization;
 
 using Avalonia;
 using Avalonia.Data;

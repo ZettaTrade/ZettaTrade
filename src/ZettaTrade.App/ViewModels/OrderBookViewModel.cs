@@ -4,10 +4,10 @@ using System.Linq;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ZettaTrade.Appearance.Extensions;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
-using ZettaTrade.UI.Extensions;
 
 /// <summary>
 /// Order book panel state: a typed symbol input (free-form, like the New
