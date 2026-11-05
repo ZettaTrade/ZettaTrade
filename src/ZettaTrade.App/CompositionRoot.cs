@@ -158,6 +158,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<McpHostService>(),
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<SymbolListProvider>(),
+                sp.GetRequiredService<IIndicatorCatalog>(),
                 sp.GetRequiredService<ILogger<SettingsViewModel>>(),
                 sp.GetRequiredService<ThemeManager>().LoadErrorsChanged));
         services.AddSingleton<ChartViewModel>(sp =>

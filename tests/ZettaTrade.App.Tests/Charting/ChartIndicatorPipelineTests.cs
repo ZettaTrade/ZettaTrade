@@ -34,6 +34,8 @@ public sealed class ChartIndicatorPipelineTests
     {
         public List<(string Name, int Period)> CreateCalls { get; } = [];
 
+        public IReadOnlyCollection<string> LoadedNames => ["STUB"];
+
         public IIndicator? Create(string name, int period)
         {
             CreateCalls.Add((name, period));
@@ -193,6 +195,8 @@ public sealed class ChartIndicatorPipelineTests
     /// <summary>The catalog variant that fails the build (a rejected period) - the row must skip, not throw.</summary>
     private sealed class RejectingCatalog : IIndicatorCatalog
     {
+        public IReadOnlyCollection<string> LoadedNames { get; } = [];
+
         public IIndicator? Create(string name, int period) => null;
     }
 }

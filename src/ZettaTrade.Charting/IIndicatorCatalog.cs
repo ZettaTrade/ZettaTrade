@@ -17,4 +17,14 @@ public interface IIndicatorCatalog
     /// logs the rejection).
     /// </summary>
     IIndicator? Create(string name, int period);
+
+    /// <summary>
+    /// The canonical names of the indicators the loaded plugin set
+    /// registers - an immutable snapshot (the scan runs at startup only,
+    /// the plugin set is fixed for the session). The settings surface keys
+    /// its rows by indicator name against this set: a row renders only for
+    /// a name present here, a save never fabricates a row for an absent
+    /// plugin.
+    /// </summary>
+    IReadOnlyCollection<string> LoadedNames { get; }
 }

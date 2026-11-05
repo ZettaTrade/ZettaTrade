@@ -78,6 +78,9 @@
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Индикаторы</value>
   </data>
+  <data name="Settings.Indicators.Empty" xml:space="preserve">
+    <value>Плагины индикаторов в каталоге plugins папки данных приложения не найдены (пропуски сканирования фиксируются в журнале)</value>
+  </data>
   <data name="Settings.Tab.Mcp" xml:space="preserve">
     <value>MCP</value>
   </data>

@@ -10,6 +10,7 @@ using Xunit;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Shell;
 
@@ -240,9 +241,23 @@ public sealed class SettingsViewModelMcpTests
             runner,
             activeExchanges,
             symbolList,
+            SmaLoadedCatalog(),
             NullLogger<SettingsViewModel>.Instance);
 
         return new McpKit(viewModel, settings, changes, host, runner);
+    }
+
+    /// <summary>
+    /// A catalog stub that reports the SMA plugin as loaded: the same-state
+    /// default (the shipped application carries the sample plugin). The
+    /// MCP facts do not exercise the indicator rows, but the ViewModel
+    /// constructor requires the gate's collaborator.
+    /// </summary>
+    private static IIndicatorCatalog SmaLoadedCatalog()
+    {
+        var catalog = Substitute.For<IIndicatorCatalog>();
+        catalog.LoadedNames.Returns(["SMA"]);
+        return catalog;
     }
 
     /// <summary>A task-shaped failure the host stub refuses with.</summary>
