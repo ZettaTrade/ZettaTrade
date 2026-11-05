@@ -15,11 +15,11 @@ Build of board task T-065 (branch `feat/appearance`).
 
 ### Changed
 - Localization and the theme engine leave `ZettaTrade.UI` for the new
-  lean `ZettaTrade.Appearance` library: `LocalizationManager` +
+  lean `Livery` library: `LocalizationManager` +
   `LocalizedExtension`, `Strings` resx (namespace
-  `ZettaTrade.Appearance.Resources`), `ThemeManager` + `ThemeFileWatcher`
+  `Livery.Resources`), `ThemeManager` + `ThemeFileWatcher`
   + `PreviewColorsToBrushesConverter`, and the UI-thread marshaller
-  `ObserveOnUiThread` (`ZettaTrade.Appearance.Extensions`). No diagram
+  `ObserveOnUiThread` (`Livery.Extensions`). No diagram
   change at runtime: theme hot-reload, live language switch and settings
   persistence behave exactly as before.
 - `ThemeManager` takes the user themes directory as a REQUIRED
@@ -27,9 +27,9 @@ Build of board task T-065 (branch `feat/appearance`).
   `Infrastructure.Configuration` for paths; the composition root passes
   `ConfigPathResolver.ThemesDirectory`, and a blank value is rejected
   loudly.
-- `ZettaTrade.UI` keeps charting/primitives, now references Appearance
-  (and directly `ZettaTrade.Charting`, already pulled transitively); the
-  app consumes both libraries.
+- `ZettaTrade.UI` keeps charting/primitives and now references Livery
+  (plus a direct `ZettaTrade.Charting` reference replacing the dropped
+  transitive one); the app consumes both libraries.
 
 ## [0.1.0-alpha.27] - 2026-11-05
 
