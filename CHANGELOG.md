@@ -9,6 +9,24 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.30] - 2026-11-06
+
+Build of board task T-058 (branch `feat/ui-primitives`).
+
+### Fixed
+- BUG-025: the async subscription helper `SubscribeAsync` runs its
+  per-notification tasks one at a time in emission order (`Concat`
+  instead of `Merge`) — dependent steps (serialized page fetches) no
+  longer interleave while an earlier run pends; a queued run starts the
+  moment its predecessor completes.
+- BUG-048: the chart pan step paces by the pitch the draw pass actually
+  painted with (plot width minus the measured price gutter, cached from
+  the last draw pass) instead of re-deriving it from the raw window
+  bounds — dragging one bar's width moves the window exactly one slot.
+- BUG-049: the `SKPath` detached for each indicator line disposes in a
+  `using` scope right after the `DrawPath` call — no native wrapper
+  parked for the finalizer on every redraw.
+
 ## [0.1.0-alpha.29] - 2026-11-05
 
 Build of board task T-070 (branch `feat/livery-resx`).

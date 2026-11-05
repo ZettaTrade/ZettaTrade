@@ -62,7 +62,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-055 Chart VM: persisted 12-hour clock lost in the common restore path + symbols bootstrap race | fix/chart-vm-restore | done | - |
 | T-056 App VM error paths: unlogged startup crash, silent order failures, off-thread and inconsistent UI | fix/app-vm-error-paths | done | - |
 | T-057 Risk: market/stop orders bypass the hard order-value cap | fix/risk-cap | done | - |
-| T-058 UI primitives: concurrent async helper vs contract, pan pitch mismatch, undisposed SKPath | fix/ui-primitives | queued | - |
+| T-058 UI primitives: concurrent async helper vs contract, pan pitch mismatch, undisposed SKPath | feat/ui-primitives | done | - |
 | T-059 Themes: burst hot-reload drops files, watcher death, unordered live list, stale order book | fix/theme-hot-reload | queued | - |
 | T-060 Localization: culture race in the cached lookup + suspected binding lifetime leak | fix/localization-races | done | - |
 | T-061 Order history store: terminal-status rewrite + upsert check-then-act race | fix/order-history-store | done | - |
@@ -123,15 +123,16 @@ the end of that file, so no effort is duplicated.
 
 ## T-058 — UI primitives: concurrent async helper vs contract, pan pitch mismatch, undisposed SKPath (BUG-025, BUG-048, BUG-049)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/ui-primitives (base `develop` at `46a4bc6`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** one seam, one theme: small contract violations with cumulative cost - serialized semantics silently running concurrently, a pan moving by the wrong distance, native memory churn on every redraw.
 - **What:**
   - `BUG-025` - `ObservableAsyncExtensions` documents serialized-in-emission-order execution, but the implementation `.Select(...).Merge()` runs the per-notification tasks concurrently.
   - `BUG-048` - pan pacing computes the bar pitch from `Bounds.Width` while the draw pass uses `plotRect.Width` (bounds minus the measured price gutter): dragging "one bar" moves the window by a different distance than the painted bar width.
   - `BUG-049` - the `SKPath` returned by `path.Detach()` is never disposed (`DrawPath` copies; the wrapper waits for its finalizer): native memory churn on every redraw for every indicator line.
-- **Scope:** `src/ZettaTrade.UI/Extensions/ObservableAsyncExtensions.cs`, `src/ZettaTrade.UI/Charting/CandlestickChart.cs`.
+- **Scope:** `src/ZettaTrade.UI/Extensions/ObservableAsyncExtensions.cs`, `src/ZettaTrade.UI/Charting/CandlestickChart.cs`, `src/ZettaTrade.UI/Charting/ChartPanWindow.cs` (the pure `SlotsForDrag` pan-slot seam), plus the matching `ZettaTrade.UI.Tests` files.
 - **Acceptance:** the helper runs its per-notification tasks strictly in order (the contract decides the mechanism, e.g. concatenation/queueing instead of `Merge`); pan pacing and painted pitch share one computed constant; the draw pass retains no undisposed `SKPath`.
-- **Tests:** the helper's ordering test; the pan-parity assert (one pitch = the drawn pitch, measured through the same layout); a path-dispose regression assert.
+- **Tests:** the helper's serialization tests (queued runs park until the pending one completes; out-of-order completions never reorder the starts); the pan-parity asserts (one painted bar = one slot, measured through `ChartBarLayout` — the same layout the draw pass paints with); the path disposal rides the structural `using` scope at the single `Detach` site (the suite has no headless SKSurface harness — a leak assert would race the finalizer).
+- **Status:** done. Canon: the branch carries `f12c8a9` (the three fixes + their tests: 9 new asserts) and this release commit (the alpha.30 cut + this section's status flip); shipped as `0.1.0-alpha.30` (see CHANGELOG.md). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-059 — Themes: burst hot-reload drops files, watcher death, unordered live list, stale order book (BUG-046, BUG-047, BUG-050)
 
