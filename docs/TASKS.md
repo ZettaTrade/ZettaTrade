@@ -65,7 +65,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-058 UI primitives: concurrent async helper vs contract, pan pitch mismatch, undisposed SKPath | fix/ui-primitives | queued | - |
 | T-059 Themes: burst hot-reload drops files, watcher death, unordered live list, stale order book | fix/theme-hot-reload | queued | - |
 | T-060 Localization: culture race in the cached lookup + suspected binding lifetime leak | fix/localization-races | queued | - |
-| T-061 Order history store: terminal-status rewrite + upsert check-then-act race | fix/order-history-store | queued | - |
+| T-061 Order history store: terminal-status rewrite + upsert check-then-act race | fix/order-history-store | done | - |
 | T-062 XDG path resolver returns CWD-relative paths for empty environment variables | fix/xdg-paths | queued | - |
 | T-063 The closed-task archive: sections leave the board, the archive rule and the reply language codified (supervisor-direct) | feat/task-archive | done | - |
 | T-064 Worktree lifecycle: remove the task folder and branch after merge (supervisor-direct) | feat/worktree-cleanup | done | - |
@@ -310,7 +310,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-061 — Order history store: terminal-status rewrite + upsert check-then-act race (BUG-042, BUG-043)
 
-- **Branch:** queued 2026-11-04 (code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
+- **Branch:** feat/xdg-paths (base `develop`; queued 2026-11-04, code review 2026-11-04; definitions in `docs/CODE_REVIEW.md`)
 - **Origin:** the order history is the journal of record for trading activity; rewriting a terminal status falsifies the journal (an order marked Cancelled that actually Filled), and the upsert race surfaces as UNIQUE-constraint errors into the callers.
 - **What:**
   - `BUG-042` - `MarkCancelledAsync` unconditionally sets `Status = Cancelled`: a late/duplicate cancel for an order already `Filled`/`Rejected`/`Expired` rewrites the history instead of being ignored.
@@ -318,6 +318,9 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `src/ZettaTrade.Infrastructure/Persistence/SqliteOrderHistoryStore.cs`.
 - **Acceptance:** terminal statuses are final (a cancel attempt on a terminal order is ignored, never a silent rewrite); the placement is a true DB upsert - concurrent `RecordPlacedAsync` calls never surface constraint errors.
 - **Tests:** the status-transition matrix (each terminal status x a cancel attempt); the concurrent place/cancel scenario.
+- **Status:** done. Canon: commit `115d2c2` is on feat/xdg-paths; full Infrastructure.Tests suite passes 114/114 (the store matrix now holds 14 facts, of which 6 changed/are new) and gate prints `GATE PASSED`. Shipped: BUG-043 — `RecordPlacedAsync` became ONE raw statement, `INSERT INTO Orders (...) VALUES (...) ON CONFLICT (ExchangeId, OrderId) DO UPDATE SET <all 15 non-key columns>` via `ExecuteSqlInterpolatedAsync` (EF parameterizes the interpolated values automatically): insert-or-update is decided atomically on the database side against the composite primary key, so the check-then-act `FindAsync`/`Add` window — two concurrent placements both seeing null, the second `SaveChangesAsync` dying on the unique constraint — is closed; the interpolated SQL runs AROUND the EF converters, so every value is pre-converted through THE SAME converter the entity model keeps on that column (the four `OrderHistoryConversions.{Timestamp,NullableTimestamp,Amount,NullableAmount}` converters compiled once into static `Func`s via `ConvertToProviderExpression().Compile()`, enums `ToString()` matching the `HasConversion<string>()` of the model) — the stored TEXT stays byte-consistent whether a row was written by `SaveChanges` or by the upsert; BUG-042 — a private `IsTerminal(OrderStatus)` (Filled/Cancelled/Rejected/Expired) guards `MarkCancelledAsync`: a cancel for a row whose recorded status is terminal logs a warning ("...arrived after the terminal status {Status}; the recorded outcome is kept") and leaves the row untouched (status and UpdatedAt stay as placed); the now-dead `ToEntry`/`OverwriteEntry` private helpers are deleted (`ToOrder` keeps serving reads). Facts: the two cancel facts corrected to a live-order precondition (`Pending`, not the helper's default `Filled` — the restart story too), the terminal matrix (Filled/Cancelled/Rejected/Expired × cancel ⇒ status kept, `UpdatedAt` null ⇒ no rewrite, single row), the concurrent-placement fact (two store instances on the SAME file, `Task.WhenAll` of two `RecordPlacedAsync` for the same order ⇒ no throw, `ContainSingle`, last-commit-wins status ∈ {Pending, Filled}) and the place/cancel race smoke (one store, `Task.WhenAll(place, cancel)` ⇒ no throw, one consistent row ∈ {Pending, Cancelled}).
+- **Merge revision:** none expected — one store file plus its fact file; no protected or shared surfaces touched.
+- **Wave note:** the release version bump + CHANGELOG land once for the whole fixed-wave in a separate release branch after the merges — a supervisor-approved deviation from rule 6 for parallel work.
 
 ## T-062 — XDG path resolver returns CWD-relative paths for empty environment variables (BUG-044)
 
