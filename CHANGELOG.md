@@ -9,6 +9,17 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.25] - 2026-11-05
+
+Build of board task T-057 (branch `fix/risk-cap`).
+
+### Fixed
+- Price-less orders can no longer bypass `MaxOrderValueHardCapUsd`
+  (BUG-026): a stop order is valued against its own trigger price and
+  runs the same cap/confirmation matrix, and an order with no estimable
+  value is rejected with an explicit reason instead of being silently
+  approved for human confirmation only.
+
 ## [0.1.0-alpha.24] - 2026-11-05
 
 Build of board task T-062 (branch `fix/xdg-paths`).
