@@ -46,6 +46,39 @@ public static class UiSettingsKeys
     public const bool DefaultShowAiPanel = true;
 
     /// <summary>
+    /// Settings key of the persisted order book panel width (logical pixels):
+    /// written by the workspace-layout ViewModel when the chart/book splitter
+    /// drag settles, restored by the startup walk before the first frame.
+    /// </summary>
+    public const string BookPanelWidth = "BookPanelWidth";
+
+    /// <summary>
+    /// Settings key of the persisted AI assistant panel width (logical
+    /// pixels): the same splitter-drag persistence discipline as
+    /// <see cref="BookPanelWidth"/>, for the book/assistant splitter.
+    /// </summary>
+    public const string AiPanelWidth = "AiPanelWidth";
+
+    /// <summary>
+    /// The panel width applied until a stored width is loaded: the 300 px
+    /// both adjustable columns always had before the splitters existed.
+    /// </summary>
+    public const double DefaultBookPanelWidth = 300;
+
+    /// <summary>See <see cref="DefaultBookPanelWidth"/>; the AI column ships with the same default.</summary>
+    public const double DefaultAiPanelWidth = 300;
+
+    /// <summary>
+    /// Usable-minimum clamp of the order book column (logical pixels): bound
+    /// to the column's <c>MinWidth</c>, so the splitter itself stops here and
+    /// a stored (or externally written) width below it is clamped on restore.
+    /// </summary>
+    public const double MinBookPanelWidth = 220;
+
+    /// <summary>See <see cref="MinBookPanelWidth"/>; the AI column clamp.</summary>
+    public const double MinAiPanelWidth = 220;
+
+    /// <summary>
     /// Settings key of the persisted chart indicator overlay configuration:
     /// a JSON array of indicator rows (the ChartIndicatorConfig shape).
     /// </summary>

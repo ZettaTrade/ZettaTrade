@@ -3,6 +3,7 @@
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:ZettaTrade.UI.Localization"
         xmlns:charting="using:ZettaTrade.UI.Charting"
+        xmlns:app="using:ZettaTrade.App"
         x:Class="ZettaTrade.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="ZettaTrade"
@@ -82,16 +83,43 @@
             </Grid>
         </Border>
 
-        <!-- Main content area: the right column is Auto so a HIDDEN assistant
-             releases its width to the workspace — a fixed column would leave
-             an empty gutter where the panel used to be. -->
-        <Grid ColumnDefinitions="*,Auto">
+        <!-- Main content area: the workspace column is the flexible star; the
+             book and assistant columns carry the persisted widths the
+             draggable splitters write (T-038), and the assistant-side
+             splitter track and its column collapse with the panel's
+             visibility so a hidden panel never leaves a dead gutter. -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="{Binding Layout.AiSplitterColumnWidth}" />
+                <ColumnDefinition Width="{Binding Layout.AiColumnWidth, Mode=TwoWay}"
+                                  MinWidth="{Binding Layout.AiColumnMinWidth}" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Book/assistant splitter: drags resize the persisted assistant
+                 column (the star workspace absorbs the difference); hidden
+                 with the panel so the collapsed geometry stays grab-free. -->
+            <GridSplitter Grid.Column="1"
+                          Focusable="True"
+                          IsVisible="{Binding Chat.IsAiChatVisible}" />
+
             <!-- Left: Trading workspace (charts, order book, etc.) -->
             <Border Grid.Column="0" Padding="8">
-                <Grid ColumnDefinitions="*,300">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="{Binding Layout.BookColumnWidth, Mode=TwoWay}"
+                                          MinWidth="{x:Static app:UiSettingsKeys.MinBookPanelWidth}" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Chart/book splitter: drags resize the persisted book
+                         column; the chart keeps its flexible star. -->
+                    <GridSplitter Grid.Column="1" Focusable="True" />
+
                     <!-- Depth panel: a free-typed symbol (works offline like the
                          dialog), switched live streams of the parsed symbol. -->
-                    <Border Grid.Column="1"
+                    <Border Grid.Column="2"
                             Margin="8,0,0,0"
                             BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                             BorderThickness="1,0,0,0"
@@ -158,10 +186,9 @@
                 </Grid>
             </Border>
 
-            <!-- Right: AI Chat panel (pinned to the same 300 px the layout
-                 always gave the column; one way visibility binding) -->
-            <Border Grid.Column="1"
-                    Width="300"
+            <!-- Right: AI Chat panel (the assistant column carries the
+                 persisted width; one way visibility binding) -->
+            <Border Grid.Column="2"
                     IsVisible="{Binding IsAiChatVisible}"
                     BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                     BorderThickness="1,0,0,0"
