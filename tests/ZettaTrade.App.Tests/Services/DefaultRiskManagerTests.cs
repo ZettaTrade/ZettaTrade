@@ -11,9 +11,9 @@ using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
 /// Risk gate tests. The hard cap must reject regardless of confirmation,
-/// oversize (below cap) orders must require human confirmation, and market
-/// orders without an explicit price must not slip through with a zero
-/// no-confirmation estimate.
+/// oversize (below cap) orders must require human confirmation, and an
+/// order with no anchor to estimate its value from must be rejected
+/// explicitly — never slipped through, never silently confirmed.
 /// </summary>
 public sealed class DefaultRiskManagerTests
 {
@@ -33,6 +33,15 @@ public sealed class DefaultRiskManagerTests
         Type = OrderType.Limit,
         Quantity = new Quantity(quantity),
         Price = new Price(price),
+    };
+
+    private static OrderRequest StopMarketOrder(decimal quantity, decimal stopPrice) => new()
+    {
+        Symbol = Symbol.Parse("BTC/USDT"),
+        Side = OrderSide.Sell,
+        Type = OrderType.StopMarket,
+        Quantity = new Quantity(quantity),
+        StopPrice = new Price(stopPrice),
     };
 
     [Fact]
@@ -85,16 +94,52 @@ public sealed class DefaultRiskManagerTests
         result.RequiresConfirmation.Should().BeFalse();
     }
 
+    /// <summary>
+    /// BUG-026: a market order carries neither a limit price nor a trigger,
+    /// so its value cannot be estimated from the request. The pre-fix
+    /// manager approved it with a required confirmation — an order of ANY
+    /// size never met the hard cap. Risk cannot be evaluated: the order is
+    /// rejected explicitly, fail-closed.
+    /// </summary>
     [Fact]
-    public async Task CheckOrderAsync_MarketOrderWithoutPrice_RequiresConfirmation()
+    public async Task CheckOrderAsync_NoPriceAnchor_RejectsWithCannotEvaluateRisk()
     {
-        // Market orders carry no explicit price: a zero estimate must never
-        // silently bypass the human confirmation gate.
-        var request = LimitOrder(0.01m, 50_000m) with { Type = OrderType.Market, Price = null };
+        var marketOrder = LimitOrder(0.01m, 50_000m) with { Type = OrderType.Market, Price = null };
 
-        var result = await CreateManager().CheckOrderAsync(request);
+        var result = await CreateManager().CheckOrderAsync(marketOrder);
 
-        result.IsApproved.Should().BeTrue();
+        result.IsApproved.Should().BeFalse(
+            "an order of any size must never bypass the hard cap on confirmation alone");
+        result.RequiresConfirmation.Should().BeFalse("a rejected order reaches no dialog");
+        result.Reason.Should().Contain("cannot evaluate risk");
+    }
+
+    /// <summary>
+    /// The stop trigger prices the order: a StopMarket is valued against
+    /// ITS OWN trigger, so the cap matrix applies to it exactly as to a
+    /// limit order. Case: inside the confirmation band (15_000 USD).
+    /// </summary>
+    [Fact]
+    public async Task CheckOrderAsync_StopMarket_ValuedAgainstTheStopTrigger_InsideTheConfirmationBand()
+    {
+        var result = await CreateManager().CheckOrderAsync(StopMarketOrder(0.3m, 50_000m));
+
+        result.IsApproved.Should().BeTrue("the stop order's value was estimated: 15_000 USD");
         result.RequiresConfirmation.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The stop matrix's reject case: 0.5 BTC with the trigger at 300_000
+    /// is 150_000 USD — above the hard cap, rejected-unconditionally even
+    /// though no limit price exists on the request.
+    /// </summary>
+    [Fact]
+    public async Task CheckOrderAsync_StopMarket_AboveTheHardCap_RejectsUnconditionally()
+    {
+        var result = await CreateManager().CheckOrderAsync(StopMarketOrder(0.5m, 300_000m));
+
+        result.IsApproved.Should().BeFalse();
+        result.RequiresConfirmation.Should().BeFalse();
+        result.Reason.Should().Contain("hard cap");
     }
 }

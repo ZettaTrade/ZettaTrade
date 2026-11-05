@@ -177,6 +177,92 @@ public sealed class ChatViewModelTests
             true);
     }
 
+    /// <summary>
+    /// BUG-053: two rapid toggles, the Second landing while the first write
+    /// is still in flight. The pre-fix completion-driven cache kept the OLD
+    /// value until the first write landed, so the second toggle (back to the
+    /// cached value) was filtered out as "already saved" — the settings file
+    /// then kept the first toggle's value and the restart restored the wrong
+    /// visibility. The cache LEADS now: the second toggle is a real
+    /// difference, both writes are queued (Concat serializes them strictly
+    /// in issuance order), and the last value wins in the file.
+    /// </summary>
+    [Fact]
+    public async Task TwoRapidToggles_WithTheFirstWriteInFlight_PersistBothInIssuanceOrder()
+    {
+        var kit = ChatTests.CreateKit(persistedVisibility: true);
+        await kit.Chat.InitializeAsync();
+
+        // The first write parks: the second toggle lands while it is in
+        // flight — exactly the window the stale-cache race corrupted.
+        var firstWriteReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var invokedWrites = new List<bool>();
+        var secondWriteInvoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writeSequence = 0;
+        kit.Settings
+            .SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(call =>
+            {
+                invokedWrites.Add(call.ArgAt<bool>(2));
+                if (Interlocked.Increment(ref writeSequence) == 2)
+                {
+                    secondWriteInvoked.TrySetResult();
+                }
+
+                return invokedWrites.Count == 1 ? firstWriteReleased.Task : Task.CompletedTask;
+            });
+
+        // Act: the rapid toggle pair. The first write parks; the second
+        // toggle is a real difference against the (leading) cache and MUST
+        // enqueue its own write.
+        await kit.Chat.ToggleAsync();
+        await kit.Chat.ToggleAsync();
+
+        // Both flips are ISSUED (the cache led the pipeline), yet only the
+        // first write reached the service so far: the second still waits
+        // behind the parked one in the serialized queue.
+        invokedWrites.Should().ContainSingle()
+            .Which.Should().BeFalse("the second write waits behind the parked first one");
+
+        firstWriteReleased.TrySetResult();
+
+        var winner = await Task.WhenAny(secondWriteInvoked.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        winner.Should().Be(secondWriteInvoked.Task, "the concatenated writes drain in issuance order");
+
+        // Assert: both writes are in the file, in ISSUE order — hide then
+        // show — so a restart restores the property's final value.
+        invokedWrites.Should().Equal(false, true);
+        kit.Chat.IsAiChatVisible.Should().BeTrue("the panel carries the user's final choice");
+    }
+
+    /// <summary>
+    /// One failed persistence write does not terminate the pipeline: the
+    /// per-write catch keeps the concatenated stream serving later flips,
+    /// and the failure is exactly one logged entry.
+    /// </summary>
+    [Fact]
+    public async Task TwoToggles_WhenTheFirstWriteFails_TheSecondStillPersists()
+    {
+        var (chat, _, settings) = CreateChatWithChanges(UiSettingsKeys.DefaultShowAiPanel);
+        await chat.InitializeAsync();
+
+        var writeAttempts = 0;
+        settings
+            .SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(_ => ++writeAttempts == 1
+                ? Task.FromException(new InvalidOperationException("disk hiccup"))
+                : Task.CompletedTask);
+
+        await chat.ToggleAsync();
+        await chat.ToggleAsync();
+
+        chat.IsAiChatVisible.Should().BeTrue("the panel carries the user's final choice");
+        await settings.Received(2).SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ShowAiPanel,
+            Arg.Any<bool>());
+    }
+
     #endregion
 
     #region Send Pipeline
