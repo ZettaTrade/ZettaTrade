@@ -2,10 +2,10 @@ namespace ZettaTrade.UI.Tests.Themes;
 
 using System.Text.Json;
 using FluentAssertions;
+using Livery.Themes;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
-using Livery.Themes;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.UI.Tests.Support;
 

@@ -4,11 +4,11 @@ using System;
 using System.Globalization;
 using System.Resources;
 using FluentAssertions;
+using Livery.Localization;
+using Livery.Resources;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
-using Livery.Localization;
-using Livery.Resources;
 using ZettaTrade.UI.Charting;
 
 /// <summary>
