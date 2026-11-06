@@ -127,6 +127,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
 | T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | queued | - |
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
+| T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | queued | T-082 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -558,3 +559,12 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the key validation lib + the activation UI (resx en+ru), the packaging docs/templates for the private CI, `docs/LICENSES.md` describing the open-core split (MIT core vs proprietary modules) in a glance-readable form; the private repos themselves appear only per actual module.
 - **Acceptance:** a signed closed fixture activates with a valid key and is refused with an explicit error on invalid/expired/tampered/wrong-product keys; no network is required for validation; no proprietary artifact or wording lands in the public repo.
 - **Tests:** key crypto goldens (valid/expired/tampered/wrong-product/missing), the activation gate in UI, the refused-not-defaulted contract on every failure path, file-only logging for the validator.
+
+## T-133 — MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read
+
+- **Branch:** queued 2026-11-06 (supervisor note raised at the T-082 landing: the PnL core's report flagged the blind spot; queued immediately so the seam does not rot).
+- **Origin:** fills placed through the `TradingToolsRegistrar` MCP tools bypass the App-side SQLite order journal - the canonical local ledger that order history, positions, CSV export, trade statistics and the T-082 PnL engine all read. An MCP-placed paper fill is a real (paper-lane) money flow invisible to every accounting surface.
+- **What:** the MCP trading tools' execution path writes through the same journal ingestion the panels use (or the journal seam gains the missing notifications - the lightest cut that makes MCP-placed fills appear in order history, positions, CSV exports, the T-083 statistics and the T-082 PnL realized history); no scope creep into real-adapter behavior; the paper/demo lane is the acceptance surface.
+- **Scope:** Infrastructure/App wiring under the MCP trading tools (Infra-only; no Core entity or interface changes expected), tests.
+- **Acceptance:** a fill executed via an MCP tool becomes visible in every journal-backed surface and is accounted in PnL deterministically across restarts, exactly like a fill placed from the UI.
+- **Tests:** MCP-placed fill golden (a journal row and a PnL realized entry appear), mixed UI+MCP fills keep the expected ordering, restart determinism holds.
