@@ -124,6 +124,9 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
 | T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | queued | - |
+| T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
+| T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | queued | - |
+| T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -574,3 +577,30 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a disclosure VM/view, a persisted first-run flag in the settings, resx en+ru, tests.
 - **Acceptance:** the panel shows exactly once per installation, the acknowledge never gates trading actions (it informs — the `IConfirmationService` risk flows stay untouched), and the alpha wording is discoverable later from About.
 - **Tests:** first-run/second-run golden, the persisted flag reload, the en/ru wiring, the Settings → About reveal path.
+
+## T-130 — Extract Livery into a standalone private repo (MIT kept), consume as a package
+
+- **Branch:** queued 2026-11-06 (open-core structure at the licensing review: Livery goes to its own PRIVATE repo, the license stays MIT — the sources stay hidden and the package is the public surface, flipping the repo public later is one click; this is the pilot of the multi-repo mechanics. Sequenced between alpha releases, coordinated across sessions — Livery paths are touched by UI work).
+- **Origin:** Livery is domain-neutral by design (appearance styles/controls plus the extensions like `ObserveOnUiThread`), has no tie to trading logic, and the paid plugin plan will ride the same multi-repo mechanics this split rehearses first (a versioned package, the two-PR cross-repo workflow).
+- **What:** a one-shot history-preserving split (`git filter-repo --subdirectory-filter src/Livery`) into the new private repo `Livery` on the same account, the LICENSE file stays MIT; a publish workflow shipping the NuGet package (a public binary on nuget.org, sources stay private); ZettaTrade removes the in-tree `src/Livery` and switches to `PackageReference` pinned to the package version; Livery gains its own README, its in-repo test suite and semver+changelog discipline from day one; AGENTS.md and ZettaTrade_SKILL.md updated (the target-layout note loses `src/Livery`, plus a two-repo ownership paragraph: appearance-only changes go through the Livery repo, platform-specific and trading code never move there).
+- **Scope:** the bootstrap and split commits in the new Livery repo, the ZettaTrade consumption switch, the docs notes; no product behavior changes.
+- **Acceptance:** the new repo's history reaches back through the split for Livery files (nothing lost at the splice); a clean ZettaTrade clone builds with zero in-tree Livery sources and the full test matrix stays green; the two-PR cross-repo path lands once as a rehearsal (a style tweak: the version-bumped PR in Livery, then the bump PR here).
+- **Tests:** the matrix over the consumption switch; the Livery suite in the new repo; the rehearsal change verified on both sides.
+
+## T-131 — Plugin SDK seam: versioned plugin abstractions for out-of-tree modules
+
+- **Branch:** queued 2026-11-06 (open-core prerequisite; Core contracts are the supervisor's lane per AGENTS — additive interfaces only).
+- **Origin:** plugin-first is the architecture since day one, yet no formally VERSIONED contract exists for modules compiled outside the solution; without one every core refactor breaks out-of-tree builds — the paid modules first of all — and the marketplace shape stays theoretical.
+- **What:** a contract surface `ZettaTrade.Plugins.Abstractions` — the plugin identity/manifest, the lifecycle via the `IAsyncInitializable` canon, DI registration entry points, the UI extension points (panel/toolbar/settings section registration), market-data and services access, and the trading-safety obligations (any order path inside a plugin passes `IRiskManager`/`IConfirmationService`, no exceptions); SemVer discipline declared with the governor note (a breaking release = a major bump + a pinned contract baseline test); the author guide `docs/PLUGINS.md` documents the contract, the rejected-not-defaulted error semantics and the platform rules (nothing writes to stdout except MCP protocol messages; logs go to files only).
+- **Scope:** the contract assembly, the loader wiring (one blessed path to register external assemblies), docs; NO proprietary code lands in the public repo — the surface stays MIT.
+- **Acceptance:** a sample MIT fixture plugin built out of the solution compiles against the published contract and loads through the loader with its panels registering; the matrix stays green with the sample present and absent.
+- **Tests:** loader contract tests (manifest parsing, duplicate ids, missing dependencies fail loudly), the end-to-end sample load golden, a public-API surface test pinning the contract baseline (accidental breaks fail CI).
+
+## T-132 — Closed-source plugin packaging: signed artifacts + local license-key activation
+
+- **Branch:** queued 2026-11-06 (licensing mechanics; cut in full only when the first paid module is actually chosen — until then it fixes the agreed skeleton). **Blocker:** T-131.
+- **Origin:** in the open-core split the closed modules live in private repos and ship as SIGNED artifacts; customer machines activate them with a license key validated locally — the entitlement flow must exist and behave identically everywhere before real money moves.
+- **What:** the private-repo convention fixed in docs: the name `zettatrade-plugin-<feature>`, a proprietary LICENSE + EULA file, CI building a signed NuGet/zip artifact whose version tracks the SDK version it builds against; the consumer-side activation: the license key entered once (a dialog or a file), LOCAL validation (an offline-signed key check — no phone-home required; an optional online revalidation may arrive later without touching the no-telemetry promise — validation logs to files only), and refused-not-defaulted semantics: invalid, expired, tampered or wrong-product keys REFUSE activation loudly and the plugin stays off; the EULA surfaces at first activation.
+- **Scope:** the key validation lib + the activation UI (resx en+ru), the packaging docs/templates for the private CI, `docs/LICENSES.md` describing the open-core split (MIT core vs proprietary modules) in a glance-readable form; the private repos themselves appear only per actual module.
+- **Acceptance:** a signed closed fixture activates with a valid key and is refused with an explicit error on invalid/expired/tampered/wrong-product keys; no network is required for validation; no proprietary artifact or wording lands in the public repo.
+- **Tests:** key crypto goldens (valid/expired/tampered/wrong-product/missing), the activation gate in UI, the refused-not-defaulted contract on every failure path, file-only logging for the validator.
