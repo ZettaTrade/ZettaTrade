@@ -77,6 +77,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-070 The localized Strings catalog returns to ZettaTrade.UI: per-app strings, not library ones (supervisor-direct) | feat/livery-resx | done | - |
 | T-071 Window chrome follow-ups: fix the black content pane + caption strip polish (user-reported) | feat/window-chrome-black | done | - |
 | T-072 Order book empty under Bybit: the facade resolves the displayed depth against the served one (user-reported) | feat/order-book-depth | done | - |
+| T-073 Flaky concurrency test: GetString_AFactoryParkedAcrossASwitch fails intermittently under load (queued from the T-071/T-072 landing) | — | queued | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -100,3 +101,12 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
+
+## T-073 — Flaky concurrency test: GetString_AFactoryParkedAcrossASwitch fails intermittently under parallel-suite load (queued from the T-071/T-072 landing)
+
+- **Branch:** queued 2026-11-06, no branch yet.
+- **Origin:** `LocalizationManagerTests.GetString_AFactoryParkedAcrossASwitch_ReturnsTheSnapshotCultureString` (the T-060/BUG-051 pin) failed twice during the T-071/T-072 landing verification — once inside the full parallel-solution run and once in a back-to-back solo rerun, both immediately after heavy builds — and passed every other time (solo ×7 including 3 runs at the pre-merge `1b9a717` base, full-suite ×1; both branch gates green). The failing assertion speaks the pre-BUG-051 symptom: the parked lookup returns a wrong-culture string.
+- **What:** root-cause the scheduling dependence — the parked `Task.Run` factory, the `SpinWait` hand-off and the timing under load — then either enclose the test from ambient/parallel interference (a dedicated collection, serialization) or harden the `GetString` snapshot path it exposes if the race proves real; re-verify against cold builds.
+- **Scope:** `tests/ZettaTrade.UI.Tests/Localization/LocalizationManagerTests.cs` (and the manager only if the race proves real, not just the test's timing).
+- **Acceptance:** the full matrix holds zero failures across consecutive runs (≥20, cold and warm), and the race explanation is written into the test header.
+- **Tests:** the flake repro (a load/stress harness around the parked factory if a deterministic repro distills from the timing).
