@@ -9,7 +9,7 @@ using ZettaTrade.App.ViewModels;
 /// <summary>
 /// Amend order dialog. Pure View: shows the amend inputs over the working
 /// order, and hands the parsed <see cref="OrderAmendRequest"/> back to the
-/// opener through <see cref="Result"/> (null when closed without an
+/// opener through <see cref="AmendEdits"/> (null when closed without an
 /// explicit amend — title bar X, the Cancel button, or unparsable input).
 /// Button clicks stay in code-behind on purpose: closing a window is View
 /// behavior, and the parse gate is the dialog's only logic.
@@ -27,7 +27,7 @@ public partial class AmendOrderDialogWindow : ReactiveWindow<AmendOrderDialogVie
     }
 
     /// <summary>The parsed amend request, or null when closed without an amendable input set.</summary>
-    public OrderAmendRequest? Result { get; private set; }
+    public OrderAmendRequest? AmendEdits { get; private set; }
 
     private void OnAmendClick(object? sender, RoutedEventArgs e)
     {
@@ -35,7 +35,7 @@ public partial class AmendOrderDialogWindow : ReactiveWindow<AmendOrderDialogVie
         // parsed edit set closes and hands the request to the opener.
         if (ViewModel?.TryBuildEdits() is { } edits)
         {
-            Result = edits;
+            AmendEdits = edits;
             Close();
         }
     }

@@ -69,7 +69,7 @@ public partial class PositionsPanelWindow : ReactiveWindow<PositionsPanelViewMod
             DataContext = viewModel,
         };
         await dialog.ShowDialog<object>(this);
-        return dialog.Result;
+        return dialog.AmendEdits;
     }
 
     private async Task HandleAmendRequestedAsync(IInteractionContext<Order, OrderAmendRequest?> context)
