@@ -86,7 +86,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | queued | - |
 | T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | queued | - |
 | T-081 Balances panel: per-exchange and aggregated | feat/balances | queued | - |
-| T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | queued | - |
+| T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | done | - |
 | T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | queued | T-082 (soft) |
 | T-084 CSV export: order history, fills, candles | feat/csv-export | queued | - |
 | T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | queued | - |
@@ -233,12 +233,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-082 — PnL engine: realized/unrealized accounting core
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/pnl-engine (base `develop` at `d6c5707`; queued 2026-11-06; developed 2026-11-06).
 - **Origin:** a headless accounting core is the prerequisite for stats (T-083) and honest fills; nothing exists.
 - **What:** average-price bookkeeping over the paper/fill ledger (reusing T-051-corrected fills), realized PnL per closing fill, unrealized from the latest price feed, fees in (T-080), a position-flip path; an `IObservable` state feed for the UI instead of polling; SQLite persistence for realized history (EF canon).
 - **Scope:** a domain service (Infrastructure + a small App-side feed), resx en+ru for any surfaced strings, tests.
 - **Acceptance:** determinism across restarts (reloading history reconstructs the same numbers).
 - **Tests:** average-price goldens, fee application, flip-mid-stream, persistence reload equality.
+- **Status:** done. Canon: the branch carries the dotnet-ef tool manifest (`4d6016f`), the accounting core + its realized-history SQLite store (`115abf4`), the App-side feed wrapper (`5ac7979`) and the test pins (`fd57067`), plus this release commit (the alpha.43 cut + this section's status flip); shipped as `0.1.0-alpha.43` (see CHANGELOG.md). The fee seam follows the FEES decision: the ledger carries no fee data, so commission enters only through an explicit per-fill parameter on the domain service API (absence ≡ zero, never fabricated) — T-080 plugs real fees in without Core changes; no Core interface or entity changes were needed. The unrealized side prices off the cheapest existing source — ticker subscriptions through the `ActiveExchangeService` facade — and the ledger re-sync rides a slow idempotent diff (the journal has no change notifications); the headless core ships without a UI panel (T-083+ consumes `PnlFeedService`). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-083 — Trade statistics dashboard: win rate, profit factor, equity curve
 
