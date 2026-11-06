@@ -19,7 +19,8 @@ namespace ZettaTrade.App.Views;
 /// showing windows is View behavior, and the deferred focus of the assistant
 /// input is a View concern too, so the ViewModel only raises
 /// <see cref="MenuViewModel.OpenSettingsRequested"/>,
-/// <see cref="MenuViewModel.NewOrderRequested"/>, … and
+/// <see cref="MenuViewModel.NewOrderRequested"/>,
+/// <see cref="MenuViewModel.ShowDisclaimerRequested"/>, … and
 /// <see cref="MenuViewModel.FocusAiChatRequested"/> (fired when the toggle
 /// shows the panel).
 /// </summary>
@@ -44,7 +45,9 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.NewOrderRequested.RegisterHandler(OpenNewOrderAsync);
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
+        ViewModel?.Menu.ShowBalancesRequested.RegisterHandler(OpenBalancesAsync);
         ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
+        ViewModel?.Menu.ShowDisclaimerRequested.RegisterHandler(OpenDisclaimerAsync);
 
         // The book panel lives for the whole window lifetime too: its level
         // presses feed a click stream that channels the prefill into the
@@ -66,6 +69,17 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
                 request => ViewModel!.Chart.RequestOlderBarsAsync(),
                 onError: ex => Log.Error(ex, "Chart older history request stream failed"));
         Closed += (_, _) => _olderHistoryRequests.Dispose();
+
+        // The chart view model is an application-lifetime singleton living
+        // for the whole window's stay, so — like the menu handlers above —
+        // its save-dialog registration is registered here without disposal:
+        // the candles export asks THIS window for the destination (picking a
+        // file is view behavior).
+        ViewModel?.Chart.SaveCandlesCsvRequested.RegisterHandler(async context =>
+        {
+            var path = await CsvSaveFilePicker.PickAsync(this, context.Input);
+            context.SetOutput(path);
+        });
     }
 
     /// <summary>Subscription of the book level click stream; disposed with the window.</summary>
@@ -165,6 +179,28 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         }
     }
 
+    private async Task OpenBalancesAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The panel view model is transient: every open re-queries the
+            // adapters, so a stale snapshot never rides into a new open.
+            var panel = new BalancesPanelWindow
+            {
+                DataContext = App.Services.GetRequiredService<ViewModels.BalancesPanelViewModel>(),
+            };
+            await panel.ShowDialog<object>(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the balances panel");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
     private async Task OpenOrderHistoryAsync(IInteractionContext<RxVoid, RxVoid> context)
     {
         try
@@ -180,6 +216,30 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the order history window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenDisclaimerAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The same dialog the first run shows: a fresh acknowledge write
+            // (the shipped version is idempotent there) or another look at
+            // the already-acknowledged wording.
+            var viewModel = App.Services.GetRequiredService<ViewModels.DisclaimerDialogViewModel>();
+            var dialog = new DisclaimerDialogWindow
+            {
+                DataContext = viewModel,
+            };
+            await dialog.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the disclaimer dialog");
         }
         finally
         {

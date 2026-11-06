@@ -55,6 +55,30 @@ public sealed class MenuViewModelTests
         handled.Should().Be(1);
     }
 
+    /// <summary>
+    /// The Help menu's disclaimer item routes through its interaction the
+    /// same way every dialog command does — the View hosts the window.
+    /// </summary>
+    [Fact]
+    public async Task ShowDisclaimerCommand_Executed_RoutesThroughShowDisclaimerInteraction()
+    {
+        // Arrange
+        var menu = new MenuViewModel(CreateChat());
+        var handled = 0;
+        menu.ShowDisclaimerRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref handled);
+            context.SetOutput(RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await menu.ShowDisclaimerCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(1);
+    }
+
     [Fact]
     public async Task ShowOrderHistoryCommand_Executed_RoutesThroughShowOrderHistoryInteraction()
     {
@@ -70,6 +94,26 @@ public sealed class MenuViewModelTests
 
         // Act
         await menu.ShowOrderHistoryCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ShowBalancesCommand_Executed_RoutesThroughShowBalancesInteraction()
+    {
+        // Arrange
+        var menu = new MenuViewModel(CreateChat());
+        var handled = 0;
+        menu.ShowBalancesRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref handled);
+            context.SetOutput(RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await menu.ShowBalancesCommand.Execute(RxVoid.Default);
 
         // Assert
         handled.Should().Be(1);

@@ -33,6 +33,7 @@ public sealed class WindowChromeTests
     {
         { "MainWindow", "chrome" },
         { "PositionsPanelWindow", "chrome" },
+        { "BalancesPanelWindow", "chrome" },
         { "OrderHistoryWindow", "chrome" },
         { "NewOrderDialogWindow", "chrome-compact" },
         { "ConfirmationDialogWindow", "chrome-compact" },

@@ -140,4 +140,27 @@ public static class UiSettingsKeys
     /// pairs the picker stops listing until the reveal toggle is on.
     /// </summary>
     public const string WorkspaceHiddenSymbols = "HiddenSymbols";
+
+    /// <summary>
+    /// Settings key of the persisted first-run disclaimer acknowledgment:
+    /// the disclaimer version (an int) the user's acknowledge covers — read
+    /// fresh at every launch with no cached copy, so an externally reset
+    /// settings file re-shows the dialog on the next run and the settings
+    /// hot-reload never fights the check.
+    /// </summary>
+    public const string DisclaimerVersion = "DisclaimerVersion";
+
+    /// <summary>
+    /// The disclaimer acknowledgment applied until a stored value is loaded:
+    /// none — a fresh install (or a reset file) has acknowledged no
+    /// disclaimer version yet, which is exactly the first-run state.
+    /// </summary>
+    public const int DefaultDisclaimerVersion = 0;
+
+    /// <summary>
+    /// Version of the disclaimer wording shipped by this build: bumped when
+    /// the disclaimer text changes, so every previously acknowledged install
+    /// re-shows the dialog exactly once per wording update.
+    /// </summary>
+    public const int DisclaimerCurrentVersion = 1;
 }
