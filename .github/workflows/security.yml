@@ -1,0 +1,42 @@
+# T-117 — secret scanner: gitleaks over git history on pushes and PRs.
+#
+# The official gitleaks action (gitleaks/gitleaks-action@v2) runs the scanner
+# on every pushed commit range and pull request and FAILS the job on any
+# finding (exit-code 2 -> job failure). `schedule` and `workflow_dispatch`
+# get the full-history mode: no --log-opts range is passed, so the whole
+# reachable history of the default branch is re-scanned.
+#
+# Config: gitleaks.toml at the repo root (extends the default ruleset; its
+# allowlist covers ONLY the explicitly named dummy test fixtures — see
+# docs/SECURITY.md for the audit record and the remediation policy).
+#
+# Operator note: if this repository is owned by a GitHub Organization, the
+# action requires the free GITLEAKS_LICENSE secret stored under that exact
+# name (obtained at gitleaks.io); personal accounts scan without a license.
+name: security
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *" # daily belt: full-history re-scan of all reachable commits
+  workflow_dispatch: # one-shot full-history audit on demand
+
+permissions:
+  contents: read
+  pull-requests: write # leak comments inline on PRs
+
+jobs:
+  gitleaks:
+    name: gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full clone so the scheduled/dispatch scans see all history
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: gitleaks.toml
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }} # org-owned repositories only; personal accounts ignore it
