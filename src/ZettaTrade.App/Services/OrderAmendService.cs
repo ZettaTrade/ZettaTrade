@@ -95,7 +95,7 @@ public sealed class OrderAmendService
     /// <summary>
     /// Amend a working order (T-075). The confirmation rule ("when is an
     /// amend large"): an amend confirms when the order has any fill in
-    /// progress (<c>FilledQuantity &gt; 0</c> — amending rewrites the
+    /// progress (<c>FilledQuantity > 0</c> — amending rewrites the
     /// remaining exposure of a live order), or when the notional moves
     /// beyond <see cref="LargeAmendDeltaPercent"/> of the original notional
     /// in either direction; the risk manager demanding a confirmation (its
