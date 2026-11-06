@@ -194,7 +194,7 @@ public sealed class CsvExportServiceTests
         // the first row stay whole on disk, the second never gets a torn
         // write past the cancellation point.
         using var cts = new CancellationTokenSource();
-        var orders = new CancelAfterNList(
+        var orders = new CancelAfterNList<Order>(
             [
                 BuildOrder("paper-1", OrderStatus.Submitted, BaseTime, null, 0m),
                 BuildOrder("paper-2", OrderStatus.Submitted, BaseTime, null, 0m),
@@ -297,7 +297,59 @@ public sealed class CsvExportServiceTests
         });
     }
 
+    [Fact]
+    public async Task ExportCandlesAsync_CancellationBetweenRows_KeepsOnlyWholeRows()
+    {
+        // The same between-rows discipline the orders carry, pinned on the
+        // candles surface too: the header and the first candle stay whole,
+        // the second is never torn past the cancellation point.
+        using var cts = new CancellationTokenSource();
+        IReadOnlyList<Bar> bars =
+        [
+            new(BaseTime, 100.5m, 110m, 99.9m, 105m, 12.34m),
+            new(BaseTime.AddHours(1), 105m, 120m, 104.44m, 119m, 0.005m),
+        ];
+        var lazyBars = new CancelAfterNList<Bar>(bars, cancelAfter: 1, cts);
+
+        await WithTempFileAsync(async path =>
+        {
+            await FluentActions.Awaiting(() => Service.ExportCandlesAsync(path, lazyBars, cts.Token))
+                .Should().ThrowAsync<OperationCanceledException>();
+
+            var lines = (await File.ReadAllLinesAsync(path)).Should().HaveCount(2).And.Subject.ToArray();
+            lines[0].Should().Be("timestamp,open,high,low,close,volume");
+            lines[1].Should().Be("2026-01-01T12:00:00.000Z,100.5,110,99.9,105,12.34");
+        });
+    }
+
     #endregion Candles
+
+    #region Format
+
+    [Fact]
+    public async Task ExportOrdersAsync_WritesUtf8WithoutTheBom()
+    {
+        await WithTempFileAsync(async path =>
+        {
+            var order = BuildOrder(
+                id: "paper-1",
+                status: OrderStatus.Submitted,
+                createdAt: BaseTime,
+                updatedAt: null,
+                filledQuantity: 0m);
+
+            await Service.ExportOrdersAsync(path, [order]);
+
+            // The first bytes must NOT spell the UTF-8 byte order mark:
+            // tool parsers stay byte-clean (RFC-following consumers never
+            // want a BOM).
+            var bytes = (await File.ReadAllBytesAsync(path)).Should().HaveCountGreaterThanOrEqualTo(3).And.Subject.ToArray();
+            (bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+                .Should().BeFalse("the file must not start with the UTF-8 BOM");
+        });
+    }
+
+    #endregion Format
 
     #region Helpers
 
@@ -340,18 +392,18 @@ public sealed class CsvExportServiceTests
     };
 
     /// <summary>
-    /// An order list that cancels the given token once the given number of
+    /// An item list that cancels the given token once the given number of
     /// items was read: the writer's between-rows cancellation point fires
-    /// mid-enumeration, like a real cancel racing a long journal export.
+    /// mid-enumeration, like a real cancel racing a long export.
     /// </summary>
-    private sealed class CancelAfterNList(
-        IReadOnlyList<Order> items,
+    private sealed class CancelAfterNList<T>(
+        IReadOnlyList<T> items,
         int cancelAfter,
-        CancellationTokenSource cts) : IReadOnlyList<Order>
+        CancellationTokenSource cts) : IReadOnlyList<T>
     {
         public int Count => items.Count;
 
-        public IEnumerator<Order> GetEnumerator()
+        public IEnumerator<T> GetEnumerator()
         {
             for (var i = 0; i < items.Count; i++)
             {
@@ -370,7 +422,7 @@ public sealed class CsvExportServiceTests
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        public Order this[int index] => throw new NotSupportedException("The export enumerates the list.");
+        public T this[int index] => throw new NotSupportedException("The export enumerates the list.");
     }
 
     /// <summary>Swaps the process culture for the scope's duration (restores it after).</summary>
