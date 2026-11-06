@@ -839,12 +839,12 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         OrderSide side,
         OrderType type,
         decimal quantity) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = type,
-        Quantity = new Quantity(quantity),
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = type,
+            Quantity = new Quantity(quantity),
+        };
 
     /// <summary>A limit-order request: the limit price is part of the shape.</summary>
     private static OrderRequest LimitRequest(
@@ -852,13 +852,13 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         OrderSide side,
         decimal quantity,
         Price limit) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = OrderType.Limit,
-        Quantity = new Quantity(quantity),
-        Price = limit,
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(quantity),
+            Price = limit,
+        };
 
     /// <summary>A stop-limit request: the trigger arms it, the limit protects it.</summary>
     private static OrderRequest StopLimitRequest(
@@ -867,14 +867,14 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         decimal quantity,
         Price trigger,
         Price limit) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = OrderType.StopLimit,
-        Quantity = new Quantity(quantity),
-        Price = limit,
-        StopPrice = trigger,
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.StopLimit,
+            Quantity = new Quantity(quantity),
+            Price = limit,
+            StopPrice = trigger,
+        };
 
     /// <summary>A trailing-stop request: the trigger seed arms it, the distance drags it.</summary>
     private static OrderRequest TrailingStopRequest(
@@ -883,14 +883,14 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         decimal quantity,
         Price seed,
         decimal trail) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = OrderType.TrailingStop,
-        Quantity = new Quantity(quantity),
-        StopPrice = seed,
-        TrailDistance = new Price(trail),
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.TrailingStop,
+            Quantity = new Quantity(quantity),
+            StopPrice = seed,
+            TrailDistance = new Price(trail),
+        };
 
     /// <summary>The take-profit limit request of an OCO pair (the group id shared).</summary>
     private static OrderRequest OcoLimitLeg(
@@ -899,14 +899,14 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         decimal quantity,
         Price takeProfit,
         string ocoGroupId) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = OrderType.Limit,
-        Quantity = new Quantity(quantity),
-        Price = takeProfit,
-        OcoGroupId = ocoGroupId,
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(quantity),
+            Price = takeProfit,
+            OcoGroupId = ocoGroupId,
+        };
 
     /// <summary>The stop-loss stop-limit request of an OCO pair (the group id shared).</summary>
     private static OrderRequest OcoStopLimitLeg(
@@ -916,15 +916,15 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         Price trigger,
         Price limit,
         string ocoGroupId) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = OrderType.StopLimit,
-        Quantity = new Quantity(quantity),
-        Price = limit,
-        StopPrice = trigger,
-        OcoGroupId = ocoGroupId,
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.StopLimit,
+            Quantity = new Quantity(quantity),
+            Price = limit,
+            StopPrice = trigger,
+            OcoGroupId = ocoGroupId,
+        };
 
     /// <summary>The limit-order parse: a required, positive invariant-culture limit price.</summary>
     private RequestBuild BuildLimitCore(Symbol symbol, OrderSide side, decimal quantity)
