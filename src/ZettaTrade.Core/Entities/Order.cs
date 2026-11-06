@@ -50,6 +50,21 @@ public sealed record Order
     /// <summary>Stop price (for stop orders).</summary>
     public Price? StopPrice { get; init; }
 
+    /// <summary>
+    /// Trailing distance (for TrailingStop orders): how far the market may
+    /// retrace from the favorable extreme before the stop triggers.
+    /// Null for every other order type.
+    /// </summary>
+    public Price? TrailDistance { get; init; }
+
+    /// <summary>
+    /// OCO (one-cancels-the-other) group identifier: orders sharing a
+    /// non-empty id form an either-or group — the first leg that fills or
+    /// is cancelled takes the remaining legs down with it. Null for
+    /// standalone orders.
+    /// </summary>
+    public string? OcoGroupId { get; init; }
+
     /// <summary>Exchange-assigned order identifier.</summary>
     public string? ExchangeOrderId { get; init; }
 
