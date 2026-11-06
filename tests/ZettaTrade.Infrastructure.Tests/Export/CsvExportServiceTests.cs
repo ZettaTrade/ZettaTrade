@@ -376,20 +376,20 @@ public sealed class CsvExportServiceTests
         decimal filledQuantity,
         decimal price = 50_100m,
         decimal quantity = 0.02m) => new()
-    {
-        Id = id,
-        ExchangeId = "paper",
-        Symbol = Symbol.Parse("BTC/USDT"),
-        Side = OrderSide.Sell,
-        Type = OrderType.Market,
-        Quantity = new Quantity(quantity),
-        Price = new Price(price),
-        Status = status,
-        TimeInForce = TimeInForce.GTC,
-        CreatedAt = createdAt,
-        UpdatedAt = updatedAt,
-        FilledQuantity = new Quantity(filledQuantity),
-    };
+        {
+            Id = id,
+            ExchangeId = "paper",
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Sell,
+            Type = OrderType.Market,
+            Quantity = new Quantity(quantity),
+            Price = new Price(price),
+            Status = status,
+            TimeInForce = TimeInForce.GTC,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+            FilledQuantity = new Quantity(filledQuantity),
+        };
 
     /// <summary>
     /// An item list that cancels the given token once the given number of

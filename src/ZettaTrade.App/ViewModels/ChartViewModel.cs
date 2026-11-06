@@ -3,12 +3,11 @@ namespace ZettaTrade.App.ViewModels;
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using Livery.Localization;
 using Livery.Contracts;
 using Livery.Extensions;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
-using RxVoid = ReactiveUI.Primitives.RxVoid;
 using ZettaTrade.App.Services;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
@@ -16,6 +15,7 @@ using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
 /// Chart panel state: the available symbols list, the selected symbol and the
