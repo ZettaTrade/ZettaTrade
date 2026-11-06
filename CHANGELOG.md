@@ -9,6 +9,26 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.45] - 2026-11-06
+
+Build of board task T-083 (branch `feat/trade-stats`).
+
+### Added
+- Trade statistics dashboard (Trading → «Trade Statistics...»). A
+  read-only scan of the persisted order journal builds the stats from raw
+  fills only: every closing fill counts as its own trade against the
+  average-entry bookkeeping — win rate, profit factor («∞» when no
+  losing fills, «—» when nothing to divide), maximum drawdown over the
+  equity curve including its zero-seeded start, average winner and
+  average loser, trade count and filled volume — all shown as metric
+  tiles over a Skia equity curve (zero anchor at the first fill, one
+  point per closing fill). Filters (symbol, exchange id, venue
+  all/paper/live, inclusive-from / exclusive-to dates) restart a paged
+  keyset scan ((CreatedAt, ExchangeId, OrderId) continuation) that
+  refines the result progressively; the read query lives in
+  Infrastructure Persistence with no write path and the aggregation math
+  in the App accumulator service. Fully localized en+ru.
+
 ## [0.1.0-alpha.40] - 2026-11-06
 
 Build of board task T-119 (branch `feat/first-run-disclaimer`).

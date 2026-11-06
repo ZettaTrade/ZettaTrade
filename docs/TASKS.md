@@ -87,7 +87,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | queued | - |
 | T-081 Balances panel: per-exchange and aggregated | feat/balances | queued | - |
 | T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | queued | - |
-| T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | queued | T-082 (soft) |
+| T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | done | T-082 (soft) |
 | T-084 CSV export: order history, fills, candles | feat/csv-export | queued | - |
 | T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | queued | - |
 | T-086 Deep-history backfill and gap repair | feat/backfill | queued | T-085 |
@@ -251,6 +251,7 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a stats VM + window, Skia chart renderer, resx en+ru, tests. Soft-depends on T-082 (realized series) but works on raw fills alone.
 - **Acceptance:** stays responsive on six-figure histories (paged queries, no first-load wall).
 - **Tests:** aggregation goldens on seeded history, empty state, paging.
+- **Status:** done. Canon: the branch carries `67fa450` — the raw-fill-only read stack in full: the read-only paged keyset query over the journal (`IOrderStatsQuery` + the SQLite implementation in Infrastructure Persistence, (CreatedAt, ExchangeId, OrderId) continuation, inclusive-from/exclusive-to bounds, the bounded page clamp, the paper-live tag matched on the paper adapter id), the fill-pair accumulator with the average-entry bookkeeping (a partial close never re-averages the remainder, a flip stamps its fresh position at its own fill — the paper ledger rules BUG-005/BUG-034 shared; breakeven closes count as trades but never decide the win rate; the profit factor without a single loss is unbounded-null and the tile renders it honestly), the metric-tile window with filters (symbol, exchange id, venue all/paper/live, from/to dates) publishing one refined snapshot per 2000-row page (no first-load wall) and the Skia equity renderer on the candlestick draw canon (snapshot + custom draw operation, zero anchor at the scope's first fill, theme/language re-ink); the same commit carries the en+ru resx, the Trading menu entry and the one-line DI registration after `AddHistoryUiServices`. `e066ac5` pins it all: accumulator goldens (winning round trip, mixed ±, partial close, 3-trade flip, breakeven, parallel symbols, the zero/partial/mixed-status guardians, page-by-page ≡ batch), the SQLite query walk (ascending with the same-timestamp tie straddling a page boundary without skipping, symbol/exchange/date/venue filters, the clamp) and the VM scan (anchor null → last row, short-page exhaust, the honest zero/dash baseline, re-scoping filters, an unparsable symbol that never touches the store). No Core changes and no T-082 dependency — realized stats ride raw paper fills alone. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file); shipped as `0.1.0-alpha.45` (see CHANGELOG.md). This board-flip commit closes the section.
 
 ## T-084 — CSV export: order history, fills, candles
 
