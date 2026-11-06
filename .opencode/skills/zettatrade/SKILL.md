@@ -21,6 +21,15 @@ Stack: .NET 10, C# 13, Avalonia UI 12, ReactiveUI.Avalonia 12.1, SkiaSharp, EF C
 7. Finish every task with an English conventional-commit message (feat:, fix:, refactor:, docs:), 2-4 lines.
 8. At most 2 review rounds per task, then escalate to the human.
 9. Reason in English and answer in Russian (token economy): internal thinking, plans and scratch notes are English; user-facing replies are Russian. Everything shipped in the repo stays English (see Localization).
+10. Shared `develop` receives landings from several agent sessions concurrently: before ANY touch of `develop`, `git fetch origin` and verify the top has not moved (`git rev-list --left-right --count origin/develop...develop`); on an unexpected shift, rebase your local commits onto `origin/develop` preserving the landed content — never stack onto a stale top. Claim task numbers (`T-0NN`) only off the synced board; keep docs commits land-friendly (unique tail anchors). Full canon: `ZettaTrade_SKILL.md` -> Multi-Agent Repository Sync.
+
+## Orchestrator: multi-agent waves (orchestrator/supervisor sessions)
+- One board task per subagent session, no idle capacity: re-assign a finished or parked session the next suitable board task immediately — the rulebook is already in its context.
+- Size each wave by the conflict surface (`CompositionRoot.cs` lines, resx tails, board rows/sections, `Directory.Build.props` + `CHANGELOG.md` heads); pre-assign every task its own `alpha.N` in board canonical order.
+- Self-contained subagent prompts: own worktree via `scripts/new-worktree.ps1 -Name <name> -Base develop`, resx en+ru duty, own board flip, gate bar (`GATE PASSED`; `-AllowProtected` only for the protected files the task legitimately owns).
+- On a subagent crash: inspect its worktree first (`git log` + `git status`), resume the SAME sessionID with a short continuation prompt; a fresh session only when the resume is impossible.
+- Verify before merging: re-run the gate and review the subagent's diff in its worktree, land through the sync rules, then remove the worktree and the branch.
+- Full canon: `ZettaTrade_SKILL.md` -> Multi-Agent Subagent Utilization.
 
 ## Shared files (conflict hotspots)
 - `ZettaTrade.Core/Interfaces/*`: supervisor only. Keep public interfaces backward compatible.

@@ -35,7 +35,10 @@ public sealed class OrderConfirmationComposer
     /// <summary>
     /// Confirmation summary shown before an order is placed: the same
     /// argument order as the MCP trading tools — side, type, quantity,
-    /// symbol, price (or the market-price label for market orders).
+    /// symbol, price. The price argument is the anchor the order commits
+    /// to: its limit price when it has one, else its stop trigger (stop
+    /// orders summarize at the level whose crossing converts them into an
+    /// executable commitment, T-074), else the market-price label.
     /// </summary>
     public ConfirmationRequest ForPlace(OrderRequest request)
     {
@@ -43,7 +46,8 @@ public sealed class OrderConfirmationComposer
 
         var sideText = _localization.GetString($"Order.{request.Side}");
         var typeText = _localization.GetString($"Order.{request.Type}");
-        var priceText = request.Price is { } price
+        var anchor = request.Price ?? request.StopPrice;
+        var priceText = anchor is { } price
             ? price.Value.ToString("F8", CultureInfo.InvariantCulture)
             : _localization.GetString(MarketLabelKey);
 

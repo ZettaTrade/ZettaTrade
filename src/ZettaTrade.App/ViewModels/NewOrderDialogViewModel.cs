@@ -1,5 +1,6 @@
 namespace ZettaTrade.App.ViewModels;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reactive.Disposables;
 using Livery.Localization;
@@ -14,11 +15,14 @@ using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
-/// New Order dialog view model. Collects the order inputs, and routes the
-/// request through the mandatory pipeline: <c>OrderRequest.Validate</c> →
-/// <see cref="IRiskManager"/> (rejection stops here and never opens the
-/// confirmation dialog) → <see cref="IConfirmationService"/> →
-/// <see cref="ITradingAdapter.PlaceOrderAsync"/>. Window plumbing (close on
+/// New Order dialog view model. Collects the order inputs (market, limit,
+/// stop-limit, trailing stop orders and OCO pairs placed as two either-or
+/// legs) and routes every request through the mandatory pipeline:
+/// <c>OrderRequest.Validate</c> → <see cref="IRiskManager"/> (rejection stops
+/// here and never opens the confirmation dialog) →
+/// <see cref="IConfirmationService"/> → <see cref="ITradingAdapter"/>. A
+/// partially-placed OCO pair is aborted best-effort — the placed leg is
+/// cancelled, the pair never goes half-working. Window plumbing (close on
 /// success or on Cancel) stays in the View via <see cref="CloseRequested"/>.
 /// The header names the active exchange: the behavioral facade stream
 /// bootstraps <see cref="ActiveExchangeName"/> on subscribe and keeps it
@@ -37,9 +41,21 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private const string QuantityNotANumberKey = "NewOrder.QuantityNotANumber";
     private const string PriceRequiredKey = "NewOrder.PriceRequired";
     private const string PriceNotANumberKey = "NewOrder.PriceNotANumber";
+    private const string TriggerRequiredKey = "NewOrder.TriggerRequired";
+    private const string TriggerNotANumberKey = "NewOrder.TriggerNotANumber";
+    private const string TrailRequiredKey = "NewOrder.TrailRequired";
+    private const string TrailNotANumberKey = "NewOrder.TrailNotANumber";
+    private const string TrailTooLargeKey = "NewOrder.TrailTooLarge";
+    private const string SellTriggerBelowMarketKey = "NewOrder.SellTriggerMustBeBelowMarket";
+    private const string BuyTriggerAboveMarketKey = "NewOrder.BuyTriggerMustBeAboveMarket";
+    private const string SellLimitAboveMarketKey = "NewOrder.SellLimitMustBeAboveMarket";
+    private const string BuyLimitBelowMarketKey = "NewOrder.BuyLimitMustBeBelowMarket";
+    private const string InvalidParametersKey = "NewOrder.InvalidParameters";
     private const string PlaceFailedKey = "NewOrder.PlaceFailed";
     private const string OrderRejectedKey = "NewOrder.OrderRejected";
     private const string OrderPlacedKey = "NewOrder.OrderPlaced";
+    private const string OcoPlacedKey = "NewOrder.OcoPlaced";
+    private const string OcoAbortedKey = "NewOrder.OcoAborted";
 
     #endregion Resx Keys
 
@@ -49,6 +65,19 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// money-like shape the book widget prints (two forced digits, trailing
     /// zeros beyond that trimmed) so a clicked level reads back exactly.</summary>
     private const string PrefillPriceFormat = "0.00########";
+
+    /// <summary>
+    /// Combo index of the OCO entry: one-cancels-the-other is a PAIR of
+    /// orders (a take-profit limit and a stop-loss stop-limit sharing an
+    /// either-or group) rather than an <see cref="OrderType"/>, so the
+    /// combo selection for it is a dialog mode that maps onto two
+    /// placements, and the direct index-to-enum cast of the pre-T-074
+    /// dialog is unsafe from here on (index 4 aliases TrailingStop).
+    /// </summary>
+    private const int OcoTypeIndex = 4;
+
+    /// <summary>Prefix of the either-or group id the OCO legs share.</summary>
+    private const string OcoGroupIdPrefix = "oco-";
 
     #endregion Constants
 
@@ -64,6 +93,15 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private readonly IOrderHistoryStore _orderHistory;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<NewOrderDialogViewModel> _logger;
+
+    /// <summary>
+    /// Combo index → order type for every single-order selection; the OCO
+    /// slot (index <see cref="OcoTypeIndex"/>) is decided by the pair
+    /// builder instead (it places a take-profit limit and a stop-loss
+    /// stop-limit). Never cast the index to <see cref="OrderType"/> directly.
+    /// </summary>
+    private static readonly OrderType[] TypeValues =
+        [OrderType.Market, OrderType.Limit, OrderType.StopLimit, OrderType.TrailingStop, OrderType.Limit];
 
     /// <summary>Serializes the placement pipeline; re-entrancy is an error state.</summary>
     private bool _placing;
@@ -92,6 +130,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private string _symbolInput = string.Empty;
     private string _quantityInput = string.Empty;
     private string _priceInput = string.Empty;
+    private string _stopTriggerInput = string.Empty;
+    private string _trailDistanceInput = string.Empty;
+    private string _ocoStopLimitInput = string.Empty;
     private int _selectedSideIndex;
     private int _selectedTypeIndex;
     private string? _errorMessage;
@@ -138,11 +179,36 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         set => this.RaiseAndSetIfChanged(ref _quantityInput, value);
     }
 
-    /// <summary>Limit price text, parsed with the invariant culture.</summary>
+    /// <summary>Limit price text, parsed with the invariant culture. For the
+    /// OCO mode this is the take-profit leg's limit price.</summary>
     public string PriceInput
     {
         get => _priceInput;
         set => this.RaiseAndSetIfChanged(ref _priceInput, value);
+    }
+
+    /// <summary>Stop trigger text, parsed with the invariant culture. The
+    /// stop-limit's own trigger; in the OCO mode the stop-loss leg's
+    /// trigger.</summary>
+    public string StopTriggerInput
+    {
+        get => _stopTriggerInput;
+        set => this.RaiseAndSetIfChanged(ref _stopTriggerInput, value);
+    }
+
+    /// <summary>Trailing distance text, parsed with the invariant culture.</summary>
+    public string TrailDistanceInput
+    {
+        get => _trailDistanceInput;
+        set => this.RaiseAndSetIfChanged(ref _trailDistanceInput, value);
+    }
+
+    /// <summary>Stop-loss limit price text of the OCO pair's stop leg,
+    /// parsed with the invariant culture.</summary>
+    public string OcoStopLimitInput
+    {
+        get => _ocoStopLimitInput;
+        set => this.RaiseAndSetIfChanged(ref _ocoStopLimitInput, value);
     }
 
     /// <summary>Side combo box index (matches the <see cref="OrderSide"/> values).</summary>
@@ -153,8 +219,11 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     }
 
     /// <summary>
-    /// Type combo box index (0 = Market, 1 = Limit — the only T-008 types).
-    /// Raises <see cref="IsPriceRequired"/> so the price field follows the type.
+    /// Type combo box index: 0 = Market, 1 = Limit, 2 = StopLimit, 3 =
+    /// TrailingStop, 4 = the OCO pair mode (a UI mode, NOT an
+    /// <see cref="OrderType"/> — the legs it maps to are a limit and a
+    /// stop-limit sharing an either-or group). Raises every visibility the
+    /// input rows follow.
     /// </summary>
     public int SelectedTypeIndex
     {
@@ -169,11 +238,39 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             _selectedTypeIndex = value;
             this.RaisePropertyChanged(nameof(SelectedTypeIndex));
             this.RaisePropertyChanged(nameof(IsPriceRequired));
+            this.RaisePropertyChanged(nameof(IsTriggerVisible));
+            this.RaisePropertyChanged(nameof(IsTrailVisible));
+            this.RaisePropertyChanged(nameof(IsOcoMode));
+            this.RaisePropertyChanged(nameof(IsOcoStopLimitVisible));
         }
     }
 
-    /// <summary>True when the selected order type carries an explicit limit price.</summary>
-    public bool IsPriceRequired => (OrderType)_selectedTypeIndex == OrderType.Limit;
+    /// <summary>The order type the combo selection maps to; null in the OCO mode (the pair builder decides the leg types).</summary>
+    private OrderType? SelectedType =>
+        _selectedTypeIndex >= 0 && _selectedTypeIndex < TypeValues.Length
+            && _selectedTypeIndex != OcoTypeIndex
+            ? TypeValues[_selectedTypeIndex]
+            : null;
+
+    /// <summary>True when the selection carries an explicit limit price:
+    /// limit, stop-limit orders, and the OCO mode (its take-profit leg).</summary>
+    public bool IsPriceRequired => SelectedType is OrderType.Limit or OrderType.StopLimit || IsOcoMode;
+
+    /// <summary>True when the stop trigger row applies: the stop-limit order
+    /// and the OCO mode (whose stop leg carries the trigger).</summary>
+    public bool IsTriggerVisible => SelectedType == OrderType.StopLimit || IsOcoMode;
+
+    /// <summary>True when the trailing-distance row applies.</summary>
+    public bool IsTrailVisible => SelectedType == OrderType.TrailingStop;
+
+    /// <summary>True when the type combo selects the one-cancels-the-other
+    /// PAIR mode (a take-profit limit and a stop-loss stop-limit placed
+    /// together).</summary>
+    public bool IsOcoMode => _selectedTypeIndex == OcoTypeIndex;
+
+    /// <summary>True when the stop-loss leg's limit price row applies
+    /// (the OCO mode only).</summary>
+    public bool IsOcoStopLimitVisible => IsOcoMode;
 
     /// <summary>Last flow error (parse failure, risk rejection, adapter failure).</summary>
     public string? ErrorMessage
@@ -473,54 +570,69 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         ErrorMessage = null;
         ResultMessage = null;
 
-        if (!TryBuildRequest(out var request, out var parseError))
+        // The conditional types ride a market reference rate fetched during
+        // the build, so even the build can fail over the network — the same
+        // localized-error-line treatment as a failed placement, never an
+        // escape into the unobserved ReactiveCommand.ThrownExceptions.
+        RequestBuild build;
+        try
         {
-            ErrorMessage = parseError;
+            build = await BuildRequestsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Order dialog: building the order requests failed");
+            ErrorMessage = _localization.GetString(PlaceFailedKey, ex.Message);
+            return;
+        }
+
+        if (build.Failed)
+        {
+            ErrorMessage = build.Error;
             return;
         }
 
         _placing = true;
+        var placed = new List<Order>();
         try
         {
-            request.Validate();
-
-            var risk = await _riskManager.CheckOrderAsync(request);
-            if (!risk.IsApproved)
+            foreach (var request in build.Requests)
             {
-                _logger.LogWarning(
-                    "Order dialog: risk manager rejected {Side} {Quantity} {Symbol}: {Reason}",
-                    request.Side, request.Quantity.Value, request.Symbol.Normalized, risk.Reason);
-                ErrorMessage = _localization.GetString(OrderRejectedKey, risk.Reason ?? string.Empty);
+                var order = await PlaceSingleAsync(request);
+                if (order is null)
+                {
+                    // A null result already reported itself (risk rejection,
+                    // invalid parameters) or is the silently-stopped user
+                    // confirmation path; either way no further leg runs.
+                    break;
+                }
+
+                placed.Add(order);
+            }
+
+            if (placed.Count < build.Requests.Count)
+            {
+                // An incomplete OCO pair must not leave its placed half
+                // working: the either-or contract is either whole or absent.
+                await CancelPlacedLegsAsync(placed);
+                if (build.Requests.Count > 1)
+                {
+                    // A single aborted placement stays silent on the
+                    // user-cancelled path (the reported rejection remains
+                    // otherwise); the pair abort always names itself.
+                    ErrorMessage ??= _localization.GetString(OcoAbortedKey);
+                }
+
                 return;
             }
 
-            var confirmed = await _confirmation.RequestConfirmationAsync(_composer.ForPlace(request));
-            if (!confirmed)
-            {
-                _logger.LogInformation("Order dialog: user cancelled the confirmation; nothing placed");
-                return;
-            }
-
-            var order = await _trading.PlaceOrderAsync(request);
-            _orderJournal.RecordPlaced(order);
-
-            // Persist the placed order into the SQLite journal. Best effort:
-            // the adapter accepted the order already, so a persistence fault
-            // must never turn a successful placement into a dialog error.
-            try
-            {
-                await _orderHistory.RecordPlacedAsync(order);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Order dialog: failed to persist {OrderId} to the order history",
-                    order.Id);
-            }
-
-            ResultMessage = _localization.GetString(OrderPlacedKey, order.Id);
-            _logger.LogInformation("Order dialog: placed {OrderId} ({Status})", order.Id, order.Status);
+            ResultMessage = build.Requests.Count == 1
+                ? _localization.GetString(OrderPlacedKey, placed[0].Id)
+                : _localization.GetString(OcoPlacedKey, placed[0].Id, placed[1].Id);
+            _logger.LogInformation(
+                "Order dialog: placed {OrderId} ({Status})",
+                placed[0].Id,
+                placed[0].Status);
 
             await CloseRequested.Handle(RxVoid.Default);
         }
@@ -535,7 +647,12 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             // ReactiveCommand.ThrownExceptions — an order silently not
             // placed, no message, no journal entry (BUG-017).
             _logger.LogError(ex, "Order dialog: placement failed");
-            ErrorMessage = _localization.GetString(PlaceFailedKey, ex.Message);
+
+            var single = build.Requests.Count == 1;
+            await CancelPlacedLegsAsync(single ? [] : placed);
+            ErrorMessage = single
+                ? _localization.GetString(PlaceFailedKey, ex.Message)
+                : _localization.GetString(OcoAbortedKey);
         }
         finally
         {
@@ -544,20 +661,127 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     }
 
     /// <summary>
-    /// Parse the dialog inputs into an <see cref="OrderRequest"/>. Every
-    /// unparsable value becomes a localized error — never a defaulted number
-    /// (the trading-safety rule: no silent substitution).
+    /// Validate → risk → confirmation → placement of ONE order request, plus
+    /// its journal and history records. Returns the placed order, or null
+    /// when the pipeline stopped before a placement (rule rejection,
+    /// unparsable parameters, or the user cancelling the confirmation dialog);
+    /// a rejected attempt reports through <see cref="ErrorMessage"/> and keeps
+    /// the dialog open.
     /// </summary>
-    private bool TryBuildRequest(out OrderRequest request, out string? error)
+    private async Task<Order?> PlaceSingleAsync(OrderRequest request)
     {
-        request = null!;
-        error = null;
+        try
+        {
+            // The intrinsic request matrix runs here ahead of any other gate:
+            // the final shape guard an unparsable request cannot slip past.
+            request.Validate();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Order dialog: the built request is invalid and was never sent to a gate");
+            ErrorMessage = _localization.GetString(InvalidParametersKey, ex.Message);
+            return null;
+        }
 
+        var risk = await _riskManager.CheckOrderAsync(request);
+        if (!risk.IsApproved)
+        {
+            _logger.LogWarning(
+                "Order dialog: risk manager rejected {Side} {Quantity} {Symbol}: {Reason}",
+                request.Side, request.Quantity.Value, request.Symbol.Normalized, risk.Reason);
+            ErrorMessage = _localization.GetString(OrderRejectedKey, risk.Reason ?? string.Empty);
+            return null;
+        }
+
+        var confirmed = await _confirmation.RequestConfirmationAsync(_composer.ForPlace(request));
+        if (!confirmed)
+        {
+            _logger.LogInformation("Order dialog: user cancelled the confirmation; nothing placed");
+            return null;
+        }
+
+        var order = await _trading.PlaceOrderAsync(request);
+        _orderJournal.RecordPlaced(order);
+
+        // Persist the placed order into the SQLite journal. Best effort:
+        // the adapter accepted the order already, so a persistence fault
+        // must never turn a successful placement into a dialog error.
+        try
+        {
+            await _orderHistory.RecordPlacedAsync(order);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Order dialog: failed to persist {OrderId} to the order history",
+                order.Id);
+        }
+
+        _logger.LogInformation("Order dialog: placed {OrderId} ({Status})", order.Id, order.Status);
+        return order;
+    }
+
+    /// <summary>
+    /// Best-effort teardown of the legs a placement attempt already put on
+    /// the surface while its partner leg refused: each cancel runs detached
+    /// from the failure path (a refusing cancel logs, never masks the
+    /// original failure), so no half pair stays working.
+    /// </summary>
+    private async Task CancelPlacedLegsAsync(IReadOnlyList<Order> placed)
+    {
+        foreach (var order in placed)
+        {
+            try
+            {
+                await _trading.CancelOrderAsync(order.Symbol, order.Id);
+                _logger.LogInformation(
+                    "Order dialog: cancelled {OrderId} while aborting the incomplete OCO pair",
+                    order.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Order dialog: failed to cancel {OrderId} while aborting the incomplete OCO pair",
+                    order.Id);
+            }
+        }
+    }
+
+    /// <summary>Whether an order-building attempt produced requests at all.</summary>
+    /// <param name="Requests">The built requests, empty on a failed attempt.</param>
+    /// <param name="Error">The localized build error of a failed attempt.</param>
+    private sealed record RequestBuild(IReadOnlyList<OrderRequest> Requests, string? Error)
+    {
+        /// <summary>True when the inputs failed to build requests.</summary>
+        public bool Failed => Error is not null;
+
+        /// <summary>A successful attempt over the given requests.</summary>
+        public static RequestBuild Ok(IReadOnlyList<OrderRequest> requests) => new(requests, null);
+
+        /// <summary>A failed attempt with its localized error.</summary>
+        public static RequestBuild Fail(string error) => new([], error);
+    }
+
+    /// <summary>
+    /// Parse the dialog inputs into the order requests: ONE request for every
+    /// single type, TWO either-or legs in the OCO mode (a take-profit limit
+    /// and a stop-loss stop-limit sharing a fresh group id). Conditional
+    /// shapes resolve a market reference rate first: the trailing stop derives
+    /// its trigger seed from it, every stop trigger and take-profit level is
+    /// checked against the market direction it must sit at. Every unparsable
+    /// or market-inverted parameter is a localized error — never a defaulted
+    /// number (the trading-safety rule: no silent substitution).
+    /// </summary>
+    private async Task<RequestBuild> BuildRequestsAsync()
+    {
         var rawSymbol = SymbolInput.Trim();
         if (rawSymbol.Length == 0)
         {
-            error = _localization.GetString(SymbolMissingKey);
-            return false;
+            return RequestBuild.Fail(_localization.GetString(SymbolMissingKey));
         }
 
         Symbol symbol;
@@ -567,56 +791,350 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         }
         catch (ArgumentException)
         {
-            error = _localization.GetString(SymbolInvalidKey, rawSymbol);
-            return false;
+            return RequestBuild.Fail(_localization.GetString(SymbolInvalidKey, rawSymbol));
         }
 
         // Empty (or whitespace) means MISSING, not unparsable: "not a
         // number" with a blank argument would dangle. The display argument
         // is trimmed so the message never shows padding.
-        var rawQuantity = QuantityInput.Trim();
-        if (rawQuantity.Length == 0)
+        if (!TryParsePositiveDecimal(
+                QuantityInput,
+                QuantityRequiredKey,
+                QuantityNotANumberKey,
+                out var quantity,
+                out var quantityError))
         {
-            error = _localization.GetString(QuantityRequiredKey);
-            return false;
+            return RequestBuild.Fail(quantityError);
         }
 
-        if (!decimal.TryParse(rawQuantity, NumberStyles.Number, CultureInfo.InvariantCulture, out var quantity)
-            || quantity <= 0)
+        var side = (OrderSide)SelectedSideIndex;
+        var typeIndex = SelectedTypeIndex;
+        if (typeIndex == OcoTypeIndex)
         {
-            error = _localization.GetString(QuantityNotANumberKey, rawQuantity);
-            return false;
+            return await BuildOcoPairAsync(symbol, side, quantity);
         }
 
-        var type = (OrderType)SelectedTypeIndex;
-        Price? limitPrice = null;
-        if (type == OrderType.Limit)
+        if (typeIndex < 0 || typeIndex >= TypeValues.Length)
         {
-            var rawPrice = PriceInput.Trim();
-            if (rawPrice.Length == 0)
-            {
-                error = _localization.GetString(PriceRequiredKey);
-                return false;
-            }
-
-            if (!decimal.TryParse(rawPrice, NumberStyles.Number, CultureInfo.InvariantCulture, out var price)
-                || price <= 0)
-            {
-                error = _localization.GetString(PriceNotANumberKey, rawPrice);
-                return false;
-            }
-
-            limitPrice = new Price(price);
+            return RequestBuild.Fail(_localization.GetString(InvalidParametersKey, typeIndex));
         }
 
-        request = new OrderRequest
+        return TypeValues[typeIndex] switch
+        {
+            OrderType.Market => RequestBuild.Ok([Request(symbol, side, OrderType.Market, quantity)]),
+
+            OrderType.Limit => BuildLimitCore(symbol, side, quantity),
+
+            OrderType.StopLimit => await BuildStopLimitCoreAsync(symbol, side, quantity),
+
+            OrderType.TrailingStop => await BuildTrailingStopCoreAsync(symbol, side, quantity),
+
+            _ => RequestBuild.Fail(_localization.GetString(InvalidParametersKey, typeIndex)),
+        };
+    }
+
+    /// <summary>A plain order request (no conditional shape carries extra prices).</summary>
+    private static OrderRequest Request(
+        Symbol symbol,
+        OrderSide side,
+        OrderType type,
+        decimal quantity) => new()
         {
             Symbol = symbol,
-            Side = (OrderSide)SelectedSideIndex,
+            Side = side,
             Type = type,
             Quantity = new Quantity(quantity),
-            Price = limitPrice,
         };
+
+    /// <summary>A limit-order request: the limit price is part of the shape.</summary>
+    private static OrderRequest LimitRequest(
+        Symbol symbol,
+        OrderSide side,
+        decimal quantity,
+        Price limit) => new()
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(quantity),
+            Price = limit,
+        };
+
+    /// <summary>A stop-limit request: the trigger arms it, the limit protects it.</summary>
+    private static OrderRequest StopLimitRequest(
+        Symbol symbol,
+        OrderSide side,
+        decimal quantity,
+        Price trigger,
+        Price limit) => new()
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.StopLimit,
+            Quantity = new Quantity(quantity),
+            Price = limit,
+            StopPrice = trigger,
+        };
+
+    /// <summary>A trailing-stop request: the trigger seed arms it, the distance drags it.</summary>
+    private static OrderRequest TrailingStopRequest(
+        Symbol symbol,
+        OrderSide side,
+        decimal quantity,
+        Price seed,
+        decimal trail) => new()
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.TrailingStop,
+            Quantity = new Quantity(quantity),
+            StopPrice = seed,
+            TrailDistance = new Price(trail),
+        };
+
+    /// <summary>The take-profit limit request of an OCO pair (the group id shared).</summary>
+    private static OrderRequest OcoLimitLeg(
+        Symbol symbol,
+        OrderSide side,
+        decimal quantity,
+        Price takeProfit,
+        string ocoGroupId) => new()
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(quantity),
+            Price = takeProfit,
+            OcoGroupId = ocoGroupId,
+        };
+
+    /// <summary>The stop-loss stop-limit request of an OCO pair (the group id shared).</summary>
+    private static OrderRequest OcoStopLimitLeg(
+        Symbol symbol,
+        OrderSide side,
+        decimal quantity,
+        Price trigger,
+        Price limit,
+        string ocoGroupId) => new()
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.StopLimit,
+            Quantity = new Quantity(quantity),
+            Price = limit,
+            StopPrice = trigger,
+            OcoGroupId = ocoGroupId,
+        };
+
+    /// <summary>The limit-order parse: a required, positive invariant-culture limit price.</summary>
+    private RequestBuild BuildLimitCore(Symbol symbol, OrderSide side, decimal quantity)
+    {
+        if (!TryParsePositiveDecimal(
+                PriceInput,
+                PriceRequiredKey,
+                PriceNotANumberKey,
+                out var price,
+                out var error))
+        {
+            return RequestBuild.Fail(error);
+        }
+
+        return RequestBuild.Ok([LimitRequest(symbol, side, quantity, new Price(price))]);
+    }
+
+    /// <summary>
+    /// The stop-limit parse: trigger and limit, then the market-relative
+    /// sanity check — a stop arms strictly beyond the market (sell below,
+    /// buy above), so an immediately-triggering stop is an explicit dialog
+    /// error instead of an adapter refusal on a raw exception trail.
+    /// </summary>
+    private async Task<RequestBuild> BuildStopLimitCoreAsync(Symbol symbol, OrderSide side, decimal quantity)
+    {
+        if (!TryParsePositiveDecimal(
+                PriceInput,
+                PriceRequiredKey,
+                PriceNotANumberKey,
+                out var limitPrice,
+                out var limitError))
+        {
+            return RequestBuild.Fail(limitError);
+        }
+
+        if (!TryParsePositiveDecimal(
+                StopTriggerInput,
+                TriggerRequiredKey,
+                TriggerNotANumberKey,
+                out var trigger,
+                out var triggerError))
+        {
+            return RequestBuild.Fail(triggerError);
+        }
+
+        var referenceClose = await MarketReference.GetLatestCloseAsync(_trading, symbol, CancellationToken.None);
+        var marketError = CheckStopTriggerDirection(side, new Price(trigger), referenceClose);
+        if (marketError is not null)
+        {
+            return RequestBuild.Fail(marketError);
+        }
+
+        return RequestBuild.Ok([StopLimitRequest(symbol, side, quantity, new Price(trigger), new Price(limitPrice))]);
+    }
+
+    /// <summary>
+    /// The trailing-stop parse: the trail distance plus the seed derivation —
+    /// one trail below the market for sells (refused when the distance eats
+    /// the whole price), one above for buys.
+    /// </summary>
+    private async Task<RequestBuild> BuildTrailingStopCoreAsync(Symbol symbol, OrderSide side, decimal quantity)
+    {
+        if (!TryParsePositiveDecimal(
+                TrailDistanceInput,
+                TrailRequiredKey,
+                TrailNotANumberKey,
+                out var trail,
+                out var trailError))
+        {
+            return RequestBuild.Fail(trailError);
+        }
+
+        var referenceClose = await MarketReference.GetLatestCloseAsync(_trading, symbol, CancellationToken.None);
+
+        // The seed must stay a positive price: for a sell it is one trail
+        // BELOW the market, so a trail at or beyond the whole reference close
+        // would seed a non-positive (non-parsable) price — refused, never a
+        // default.
+        if (side == OrderSide.Sell && trail >= referenceClose.Value)
+        {
+            return RequestBuild.Fail(_localization.GetString(TrailTooLargeKey, trail, referenceClose.Value));
+        }
+
+        var seed = side == OrderSide.Sell
+            ? referenceClose.Value - trail
+            : referenceClose.Value + trail;
+
+        return RequestBuild.Ok([TrailingStopRequest(symbol, side, quantity, new Price(seed), trail)]);
+    }
+
+    /// <summary>
+    /// The OCO pair parse: shared symbol, side and quantity; the take-profit
+    /// limit and the stop-loss stop-limit price their legs from the matching
+    /// fields; both derive and check against the market reference rate. The
+    /// legs share a fresh either-or group id, the take-profit leg placed
+    /// first.
+    /// </summary>
+    private async Task<RequestBuild> BuildOcoPairAsync(Symbol symbol, OrderSide side, decimal quantity)
+    {
+        if (!TryParsePositiveDecimal(
+                PriceInput,
+                PriceRequiredKey,
+                PriceNotANumberKey,
+                out var takeProfit,
+                out var takeProfitError))
+        {
+            return RequestBuild.Fail(takeProfitError);
+        }
+
+        if (!TryParsePositiveDecimal(
+                StopTriggerInput,
+                TriggerRequiredKey,
+                TriggerNotANumberKey,
+                out var stopTrigger,
+                out var stopTriggerError))
+        {
+            return RequestBuild.Fail(stopTriggerError);
+        }
+
+        if (!TryParsePositiveDecimal(
+                OcoStopLimitInput,
+                PriceRequiredKey,
+                PriceNotANumberKey,
+                out var stopLimitPrice,
+                out var stopLimitError))
+        {
+            return RequestBuild.Fail(stopLimitError);
+        }
+
+        var referenceClose = await MarketReference.GetLatestCloseAsync(_trading, symbol, CancellationToken.None);
+
+        // The take-profit limit must rest beyond the market it exits into,
+        // the stop trigger must arm strictly beyond it — the market-relative
+        // sanity readings of a placed pair.
+        var triggerError = CheckStopTriggerDirection(side, new Price(stopTrigger), referenceClose);
+        if (triggerError is not null)
+        {
+            return RequestBuild.Fail(triggerError);
+        }
+
+        var limitError = CheckTakeProfitDirection(side, new Price(takeProfit), referenceClose);
+        if (limitError is not null)
+        {
+            return RequestBuild.Fail(limitError);
+        }
+
+        var groupId = $"{OcoGroupIdPrefix}{Guid.NewGuid().ToString("N")}";
+        return RequestBuild.Ok(
+        [
+            OcoLimitLeg(symbol, side, quantity, new Price(takeProfit), groupId),
+            OcoStopLimitLeg(symbol, side, quantity, new Price(stopTrigger), new Price(stopLimitPrice), groupId),
+        ]);
+    }
+
+    /// <summary>
+    /// Market-relative reading of a stop trigger: it must arm strictly
+    /// beyond the market (a sell stop below it, a buy stop above), or the
+    /// order would trigger immediately — a localized dialog error, never a
+    /// degraded execution.
+    /// </summary>
+    private string? CheckStopTriggerDirection(OrderSide side, Price trigger, Price referenceClose) =>
+        (side, trigger.Value.CompareTo(referenceClose.Value)) switch
+        {
+            (OrderSide.Sell, >= 0) => _localization.GetString(SellTriggerBelowMarketKey, trigger.Value, referenceClose.Value),
+            (OrderSide.Buy, <= 0) => _localization.GetString(BuyTriggerAboveMarketKey, trigger.Value, referenceClose.Value),
+            _ => null,
+        };
+
+    /// <summary>
+    /// Market-relative reading of a take-profit limit: it must rest beyond
+    /// the market it exits into (a sell exit above it, a buy exit below) so
+    /// the leg works as a resting risk-free-profit exit, not an instant
+    /// crossing fill.
+    /// </summary>
+    private string? CheckTakeProfitDirection(OrderSide side, Price takeProfit, Price referenceClose) =>
+        (side, takeProfit.Value.CompareTo(referenceClose.Value)) switch
+        {
+            (OrderSide.Sell, <= 0) => _localization.GetString(SellLimitAboveMarketKey, takeProfit.Value, referenceClose.Value),
+            (OrderSide.Buy, >= 0) => _localization.GetString(BuyLimitBelowMarketKey, takeProfit.Value, referenceClose.Value),
+            _ => null,
+        };
+
+    /// <summary>
+    /// Parse a positive decimal field: empty (whitespace) is REQUIRED-not-parsed;
+    /// unparsable or non-positive is a not-a-number error, the raw text shown.
+    /// Never a default.
+    /// </summary>
+    private bool TryParsePositiveDecimal(
+        string rawInput,
+        string requiredKey,
+        string notANumberKey,
+        out decimal value,
+        [NotNullWhen(false)] out string? error)
+    {
+        value = 0m;
+        var raw = rawInput.Trim();
+        if (raw.Length == 0)
+        {
+            error = _localization.GetString(requiredKey);
+            return false;
+        }
+
+        if (!decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out value)
+            || value <= 0)
+        {
+            error = _localization.GetString(notANumberKey, raw);
+            return false;
+        }
+
+        error = null;
         return true;
     }
 

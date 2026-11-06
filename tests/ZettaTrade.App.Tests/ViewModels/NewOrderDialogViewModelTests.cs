@@ -106,9 +106,9 @@ public sealed class NewOrderDialogViewModelTests
         viewModel.PriceInput = "50000";
     }
 
-    private static Order BuildFilledOrder(OrderRequest request) => new()
+    private static Order BuildFilledOrder(OrderRequest request, string id = "paper-test") => new()
     {
-        Id = "paper-test",
+        Id = id,
         ExchangeId = "paper",
         Symbol = request.Symbol,
         Side = request.Side,
@@ -119,6 +119,29 @@ public sealed class NewOrderDialogViewModelTests
         TimeInForce = request.TimeInForce,
         CreatedAt = DateTimeOffset.UtcNow,
     };
+
+    /// <summary>One H1 history bar at the given close — the reference rate's fake.</summary>
+    private static Bar BuildBar(decimal close) => new(
+        DateTimeOffset.UtcNow,
+        close,
+        close,
+        close,
+        close,
+        1m);
+
+    /// <summary>
+    /// The newest-by-time contract serves this close to the dialog's
+    /// derivations (trailing seed, market-relative sanity checks).
+    /// </summary>
+    private void StubReferenceClose(decimal close) =>
+        _trading.GetBarsAsync(
+                Arg.Any<Symbol>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<DateTimeOffset?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns([BuildBar(close)]);
 
     [Fact]
     public async Task PlaceOrderCommand_WithValidLimitOrder_ConfirmsPlacesAndCloses()
@@ -507,6 +530,284 @@ public sealed class NewOrderDialogViewModelTests
         closes.Should().Be(1);
         viewModel.ErrorMessage.Should().BeNull();
         _journal.GetRecent().Should().ContainSingle(order => order.Id == "paper-test");
+    }
+
+    /// <summary>
+    /// T-074 UI mapping: the conditional selections toggle exactly the rows
+    /// they own — the stop trigger for the stop-limit, the trailing distance
+    /// for the trailing stop, the OCO pair re-uses the price row for its
+    /// take-profit leg and adds the stop-loss leg's limit row. Index 4 is
+    /// deliberately NOT an OrderType cast (it aliases TrailingStop): the
+    /// type mapping goes through the dialog's own table.
+    /// </summary>
+    [Fact]
+    public void SelectedTypeIndex_WhenChanged_TogglesTheConditionalRows()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.SelectedTypeIndex = 2; // StopLimit
+        viewModel.IsPriceRequired.Should().BeTrue();
+        viewModel.IsTriggerVisible.Should().BeTrue();
+        viewModel.IsTrailVisible.Should().BeFalse();
+        viewModel.IsOcoMode.Should().BeFalse();
+        viewModel.IsOcoStopLimitVisible.Should().BeFalse();
+
+        viewModel.SelectedTypeIndex = 3; // TrailingStop
+        viewModel.IsPriceRequired.Should().BeFalse();
+        viewModel.IsTriggerVisible.Should().BeFalse();
+        viewModel.IsTrailVisible.Should().BeTrue();
+
+        viewModel.SelectedTypeIndex = 4; // OCO pair mode
+        viewModel.IsPriceRequired.Should().BeTrue();
+        viewModel.IsTriggerVisible.Should().BeTrue();
+        viewModel.IsTrailVisible.Should().BeFalse();
+        viewModel.IsOcoMode.Should().BeTrue();
+        viewModel.IsOcoStopLimitVisible.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WithTrailingStopOrder_CarriesTheDerivedSeed()
+    {
+        // Arrange: the trailing stop derives its SEED from the newest
+        // reference close — one trail below the sell market, never a
+        // defaulted or unparsable guess.
+        StubReferenceClose(50_000m);
+        var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.2";
+        viewModel.SelectedSideIndex = 1; // Sell
+        viewModel.SelectedTypeIndex = 3; // TrailingStop
+        viewModel.TrailDistanceInput = "500";
+
+        var capturedRequest = (OrderRequest?)null;
+        _riskManager.CheckOrderAsync(Arg.Do<OrderRequest>(r => capturedRequest = r))
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: false));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+        var placed = (OrderRequest?)null;
+        _trading.PlaceOrderAsync(Arg.Do<OrderRequest>(r => placed = r))
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the request rides the full pipeline with the derived seed.
+        placed.Should().Be(capturedRequest);
+        placed.Should().NotBeNull();
+        placed!.Type.Should().Be(OrderType.TrailingStop, "combo index 3 maps through the type table");
+        placed.StopPrice!.Value.Value.Should().Be(49_500m, "the sell seed sits one trail below the market");
+        placed.TrailDistance!.Value.Value.Should().Be(500m);
+        placed.Price.Should().BeNull("a trailing order never carries a limit price");
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WithUnparsableTrail_ErrorsWithoutRiskCheck()
+    {
+        // Arrange: the unparsable trail distance is an error, never a default.
+        StubReferenceClose(50_000m);
+        var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.2";
+        viewModel.SelectedTypeIndex = 3; // TrailingStop
+        viewModel.TrailDistanceInput = "abc";
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.ErrorMessage.Should().Be("[NewOrder.TrailNotANumber:abc]");
+        await _riskManager.DidNotReceive().CheckOrderAsync(Arg.Any<OrderRequest>());
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>());
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WithSellTrailLargerThanTheMarket_Refuses()
+    {
+        // Arrange: a sell trail that eats the whole reference close would
+        // seed a non-positive trigger — refused, never defaulted.
+        StubReferenceClose(50_000m);
+        var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.2";
+        viewModel.SelectedSideIndex = 1; // Sell
+        viewModel.SelectedTypeIndex = 3; // TrailingStop
+        viewModel.TrailDistanceInput = "60000";
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.ErrorMessage.Should().Be("[NewOrder.TrailTooLarge:60000|50000]");
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>());
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WithValidStopLimitOrder_CarriesTriggerAndLimit()
+    {
+        // Arrange: a sell stop-limit arms strictly below the market.
+        StubReferenceClose(50_000m);
+        var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.2";
+        viewModel.SelectedSideIndex = 1; // Sell
+        viewModel.SelectedTypeIndex = 2; // StopLimit
+        viewModel.PriceInput = "48900";
+        viewModel.StopTriggerInput = "49000";
+
+        var placed = (OrderRequest?)null;
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: false));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+        _trading.PlaceOrderAsync(Arg.Do<OrderRequest>(r => placed = r))
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        placed.Should().NotBeNull();
+        placed!.Type.Should().Be(OrderType.StopLimit);
+        placed.StopPrice!.Value.Value.Should().Be(49_000m);
+        placed.Price!.Value.Value.Should().Be(48_900m);
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WithSellStopTriggerAboveTheMarket_Refuses()
+    {
+        // Arrange: a sell stop at or above the market would trigger
+        // immediately — the dialog refuses it instead of the adapter.
+        StubReferenceClose(50_000m);
+        var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.2";
+        viewModel.SelectedSideIndex = 1; // Sell
+        viewModel.SelectedTypeIndex = 2; // StopLimit
+        viewModel.PriceInput = "48900";
+        viewModel.StopTriggerInput = "50500";
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.ErrorMessage.Should().Be("[NewOrder.SellTriggerMustBeBelowMarket:50500|50000]");
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>());
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WithOcoPair_ConfirmsPlacesBothLegsAndClosesOnce()
+    {
+        // Arrange: the OCO pair places a take-profit limit first, then the
+        // stop-loss stop-limit — both sharing one either-or group id.
+        StubReferenceClose(50_000m);
+        var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.2";
+        viewModel.SelectedSideIndex = 1; // Sell
+        viewModel.SelectedTypeIndex = 4; // OCO
+        viewModel.PriceInput = "51000"; // take-profit limit price
+        viewModel.StopTriggerInput = "49000"; // stop-loss trigger
+        viewModel.OcoStopLimitInput = "48900"; // stop-loss limit price
+
+        var placedRequests = new List<OrderRequest>();
+        var legIds = new[] { "paper-tp", "paper-sl" };
+        _trading.PlaceOrderAsync(Arg.Do<OrderRequest>(placedRequests.Add))
+            .Returns(call =>
+            {
+                var request = call.Arg<OrderRequest>()!;
+                return Task.FromResult(BuildFilledOrder(request, legIds[placedRequests.Count - 1]));
+            });
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: false));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+
+        var closes = 0;
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref closes);
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: two legs of ONE group, placed through two full pipelines.
+        placedRequests.Should().HaveCount(2);
+        var groupId = placedRequests[0].OcoGroupId;
+        groupId.Should().NotBeNullOrEmpty();
+        placedRequests[1].OcoGroupId.Should().Be(groupId);
+        placedRequests[0].Type.Should().Be(OrderType.Limit);
+        placedRequests[0].Price!.Value.Value.Should().Be(51_000m);
+        placedRequests[1].Type.Should().Be(OrderType.StopLimit);
+        placedRequests[1].StopPrice!.Value.Value.Should().Be(49_000m);
+        placedRequests[1].Price!.Value.Value.Should().Be(48_900m);
+        placedRequests[0].Quantity.Value.Should().Be(placedRequests[1].Quantity.Value);
+
+        await _riskManager.Received(2).CheckOrderAsync(Arg.Any<OrderRequest>());
+        await _confirmation.Received(2).RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+        closes.Should().Be(1);
+        viewModel.ErrorMessage.Should().BeNull();
+        viewModel.ResultMessage.Should().Be("[NewOrder.OcoPlaced:paper-tp|paper-sl]");
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_WhenTheOcoSecondLegFails_CancelsThePlacedLegAndKeepsTheDialogOpen()
+    {
+        // Arrange: the stop-loss leg's placement fails AFTER the take-profit
+        // leg is already working — the placed half is cancelled best-effort,
+        // the pair never goes half-working.
+        StubReferenceClose(50_000m);
+        var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.2";
+        viewModel.SelectedSideIndex = 1; // Sell
+        viewModel.SelectedTypeIndex = 4; // OCO
+        viewModel.PriceInput = "51000";
+        viewModel.StopTriggerInput = "49000";
+        viewModel.OcoStopLimitInput = "48900";
+
+        var placedRequests = new List<OrderRequest>();
+        _trading.PlaceOrderAsync(Arg.Do<OrderRequest>(placedRequests.Add))
+            .Returns(call =>
+            {
+                var request = call.Arg<OrderRequest>()!;
+                return placedRequests.Count == 1
+                    ? Task.FromResult(BuildFilledOrder(request, "paper-tp"))
+                    : Task.FromException<Order>(new InvalidOperationException("arming violated"));
+            });
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: false));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+
+        var closes = 0;
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref closes);
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the placed take-profit leg cancelled, the abort named, no close.
+        placedRequests.Should().HaveCount(2);
+        await _trading.Received(1).CancelOrderAsync(Arg.Any<Symbol>(), "paper-tp");
+        viewModel.ErrorMessage.Should().Be("[NewOrder.OcoAborted]");
+        closes.Should().Be(0, "a half pair aborted the dialog must stay open");
+        _journal.GetRecent().Should().ContainSingle(order => order.Id == "paper-tp");
     }
 
     private static string FormatArgs(object[] args) => string.Join("|", args);
