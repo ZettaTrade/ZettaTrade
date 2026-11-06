@@ -7,6 +7,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -17,6 +18,10 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Export;
+
+/// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
 /// Chart ViewModel behavior on fake market data adapters without any
@@ -193,7 +198,9 @@ public sealed class ChartViewModelTests
 
     private static ChartViewModel CreateChart(
         ActiveExchangeService service,
-        ISettingsService? settings = null)
+        ISettingsService? settings = null,
+        ICsvExportService? export = null,
+        ILocalizationManager? localization = null)
     {
         var timeFrameSettings = settings;
         if (timeFrameSettings is null)
@@ -213,6 +220,8 @@ public sealed class ChartViewModelTests
             new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
             timeFrameSettings,
             new EmptyIndicatorCatalog(),
+            export ?? Substitute.For<ICsvExportService>(),
+            localization ?? Substitute.For<ILocalizationManager>(),
             NullLogger<ChartViewModel>.Instance);
     }
 
@@ -1344,6 +1353,174 @@ public sealed class ChartViewModelTests
 
         await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>());
     }
+
+    #region Candle Export
+
+    /// <summary>
+    /// The candles export rides exactly the delivered series: the command
+    /// streams the loaded <c>Bars</c> (the delivered load's copy, landed
+    /// through the pump drain) through the CSV service — rebase and paged
+    /// prepends included by construction, never a second fetch.
+    /// </summary>
+    [Fact]
+    public async Task ExportCandlesCommand_StreamsTheDeliveredSeries()
+    {
+        var marketData = new FakeMarketData();
+        var export = Substitute.For<ICsvExportService>();
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            export: export);
+        var delivered = new TaskCompletionSource<IReadOnlyList<Bar>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        string? requestedName = null;
+        IReadOnlyList<Bar> exportedBars = null!;
+        string? exportedPath = null;
+
+        using var barsSubscription = chart.BarsUpdates.Subscribe(
+            bars => delivered.TrySetResult(bars));
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        var series = await delivered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // The marshal hop lands the delivered load in the Bars property (the
+        // export set) — the pump executes exactly the queued jobs.
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        export.ExportCandlesAsync(
+                Arg.Do<string>(path => exportedPath = path),
+                Arg.Do<IReadOnlyList<Bar>>(bars => exportedBars = bars),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        using var handler = chart.SaveCandlesCsvRequested.RegisterHandler(context =>
+        {
+            requestedName = context.Input;
+            context.SetOutput(@"C:\exports\candles.csv");
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportCandlesCommand.Execute(RxVoid.Default);
+
+        requestedName.Should().Be("candles.csv", "the dialog carries the suggested name");
+        exportedPath.Should().Be(@"C:\exports\candles.csv");
+        exportedBars.Should().BeSameAs(chart.Bars, "the export set is the displayed series collection");
+        exportedBars.Should().Equal(series, "the displayed series is exactly the delivered one");
+        chart.ErrorMessage.Should().BeNull();
+        chart.HasErrorMessage.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// A cancelled save dialog exports nothing: the null destination is not
+    /// an error, the service never runs and no error line appears.
+    /// </summary>
+    [Fact]
+    public async Task ExportCandlesCommand_WithACancelledDialog_EndsQuietly()
+    {
+        var export = Substitute.For<ICsvExportService>();
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            export: export);
+        string? requestedName = null;
+
+        using var handler = chart.SaveCandlesCsvRequested.RegisterHandler(context =>
+        {
+            requestedName = context.Input;
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportCandlesCommand.Execute(RxVoid.Default);
+
+        requestedName.Should().Be("candles.csv");
+        await export.DidNotReceive().ExportCandlesAsync(
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<Bar>>(),
+            Arg.Any<CancellationToken>());
+        chart.ErrorMessage.Should().BeNull();
+        chart.HasErrorMessage.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// A write fault surfaces the localized export message: the fake
+    /// compiler prints `[Chart.ExportFailed:{detail}]`, so the fact pins
+    /// both the key and the carried exception text.
+    /// </summary>
+    [Fact]
+    public async Task ExportCandlesCommand_WhenTheServiceThrows_ShowsTheLocalizedFault()
+    {
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
+            $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
+        var export = Substitute.For<ICsvExportService>();
+        export.ExportCandlesAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<Bar>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(
+                new InvalidOperationException("directory is gone")));
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            export: export,
+            localization: localization);
+
+        using var handler = chart.SaveCandlesCsvRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(@"C:\exports\candles.csv");
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportCandlesCommand.Execute(RxVoid.Default);
+
+        chart.ErrorMessage.Should().Be("[Chart.ExportFailed:directory is gone]");
+        chart.HasErrorMessage.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// A stale error line never survives a fresh flow: the cancelled-dialog
+    /// outcome after a fault clears the line (the flow's own outcome is the
+    /// only message on display).
+    /// </summary>
+    [Fact]
+    public async Task ExportCandlesCommand_AfterAFault_ACancelledDialogClearsTheErrorLine()
+    {
+        var export = Substitute.For<ICsvExportService>();
+        export.ExportCandlesAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<Bar>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(
+                new InvalidOperationException("disk full")));
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
+            $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            export: export,
+            localization: localization);
+
+        using var failingHandler = chart.SaveCandlesCsvRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(@"C:\exports\candles.csv");
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportCandlesCommand.Execute(RxVoid.Default);
+        chart.ErrorMessage.Should().Contain("Chart.ExportFailed", "the fault anchored the line first");
+
+        // Rebuild the world for the fresh flow: the dialog cancels now.
+        failingHandler.Dispose();
+        using var cancellingHandler = chart.SaveCandlesCsvRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportCandlesCommand.Execute(RxVoid.Default);
+
+        chart.ErrorMessage.Should().BeNull();
+        chart.HasErrorMessage.Should().BeFalse();
+    }
+
+    #endregion Candle Export
 
     #endregion
 

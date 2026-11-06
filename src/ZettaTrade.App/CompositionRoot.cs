@@ -16,6 +16,7 @@ using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Indicators;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Infrastructure.Secrets;
@@ -94,6 +95,8 @@ internal static class CompositionRoot
         // consumer VM is constructed.
         services.AddActiveExchange();
 
+        services.AddBalancesServices(); // T-081: balances panel (aggregation service + panel VM).
+
         // AI chat: the Ollama completion service (local models first) and its
         // named HttpClient; the workspace context rides the existing seams.
         services.AddAiServices();
@@ -127,6 +130,11 @@ internal static class CompositionRoot
             sp.GetRequiredService<ILogger<UiConfirmationService>>(),
             sp.GetRequiredService<ILocalizationManager>()));
         services.AddSingleton<TradingToolsRegistrar>();
+
+        // First-run disclaimer: the acknowledged-version flag rides the
+        // settings store (read fresh at every launch, never cached), and the
+        // dialog view model is transient per open.
+        services.AddDisclaimerServices();
 
         services.AddSingleton<MenuViewModel>();
         services.AddSingleton<StatusBarViewModel>(sp =>
@@ -180,6 +188,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<IIndicatorCatalog>(),
+                sp.GetRequiredService<ICsvExportService>(),
+                sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
@@ -205,6 +215,7 @@ internal static class CompositionRoot
         // store before the engine's boot replay reads it.
         services.AddPnlServices();
         services.AddHistoryUiServices();
+        services.AddCsvExportServices();
 
         var provider = services.BuildServiceProvider();
 

@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.DisclaimerDialogWindow"
+        Classes="chrome-compact"
+        x:DataType="vm:DisclaimerDialogViewModel"
+        Title="{loc:Localized Trading.Disclaimer.Title}"
+        Width="480" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <!-- The whole body is static localized text ({loc:Localized}, no
+         ViewModel state): the educational/not-investment-advice statement
+         mirrors the README Disclaimer, the rest mirrors its alpha posture
+         (alpha wording, paper-first, testnet-first, key hygiene). -->
+    <StackPanel Margin="20" Spacing="12">
+        <TextBlock Text="{loc:Localized Trading.Disclaimer.NotAdvice}"
+                   FontWeight="Bold"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="{loc:Localized Trading.Disclaimer.AlphaStatus}"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="{loc:Localized Trading.Disclaimer.PaperFirst}"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="{loc:Localized Trading.Disclaimer.RealFunds}"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="{loc:Localized Trading.Disclaimer.KeyHygiene}"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="{loc:Localized Trading.Disclaimer.WhereToRead}"
+                   TextWrapping="Wrap"
+                   FontSize="12" />
+        <Button Content="{loc:Localized Trading.Disclaimer.Acknowledge}"
+                Command="{Binding AcknowledgeCommand}"
+                MinWidth="140"
+                HorizontalAlignment="Center"
+                Margin="0,4,0,0" />
+    </StackPanel>
+</Window>
