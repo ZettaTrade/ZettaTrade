@@ -19,7 +19,8 @@ namespace ZettaTrade.App.Views;
 /// showing windows is View behavior, and the deferred focus of the assistant
 /// input is a View concern too, so the ViewModel only raises
 /// <see cref="MenuViewModel.OpenSettingsRequested"/>,
-/// <see cref="MenuViewModel.NewOrderRequested"/>, … and
+/// <see cref="MenuViewModel.NewOrderRequested"/>,
+/// <see cref="MenuViewModel.ShowDisclaimerRequested"/>, … and
 /// <see cref="MenuViewModel.FocusAiChatRequested"/> (fired when the toggle
 /// shows the panel).
 /// </summary>
@@ -45,6 +46,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
         ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
+        ViewModel?.Menu.ShowDisclaimerRequested.RegisterHandler(OpenDisclaimerAsync);
 
         // The book panel lives for the whole window lifetime too: its level
         // presses feed a click stream that channels the prefill into the
@@ -180,6 +182,30 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the order history window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenDisclaimerAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The same dialog the first run shows: a fresh acknowledge write
+            // (the shipped version is idempotent there) or another look at
+            // the already-acknowledged wording.
+            var viewModel = App.Services.GetRequiredService<ViewModels.DisclaimerDialogViewModel>();
+            var dialog = new DisclaimerDialogWindow
+            {
+                DataContext = viewModel,
+            };
+            await dialog.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the disclaimer dialog");
         }
         finally
         {
