@@ -44,6 +44,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.NewOrderRequested.RegisterHandler(OpenNewOrderAsync);
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
+        ViewModel?.Menu.ShowBalancesRequested.RegisterHandler(OpenBalancesAsync);
         ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
 
         // The book panel lives for the whole window lifetime too: its level
@@ -158,6 +159,28 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the positions panel");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenBalancesAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The panel view model is transient: every open re-queries the
+            // adapters, so a stale snapshot never rides into a new open.
+            var panel = new BalancesPanelWindow
+            {
+                DataContext = App.Services.GetRequiredService<ViewModels.BalancesPanelViewModel>(),
+            };
+            await panel.ShowDialog<object>(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the balances panel");
         }
         finally
         {

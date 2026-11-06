@@ -42,6 +42,7 @@
             <MenuItem Header="{loc:Localized Menu.Trading}">
                 <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="Ctrl+N" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
+                <MenuItem Header="{loc:Localized Menu.Trading.Balances}" Command="{Binding ShowBalancesCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Localized Menu.AI}">

@@ -483,4 +483,43 @@
   <data name="Chrome.Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="Menu.Trading.Balances" xml:space="preserve">
+    <value>Balances</value>
+  </data>
+  <data name="Trading.BalancesTitle" xml:space="preserve">
+    <value>Balances</value>
+  </data>
+  <data name="Trading.BalancesPerExchangeHeader" xml:space="preserve">
+    <value>Per exchange</value>
+  </data>
+  <data name="Trading.BalancesAggregatedHeader" xml:space="preserve">
+    <value>Aggregated</value>
+  </data>
+  <data name="Trading.BalancesAsset" xml:space="preserve">
+    <value>Asset</value>
+  </data>
+  <data name="Trading.BalancesAmount" xml:space="preserve">
+    <value>Amount</value>
+  </data>
+  <data name="Trading.BalancesNoServedBalances" xml:space="preserve">
+    <value>No balances served</value>
+  </data>
+  <data name="Trading.BalancesNotProvided" xml:space="preserve">
+    <value>This adapter does not provide account balances</value>
+  </data>
+  <data name="Trading.BalancesFetchFailedFormat" xml:space="preserve">
+    <value>Balance query failed: {0}</value>
+  </data>
+  <data name="Trading.BalancesLoadFailedFormat" xml:space="preserve">
+    <value>Failed to load balances: {0}</value>
+  </data>
+  <data name="Trading.BalancesLoading" xml:space="preserve">
+    <value>Loading balances...</value>
+  </data>
+  <data name="Trading.BalancesRefresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Trading.BalancesClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
 </root>

@@ -483,4 +483,43 @@
   <data name="Chrome.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="Menu.Trading.Balances" xml:space="preserve">
+    <value>Балансы</value>
+  </data>
+  <data name="Trading.BalancesTitle" xml:space="preserve">
+    <value>Балансы</value>
+  </data>
+  <data name="Trading.BalancesPerExchangeHeader" xml:space="preserve">
+    <value>По биржам</value>
+  </data>
+  <data name="Trading.BalancesAggregatedHeader" xml:space="preserve">
+    <value>Итог по всем биржам</value>
+  </data>
+  <data name="Trading.BalancesAsset" xml:space="preserve">
+    <value>Актив</value>
+  </data>
+  <data name="Trading.BalancesAmount" xml:space="preserve">
+    <value>Количество</value>
+  </data>
+  <data name="Trading.BalancesNoServedBalances" xml:space="preserve">
+    <value>Нет записей балансов</value>
+  </data>
+  <data name="Trading.BalancesNotProvided" xml:space="preserve">
+    <value>Эта биржа не предоставляет данные о балансе</value>
+  </data>
+  <data name="Trading.BalancesFetchFailedFormat" xml:space="preserve">
+    <value>Ошибка запроса балансов: {0}</value>
+  </data>
+  <data name="Trading.BalancesLoadFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить балансы: {0}</value>
+  </data>
+  <data name="Trading.BalancesLoading" xml:space="preserve">
+    <value>Загрузка балансов...</value>
+  </data>
+  <data name="Trading.BalancesRefresh" xml:space="preserve">
+    <value>Обновить</value>
+  </data>
+  <data name="Trading.BalancesClose" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
 </root>

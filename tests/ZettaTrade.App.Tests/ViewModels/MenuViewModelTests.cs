@@ -75,6 +75,26 @@ public sealed class MenuViewModelTests
         handled.Should().Be(1);
     }
 
+    [Fact]
+    public async Task ShowBalancesCommand_Executed_RoutesThroughShowBalancesInteraction()
+    {
+        // Arrange
+        var menu = new MenuViewModel(CreateChat());
+        var handled = 0;
+        menu.ShowBalancesRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref handled);
+            context.SetOutput(RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await menu.ShowBalancesCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(1);
+    }
+
     /// <summary>
     /// The chat toggle hides a visible panel without any focus request and
     /// shows a hidden one WITH one (the input is reachable only now).

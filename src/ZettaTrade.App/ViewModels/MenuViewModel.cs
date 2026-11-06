@@ -49,6 +49,16 @@ public sealed class MenuViewModel : ReactiveObject
     public Interaction<RxVoid, RxVoid> ShowOrderHistoryRequested { get; }
 
     /// <summary>
+    /// Interaction that routes the show-balances request to the View, which
+    /// hosts the modal panel (same pattern as
+    /// <see cref="ShowPositionsRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowBalancesRequested { get; }
+
+    /// <summary>Command to show balances panel.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ShowBalancesCommand { get; }
+
+    /// <summary>
     /// Interaction that routes the focus-AI-chat request to the View, which
     /// focuses the assistant panel input. Fired only when the toggle SHOWS
     /// the panel: a hide needs no View cooperation (same pattern as
@@ -83,10 +93,12 @@ public sealed class MenuViewModel : ReactiveObject
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
         ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
         ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
+        ShowBalancesRequested = new Interaction<RxVoid, RxVoid>();
         FocusAiChatRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
+        ShowBalancesCommand = ReactiveCommand.CreateFromTask(HandleShowBalancesAsync);
         ToggleAiChatCommand = ReactiveCommand.CreateFromTask(HandleToggleAiChatAsync);
         ManageMcpServersCommand = ReactiveCommand.CreateFromTask(HandleManageMcpServersAsync);
         OpenSettingsCommand = ReactiveCommand.CreateFromTask(HandleOpenSettingsAsync);
@@ -137,6 +149,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// stays out of the ViewModel, same as the positions panel).
     /// </summary>
     private Task HandleShowOrderHistoryAsync() => ShowOrderHistoryRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the show-balances request to the View (window plumbing stays
+    /// out of the ViewModel, same as the positions panel).
+    /// </summary>
+    private Task HandleShowBalancesAsync() => ShowBalancesRequested.Handle(RxVoid.Default);
 
     /// <summary>
     /// Toggle the assistant panel; when the toggle SHOWS it, route the
