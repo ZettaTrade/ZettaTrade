@@ -199,6 +199,11 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();
         services.AddOrderHistory();
+
+        // The PnL accounting core + its app-side feed (T-082): after the
+        // order history registration, so the walk initializes the ledger
+        // store before the engine's boot replay reads it.
+        services.AddPnlServices();
         services.AddHistoryUiServices();
 
         var provider = services.BuildServiceProvider();
