@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.App.Views;
@@ -91,3 +92,4 @@ public sealed class UiConfirmationService : IConfirmationService
         }
     }
 }
+

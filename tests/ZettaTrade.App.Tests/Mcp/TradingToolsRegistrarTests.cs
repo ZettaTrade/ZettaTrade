@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -341,3 +342,4 @@ public sealed class TradingToolsRegistrarTests
         }
     }
 }
+

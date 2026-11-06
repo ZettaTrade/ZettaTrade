@@ -3,6 +3,8 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Livery.Localization;
+using Livery.Themes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.App.ViewModels;
@@ -173,3 +175,4 @@ public partial class App : Application
         await themeManager.ApplyThemeAsync(match.Name);
     }
 }
+

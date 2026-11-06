@@ -2,6 +2,7 @@ namespace ZettaTrade.AI.Mcp.Tools;
 
 using System.Globalization;
 using System.Text.Json;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
@@ -425,3 +426,4 @@ public sealed class TradingToolsRegistrar(ILogger<TradingToolsRegistrar> logger)
 
     #endregion
 }
+

@@ -78,6 +78,9 @@
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Индикаторы</value>
   </data>
+  <data name="Settings.Indicators.Empty" xml:space="preserve">
+    <value>Плагины индикаторов в каталоге plugins папки данных приложения не найдены (пропуски сканирования фиксируются в журнале)</value>
+  </data>
   <data name="Settings.Tab.Mcp" xml:space="preserve">
     <value>MCP</value>
   </data>
@@ -95,6 +98,63 @@
   </data>
   <data name="Settings.Mcp.Hint" xml:space="preserve">
     <value>Локальный MCP-сервер ("Zetta") отдаёт торговые инструменты этого терминала ИИ-ассистентам по stdio. В stdout не попадает ничего, кроме сообщений MCP-протокола.</value>
+  </data>
+  <data name="Settings.McpClients.Caption" xml:space="preserve">
+    <value>Внешние MCP-серверы</value>
+  </data>
+  <data name="Settings.McpClients.Hint" xml:space="preserve">
+    <value>Сохранение применяет внешние серверы: добавленные или изменённые включённые записи подключаются, удалённые или отключённые — разъединяются, а запись с тем же сохранённым подключением остаётся на связи. Поле авторизации хранит ключ-ссылку на секрет из защищённого хранилища — сам секрет в конфигурации и журналах не появляется. Непригодная запись закрепляет собственное состояние ошибки с причиной от транспорта.</value>
+  </data>
+  <data name="Settings.McpClients.Add" xml:space="preserve">
+    <value>Добавить сервер</value>
+  </data>
+  <data name="Settings.McpClients.Remove" xml:space="preserve">
+    <value>Удалить</value>
+  </data>
+  <data name="Settings.McpClients.Name" xml:space="preserve">
+    <value>Имя сервера (по нему связываются подключения и состояния)</value>
+  </data>
+  <data name="Settings.McpClients.Enabled" xml:space="preserve">
+    <value>Включён</value>
+  </data>
+  <data name="Settings.McpClients.Transport" xml:space="preserve">
+    <value>Транспорт</value>
+  </data>
+  <data name="Settings.McpClients.Command" xml:space="preserve">
+    <value>Команда (ОС ищет её по PATH)</value>
+  </data>
+  <data name="Settings.McpClients.Args" xml:space="preserve">
+    <value>Аргументы через пробел (аргумент с пробелами в этот текст не поместится)</value>
+  </data>
+  <data name="Settings.McpClients.Address" xml:space="preserve">
+    <value>Сервер или адрес</value>
+  </data>
+  <data name="Settings.McpClients.Port" xml:space="preserve">
+    <value>Порт (пусто = порт по умолчанию схемы)</value>
+  </data>
+  <data name="Settings.McpClients.Port.Empty" xml:space="preserve">
+    <value>по умолчанию</value>
+  </data>
+  <data name="Settings.McpClients.Timeout" xml:space="preserve">
+    <value>Тайм-аут HTTP-подключения, сек (пусто = умолчание транспорта)</value>
+  </data>
+  <data name="Settings.McpClients.AuthRef" xml:space="preserve">
+    <value>Ключ-ссылка на секрет (разрешается через хранилище секретов)</value>
+  </data>
+  <data name="Settings.McpClients.State.Disabled" xml:space="preserve">
+    <value>Отключён</value>
+  </data>
+  <data name="Settings.McpClients.State.Connecting" xml:space="preserve">
+    <value>Подключается…</value>
+  </data>
+  <data name="Settings.McpClients.State.Connected" xml:space="preserve">
+    <value>Подключён</value>
+  </data>
+  <data name="Settings.McpClients.State.Failed" xml:space="preserve">
+    <value>Ошибка:</value>
+  </data>
+  <data name="Settings.McpClients.State.Empty" xml:space="preserve">
+    <value>Ещё не применён — сохраните, чтобы менеджер подключил его</value>
   </data>
   <data name="Settings.Tab.Pairs" xml:space="preserve">
     <value>Пары</value>

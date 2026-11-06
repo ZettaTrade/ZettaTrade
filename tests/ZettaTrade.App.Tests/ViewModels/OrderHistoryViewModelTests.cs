@@ -4,6 +4,7 @@ using System;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
 using NSubstitute;
 using Xunit;
 using ZettaTrade.App.ViewModels;
@@ -136,3 +137,4 @@ public sealed class OrderHistoryViewModelTests
         await _store.Received(1).GetRecentAsync(Arg.Is<int>(v => v > 0));
     }
 }
+
