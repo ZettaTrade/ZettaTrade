@@ -579,6 +579,57 @@
   <data name="Positions.AmendRowStatus" xml:space="preserve">
     <value>Amending…</value>
   </data>
+  <data name="Positions.ActionsHeader" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Positions.ActionClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Positions.ActionReduce" xml:space="preserve">
+    <value>Reduce</value>
+  </data>
+  <data name="Positions.ActionReverse" xml:space="preserve">
+    <value>Reverse</value>
+  </data>
+  <data name="Positions.ReduceWatermark" xml:space="preserve">
+    <value>Amount</value>
+  </data>
+  <data name="Positions.ConfirmReverseFormat" xml:space="preserve">
+    <value>Reverse the {2} position: close with {0} {1}, then open the opposite with {3} {4}?</value>
+  </data>
+  <data name="Positions.ClosedFormat" xml:space="preserve">
+    <value>Position closed: {0} {1} by market (order {2}).</value>
+  </data>
+  <data name="Positions.ReducedFormat" xml:space="preserve">
+    <value>Position reduced by {0} {1} by market (order {2}).</value>
+  </data>
+  <data name="Positions.ReversedFormat" xml:space="preserve">
+    <value>Position reversed: exit {0}, re-entry {1}.</value>
+  </data>
+  <data name="Positions.NoPositionFormat" xml:space="preserve">
+    <value>No open position on {0}: the action was rejected.</value>
+  </data>
+  <data name="Positions.ReduceNotANumberFormat" xml:space="preserve">
+    <value>Reduce amount must be a positive number, not '{0}'.</value>
+  </data>
+  <data name="Positions.ReduceTooLargeFormat" xml:space="preserve">
+    <value>Reduce amount {0} exceeds the open position {1}: the action was rejected.</value>
+  </data>
+  <data name="Positions.ActionRejectedFormat" xml:space="preserve">
+    <value>The action was rejected by risk controls: {0}</value>
+  </data>
+  <data name="Positions.ActionFailedFormat" xml:space="preserve">
+    <value>The position action did not complete: {0}</value>
+  </data>
+  <data name="Positions.RacePositionChangedFormat" xml:space="preserve">
+    <value>The position changed while the action ran (now {0} {1} on {2}): nothing was placed.</value>
+  </data>
+  <data name="Positions.ReverseAbortedFormat" xml:space="preserve">
+    <value>Reverse aborted after the close: a position still exists on {0} (now {1} {2}); the re-entry was NOT placed.</value>
+  </data>
+  <data name="Positions.ReverseLeg2FailedFormat" xml:space="preserve">
+    <value>The exit order {0} was placed but the re-entry failed: {1}</value>
+  </data>
   <data name="History.Title" xml:space="preserve">
     <value>Order History</value>
   </data>

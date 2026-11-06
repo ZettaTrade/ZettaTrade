@@ -20,6 +20,7 @@ public sealed class OrderConfirmationComposer
     private const string ConfirmCancelOrderKey = "Positions.ConfirmCancelFormat";
     private const string ConfirmAmendPriceKey = "Positions.ConfirmAmend";
     private const string ConfirmAmendQuantityKey = "Positions.ConfirmAmendQuantityOnly";
+    private const string ConfirmReverseKey = "Positions.ConfirmReverseFormat";
     private const string MarketLabelKey = "Trading.PriceMarket";
 
     #endregion Resx Keys
@@ -63,6 +64,40 @@ public sealed class OrderConfirmationComposer
                 request.Quantity.Value.ToString(CultureInfo.InvariantCulture),
                 request.Symbol.Normalized,
                 priceText,
+            ],
+        };
+    }
+
+    /// <summary>
+    /// Confirmation summary shown before a position reverse runs: ONE
+    /// mandatory confirmation naming both legs — the reduce-only exit and
+    /// the opposite-side re-entry — in template order exit side, exit
+    /// quantity, symbol, entry side, entry quantity. The reverse is a
+    /// position change, so a refusal of this single summary must leave
+    /// nothing on the surface.
+    /// </summary>
+    /// <param name="exit">The reduce-only exit leg of the reverse.</param>
+    /// <param name="entry">The opposite-side re-entry leg of the reverse.</param>
+    public ConfirmationRequest ForReverse(
+        OrderRequest exit,
+        OrderRequest entry)
+    {
+        ArgumentNullException.ThrowIfNull(exit);
+        ArgumentNullException.ThrowIfNull(entry);
+
+        var exitSideText = _localization.GetString($"Order.{exit.Side}");
+        var entrySideText = _localization.GetString($"Order.{entry.Side}");
+
+        return new ConfirmationRequest
+        {
+            MessageKey = ConfirmReverseKey,
+            Arguments =
+            [
+                exitSideText,
+                exit.Quantity.Value.ToString(CultureInfo.InvariantCulture),
+                exit.Symbol.Normalized,
+                entrySideText,
+                entry.Quantity.Value.ToString(CultureInfo.InvariantCulture),
             ],
         };
     }
