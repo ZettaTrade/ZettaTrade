@@ -8,6 +8,7 @@ using Livery.Themes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.Views;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
@@ -55,6 +56,15 @@ public partial class App : Application
                 // later. Window.Show() is idempotent for non-modal windows (Window.ShowCore),
                 // making an explicit call safe in both sync and async cases.
                 mainWindow.Show();
+
+                // The first-run disclaimer: a fresh (or externally reset)
+                // acknowledgment shows the dialog once per wording version.
+                // An explicit acknowledge persists the flag, a plain
+                // dismissal leaves it unset (the next launch re-shows), and
+                // the flag itself never gates any trading action — it only
+                // re-shows the wording (the risk and confirmation flows stay
+                // untouched).
+                await ShowFirstRunDisclaimerAsync(mainWindow);
             }
 
             base.OnFrameworkInitializationCompleted();
@@ -173,6 +183,40 @@ public partial class App : Application
 
         // The theme manager matches canonical Names only.
         await themeManager.ApplyThemeAsync(match.Name);
+    }
+
+    /// <summary>
+    /// Show the first-run disclaimer dialog when the persisted acknowledgment
+    /// does not cover the shipped wording. A plain dismissal leaves the flag
+    /// unset (the next launch re-shows); the flag itself never gates any
+    /// trading action — it only re-shows the wording (the risk and
+    /// confirmation flows stay untouched).
+    /// A failure here is logged and non-fatal: the wording shows again on
+    /// the next launch instead of failing the startup.
+    /// </summary>
+    private static async Task ShowFirstRunDisclaimerAsync(MainWindow owner)
+    {
+        try
+        {
+            var settings = Services.GetRequiredService<ISettingsService>();
+            var acknowledged = await DisclaimerAcknowledgment.ReadAcknowledgedVersionAsync(settings);
+            if (DisclaimerAcknowledgment.CoversCurrent(acknowledged))
+            {
+                return;
+            }
+
+            var dialog = new DisclaimerDialogWindow
+            {
+                DataContext = Services.GetRequiredService<DisclaimerDialogViewModel>(),
+            };
+            await dialog.ShowDialog(owner);
+        }
+        catch (Exception ex)
+        {
+            Services.GetRequiredService<ILogger<App>>().LogError(
+                ex,
+                "Failed to show the first-run disclaimer dialog; the wording shows again on the next launch");
+        }
     }
 }
 
