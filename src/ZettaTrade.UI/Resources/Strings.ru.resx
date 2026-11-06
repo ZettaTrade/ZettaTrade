@@ -285,6 +285,12 @@
   <data name="Order.StopLimit" xml:space="preserve">
     <value>Стоп-лимит</value>
   </data>
+  <data name="Order.TrailingStop" xml:space="preserve">
+    <value>Трейлинг-стоп</value>
+  </data>
+  <data name="Order.Oco" xml:space="preserve">
+    <value>OCO (тейк-профит / стоп-лосс)</value>
+  </data>
   <data name="Trading.ConfirmPlaceOrderFormat" xml:space="preserve">
     <value>Ордер {1}: {0} {2} {3} — {4}?</value>
   </data>
@@ -338,6 +344,57 @@
   </data>
   <data name="NewOrder.OrderPlaced" xml:space="preserve">
     <value>Ордер размещён: {0}</value>
+  </data>
+  <data name="NewOrder.TriggerPrice" xml:space="preserve">
+    <value>Триггерная цена стопа</value>
+  </data>
+  <data name="NewOrder.OcoStopTrigger" xml:space="preserve">
+    <value>Триггер стоп-лосса</value>
+  </data>
+  <data name="NewOrder.OcoLimitPrice" xml:space="preserve">
+    <value>Лимит тейк-профита</value>
+  </data>
+  <data name="NewOrder.OcoStopLimitPrice" xml:space="preserve">
+    <value>Лимит стоп-лосса</value>
+  </data>
+  <data name="NewOrder.TriggerRequired" xml:space="preserve">
+    <value>Триггерная цена обязательна</value>
+  </data>
+  <data name="NewOrder.TriggerNotANumber" xml:space="preserve">
+    <value>Триггерная цена не число: {0}</value>
+  </data>
+  <data name="NewOrder.TrailRequired" xml:space="preserve">
+    <value>Дистанция трейлинга обязательна</value>
+  </data>
+  <data name="NewOrder.TrailDistance" xml:space="preserve">
+    <value>Дистанция трейлинга</value>
+  </data>
+  <data name="NewOrder.TrailNotANumber" xml:space="preserve">
+    <value>Дистанция трейлинга не число: {0}</value>
+  </data>
+  <data name="NewOrder.TrailTooLarge" xml:space="preserve">
+    <value>Дистанция трейлинга {0} должна быть меньше рыночной цены {1}</value>
+  </data>
+  <data name="NewOrder.SellTriggerMustBeBelowMarket" xml:space="preserve">
+    <value>Триггер продажи ({0}) должен быть ниже рыночной цены ({1})</value>
+  </data>
+  <data name="NewOrder.BuyTriggerMustBeAboveMarket" xml:space="preserve">
+    <value>Триггер покупки ({0}) должен быть выше рыночной цены ({1})</value>
+  </data>
+  <data name="NewOrder.SellLimitMustBeAboveMarket" xml:space="preserve">
+    <value>Тейк-профит продажи ({0}) должен быть выше рыночной цены ({1})</value>
+  </data>
+  <data name="NewOrder.BuyLimitMustBeBelowMarket" xml:space="preserve">
+    <value>Тейк-профит покупки ({0}) должен быть ниже рыночной цены ({1})</value>
+  </data>
+  <data name="NewOrder.InvalidParameters" xml:space="preserve">
+    <value>Некорректные параметры ордера: {0}</value>
+  </data>
+  <data name="NewOrder.OcoPlaced" xml:space="preserve">
+    <value>OCO-пара размещена: {0} и {1}</value>
+  </data>
+  <data name="NewOrder.OcoAborted" xml:space="preserve">
+    <value>Размещение OCO прервано: размещённое плечо отменено.</value>
   </data>
   <data name="Positions.Title" xml:space="preserve">
     <value>Позиции и ордера</value>
