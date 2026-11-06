@@ -79,7 +79,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-072 Order book empty under Bybit: the facade resolves the displayed depth against the served one (user-reported) | feat/order-book-depth | done | - |
 | T-073 Flaky concurrency test: GetString_AFactoryParkedAcrossASwitch fails intermittently under load (queued from the T-071/T-072 landing) | feat/flaky-localization | done | - |
 | T-074 Advanced order types: stop-limit, trailing stop, OCO | feat/order-types | done | - |
-| T-075 Amend a working order from the orders panel | feat/order-amend | queued | - |
+| T-075 Amend a working order from the orders panel | feat/order-amend | done | - |
 | T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | queued | - |
 | T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | queued | - |
 | T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | queued | - |
@@ -179,6 +179,7 @@ the end of that file, so no effort is duplicated.
 - **Scope:** orders panel VM, a replace flow service in App, the existing trading seam (Core diff only if the adapter map demands one — supervisor-gated), resx en+ru, tests.
 - **Acceptance:** amend on the paper adapter, risk re-check enforced, unsupported amends return errors rather than degenerate.
 - **Tests:** paper amend golden, fill-during-amend race, risk re-validation, unsupported-type error path.
+- **Status:** done. Canon: the amend pipeline (`dc69724`), the orders-panel amend surface with its dialog (`2684856`), the alpha.44 cut (`83e43b1`) and this section's status flip; shipped as `0.1.0-alpha.44` (see CHANGELOG.md). No Core interface changes were needed — the adapter-side replace seam is an App-owned interim interface (`IOrderReplaceSupport`, not Core) probing for optional support until Core lands the replace contract; the shipped paper adapter runs the surfaced cancel+new sequence. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-076 — Bulk order management: cancel every working order on a symbol
 
