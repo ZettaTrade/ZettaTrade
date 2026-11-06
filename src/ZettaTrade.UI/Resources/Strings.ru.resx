@@ -69,6 +69,12 @@
   <data name="Menu.AI.Servers" xml:space="preserve">
     <value>MCP Серверы...</value>
   </data>
+  <data name="Menu.Help" xml:space="preserve">
+    <value>Справка</value>
+  </data>
+  <data name="Menu.Help.AboutDisclaimer" xml:space="preserve">
+    <value>О программе / Дисклеймер...</value>
+  </data>
   <data name="Settings.Title" xml:space="preserve">
     <value>Настройки</value>
   </data>
@@ -296,6 +302,30 @@
   </data>
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>по рыночной цене</value>
+  </data>
+  <data name="Trading.Disclaimer.Title" xml:space="preserve">
+    <value>ZettaTrade — дисклеймер альфа-версии</value>
+  </data>
+  <data name="Trading.Disclaimer.NotAdvice" xml:space="preserve">
+    <value>ZettaTrade — образовательное программное обеспечение, а не инвестиционная рекомендация. Ничто в этом приложении, его документации или ИИ-чате не является рекомендацией покупать, продавать или держать какой-либо актив или инструмент.</value>
+  </data>
+  <data name="Trading.Disclaimer.AlphaStatus" xml:space="preserve">
+    <value>Это альфа-версия: поведение, ключи настроек и форматы файлов могут меняться между альфа-сборками без предупреждения; точная версия сборки показана в строке состояния.</value>
+  </data>
+  <data name="Trading.Disclaimer.PaperFirst" xml:space="preserve">
+    <value>Торговый движок в комплекте — симулятор paper-trading: имитация сделок по живым рыночным ценам, он никогда не касается реальных средств или биржевых ключей. Адаптеры берут адреса эндпоинтов из файла настроек, поэтому testnet-first — это изменение конфигурации, а не кода.</value>
+  </data>
+  <data name="Trading.Disclaimer.RealFunds" xml:space="preserve">
+    <value>Не используйте приложение с реальными средствами, пока не проверили его собственным тестированием. Начинайте с testnet и paper-trading, убедитесь в поведении приложения сами и никогда не рискуйте деньгами, которые не можете позволить себе потерять. Торговля сопряжена с существенным риском убытков; за собственные решения, собственное тестирование и собственные средства отвечаете только вы.</value>
+  </data>
+  <data name="Trading.Disclaimer.KeyHygiene" xml:space="preserve">
+    <value>Ключи API — ответственность пользователя: создавайте пользовательские ключи с узким охватом — только для чтения рыночных данных или только для торговли (права вывода и трансфера выключены), с IP-allowlist там, где биржа его предлагает, — и храните их только в локальном защищённом хранилище приложения.</value>
+  </data>
+  <data name="Trading.Disclaimer.WhereToRead" xml:space="preserve">
+    <value>Полное руководство: README.md (безопасность торговли) и docs/SECURITY.md (ключи и секреты).</value>
+  </data>
+  <data name="Trading.Disclaimer.Acknowledge" xml:space="preserve">
+    <value>Понятно</value>
   </data>
   <data name="NewOrder.Title" xml:space="preserve">
     <value>Новый ордер</value>
