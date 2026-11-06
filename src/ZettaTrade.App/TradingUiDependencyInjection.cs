@@ -10,12 +10,11 @@ using ZettaTrade.App.ViewModels;
 /// </summary>
 public static class TradingUiDependencyInjection
 {
-    /// <summary>Register the trading UI services and dialog view models.</summary>
+    /// <summary>Register the trading UI services and dialog view models. The positions panel rides the position actions module's registration since its actions moved there (T-077).</summary>
     public static IServiceCollection AddTradingUiServices(this IServiceCollection services) =>
         services
             .AddSingleton<IOrderJournal, OrderJournal>()
             .AddSingleton<OrderConfirmationComposer>()
             .AddSingleton<SymbolListProvider>()
-            .AddTransient<NewOrderDialogViewModel>()
-            .AddTransient<PositionsPanelViewModel>();
+            .AddTransient<NewOrderDialogViewModel>();
 }

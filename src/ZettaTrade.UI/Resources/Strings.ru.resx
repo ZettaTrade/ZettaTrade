@@ -579,6 +579,57 @@
   <data name="Positions.AmendRowStatus" xml:space="preserve">
     <value>Изменяется…</value>
   </data>
+  <data name="Positions.ActionsHeader" xml:space="preserve">
+    <value>Действия</value>
+  </data>
+  <data name="Positions.ActionClose" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="Positions.ActionReduce" xml:space="preserve">
+    <value>Сократить</value>
+  </data>
+  <data name="Positions.ActionReverse" xml:space="preserve">
+    <value>Разворот</value>
+  </data>
+  <data name="Positions.ReduceWatermark" xml:space="preserve">
+    <value>Количество</value>
+  </data>
+  <data name="Positions.ConfirmReverseFormat" xml:space="preserve">
+    <value>Разворот позиции {2}: закрыть {0} {1}, затем открыть противоположную {3} {4}?</value>
+  </data>
+  <data name="Positions.ClosedFormat" xml:space="preserve">
+    <value>Позиция закрыта: {0} {1} по рынку (ордер {2}).</value>
+  </data>
+  <data name="Positions.ReducedFormat" xml:space="preserve">
+    <value>Позиция сокращена на {0} {1} по рынку (ордер {2}).</value>
+  </data>
+  <data name="Positions.ReversedFormat" xml:space="preserve">
+    <value>Позиция развёрнута: закрытие {0}, повторный вход {1}.</value>
+  </data>
+  <data name="Positions.NoPositionFormat" xml:space="preserve">
+    <value>Открытой позиции по {0} нет: действие отклонено.</value>
+  </data>
+  <data name="Positions.ReduceNotANumberFormat" xml:space="preserve">
+    <value>Сокращение должно быть положительным числом, а не '{0}'.</value>
+  </data>
+  <data name="Positions.ReduceTooLargeFormat" xml:space="preserve">
+    <value>Сокращение {0} превышает открытую позицию {1}: действие отклонено.</value>
+  </data>
+  <data name="Positions.ActionRejectedFormat" xml:space="preserve">
+    <value>Действие отклонено проверками рисков: {0}</value>
+  </data>
+  <data name="Positions.ActionFailedFormat" xml:space="preserve">
+    <value>Действие с позицией не завершено: {0}</value>
+  </data>
+  <data name="Positions.RacePositionChangedFormat" xml:space="preserve">
+    <value>Позиция изменилась во время действия (сейчас {0} {1} на {2}): ничего не размещено.</value>
+  </data>
+  <data name="Positions.ReverseAbortedFormat" xml:space="preserve">
+    <value>Разворот прерван после закрытия: позиция по {0} ещё существует (сейчас {1} {2}); повторный вход НЕ размещён.</value>
+  </data>
+  <data name="Positions.ReverseLeg2FailedFormat" xml:space="preserve">
+    <value>Ордер закрытия {0} размещён, но повторный вход не удался: {1}</value>
+  </data>
   <data name="History.Title" xml:space="preserve">
     <value>История ордеров</value>
   </data>

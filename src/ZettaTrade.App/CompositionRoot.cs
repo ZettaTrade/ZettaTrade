@@ -218,6 +218,7 @@ internal static class CompositionRoot
         services.AddHistoryUiServices();
         services.AddTradeStatsServices();
         services.AddCsvExportServices();
+        services.AddPositionActionsServices(); // T-077: position actions (close, partial close, reverse).
 
         var provider = services.BuildServiceProvider();
 
