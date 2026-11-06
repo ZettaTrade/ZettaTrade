@@ -9,6 +9,37 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.35] - 2026-11-06
+
+Build of board task T-069 (branch `feat/appearance-contracts`).
+
+### Changed
+- The appearance contracts leave `ZettaTrade.Core.Interfaces` for Livery: `IThemeManager` + `ThemeInfo` now live in `Livery.Themes`, `ILocalizationManager` + `LanguageInfo` in `Livery.Localization` and `IAsyncInitializable` in `Livery.Contracts` — the appearance library references nothing ZettaTrade-branded and can package standalone for its second consumer, the `App`/`AI`/`Infrastructure` consumers rehome their usings (AI and Infrastructure gain the Livery project reference), the settings window's XAML datatypes switch to the library prefixes, and the move ships as a clean flip with no backward-compat shims.
+
+## [0.1.0-alpha.34] - 2026-11-06
+
+Build of board task T-068 (branch `feat/mcp-client-settings`).
+
+### Added
+- External MCP servers in the settings' Mcp tab: per-entry editing (name, transport Stdio/Streamable HTTP, command+args for stdio, address+port for HTTP, the enabled flag, an auth secret REFERENCE key that resolves through the secret store, and the optional HTTP timeout seconds) persisted under the new `McpClients` settings section, with per-entry honest state rows (Disabled/Connecting/Connected/Failed) fed by the new `McpClientManager` — enabled entries connect on startup and after each save through the same `McpClientService.ConnectAsync` path, unchanged saves keep live connections, removed/changed/disabled entries disconnect, outages pin Failed with the transport's own reason instead of hanging anything, and unparsable persisted rows are skipped loudly.
+
+## [0.1.0-alpha.33] - 2026-11-06
+
+Build of board task T-067 (branch `feat/indicator-settings-gate`).
+
+### Added
+- The Indicators settings tab reflects the real plugin catalog: the SMA
+  overlay row renders only when the scanned catalog registered the plugin
+  (the new `IIndicatorCatalog.LoadedNames` snapshot drives the gate), and a
+  catalog with zero indicators shows the honest localized empty state
+  naming the app data directory's `plugins` folder.
+
+### Fixed
+- A settings save without the loaded plugin never fabricates its config
+  row: the indicator block of the save runs only when the session actually
+  owns the plugin — the persisted `ChartIndicators` config rides untouched
+  (the chart pipeline already skips unknown names on its own seam).
+
 ## [0.1.0-alpha.32] - 2026-11-06
 
 Build of board task T-066 (branch `feat/window-chrome`).

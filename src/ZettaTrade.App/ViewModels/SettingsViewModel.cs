@@ -4,9 +4,11 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Globalization;
 using System.Reactive.Linq;
+using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ZettaTrade.AI.Mcp;
 using ZettaTrade.App.Services;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
@@ -121,6 +123,24 @@ public sealed class SettingsViewModel : ReactiveObject
     }
 
     /// <summary>
+    /// Whether the scanned plugin catalog actually registers the SMA
+    /// indicator: the indicators tab renders the SMA row only for a plugin
+    /// the scan loaded (a missing or skipped-by-scan plugin assembly would
+    /// otherwise render a dead row). The plugin set is fixed for the
+    /// session (the scan runs at startup only), so the flag is settled at
+    /// construction.
+    /// </summary>
+    public bool IsSmaPluginLoaded { get; }
+
+    /// <summary>
+    /// Whether the scanned plugin catalog registered no indicators at all:
+    /// the indicators tab shows the honest empty state (nothing was found
+    /// beside the application's plugin folder) instead of any row. Mutually
+    /// exclusive with <see cref="IsSmaPluginLoaded"/> by construction.
+    /// </summary>
+    public bool IsIndicatorCatalogEmpty { get; }
+
+    /// <summary>
     /// Whether the local MCP server is enabled. A selection - like every
     /// other one here - applies only on the explicit Save: the checkbox is
     /// the selection, the persisted row is the applied state, and the saved
@@ -140,6 +160,14 @@ public sealed class SettingsViewModel : ReactiveObject
 
     /// <summary>The MCP tab's honest failed row: the apply did not reach the server, the stored choice applies next launch.</summary>
     public bool IsMcpFailed => _mcpHostState == McpHostState.Failed;
+
+    /// <summary>
+    /// The external-servers block's draft rows: the editor surface for the
+    /// terminal's external MCP client entries (T-068). The rows live only in
+    /// memory — the save maps them into the persisted list and replays the
+    /// manager's apply; a window open re-seeds them from the settings.
+    /// </summary>
+    public ObservableCollection<McpServerRow> McpServers { get; } = [];
 
     private PairRow? _selectedAllPair;
 
@@ -230,6 +258,16 @@ public sealed class SettingsViewModel : ReactiveObject
     /// </summary>
     public ReactiveCommand<PairRow, RxVoid> TogglePairFavoriteCommand { get; }
 
+    /// <summary>
+    /// Add a fresh external-server draft row: the empty draft stays local
+    /// until Save (a blank-named row simply drops out of the persisted list
+    /// with a logged warning).
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> AddMcpServerCommand { get; }
+
+    /// <summary>Remove one external-server draft row: local until Save (the persisted list and its connections apply on Save only).</summary>
+    public ReactiveCommand<McpServerRow, RxVoid> RemoveMcpServerCommand { get; }
+
     #endregion Commands
 
     #region Private Fields
@@ -241,6 +279,12 @@ public sealed class SettingsViewModel : ReactiveObject
     private readonly ActiveExchangeService _activeExchanges;
     private readonly SymbolListProvider _symbolList;
     private readonly ILogger<SettingsViewModel> _logger;
+
+    /// <summary>
+    /// The scanned indicator catalog (shared with the chart pipeline): its
+    /// loaded-name set decides whether the overlay rows render at all.
+    /// </summary>
+    private readonly IIndicatorCatalog _indicatorCatalog;
 
     /// <summary>
     /// The persisted hidden-pairs map (all exchanges) as last read: the
@@ -318,6 +362,20 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>The host runner (start/stop live on save, state surfacing).</summary>
     private readonly McpHostService _mcpHosts;
 
+    /// <summary>
+    /// The external MCP client connections' owner (T-068): the save applies
+    /// the editor's list live through its reconcile and the state snapshots
+    /// feed the per-entry rows.
+    /// </summary>
+    private readonly IMcpClientManager _mcpClients;
+
+    /// <summary>
+    /// The persisted external-server list as last read: the drafts seed from
+    /// it and the save compares against it, so an unchanged save stays
+    /// silent (the same no-op discipline every other row keeps).
+    /// </summary>
+    private string _persistedServerJson = McpClientManager.DefaultServersJson;
+
     #endregion Private Fields
 
     #region Constructor
@@ -332,6 +390,12 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <param name="localization">Localization manager providing applied/available languages.</param>
     /// <param name="shellUtils">File manager launcher for the themes folder button.</param>
     /// <param name="mcpHosts">The MCP host runner: the save applies the enable choice live and the state stream renders the honest rows.</param>
+    /// <param name="indicatorCatalog">The scanned plugin catalog: the indicators tab renders its rows only for plugins the set actually loaded.</param>
+    /// <param name="mcpClients">
+    /// The external MCP client connections' owner: the save applies the
+    /// external-server list live and the state snapshots render the per-entry
+    /// connection rows honestly.
+    /// </param>
     /// <param name="logger">Injected application logger.</param>
     /// <param name="themeLoadErrors">
     /// Stream of theme file load errors; when omitted (tests without the
@@ -345,6 +409,8 @@ public sealed class SettingsViewModel : ReactiveObject
         McpHostService mcpHosts,
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
+        IIndicatorCatalog indicatorCatalog,
+        IMcpClientManager mcpClients,
         ILogger<SettingsViewModel> logger,
         IObservable<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null)
     {
@@ -355,7 +421,19 @@ public sealed class SettingsViewModel : ReactiveObject
         _mcpHosts = mcpHosts;
         _activeExchanges = activeExchanges;
         _symbolList = symbolList;
+        _indicatorCatalog = indicatorCatalog;
+        _mcpClients = mcpClients;
         _logger = logger;
+
+        // The plugin surface is settled at construction (the scan runs at
+        // startup only): the SMA row renders only when the catalog holds
+        // the plugin; a nameless (null) set reads as an empty one. A
+        // catalog that registered other plugins but not SMA renders
+        // neither the row nor the empty state — the two flags answer the
+        // two independent questions of the tab's honesty contract.
+        var loadedNames = indicatorCatalog.LoadedNames ?? Array.Empty<string>();
+        IsSmaPluginLoaded = loadedNames.Contains(SmaIndicatorName, StringComparer.Ordinal);
+        IsIndicatorCatalogEmpty = loadedNames.Count == 0;
 
         OpenThemesFolderCommand = ReactiveCommand.Create(HandleOpenThemesFolder);
 
@@ -514,6 +592,17 @@ public sealed class SettingsViewModel : ReactiveObject
         RevealPairCommand = ReactiveCommand.Create(RevealSelectedPair, hasHiddenPairPick);
         TogglePairFavoriteCommand = ReactiveCommand.Create<PairRow>(TogglePairFavorite);
 
+        AddMcpServerCommand = ReactiveCommand.Create(AddServerDraftRow);
+        RemoveMcpServerCommand = ReactiveCommand.Create<McpServerRow>(row => McpServers.Remove(row));
+
+        // The external servers' honest per-entry states: the manager's
+        // snapshots repaint the matching draft rows by name (the name is the
+        // key both sides share). The subscription mirrors the app-lifetime
+        // singleton, the same contract the theme errors carry.
+        _mcpClients.StatesChanged.Subscribe(
+            ApplyMcpClientStates,
+            ex => _logger.LogError(ex, "The MCP client state stream stopped unexpectedly"));
+
         ResetAppearanceSelections();
     }
 
@@ -532,6 +621,7 @@ public sealed class SettingsViewModel : ReactiveObject
     {
         ResetAppearanceSelections();
         await RefreshSymbolPairsAsync(ct);
+        await RefreshMcpClientRowsAsync(ct);
     }
 
     /// <summary>
@@ -579,27 +669,34 @@ public sealed class SettingsViewModel : ReactiveObject
         // the row to save at all (an unparsable text skips the row with a
         // logged warning - nothing defaults, the cached config stays in
         // charge). A real difference rewrites the row array: the SMA row is
-        // replaced, every other (future) row rides untouched.
-        if (TryReadSmaSelection(out var smaEnabled, out var smaPeriod))
+        // replaced, every other (future) row rides untouched. The block only
+        // runs when the catalog actually loaded the plugin: the save never
+        // fabricates a config row for a plugin the session does not have
+        // (the persisted config rides untouched otherwise — the chart
+        // pipeline skips unknown names on its own seam).
+        if (IsSmaPluginLoaded)
         {
-            if (smaEnabled != _persistedSmaEnabled || smaPeriod != _persistedSmaPeriod)
+            if (TryReadSmaSelection(out var smaEnabled, out var smaPeriod))
             {
-                var (configs, _) = ChartIndicatorConfig.ParseList(_persistedIndicatorConfig);
-                var updated = configs
-                    .Where(config => !string.Equals(config.Name, SmaIndicatorName, StringComparison.Ordinal))
-                    .ToList();
-                updated.Add(new ChartIndicatorConfig(SmaIndicatorName, smaEnabled, smaPeriod));
+                if (smaEnabled != _persistedSmaEnabled || smaPeriod != _persistedSmaPeriod)
+                {
+                    var (configs, _) = ChartIndicatorConfig.ParseList(_persistedIndicatorConfig);
+                    var updated = configs
+                        .Where(config => !string.Equals(config.Name, SmaIndicatorName, StringComparison.Ordinal))
+                        .ToList();
+                    updated.Add(new ChartIndicatorConfig(SmaIndicatorName, smaEnabled, smaPeriod));
 
-                var written = ChartIndicatorConfig.Write(updated);
-                await _settings.SetAsync(UiSettingsKeys.Section, UiSettingsKeys.ChartIndicators, written);
-                CacheIndicatorConfig(written);
+                    var written = ChartIndicatorConfig.Write(updated);
+                    await _settings.SetAsync(UiSettingsKeys.Section, UiSettingsKeys.ChartIndicators, written);
+                    CacheIndicatorConfig(written);
+                }
             }
-        }
-        else
-        {
-            _logger.LogWarning(
-                "The SMA period '{PeriodText}' is not a readable integer; the indicator selection is not saved",
-                SmaPeriodText);
+            else
+            {
+                _logger.LogWarning(
+                    "The SMA period '{PeriodText}' is not a readable integer; the indicator selection is not saved",
+                    SmaPeriodText);
+            }
         }
 
         // The MCP server enable: only a real difference applies (the same
@@ -614,6 +711,46 @@ public sealed class SettingsViewModel : ReactiveObject
                 _isMcpServerEnabled);
             _persistedMcpServerEnabled = _isMcpServerEnabled;
             await _mcpHosts.ApplyAsync(_isMcpServerEnabled);
+        }
+
+        // The external-servers drafts: the rows map into the persisted list
+        // verbatim — nothing coerced, an unusable value rides the entry and
+        // the transport boundary fails it loudly — and only a real
+        // difference applies (the same no-op discipline every row keeps);
+        // the apply reconciles the live connections with the new list.
+        List<McpServerConfig> serverConfigs = [];
+        List<string> serverProblems = [];
+        foreach (var row in McpServers)
+        {
+            var config = row.ToConfig(serverProblems);
+            if (config is null)
+            {
+                serverProblems.Add("A draft row is dropped: no name — a nameless entry keys nothing");
+                continue;
+            }
+
+            serverConfigs.Add(config);
+        }
+
+        foreach (var problem in serverProblems)
+        {
+            _logger.LogWarning("The external MCP server drafts problem: {Problem}", problem);
+        }
+
+        var writtenServers = McpServerConfigList.Write(serverConfigs);
+
+        // The no-op discipline rides the semantic lists, not the wire bytes:
+        // a hand-edited persisted file (a different key order) that describes
+        // the same rows never triggers a rewrite or a live reconcile.
+        var (persistedServers, _) = McpServerConfigList.Parse(_persistedServerJson);
+        if (!persistedServers.SequenceEqual(serverConfigs))
+        {
+            await _settings.SetAsync(
+                McpClientManager.ServersSection,
+                McpClientManager.ServersKey,
+                writtenServers);
+            _persistedServerJson = writtenServers;
+            await _mcpClients.ApplyAsync(serverConfigs);
         }
 
         // The hidden-pairs draft: only a real difference applies (the same
@@ -951,5 +1088,57 @@ public sealed class SettingsViewModel : ReactiveObject
         return index >= 0 && index < items.Count ? items[index] : null;
     }
 
+    /// <summary>
+    /// Seed the external-servers drafts from the persisted list: the rows
+    /// carry the configs' fields verbatim and their connection states ride
+    /// the manager's latest snapshot (a name the manager has no state for —
+    /// an unsaved brand-new row — keeps the honest "not known" dash). The
+    /// window open calls this, so abandoned (unsaved) drafts are discarded
+    /// the same way every other selection discards.
+    /// </summary>
+    private async Task RefreshMcpClientRowsAsync(CancellationToken ct)
+    {
+        var persisted = await _settings.GetAsync<string>(
+            McpClientManager.ServersSection,
+            McpClientManager.ServersKey,
+            McpClientManager.DefaultServersJson);
+        ct.ThrowIfCancellationRequested();
+
+        var (servers, problems) = McpServerConfigList.Parse(persisted);
+        foreach (var problem in problems)
+        {
+            _logger.LogWarning("The persisted MCP client list skipped a row: {Problem}", problem);
+        }
+
+        var states = _mcpClients.States;
+        McpServers.Clear();
+        foreach (var server in servers)
+        {
+            var row = McpServerRow.FromConfig(server);
+            row.SetState(states.FirstOrDefault(state => state.Name.Equals(server.Name, StringComparison.Ordinal)));
+            McpServers.Add(row);
+        }
+
+        _persistedServerJson = persisted;
+    }
+
+    /// <summary>
+    /// Repaint the draft rows with the manager's fresh snapshot: the states
+    /// key by entry name (the key both surfaces share), a row the snapshot
+    /// has no entry for keeps the honest "not known" dash.
+    /// </summary>
+    private void ApplyMcpClientStates(IReadOnlyList<McpClientState> states)
+    {
+        foreach (var row in McpServers)
+        {
+            row.SetState(states.FirstOrDefault(state => state.Name.Equals(row.Name, StringComparison.Ordinal)));
+        }
+    }
+
+    /// <summary>Append one blank external-server draft row; Add stays local, only Save persists.</summary>
+    private void AddServerDraftRow() =>
+        McpServers.Add(new McpServerRow());
+
     #endregion Private Methods
 }
+

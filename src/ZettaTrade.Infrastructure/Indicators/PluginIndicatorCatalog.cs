@@ -41,6 +41,13 @@ public sealed class PluginIndicatorCatalog : IIndicatorCatalog
     private readonly ConcurrentDictionary<string, PluginDescriptor> _descriptors =
         new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The canonical names snapshot the contract hands out: materialized
+    /// once the scan completes (registrations happen nowhere else), so a
+    /// consumer can never observe a half-filled or mutating set.
+    /// </summary>
+    private volatile IReadOnlyCollection<string> _loadedNames = Array.Empty<string>();
+
     #endregion
 
     #region Constructors
@@ -61,6 +68,9 @@ public sealed class PluginIndicatorCatalog : IIndicatorCatalog
     #endregion
 
     #region IIndicatorCatalog
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<string> LoadedNames => _loadedNames;
 
     /// <inheritdoc />
     public IIndicator? Create(string name, int period)
@@ -103,6 +113,11 @@ public sealed class PluginIndicatorCatalog : IIndicatorCatalog
         {
             ScanAssembly(file);
         }
+
+        // The scan is the only registrant and it runs synchronously in the
+        // constructor window: the materialized snapshot is stable for the
+        // session lifetime from this point on.
+        _loadedNames = _descriptors.Keys.ToArray();
 
         _logger.LogInformation(
             "The plugins directory {Path} provided indicators: {Indicators}",
