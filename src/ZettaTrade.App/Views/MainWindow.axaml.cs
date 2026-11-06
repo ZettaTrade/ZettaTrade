@@ -66,6 +66,17 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
                 request => ViewModel!.Chart.RequestOlderBarsAsync(),
                 onError: ex => Log.Error(ex, "Chart older history request stream failed"));
         Closed += (_, _) => _olderHistoryRequests.Dispose();
+
+        // The chart view model is an application-lifetime singleton living
+        // for the whole window's stay, so — like the menu handlers above —
+        // its save-dialog registration is registered here without disposal:
+        // the candles export asks THIS window for the destination (picking a
+        // file is view behavior).
+        ViewModel?.Chart.SaveCandlesCsvRequested.RegisterHandler(async context =>
+        {
+            var path = await CsvSaveFilePicker.PickAsync(this, context.Input);
+            context.SetOutput(path);
+        });
     }
 
     /// <summary>Subscription of the book level click stream; disposed with the window.</summary>

@@ -270,6 +270,12 @@
   <data name="Chart.Indicators.SmaTip" xml:space="preserve">
     <value>Simple Moving Average: the mean close over the last N bars, drawn as a line over the candles.</value>
   </data>
+  <data name="Chart.ExportCandlesCsv" xml:space="preserve">
+    <value>Export Candles CSV</value>
+  </data>
+  <data name="Chart.ExportFailed" xml:space="preserve">
+    <value>Could not export the CSV file: {0}</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>

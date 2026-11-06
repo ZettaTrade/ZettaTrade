@@ -181,6 +181,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<IIndicatorCatalog>(),
+                sp.GetRequiredService<ICsvExportService>(),
+                sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
