@@ -453,6 +453,15 @@
   <data name="History.Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="History.ExportOrdersCsv" xml:space="preserve">
+    <value>Export Orders CSV</value>
+  </data>
+  <data name="History.ExportFillsCsv" xml:space="preserve">
+    <value>Export Fills CSV</value>
+  </data>
+  <data name="History.ExportFailed" xml:space="preserve">
+    <value>Could not export the CSV file: {0}</value>
+  </data>
   <data name="OrderBook.Title" xml:space="preserve">
     <value>Order Book</value>
   </data>

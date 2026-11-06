@@ -453,6 +453,15 @@
   <data name="History.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="History.ExportOrdersCsv" xml:space="preserve">
+    <value>Экспорт ордеров в CSV</value>
+  </data>
+  <data name="History.ExportFillsCsv" xml:space="preserve">
+    <value>Экспорт сделок в CSV</value>
+  </data>
+  <data name="History.ExportFailed" xml:space="preserve">
+    <value>Не удалось экспортировать CSV-файл: {0}</value>
+  </data>
   <data name="OrderBook.Title" xml:space="preserve">
     <value>Стакан ордеров</value>
   </data>
