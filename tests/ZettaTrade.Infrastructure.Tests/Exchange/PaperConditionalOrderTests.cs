@@ -665,14 +665,14 @@ public sealed class PaperConditionalOrderTests
         decimal quantity,
         decimal price,
         string? ocoGroupId = null) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = OrderType.Limit,
-        Quantity = new Quantity(quantity),
-        Price = new Price(price),
-        OcoGroupId = ocoGroupId,
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(quantity),
+            Price = new Price(price),
+            OcoGroupId = ocoGroupId,
+        };
 
     private static OrderRequest StopLimitOrder(
         Symbol symbol,
@@ -681,15 +681,15 @@ public sealed class PaperConditionalOrderTests
         decimal trigger,
         decimal limit,
         string? ocoGroupId = null) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = OrderType.StopLimit,
-        Quantity = new Quantity(quantity),
-        Price = new Price(limit),
-        StopPrice = new Price(trigger),
-        OcoGroupId = ocoGroupId,
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.StopLimit,
+            Quantity = new Quantity(quantity),
+            Price = new Price(limit),
+            StopPrice = new Price(trigger),
+            OcoGroupId = ocoGroupId,
+        };
 
     private static OrderRequest TrailingStopOrder(
         Symbol symbol,
@@ -697,14 +697,14 @@ public sealed class PaperConditionalOrderTests
         decimal quantity,
         decimal trigger,
         decimal trail) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = OrderType.TrailingStop,
-        Quantity = new Quantity(quantity),
-        StopPrice = new Price(trigger),
-        TrailDistance = new Price(trail),
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.TrailingStop,
+            Quantity = new Quantity(quantity),
+            StopPrice = new Price(trigger),
+            TrailDistance = new Price(trail),
+        };
 
     #endregion
 }

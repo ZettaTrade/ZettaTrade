@@ -846,13 +846,13 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             // at the limit price itself — the same rule a crossing standalone
             // limit uses.
             case OrderType.StopLimit when order.StopPrice is { } trigger:
-            {
-                var stopped = order.Side == OrderSide.Buy
-                    ? lastPrice >= trigger.Value
-                    : lastPrice <= trigger.Value;
+                {
+                    var stopped = order.Side == OrderSide.Buy
+                        ? lastPrice >= trigger.Value
+                        : lastPrice <= trigger.Value;
 
-                return stopped ? order.Price : (Price?)null;
-            }
+                    return stopped ? order.Price : (Price?)null;
+                }
 
             // The trailing trigger only ever moves in the favorable direction:
             // a Sell order's trigger ratchets up, a Buy order's down. The stop
@@ -860,17 +860,17 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             case OrderType.TrailingStop
                 when order.TrailDistance is { } trail
                 && order.Side == OrderSide.Sell:
-            {
-                state.TriggerLevel = Math.Max(state.TriggerLevel, lastPrice - trail.Value);
-                return lastPrice <= state.TriggerLevel ? new Price(state.TriggerLevel) : null;
-            }
+                {
+                    state.TriggerLevel = Math.Max(state.TriggerLevel, lastPrice - trail.Value);
+                    return lastPrice <= state.TriggerLevel ? new Price(state.TriggerLevel) : null;
+                }
 
             case OrderType.TrailingStop
                 when order.TrailDistance is { } trail:
-            {
-                state.TriggerLevel = Math.Min(state.TriggerLevel, lastPrice + trail.Value);
-                return lastPrice >= state.TriggerLevel ? new Price(state.TriggerLevel) : null;
-            }
+                {
+                    state.TriggerLevel = Math.Min(state.TriggerLevel, lastPrice + trail.Value);
+                    return lastPrice >= state.TriggerLevel ? new Price(state.TriggerLevel) : null;
+                }
 
             // A working limit as the take-profit leg of an OCO pair owes the
             // leg's fill despite never having a stop side: the resting limit
@@ -878,13 +878,13 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             // placement. Standalone resting limits keep the documented
             // rest-until-cancel behavior (no automatic matching loop).
             case OrderType.Limit when order.Price is { } limitPrice:
-            {
-                var crosses = order.Side == OrderSide.Buy
-                    ? limitPrice.Value >= lastPrice
-                    : limitPrice.Value <= lastPrice;
+                {
+                    var crosses = order.Side == OrderSide.Buy
+                        ? limitPrice.Value >= lastPrice
+                        : limitPrice.Value <= lastPrice;
 
-                return crosses ? limitPrice : null;
-            }
+                    return crosses ? limitPrice : null;
+                }
 
             default:
                 return null;
