@@ -28,8 +28,30 @@ public sealed record OrderRequest
 
     /// <summary>
     /// Stop trigger price. Required for StopMarket and StopLimit orders.
+    /// For a TrailingStop order it seeds the initial trigger level: the first
+    /// price the simulated stop arms at before the trailing distance drags it
+    /// along the favorable direction. Also the value anchor the risk manager
+    /// estimates the order's notional from at trigger.
     /// </summary>
     public Price? StopPrice { get; init; }
+
+    /// <summary>
+    /// Trailing distance for TrailingStop orders: how far the market is
+    /// allowed to retrace from the favorable extreme before the stop
+    /// triggers. The trigger itself only ever moves in the favorable
+    /// direction (a sell order's trigger ratchets up, a buy order's down).
+    /// Required and strictly positive for TrailingStop orders.
+    /// </summary>
+    public Price? TrailDistance { get; init; }
+
+    /// <summary>
+    /// OCO (one-cancels-the-other) group identifier. Orders sharing a
+    /// non-empty id form an either-or group: the first leg that fills or is
+    /// cancelled takes the remaining legs down with it, so no half pair ever
+    /// keeps working. Null for standalone orders. An adapter that cannot
+    /// hold the contract must reject the leg instead of degrading.
+    /// </summary>
+    public string? OcoGroupId { get; init; }
 
     /// <summary>Time-in-force policy.</summary>
     public TimeInForce TimeInForce { get; init; } = TimeInForce.GTC;
@@ -78,5 +100,43 @@ public sealed record OrderRequest
 
         if (Quantity.Value <= 0)
             throw new InvalidOperationException("Quantity must be positive.");
+
+        // Trailing-stop shape: the request always carries its trailing distance
+        // and the seed trigger the order arms at. A trailing request without
+        // either is unparsable, never defaulted toward execution.
+        if (Type == OrderType.TrailingStop)
+        {
+            if (TrailDistance == null)
+                throw new InvalidOperationException("TrailDistance is required for TrailingStop orders.");
+
+            if (TrailDistance.Value.Value <= 0)
+                throw new InvalidOperationException(
+                    $"TrailDistance must be positive for TrailingStop orders ({TrailDistance.Value.Value}).");
+
+            if (StopPrice == null)
+                throw new InvalidOperationException(
+                    "StopPrice (the initial trigger seed) is required for TrailingStop orders.");
+        }
+
+        // Stop-limit trigger-vs-limit matrix: the armed trigger sits inside the
+        // limit protection. A Buy stop-limit limits its pursuit from above
+        // (the limit price is at or above the trigger), a Sell stop-limit
+        // below it. An inverted pair is a validation error, never a silent
+        // reinterpretation.
+        if (Type == OrderType.StopLimit && Price is { } limitPrice && StopPrice is { } triggerPrice)
+        {
+            var wrongSide = Side == OrderSide.Buy
+                ? triggerPrice.Value > limitPrice.Value
+                : triggerPrice.Value < limitPrice.Value;
+
+            if (wrongSide)
+            {
+                throw new InvalidOperationException(
+                    $"For a {Side} stop-limit the limit price must be " +
+                    (Side == OrderSide.Buy
+                        ? $"at or above the stop trigger (limit {limitPrice.Value}, trigger {triggerPrice.Value})."
+                        : $"at or below the stop trigger (limit {limitPrice.Value}, trigger {triggerPrice.Value})."));
+            }
+        }
     }
 }

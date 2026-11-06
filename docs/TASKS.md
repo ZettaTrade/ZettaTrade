@@ -78,7 +78,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-071 Window chrome follow-ups: fix the black content pane + caption strip polish (user-reported) | feat/window-chrome-black | done | - |
 | T-072 Order book empty under Bybit: the facade resolves the displayed depth against the served one (user-reported) | feat/order-book-depth | done | - |
 | T-073 Flaky concurrency test: GetString_AFactoryParkedAcrossASwitch fails intermittently under load (queued from the T-071/T-072 landing) | feat/flaky-localization | done | - |
-| T-074 Advanced order types: stop-limit, trailing stop, OCO | feat/order-types | queued | - |
+| T-074 Advanced order types: stop-limit, trailing stop, OCO | feat/order-types | done | - |
 | T-075 Amend a working order from the orders panel | feat/order-amend | queued | - |
 | T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | queued | - |
 | T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | queued | - |
@@ -123,7 +123,10 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | - | queued | - |
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
 | T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
-| T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | queued | - |
+| T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | done | - |
+| T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
+| T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | queued | - |
+| T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -166,6 +169,7 @@ the end of that file, so no effort is duplicated.
 - **Scope:** Core order shapes (additive), paper trading engine, ticket VM/view, adapters that can map the types (Bybit/demo; adapters that cannot return a rejected intent rather than degrade), resx en+ru, tests.
 - **Acceptance:** each type rides submit → working → fill/cancel on paper; the hard order-value cap applies to notional at trigger; unsupported adapters degrade explicitly.
 - **Tests:** the validation golden, per-type paper fills, OCO both-legs semantics (one fills → the other cancels best-effort, no orphans), the unparsable-params error path.
+- **Status:** done. Canon: the branch carries the additive order shapes (`29f8e2e`), the paper conditional simulation (`86ce25a`) with its semantics pins (`ac5bac9`), the trigger-anchored risk cap (`0c17c34`) and the conditional ticket (`182b549`), plus this release commit (the alpha.39 cut + this section's status flip); shipped as `0.1.0-alpha.39` (see CHANGELOG.md). No Core interface changes were needed — everything rides the existing `IMarketDataAdapter`/`ITradingAdapter` seams. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-075 — Amend a working order from the orders panel
 
@@ -574,3 +578,31 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a disclosure VM/view, a persisted first-run flag in the settings, resx en+ru, tests.
 - **Acceptance:** the panel shows exactly once per installation, the acknowledge never gates trading actions (it informs — the `IConfirmationService` risk flows stay untouched), and the alpha wording is discoverable later from About.
 - **Tests:** first-run/second-run golden, the persisted flag reload, the en/ru wiring, the Settings → About reveal path.
+- **Status:** done. Canon: the branch carries `5d28be8` — the versioned acknowledgment riding the existing settings store (`UiSettingsKeys.DisclaimerVersion`, an int under the app's settings section; the shipped wording version is `1`, bumped on any future wording change so every previously acknowledged install re-shows the dialog exactly once; read fresh at every launch, never cached, so a settings hot-reload or an externally reset file never fights the check) plus the dialog view model (an idempotent acknowledge write; a failed write is contained in the file log and degrades to a next-launch re-show); `c82893c` — the dialog view and the launch wiring: a modal over the just-shown main window carrying the shipped wording only — «educational software, not investment advice» + the alpha posture (alpha software, paper-first backend, self-testing before real funds, user-scoped key hygiene), all in resx en+ru with both standing ru statements pinned by the test suite; the acknowledgment is a record that re-shows the wording, never a flag gate on trading actions (the `IConfirmationService` risk flows stay untouched); `817174f` — the manual reopen path: Help → About / Disclaimer hosts the same dialog (a fresh transient view model, an idempotent write). Delivered as the modal dialog cut: the queued-time non-blocking panel's acceptance (shows exactly once per wording version, never gates actions, discoverable later) is met 1:1 by the dialog, and the reopen point lives with the shipped menu surfaces instead of a new Settings page. Gate passed; this board-flip commit closes the section.
+
+## T-130 — Extract Livery into a standalone private repo (MIT kept), consume as a package
+
+- **Branch:** queued 2026-11-06 (open-core structure at the licensing review: Livery goes to its own PRIVATE repo, the license stays MIT — the sources stay hidden and the package is the public surface, flipping the repo public later is one click; this is the pilot of the multi-repo mechanics. Sequenced between alpha releases, coordinated across sessions — Livery paths are touched by UI work).
+- **Origin:** Livery is domain-neutral by design (appearance styles/controls plus the extensions like `ObserveOnUiThread`), has no tie to trading logic, and the paid plugin plan will ride the same multi-repo mechanics this split rehearses first (a versioned package, the two-PR cross-repo workflow).
+- **What:** a one-shot history-preserving split (`git filter-repo --subdirectory-filter src/Livery`) into the new private repo `Livery` on the same account, the LICENSE file stays MIT; a publish workflow shipping the NuGet package (a public binary on nuget.org, sources stay private); ZettaTrade removes the in-tree `src/Livery` and switches to `PackageReference` pinned to the package version; Livery gains its own README, its in-repo test suite and semver+changelog discipline from day one; AGENTS.md and ZettaTrade_SKILL.md updated (the target-layout note loses `src/Livery`, plus a two-repo ownership paragraph: appearance-only changes go through the Livery repo, platform-specific and trading code never move there).
+- **Scope:** the bootstrap and split commits in the new Livery repo, the ZettaTrade consumption switch, the docs notes; no product behavior changes.
+- **Acceptance:** the new repo's history reaches back through the split for Livery files (nothing lost at the splice); a clean ZettaTrade clone builds with zero in-tree Livery sources and the full test matrix stays green; the two-PR cross-repo path lands once as a rehearsal (a style tweak: the version-bumped PR in Livery, then the bump PR here).
+- **Tests:** the matrix over the consumption switch; the Livery suite in the new repo; the rehearsal change verified on both sides.
+
+## T-131 — Plugin SDK seam: versioned plugin abstractions for out-of-tree modules
+
+- **Branch:** queued 2026-11-06 (open-core prerequisite; Core contracts are the supervisor's lane per AGENTS — additive interfaces only).
+- **Origin:** plugin-first is the architecture since day one, yet no formally VERSIONED contract exists for modules compiled outside the solution; without one every core refactor breaks out-of-tree builds — the paid modules first of all — and the marketplace shape stays theoretical.
+- **What:** a contract surface `ZettaTrade.Plugins.Abstractions` — the plugin identity/manifest, the lifecycle via the `IAsyncInitializable` canon, DI registration entry points, the UI extension points (panel/toolbar/settings section registration), market-data and services access, and the trading-safety obligations (any order path inside a plugin passes `IRiskManager`/`IConfirmationService`, no exceptions); SemVer discipline declared with the governor note (a breaking release = a major bump + a pinned contract baseline test); the author guide `docs/PLUGINS.md` documents the contract, the rejected-not-defaulted error semantics and the platform rules (nothing writes to stdout except MCP protocol messages; logs go to files only).
+- **Scope:** the contract assembly, the loader wiring (one blessed path to register external assemblies), docs; NO proprietary code lands in the public repo — the surface stays MIT.
+- **Acceptance:** a sample MIT fixture plugin built out of the solution compiles against the published contract and loads through the loader with its panels registering; the matrix stays green with the sample present and absent.
+- **Tests:** loader contract tests (manifest parsing, duplicate ids, missing dependencies fail loudly), the end-to-end sample load golden, a public-API surface test pinning the contract baseline (accidental breaks fail CI).
+
+## T-132 — Closed-source plugin packaging: signed artifacts + local license-key activation
+
+- **Branch:** queued 2026-11-06 (licensing mechanics; cut in full only when the first paid module is actually chosen — until then it fixes the agreed skeleton). **Blocker:** T-131.
+- **Origin:** in the open-core split the closed modules live in private repos and ship as SIGNED artifacts; customer machines activate them with a license key validated locally — the entitlement flow must exist and behave identically everywhere before real money moves.
+- **What:** the private-repo convention fixed in docs: the name `zettatrade-plugin-<feature>`, a proprietary LICENSE + EULA file, CI building a signed NuGet/zip artifact whose version tracks the SDK version it builds against; the consumer-side activation: the license key entered once (a dialog or a file), LOCAL validation (an offline-signed key check — no phone-home required; an optional online revalidation may arrive later without touching the no-telemetry promise — validation logs to files only), and refused-not-defaulted semantics: invalid, expired, tampered or wrong-product keys REFUSE activation loudly and the plugin stays off; the EULA surfaces at first activation.
+- **Scope:** the key validation lib + the activation UI (resx en+ru), the packaging docs/templates for the private CI, `docs/LICENSES.md` describing the open-core split (MIT core vs proprietary modules) in a glance-readable form; the private repos themselves appear only per actual module.
+- **Acceptance:** a signed closed fixture activates with a valid key and is refused with an explicit error on invalid/expired/tampered/wrong-product keys; no network is required for validation; no proprietary artifact or wording lands in the public repo.
+- **Tests:** key crypto goldens (valid/expired/tampered/wrong-product/missing), the activation gate in UI, the refused-not-defaulted contract on every failure path, file-only logging for the validator.

@@ -44,6 +44,26 @@ public sealed class DefaultRiskManagerTests
         StopPrice = new Price(stopPrice),
     };
 
+    private static OrderRequest StopLimitOrder(decimal quantity, decimal trigger, decimal limit) => new()
+    {
+        Symbol = Symbol.Parse("BTC/USDT"),
+        Side = OrderSide.Sell,
+        Type = OrderType.StopLimit,
+        Quantity = new Quantity(quantity),
+        Price = new Price(limit),
+        StopPrice = new Price(trigger),
+    };
+
+    private static OrderRequest TrailingStopOrder(decimal quantity, decimal trigger, decimal trail) => new()
+    {
+        Symbol = Symbol.Parse("BTC/USDT"),
+        Side = OrderSide.Sell,
+        Type = OrderType.TrailingStop,
+        Quantity = new Quantity(quantity),
+        StopPrice = new Price(trigger),
+        TrailDistance = new Price(trail),
+    };
+
     [Fact]
     public async Task CheckOrderAsync_AboveHardCap_RejectsUnconditionally()
     {
@@ -140,6 +160,51 @@ public sealed class DefaultRiskManagerTests
 
         result.IsApproved.Should().BeFalse();
         result.RequiresConfirmation.Should().BeFalse();
+        result.Reason.Should().Contain("hard cap");
+    }
+
+    /// <summary>
+    /// T-074: a stop-limit is valued against its TRIGGER, not its limit
+    /// price — the trigger is the notional the order commits to when the
+    /// stop crosses. Case: sell stop-limit trigger 60_000 (120_000 USD
+    /// notional) rejects against the hard cap even though its protective
+    /// limit prices at 45_000 (90_000 USD, inside the cap).
+    /// </summary>
+    [Fact]
+    public async Task CheckOrderAsync_StopLimit_ValuedAgainstTheTrigger_AboveTheHardCap_Rejects()
+    {
+        var result = await CreateManager().CheckOrderAsync(StopLimitOrder(2m, 60_000m, 45_000m));
+
+        result.IsApproved.Should().BeFalse(
+            "the hard cap prices the trigger notional, not the smaller protective limit");
+        result.Reason.Should().Contain("hard cap");
+    }
+
+    /// <summary>
+    /// T-074: a trailing stop anchors its value at its trigger seed — the
+    /// level whose crossing converts the order into a commitment. Case:
+    /// trigger 50_000 with 0.3 BTC prices at 15_000 USD: inside the
+    /// confirmation band, below the hard cap.
+    /// </summary>
+    [Fact]
+    public async Task CheckOrderAsync_TrailingStop_ValuedAgainstTheTrigger_InsideTheConfirmationBand()
+    {
+        var result = await CreateManager().CheckOrderAsync(TrailingStopOrder(0.3m, 50_000m, 500m));
+
+        result.IsApproved.Should().BeTrue("the trailing order's value anchors at its trigger seed");
+        result.RequiresConfirmation.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The trailing-stop trigger valuation rejects beyond the cap too:
+    /// trigger 50_000 with 2.1 BTC commits 105_000 USD at the trigger.
+    /// </summary>
+    [Fact]
+    public async Task CheckOrderAsync_TrailingStop_AboveTheHardCap_RejectsUnconditionally()
+    {
+        var result = await CreateManager().CheckOrderAsync(TrailingStopOrder(2.1m, 50_000m, 500m));
+
+        result.IsApproved.Should().BeFalse();
         result.Reason.Should().Contain("hard cap");
     }
 }

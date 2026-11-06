@@ -19,6 +19,43 @@ Build of board task T-084 (branch `feat/csv-export`).
 - The chart panel gains Export Candles CSV: the displayed series is the export set and faults land on the panel's own error line (the status bar stays with connection state); the main window answers the save-file interaction for the app-lifetime display in `OnOpened`.
 - Localization: `History.Export*` and `Chart.Export*` keys in both en and ru catalogs.
 
+## [0.1.0-alpha.40] - 2026-11-06
+
+Build of board task T-119 (branch `feat/first-run-disclaimer`).
+
+### Added
+- The first-run disclaimer: the first launch shows a modal over the main window holding the shipped wording — «educational software, not investment advice» plus the explicit alpha posture (alpha software, paper-first trading, the own-testing-first real-funds statement, user-scoped key hygiene) — and an «Acknowledge» button persists a versioned acknowledgment flag through the existing settings store, so a future wording update re-shows the dialog exactly once per install. A plain dismissal leaves the flag unset (the next launch re-shows), the flag itself never gates any trading action, and the wording stays discoverable later from Help → About / Disclaimer. Fully localized en+ru (all wording in resx).
+
+## [0.1.0-alpha.39] - 2026-11-06
+
+Build of board task T-074 (branch `feat/order-types`).
+
+### Added
+- Advanced order types end-to-end. The order request shapes grow an
+  additive `TrailDistance` and `OcoGroupId`, with the stop-limit
+  trigger-vs-limit matrix and the trailing-stop parameter requirements in
+  `Validate` — an inverted or unparsable shape is a returned error, never
+  a default. The paper adapter simulates the conditionals on the wrapped
+  adapter's live ticker stream: a stop-limit arms as a working order and
+  fills at its limit on the trigger tick; a trailing stop ratchets its
+  trigger along the favorable direction and fills at the ratcheted level;
+  OCO legs share an either-or group where the first terminal leg takes the
+  rest down (a trigger whose fill is refused lands the leg Rejected and
+  still tears the pair down; a leg joining a half pair is rejected
+  explicitly, and a refused placement leaves no phantom). Immediately
+  triggering stops are refused with an explicit error, and the risk hard
+  cap values stop orders at their trigger — the notional the order really
+  commits to.
+- The order ticket carries the conditional inputs: the stop trigger and
+  the trailing distance rows, and an OCO mode that places a take-profit
+  limit and a stop-loss stop-limit as two legs of a fresh group — each leg
+  through the full risk/confirmation gate, a half-placed pair aborted
+  best-effort so it never goes half-working. The trailing seed derives
+  from the newest reference close (the shared newest-by-bar-time
+  selection), and stop triggers and take-profit levels are
+  market-direction checked with localized refusals. Resx grows to 167 keys
+  on both en and ru.
+
 ## [0.1.0-alpha.38] - 2026-11-06
 
 Build of board task T-073 (branch `feat/flaky-localization`).

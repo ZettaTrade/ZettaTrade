@@ -52,6 +52,13 @@
                           InputGesture="Ctrl+Shift+A" />
                 <MenuItem Header="{loc:Localized Menu.AI.Servers}" Command="{Binding ManageMcpServersCommand}" />
             </MenuItem>
+            <!-- Help: the disclaimer re-show path ("About / Disclaimer") —
+                 the SAME dialog the first run shows, so the alpha wording
+                 stays discoverable after the acknowledgment lives in the
+                 settings. -->
+            <MenuItem Header="{loc:Localized Menu.Help}">
+                <MenuItem Header="{loc:Localized Menu.Help.AboutDisclaimer}" Command="{Binding ShowDisclaimerCommand}" />
+            </MenuItem>
         </Menu>
 
         <!-- Status bar -->
