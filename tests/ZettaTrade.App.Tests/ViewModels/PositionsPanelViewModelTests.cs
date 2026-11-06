@@ -88,19 +88,19 @@ public sealed class PositionsPanelViewModelTests
         string symbol = "BTC/USDT",
         OrderType type = OrderType.Limit,
         string? ocoGroupId = null) => new()
-    {
-        Id = id,
-        ExchangeId = "paper",
-        Symbol = Symbol.Parse(symbol),
-        Side = OrderSide.Buy,
-        Type = type,
-        Quantity = new Quantity(0.01m),
-        Price = new Price(50_000m),
-        Status = status,
-        OcoGroupId = ocoGroupId,
-        TimeInForce = TimeInForce.GTC,
-        CreatedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
-    };
+        {
+            Id = id,
+            ExchangeId = "paper",
+            Symbol = Symbol.Parse(symbol),
+            Side = OrderSide.Buy,
+            Type = type,
+            Quantity = new Quantity(0.01m),
+            Price = new Price(50_000m),
+            Status = status,
+            OcoGroupId = ocoGroupId,
+            TimeInForce = TimeInForce.GTC,
+            CreatedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
+        };
 
     private static Position BuildPosition(string symbol) => new()
     {

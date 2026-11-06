@@ -2,8 +2,8 @@ namespace ZettaTrade.App.ViewModels;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using ReactiveUI;
 using Livery.Localization;
+using ReactiveUI;
 using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;

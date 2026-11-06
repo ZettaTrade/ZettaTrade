@@ -131,18 +131,18 @@ public sealed class OrderAmendServiceTests
         OrderStatus status = OrderStatus.Pending,
         decimal quantity = OriginalQuantity,
         decimal price = RestingLimitPrice) => new()
-    {
-        Id = id,
-        ExchangeId = PaperTradingAdapter.ExchangeId,
-        Symbol = BtcUsdt(),
-        Side = OrderSide.Buy,
-        Type = OrderType.Limit,
-        Quantity = new Quantity(quantity),
-        Price = new Price(price),
-        Status = status,
-        TimeInForce = TimeInForce.GTC,
-        CreatedAt = DateTimeOffset.Parse("2026-11-06T10:00:00+00:00"),
-    };
+        {
+            Id = id,
+            ExchangeId = PaperTradingAdapter.ExchangeId,
+            Symbol = BtcUsdt(),
+            Side = OrderSide.Buy,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(quantity),
+            Price = new Price(price),
+            Status = status,
+            TimeInForce = TimeInForce.GTC,
+            CreatedAt = DateTimeOffset.Parse("2026-11-06T10:00:00+00:00"),
+        };
 
     /// <summary>The replacement order a substitute adapter hands back on placement.</summary>
     private static Order ReplacementFor(Order original, OrderRequest request) => new()
@@ -461,7 +461,8 @@ public sealed class OrderAmendServiceTests
         // that is unparsable — never silently clamped to the fill.
         var trading = Substitute.For<ITradingAdapter>();
         var working = WorkingLimit("paper-7", OrderStatus.PartiallyFilled)
-            with { FilledQuantity = new Quantity(PartlyFilledQuantity) };
+            with
+        { FilledQuantity = new Quantity(PartlyFilledQuantity) };
         trading.GetOpenOrdersAsync().Returns([working]);
         var service = CreateService(trading);
 
@@ -571,7 +572,8 @@ public sealed class OrderAmendServiceTests
         // tiny delta the notional rule would ignore.
         var trading = Substitute.For<ITradingAdapter>();
         var working = WorkingLimit("paper-7", OrderStatus.PartiallyFilled)
-            with { FilledQuantity = new Quantity(PartlyFilledQuantity) };
+            with
+        { FilledQuantity = new Quantity(PartlyFilledQuantity) };
         trading.GetOpenOrdersAsync().Returns([working]);
         _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
         var replacement = ReplacementFor(working, LimitOrder(ShrunkQuantity, RestingLimitPrice));
