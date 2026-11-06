@@ -9,6 +9,23 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.36] - 2026-11-06
+
+Build of board task T-071 (branch `feat/window-chrome-black`).
+
+### Fixed
+- The chrome windows rendered a black void where content belongs: Avalonia 12
+  presents template content only through explicit bindings and the fresh
+  `Window.chrome` templates never bound `PART_ContentPresenter` — `Content`,
+  `ContentTemplate`, the `Padding` margin and both alignments ride it now in
+  both chrome templates, regression-tested.
+
+### Changed
+- Caption strip polish: the title centers on the strip at 13px; the caption
+  glyphs center in their 44×32 buttons at a 1.5 stroke; the hover feedback
+  rides the icon itself (button opacity states, the Fluent presenter fill
+  suppressed), and the close glyph retints to the palette error color.
+
 ## [0.1.0-alpha.35] - 2026-11-06
 
 Build of board task T-069 (branch `feat/appearance-contracts`).

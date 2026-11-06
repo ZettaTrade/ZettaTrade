@@ -1005,6 +1005,17 @@ the board and its section below.
 - **Status:** done. Canon: the branch carries `d955cdf` (the external-servers feature + the 39 test pins) and release commit `3618b21` (the alpha.34 cut + this section's status flip); shipped as `0.1.0-alpha.34` (see CHANGELOG.md). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 
+## T-069 — The appearance contracts move into Livery: Core stops owning IThemeManager/ILocalizationManager (supervisor idea)
+
+- **Branch:** feat/appearance-contracts (base `develop` at `3618b21`; queued 2026-11-05, supervisor idea; developed 2026-11-06).
+- **Origin:** Livery's first consumer is a non-trading project, so the only remaining brand/hardware tie is the contracts file the supervisor owns (`ZettaTrade.Core/Interfaces`): `IThemeManager`, `ILocalizationManager`, `IAsyncInitializable` (+ the `ThemeInfo`/`LanguageInfo` records) make every library consumer drag the whole Core assembly in just to render a themed `TextBlock`.
+- **What:** the contracts relocate with the clean flip (the queued declare-and-deprecate shim allowance stays unexercised): `IThemeManager` + `ThemeInfo` move to `Livery/Themes`, `ILocalizationManager` + `LanguageInfo` to `Livery/Localization`, `IAsyncInitializable` to `Livery/Contracts`, and `Livery.csproj` drops its Core project reference, so the library references nothing ZettaTrade-branded and packages standalone (`dotnet pack`, the deferred T-065 decision, becomes the intended sharing mode for the second consumer). The queued "reference direction flips — Core consumes the contracts from Livery" settles as a NO edge: Core never implemented or called the appearance contracts, so deleting them from `ZettaTrade.Core/Interfaces` removes the tie without any Core→Livery reference; the consumers that did use them rehome instead — `App` keeps riding both assemblies, `ZettaTrade.AI` and `ZettaTrade.Infrastructure` gain the Livery project reference (they no longer find the contracts in Core), 36 source files across src/tests get their `using ZettaTrade.Core.Interfaces` rewritten or complemented, and the Settings window XAML datatypes switch from the `core:` prefix to the existing `themes:`/`loc:` library prefixes. Every injected seam, registration and behavior stays byte-identical — no shim keeps the old homes alive.
+- **Scope:** `ZettaTrade.Core/Interfaces` (protected; supervisor-owned — the three contract files deleted), `src/Livery` (the relocated contracts + the csproj reference drop), consumer namespaces (`App` services/ViewModels/views, `AI` MCP, `Infrastructure` configuration/exchange/persistence/secrets, `UI` + `App` test suites), the `slnx` reference graph (the AI/Infrastructure csproj references). The `AGENTS.md` layout line already documents Livery as the domain-neutral appearance library and stays untouched.
+- **Acceptance:** `src/Livery` carries no ZettaTrade reference (pack-ready for the non-trading consumer); a fresh-clone build stays green and the full matrix rides unchanged (787: 16 Core + 174 UI + 425 App + 172 Infrastructure); `GATE PASSED` (`-AllowProtected` for Core/Interfaces + board docs).
+- **Tests:** the existing theme/localization suites ride along (using + reference deltas only — no new domain logic, the moved contracts keep their shape and XML docs byte-compatible); the build graph pins the direction (Livery compiles without Core while AI/Infrastructure compile with it).
+- **Status:** done. Canon: the branch carries `352dfab` (the contract move + the consumer rehome) and this release commit (the alpha.35 cut + this section's status flip); shipped as `0.1.0-alpha.35` (see CHANGELOG.md). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
+
+
 ## T-070 — The localized Strings catalog returns to ZettaTrade.UI: per-app strings, not library ones (supervisor-direct)
 
 - **Branch:** feat/livery-resx (supervisor-direct task, not board-originated; follow-up on merged T-065).
@@ -1014,3 +1025,15 @@ the board and its section below.
 - **Acceptance:** `Livery.dll` contains no resx-backed resources; the live language switch and the chart tick culture resolve through the relocated catalog exactly as before; a fresh-clone build + tests stay green; `GATE PASSED` (no protected files touched).
 - **Tests:** the existing localization/chart-tick suites ride along (using-only deltas).
 - **Status:** done. Canon: the branch carries the resx-move commit and release commit `46a4bc6` (the alpha.29 cut + this section); shipped as `0.1.0-alpha.29` (see CHANGELOG.md).
+
+
+## T-071 — Window chrome follow-ups: fix the black content pane + caption strip polish (user-reported)
+
+- **Branch:** `feat/window-chrome-black` (worktree `Q:\Projects\__My\zt-window-chrome-black`, base `develop` @ `2674f03`; reported 2026-11-06, developed the same day).
+- **Origin:** with T-066 shipped the main window rendered as a black void — no charts, no menu; the user pinned the new chrome style as the culprit and was right.
+- **What:**
+  - The black pane: Avalonia 12 presents a template `ContentControl`'s content only through explicit bindings, and the fresh `Window.chrome`/`Window.chrome-compact` templates' `PART_ContentPresenter` carried none. `Content`, `ContentTemplate`, the `Padding` margin and both alignment bindings now complete both templates in `src/Livery/Themes/Controls.axaml` (`0d81f7d`), pinned by the `EveryChromeTemplate_PresentsTheWindowContent` regression in `WindowChromeTests`.
+  - The strip polish: the title centers on the strip at 13px; the caption glyphs center in their 44×32 buttons at a 1.5 stroke (min/max/restore redrawn to a ~10×10 design box); hover feedback rides the ICON — Avalonia's Fluent paints button state fills on the template's `ContentPresenter`, so the presenter is suppressed part-wise, the button opacity carries the states (0.85 rest / 1.0 hover / 0.8 press), and the close glyph retints to the palette `Error` over the logical descendants — `ControlTheme` nesting forbids combinator-led styles and `/template/` never reaches button content (`defa610`).
+- **Scope:** `src/Livery/Themes/Controls.axaml`, `tests/ZettaTrade.App.Tests/Views/WindowChromeTests.cs`.
+- **Acceptance (achieved):** content renders in every chrome window again; live screenshots with pixel checks — the strip stays uniform under hover (`17,17,28`), the hovered close glyph alone takes the palette danger color (`239,68,68`), the rest glyphs dimmed per the Windows convention; `GATE PASSED`.
+- **Status:** done. Canon: the branch carries `0d81f7d` (the content-presentation fix) + `defa610` (the strip polish) plus the develop-sync bubble merge `308b2ab`; shipped as `0.1.0-alpha.36` (see CHANGELOG.md).
