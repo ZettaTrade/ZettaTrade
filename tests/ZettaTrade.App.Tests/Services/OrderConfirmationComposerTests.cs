@@ -13,7 +13,9 @@ using ZettaTrade.Core.ValueObjects;
 /// <summary>
 /// Tests for the shared confirmation composer: the place confirmation must
 /// keep the exact MCP-tool argument shape the new-order dialog tests lock
-/// in, and the cancel confirmation carries the order's own identity facts.
+/// in, the cancel confirmation carries the order's own identity facts, and
+/// the amend confirmation (T-075) extends that identity with the honest
+/// quantity and price deltas.
 /// </summary>
 public sealed class OrderConfirmationComposerTests
 {
@@ -144,6 +146,88 @@ public sealed class OrderConfirmationComposerTests
         confirmation.Arguments[1].Should().Be("paper-9");
         confirmation.Arguments[2].Should().Be("0.01");
         confirmation.Arguments[3].Should().Be("ETH/USDT");
+    }
+
+    [Fact]
+    public void ForAmend_PriceEdit_CarriesTheIdentityAndBothEdgesOfTheDelta()
+    {
+        // Arrange: the amend confirmations extend the cancel identity shape
+        // (side, id) with the quantity delta and — when the limit price is
+        // part of the edit — the price delta too.
+        var composer = new OrderConfirmationComposer(_localization);
+        var order = BuildOrder("paper-9", OrderSide.Sell);
+        var amended = new OrderRequest
+        {
+            Symbol = order.Symbol,
+            Side = order.Side,
+            Type = order.Type,
+            Quantity = new Quantity(0.02m),
+            Price = new Price(2_500m),
+        };
+
+        // Act
+        var confirmation = composer.ForAmend(order, amended, priceEdited: true);
+
+        // Assert: side, id, old quantity, new quantity, old price, new price,
+        // symbol — in that exact order.
+        confirmation.MessageKey.Should().Be("Positions.ConfirmAmend");
+        confirmation.Arguments.Should().HaveCount(7);
+        confirmation.Arguments[0].Should().Be("[Order.Sell]");
+        confirmation.Arguments[1].Should().Be("paper-9");
+        confirmation.Arguments[2].Should().Be("0.01");
+        confirmation.Arguments[3].Should().Be("0.02");
+        confirmation.Arguments[4].Should().Be("2000.00000000");
+        confirmation.Arguments[5].Should().Be("2500.00000000");
+        confirmation.Arguments[6].Should().Be("ETH/USDT");
+    }
+
+    [Fact]
+    public void ForAmend_QuantityOnlyEdit_UsesTheCompactTemplate()
+    {
+        // Arrange: no price edit — the summary keeps the quantity delta only.
+        var composer = new OrderConfirmationComposer(_localization);
+        var order = BuildOrder("paper-9", OrderSide.Sell);
+        var amended = new OrderRequest
+        {
+            Symbol = order.Symbol,
+            Side = order.Side,
+            Type = order.Type,
+            Quantity = new Quantity(0.02m),
+            Price = order.Price,
+        };
+
+        // Act
+        var confirmation = composer.ForAmend(order, amended, priceEdited: false);
+
+        // Assert: side, id, old quantity, new quantity, symbol.
+        confirmation.MessageKey.Should().Be("Positions.ConfirmAmendQuantityOnly");
+        confirmation.Arguments.Should().HaveCount(5);
+        confirmation.Arguments[0].Should().Be("[Order.Sell]");
+        confirmation.Arguments[1].Should().Be("paper-9");
+        confirmation.Arguments[2].Should().Be("0.01");
+        confirmation.Arguments[3].Should().Be("0.02");
+        confirmation.Arguments[4].Should().Be("ETH/USDT");
+    }
+
+    [Fact]
+    public void ForAmend_WithNulls_Throws()
+    {
+        var composer = new OrderConfirmationComposer(_localization);
+        var order = BuildOrder("paper-9", OrderSide.Sell);
+        var amended = new OrderRequest
+        {
+            Symbol = order.Symbol,
+            Side = order.Side,
+            Type = order.Type,
+            Quantity = new Quantity(0.02m),
+            Price = order.Price,
+        };
+
+        var actOrder = () => composer.ForAmend(null!, amended, priceEdited: false);
+        var actRequest = () => composer.ForAmend(order, null!, priceEdited: false);
+
+        actOrder.Should().Throw<ArgumentNullException>();
+        actRequest.Should().Throw<ArgumentNullException>();
     }
 
     [Fact]

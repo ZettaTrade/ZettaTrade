@@ -7,10 +7,10 @@ using ZettaTrade.Core.Interfaces;
 
 /// <summary>
 /// Composes the structured confirmation requests for order operations, so
-/// the new-order dialog (placement) and the positions panel (cancellation)
-/// present summaries in exactly the shape the MCP trading tools use. Enum
-/// labels resolve through <see cref="ILocalizationManager"/>; callers never
-/// embed user-facing text themselves.
+/// the new-order dialog (placement) and the positions panel (cancellation,
+/// order amending) present summaries in exactly the shape the MCP trading
+/// tools use. Enum labels resolve through <see cref="ILocalizationManager"/>;
+/// callers never embed user-facing text themselves.
 /// </summary>
 public sealed class OrderConfirmationComposer
 {
@@ -18,6 +18,8 @@ public sealed class OrderConfirmationComposer
 
     private const string ConfirmPlaceOrderKey = "Trading.ConfirmPlaceOrderFormat";
     private const string ConfirmCancelOrderKey = "Positions.ConfirmCancelFormat";
+    private const string ConfirmAmendPriceKey = "Positions.ConfirmAmend";
+    private const string ConfirmAmendQuantityKey = "Positions.ConfirmAmendQuantityOnly";
     private const string MarketLabelKey = "Trading.PriceMarket";
 
     #endregion Resx Keys
@@ -87,6 +89,59 @@ public sealed class OrderConfirmationComposer
                 order.Symbol.Normalized,
             ],
         };
+    }
+
+    /// <summary>
+    /// Confirmation summary shown before a working order is amended: the
+    /// same leading identity shape the cancel confirmation uses (side, id)
+    /// plus the quantity delta, and — when the limit price is part of the
+    /// edit — the price delta too. The template always names the mechanics
+    /// honestly (cancel+new against the shipped seam), never "replace".
+    /// </summary>
+    /// <param name="order">The working order as the adapter holds it.</param>
+    /// <param name="amended">The amended request shape the flow is about to send.</param>
+    /// <param name="priceEdited">True when the amend touches the limit price as well.</param>
+    public ConfirmationRequest ForAmend(Order order, OrderRequest amended, bool priceEdited)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        ArgumentNullException.ThrowIfNull(amended);
+
+        var sideText = _localization.GetString($"Order.{order.Side}");
+        var quantity = order.Quantity.Value.ToString(CultureInfo.InvariantCulture);
+        var newQuantity = amended.Quantity.Value.ToString(CultureInfo.InvariantCulture);
+
+        // priceEdited guarantees the amended request carries its new limit.
+        var newPriceText = amended.Price is { } amendedPrice
+            ? amendedPrice.Value.ToString("F8", CultureInfo.InvariantCulture)
+            : string.Empty;
+
+        return priceEdited
+            ? new ConfirmationRequest
+            {
+                MessageKey = ConfirmAmendPriceKey,
+                Arguments =
+                [
+                    sideText,
+                    order.Id,
+                    quantity,
+                    newQuantity,
+                    order.Price.Value.ToString("F8", CultureInfo.InvariantCulture),
+                    newPriceText,
+                    order.Symbol.Normalized,
+                ],
+            }
+            : new ConfirmationRequest
+            {
+                MessageKey = ConfirmAmendQuantityKey,
+                Arguments =
+                [
+                    sideText,
+                    order.Id,
+                    quantity,
+                    newQuantity,
+                    order.Symbol.Normalized,
+                ],
+            };
     }
 }
 
