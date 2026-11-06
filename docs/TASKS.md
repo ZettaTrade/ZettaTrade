@@ -120,7 +120,10 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-113 Backtest harness over stored candles | feat/backtest | queued | T-111 + T-085 |
 | T-114 AI market-context injection into the chat | feat/ai-context | queued | - |
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
-| T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | — | queued | - |
+| T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | - | queued | - |
+| T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | queued | - |
+| T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | docs/safety-readme | queued | - |
+| T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | queued | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -541,3 +544,30 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `tests/ZettaTrade.Infrastructure.Tests/Exchange/*Tests.cs` (the shared `EventWait` constants and `PollUntilAsync` budgets), tests only.
 - **Acceptance:** full-solution consecutive runs (≥20, cold and warm) hold zero WS E2E timeout failures; the budget rationale is written into the test files' headers.
 - **Tests:** no new logic; the existing E2E battery (mock server + adapters) is the test.
+
+## T-117 — Secret scanner: gitleaks in CI + one-shot full-history audit
+
+- **Branch:** queued 2026-11-06 (supervisor idea at the open-source key-hygiene note; not urgent, tail of the backlog).
+- **Origin:** an open-source terminal makes the repo the trust surface: the repo carries an `origin` remote and ships harder, but there is no CI or scanning at all (no `.github`). A quick regex probe of HEAD (sk-/AKIA/ghp_/AIza/PEM markers) is clean, though the 260-commit history has never been machine-audited.
+- **What:** `.github/workflows/security.yml` running gitleaks (official action over git history mode) on pushes and PRs, failing the build on any finding; a committed `gitleaks.toml` allowlisting exactly the known dummy test fixtures (identified during the audit — sample-shaped strings only, never real credentials); the one-shot full-history pass over all 260 commits while the history is young (alpha posture — cheap to redo before beta), its results recorded in `docs/SECURITY.md` with the remediation policy: revoke-and-rotate by default, history rewrite only by an explicit supervisor decision; optionally a guarded local gitleaks step in `scripts/gate.ps1` when the binary is present (non-breaking where it is not).
+- **Scope:** `.github/workflows`, `gitleaks.toml`, `docs/SECURITY.md`, optionally `scripts/gate.ps1`.
+- **Acceptance:** a seeded dummy-key commit is caught by the workflow; the scoped commits are attributed (the console-level `-S` probes of 2026-11-06 were inconclusive — this audit settles them with the scanner); the allowlist covers only explicitly-named fixtures.
+- **Tests:** the allowlist regression (the scanner passes the current tree with the fixtures present), a red-team fixture outside the allowlist fails, workflow lint when available.
+
+## T-118 — Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first
+
+- **Branch:** queued 2026-11-06 (supervisor idea at the open-source key-hygiene note; not urgent, tail of the backlog).
+- **Origin:** the top-level README today is a docs-site readme (npm/GitHub Pages instructions) — the product carries zero key guidance, no disclaimer block and no alpha badge.
+- **What:** a real project README section (or `docs/SECURITY.md`, linked from it, coordinated with T-115 so the user manual references rather than duplicates): recommend user-scoped API keys only — read-only permissions for the market-data setups, trade-only (never withdrawal, never transfer) for trading setups, an IP allowlist where the venue offers one; testnet-first instructions (Bybit Testnet, Binance Testnet) tied to the endpoint registry capabilities (T-015) and where keys live (`ISecretStore` machines — DPAPI/Keychain — never the repo, never argv); an explicit alpha status line plus an investment-disclaimer block ("educational software, not investment advice"). The LICENSE stays standard MIT unchanged — its warranty disclaimer already covers the legal base; only the UI and README get the added wording.
+- **Scope:** `README.md` (+ `docs/SECURITY.md`), docs-only (no version bump).
+- **Acceptance:** every claim matches shipped features only (no promises beyond testnet/documentable paths).
+- **Tests:** none (docs), a words-only review.
+
+## T-119 — First-run disclaimer in the UI («not investment advice») + the explicit alpha posture
+
+- **Branch:** queued 2026-11-06 (supervisor idea at the open-source key-hygiene note; not urgent, tail of the backlog).
+- **Origin:** the alpha posture is half-visible: the status-bar chip shows `0.1.0-alpha.NN` (AppVersion trims the `+build` metadata), but the explicit statements — «не является инвестиционной рекомендацией» and «не использовать с реальными средствами без собственного тестирования» — appear nowhere in the interface.
+- **What:** a non-blocking dismissible disclosure panel on the first app start holding both statements plus the paper/testnet safety hint; an explicit acknowledge persists a flag and the panel is not shown again (relaunchable from Settings → About); fully localized en+ru (all wording in resx — no ViewModel static localized strings, the standing canon); if T-099 (first-run wizard) lands first, the panel becomes the wizard's zero step and the flag is shared.
+- **Scope:** a disclosure VM/view, a persisted first-run flag in the settings, resx en+ru, tests.
+- **Acceptance:** the panel shows exactly once per installation, the acknowledge never gates trading actions (it informs — the `IConfirmationService` risk flows stay untouched), and the alpha wording is discoverable later from About.
+- **Tests:** first-run/second-run golden, the persisted flag reload, the en/ru wiring, the Settings → About reveal path.
