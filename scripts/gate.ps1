@@ -238,6 +238,51 @@ try {
         $warnings.Add("[COMMIT] $($dirty.Count) uncommitted change(s). Commit with a conventional-commit message when done.")
     }
 
+    # ---------------------------------------------------------------- gitleaks secret scan (T-117, optional)
+    # Same scanner CI enforces (gitleaks.toml). Guarded: skipped when the
+    # binary is absent so the gate never breaks on machines without it;
+    # CI (security.yml) always runs the scan.
+    $gitleaksTool = Get-Command gitleaks -ErrorAction SilentlyContinue
+    if ($null -eq $gitleaksTool) {
+        $warnings.Add('[GITLEAKS] skipped: gitleaks not on PATH (optional locally; CI always scans).')
+    }
+    else {
+        $scanConfig = Join-Path $root 'gitleaks.toml'
+        if (-not (Test-Path $scanConfig)) {
+            $errors.Add("[GITLEAKS] $scanConfig not found: the scanner CI config must exist.")
+        }
+        else {
+            # Branch-local scan (the commits this branch adds above the merge
+            # base), mirroring the CI push/PR range scans: sibling agents'
+            # un-landed branches and pre-base history belong to the CI
+            # nightly full-history scan and the docs/SECURITY.md audit.
+            $scanReport = Join-Path $gitDir 'gate-gitleaks-report.json'
+            $scan = Invoke-Tool $gitleaksTool.Source @(
+                'git', $root,
+                '--config', $scanConfig,
+                '--log-opts', "--no-merges --first-parent $base..HEAD",
+                '--report-format', 'json',
+                '--report-path', $scanReport,
+                '--no-banner'
+            )
+            if ($scan.Code -eq 0) {
+                Remove-Item -LiteralPath $scanReport -ErrorAction SilentlyContinue
+            }
+            else {
+                # Exit code 1 with a non-empty report = findings; anything else is a scanner or config error.
+                $hasFindings = ((Test-Path -LiteralPath $scanReport -PathType Leaf) -and
+                    ((Get-Item -LiteralPath $scanReport).Length -gt 2))
+                if ($hasFindings) {
+                    $errors.Add("[GITLEAKS] secret scan found findings in this branch's commits above the merge base. Report: $scanReport. Rotate-and-report per docs/SECURITY.md; never rewrite history outside an explicit supervisor decision.")
+                }
+                else {
+                    $probs = @(Select-Problems $scan.Output '\S' 5)
+                    $errors.Add("[GITLEAKS] secret scan failed (exit $($scan.Code)):`n    " + ($probs -join "`n    "))
+                }
+            }
+        }
+    }
+
     # ---------------------------------------------------------------- high-risk routing flag
     # Not a failure: tells the supervisor this diff needs a strong cloud reviewer plus a human look.
     $riskPatterns = @('*Risk*', '*Order*', '*Secret*', '*Mcp*', '*Trading*', '*Confirmation*', '*ExchangeAdapter*')

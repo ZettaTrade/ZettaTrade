@@ -121,7 +121,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-114 AI market-context injection into the chat | feat/ai-context | queued | - |
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
 | T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | - | queued | - |
-| T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | queued | - |
+| T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
 | T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | queued | - |
 
@@ -547,12 +547,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-117 — Secret scanner: gitleaks in CI + one-shot full-history audit
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the open-source key-hygiene note; not urgent, tail of the backlog).
+- **Branch:** feat/secret-scanner (base `develop` at `e2d1ac5`; developed 2026-11-06).
 - **Origin:** an open-source terminal makes the repo the trust surface: the repo carries an `origin` remote and ships harder, but there is no CI or scanning at all (no `.github`). A quick regex probe of HEAD (sk-/AKIA/ghp_/AIza/PEM markers) is clean, though the 260-commit history has never been machine-audited.
 - **What:** `.github/workflows/security.yml` running gitleaks (official action over git history mode) on pushes and PRs, failing the build on any finding; a committed `gitleaks.toml` allowlisting exactly the known dummy test fixtures (identified during the audit — sample-shaped strings only, never real credentials); the one-shot full-history pass over all 260 commits while the history is young (alpha posture — cheap to redo before beta), its results recorded in `docs/SECURITY.md` with the remediation policy: revoke-and-rotate by default, history rewrite only by an explicit supervisor decision; optionally a guarded local gitleaks step in `scripts/gate.ps1` when the binary is present (non-breaking where it is not).
 - **Scope:** `.github/workflows`, `gitleaks.toml`, `docs/SECURITY.md`, optionally `scripts/gate.ps1`.
 - **Acceptance:** a seeded dummy-key commit is caught by the workflow; the scoped commits are attributed (the console-level `-S` probes of 2026-11-06 were inconclusive — this audit settles them with the scanner); the allowlist covers only explicitly-named fixtures.
 - **Tests:** the allowlist regression (the scanner passes the current tree with the fixtures present), a red-team fixture outside the allowlist fails, workflow lint when available.
+- **Status:** done. Canon: this branch carries `432a61f` (the gitleaks workflow + the fixture allowlist toml + the guarded gate step) and this status-flip commit (docs/SECURITY.md — created by T-117, T-118 only links later — plus the board row). No version bump: CI/docs-only work. The one-shot full-history machine audit (gitleaks 8.24.3 = the CI-pinned CLI + an 8.30.1 control, committed config and stock defaults alike): **zero findings** throughout — over the develop line's 267 commits at the audit start and over 269 with T-117's own commits included (234–236 patch-bearing + 33 merges; the all-refs view also covered the sibling in-flight branches, 239 non-merge) — details + the local verification of the seeded-commit and allowlist semantics in docs/SECURITY.md. The seeded-commit/allowlist acceptance was verified locally per protocol: three high-entropy dummy markers seeded into a disposable temp clone (never this worktree, deleted after the check) were caught by the action's exact commit-range invocation on both CLI versions, an allowlist-semantics probe suppressed only the named fixture literals both ways, and the current tree passed the committed config. Gate passed with `-AllowProtected` (the `.github/*` + `scripts/gate.ps1` protected-area edits are exactly the T-117 scope); workflow lint clean via actionlint; the gate's gitleaks guard is strictly skip-when-missing (proven absent-binary) and green-enforced when the binary is on PATH. Pending external link: the first pushed run flips the workflow green in CI itself (cannot be exercised from the task session).
 
 ## T-118 — Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first
 
