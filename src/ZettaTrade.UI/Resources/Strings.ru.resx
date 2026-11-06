@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:element name="root" msIsDataSet="true">
@@ -568,6 +568,93 @@
     <value>Восстановить</value>
   </data>
   <data name="Chrome.Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="Menu.Trading.Stats" xml:space="preserve">
+    <value>Статистика сделок...</value>
+  </data>
+  <data name="Stats.Title" xml:space="preserve">
+    <value>Статистика сделок</value>
+  </data>
+  <data name="Stats.FilterSymbol" xml:space="preserve">
+    <value>Символ</value>
+  </data>
+  <data name="Stats.FilterSymbolHint" xml:space="preserve">
+    <value>БАЗА/КОТИРОВКА, пусто для всех</value>
+  </data>
+  <data name="Stats.FilterExchange" xml:space="preserve">
+    <value>Биржа</value>
+  </data>
+  <data name="Stats.FilterExchangeAny" xml:space="preserve">
+    <value>Любой идентификатор биржи</value>
+  </data>
+  <data name="Stats.FilterVenue" xml:space="preserve">
+    <value>Площадка</value>
+  </data>
+  <data name="Stats.VenueAll" xml:space="preserve">
+    <value>Все площадки</value>
+  </data>
+  <data name="Stats.VenuePaper" xml:space="preserve">
+    <value>Paper</value>
+  </data>
+  <data name="Stats.VenueLive" xml:space="preserve">
+    <value>Реальные</value>
+  </data>
+  <data name="Stats.FilterFrom" xml:space="preserve">
+    <value>С</value>
+  </data>
+  <data name="Stats.FilterTo" xml:space="preserve">
+    <value>По</value>
+  </data>
+  <data name="Stats.Apply" xml:space="preserve">
+    <value>Применить</value>
+  </data>
+  <data name="Stats.Trades" xml:space="preserve">
+    <value>Сделки</value>
+  </data>
+  <data name="Stats.Wins" xml:space="preserve">
+    <value>Прибыльные</value>
+  </data>
+  <data name="Stats.Losses" xml:space="preserve">
+    <value>Убыточные</value>
+  </data>
+  <data name="Stats.WinRate" xml:space="preserve">
+    <value>Доля прибыльных</value>
+  </data>
+  <data name="Stats.ProfitFactor" xml:space="preserve">
+    <value>Профит-фактор</value>
+  </data>
+  <data name="Stats.AverageWinner" xml:space="preserve">
+    <value>Средняя прибыльная</value>
+  </data>
+  <data name="Stats.AverageLoser" xml:space="preserve">
+    <value>Средняя убыточная</value>
+  </data>
+  <data name="Stats.MaxDrawdown" xml:space="preserve">
+    <value>Максимальная просадка</value>
+  </data>
+  <data name="Stats.Realized" xml:space="preserve">
+    <value>Реализованный PnL</value>
+  </data>
+  <data name="Stats.Volume" xml:space="preserve">
+    <value>Оборот</value>
+  </data>
+  <data name="Stats.Scanning" xml:space="preserve">
+    <value>Сканирование... просмотрено {0} исполнений</value>
+  </data>
+  <data name="Stats.Scanned" xml:space="preserve">
+    <value>Просмотрены все исполнения: {0}</value>
+  </data>
+  <data name="Stats.LoadFailed" xml:space="preserve">
+    <value>Не удалось загрузить: {0}</value>
+  </data>
+  <data name="Stats.InvalidSymbol" xml:space="preserve">
+    <value>Неизвестный формат символа: {0}. Используйте БАЗА/КОТИРОВКА, например BTC/USDT.</value>
+  </data>
+  <data name="Stats.Empty" xml:space="preserve">
+    <value>Для выбранных фильтров закрытых сделок пока нет — ослабьте фильтры или сначала поторговайте на paper-счете.</value>
+  </data>
+  <data name="Stats.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
 </root>

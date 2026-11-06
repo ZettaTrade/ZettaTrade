@@ -20,6 +20,9 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to show order history view.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowOrderHistoryCommand { get; }
 
+    /// <summary>Command to show the trade statistics window.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ShowTradeStatsCommand { get; }
+
     /// <summary>Command to toggle the AI chat panel column.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleAiChatCommand { get; }
 
@@ -58,6 +61,13 @@ public sealed class MenuViewModel : ReactiveObject
     public Interaction<RxVoid, RxVoid> ShowOrderHistoryRequested { get; }
 
     /// <summary>
+    /// Interaction that routes the show-trade-statistics request to the
+    /// View, which hosts the modal window (same pattern as
+    /// <see cref="ShowOrderHistoryRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowTradeStatsRequested { get; }
+
+    /// <summary>
     /// Interaction that routes the focus-AI-chat request to the View, which
     /// focuses the assistant panel input. Fired only when the toggle SHOWS
     /// the panel: a hide needs no View cooperation (same pattern as
@@ -92,11 +102,13 @@ public sealed class MenuViewModel : ReactiveObject
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
         ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
         ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
+        ShowTradeStatsRequested = new Interaction<RxVoid, RxVoid>();
         FocusAiChatRequested = new Interaction<RxVoid, RxVoid>();
         ShowDisclaimerRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
+        ShowTradeStatsCommand = ReactiveCommand.CreateFromTask(HandleShowTradeStatsAsync);
         ToggleAiChatCommand = ReactiveCommand.CreateFromTask(HandleToggleAiChatAsync);
         ManageMcpServersCommand = ReactiveCommand.CreateFromTask(HandleManageMcpServersAsync);
         OpenSettingsCommand = ReactiveCommand.CreateFromTask(HandleOpenSettingsAsync);
@@ -148,6 +160,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// stays out of the ViewModel, same as the positions panel).
     /// </summary>
     private Task HandleShowOrderHistoryAsync() => ShowOrderHistoryRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the show-trade-statistics request to the View (window plumbing
+    /// stays out of the ViewModel, same as the order history window).
+    /// </summary>
+    private Task HandleShowTradeStatsAsync() => ShowTradeStatsRequested.Handle(RxVoid.Default);
 
     /// <summary>
     /// Toggle the assistant panel; when the toggle SHOWS it, route the

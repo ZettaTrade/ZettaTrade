@@ -205,6 +205,7 @@ internal static class CompositionRoot
         services.AddTradingUiServices();
         services.AddOrderHistory();
         services.AddHistoryUiServices();
+        services.AddTradeStatsServices();
 
         var provider = services.BuildServiceProvider();
 
