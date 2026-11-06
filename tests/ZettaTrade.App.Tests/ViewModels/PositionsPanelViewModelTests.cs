@@ -450,6 +450,7 @@ public sealed class PositionsPanelViewModelTests
         var viewModel = CreateViewModel();
         var history = new OrderHistoryViewModel(
             _history,
+            Substitute.For<ZettaTrade.Infrastructure.Export.ICsvExportService>(),
             _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderHistoryViewModel>>());
 

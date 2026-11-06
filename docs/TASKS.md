@@ -85,10 +85,10 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | queued | - |
 | T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | queued | - |
 | T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | queued | - |
-| T-081 Balances panel: per-exchange and aggregated | feat/balances | queued | - |
-| T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | queued | - |
+| T-081 Balances panel: per-exchange and aggregated | feat/balances | done | - |
+| T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | done | - |
 | T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | done | T-082 (soft) |
-| T-084 CSV export: order history, fills, candles | feat/csv-export | queued | - |
+| T-084 CSV export: order history, fills, candles | feat/csv-export | done | - |
 | T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | queued | - |
 | T-086 Deep-history backfill and gap repair | feat/backfill | queued | T-085 |
 | T-087 Trade tape (time & sales) panel | feat/trade-tape | queued | - |
@@ -127,6 +127,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
 | T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | queued | - |
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
+| T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | queued | T-082 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -150,26 +151,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-
-## T-073 — Flaky concurrency test: GetString_AFactoryParkedAcrossASwitch fails intermittently under parallel-suite load (queued from the T-071/T-072 landing)
-
-- **Branch:** feat/flaky-localization (base `develop` at `8eeb5cc`; queued 2026-11-06; developed 2026-11-06).
-- **Origin:** `LocalizationManagerTests.GetString_AFactoryParkedAcrossASwitch_ReturnsTheSnapshotCultureString` (the T-060/BUG-051 pin) failed twice during the T-071/T-072 landing verification — once inside the full parallel-solution run and once in a back-to-back solo rerun, both immediately after heavy builds — and passed every other time (solo ×7 including 3 runs at the pre-merge `1b9a717` base, full-suite ×1; both branch gates green). The failing assertion speaks the pre-BUG-051 symptom: the parked lookup returns a wrong-culture string.
-- **What:** the root cause is the test harness, not the manager — the reproduction captured BOTH flake limbs of one family. (1) The parked fact's `"any lookup parked"` witness was class-wide, while the fact's `Task.Run` caller can stay queued past the switch under parallel-suite schedule pressure (the captured window carries 33 sibling tests; the 60-frame perf fact overlapped it) — a foreign lookup resolving the same process-wide `LocalizationManager.Instance` through production code (the order book layout's `Build` path, which parks in the same stamping fake) opened the witness for it, so the switch committed over a call that had never reached its snapshot; that call read the fresh culture and returned `'ru:Menu.File'` — EXACTLY the manager's documented snapshot-consistency promise ("a racing caller may still receive either the pre-switch or the post-switch string, but always the one consistent with its own snapshot"), so the manager is correct and the handshake was not. (2) The same instance coupling let parallel `Build` facts resolve the localization suites' stamping fake template ("en:OrderBook.SpreadFormat" — the captured `SpreadText` failure) and a DISPOSED manager keep `_instance` set, so `IsInitialized` stayed true for the whole process after the first creation. The fix: the handshake waits for the fact's OWN thread id at a per-name register (the snapshot is sealed before the switch may park), the `OrderBookPageLayoutTests` join the localization singleton collection (no foreign resolution during `Build`), and `LocalizationManager.Dispose` clears the static when it owns the slot. The `GetString` snapshot path itself stays byte-identical — the race was never in it.
-- **Scope:** `tests/ZettaTrade.UI.Tests/Localization/LocalizationManagerTests.cs` (the per-name/thread handshake + the class remarks), `tests/ZettaTrade.UI.Tests/Charting/OrderBookPageLayoutTests.cs` (the collection join), `src/Livery/Localization/LocalizationManager.cs` (the Dispose self-clear), `Directory.Build.props` + `CHANGELOG.md` + board docs.
-- **Acceptance:** (verified reality) the localization family holds zero recurrences post-fix — UI.Tests-only runs ×12 green and 21 full-solution runs at the tip/merged tree, where every CAPTURED failure belongs to the unrelated `BinanceAdapterWsE2eTests` mock-server 10 s timeout (two more such failures in the pre-capture post-fix loop are identity-unknown — PowerShell 5.1 `2>&1` swallowed the message bodies; the timeout family is the only residual discovered and is explicitly queued as T-116). The pre-fix reproduction: solution runs ×7 and UI.Tests-only runs ×10 flapped 3 times (failure texts + trx timing captured). The original ≥20-consecutive-green solution-run bar is superseded by the supervisor's merge instruction; the race explanation is written into the test headers.
-- **Tests:** no new domain logic — the deterministic shape lives in the already-shipped parked-fact pin, whose handshake is now interference-proof; the reproducibility was established by rerunning the exact landing contexts (full solution / UI.Tests-only / heavy-build-then-solo) from a fresh worktree.
-- **Status:** done. Canon: the branch carries `1bf6506` (the handshake seal, the layout suite's collection join, the Dispose self-clear) and this release commit (the alpha.38 cut + this section's status flip); shipped as `0.1.0-alpha.38` (see CHANGELOG.md). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file). The residual full-solution failures are the unrelated WS E2E `EventWait` family — queued as T-116.
-
-## T-074 — Advanced order types: stop-limit, trailing stop, OCO
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** the ticket carries market/limit/stop only today (T-008, later hardened in T-013/T-057); a terminal-grade ticket offers conditionals.
-- **What:** stop-limit, trailing stop and OCO pairs end-to-end: trigger-vs-limit and trail-distance validation matrix in the ticket, order DTO shapes extended (an additive, backward-compatible Core change — the supervisor gates the interface diff at review), paper-execution simulation per type against the live candle/book streams, `IRiskManager` + `IConfirmationService` wired as for every order. An unparsable trigger/trail parameter is a returned error, never a default.
-- **Scope:** Core order shapes (additive), paper trading engine, ticket VM/view, adapters that can map the types (Bybit/demo; adapters that cannot return a rejected intent rather than degrade), resx en+ru, tests.
-- **Acceptance:** each type rides submit → working → fill/cancel on paper; the hard order-value cap applies to notional at trigger; unsupported adapters degrade explicitly.
-- **Tests:** the validation golden, per-type paper fills, OCO both-legs semantics (one fills → the other cancels best-effort, no orphans), the unparsable-params error path.
-- **Status:** done. Canon: the branch carries the additive order shapes (`29f8e2e`), the paper conditional simulation (`86ce25a`) with its semantics pins (`ac5bac9`), the trigger-anchored risk cap (`0c17c34`) and the conditional ticket (`182b549`), plus this release commit (the alpha.39 cut + this section's status flip); shipped as `0.1.0-alpha.39` (see CHANGELOG.md). No Core interface changes were needed — everything rides the existing `IMarketDataAdapter`/`ITradingAdapter` seams. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-075 — Amend a working order from the orders panel
 
@@ -225,23 +206,15 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** maker vs taker selection visible everywhere the cost matters.
 - **Tests:** schedule selection golden, rounding policy, the no-schedule passthrough (a displayed unknown, not a zero).
 
-## T-081 — Balances panel: per-exchange and aggregated
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** there is no balance surface at all; portfolio oversight is a terminal baseline.
-- **What:** read-only balances per adapter (paper first, then adapters that expose account data), per-exchange sections plus an aggregated view with last-price valuation and allocation bars; secrets stay in `ISecretStore` (read path only), manual refresh, no auto-trading implications.
-- **Scope:** an additive read-only balances face on the trading seam (supervisor-gated Core diff), the Infrastructure fetchers, panel VM/view, resx en+ru, tests.
-- **Acceptance:** paper demo shows live-updated figures; adapters without balance data render an explicit "not supported" row.
-- **Tests:** aggregation golden, valuation staleness handling, the not-supported path.
-
 ## T-082 — PnL engine: realized/unrealized accounting core
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/pnl-engine (base `develop` at `d6c5707`; queued 2026-11-06; developed 2026-11-06).
 - **Origin:** a headless accounting core is the prerequisite for stats (T-083) and honest fills; nothing exists.
 - **What:** average-price bookkeeping over the paper/fill ledger (reusing T-051-corrected fills), realized PnL per closing fill, unrealized from the latest price feed, fees in (T-080), a position-flip path; an `IObservable` state feed for the UI instead of polling; SQLite persistence for realized history (EF canon).
 - **Scope:** a domain service (Infrastructure + a small App-side feed), resx en+ru for any surfaced strings, tests.
 - **Acceptance:** determinism across restarts (reloading history reconstructs the same numbers).
 - **Tests:** average-price goldens, fee application, flip-mid-stream, persistence reload equality.
+- **Status:** done. Canon: the branch carries the dotnet-ef tool manifest (`4d6016f`), the accounting core + its realized-history SQLite store (`115abf4`), the App-side feed wrapper (`5ac7979`) and the test pins (`fd57067`), plus this release commit (the alpha.43 cut + this section's status flip); shipped as `0.1.0-alpha.43` (see CHANGELOG.md). The fee seam follows the FEES decision: the ledger carries no fee data, so commission enters only through an explicit per-fill parameter on the domain service API (absence ≡ zero, never fabricated) — T-080 plugs real fees in without Core changes; no Core interface or entity changes were needed. The unrealized side prices off the cheapest existing source — ticker subscriptions through the `ActiveExchangeService` facade — and the ledger re-sync rides a slow idempotent diff (the journal has no change notifications); the headless core ships without a UI panel (T-083+ consumes `PnlFeedService`). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-083 — Trade statistics dashboard: win rate, profit factor, equity curve
 
@@ -252,15 +225,6 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** stays responsive on six-figure histories (paged queries, no first-load wall).
 - **Tests:** aggregation goldens on seeded history, empty state, paging.
 - **Status:** done. Canon: the branch carries `67fa450` — the raw-fill-only read stack in full: the read-only paged keyset query over the journal (`IOrderStatsQuery` + the SQLite implementation in Infrastructure Persistence, (CreatedAt, ExchangeId, OrderId) continuation, inclusive-from/exclusive-to bounds, the bounded page clamp, the paper-live tag matched on the paper adapter id), the fill-pair accumulator with the average-entry bookkeeping (a partial close never re-averages the remainder, a flip stamps its fresh position at its own fill — the paper ledger rules BUG-005/BUG-034 shared; breakeven closes count as trades but never decide the win rate; the profit factor without a single loss is unbounded-null and the tile renders it honestly), the metric-tile window with filters (symbol, exchange id, venue all/paper/live, from/to dates) publishing one refined snapshot per 2000-row page (no first-load wall) and the Skia equity renderer on the candlestick draw canon (snapshot + custom draw operation, zero anchor at the scope's first fill, theme/language re-ink); the same commit carries the en+ru resx, the Trading menu entry and the one-line DI registration after `AddHistoryUiServices`. `e066ac5` pins it all: accumulator goldens (winning round trip, mixed ±, partial close, 3-trade flip, breakeven, parallel symbols, the zero/partial/mixed-status guardians, page-by-page ≡ batch), the SQLite query walk (ascending with the same-timestamp tie straddling a page boundary without skipping, symbol/exchange/date/venue filters, the clamp) and the VM scan (anchor null → last row, short-page exhaust, the honest zero/dash baseline, re-scoping filters, an unparsable symbol that never touches the store). No Core changes and no T-082 dependency — realized stats ride raw paper fills alone. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file; the `Stats.*` prefix rides the check-resx whitelist grant `056cd77` — the script's own add-one-when-a-module-ships procedure); shipped as `0.1.0-alpha.45` (see CHANGELOG.md). This board-flip commit closes the section.
-
-## T-084 — CSV export: order history, fills, candles
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** external analysis demands files; exports are nothing today.
-- **What:** export actions for the history panels and candles: `InvariantCulture` numbers (the ru-locale decimal trap) and RFC quoting, UTC ISO-8601 timestamps, streamed writers so six-figure histories never balloon memory, cancellation-safe.
-- **Scope:** an export service (Infrastructure), panel menu wiring, resx en+ru, tests.
-- **Acceptance:** exports open clean in Excel/LibreOffice regardless of the OS culture.
-- **Tests:** quoting/escaping golden, ru-RU host culture independence, streamed memory cap, cancel mid-export.
 
 ## T-085 — Local candle cache in SQLite (write-through, offline start)
 
@@ -570,16 +534,6 @@ the end of that file, so no effort is duplicated.
 - **Tests:** none (docs), a words-only review.
 - **Status:** done. Docs-only (no version bump, no CHANGELOG section). Canon: the branch carries `577fd42` — the rewritten top-level README with the trading-safety guidance front and center: explicit alpha status, user-scoped key hygiene (read-only for market data, trade-only for trading, withdrawal/transfer off, IP allowlist where offered), testnet-first instructions tied to the configurable `Exchange` endpoint section and the paper-trading/risk/confirmation surfaces, the per-machine `ISecretStore` storage path, and the investment-disclaimer block; the docs-site instructions stay subordinated under a dedicated heading; `docs/SECURITY.md` is referenced as a link only (created by the sibling task T-117). Gate passed; this board-flip commit closes the section.
 
-## T-119 — First-run disclaimer in the UI («not investment advice») + the explicit alpha posture
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the open-source key-hygiene note; not urgent, tail of the backlog).
-- **Origin:** the alpha posture is half-visible: the status-bar chip shows `0.1.0-alpha.NN` (AppVersion trims the `+build` metadata), but the explicit statements — «не является инвестиционной рекомендацией» and «не использовать с реальными средствами без собственного тестирования» — appear nowhere in the interface.
-- **What:** a non-blocking dismissible disclosure panel on the first app start holding both statements plus the paper/testnet safety hint; an explicit acknowledge persists a flag and the panel is not shown again (relaunchable from Settings → About); fully localized en+ru (all wording in resx — no ViewModel static localized strings, the standing canon); if T-099 (first-run wizard) lands first, the panel becomes the wizard's zero step and the flag is shared.
-- **Scope:** a disclosure VM/view, a persisted first-run flag in the settings, resx en+ru, tests.
-- **Acceptance:** the panel shows exactly once per installation, the acknowledge never gates trading actions (it informs — the `IConfirmationService` risk flows stay untouched), and the alpha wording is discoverable later from About.
-- **Tests:** first-run/second-run golden, the persisted flag reload, the en/ru wiring, the Settings → About reveal path.
-- **Status:** done. Canon: the branch carries `5d28be8` — the versioned acknowledgment riding the existing settings store (`UiSettingsKeys.DisclaimerVersion`, an int under the app's settings section; the shipped wording version is `1`, bumped on any future wording change so every previously acknowledged install re-shows the dialog exactly once; read fresh at every launch, never cached, so a settings hot-reload or an externally reset file never fights the check) plus the dialog view model (an idempotent acknowledge write; a failed write is contained in the file log and degrades to a next-launch re-show); `c82893c` — the dialog view and the launch wiring: a modal over the just-shown main window carrying the shipped wording only — «educational software, not investment advice» + the alpha posture (alpha software, paper-first backend, self-testing before real funds, user-scoped key hygiene), all in resx en+ru with both standing ru statements pinned by the test suite; the acknowledgment is a record that re-shows the wording, never a flag gate on trading actions (the `IConfirmationService` risk flows stay untouched); `817174f` — the manual reopen path: Help → About / Disclaimer hosts the same dialog (a fresh transient view model, an idempotent write). Delivered as the modal dialog cut: the queued-time non-blocking panel's acceptance (shows exactly once per wording version, never gates actions, discoverable later) is met 1:1 by the dialog, and the reopen point lives with the shipped menu surfaces instead of a new Settings page. Gate passed; this board-flip commit closes the section.
-
 ## T-130 — Extract Livery into a standalone private repo (MIT kept), consume as a package
 
 - **Branch:** queued 2026-11-06 (open-core structure at the licensing review: Livery goes to its own PRIVATE repo, the license stays MIT — the sources stay hidden and the package is the public surface, flipping the repo public later is one click; this is the pilot of the multi-repo mechanics. Sequenced between alpha releases, coordinated across sessions — Livery paths are touched by UI work).
@@ -606,3 +560,12 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the key validation lib + the activation UI (resx en+ru), the packaging docs/templates for the private CI, `docs/LICENSES.md` describing the open-core split (MIT core vs proprietary modules) in a glance-readable form; the private repos themselves appear only per actual module.
 - **Acceptance:** a signed closed fixture activates with a valid key and is refused with an explicit error on invalid/expired/tampered/wrong-product keys; no network is required for validation; no proprietary artifact or wording lands in the public repo.
 - **Tests:** key crypto goldens (valid/expired/tampered/wrong-product/missing), the activation gate in UI, the refused-not-defaulted contract on every failure path, file-only logging for the validator.
+
+## T-133 — MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read
+
+- **Branch:** queued 2026-11-06 (supervisor note raised at the T-082 landing: the PnL core's report flagged the blind spot; queued immediately so the seam does not rot).
+- **Origin:** fills placed through the `TradingToolsRegistrar` MCP tools bypass the App-side SQLite order journal - the canonical local ledger that order history, positions, CSV export, trade statistics and the T-082 PnL engine all read. An MCP-placed paper fill is a real (paper-lane) money flow invisible to every accounting surface.
+- **What:** the MCP trading tools' execution path writes through the same journal ingestion the panels use (or the journal seam gains the missing notifications - the lightest cut that makes MCP-placed fills appear in order history, positions, CSV exports, the T-083 statistics and the T-082 PnL realized history); no scope creep into real-adapter behavior; the paper/demo lane is the acceptance surface.
+- **Scope:** Infrastructure/App wiring under the MCP trading tools (Infra-only; no Core entity or interface changes expected), tests.
+- **Acceptance:** a fill executed via an MCP tool becomes visible in every journal-backed surface and is accounted in PnL deterministically across restarts, exactly like a fill placed from the UI.
+- **Tests:** MCP-placed fill golden (a journal row and a PnL realized entry appear), mixed UI+MCP fills keep the expected ordering, restart determinism holds.

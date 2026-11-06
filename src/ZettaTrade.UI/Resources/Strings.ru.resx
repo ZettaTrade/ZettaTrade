@@ -276,6 +276,12 @@
   <data name="Chart.Indicators.SmaTip" xml:space="preserve">
     <value>Простая скользящая средняя: среднее закрытие за последние N баров, линия поверх свечей.</value>
   </data>
+  <data name="Chart.ExportCandlesCsv" xml:space="preserve">
+    <value>Экспорт свечей в CSV</value>
+  </data>
+  <data name="Chart.ExportFailed" xml:space="preserve">
+    <value>Не удалось экспортировать CSV-файл: {0}</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>
@@ -540,6 +546,15 @@
   <data name="History.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="History.ExportOrdersCsv" xml:space="preserve">
+    <value>Экспорт ордеров в CSV</value>
+  </data>
+  <data name="History.ExportFillsCsv" xml:space="preserve">
+    <value>Экспорт сделок в CSV</value>
+  </data>
+  <data name="History.ExportFailed" xml:space="preserve">
+    <value>Не удалось экспортировать CSV-файл: {0}</value>
+  </data>
   <data name="OrderBook.Title" xml:space="preserve">
     <value>Стакан ордеров</value>
   </data>
@@ -655,6 +670,45 @@
     <value>Для выбранных фильтров закрытых сделок пока нет — ослабьте фильтры или сначала поторговайте на paper-счете.</value>
   </data>
   <data name="Stats.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Menu.Trading.Balances" xml:space="preserve">
+    <value>Балансы</value>
+  </data>
+  <data name="Trading.BalancesTitle" xml:space="preserve">
+    <value>Балансы</value>
+  </data>
+  <data name="Trading.BalancesPerExchangeHeader" xml:space="preserve">
+    <value>По биржам</value>
+  </data>
+  <data name="Trading.BalancesAggregatedHeader" xml:space="preserve">
+    <value>Итог по всем биржам</value>
+  </data>
+  <data name="Trading.BalancesAsset" xml:space="preserve">
+    <value>Актив</value>
+  </data>
+  <data name="Trading.BalancesAmount" xml:space="preserve">
+    <value>Количество</value>
+  </data>
+  <data name="Trading.BalancesNoServedBalances" xml:space="preserve">
+    <value>Нет записей балансов</value>
+  </data>
+  <data name="Trading.BalancesNotProvided" xml:space="preserve">
+    <value>Эта биржа не предоставляет данные о балансе</value>
+  </data>
+  <data name="Trading.BalancesFetchFailedFormat" xml:space="preserve">
+    <value>Ошибка запроса балансов: {0}</value>
+  </data>
+  <data name="Trading.BalancesLoadFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить балансы: {0}</value>
+  </data>
+  <data name="Trading.BalancesLoading" xml:space="preserve">
+    <value>Загрузка балансов...</value>
+  </data>
+  <data name="Trading.BalancesRefresh" xml:space="preserve">
+    <value>Обновить</value>
+  </data>
+  <data name="Trading.BalancesClose" xml:space="preserve">
     <value>Закрыть</value>
   </data>
 </root>

@@ -5,7 +5,7 @@ All notable changes to ZettaTrade are documented here, newest first
 
 While the app is in alpha, one release == one merged board task: task
 `T-0NN` ships as `0.1.0-alpha.NN` and adds its section below. The state
-before `alpha.10` was never versioned — what shipped in T-001 – T-009
+before `alpha.10` was never versioned — what shipped in T-001 — T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
@@ -28,6 +28,56 @@ Build of board task T-083 (branch `feat/trade-stats`).
   refines the result progressively; the read query lives in
   Infrastructure Persistence with no write path and the aggregation math
   in the App accumulator service. Fully localized en+ru.
+
+## [0.1.0-alpha.43] - 2026-11-06
+
+Build of board task T-082 (branch `feat/pnl-engine`).
+
+### Added
+- The headless PnL accounting core (T-082). `PnlAccountingService` keeps
+  average-price bookkeeping over the shipped paper/fill ledger (an order
+  with a positive `FilledQuantity` carries its execution, sans fee data),
+  realizes PnL per closing fill with the position-flip path (a closing
+  trade larger than the position re-opens the remainder on the other side
+  at the same fill price), prices the unrealized side from ticker feeds,
+  exposes state changes over an observable feed — and persists realized
+  history to SQLite (EF canon, `AddPnlRealized`) so an application restart
+  reconstructs the identical numbers from the persisted rows.
+- The App-side `PnlFeedService` wrapper: the engine's feed for future
+  panels, ticker pricing through the active-exchange facade, and a slow
+  idempotent ledger re-sync (the journal has no change notifications).
+- The fee seam, per the task decision: the ledger carries no fee data, so
+  commission enters only through an explicit per-fill parameter on the
+  domain API (absence ≡ zero; no fee fabricated); T-080 plugs real
+  schedule data into it without Core changes.
+
+## [0.1.0-alpha.42] - 2026-11-06
+
+Build of board task T-081 (branch `feat/balances`).
+
+### Added
+- The balances panel (Trading menu): one read-only surface next to the
+  positions/orders panels showing every active exchange's served balances
+  (per-exchange sections plus an aggregated view that sums the amounts per
+  asset across the adapters that actually provide balances). The panel
+  follows the adapters' honesty contract: an adapter without balance data
+  renders the explicit "not provided" state and a faulting query renders
+  the localized fault — a zero is never a plausible-but-wrong figure. Data
+  rides the shipped trading seam (`ITradingAdapter.GetBalancesAsync`): the
+  paper account serves rows live (empty before the first fill), while the
+  market-data-only faces (Binance/Bybit/demo) report the not-provided
+  state; manual refresh; en+ru localization; aggregation and state-machine
+  tests.
+
+## [0.1.0-alpha.41] - 2026-11-06
+
+Build of board task T-084 (branch `feat/csv-export`).
+
+### Added
+- CSV export for the app's local data surfaces (order journal, fills, candles): the `ICsvExportService` writer streams RFC 4180-quoted rows with invariant decimals, ISO-8601 UTC timestamps, UTF-8 (no BOM) and CRLF line endings, row by row with cancellation between rows and an honest `DirectoryNotFoundException` on a missing destination — a six-figure history exports with a one-row memory footprint.
+- The order history window gains Export Orders CSV and Export Fills CSV actions: the loaded journal rows are the export set, the destination comes through a save-file dialog (cancelled = nothing written, no error), and a write fault surfaces on the window's localized error line.
+- The chart panel gains Export Candles CSV: the displayed series is the export set and faults land on the panel's own error line (the status bar stays with connection state); the main window answers the save-file interaction for the app-lifetime display in `OnOpened`.
+- Localization: `History.Export*` and `Chart.Export*` keys in both en and ru catalogs.
 
 ## [0.1.0-alpha.40] - 2026-11-06
 

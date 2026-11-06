@@ -42,6 +42,7 @@
             <MenuItem Header="{loc:Localized Menu.Trading}">
                 <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="Ctrl+N" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
+                <MenuItem Header="{loc:Localized Menu.Trading.Balances}" Command="{Binding ShowBalancesCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Stats}" Command="{Binding ShowTradeStatsCommand}" />
             </MenuItem>
@@ -146,14 +147,15 @@
 
                     <!-- Chart workspace -->
                     <Border Grid.Column="0" DataContext="{Binding Chart}">
-                        <Grid RowDefinitions="Auto,*">
+                        <Grid RowDefinitions="Auto,Auto,*">
                             <!-- Header: the symbol picker on the left (the star badge
                                  marks the favorites; both marks are managed in the
                                  settings window's pairs tab); the time frame picker
                                  rides the same load key, so a flip reloads the
-                                 chart live. -->
+                                 chart live; the candles export writes the loaded
+                                 series to a user-chosen CSV file. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
@@ -184,10 +186,23 @@
                                           MinWidth="72"
                                           ItemsSource="{Binding TimeFrames}"
                                           SelectedItem="{Binding SelectedTimeFrame}" />
+                                <Button Grid.Column="3"
+                                        Content="{loc:Localized Chart.ExportCandlesCsv}"
+                                        Command="{Binding ExportCandlesCommand}"
+                                        MinWidth="110"
+                                        Margin="8,0,0,0" />
                             </Grid>
-                            
+
+                            <!-- Export failure -->
+                            <TextBlock Grid.Row="1"
+                                       Text="{Binding ErrorMessage}"
+                                       Foreground="{DynamicResource Error}"
+                                       TextWrapping="Wrap"
+                                       IsVisible="{Binding HasErrorMessage}"
+                                       Margin="0,0,0,8" />
+
                             <!-- Chart -->
-                            <charting:CandlestickChart x:Name="CandlesChart" Grid.Row="1"
+                            <charting:CandlestickChart x:Name="CandlesChart" Grid.Row="2"
                                                        Bars="{Binding Bars}"
                                                        Use12HourClock="{Binding Use12HourClock}"
                                                        IndicatorLines="{Binding IndicatorLines}" />

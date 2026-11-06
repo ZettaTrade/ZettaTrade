@@ -16,6 +16,7 @@ using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Indicators;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Infrastructure.Secrets;
@@ -93,6 +94,8 @@ internal static class CompositionRoot
         // the startup walk restores the persisted choice here — before any
         // consumer VM is constructed.
         services.AddActiveExchange();
+
+        services.AddBalancesServices(); // T-081: balances panel (aggregation service + panel VM).
 
         // AI chat: the Ollama completion service (local models first) and its
         // named HttpClient; the workspace context rides the existing seams.
@@ -185,6 +188,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<IIndicatorCatalog>(),
+                sp.GetRequiredService<ICsvExportService>(),
+                sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
@@ -204,8 +209,14 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();
         services.AddOrderHistory();
+
+        // The PnL accounting core + its app-side feed (T-082): after the
+        // order history registration, so the walk initializes the ledger
+        // store before the engine's boot replay reads it.
+        services.AddPnlServices();
         services.AddHistoryUiServices();
         services.AddTradeStatsServices();
+        services.AddCsvExportServices();
 
         var provider = services.BuildServiceProvider();
 

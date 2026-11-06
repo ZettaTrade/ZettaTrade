@@ -63,11 +63,22 @@
                    TextWrapping="Wrap"
                    IsVisible="{Binding HasErrorMessage}" />
 
-        <Button Grid.Row="2"
-                Content="{loc:Localized History.Close}"
-                Click="OnCloseClick"
-                MinWidth="90"
-                HorizontalAlignment="Right" />
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto">
+            <Button Grid.Column="0"
+                    Content="{loc:Localized History.ExportOrdersCsv}"
+                    Command="{Binding ExportOrdersCommand}"
+                    MinWidth="110" />
+            <Button Grid.Column="1"
+                    Margin="8,0,0,0"
+                    Content="{loc:Localized History.ExportFillsCsv}"
+                    Command="{Binding ExportFillsCommand}"
+                    MinWidth="110" />
+            <Button Grid.Column="3"
+                    Content="{loc:Localized History.Close}"
+                    Click="OnCloseClick"
+                    MinWidth="90"
+                    HorizontalAlignment="Right" />
+        </Grid>
 
     </Grid>
 </Window>
