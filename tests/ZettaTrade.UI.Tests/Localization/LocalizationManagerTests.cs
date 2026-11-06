@@ -1,9 +1,11 @@
 namespace ZettaTrade.UI.Tests.Localization;
 
 using System;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Linq;
 using System.Resources;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Livery.Localization;
@@ -27,6 +29,23 @@ using Xunit;
 /// <see cref="ZettaTrade.UI.Charting.ChartTickCulture.Resolve"/> resolves
 /// through that static — two manager-creating classes must not run
 /// concurrently, or one reads the other's just-switched language.
+/// </remarks>
+/// <remarks>
+/// T-073 (the flaky parked-factory fact): the landing verification of the
+/// T-071/T-072 merge failed this file's parked fact twice under parallel
+/// suite load. The captured trace (actual 'ru:Menu.File') is scheduling,
+/// not the manager: the fact's Task.Run caller can stay queued while the
+/// pool carries the sibling suites, and an unrelated lookup that resolves
+/// the same process-wide instance through production code (the order
+/// book layout's Build path) already opened the former class-wide "any
+/// lookup parked" witness. The switch then committed over a call that had
+/// never reached its snapshot — the call read the fresh culture and
+/// returned it, exactly the documented post-fix promise ("always the one
+/// consistent with its own snapshot"): the manager was right, the
+/// handshake was wrong. It now waits for THIS call's own thread id at a
+/// per-name register, the static-resolving layout suite (T-073) joins the
+/// collection, and Dispose stops a torn-down manager from keeping the
+/// process-wide IsInitialized claim.
 /// </remarks>
 [Collection("LocalizationManagerSingleton")]
 public sealed class LocalizationManagerTests
@@ -104,13 +123,23 @@ public sealed class LocalizationManagerTests
             await manager.SetLanguageAsync("en");
 
             // The racing call: its snapshot (and therefore its cache key) is
-            // "en"; the factory parks before it can compute the value.
-            var parkedLookup = Task.Run(() => manager.GetString("Menu.File"));
+            // "en"; the factory parks before it can compute the value. The
+            // call's own thread id is captured so the handshake can wait for
+            // THIS call — never for a stranger's (the T-073 race story).
+            var callerThreadId = -1;
+            var parkedLookup = Task.Run(() =>
+            {
+                callerThreadId = Thread.CurrentThread.ManagedThreadId;
+                return manager.GetString("Menu.File");
+            });
 
-            // Wait until the factory actually parked, so the switch below is
-            // guaranteed to cross the factory's execution, not the snapshot.
+            // Wait until THIS call actually parked, so the switch below is
+            // guaranteed to cross the factory's execution, not the snapshot:
+            // once this very thread registers, the culture it stamped with
+            // is sealed and no later switch can reach it.
             var spin = new System.Threading.SpinWait();
-            while (!resources.ParkEntered)
+            while (!resources.ParkedCalls.TryGetValue("Menu.File", out var parkedThread)
+                || parkedThread != callerThreadId)
             {
                 spin.SpinOnce();
             }
@@ -204,21 +233,31 @@ public sealed class LocalizationManagerTests
         /// <summary>While set and unresolved, every lookup parks before returning.</summary>
         public TaskCompletionSource? Park { get; init; }
 
-        /// <summary>True once any lookup has run — the deterministic fact waits for this.</summary>
-        public volatile bool ParkEntered;
+        /// <summary>
+        /// The parked lookups by caller: the key is the resource name, the
+        /// value the ManagedThreadId of the call that is parked on the gate
+        /// right now. The deterministic fact waits for ITS OWN thread's
+        /// registration — the former class-wide "any lookup has entered"
+        /// flag could be satisfied by an unrelated lookup (the T-073
+        /// interference), letting a switch commit over a call that had not
+        /// even reached its snapshot.
+        /// </summary>
+        public ConcurrentDictionary<string, int> ParkedCalls { get; init; } = new();
 
         public override string? GetString(string name, CultureInfo? culture)
         {
-            ParkUntilReleased();
+            ParkUntilReleased(name);
 
             return $"{culture?.Name ?? "<null>"}:{name}";
         }
 
         /// <summary>
         /// While the gate is set and unresolved, every lookup parks —
-        /// guaranteed bounded: the fact releases it in its finally.
+        /// guaranteed bounded: the fact releases it in its finally. The
+        /// caller's thread id stays registered as long as the park lasts,
+        /// so a waiter can tell WHICH call is blocked.
         /// </summary>
-        private void ParkUntilReleased()
+        private void ParkUntilReleased(string name)
         {
             var park = Park;
             if (park is null)
@@ -226,12 +265,14 @@ public sealed class LocalizationManagerTests
                 return;
             }
 
-            ParkEntered = true;
+            ParkedCalls[name] = Thread.CurrentThread.ManagedThreadId;
             var spin = new System.Threading.SpinWait();
             while (!park.Task.IsCompleted)
             {
                 spin.SpinOnce();
             }
+
+            ParkedCalls.TryRemove(name, out _);
         }
     }
 }

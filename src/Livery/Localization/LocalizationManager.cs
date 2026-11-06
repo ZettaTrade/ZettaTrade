@@ -201,5 +201,14 @@ public sealed class LocalizationManager : ILocalizationManager, IDisposable
         _languageChanged.Dispose();
         _cache.Clear();
         _lock.Dispose();
+
+        // A disposed instance must stop claiming process-wide initialization:
+        // every consumer resolves through the one static, and a stale pointer
+        // served lookups from the torn-down manager forever (the T-073 flake
+        // family exercised exactly that route across parallel test suites).
+        if (ReferenceEquals(_instance, this))
+        {
+            _instance = null;
+        }
     }
 }

@@ -17,6 +17,18 @@ using ZettaTrade.UI.Charting;
 /// bounded by the visible rows (the stated 60 fps at 1000+ levels target),
 /// and the geometric/labels invariants hold.
 /// </summary>
+/// <remarks>
+/// Runs in the localization-singleton collection (the T-073 flake family):
+/// <c>Build</c> resolves the header templates through the process-wide
+/// <see cref="Livery.Localization.LocalizationManager"/>.Instance, so a
+/// concurrently running manager-creating fact used to serve this suite a
+/// test fake's template ("en:OrderBook.SpreadFormat") instead of the real
+/// resx one — the observed SpreadText failure. Serializing with the
+/// localization suites closes the cross-class handoff, and the singletons
+/// do not survive their facts (Dispose clears the static), so this suite
+/// resolves the raw Strings catalog either way.
+/// </remarks>
+[Collection("LocalizationManagerSingleton")]
 public sealed class OrderBookPageLayoutTests
 {
     #region Constants
