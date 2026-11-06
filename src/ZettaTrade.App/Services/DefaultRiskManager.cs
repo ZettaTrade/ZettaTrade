@@ -2,6 +2,7 @@ namespace ZettaTrade.App.Services;
 
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
@@ -40,8 +41,15 @@ public sealed class DefaultRiskManager : IRiskManager
     {
         try
         {
-            // The value anchors on the price the REQUEST carries: the limit
-            // price for Limit/StopLimit, the stop trigger for StopMarket.
+            // The value anchors on the price the ORDER COMMITS TO AT TRIGGER
+            // time: every stop-family order (StopMarket, StopLimit,
+            // TrailingStop) anchors at its stop trigger — the level whose
+            // crossing converts the order into an executable commitment; an
+            // ordinary order anchors at its limit price. Anchoring a stop at
+            // its limit price instead would understate the notional the
+            // trigger actually commits (a sell stop-limit's protective limit
+            // sits below its trigger), so the hard cap is evaluated against
+            // what the order can really execute for at the trigger (T-074).
             // An order with NEITHER (a market order) cannot have its value
             // estimated from the request — and this manager deliberately
             // has no market-data dependency to approximate with (a stale
@@ -50,7 +58,9 @@ public sealed class DefaultRiskManager : IRiskManager
             // the pre-fix behavior approved it with a required confirmation
             // and never met the cap, which its own documentation declares
             // must never be bypassable by any caller (BUG-026).
-            var referencePrice = request.Price?.Value ?? request.StopPrice?.Value;
+            var referencePrice = request.Type is OrderType.StopMarket or OrderType.StopLimit or OrderType.TrailingStop
+                ? request.StopPrice ?? request.Price
+                : request.Price;
             if (referencePrice is null)
             {
                 _logger.LogWarning(
@@ -61,7 +71,7 @@ public sealed class DefaultRiskManager : IRiskManager
                     "cannot evaluate risk: the order carries no price to estimate its value against the hard cap; place a limit order, or a stop order with its trigger price"));
             }
 
-            var estimatedValue = request.Quantity.Value * referencePrice.Value;
+            var estimatedValue = request.Quantity.Value * referencePrice.Value.Value;
 
             if (estimatedValue > MaxOrderValueHardCapUsd)
             {

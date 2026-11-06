@@ -69,6 +69,12 @@
   <data name="Menu.AI.Servers" xml:space="preserve">
     <value>MCP Серверы...</value>
   </data>
+  <data name="Menu.Help" xml:space="preserve">
+    <value>Справка</value>
+  </data>
+  <data name="Menu.Help.AboutDisclaimer" xml:space="preserve">
+    <value>О программе / Дисклеймер...</value>
+  </data>
   <data name="Settings.Title" xml:space="preserve">
     <value>Настройки</value>
   </data>
@@ -270,6 +276,12 @@
   <data name="Chart.Indicators.SmaTip" xml:space="preserve">
     <value>Простая скользящая средняя: среднее закрытие за последние N баров, линия поверх свечей.</value>
   </data>
+  <data name="Chart.ExportCandlesCsv" xml:space="preserve">
+    <value>Экспорт свечей в CSV</value>
+  </data>
+  <data name="Chart.ExportFailed" xml:space="preserve">
+    <value>Не удалось экспортировать CSV-файл: {0}</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>
@@ -285,11 +297,41 @@
   <data name="Order.StopLimit" xml:space="preserve">
     <value>Стоп-лимит</value>
   </data>
+  <data name="Order.TrailingStop" xml:space="preserve">
+    <value>Трейлинг-стоп</value>
+  </data>
+  <data name="Order.Oco" xml:space="preserve">
+    <value>OCO (тейк-профит / стоп-лосс)</value>
+  </data>
   <data name="Trading.ConfirmPlaceOrderFormat" xml:space="preserve">
     <value>Ордер {1}: {0} {2} {3} — {4}?</value>
   </data>
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>по рыночной цене</value>
+  </data>
+  <data name="Trading.Disclaimer.Title" xml:space="preserve">
+    <value>ZettaTrade — дисклеймер альфа-версии</value>
+  </data>
+  <data name="Trading.Disclaimer.NotAdvice" xml:space="preserve">
+    <value>ZettaTrade — образовательное программное обеспечение, а не инвестиционная рекомендация. Ничто в этом приложении, его документации или ИИ-чате не является рекомендацией покупать, продавать или держать какой-либо актив или инструмент.</value>
+  </data>
+  <data name="Trading.Disclaimer.AlphaStatus" xml:space="preserve">
+    <value>Это альфа-версия: поведение, ключи настроек и форматы файлов могут меняться между альфа-сборками без предупреждения; точная версия сборки показана в строке состояния.</value>
+  </data>
+  <data name="Trading.Disclaimer.PaperFirst" xml:space="preserve">
+    <value>Торговый движок в комплекте — симулятор paper-trading: имитация сделок по живым рыночным ценам, он никогда не касается реальных средств или биржевых ключей. Адаптеры берут адреса эндпоинтов из файла настроек, поэтому testnet-first — это изменение конфигурации, а не кода.</value>
+  </data>
+  <data name="Trading.Disclaimer.RealFunds" xml:space="preserve">
+    <value>Не используйте приложение с реальными средствами, пока не проверили его собственным тестированием. Начинайте с testnet и paper-trading, убедитесь в поведении приложения сами и никогда не рискуйте деньгами, которые не можете позволить себе потерять. Торговля сопряжена с существенным риском убытков; за собственные решения, собственное тестирование и собственные средства отвечаете только вы.</value>
+  </data>
+  <data name="Trading.Disclaimer.KeyHygiene" xml:space="preserve">
+    <value>Ключи API — ответственность пользователя: создавайте пользовательские ключи с узким охватом — только для чтения рыночных данных или только для торговли (права вывода и трансфера выключены), с IP-allowlist там, где биржа его предлагает, — и храните их только в локальном защищённом хранилище приложения.</value>
+  </data>
+  <data name="Trading.Disclaimer.WhereToRead" xml:space="preserve">
+    <value>Полное руководство: README.md (безопасность торговли) и docs/SECURITY.md (ключи и секреты).</value>
+  </data>
+  <data name="Trading.Disclaimer.Acknowledge" xml:space="preserve">
+    <value>Понятно</value>
   </data>
   <data name="NewOrder.Title" xml:space="preserve">
     <value>Новый ордер</value>
@@ -338,6 +380,57 @@
   </data>
   <data name="NewOrder.OrderPlaced" xml:space="preserve">
     <value>Ордер размещён: {0}</value>
+  </data>
+  <data name="NewOrder.TriggerPrice" xml:space="preserve">
+    <value>Триггерная цена стопа</value>
+  </data>
+  <data name="NewOrder.OcoStopTrigger" xml:space="preserve">
+    <value>Триггер стоп-лосса</value>
+  </data>
+  <data name="NewOrder.OcoLimitPrice" xml:space="preserve">
+    <value>Лимит тейк-профита</value>
+  </data>
+  <data name="NewOrder.OcoStopLimitPrice" xml:space="preserve">
+    <value>Лимит стоп-лосса</value>
+  </data>
+  <data name="NewOrder.TriggerRequired" xml:space="preserve">
+    <value>Триггерная цена обязательна</value>
+  </data>
+  <data name="NewOrder.TriggerNotANumber" xml:space="preserve">
+    <value>Триггерная цена не число: {0}</value>
+  </data>
+  <data name="NewOrder.TrailRequired" xml:space="preserve">
+    <value>Дистанция трейлинга обязательна</value>
+  </data>
+  <data name="NewOrder.TrailDistance" xml:space="preserve">
+    <value>Дистанция трейлинга</value>
+  </data>
+  <data name="NewOrder.TrailNotANumber" xml:space="preserve">
+    <value>Дистанция трейлинга не число: {0}</value>
+  </data>
+  <data name="NewOrder.TrailTooLarge" xml:space="preserve">
+    <value>Дистанция трейлинга {0} должна быть меньше рыночной цены {1}</value>
+  </data>
+  <data name="NewOrder.SellTriggerMustBeBelowMarket" xml:space="preserve">
+    <value>Триггер продажи ({0}) должен быть ниже рыночной цены ({1})</value>
+  </data>
+  <data name="NewOrder.BuyTriggerMustBeAboveMarket" xml:space="preserve">
+    <value>Триггер покупки ({0}) должен быть выше рыночной цены ({1})</value>
+  </data>
+  <data name="NewOrder.SellLimitMustBeAboveMarket" xml:space="preserve">
+    <value>Тейк-профит продажи ({0}) должен быть выше рыночной цены ({1})</value>
+  </data>
+  <data name="NewOrder.BuyLimitMustBeBelowMarket" xml:space="preserve">
+    <value>Тейк-профит покупки ({0}) должен быть ниже рыночной цены ({1})</value>
+  </data>
+  <data name="NewOrder.InvalidParameters" xml:space="preserve">
+    <value>Некорректные параметры ордера: {0}</value>
+  </data>
+  <data name="NewOrder.OcoPlaced" xml:space="preserve">
+    <value>OCO-пара размещена: {0} и {1}</value>
+  </data>
+  <data name="NewOrder.OcoAborted" xml:space="preserve">
+    <value>Размещение OCO прервано: размещённое плечо отменено.</value>
   </data>
   <data name="Positions.Title" xml:space="preserve">
     <value>Позиции и ордера</value>
@@ -452,6 +545,15 @@
   </data>
   <data name="History.Close" xml:space="preserve">
     <value>Закрыть</value>
+  </data>
+  <data name="History.ExportOrdersCsv" xml:space="preserve">
+    <value>Экспорт ордеров в CSV</value>
+  </data>
+  <data name="History.ExportFillsCsv" xml:space="preserve">
+    <value>Экспорт сделок в CSV</value>
+  </data>
+  <data name="History.ExportFailed" xml:space="preserve">
+    <value>Не удалось экспортировать CSV-файл: {0}</value>
   </data>
   <data name="OrderBook.Title" xml:space="preserve">
     <value>Стакан ордеров</value>

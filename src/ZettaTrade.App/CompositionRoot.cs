@@ -16,6 +16,7 @@ using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Indicators;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Infrastructure.Secrets;
@@ -130,6 +131,11 @@ internal static class CompositionRoot
             sp.GetRequiredService<ILocalizationManager>()));
         services.AddSingleton<TradingToolsRegistrar>();
 
+        // First-run disclaimer: the acknowledged-version flag rides the
+        // settings store (read fresh at every launch, never cached), and the
+        // dialog view model is transient per open.
+        services.AddDisclaimerServices();
+
         services.AddSingleton<MenuViewModel>();
         services.AddSingleton<StatusBarViewModel>(sp =>
             new StatusBarViewModel(
@@ -182,6 +188,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<IIndicatorCatalog>(),
+                sp.GetRequiredService<ICsvExportService>(),
+                sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
@@ -202,6 +210,7 @@ internal static class CompositionRoot
         services.AddTradingUiServices();
         services.AddOrderHistory();
         services.AddHistoryUiServices();
+        services.AddCsvExportServices();
 
         var provider = services.BuildServiceProvider();
 
