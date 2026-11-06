@@ -3,22 +3,31 @@ namespace ZettaTrade.App.ViewModels;
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Livery.Localization;
 using Livery.Contracts;
 using Livery.Extensions;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 using ZettaTrade.App.Services;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Export;
 
 /// <summary>
 /// Chart panel state: the available symbols list, the selected symbol and the
 /// loaded bars. Application-lifetime singleton: the pipelines are built in the
 /// constructor — WhenActivated never fires for VMs bound as nested-panel
 /// DataContexts (the documented workspace fact), so there is no activation path.
+/// <para>
+/// The loaded series exports as a candles CSV: the export command rides
+/// <see cref="ICsvExportService"/>, the destination comes through the
+/// save-file interaction the main window answers, and a write fault
+/// surfaces on the panel's own error line.
+/// </para>
 /// </summary>
 /// <remarks>
 /// The chart owns the workspace symbol context: <see cref="SymbolSelections"/>
@@ -71,6 +80,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>Initial number of candles loaded for the chart.</summary>
     private const int InitialBarCount = 200;
 
+    /// <summary>The file name the save dialog pre-fills for the candles export.</summary>
+    private const string CandlesCsvFileName = "candles.csv";
+
+    /// <summary>The resx key of the candles export fault line.</summary>
+    private const string ExportFailedKey = "Chart.ExportFailed";
+
     #endregion
 
     #region Properties
@@ -79,6 +94,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private readonly ILogger<ChartViewModel> _logger;
     private readonly ActiveExchangeService _activeExchanges;
     private readonly SymbolListProvider _symbolList;
+    private readonly ICsvExportService _export;
+    private readonly ILocalizationManager _localization;
 
     /// <summary>
     /// Whether the constructor restore is writing its own value into
@@ -334,6 +351,34 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         IMarketDataAdapter Adapter,
         IReadOnlyList<Bar> Bars);
 
+    private string? _errorMessage;
+
+    /// <summary>Last candles-export error, for the error line under the chart header.</summary>
+    public string? ErrorMessage
+    {
+        get => _errorMessage;
+        private set
+        {
+            if (ErrorMessage == value)
+            {
+                return;
+            }
+
+            _errorMessage = value;
+            this.RaisePropertyChanged(nameof(ErrorMessage));
+            this.RaisePropertyChanged(nameof(HasErrorMessage));
+        }
+    }
+
+    /// <summary>True while <see cref="ErrorMessage"/> holds text; drives the error line visibility.</summary>
+    public bool HasErrorMessage => _errorMessage is not null;
+
+    /// <summary>Exports the loaded candle series as a CSV file.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ExportCandlesCommand { get; }
+
+    /// <summary>Asks the view for the candles CSV destination (a save-file dialog); null cancels.</summary>
+    public Interaction<string, string?> SaveCandlesCsvRequested { get; }
+
     #endregion
 
     #region Older History State
@@ -448,18 +493,29 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <param name="indicatorCatalog">The plugin seam the indicator overlay
     /// rows resolve through; the enabled rows compute against the current
     /// series on every delivery, prepend and settings change.</param>
+    /// <param name="export">The CSV export service the loaded series
+    /// streams through when the user asks for the candles file.</param>
+    /// <param name="localization">The resx mirror the export fault line
+    /// resolves its message through.</param>
     public ChartViewModel(
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
         ISettingsService settings,
         IIndicatorCatalog indicatorCatalog,
+        ICsvExportService export,
+        ILocalizationManager localization,
         ILogger<ChartViewModel> logger)
     {
         _activeExchanges = activeExchanges;
         _symbolList = symbolList;
         _settings = settings;
         _indicatorCatalog = indicatorCatalog;
+        _export = export;
+        _localization = localization;
         _logger = logger;
+
+        ExportCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportCandlesAsync);
+        SaveCandlesCsvRequested = new Interaction<string, string?>();
 
         SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
             .Where(symbol => symbol is not null)
@@ -1368,6 +1424,53 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     #endregion
+
+    #region Candle Export
+
+    /// <summary>
+    /// One candles-export flow: clear the previous error line first, ask the
+    /// view for a destination (a null is the user cancelling the dialog —
+    /// not an error, nothing is written), then stream the currently loaded
+    /// series to the file. A write fault surfaces on the chart panel's own
+    /// error line, localized: the panel stays usable and the series stays
+    /// intact.
+    /// </summary>
+    private async Task HandleExportCandlesAsync(CancellationToken cancellationToken)
+    {
+        ErrorMessage = null;
+
+        try
+        {
+            // The dialog pick has no cancellation of its own: the user either
+            // confirms a path or cancels the dialog (a null destination).
+            var path = await SaveCandlesCsvRequested.Handle(CandlesCsvFileName);
+            if (path is null)
+            {
+                _logger.LogInformation(
+                    "Chart panel: candles export ended on a cancelled save dialog");
+                return;
+            }
+
+            // The export set is exactly the displayed series: what the chart
+            // draws (rebase + paged prepends included) is what lands in the
+            // file, oldest first.
+            await _export.ExportCandlesAsync(path, Bars, cancellationToken);
+            _logger.LogInformation(
+                "Chart panel: exported {Count} candles to {Path}",
+                Bars.Count,
+                path);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Broader than the data flows: the write can fail on a missing
+            // directory, a locked file or any local IO fault; the chart stays
+            // usable and its series undisturbed.
+            _logger.LogError(ex, "Chart panel: candles export failed");
+            ErrorMessage = _localization.GetString(ExportFailedKey, ex.Message);
+        }
+    }
+
+    #endregion Candle Export
 
     #region Older History Paging
 
