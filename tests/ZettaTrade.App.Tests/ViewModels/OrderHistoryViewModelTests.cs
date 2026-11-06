@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
+using System.Collections.Generic;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -35,9 +36,10 @@ public sealed class OrderHistoryViewModelTests
             $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
     }
 
-    private OrderHistoryViewModel CreateViewModel() => new(
+    private OrderHistoryViewModel CreateViewModel(
+        ZettaTrade.Infrastructure.Export.ICsvExportService? export = null) => new(
         _store,
-        Substitute.For<ZettaTrade.Infrastructure.Export.ICsvExportService>(),
+        export ?? Substitute.For<ZettaTrade.Infrastructure.Export.ICsvExportService>(),
         _localization,
         Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderHistoryViewModel>>());
 
@@ -137,5 +139,187 @@ public sealed class OrderHistoryViewModelTests
         // Assert: the view asks for a positive, bounded batch, not zero.
         await _store.Received(1).GetRecentAsync(Arg.Is<int>(v => v > 0));
     }
+
+    #region Export Flows
+
+    /// <summary>Rsx-fake message form: `[key:first-argument]`.</summary>
+    private static string Localized(string key, params object[] args) =>
+        $"[{key}:{string.Join("|", args)}]";
+
+    [Fact]
+    public async Task ExportOrdersCommand_WithAConfirmedDestination_StreamsExactlyTheLoadedRows()
+    {
+        // Arrange: a loaded journal of two rows the export must mirror 1:1.
+        var orders = new[]
+        {
+            BuildOrder("paper-1", OrderStatus.Filled, new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero)),
+            BuildOrder("paper-2", OrderStatus.Cancelled, new DateTimeOffset(2026, 1, 1, 12, 5, 0, TimeSpan.Zero)),
+        };
+        _store.GetRecentAsync(Arg.Any<int>()).Returns(orders);
+
+        var export = Substitute.For<ZettaTrade.Infrastructure.Export.ICsvExportService>();
+        IReadOnlyList<Order> exportedOrders = null!;
+        string? exportedPath = null;
+        export.ExportOrdersAsync(
+                Arg.Do<string>(path => exportedPath = path),
+                Arg.Do<IReadOnlyList<Order>>(rows => exportedOrders = rows),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var viewModel = CreateViewModel(export);
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        string? requestedName = null;
+        using var handler = viewModel.SaveOrdersCsvRequested.RegisterHandler(context =>
+        {
+            requestedName = context.Input;
+            context.SetOutput(@"C:\exports\orders.csv");
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.ExportOrdersCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the write receives exactly the loaded set at the confirmed path.
+        requestedName.Should().Be("orders.csv", "the dialog carries the suggested name");
+        exportedPath.Should().Be(@"C:\exports\orders.csv");
+        exportedOrders.Should().BeSameAs(orders, "the export set is exactly the loaded journal rows");
+        viewModel.ErrorMessage.Should().BeNull();
+        viewModel.HasErrorMessage.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExportFillsCommand_StreamsTheSameLoadedRows()
+    {
+        // Arrange: the fills CSV derives from the journal rows, not from a
+        // second source — a copy-paste slip feeding it a different set must
+        // fail this fact.
+        var orders = new[]
+        {
+            BuildOrder("paper-1", OrderStatus.Filled, new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero)),
+        };
+        _store.GetRecentAsync(Arg.Any<int>()).Returns(orders);
+
+        var export = Substitute.For<ZettaTrade.Infrastructure.Export.ICsvExportService>();
+        IReadOnlyList<Order> exportedOrders = null!;
+        export.ExportFillsAsync(
+                Arg.Any<string>(),
+                Arg.Do<IReadOnlyList<Order>>(rows => exportedOrders = rows),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var viewModel = CreateViewModel(export);
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        using var handler = viewModel.SaveFillsCsvRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(@"C:\exports\fills.csv");
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.ExportFillsCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        exportedOrders.Should().BeSameAs(orders);
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ExportOrdersCommand_WithACancelledDialog_EndsQuietly()
+    {
+        // Arrange
+        _store.GetRecentAsync(Arg.Any<int>()).Returns([]);
+        var export = Substitute.For<ZettaTrade.Infrastructure.Export.ICsvExportService>();
+        var viewModel = CreateViewModel(export);
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        string? requestedName = null;
+        using var handler = viewModel.SaveOrdersCsvRequested.RegisterHandler(context =>
+        {
+            requestedName = context.Input;
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.ExportOrdersCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: a cancelled dialog is not an error, and nothing was written.
+        requestedName.Should().Be("orders.csv");
+        await export.DidNotReceive().ExportOrdersAsync(
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<Order>>(),
+            Arg.Any<CancellationToken>());
+        viewModel.ErrorMessage.Should().BeNull();
+        viewModel.HasErrorMessage.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExportOrdersCommand_WhenTheServiceThrows_ShowsTheLocalizedFault()
+    {
+        // Arrange
+        _store.GetRecentAsync(Arg.Any<int>()).Returns(
+        [
+            BuildOrder("paper-1", OrderStatus.Filled, new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero)),
+        ]);
+        var export = Substitute.For<ZettaTrade.Infrastructure.Export.ICsvExportService>();
+        export.ExportOrdersAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<Order>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(
+                new InvalidOperationException("directory is gone")));
+
+        var viewModel = CreateViewModel(export);
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        using var handler = viewModel.SaveOrdersCsvRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(@"C:\exports\orders.csv");
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.ExportOrdersCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the localized fault carries the exception message.
+        viewModel.ErrorMessage.Should().Be(Localized("History.ExportFailed", "directory is gone"));
+        viewModel.HasErrorMessage.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ExportOrdersCommand_AfterAStaleError_ACancelledDialogClearsTheErrorLine()
+    {
+        // Arrange: a failed load anchored the error line first.
+        _store.GetRecentAsync(Arg.Any<int>())
+            .Returns(_ => Task.FromException<IReadOnlyList<Order>>(
+                new InvalidOperationException("database is locked")));
+        var export = Substitute.For<ZettaTrade.Infrastructure.Export.ICsvExportService>();
+        var viewModel = CreateViewModel(export);
+
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        viewModel.ErrorMessage.Should().Be(Localized("History.LoadFailed", "database is locked"));
+
+        using var handler = viewModel.SaveOrdersCsvRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+
+        // Act: the fresh export flow clears the line before its outcome — a
+        // cancelled dialog lands quietly on top of the stale load error.
+        await viewModel.ExportOrdersCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        await export.DidNotReceive().ExportOrdersAsync(
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<Order>>(),
+            Arg.Any<CancellationToken>());
+        viewModel.ErrorMessage.Should().BeNull();
+        viewModel.HasErrorMessage.Should().BeFalse();
+    }
+
+    #endregion Export Flows
 }
 
