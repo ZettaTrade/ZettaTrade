@@ -1,0 +1,316 @@
+namespace ZettaTrade.Infrastructure.Export;
+
+using System.Globalization;
+using System.Text;
+using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
+
+/// <summary>
+/// The one CSV writer for every local export surface (orders, fills,
+/// candles). Writes the destination file progressively — one row at a time —
+/// so a six-figure history never builds the whole text in memory, and it
+/// honors the token between rows: cancellation keeps the rows already
+/// written and never leaves a torn line.
+/// </summary>
+/// <remarks>
+/// Format contract (CSV is machine-readable, external tools consume it —
+/// documented here once, asserted by the export tests):
+/// <list type="bullet">
+/// <item>Encoding UTF-8 (no BOM), CRLF line endings per RFC 4180.</item>
+/// <item>RFC 4180 field quoting: any field carrying a comma, a double quote,
+/// a CR or an LF is wrapped in double quotes with embedded quotes doubled.</item>
+/// <item>Decimal point invariant regardless of the UI culture: numbers are
+/// formatted with <see cref="CultureInfo.InvariantCulture"/> so a ru-RU host
+/// still reads <c>0.01</c>, never <c>0,01</c>.</item>
+/// <item>Timestamps ISO-8601 UTC with milliseconds and the Z designator
+/// (<c>2026-11-06T09:00:00.000Z</c>), converted from whatever offset the
+/// record carried.</item>
+/// <item>Column headers are stable English and never localized — the UI
+/// strings (resx) stay on the actions, the data file stays tool-readable.</item>
+/// <item>An empty input produces a header-only file.</item>
+/// </list>
+/// </remarks>
+public sealed class CsvExportService : ICsvExportService
+{
+    #region Format Constants
+
+    /// <summary>UTF-8 without the BOM: tool parsers stay byte-clean.</summary>
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
+    /// <summary>Characters forcing RFC 4180 quoting on a field.</summary>
+    private static readonly char[] QuoteTriggerChars = [',', '"', '\r', '\n'];
+
+    /// <summary>ISO-8601 UTC timestamp form: milliseconds, Z designator.</summary>
+    private const string TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
+
+    /// <summary>File buffer: one page of rows at a time, never the document.</summary>
+    private const int StreamBufferSize = 64 * 1024;
+
+    #endregion Format Constants
+
+    #region Header Rows
+
+    /// <summary>Order journal columns: identity, routing, economics, journey.</summary>
+    private static readonly string[] OrdersHeader =
+    [
+        "id",
+        "exchange",
+        "symbol",
+        "side",
+        "type",
+        "price",
+        "quantity",
+        "filledQuantity",
+        "state",
+        "timeInForce",
+        "createdAt",
+        "updatedAt",
+    ];
+
+    /// <summary>
+    /// Fill columns mirroring the trade ledger shape: every execution (a
+    /// journal order with filled quantity) becomes one row. The fee column of
+    /// the Core Trade record stays out until the journal persistence records
+    /// fees (T-080 canon: a missing fee is surfaced explicitly then, never
+    /// zero-padded here).
+    /// </summary>
+    private static readonly string[] FillsHeader =
+    [
+        "id",
+        "orderId",
+        "symbol",
+        "side",
+        "price",
+        "quantity",
+        "executedAt",
+    ];
+
+    /// <summary>Candle columns: the acceptance's timestamp plus OHLCV.</summary>
+    private static readonly string[] CandlesHeader =
+    [
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+    ];
+
+    #endregion Header Rows
+
+    #region Public API
+
+    /// <inheritdoc/>
+    public async Task ExportOrdersAsync(
+        string path,
+        IReadOnlyList<Order> orders,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(orders);
+
+        await WriteDocumentAsync(
+            path,
+            OrdersHeader,
+            orders.Select(OrderToRow),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task ExportFillsAsync(
+        string path,
+        IReadOnlyList<Order> orders,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(orders);
+
+        await WriteDocumentAsync(
+            path,
+            FillsHeader,
+            orders.Where(HasExecution).Select(OrderToFillRow),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task ExportCandlesAsync(
+        string path,
+        IReadOnlyList<Bar> bars,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(bars);
+
+        await WriteDocumentAsync(
+            path,
+            CandlesHeader,
+            bars.Select(BarToRow),
+            cancellationToken);
+    }
+
+    #endregion Public API
+
+    #region Document Writing
+
+    /// <summary>
+    /// Open the destination and write the document row by row. The row
+    /// enumeration stays lazy (LINQ over the source list) and every row is
+    /// written before the next is built — the peak memory stays one row, so
+    /// a hundred-thousand-row journal exports with the same footprint as a
+    /// ten-row one.
+    /// </summary>
+    private static async Task WriteDocumentAsync(
+        string path,
+        string[] header,
+        IEnumerable<string?[]> rows,
+        CancellationToken cancellationToken)
+    {
+        // The destination is a plain local path whose parent must already
+        // exist: a picked path under a nonexistent directory fails honestly
+        // here (DirectoryNotFoundException) instead of silently raising
+        // folders the user never asked for.
+        FileInfo info = new(path);
+        if (info.Directory is not { Exists: true })
+        {
+            throw new DirectoryNotFoundException(
+                $"The export destination directory does not exist: '{info.Directory?.FullName ?? path}'");
+        }
+
+        await using var stream = new FileStream(
+            path,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            StreamBufferSize,
+            useAsync: true);
+        await using var writer = new StreamWriter(stream, Utf8NoBom);
+
+        await WriteRowAsync(writer, header);
+
+        foreach (var row in rows)
+        {
+            // The cancellation point between rows: a cancelled token stops
+            // before the next row starts, never inside a line.
+            cancellationToken.ThrowIfCancellationRequested();
+            await WriteRowAsync(writer, row);
+        }
+
+        await writer.FlushAsync();
+    }
+
+    /// <summary>
+    /// Write one RFC-quoted CSV line. Escaping is applied per field at write
+    /// time: commas, quotes and newlines inside a value are contained, the
+    /// separator structure of the file stays intact, and every export
+    /// re-parses to the same fields it was written from.
+    /// </summary>
+    private static async Task WriteRowAsync(TextWriter writer, string?[] fields)
+    {
+        var line = new StringBuilder();
+        for (var i = 0; i < fields.Length; i++)
+        {
+            if (i > 0)
+            {
+                line.Append(',');
+            }
+
+            AppendField(line, fields[i]);
+        }
+
+        await writer.WriteLineAsync(line);
+    }
+
+    /// <summary>
+    /// Append one field, quoting it when it carries any RFC 4180 trigger
+    /// character. An empty field appends as nothing (an empty cell, not a
+    /// quoted one).
+    /// </summary>
+    private static void AppendField(StringBuilder line, string? field)
+    {
+        if (field is not { Length: > 0 } value)
+        {
+            return;
+        }
+
+        if (value.IndexOfAny(QuoteTriggerChars) >= 0)
+        {
+            line.Append('"').Append(value.Replace("\"", "\"\"")).Append('"');
+            return;
+        }
+
+        line.Append(value);
+    }
+
+    #endregion Document Writing
+
+    #region Row Mappers
+
+    /// <summary>One journal order as a CSV row (times in UTC, decimals invariant).</summary>
+    private static string?[] OrderToRow(Order order) => new string?[]
+    {
+        order.Id,
+        order.ExchangeId,
+        order.Symbol.Normalized,
+        order.Side.ToString(),
+        order.Type.ToString(),
+        FormatAmount(order.Price.Value),
+        FormatAmount(order.Quantity.Value),
+        FormatAmount(order.FilledQuantity.Value),
+        order.Status.ToString(),
+        order.TimeInForce.ToString(),
+        FormatTimestamp(order.CreatedAt),
+        order.UpdatedAt is { } updatedAt ? FormatTimestamp(updatedAt) : null,
+    };
+
+    /// <summary>
+    /// One execution as a trade-ledger row: the fill's identity rides its
+    /// journal order (a paper execution fills the whole order), the price is
+    /// the execution price the adapter recorded, the quantity is the filled
+    /// part, and the execution time is the order's last update (the fill
+    /// time in the paper ledger) or the placement when no update was written.
+    /// </summary>
+    private static string?[] OrderToFillRow(Order order) => new string?[]
+    {
+        order.Id,
+        order.Id,
+        order.Symbol.Normalized,
+        order.Side.ToString(),
+        FormatAmount(order.Price.Value),
+        FormatAmount(order.FilledQuantity.Value),
+        FormatTimestamp(order.UpdatedAt ?? order.CreatedAt),
+    };
+
+    /// <summary>One candle as a CSV row (timestamp UTC, OHLCV invariant).</summary>
+    private static string?[] BarToRow(Bar bar) => new string?[]
+    {
+        FormatTimestamp(bar.Time),
+        FormatAmount(bar.Open),
+        FormatAmount(bar.High),
+        FormatAmount(bar.Low),
+        FormatAmount(bar.Close),
+        FormatAmount(bar.Volume),
+    };
+
+    /// <summary>Whether a journal order carries at least one execution.</summary>
+    private static bool HasExecution(Order order) =>
+        order.Status is OrderStatus.Filled or OrderStatus.PartiallyFilled
+        && order.FilledQuantity.Value > 0m;
+
+    #endregion Row Mappers
+
+    #region Field Formatting
+
+    /// <summary>
+    /// The invariant decimal form — the machine-readable number spelled the
+    /// same on every host culture (the ru-locale decimal trap never fires:
+    /// no "0,01" can reach the file).
+    /// </summary>
+    private static string FormatAmount(decimal amount) =>
+        amount.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>ISO-8601 UTC with the Z designator, offset-independent.</summary>
+    private static string FormatTimestamp(DateTimeOffset timestamp) =>
+        timestamp.ToUniversalTime().ToString(TimestampFormat, CultureInfo.InvariantCulture);
+
+    #endregion Field Formatting
+}
