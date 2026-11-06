@@ -1,6 +1,5 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:core="using:ZettaTrade.Core.Interfaces"
         xmlns:media="using:Avalonia.Media"
         xmlns:themes="using:Livery.Themes"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
@@ -53,7 +52,7 @@
                                   MinWidth="220"
                                   HorizontalAlignment="Left">
                             <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:ThemeInfo">
+                                <DataTemplate x:DataType="themes:ThemeInfo">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding DisplayName}"
@@ -92,7 +91,7 @@
                                   MinWidth="220"
                                   HorizontalAlignment="Left">
                             <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="core:LanguageInfo">
+                                <DataTemplate x:DataType="loc:LanguageInfo">
                                     <TextBlock Text="{Binding NativeName}" />
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
@@ -148,46 +147,61 @@
             </TabItem>
 
             <TabItem Header="{loc:Localized Settings.Tab.Indicators}">
-                <!-- The indicator overlay rows: the SMA row today, future rows
-                     land here one grid row each. -->
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto" RowSpacing="10" Margin="0,12,0,0">
-                    <!-- "SMA" is the plugin's canonical name - a product name, not a
-                         localized string; the row label and the period caption are. -->
-                    <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="{loc:Localized Chart.Indicators}"
-                               VerticalAlignment="Center" />
-                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                        <CheckBox Content="SMA"
-                                  IsChecked="{Binding IsSmaEnabled}"
-                                  VerticalAlignment="Center" />
-                        <!-- The info affordance: the tooltip lives HERE, not on the
-                             checkbox, so the icon itself signals that an explanation
-                             is available. The text wraps so a long translation stays
-                             readable. -->
-                        <Border Width="16" Height="16"
-                                CornerRadius="8"
-                                Background="Transparent"
-                                BorderThickness="1"
-                                BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
-                                VerticalAlignment="Center">
-                            <ToolTip.Tip>
-                                <TextBlock MaxWidth="260"
-                                           Text="{loc:Localized Chart.Indicators.SmaTip}"
-                                           TextWrapping="Wrap" />
-                            </ToolTip.Tip>
-                            <TextBlock Text="i"
-                                       FontSize="10"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
-                                       HorizontalAlignment="Center"
+                <!-- The indicator overlay rows: a row renders only for a plugin
+                     the scanned catalog actually loaded (the surface reflects
+                     the real catalog, it never assumes a shipped assembly);
+                     with a whole empty catalog the honest empty state shows
+                     instead. -->
+                <Grid ColumnDefinitions="*" ColumnSpacing="14" RowDefinitions="Auto,Auto" RowSpacing="10" Margin="0,12,0,0">
+                    <StackPanel Grid.Row="0" IsVisible="{Binding IsSmaPluginLoaded}">
+                        <!-- The row layout (label column + controls) as long
+                             as the SMA row renders. -->
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                            <!-- "SMA" is the plugin's canonical name - a product name, not a
+                                 localized string; the row label and the period caption are. -->
+                            <TextBlock Grid.Column="0"
+                                       Text="{loc:Localized Chart.Indicators}"
                                        VerticalAlignment="Center" />
-                        </Border>
-                        <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                                   VerticalAlignment="Center" />
-                        <TextBox Text="{Binding SmaPeriodText}"
-                                 MinWidth="64"
-                                 VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                <CheckBox Content="SMA"
+                                          IsChecked="{Binding IsSmaEnabled}"
+                                          VerticalAlignment="Center" />
+                                <!-- The info affordance: the tooltip lives HERE, not on the
+                                     checkbox, so the icon itself signals that an explanation
+                                     is available. The text wraps so a long translation stays
+                                     readable. -->
+                                <Border Width="16" Height="16"
+                                        CornerRadius="8"
+                                        Background="Transparent"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        VerticalAlignment="Center">
+                                    <ToolTip.Tip>
+                                        <TextBlock MaxWidth="260"
+                                                   Text="{loc:Localized Chart.Indicators.SmaTip}"
+                                                   TextWrapping="Wrap" />
+                                    </ToolTip.Tip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Text="{Binding SmaPeriodText}"
+                                         MinWidth="64"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
+                    <!-- The honest empty state: zero indicators registered by the
+                         scan (missing or skipped plugin assemblies). -->
+                    <TextBlock Grid.Row="1"
+                               IsVisible="{Binding IsIndicatorCatalogEmpty}"
+                               Text="{loc:Localized Settings.Indicators.Empty}"
+                               TextWrapping="Wrap" />
                 </Grid>
             </TabItem>
 
@@ -217,6 +231,176 @@
                                FontSize="12" />
 
                     <TextBlock Text="{loc:Localized Settings.Mcp.Hint}"
+                               TextWrapping="Wrap"
+                               FontSize="12" />
+
+                    <!-- ==================== External MCP client servers (T-068) ====================
+                         The editor drafts live in the rows (only Save applies —
+                         it persists the list and replays the manager's apply);
+                         the per-row honest state blocks repaint from the
+                         manager's snapshots (the name is the key both sides
+                         share). A disabled entry saves but never dials; every
+                         unusable field combination rides the entry verbatim
+                         and the transport boundary fails it loudly — the row's
+                         failed state shows the transport's own reason. -->
+                    <TextBlock Text="{loc:Localized Settings.McpClients.Caption}"
+                               FontWeight="SemiBold" />
+
+                    <ScrollViewer MaxHeight="280"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding McpServers}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="10" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:McpServerRow">
+                                    <Border BorderThickness="1"
+                                            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                                            CornerRadius="4"
+                                            Padding="10"
+                                            Margin="0,0,6,0">
+                                        <StackPanel Spacing="8">
+                                            <!-- The header: the entry's name (the key the connections and the states key
+                                                 by) with the enabled flag and the local-until-save remove button. -->
+                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                                <TextBox Grid.Column="0"
+                                                         Text="{Binding Name}"
+                                                         PlaceholderText="{loc:Localized Settings.McpClients.Name}"
+                                                         ToolTip.Tip="{loc:Localized Settings.McpClients.Name}" />
+                                                <CheckBox Grid.Column="1"
+                                                          Content="{loc:Localized Settings.McpClients.Enabled}"
+                                                          IsChecked="{Binding IsEnabled}"
+                                                          VerticalAlignment="Center" />
+                                                <Button Grid.Column="2"
+                                                        Content="{loc:Localized Settings.McpClients.Remove}"
+                                                        CommandParameter="{Binding}"
+                                                        Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).RemoveMcpServerCommand}" />
+                                            </Grid>
+
+                                            <!-- The transport pick: stdio entries edit command + args, HTTP entries
+                                                 the address/port (plus the optional seconds timeout). The names on
+                                                 the combo are the protocol's own proper names, not localized. -->
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{loc:Localized Settings.McpClients.Transport}"
+                                                           VerticalAlignment="Center" />
+                                                <ComboBox Grid.Column="1"
+                                                          SelectedIndex="{Binding TransportIndex}"
+                                                          MinWidth="170"
+                                                          HorizontalAlignment="Left">
+                                                    <ComboBoxItem Content="Stdio" />
+                                                    <ComboBoxItem Content="Streamable HTTP" />
+                                                </ComboBox>
+                                            </Grid>
+
+                                            <!-- The stdio fields: the command line pieces (the OS process API resolves
+                                                 the command over the PATH; the arguments ride space-separated —
+                                                 an argument containing spaces does not fit the text shape, the
+                                                 hint documents it). -->
+                                            <StackPanel IsVisible="{Binding IsStdio}" Spacing="8">
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Command}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding Command}"
+                                                             PlaceholderText="command"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Command}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Args}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding ArgsText}"
+                                                             PlaceholderText="arg1 arg2"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Args}" />
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <!-- The HTTP fields: address + port (empty port = the scheme's default,
+                                                 URL semantics, nothing substituted) and the optional connect
+                                                 timeout seconds (empty = the transport's shipped default). -->
+                                            <StackPanel IsVisible="{Binding IsHttp}" Spacing="8">
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Address}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding Address}"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Address}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Port}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding PortText}"
+                                                             PlaceholderText="{loc:Localized Settings.McpClients.Port.Empty}"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Port}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{loc:Localized Settings.McpClients.Timeout}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding TimeoutText}"
+                                                             ToolTip.Tip="{loc:Localized Settings.McpClients.Timeout}" />
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <!-- The auth secret reference key ONLY: the store resolves it — the
+                                                 secret itself never rides config or the logs. -->
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{loc:Localized Settings.McpClients.AuthRef}"
+                                                           VerticalAlignment="Center" />
+                                                <TextBox Grid.Column="1"
+                                                         Text="{Binding AuthSecretRef}"
+                                                         ToolTip.Tip="{loc:Localized Settings.McpClients.AuthRef}" />
+                                            </Grid>
+
+                                            <!-- The honest per-entry state: exactly one label shows (the bools are
+                                                 mutually exclusive by construction); the failed row carries the
+                                                 transport's own reason. -->
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <TextBlock IsVisible="{Binding IsDisabled}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Disabled}"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding IsConnecting}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Connecting}"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding IsConnected}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Connected}"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding IsFailed}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Failed}"
+                                                           Foreground="{DynamicResource Error}"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding IsFailed}"
+                                                           Text="{Binding DetailText}"
+                                                           TextWrapping="Wrap"
+                                                           FontSize="12" />
+                                                <TextBlock IsVisible="{Binding !IsStateKnown}"
+                                                           Text="{loc:Localized Settings.McpClients.State.Empty}"
+                                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                                           FontSize="12" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <Button Content="{loc:Localized Settings.McpClients.Add}"
+                            Command="{Binding AddMcpServerCommand}"
+                            HorizontalAlignment="Left" />
+
+                    <TextBlock Text="{loc:Localized Settings.McpClients.Hint}"
                                TextWrapping="Wrap"
                                FontSize="12" />
                 </StackPanel>

@@ -224,6 +224,8 @@ public sealed class ChartViewModelTests
     /// </summary>
     private sealed class EmptyIndicatorCatalog : IIndicatorCatalog
     {
+        public IReadOnlyCollection<string> LoadedNames { get; } = [];
+
         public IIndicator? Create(string name, int period) => null;
     }
 

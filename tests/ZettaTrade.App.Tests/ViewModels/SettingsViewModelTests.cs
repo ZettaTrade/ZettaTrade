@@ -3,14 +3,17 @@ namespace ZettaTrade.App.Tests.ViewModels;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using FluentAssertions;
+using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ReactiveUI.Primitives;
 using Xunit;
+using ZettaTrade.AI.Mcp;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Configuration;
@@ -205,6 +208,8 @@ public sealed class SettingsViewModelTests
                 NullLogger<McpHostService>.Instance),
             activeExchanges,
             symbolList,
+            SmaLoadedCatalog(),
+            ClientManagerStub(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
 
         // Assert
@@ -243,6 +248,8 @@ public sealed class SettingsViewModelTests
                 NullLogger<McpHostService>.Instance),
             activeExchanges,
             symbolList,
+            SmaLoadedCatalog(),
+            ClientManagerStub(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>());
 
         // Assert
@@ -772,10 +779,35 @@ public sealed class SettingsViewModelTests
             mcpHosts,
             activeExchanges,
             symbolList,
+            SmaLoadedCatalog(),
+            ClientManagerStub(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<SettingsViewModel>>(),
             themeLoadErrors);
 
         return (viewModel, settings, themeManager, localization, shellUtils, themeLoadErrors, activeExchanges, symbolList);
+    }
+
+    /// <summary>
+    /// A catalog stub that reports the SMA plugin as loaded: the same-state
+    /// default (the shipped application carries the sample plugin).
+    /// </summary>
+    private static IIndicatorCatalog SmaLoadedCatalog()
+    {
+        var catalog = Substitute.For<IIndicatorCatalog>();
+        catalog.LoadedNames.Returns(["SMA"]);
+        return catalog;
+    }
+
+    /// <summary>
+    /// The external MCP client manager stub: a telemetry-less substitute the
+    /// ViewModel constructor subscribes to (the settings tests do not
+    /// exercise the external-servers rows).
+    /// </summary>
+    private static IMcpClientManager ClientManagerStub()
+    {
+        var manager = Substitute.For<IMcpClientManager>();
+        manager.StatesChanged.Returns(Observable.Empty<IReadOnlyList<McpClientState>>());
+        return manager;
     }
 
     /// <summary>
@@ -814,3 +846,4 @@ public sealed class SettingsViewModelTests
         return (activeExchanges, symbolList, adapter);
     }
 }
+

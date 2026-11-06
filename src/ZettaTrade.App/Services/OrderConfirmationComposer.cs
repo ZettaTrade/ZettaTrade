@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.Services;
 
 using System.Globalization;
+using Livery.Localization;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 
@@ -84,3 +85,4 @@ public sealed class OrderConfirmationComposer
         };
     }
 }
+

@@ -3,6 +3,7 @@ namespace ZettaTrade.App.ViewModels;
 using System;
 using System.Reactive.Linq;
 using Avalonia.Controls;
+using Livery.Contracts;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.Core.Interfaces;
@@ -356,3 +357,4 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
 
     #endregion
 }
+

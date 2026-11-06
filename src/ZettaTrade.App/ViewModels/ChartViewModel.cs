@@ -3,6 +3,7 @@ namespace ZettaTrade.App.ViewModels;
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Livery.Contracts;
 using Livery.Extensions;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
@@ -1476,3 +1477,4 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     #endregion
 }
+
