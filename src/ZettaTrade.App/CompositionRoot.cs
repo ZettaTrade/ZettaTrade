@@ -94,6 +94,8 @@ internal static class CompositionRoot
         // consumer VM is constructed.
         services.AddActiveExchange();
 
+        services.AddBalancesServices(); // T-081: balances panel (aggregation service + panel VM).
+
         // AI chat: the Ollama completion service (local models first) and its
         // named HttpClient; the workspace context rides the existing seams.
         services.AddAiServices();
