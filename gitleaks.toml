@@ -1,0 +1,43 @@
+# ZettaTrade gitleaks configuration (T-117).
+#
+# Extends the default gitleaks ruleset picked up by the binary bundled in
+# .github/workflows/security.yml. The global allowlist below is the ONLY
+# carve-out and it covers exactly the known dummy test fixtures identified
+# during the 2026-11-06 full-history audit (see docs/SECURITY.md).
+#
+# Allowlist contract: every entry is a sample-shaped string owned by a named
+# fixture file. Sample-shaped strings only, never real credentials. A new
+# entry is added only for a confirmed fixture, with its file and purpose
+# named in the description. Anything outside these literals is a finding:
+# revoke-and-rotate per docs/SECURITY.md (history rewrite only by an explicit
+# supervisor decision).
+#
+# The entries carry NO path scoping on purpose: a global allowlist combines
+# paths and regexes with OR, so a path entry would become a blanket
+# "anything inside a directory" carve-out. The regexes themselves are bound
+# tightly to the fixture literals instead.
+
+title = "ZettaTrade gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Known dummy test fixtures only (sample-shaped strings, never real credentials):
+- "secret://<name>" auth-secret references - the ISecretStore pointer scheme,
+  never a raw value: tests/ZettaTrade.App.Tests/Mcp/McpServerConfigListTests.cs,
+  tests/ZettaTrade.App.Tests/Mcp/McpClientServiceTests.cs,
+  tests/ZettaTrade.App.Tests/Mcp/McpClientManagerTests.cs and the
+  IMcpClient.AuthSecretRef doc example in src/ZettaTrade.Core/Interfaces.
+- "live-secret" - the McpClientServiceTests.StoredSecret literal.
+- "t-049-master-passphrase" - the EncryptedFileSecretStoreRulesTests local
+  master passphrase (T-049 harness, temp-dir store).
+Anything else is a finding: revoke-and-rotate per docs/SECURITY.md.
+"""
+regexTarget = "match"
+regexes = [
+  '''(?i)secret\://[a-z0-9][a-z0-9_-]{0,31}''',
+  '''(?i)\blive-secret\b''',
+  '''(?i)\bt-049-master-passphrase\b''',
+]
