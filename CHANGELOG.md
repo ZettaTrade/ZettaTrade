@@ -9,6 +9,13 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.40] - 2026-11-06
+
+Build of board task T-119 (branch `feat/first-run-disclaimer`).
+
+### Added
+- The first-run disclaimer: the first launch shows a modal over the main window holding the shipped wording — «educational software, not investment advice» plus the explicit alpha posture (alpha software, paper-first trading, the own-testing-first real-funds statement, user-scoped key hygiene) — and an «Acknowledge» button persists a versioned acknowledgment flag through the existing settings store, so a future wording update re-shows the dialog exactly once per install. A plain dismissal leaves the flag unset (the next launch re-shows), the flag itself never gates any trading action, and the wording stays discoverable later from Help → About / Disclaimer. Fully localized en+ru (all wording in resx).
+
 ## [0.1.0-alpha.39] - 2026-11-06
 
 Build of board task T-074 (branch `feat/order-types`).
