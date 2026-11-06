@@ -152,16 +152,6 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
 
-## T-075 — Amend a working order from the orders panel
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** cancel exists (T-031); amend is the standard pro flow and is nothing today.
-- **What:** inline quantity/price edit or a context menu → revalidation through `IRiskManager`, a confirmation for large deltas via `IConfirmationService`; the row shows an amending state; adapter-side replace where supported, an explicit cancel+new sequence surfaced as such where not. A fill racing the amend wins and is reported — no double entry, no silent drop.
-- **Scope:** orders panel VM, a replace flow service in App, the existing trading seam (Core diff only if the adapter map demands one — supervisor-gated), resx en+ru, tests.
-- **Acceptance:** amend on the paper adapter, risk re-check enforced, unsupported amends return errors rather than degenerate.
-- **Tests:** paper amend golden, fill-during-amend race, risk re-validation, unsupported-type error path.
-- **Status:** done. Canon: the amend pipeline (`dc69724`), the orders-panel amend surface with its dialog (`2684856`), the alpha.44 cut (`83e43b1`) and this section's status flip; shipped as `0.1.0-alpha.44` (see CHANGELOG.md). No Core interface changes were needed — the adapter-side replace seam is an App-owned interim interface (`IOrderReplaceSupport`, not Core) probing for optional support until Core lands the replace contract; the shipped paper adapter runs the surfaced cancel+new sequence. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
-
 ## T-076 — Bulk order management: cancel every working order on a symbol
 
 - **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
@@ -206,26 +196,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** fill DTO extension if fees are absent (additive, supervisor-gated Core diff), paper engine, panels, resx en+ru, tests.
 - **Acceptance:** maker vs taker selection visible everywhere the cost matters.
 - **Tests:** schedule selection golden, rounding policy, the no-schedule passthrough (a displayed unknown, not a zero).
-
-## T-082 — PnL engine: realized/unrealized accounting core
-
-- **Branch:** feat/pnl-engine (base `develop` at `d6c5707`; queued 2026-11-06; developed 2026-11-06).
-- **Origin:** a headless accounting core is the prerequisite for stats (T-083) and honest fills; nothing exists.
-- **What:** average-price bookkeeping over the paper/fill ledger (reusing T-051-corrected fills), realized PnL per closing fill, unrealized from the latest price feed, fees in (T-080), a position-flip path; an `IObservable` state feed for the UI instead of polling; SQLite persistence for realized history (EF canon).
-- **Scope:** a domain service (Infrastructure + a small App-side feed), resx en+ru for any surfaced strings, tests.
-- **Acceptance:** determinism across restarts (reloading history reconstructs the same numbers).
-- **Tests:** average-price goldens, fee application, flip-mid-stream, persistence reload equality.
-- **Status:** done. Canon: the branch carries the dotnet-ef tool manifest (`4d6016f`), the accounting core + its realized-history SQLite store (`115abf4`), the App-side feed wrapper (`5ac7979`) and the test pins (`fd57067`), plus this release commit (the alpha.43 cut + this section's status flip); shipped as `0.1.0-alpha.43` (see CHANGELOG.md). The fee seam follows the FEES decision: the ledger carries no fee data, so commission enters only through an explicit per-fill parameter on the domain service API (absence ≡ zero, never fabricated) — T-080 plugs real fees in without Core changes; no Core interface or entity changes were needed. The unrealized side prices off the cheapest existing source — ticker subscriptions through the `ActiveExchangeService` facade — and the ledger re-sync rides a slow idempotent diff (the journal has no change notifications); the headless core ships without a UI panel (T-083+ consumes `PnlFeedService`). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
-
-## T-083 — Trade statistics dashboard: win rate, profit factor, equity curve
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** the data exists in order/fill history yet nothing summarizes it.
-- **What:** a stats window: win rate, profit factor, max drawdown, average winner/loser, count and volume, plus a Skia equity-curve area; filters by symbol, exchange, date range and paper-live tag; read-only store queries (paging for large histories).
-- **Scope:** a stats VM + window, Skia chart renderer, resx en+ru, tests. Soft-depends on T-082 (realized series) but works on raw fills alone.
-- **Acceptance:** stays responsive on six-figure histories (paged queries, no first-load wall).
-- **Tests:** aggregation goldens on seeded history, empty state, paging.
-- **Status:** done. Canon: the branch carries `67fa450` — the raw-fill-only read stack in full: the read-only paged keyset query over the journal (`IOrderStatsQuery` + the SQLite implementation in Infrastructure Persistence, (CreatedAt, ExchangeId, OrderId) continuation, inclusive-from/exclusive-to bounds, the bounded page clamp, the paper-live tag matched on the paper adapter id), the fill-pair accumulator with the average-entry bookkeeping (a partial close never re-averages the remainder, a flip stamps its fresh position at its own fill — the paper ledger rules BUG-005/BUG-034 shared; breakeven closes count as trades but never decide the win rate; the profit factor without a single loss is unbounded-null and the tile renders it honestly), the metric-tile window with filters (symbol, exchange id, venue all/paper/live, from/to dates) publishing one refined snapshot per 2000-row page (no first-load wall) and the Skia equity renderer on the candlestick draw canon (snapshot + custom draw operation, zero anchor at the scope's first fill, theme/language re-ink); the same commit carries the en+ru resx, the Trading menu entry and the one-line DI registration after `AddHistoryUiServices`. `e066ac5` pins it all: accumulator goldens (winning round trip, mixed ±, partial close, 3-trade flip, breakeven, parallel symbols, the zero/partial/mixed-status guardians, page-by-page ≡ batch), the SQLite query walk (ascending with the same-timestamp tie straddling a page boundary without skipping, symbol/exchange/date/venue filters, the clamp) and the VM scan (anchor null → last row, short-page exhaust, the honest zero/dash baseline, re-scoping filters, an unparsable symbol that never touches the store). No Core changes and no T-082 dependency — realized stats ride raw paper fills alone. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file; the `Stats.*` prefix rides the check-resx whitelist grant `056cd77` — the script's own add-one-when-a-module-ships procedure); shipped as `0.1.0-alpha.45` (see CHANGELOG.md). This board-flip commit closes the section.
 
 ## T-085 — Local candle cache in SQLite (write-through, offline start)
 
