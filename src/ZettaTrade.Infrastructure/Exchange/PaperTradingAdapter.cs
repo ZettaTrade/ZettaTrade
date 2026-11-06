@@ -261,11 +261,17 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             }
         }
 
+        // The either-or open check runs BEFORE anything is recorded: a
+        // rejected leg leaves no phantom working or membership entry behind.
+        if (request.OcoGroupId is { } groupId)
+        {
+            AssertOcoGroupOpenLocked(groupId);
+        }
+
         // A market-crossing limit leg fills at placement — THROWING on a
         // refused portfolio effect exactly like every other placement-time
-        // immediate fill, and with the pair registry already in place so a
-        // late second leg of the same group is explicitly rejected instead of
-        // silently becoming an orphan.
+        // immediate fill, with the pair registry in place so the filled leg
+        // tears its siblings down inside the record step.
         if (referenceClose is { } crossingClose && request.Type == OrderType.Limit)
         {
             // The request is validated: a limit always carries its limit price.
@@ -279,11 +285,28 @@ public sealed class PaperTradingAdapter : ITradingAdapter
                 var fillOrder = FillOrder(request, limitPrice);
                 if (request.OcoGroupId is { } crossingGroupId)
                 {
-                    AssertOcoGroupOpenLocked(crossingGroupId, fillOrder);
+                    // The pair registry lands before the record: the leg's
+                    // either-or teardown inside the record step must see its
+                    // group.
                     _ocoLegs.GetOrAdd(crossingGroupId, _ => []).Add(fillOrder.Id);
                 }
 
-                return RecordFillLocked(fillOrder, limitPrice);
+                try
+                {
+                    return RecordFillLocked(fillOrder, limitPrice);
+                }
+                catch (InvalidOperationException)
+                {
+                    // A refused placement-time fill erases the leg entirely
+                    // (BUG-033), so the pair record must never keep a member
+                    // whose order does not exist.
+                    if (request.OcoGroupId is { } refusedGroupId)
+                    {
+                        RemoveOcoMembership(refusedGroupId, fillOrder.Id);
+                    }
+
+                    throw;
+                }
             }
         }
 
@@ -299,10 +322,9 @@ public sealed class PaperTradingAdapter : ITradingAdapter
 
         // The group membership lands BEFORE any evaluation so the either-or
         // teardown can always see every leg of the pair it must manage.
-        if (request.OcoGroupId is { } groupId)
+        if (request.OcoGroupId is { } armGroupId)
         {
-            AssertOcoGroupOpenLocked(groupId, working);
-            _ocoLegs.GetOrAdd(groupId, _ => []).Add(working.Id);
+            _ocoLegs.GetOrAdd(armGroupId, _ => []).Add(working.Id);
         }
 
         EnsurePriceStreamLocked(working.Symbol);
@@ -323,9 +345,10 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     /// An OCO leg may only join a group every leg of which still works: a
     /// partner that already filled or was cancelled cannot be resurrected by
     /// a new leg, so the placement is an explicit error (the either-or pairing
-    /// would degrade into an orphan).
+    /// would degrade into an orphan). Runs before any store mutation, so a
+    /// rejected leg leaves nothing behind.
     /// </summary>
-    private void AssertOcoGroupOpenLocked(string groupId, Order newLeg)
+    private void AssertOcoGroupOpenLocked(string groupId)
     {
         if (!_ocoLegs.TryGetValue(groupId, out var legs))
         {
@@ -333,7 +356,6 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         }
 
         var terminal = legs.FirstOrDefault(legId =>
-            legId != newLeg.Id &&
             _orders.TryGetValue(legId, out var leg) &&
             leg.Status is not (OrderStatus.Pending or OrderStatus.Submitted));
 
@@ -342,8 +364,25 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             var terminalLeg = _orders[terminalLegId];
             throw new InvalidOperationException(
                 $"OCO group {groupId} already holds leg {terminalLegId} in status {terminalLeg.Status}; " +
-                $"the either-or contract cannot hold for {newLeg.Id} and the leg is rejected " +
+                "the either-or contract cannot hold for a further leg and it is rejected " +
                 "rather than degraded into an orphan.");
+        }
+    }
+
+    /// <summary>
+    /// Undo one leg's group membership: a placement-time fill erased for a
+    /// refused portfolio effect (BUG-033) leaves the pair registry exactly as
+    /// it was before the leg existed.
+    /// </summary>
+    private void RemoveOcoMembership(string groupId, string legId)
+    {
+        if (_ocoLegs.TryGetValue(groupId, out var legs))
+        {
+            legs.Remove(legId);
+            if (legs.Count == 0)
+            {
+                _ocoLegs.TryRemove(groupId, out _);
+            }
         }
     }
 
@@ -708,6 +747,15 @@ public sealed class PaperTradingAdapter : ITradingAdapter
 
             foreach (var state in working)
             {
+                // Re-check membership: a sibling torn down earlier in this very
+                // tick (a refused trigger cancelling the rest of its pair) must
+                // not resurrect from the loop's stale snapshot and re-execute
+                // its terminal transition.
+                if (!_conditionals.ContainsKey(state.Order.Id))
+                {
+                    continue;
+                }
+
                 if (EvaluateTriggerLocked(state, lastPrice) is not { } fillPrice)
                 {
                     continue;
