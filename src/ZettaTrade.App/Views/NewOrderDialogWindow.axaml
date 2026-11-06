@@ -58,15 +58,54 @@
                 <ComboBoxItem>
                     <TextBlock Text="{loc:Localized Order.Limit}" />
                 </ComboBoxItem>
+                <ComboBoxItem>
+                    <TextBlock Text="{loc:Localized Order.StopLimit}" />
+                </ComboBoxItem>
+                <ComboBoxItem>
+                    <TextBlock Text="{loc:Localized Order.TrailingStop}" />
+                </ComboBoxItem>
+                <ComboBoxItem>
+                    <TextBlock Text="{loc:Localized Order.Oco}" />
+                </ComboBoxItem>
             </ComboBox>
         </Grid>
 
-        <!-- Limit price: only meaningfully editable for Limit orders. -->
+        <!-- Limit price: limit and stop-limit orders; in the OCO mode the
+             SAME field prices the take-profit leg, so its caption follows
+             the mode. Both captions are static localized strings — the
+             caption FOLLOWS via visibility, never a view model property. -->
         <TextBlock Text="{loc:Localized NewOrder.Price}"
-                   IsVisible="{Binding IsPriceRequired}" />
+                   IsVisible="{Binding !IsOcoMode}" />
+        <TextBlock Text="{loc:Localized NewOrder.OcoLimitPrice}"
+                   IsVisible="{Binding IsOcoMode}" />
         <TextBox Text="{Binding PriceInput}"
                  PlaceholderText="50000"
                  IsVisible="{Binding IsPriceRequired}" />
+
+        <!-- Stop trigger: the stop-limit's own trigger, or the OCO pair's
+             stop-loss leg's trigger in the OCO mode (caption follows). -->
+        <TextBlock Text="{loc:Localized NewOrder.TriggerPrice}"
+                   IsVisible="{Binding !IsOcoMode}" />
+        <TextBlock Text="{loc:Localized NewOrder.OcoStopTrigger}"
+                   IsVisible="{Binding IsOcoMode}" />
+        <TextBox Text="{Binding StopTriggerInput}"
+                 PlaceholderText="49000"
+                 IsVisible="{Binding IsTriggerVisible}" />
+
+        <!-- Trailing distance: the trailing-stop's drags-along distance only. -->
+        <TextBlock Text="{loc:Localized NewOrder.TrailDistance}"
+                   IsVisible="{Binding IsTrailVisible}" />
+        <TextBox Text="{Binding TrailDistanceInput}"
+                 PlaceholderText="500"
+                 IsVisible="{Binding IsTrailVisible}" />
+
+        <!-- OCO stop-loss leg's own limit price (its protective cap at
+             trigger time) — the OCO mode only. -->
+        <TextBlock Text="{loc:Localized NewOrder.OcoStopLimitPrice}"
+                   IsVisible="{Binding IsOcoStopLimitVisible}" />
+        <TextBox Text="{Binding OcoStopLimitInput}"
+                 PlaceholderText="48000"
+                 IsVisible="{Binding IsOcoStopLimitVisible}" />
 
         <!-- Flow errors (parse failure, risk rejection, adapter failure) -->
         <TextBlock Text="{Binding ErrorMessage}"

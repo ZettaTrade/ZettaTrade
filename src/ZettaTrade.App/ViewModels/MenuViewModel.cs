@@ -29,6 +29,15 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to open settings dialog.</summary>
     public ReactiveCommand<RxVoid, RxVoid> OpenSettingsCommand { get; }
 
+    /// <summary>Command to show the first-run disclaimer dialog again (Help menu).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ShowDisclaimerCommand { get; }
+
+    /// <summary>
+    /// Interaction that routes the show-disclaimer request to the View, which
+    /// hosts the dialog window (same pattern as <see cref="OpenSettingsRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowDisclaimerRequested { get; }
+
     /// <summary>
     /// Interaction that routes the open-settings request to the View, which
     /// hosts the actual window (window plumbing stays out of the ViewModel).
@@ -84,12 +93,14 @@ public sealed class MenuViewModel : ReactiveObject
         ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
         ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
         FocusAiChatRequested = new Interaction<RxVoid, RxVoid>();
+        ShowDisclaimerRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
         ToggleAiChatCommand = ReactiveCommand.CreateFromTask(HandleToggleAiChatAsync);
         ManageMcpServersCommand = ReactiveCommand.CreateFromTask(HandleManageMcpServersAsync);
         OpenSettingsCommand = ReactiveCommand.CreateFromTask(HandleOpenSettingsAsync);
+        ShowDisclaimerCommand = ReactiveCommand.CreateFromTask(HandleShowDisclaimerAsync);
         ExitCommand = ReactiveCommand.Create(HandleExit);
 
         // The checkable item mirrors the panel state: the when-any-value
@@ -156,6 +167,12 @@ public sealed class MenuViewModel : ReactiveObject
     private Task HandleManageMcpServersAsync() => Task.CompletedTask;
 
     private Task HandleOpenSettingsAsync() => OpenSettingsRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the show-disclaimer request to the View (window plumbing stays
+    /// out of the ViewModel, same as the settings window).
+    /// </summary>
+    private Task HandleShowDisclaimerAsync() => ShowDisclaimerRequested.Handle(RxVoid.Default);
 
     private void HandleExit()
     {
