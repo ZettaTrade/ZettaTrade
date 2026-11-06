@@ -85,7 +85,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | queued | - |
 | T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | queued | - |
 | T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | queued | - |
-| T-081 Balances panel: per-exchange and aggregated | feat/balances | queued | - |
+| T-081 Balances panel: per-exchange and aggregated | feat/balances | done | - |
 | T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | queued | - |
 | T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | queued | T-082 (soft) |
 | T-084 CSV export: order history, fills, candles | feat/csv-export | queued | - |
@@ -223,12 +223,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-081 — Balances panel: per-exchange and aggregated
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/balances (base `develop` at `3c6228b`; queued 2026-11-06; developed 2026-11-06).
 - **Origin:** there is no balance surface at all; portfolio oversight is a terminal baseline.
 - **What:** read-only balances per adapter (paper first, then adapters that expose account data), per-exchange sections plus an aggregated view with last-price valuation and allocation bars; secrets stay in `ISecretStore` (read path only), manual refresh, no auto-trading implications.
 - **Scope:** an additive read-only balances face on the trading seam (supervisor-gated Core diff), the Infrastructure fetchers, panel VM/view, resx en+ru, tests.
 - **Acceptance:** paper demo shows live-updated figures; adapters without balance data render an explicit "not supported" row.
 - **Tests:** aggregation golden, valuation staleness handling, the not-supported path.
+- **Status:** done. Canon: the branch carries the balances panel commit (the aggregation service over the shipped `ITradingAdapter.GetBalancesAsync` seam, the panel VM/view on the positions-panel pattern, the Menu/MainWindow routing, the resx en+ru keys under the shipped `Trading.` prefix, the aggregation and state-machine tests) and this release commit (the alpha.42 cut + this section's status flip); shipped as `0.1.0-alpha.42` (see CHANGELOG.md). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file). The shipped shape adjusted to what the adapters actually serve: no Core interface diff was needed and none was made (`GetBalancesAsync` already exists on `ITradingAdapter`); the served dictionary carries one amount per asset, so the panel's columns are Asset/Amount and the rows sum per asset over the providing sources — the free/locked split and last-price valuation/allocation bars of the original section text have no served source today and stay out (no fabricated figures).
 
 ## T-082 — PnL engine: realized/unrealized accounting core
 
