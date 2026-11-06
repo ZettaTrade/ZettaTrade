@@ -13,6 +13,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
 /// The active-exchange facade: the one <see cref="IMarketDataAdapter"/> the
@@ -211,7 +212,7 @@ public sealed class ActiveExchangeService : IMarketDataAdapter, IAsyncInitializa
 
     /// <inheritdoc/>
     public IObservable<OrderBook> SubscribeOrderBook(Symbol symbol, int depth = 20) =>
-        Attach(adapter => adapter.SubscribeOrderBook(symbol, depth));
+        Attach(adapter => adapter.SubscribeOrderBook(symbol, ResolveBookDepth(adapter, depth)));
 
     /// <inheritdoc/>
     public Task ConnectAsync(CancellationToken ct = default) => Current.ConnectAsync(ct);
@@ -241,6 +242,33 @@ public sealed class ActiveExchangeService : IMarketDataAdapter, IAsyncInitializa
     /// </summary>
     private IObservable<TStream> Attach<TStream>(Func<IMarketDataAdapter, IObservable<TStream>> start) =>
         _active.Select(start).Switch();
+
+    /// <summary>
+    /// Resolve the requested order book depth against the adapter it will
+    /// ride on: an adapter without a declared wire constraint (the demo one,
+    /// serving any depth) gets the request unchanged, while a depth-locked
+    /// one (Bybit serves 1 and 50, Binance a stepped range) resolves a
+    /// generic display default like 20 to its nearest served depth — the
+    /// raw default used to hit the adapter's explicit rejection and empty
+    /// the book widget with a stream error.
+    /// </summary>
+    private int ResolveBookDepth(IMarketDataAdapter adapter, int requestedDepth)
+    {
+        var resolved = adapter is ExchangeAdapterBase concrete
+            ? ExchangeAdapterBase.ResolveBookDepth(concrete.ServedBookDepths, requestedDepth)
+            : requestedDepth;
+
+        if (resolved != requestedDepth)
+        {
+            _logger.LogDebug(
+                "Order book depth {RequestedDepth} resolved to {ResolvedDepth} on '{ExchangeId}'",
+                requestedDepth,
+                resolved,
+                adapter.Id);
+        }
+
+        return resolved;
+    }
 
     #endregion Market Data Forwarding
 

@@ -40,6 +40,14 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
     /// <summary>Subject for trade updates.</summary>
     protected readonly ConcurrentDictionary<string, Subject<MarketTrade>> TradeSubjects = new();
 
+    /// <summary>
+    /// The order book depths this adapter serves — the public face of the
+    /// wire-level <see cref="SupportedBookDepths"/> declaration, so a caller
+    /// can resolve its request against the real constraint with
+    /// <see cref="ResolveBookDepth"/> instead of receiving the rejection.
+    /// </summary>
+    public IReadOnlySet<int> ServedBookDepths => SupportedBookDepths;
+
     #endregion
 
     #region Constructor
@@ -108,6 +116,28 @@ public abstract class ExchangeAdapterBase : IMarketDataAdapter
     {
         var subject = TradeSubjects.GetOrAdd(symbol.Normalized, _ => new Subject<MarketTrade>());
         return SubscribeWithStreamStart(symbol, (sym, ct) => StartSymbolStreamsAsync(sym, null, ct), subject.AsObservable());
+    }
+
+    /// <summary>
+    /// Resolve a requested order book depth against the depths an adapter
+    /// serves: the smallest served depth at least as deep as the request
+    /// wins, and — when nothing is deep enough — the deepest served depth.
+    /// No declaration (null/empty, serve-anything adapters) passes the
+    /// request through for the adapter to own: it is served or rejected by
+    /// <see cref="SubscribeOrderBook"/>'s explicit contract (BUG-032),
+    /// never silently reshaped there.
+    /// </summary>
+    public static int ResolveBookDepth(IReadOnlySet<int>? servedDepths, int requestedDepth)
+    {
+        if (servedDepths is not { Count: > 0 })
+        {
+            return requestedDepth;
+        }
+
+        return servedDepths
+            .Where(depth => depth >= requestedDepth)
+            .DefaultIfEmpty(servedDepths.Max())
+            .Min();
     }
 
     #endregion
