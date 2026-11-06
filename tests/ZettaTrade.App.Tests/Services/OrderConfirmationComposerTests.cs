@@ -82,6 +82,45 @@ public sealed class OrderConfirmationComposerTests
         confirmation.Arguments[4].Should().Be("[Trading.PriceMarket]");
     }
 
+    /// <summary>
+    /// The reverse confirmation names both legs in one mandatory summary:
+    /// the reduce-only exit and the opposite-side re-entry — exit side,
+    /// exit quantity, symbol, entry side, entry quantity (T-077).
+    /// </summary>
+    [Fact]
+    public void ForReverse_NamesBothLegsOfTheMandatorySummary()
+    {
+        // Arrange
+        var composer = new OrderConfirmationComposer(_localization);
+        var exit = new OrderRequest
+        {
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Sell,
+            Type = OrderType.Market,
+            Quantity = new Quantity(0.01m),
+            ReduceOnly = true,
+        };
+        var entry = new OrderRequest
+        {
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Sell,
+            Type = OrderType.Market,
+            Quantity = new Quantity(0.01m),
+        };
+
+        // Act
+        var confirmation = composer.ForReverse(exit, entry);
+
+        // Assert: the reverse template over both legs' facts.
+        confirmation.MessageKey.Should().Be("Positions.ConfirmReverseFormat");
+        confirmation.Arguments.Should().HaveCount(5);
+        confirmation.Arguments[0].Should().Be("[Order.Sell]");
+        confirmation.Arguments[1].Should().Be("0.01");
+        confirmation.Arguments[2].Should().Be("BTC/USDT");
+        confirmation.Arguments[3].Should().Be("[Order.Sell]");
+        confirmation.Arguments[4].Should().Be("0.01");
+    }
+
     [Fact]
     public void ForPlace_StopMarketOrder_SummarizesAtTheStopTrigger()
     {

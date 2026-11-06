@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -63,6 +64,17 @@ public sealed class PositionsPanelViewModelTests
         _trading.GetOpenOrdersAsync().Returns(_ => [.. _openOrders]);
     }
 
+    /// <summary>The actions service the panel rows ride, over the same trading substitute.</summary>
+    private PositionActionsService CreateActionsService() => new(
+        _trading,
+        new DefaultRiskManager(Substitute.For<Microsoft.Extensions.Logging.ILogger<DefaultRiskManager>>()),
+        _confirmation,
+        new OrderConfirmationComposer(_localization),
+        _journal,
+        _history,
+        _localization,
+        Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionActionsService>>());
+
     private PositionsPanelViewModel CreateViewModel() =>
         new(
             _trading,
@@ -79,6 +91,7 @@ public sealed class PositionsPanelViewModelTests
                 _history,
                 _localization,
                 NullLogger<OrderAmendService>.Instance),
+            CreateActionsService(),
             _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionsPanelViewModel>>());
 
@@ -745,6 +758,248 @@ public sealed class PositionsPanelViewModelTests
         viewModel.RecentOrders.Single(row => row.OrderId == "paper-1").Opened
             .Should().Be(history.Rows.Single().Opened);
     }
+
+    #region Position Actions
+
+    /// <summary>The reference bar the actions' market anchor resolves from.</summary>
+    private static readonly Bar ReferenceBar = new(
+        new DateTimeOffset(2026, 10, 29, 12, 0, 0, TimeSpan.Zero),
+        50_000m, 50_000m, 50_000m, 50_000m, 1m);
+
+    /// <summary>Configure the trading substitute so a market action builds its price anchor.</summary>
+    private void SetupReferenceBar() =>
+        _trading.GetBarsAsync(
+                Arg.Any<Symbol>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<DateTimeOffset?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns([ReferenceBar]);
+
+    /// <summary>A filled order fixture recording what reached the adapter.</summary>
+    private static Order BuildFilledExit(OrderRequest request) => new()
+    {
+        Id = "paper-exit-1",
+        ExchangeId = "paper",
+        Symbol = request.Symbol,
+        Side = OrderSide.Sell,
+        Type = request.Type,
+        Quantity = request.Quantity,
+        Price = request.Price ?? Price.Zero,
+        Status = OrderStatus.Filled,
+        FilledQuantity = request.Quantity,
+        TimeInForce = request.TimeInForce,
+        CreatedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
+    };
+
+    /// <summary>
+    /// The close command places the reduce-only market exit sized against
+    /// the CURRENT position (never a row's stale text), reports the result
+    /// line, and reloads the sections so the flattened position leaves the
+    /// table right away.
+    /// </summary>
+    [Fact]
+    public async Task PositionRowClose_WhenConfirmed_PlacesTheMarketExitAndReports()
+    {
+        SetupReferenceBar();
+        _trading.GetOpenOrdersAsync().Returns([]);
+        var position = BuildPosition("BTC/USDT");
+        var orderPlaced = false;
+        _trading.GetPositionsAsync().Returns(_ => orderPlaced
+            ? Task.FromResult(Array.Empty<Position>() as IReadOnlyList<Position>)
+            : Task.FromResult(new[] { position } as IReadOnlyList<Position>));
+        var requests = new List<OrderRequest>();
+        _trading.PlaceOrderAsync(
+                Arg.Do<OrderRequest>(requests.Add),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                orderPlaced = true;
+                return Task.FromResult(BuildFilledExit(callInfo.ArgAt<OrderRequest>(0)));
+            });
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        var viewModel = CreateViewModel();
+
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        var row = viewModel.Positions.Single();
+
+        // Act
+        await row.CloseCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the exit order the panel produced is the fresh position's
+        // own shape — a reduce-only opposite-side market exit of 0.01.
+        viewModel.ResultMessage.Should().Contain("Positions.ClosedFormat").And.Contain("BTC/USDT");
+        viewModel.ErrorMessage.Should().BeNull();
+        viewModel.Positions.Should().BeEmpty("the panel reloads after the resolved close");
+        requests.Should().HaveCount(1);
+        requests[0].Side.Should().Be(OrderSide.Sell);
+        requests[0].ReduceOnly.Should().BeTrue();
+        requests[0].Type.Should().Be(OrderType.Market);
+        requests[0].Quantity.Value.Should().Be(0.01m);
+    }
+
+    /// <summary>
+    /// The reduce command reads the typed amount off the row and places a
+    /// partial exit of exactly that size — parsed invariantly by the
+    /// service, never defaulted.
+    /// </summary>
+    [Fact]
+    public async Task PositionRowReduce_WithTypedAmount_PlacesThePartialExitOfThatSize()
+    {
+        SetupReferenceBar();
+        _trading.GetOpenOrdersAsync().Returns([]);
+        var position = BuildPosition("BTC/USDT");
+        var orderPlaced = false;
+        _trading.GetPositionsAsync().Returns(_ => orderPlaced
+            ? Task.FromResult(Array.Empty<Position>() as IReadOnlyList<Position>)
+            : Task.FromResult(new[] { position } as IReadOnlyList<Position>));
+        var requests = new List<OrderRequest>();
+        _trading.PlaceOrderAsync(
+                Arg.Do<OrderRequest>(requests.Add),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                orderPlaced = true;
+                return Task.FromResult(BuildFilledExit(callInfo.ArgAt<OrderRequest>(0)));
+            });
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        var viewModel = CreateViewModel();
+
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        var row = viewModel.Positions.Single();
+        row.ReduceQuantityInput = "0.004";
+
+        // Act
+        await row.ReduceCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.ResultMessage.Should().Contain("Positions.ReducedFormat").And.Contain("0.004");
+        viewModel.ErrorMessage.Should().BeNull();
+        requests.Should().HaveCount(1);
+        requests[0].Quantity.Value.Should().Be(0.004m);
+        requests[0].ReduceOnly.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// While a position action is in flight the rows' action commands are
+    /// disabled — the in-flight gate and the double-click case: a second
+    /// invocation on a disabled command resolves into the disabled state
+    /// and the pipeline runs exactly once ("the action is idempotent
+    /// through a disabled/queued state").
+    /// </summary>
+    [Fact]
+    public async Task PositionRowAction_WhileInFlight_DisablesTheRowSurfaceForDoubleClicks()
+    {
+        SetupReferenceBar();
+        _trading.GetOpenOrdersAsync().Returns([]);
+        var position = BuildPosition("BTC/USDT");
+        var sizingGate = new TaskCompletionSource<IReadOnlyList<Position>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        // The panel's own load reads the position first; the action's sizing
+        // read is GATED (the in-flight attempt waits on it); the fresh
+        // pre-placement guard read serves the standing position again.
+        _trading.GetPositionsAsync().Returns(
+            _ => Task.FromResult<IReadOnlyList<Position>>([position]),
+            _ => sizingGate.Task,
+            _ => Task.FromResult<IReadOnlyList<Position>>([position]));
+        var requests = new List<OrderRequest>();
+        _trading.PlaceOrderAsync(
+                Arg.Do<OrderRequest>(requests.Add),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(BuildFilledExit(callInfo.ArgAt<OrderRequest>(0))));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        var viewModel = CreateViewModel();
+
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        var row = viewModel.Positions.Single();
+
+        // The gate emits its standing value at subscribe, so watching it
+        // here reads the whole arc: busy while the attempt runs, idle at the
+        // end of it.
+        var canExecutePhases = new List<bool>();
+        using var gateWatch = row.CloseCommand.CanExecute.Subscribe(canExecutePhases.Add);
+
+        var parked = viewModel
+            .WhenAnyValue(x => x.IsBusy)
+            .Where(busy => busy)
+            .FirstAsync()
+            .Timeout(TimeSpan.FromSeconds(5))
+            .ToTask();
+        var firstDone = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var firstWatcher = row.CloseCommand.Execute(ReactiveUI.Primitives.RxVoid.Default).Subscribe(
+            value => firstDone.TrySetResult(),
+            exception => firstDone.TrySetException(exception),
+            () => firstDone.TrySetResult());
+        await parked;
+
+        // An in-flight attempt holds the gate shut.
+        viewModel.IsBusy.Should().BeTrue();
+        canExecutePhases.Should().NotBeEmpty();
+        canExecutePhases.Should().Contain(false, "the action surface is disabled while the attempt runs");
+
+        // The second (double) click resolves into the disabled state — no
+        // second pipeline, no second order.
+        using var secondWatcher = row.CloseCommand.Execute(ReactiveUI.Primitives.RxVoid.Default).Subscribe(
+            _ => { },
+            exception => firstDone.TrySetException(exception),
+            () => { });
+
+        // Park the reopen watcher while the gate is still shut: the standing
+        // value is false, so its first true emission is the reopen itself —
+        // subscribed before the release, it cannot miss it. Bounded so a
+        // broken gate surfaces as a clean failure, not a hang.
+        var reopened = row.CloseCommand.CanExecute
+            .Where(can => can)
+            .FirstAsync()
+            .Timeout(TimeSpan.FromSeconds(30))
+            .ToTask();
+
+        sizingGate.SetResult([position]);
+        await firstDone.Task;
+
+        // The gate's reopen emission walks ReactiveUI's canExecute pipeline —
+        // one continuation hop after the command's task completes, and under
+        // a saturated parallel test run that hop is visible. The reopen was
+        // watched BEFORE the gate released, so await it instead of racing
+        // one straight-line read of the phases list.
+        await reopened;
+
+        // Assert: one attempt, one order; the gate reopens at the end.
+        await _trading.Received(1).PlaceOrderAsync(Arg.Any<OrderRequest>(), Arg.Any<CancellationToken>());
+        requests.Should().HaveCount(1);
+        viewModel.IsBusy.Should().BeFalse();
+        canExecutePhases[^1].Should().BeTrue("the gate reopens once the attempt resolves");
+        viewModel.ResultMessage.Should().Contain("Positions.ClosedFormat");
+    }
+
+    /// <summary>A close on an empty surface is the explicit localized rejection — never a degenerate order.</summary>
+    [Fact]
+    public async Task PositionRowClose_WithNoPosition_ShowsTheLocalizedRejection()
+    {
+        _trading.GetOpenOrdersAsync().Returns([]);
+        _trading.GetPositionsAsync().Returns([]);
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        var viewModel = CreateViewModel();
+
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act: the NoPositions panel renders no rows; rejecting the close is
+        // still pinned at the service boundary of the same substitute.
+        var result = await CreateActionsService().CloseAsync(Symbol.Parse("BTC/USDT"));
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Be("[Positions.NoPositionFormat:BTC/USDT]");
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    #endregion Position Actions
 
     private static string FormatArgs(object[] args) => string.Join("|", args);
 }
