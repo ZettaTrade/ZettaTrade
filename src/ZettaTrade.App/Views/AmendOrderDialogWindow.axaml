@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.AmendOrderDialogWindow"
+        Classes="chrome-compact"
+        x:DataType="vm:AmendOrderDialogViewModel"
+        Title="{loc:Localized Positions.AmendTitle}"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <StackPanel Margin="16" Spacing="10">
+        <!-- The editing target: side, quantity, symbol, price and status,
+             precomputed by the view model at initialize time -->
+        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+
+        <TextBlock Text="{loc:Localized Positions.AmendQuantityLabel}" />
+        <TextBox Text="{Binding QuantityInput, Mode=TwoWay}"
+                 PlaceholderText="0.01" />
+
+        <!-- Limit price: the limit-bearing types only; an empty field keeps
+             the original price (the trailing stop's displayed price is its
+             ratcheting trigger, never an editable level) -->
+        <TextBlock Text="{loc:Localized Positions.AmendPriceLabel}"
+                   IsVisible="{Binding IsPriceEditable}" />
+        <TextBox Text="{Binding PriceInput, Mode=TwoWay}"
+                 IsVisible="{Binding IsPriceEditable}"
+                 PlaceholderText="50000" />
+
+        <!-- Parse errors (unparsable input), never a defaulted field -->
+        <TextBlock Text="{Binding ErrorMessage}"
+                   Foreground="{DynamicResource Error}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasErrorMessage}" />
+
+        <UniformGrid Columns="2" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Click="OnAmendClick"
+                    Content="{loc:Localized Positions.Amend}"
+                    MinWidth="120" Margin="0,0,8,0" />
+            <Button Content="{loc:Localized Trading.Cancel}"
+                    Click="OnCancelClick"
+                    MinWidth="90" />
+        </UniformGrid>
+    </StackPanel>
+</Window>

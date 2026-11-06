@@ -504,6 +504,75 @@
   <data name="Positions.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="Positions.Amend" xml:space="preserve">
+    <value>Изменить</value>
+  </data>
+  <data name="Positions.AmendTitle" xml:space="preserve">
+    <value>Изменить ордер</value>
+  </data>
+  <data name="Positions.AmendQuantityLabel" xml:space="preserve">
+    <value>Количество</value>
+  </data>
+  <data name="Positions.AmendPriceLabel" xml:space="preserve">
+    <value>Лимитная цена</value>
+  </data>
+  <data name="Positions.AmendQuantityRequired" xml:space="preserve">
+    <value>Введите количество.</value>
+  </data>
+  <data name="Positions.AmendQuantityInvalid" xml:space="preserve">
+    <value>Количество {0} — не число.</value>
+  </data>
+  <data name="Positions.AmendPriceInvalid" xml:space="preserve">
+    <value>Лимитная цена {0} — не число.</value>
+  </data>
+  <data name="Positions.AmendSummary" xml:space="preserve">
+    <value>{0} {1} {2} @ {3} ({4})</value>
+  </data>
+  <data name="Positions.ConfirmAmend" xml:space="preserve">
+    <value>Изменить ордер {1} ({0}): количество {2}→{3}, лимитная цена {4}→{5} ({6})? Ордер будет отменён и размещён заново как НОВЫЙ ордер (отмена + новый). Подтвердить?</value>
+  </data>
+  <data name="Positions.ConfirmAmendQuantityOnly" xml:space="preserve">
+    <value>Изменить ордер {1} ({0}): количество {2}→{3} ({4})? Ордер будет отменён и размещён заново как НОВЫЙ ордер (отмена + новый). Подтвердить?</value>
+  </data>
+  <data name="Positions.AmendDone" xml:space="preserve">
+    <value>Ордер {0} отменён и заменён на {1} (отмена + новый).</value>
+  </data>
+  <data name="Positions.AmendDoneInPlace" xml:space="preserve">
+    <value>Ордер {0} изменён на месте (замена на стороне адаптера).</value>
+  </data>
+  <data name="Positions.AmendStale" xml:space="preserve">
+    <value>Ордер {0} больше не работает (исполнился или завершён); изменение не выполнено.</value>
+  </data>
+  <data name="Positions.AmendTypeUnsupported" xml:space="preserve">
+    <value>Ордера типа {0} нельзя изменить; отмените ордер и разместите новый.</value>
+  </data>
+  <data name="Positions.AmendOcoUnsupported" xml:space="preserve">
+    <value>Логи OCO-группы {0} нельзя изменять; пару нужно отменить и разместить заново целиком.</value>
+  </data>
+  <data name="Positions.AmendInvalid" xml:space="preserve">
+    <value>Изменённый ордер некорректен и не был отправлен: {0}</value>
+  </data>
+  <data name="Positions.AmendQtyBelowFilled" xml:space="preserve">
+    <value>Новое количество {0} меньше уже исполненного {1}.</value>
+  </data>
+  <data name="Positions.AmendNoChange" xml:space="preserve">
+    <value>Изменение не меняет ордер; ничего не отправлено.</value>
+  </data>
+  <data name="Positions.AmendRejected" xml:space="preserve">
+    <value>Менеджер рисков отклонил изменённый ордер: {0}</value>
+  </data>
+  <data name="Positions.AmendCancelFailed" xml:space="preserve">
+    <value>Изменение не выполнено: не удалось отменить исходный ордер: {0}</value>
+  </data>
+  <data name="Positions.AmendReplaceFailed" xml:space="preserve">
+    <value>Ордер {0} отменён, но размещение изменённой замены не удалось: {1} — ни одного работающего ордера нет.</value>
+  </data>
+  <data name="Positions.AmendFailed" xml:space="preserve">
+    <value>Изменение ордера не выполнено: {0}</value>
+  </data>
+  <data name="Positions.AmendRowStatus" xml:space="preserve">
+    <value>Изменяется…</value>
+  </data>
   <data name="History.Title" xml:space="preserve">
     <value>История ордеров</value>
   </data>

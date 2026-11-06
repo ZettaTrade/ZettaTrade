@@ -38,9 +38,29 @@ public sealed record OrderRowViewModel
     public required bool IsCancellable { get; init; }
 
     /// <summary>
+    /// True only for orders the amend flow can act on: a working status
+    /// (Pending, Submitted, PartiallyFilled) AND an amendable type. Drives
+    /// the Amend button enable state.
+    /// </summary>
+    public required bool IsAmendable { get; init; }
+
+    /// <summary>
+    /// True while the row's amend flow is in flight: the row stays in the
+    /// list and shows the amending state until the replace settles.
+    /// </summary>
+    public required bool IsAmending { get; init; }
+
+    /// <summary>
     /// Per-row cancel command, created and wired by the parent view model;
     /// it closes over the full <c>Order</c> so the cancel request always
     /// carries the adapter's own symbol and id.
     /// </summary>
     public required ReactiveCommand<RxVoid, RxVoid> CancelCommand { get; init; }
+
+    /// <summary>
+    /// Per-row amend command, created and wired by the parent view model;
+    /// it closes over the full <c>Order</c> so the amend flow always reads
+    /// the adapter's fresh state for the right target.
+    /// </summary>
+    public required ReactiveCommand<RxVoid, RxVoid> AmendCommand { get; init; }
 }

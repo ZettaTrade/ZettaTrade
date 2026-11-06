@@ -504,6 +504,75 @@
   <data name="Positions.Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="Positions.Amend" xml:space="preserve">
+    <value>Amend</value>
+  </data>
+  <data name="Positions.AmendTitle" xml:space="preserve">
+    <value>Amend order</value>
+  </data>
+  <data name="Positions.AmendQuantityLabel" xml:space="preserve">
+    <value>Quantity</value>
+  </data>
+  <data name="Positions.AmendPriceLabel" xml:space="preserve">
+    <value>Limit price</value>
+  </data>
+  <data name="Positions.AmendQuantityRequired" xml:space="preserve">
+    <value>Enter a quantity.</value>
+  </data>
+  <data name="Positions.AmendQuantityInvalid" xml:space="preserve">
+    <value>Quantity {0} is not a number.</value>
+  </data>
+  <data name="Positions.AmendPriceInvalid" xml:space="preserve">
+    <value>Limit price {0} is not a number.</value>
+  </data>
+  <data name="Positions.AmendSummary" xml:space="preserve">
+    <value>{0} {1} {2} @ {3} ({4})</value>
+  </data>
+  <data name="Positions.ConfirmAmend" xml:space="preserve">
+    <value>Amend the {0} order {1}: quantity {2}→{3}, limit price {4}→{5} ({6}). The order will be cancelled and re-placed as a NEW order (cancel+new). Confirm?</value>
+  </data>
+  <data name="Positions.ConfirmAmendQuantityOnly" xml:space="preserve">
+    <value>Amend the {0} order {1}: quantity {2}→{3} ({4}). The order will be cancelled and re-placed as a NEW order (cancel+new). Confirm?</value>
+  </data>
+  <data name="Positions.AmendDone" xml:space="preserve">
+    <value>Order {0} cancelled and replaced by {1} (cancel+new).</value>
+  </data>
+  <data name="Positions.AmendDoneInPlace" xml:space="preserve">
+    <value>Order {0} amended in place (adapter-side replace).</value>
+  </data>
+  <data name="Positions.AmendStale" xml:space="preserve">
+    <value>Order {0} is no longer working (it filled or ended); the amend was not performed.</value>
+  </data>
+  <data name="Positions.AmendTypeUnsupported" xml:space="preserve">
+    <value>Orders of type {0} cannot be amended; cancel the order and place a new one instead.</value>
+  </data>
+  <data name="Positions.AmendOcoUnsupported" xml:space="preserve">
+    <value>OCO group {0} legs cannot be amended; the pair must be cancelled and re-placed as a whole.</value>
+  </data>
+  <data name="Positions.AmendInvalid" xml:space="preserve">
+    <value>The amended order is invalid and was never sent: {0}</value>
+  </data>
+  <data name="Positions.AmendQtyBelowFilled" xml:space="preserve">
+    <value>Amended quantity {0} is lower than the already filled {1}.</value>
+  </data>
+  <data name="Positions.AmendNoChange" xml:space="preserve">
+    <value>The amend does not change the order; nothing was sent.</value>
+  </data>
+  <data name="Positions.AmendRejected" xml:space="preserve">
+    <value>Risk manager rejected the amended order: {0}</value>
+  </data>
+  <data name="Positions.AmendCancelFailed" xml:space="preserve">
+    <value>The amend failed: cancelling the original order was refused: {0}</value>
+  </data>
+  <data name="Positions.AmendReplaceFailed" xml:space="preserve">
+    <value>Order {0} was cancelled, but the amended replacement was refused: {1} — no replacement order is working.</value>
+  </data>
+  <data name="Positions.AmendFailed" xml:space="preserve">
+    <value>The amend failed: {0}</value>
+  </data>
+  <data name="Positions.AmendRowStatus" xml:space="preserve">
+    <value>Amending…</value>
+  </data>
   <data name="History.Title" xml:space="preserve">
     <value>Order History</value>
   </data>
