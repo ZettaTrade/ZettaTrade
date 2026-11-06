@@ -9,6 +9,24 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.42] - 2026-11-06
+
+Build of board task T-081 (branch `feat/balances`).
+
+### Added
+- The balances panel (Trading menu): one read-only surface next to the
+  positions/orders panels showing every active exchange's served balances
+  (per-exchange sections plus an aggregated view that sums the amounts per
+  asset across the adapters that actually provide balances). The panel
+  follows the adapters' honesty contract: an adapter without balance data
+  renders the explicit "not provided" state and a faulting query renders
+  the localized fault — a zero is never a plausible-but-wrong figure. Data
+  rides the shipped trading seam (`ITradingAdapter.GetBalancesAsync`): the
+  paper account serves rows live (empty before the first fill), while the
+  market-data-only faces (Binance/Bybit/demo) report the not-provided
+  state; manual refresh; en+ru localization; aggregation and state-machine
+  tests.
+
 ## [0.1.0-alpha.38] - 2026-11-06
 
 Build of board task T-073 (branch `feat/flaky-localization`).
