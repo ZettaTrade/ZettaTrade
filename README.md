@@ -27,8 +27,8 @@ run according to the non-negotiables below. See also
 
 **This is alpha software.** Behavior, settings keys and file formats can change between
 alpha builds without notice; the status-bar version chip shows the exact build
-(`0.1.0-alpha.NN`). Test on the sandboxes first and only then rely on the app — and only
-for small, affordable, experiential use.
+(`0.1.0-alpha.NN`). Test on the sandboxes first, and only rely on the app afterwards and
+only for small, affordable use.
 
 ### Use user-scoped API keys only
 
