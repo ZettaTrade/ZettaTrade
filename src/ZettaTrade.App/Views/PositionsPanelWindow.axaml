@@ -6,7 +6,7 @@
         Classes="chrome"
         x:DataType="vm:PositionsPanelViewModel"
         Title="{loc:Localized Positions.Title}"
-        Width="800" Height="560"
+        Width="1000" Height="560"
         WindowStartupLocation="CenterOwner"
         CanResize="True"
         ShowInTaskbar="False"
@@ -20,13 +20,14 @@
                 <!-- Open positions -->
                 <StackPanel Spacing="6">
                     <TextBlock Text="{loc:Localized Positions.PositionsHeader}" FontWeight="Bold" />
-                    <Grid ColumnDefinitions="125,50,75,150,150"
+                    <Grid ColumnDefinitions="125,50,75,150,150,320"
                           IsVisible="{Binding HasPositions}">
                         <TextBlock Grid.Column="0" Text="{loc:Localized Positions.Symbol}" />
                         <TextBlock Grid.Column="1" Text="{loc:Localized Positions.Side}" />
                         <TextBlock Grid.Column="2" Text="{loc:Localized Positions.ColQuantity}" />
                         <TextBlock Grid.Column="3" Text="{loc:Localized Positions.ColPrice}" />
                         <TextBlock Grid.Column="4" Text="{loc:Localized Positions.ColOpened}" />
+                        <TextBlock Grid.Column="5" Text="{loc:Localized Positions.ActionsHeader}" />
                     </Grid>
                     <TextBlock Text="{loc:Localized Positions.NoPositions}"
                                IsVisible="{Binding !HasPositions}" />
@@ -34,12 +35,26 @@
                                   IsVisible="{Binding HasPositions}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:PositionRowViewModel">
-                                <Grid ColumnDefinitions="125,50,75,150,150">
+                                <Grid ColumnDefinitions="125,50,75,150,150,320">
                                     <TextBlock Grid.Column="0" Text="{Binding Symbol}" />
                                     <TextBlock Grid.Column="1" Text="{Binding Side}" />
                                     <TextBlock Grid.Column="2" Text="{Binding Quantity}" />
                                     <TextBlock Grid.Column="3" Text="{Binding EntryPrice}" />
                                     <TextBlock Grid.Column="4" Text="{Binding Opened}" />
+                                    <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="4">
+                                        <TextBox Width="76"
+                                                 Text="{Binding ReduceQuantityInput}"
+                                                 PlaceholderText="{loc:Localized Positions.ReduceWatermark}" />
+                                        <Button Content="{loc:Localized Positions.ActionReduce}"
+                                                Command="{Binding ReduceCommand}"
+                                                MinWidth="64" HorizontalAlignment="Left" />
+                                        <Button Content="{loc:Localized Positions.ActionClose}"
+                                                Command="{Binding CloseCommand}"
+                                                MinWidth="64" HorizontalAlignment="Left" />
+                                        <Button Content="{loc:Localized Positions.ActionReverse}"
+                                                Command="{Binding ReverseCommand}"
+                                                MinWidth="64" HorizontalAlignment="Left" />
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

@@ -27,6 +27,12 @@ using ZettaTrade.Infrastructure.Persistence;
 /// amended shape through <see cref="IRiskManager"/>, walks large-delta
 /// amends through the confirmation dialog and re-places the order — the
 /// row shows the amending state for as long as the replace is in flight.
+/// Position rows carry the action surface (close, partial close, reverse):
+/// the requests ride the <see cref="PositionActionsService"/> pipeline
+/// (validate → risk → confirmation → adapter), every attempt is serialized
+/// by one in-flight gate — a busy panel disables the rows' action commands,
+/// so a double click is a no-op — and the sections reload after every
+/// resolved attempt.
 /// </summary>
 public sealed class PositionsPanelViewModel : ReactiveObject
 {
@@ -47,6 +53,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     private readonly IConfirmationService _confirmation;
     private readonly OrderConfirmationComposer _composer;
     private readonly OrderAmendService _amendService;
+    private readonly PositionActionsService _actions;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<PositionsPanelViewModel> _logger;
 
@@ -58,6 +65,12 @@ public sealed class PositionsPanelViewModel : ReactiveObject
 
     /// <summary>Id of the order whose amend is in flight; drives the row's amending state.</summary>
     private string? _amendingOrderId;
+
+    /// <summary>Serializes the action pipeline; re-entrancy is an error state.</summary>
+    private bool _isBusy;
+
+    /// <summary>The shared action-surface gate: values false while any idle action runs.</summary>
+    private readonly IObservable<bool> _actionsIdle;
 
     #endregion Private Fields
 
@@ -169,6 +182,18 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     /// <summary>True while <see cref="ResultMessage"/> holds text; drives the result line visibility.</summary>
     public bool HasResultMessage => _resultMessage is not null;
 
+    /// <summary>
+    /// True while a position action (close, partial close or reverse) is in
+    /// flight; the rows' action commands ride its negation as canExecute, so
+    /// an in-flight attempt disables the whole action surface — a double
+    /// click resolves into the disabled (queued) state and stays a no-op.
+    /// </summary>
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set => this.RaiseAndSetIfChanged(ref _isBusy, value);
+    }
+
     /// <summary>Reloads every section from the adapter and the journal.</summary>
     public ReactiveCommand<RxVoid, RxVoid> LoadCommand { get; }
 
@@ -195,6 +220,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         IConfirmationService confirmation,
         OrderConfirmationComposer composer,
         OrderAmendService amendService,
+        PositionActionsService actions,
         ILocalizationManager localization,
         ILogger<PositionsPanelViewModel> logger)
     {
@@ -204,8 +230,15 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
         _amendService = amendService ?? throw new ArgumentNullException(nameof(amendService));
+        _actions = actions ?? throw new ArgumentNullException(nameof(actions));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        // The gate emits its current state at subscribe, so every command
+        // created afterwards binds the standing idle/busy value; property
+        // changes follow on the thread that raised them.
+        _actionsIdle = this
+            .WhenAnyValue(x => x.IsBusy, busy => !busy);
 
         LoadCommand = ReactiveCommand.CreateFromTask(HandleLoadAsync);
         AmendRequested = new Interaction<Order, OrderAmendRequest?>();
@@ -385,6 +418,83 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             .ToArray();
     }
 
+    /// <summary>
+    /// Close (flatten) the position the row rendered through the service
+    /// pipeline — market exit, risk-re-checked and confirmed.
+    /// </summary>
+    private async Task HandleCloseAsync(Position position) =>
+        await RunActionAsync(() => _actions.CloseAsync(position.Symbol));
+
+    /// <summary>
+    /// Partially close the position the row rendered by the amount the row's
+    /// reduce cell holds; the service parses and validates it against the
+    /// position as it stands (an empty, unparsable or oversized amount is an
+    /// explicit localized rejection).
+    /// </summary>
+    private async Task HandleReduceAsync(Position position, PositionRowViewModel row) =>
+        await RunActionAsync(
+            () => _actions.ReduceAsync(position.Symbol, row.ReduceQuantityInput));
+
+    /// <summary>
+    /// Reverse the position the row rendered: the service places the
+    /// reduce-only exit and the opposite-side re-entry behind ONE mandatory
+    /// confirmation, with both legs risk-checked — a refusal or a failed
+    /// guard leaves the flow aborted and reported.
+    /// </summary>
+    private async Task HandleReverseAsync(Position position) =>
+        await RunActionAsync(() => _actions.ReverseAsync(position.Symbol));
+
+    /// <summary>
+    /// Run one position action under the in-flight gate: the gate disables
+    /// the rows' action commands for its duration (a double click is a
+    /// no-op), the sections reload on resolution, and the attempt's own
+    /// outcome line lands last — a placed attempt reports its result, a
+    /// failed one its localized reason, and a refused confirmation stays
+    /// silent like the new-order dialog's does. The service resolves every
+    /// path into a result; this coordination adds no error handling of its
+    /// own beyond the unloaded flow's cancellation.
+    /// </summary>
+    private async Task RunActionAsync(Func<Task<PositionActionResult>> attempt)
+    {
+        // Belt-and-braces against a raced click: the canExecute gate disables
+        // the commands, but anything that still arrives while an attempt
+        // runs is dropped, not queued into a second pipeline.
+        if (IsBusy)
+        {
+            return;
+        }
+
+        // A fresh attempt replaces whatever the previous attempt reported.
+        ErrorMessage = null;
+        ResultMessage = null;
+
+        IsBusy = true;
+        try
+        {
+            var result = await attempt();
+
+            // The sections refresh BEFORE the outcome line so the lists the
+            // rows render are the ones the report describes.
+            await ReloadSectionsAsync();
+
+            switch (result.Outcome)
+            {
+                case PositionActionOutcome.Placed:
+                    ResultMessage = result.ResultMessage;
+                    break;
+
+                case PositionActionOutcome.Failed:
+                    ErrorMessage = result.ErrorMessage;
+                    break;
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+
     private async Task ReloadSectionsAsync()
     {
         try
@@ -415,19 +525,42 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         }
     }
 
-    /// <summary>Build the immutable display row for one position.</summary>
-    private PositionRowViewModel CreatePositionRow(Position position) => new()
+    /// <summary>
+    /// Build the immutable display row for one position, wiring its action
+    /// surface: close, partial close (from the row's own reduce input) and
+    /// reverse all close over the position the row rendered, ride the
+    /// service pipeline, and share the in-flight gate — an attempt in
+    /// flight disables every row's action commands until it resolves.
+    /// </summary>
+    private PositionRowViewModel CreatePositionRow(Position position)
     {
-        Symbol = position.Symbol.Normalized,
-        Side = _localization.GetString($"Order.{position.Side}"),
-        Quantity = position.Quantity.Value.ToString(CultureInfo.InvariantCulture),
-        EntryPrice = position.EntryPrice.Value.ToString("F8", CultureInfo.InvariantCulture),
-
         // The journal stores UTC; the display follows the local wall clock —
         // the one convention the order history window renders too, so the
         // same order shows the same time in both windows (BUG-055).
-        Opened = position.OpenedAt.ToLocalTime().ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
-    };
+        // The reduce command captures the row local before its assignment
+        // completes — safe by construction: the closure reads the typed
+        // value at execution time, long after the build assigns the row.
+        var row = (PositionRowViewModel)null!;
+        row = new PositionRowViewModel
+        {
+            Symbol = position.Symbol.Normalized,
+            Side = _localization.GetString($"Order.{position.Side}"),
+            Quantity = position.Quantity.Value.ToString(CultureInfo.InvariantCulture),
+            EntryPrice = position.EntryPrice.Value.ToString("F8", CultureInfo.InvariantCulture),
+            Opened = position.OpenedAt.ToLocalTime().ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
+            CloseCommand = ReactiveCommand.CreateFromTask(
+                () => HandleCloseAsync(position),
+                _actionsIdle),
+            ReduceCommand = ReactiveCommand.CreateFromTask(
+                () => HandleReduceAsync(position, row),
+                _actionsIdle),
+            ReverseCommand = ReactiveCommand.CreateFromTask(
+                () => HandleReverseAsync(position),
+                _actionsIdle),
+        };
+
+        return row;
+    }
 
     /// <summary>
     /// Build the immutable display row for one order. The per-row cancel
