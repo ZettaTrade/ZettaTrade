@@ -5,9 +5,19 @@ All notable changes to ZettaTrade are documented here, newest first
 
 While the app is in alpha, one release == one merged board task: task
 `T-0NN` ships as `0.1.0-alpha.NN` and adds its section below. The state
-before `alpha.10` was never versioned — what shipped in T-001 – T-009
+before `alpha.10` was never versioned — what shipped in T-001 — T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
+
+## [0.1.0-alpha.41] - 2026-11-06
+
+Build of board task T-084 (branch `feat/csv-export`).
+
+### Added
+- CSV export for the app's local data surfaces (order journal, fills, candles): the `ICsvExportService` writer streams RFC 4180-quoted rows with invariant decimals, ISO-8601 UTC timestamps, UTF-8 (no BOM) and CRLF line endings, row by row with cancellation between rows and an honest `DirectoryNotFoundException` on a missing destination — a six-figure history exports with a one-row memory footprint.
+- The order history window gains Export Orders CSV and Export Fills CSV actions: the loaded journal rows are the export set, the destination comes through a save-file dialog (cancelled = nothing written, no error), and a write fault surfaces on the window's localized error line.
+- The chart panel gains Export Candles CSV: the displayed series is the export set and faults land on the panel's own error line (the status bar stays with connection state); the main window answers the save-file interaction for the app-lifetime display in `OnOpened`.
+- Localization: `History.Export*` and `Chart.Export*` keys in both en and ru catalogs.
 
 ## [0.1.0-alpha.38] - 2026-11-06
 
