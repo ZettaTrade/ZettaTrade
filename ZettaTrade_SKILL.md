@@ -202,6 +202,14 @@ Loc.GetObservable("Status.Ready")
 - **Claim task numbers (T-0NN) only after syncing**: the next free number is read off the synced board. Two sessions picking "the next number" independently collide (the 2026-11-06 case: two different tasks took T-116; the later commit renumbered its content, not the landed one).
 - Docs-only commits stay land-friendly: insert rows at the table tail and sections at the file end, with unique anchors that other sessions' edits do not touch.
 
+## Multi-Agent Subagent Utilization (orchestrator hygiene)
+
+- One board task per subagent session, and no idle capacity: when a session's task finishes (or parks on a blocking question), immediately re-assign it the next suitable board task as a follow-up prompt — its rulebook load is already in context, reuse it.
+- Size each parallel wave by the conflict surface: tasks must not share file hotspots (`CompositionRoot.cs` registration lines, resx tails, board rows/sections, `Directory.Build.props` + `CHANGELOG.md` heads). Overlapping needs sequence, not parallelism; pre-assign every task in a wave its own `alpha.N` in board canonical order so the parallel bumps never fight.
+- Every subagent instruction arrives self-contained with: its own worktree via `scripts/new-worktree.ps1 -Name <name> -Base develop` and `feat/<name>` branch, the resx en+ru duty, its own board-row and section flip, and the gate bar (`scripts/gate.ps1 -BaseBranch develop` must print `GATE PASSED`; `-AllowProtected` only for the protected files the task legitimately owns - the alpha bump, or `.github/*` for CI tasks, plus the same courtesy empowerment).
+- On a session crash (provider usage limit or operator error): inspect its worktree FIRST (`git log --oneline` + `git status`), then resume the SAME sessionID with a short continuation prompt naming the exact stop point and preserving already-drafted files. Only spawn a fresh session when the resume cannot be attributed or the context is lost.
+- The orchestrator never trusts, it verifies: after a subagent reports done, re-run the gate AND review the diff in its worktree; merge through the sync rules above (fetch, verify the tip, ff or sync-merge), then remove the worktree and branch.
+
 ## Design Principles (MANDATORY)
 
 ### SOLID Principles
