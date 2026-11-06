@@ -285,6 +285,12 @@
   <data name="Order.StopLimit" xml:space="preserve">
     <value>Stop-Limit</value>
   </data>
+  <data name="Order.TrailingStop" xml:space="preserve">
+    <value>Trailing Stop</value>
+  </data>
+  <data name="Order.Oco" xml:space="preserve">
+    <value>OCO (take-profit / stop-loss)</value>
+  </data>
   <data name="Trading.ConfirmPlaceOrderFormat" xml:space="preserve">
     <value>Place {0} {1} order {2} {3} at {4}?</value>
   </data>
@@ -338,6 +344,57 @@
   </data>
   <data name="NewOrder.OrderPlaced" xml:space="preserve">
     <value>Order placed: {0}</value>
+  </data>
+  <data name="NewOrder.TriggerPrice" xml:space="preserve">
+    <value>Stop trigger price</value>
+  </data>
+  <data name="NewOrder.OcoStopTrigger" xml:space="preserve">
+    <value>Stop-loss trigger</value>
+  </data>
+  <data name="NewOrder.OcoLimitPrice" xml:space="preserve">
+    <value>Take-profit limit price</value>
+  </data>
+  <data name="NewOrder.OcoStopLimitPrice" xml:space="preserve">
+    <value>Stop-loss limit price</value>
+  </data>
+  <data name="NewOrder.TriggerRequired" xml:space="preserve">
+    <value>Trigger price is required</value>
+  </data>
+  <data name="NewOrder.TriggerNotANumber" xml:space="preserve">
+    <value>Trigger price is not a number: {0}</value>
+  </data>
+  <data name="NewOrder.TrailRequired" xml:space="preserve">
+    <value>Trail distance is required</value>
+  </data>
+  <data name="NewOrder.TrailDistance" xml:space="preserve">
+    <value>Trail distance</value>
+  </data>
+  <data name="NewOrder.TrailNotANumber" xml:space="preserve">
+    <value>Trail distance is not a number: {0}</value>
+  </data>
+  <data name="NewOrder.TrailTooLarge" xml:space="preserve">
+    <value>Trail distance {0} must be smaller than the market price {1}</value>
+  </data>
+  <data name="NewOrder.SellTriggerMustBeBelowMarket" xml:space="preserve">
+    <value>A sell stop trigger ({0}) must sit below the market price ({1})</value>
+  </data>
+  <data name="NewOrder.BuyTriggerMustBeAboveMarket" xml:space="preserve">
+    <value>A buy stop trigger ({0}) must sit above the market price ({1})</value>
+  </data>
+  <data name="NewOrder.SellLimitMustBeAboveMarket" xml:space="preserve">
+    <value>A sell take-profit limit ({0}) must sit above the market price ({1})</value>
+  </data>
+  <data name="NewOrder.BuyLimitMustBeBelowMarket" xml:space="preserve">
+    <value>A buy take-profit limit ({0}) must sit below the market price ({1})</value>
+  </data>
+  <data name="NewOrder.InvalidParameters" xml:space="preserve">
+    <value>Invalid order parameters: {0}</value>
+  </data>
+  <data name="NewOrder.OcoPlaced" xml:space="preserve">
+    <value>OCO pair placed: {0} and {1}</value>
+  </data>
+  <data name="NewOrder.OcoAborted" xml:space="preserve">
+    <value>OCO placement aborted: the placed leg was cancelled.</value>
   </data>
   <data name="Positions.Title" xml:space="preserve">
     <value>Positions and orders</value>
