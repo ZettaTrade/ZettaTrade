@@ -4,6 +4,7 @@ using System;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Livery.Contracts;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 
@@ -141,3 +142,4 @@ public sealed class SymbolListProvider : IAsyncInitializable
         _logger.LogInformation("The active exchange changed; the cached symbol list is dropped");
     }
 }
+

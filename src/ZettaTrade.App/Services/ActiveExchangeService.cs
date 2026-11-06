@@ -7,6 +7,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
+using Livery.Contracts;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
@@ -250,3 +251,4 @@ public sealed class ActiveExchangeService : IMarketDataAdapter, IAsyncInitializa
 
     #endregion Private Methods
 }
+

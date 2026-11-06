@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.Tests.Services;
 
 using FluentAssertions;
+using Livery.Localization;
 using NSubstitute;
 using Xunit;
 using ZettaTrade.App.Services;
@@ -131,3 +132,4 @@ public sealed class OrderConfirmationComposerTests
 
     private static string FormatArgs(object[] args) => string.Join("|", args);
 }
+

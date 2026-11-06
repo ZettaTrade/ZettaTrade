@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Livery.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
@@ -249,3 +250,4 @@ public sealed class SqliteOrderHistoryStore(
 
     #endregion Private Methods
 }
+

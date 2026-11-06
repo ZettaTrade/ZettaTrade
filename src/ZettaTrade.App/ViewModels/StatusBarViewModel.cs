@@ -6,6 +6,8 @@ using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Livery.Extensions;
+using Livery.Localization;
+using Livery.Themes;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
@@ -334,3 +336,4 @@ public sealed class StatusBarViewModel : ReactiveObject
 
     #endregion Private Methods
 }
+

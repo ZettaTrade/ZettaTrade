@@ -78,6 +78,9 @@
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Indicators</value>
   </data>
+  <data name="Settings.Indicators.Empty" xml:space="preserve">
+    <value>No indicator plugins found in the app data directory's plugins folder (scan skips are reported in the log)</value>
+  </data>
   <data name="Settings.Tab.Mcp" xml:space="preserve">
     <value>MCP</value>
   </data>
@@ -95,6 +98,63 @@
   </data>
   <data name="Settings.Mcp.Hint" xml:space="preserve">
     <value>The local MCP server ("Zetta") exposes this terminal's trading tools to AI assistants over stdio. Nothing outside MCP protocol messages ever reaches stdout.</value>
+  </data>
+  <data name="Settings.McpClients.Caption" xml:space="preserve">
+    <value>External MCP servers</value>
+  </data>
+  <data name="Settings.McpClients.Hint" xml:space="preserve">
+    <value>Save applies the external servers: added or changed enabled entries connect, removed or disabled ones disconnect, and an entry whose saved connection did not change stays connected. The auth field holds a reference key that resolves through the secret store — the secret itself never rides the config or the logs. An unusable entry pins its own failed state with the transport's reason.</value>
+  </data>
+  <data name="Settings.McpClients.Add" xml:space="preserve">
+    <value>Add server</value>
+  </data>
+  <data name="Settings.McpClients.Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Settings.McpClients.Name" xml:space="preserve">
+    <value>Server name (the connections and the states key by it)</value>
+  </data>
+  <data name="Settings.McpClients.Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Settings.McpClients.Transport" xml:space="preserve">
+    <value>Transport</value>
+  </data>
+  <data name="Settings.McpClients.Command" xml:space="preserve">
+    <value>Command (the OS resolves it over PATH)</value>
+  </data>
+  <data name="Settings.McpClients.Args" xml:space="preserve">
+    <value>Arguments, space-separated (an argument containing spaces does not fit this text)</value>
+  </data>
+  <data name="Settings.McpClients.Address" xml:space="preserve">
+    <value>Host or address</value>
+  </data>
+  <data name="Settings.McpClients.Port" xml:space="preserve">
+    <value>Port (empty = the scheme's default)</value>
+  </data>
+  <data name="Settings.McpClients.Port.Empty" xml:space="preserve">
+    <value>default</value>
+  </data>
+  <data name="Settings.McpClients.Timeout" xml:space="preserve">
+    <value>HTTP connect timeout, seconds (empty = the transport's default)</value>
+  </data>
+  <data name="Settings.McpClients.AuthRef" xml:space="preserve">
+    <value>Auth secret reference key (resolves through the secret store)</value>
+  </data>
+  <data name="Settings.McpClients.State.Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="Settings.McpClients.State.Connecting" xml:space="preserve">
+    <value>Connecting…</value>
+  </data>
+  <data name="Settings.McpClients.State.Connected" xml:space="preserve">
+    <value>Connected</value>
+  </data>
+  <data name="Settings.McpClients.State.Failed" xml:space="preserve">
+    <value>Failed:</value>
+  </data>
+  <data name="Settings.McpClients.State.Empty" xml:space="preserve">
+    <value>Not applied yet — save to let the manager connect it</value>
   </data>
   <data name="Settings.Tab.Pairs" xml:space="preserve">
     <value>Pairs</value>

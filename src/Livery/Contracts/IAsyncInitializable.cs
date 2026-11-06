@@ -1,4 +1,4 @@
-namespace ZettaTrade.Core.Interfaces;
+namespace Livery.Contracts;
 
 /// <summary>
 /// Interface for services that require asynchronous initialization.

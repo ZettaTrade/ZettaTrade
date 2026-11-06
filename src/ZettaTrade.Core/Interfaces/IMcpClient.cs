@@ -60,6 +60,13 @@ public sealed record McpServerConfig
     /// <summary>Reference to a secret for authentication (e.g., "secret://api-key").</summary>
     public string? AuthSecretRef { get; init; }
 
+    /// <summary>
+    /// Streamable HTTP transport timeout in seconds; null keeps the
+    /// transport's shipped default (the client's own sanity floor). A
+    /// configured value is validated at connect: non-positive rejects.
+    /// </summary>
+    public int? HttpTimeoutSeconds { get; init; }
+
     /// <summary>Whether this server is enabled.</summary>
     public bool Enabled { get; init; } = true;
 

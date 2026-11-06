@@ -1,4 +1,4 @@
-namespace ZettaTrade.Core.Interfaces;
+namespace Livery.Themes;
 
 /// <summary>
 /// Theme management service.
