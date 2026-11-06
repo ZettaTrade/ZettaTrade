@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:element name="root" msIsDataSet="true">
@@ -568,6 +568,93 @@
     <value>Restore</value>
   </data>
   <data name="Chrome.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Menu.Trading.Stats" xml:space="preserve">
+    <value>Trade Statistics...</value>
+  </data>
+  <data name="Stats.Title" xml:space="preserve">
+    <value>Trade Statistics</value>
+  </data>
+  <data name="Stats.FilterSymbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="Stats.FilterSymbolHint" xml:space="preserve">
+    <value>BASE/QUOTE, leave empty for all</value>
+  </data>
+  <data name="Stats.FilterExchange" xml:space="preserve">
+    <value>Exchange</value>
+  </data>
+  <data name="Stats.FilterExchangeAny" xml:space="preserve">
+    <value>Any exchange id</value>
+  </data>
+  <data name="Stats.FilterVenue" xml:space="preserve">
+    <value>Venue</value>
+  </data>
+  <data name="Stats.VenueAll" xml:space="preserve">
+    <value>All venues</value>
+  </data>
+  <data name="Stats.VenuePaper" xml:space="preserve">
+    <value>Paper</value>
+  </data>
+  <data name="Stats.VenueLive" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="Stats.FilterFrom" xml:space="preserve">
+    <value>From</value>
+  </data>
+  <data name="Stats.FilterTo" xml:space="preserve">
+    <value>To</value>
+  </data>
+  <data name="Stats.Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Stats.Trades" xml:space="preserve">
+    <value>Trades</value>
+  </data>
+  <data name="Stats.Wins" xml:space="preserve">
+    <value>Wins</value>
+  </data>
+  <data name="Stats.Losses" xml:space="preserve">
+    <value>Losses</value>
+  </data>
+  <data name="Stats.WinRate" xml:space="preserve">
+    <value>Win rate</value>
+  </data>
+  <data name="Stats.ProfitFactor" xml:space="preserve">
+    <value>Profit factor</value>
+  </data>
+  <data name="Stats.AverageWinner" xml:space="preserve">
+    <value>Average winner</value>
+  </data>
+  <data name="Stats.AverageLoser" xml:space="preserve">
+    <value>Average loser</value>
+  </data>
+  <data name="Stats.MaxDrawdown" xml:space="preserve">
+    <value>Max drawdown</value>
+  </data>
+  <data name="Stats.Realized" xml:space="preserve">
+    <value>Realized PnL</value>
+  </data>
+  <data name="Stats.Volume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="Stats.Scanning" xml:space="preserve">
+    <value>Scanning... {0} fills looked at so far</value>
+  </data>
+  <data name="Stats.Scanned" xml:space="preserve">
+    <value>All {0} fills scanned</value>
+  </data>
+  <data name="Stats.LoadFailed" xml:space="preserve">
+    <value>Load failed: {0}</value>
+  </data>
+  <data name="Stats.InvalidSymbol" xml:space="preserve">
+    <value>Unknown symbol format: {0}. Use BASE/QUOTE, for example BTC/USDT.</value>
+  </data>
+  <data name="Stats.Empty" xml:space="preserve">
+    <value>No closed trades for the selected filters yet — apply broader filters or trade on paper first.</value>
+  </data>
+  <data name="Stats.Close" xml:space="preserve">
     <value>Close</value>
   </data>
 </root>

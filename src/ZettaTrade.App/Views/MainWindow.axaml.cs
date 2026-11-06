@@ -45,6 +45,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.NewOrderRequested.RegisterHandler(OpenNewOrderAsync);
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
+        ViewModel?.Menu.ShowTradeStatsRequested.RegisterHandler(OpenTradeStatsAsync);
         ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
         ViewModel?.Menu.ShowDisclaimerRequested.RegisterHandler(OpenDisclaimerAsync);
 
@@ -182,6 +183,28 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the order history window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenTradeStatsAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The view model is transient: every open starts a fresh scan of
+            // the persisted order journal, so the tiles never show stale runs.
+            var window = new TradeStatsWindow
+            {
+                DataContext = App.Services.GetRequiredService<ViewModels.TradeStatsViewModel>(),
+            };
+            await window.ShowDialog<object>(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the trade statistics window");
         }
         finally
         {
