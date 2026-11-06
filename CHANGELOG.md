@@ -9,6 +9,28 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.43] - 2026-11-06
+
+Build of board task T-082 (branch `feat/pnl-engine`).
+
+### Added
+- The headless PnL accounting core (T-082). `PnlAccountingService` keeps
+  average-price bookkeeping over the shipped paper/fill ledger (an order
+  with a positive `FilledQuantity` carries its execution, sans fee data),
+  realizes PnL per closing fill with the position-flip path (a closing
+  trade larger than the position re-opens the remainder on the other side
+  at the same fill price), prices the unrealized side from ticker feeds,
+  exposes state changes over an observable feed — and persists realized
+  history to SQLite (EF canon, `AddPnlRealized`) so an application restart
+  reconstructs the identical numbers from the persisted rows.
+- The App-side `PnlFeedService` wrapper: the engine's feed for future
+  panels, ticker pricing through the active-exchange facade, and a slow
+  idempotent ledger re-sync (the journal has no change notifications).
+- The fee seam, per the task decision: the ledger carries no fee data, so
+  commission enters only through an explicit per-fill parameter on the
+  domain API (absence ≡ zero; no fee fabricated); T-080 plugs real
+  schedule data into it without Core changes.
+
 ## [0.1.0-alpha.39] - 2026-11-06
 
 Build of board task T-074 (branch `feat/order-types`).
