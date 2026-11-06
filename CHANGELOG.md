@@ -9,6 +9,20 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.37] - 2026-11-06
+
+Build of board task T-072 (branch `feat/order-book-depth`).
+
+### Fixed
+- The order book widget renders live data again on depth-locked exchanges:
+  Bybit serves `orderbook.1`/`orderbook.50` only and the BUG-032 guard
+  rejected the interface-default request of 20 levels as a contract error,
+  emptying the widget on a stream failure (the rejections stood in the daily
+  logs since 2026-10-18). The facade now resolves the requested depth
+  against the active adapter's served set — the smallest deep-enough depth
+  wins, else the deepest served one; undeclared adapters pass through; the
+  adapter-side rejection contract stays untouched.
+
 ## [0.1.0-alpha.36] - 2026-11-06
 
 Build of board task T-071 (branch `feat/window-chrome-black`).

@@ -36,6 +36,6 @@
          file properties (Product version), in NuGet metadata and in the
          status bar version chip. -->
     <VersionPrefix>0.1.0</VersionPrefix>
-    <VersionSuffix>alpha.36</VersionSuffix>
+    <VersionSuffix>alpha.37</VersionSuffix>
   </PropertyGroup>
 </Project>
