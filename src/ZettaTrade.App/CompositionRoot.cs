@@ -16,6 +16,7 @@ using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Indicators;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Infrastructure.Secrets;
@@ -200,6 +201,7 @@ internal static class CompositionRoot
         services.AddTradingUiServices();
         services.AddOrderHistory();
         services.AddHistoryUiServices();
+        services.AddCsvExportServices();
 
         var provider = services.BuildServiceProvider();
 

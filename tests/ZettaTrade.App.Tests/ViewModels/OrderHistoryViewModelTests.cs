@@ -37,6 +37,7 @@ public sealed class OrderHistoryViewModelTests
 
     private OrderHistoryViewModel CreateViewModel() => new(
         _store,
+        Substitute.For<ZettaTrade.Infrastructure.Export.ICsvExportService>(),
         _localization,
         Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderHistoryViewModel>>());
 
