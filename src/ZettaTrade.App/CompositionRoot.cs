@@ -128,6 +128,11 @@ internal static class CompositionRoot
             sp.GetRequiredService<ILocalizationManager>()));
         services.AddSingleton<TradingToolsRegistrar>();
 
+        // First-run disclaimer: the acknowledged-version flag rides the
+        // settings store (read fresh at every launch, never cached), and the
+        // dialog view model is transient per open.
+        services.AddDisclaimerServices();
+
         services.AddSingleton<MenuViewModel>();
         services.AddSingleton<StatusBarViewModel>(sp =>
             new StatusBarViewModel(
