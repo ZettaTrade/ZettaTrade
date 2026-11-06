@@ -122,7 +122,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
 | T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | - | queued | - |
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | queued | - |
-| T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | docs/safety-readme | queued | - |
+| T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | queued | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
@@ -562,6 +562,7 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `README.md` (+ `docs/SECURITY.md`), docs-only (no version bump).
 - **Acceptance:** every claim matches shipped features only (no promises beyond testnet/documentable paths).
 - **Tests:** none (docs), a words-only review.
+- **Status:** done. Canon: the branch carries the docs-only commit below — a rewritten top-level README with the trading-safety guidance front and center: explicit alpha status, user-scoped key hygiene (read-only for market data, trade-only for trading, withdrawal/transfer off, IP allowlist where offered), testnet-first instructions tied to the configurable `Exchange` endpoint section and the paper-trading/risk/confirmation surfaces, the per-machine `ISecretStore` storage path, and the investment-disclaimer block; the docs-site instructions stay subordinated under a dedicated heading. `docs/SECURITY.md` is referenced as a link only (created by the sibling task T-117). Gate passed; docs-only, no version bump and no CHANGELOG section by scope. Canon: the branch carries `577fd42` (the README rewrite) and this board-flip commit.
 
 ## T-119 — First-run disclaimer in the UI («not investment advice») + the explicit alpha posture
 
