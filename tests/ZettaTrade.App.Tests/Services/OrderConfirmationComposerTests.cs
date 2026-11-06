@@ -81,6 +81,52 @@ public sealed class OrderConfirmationComposerTests
     }
 
     [Fact]
+    public void ForPlace_StopMarketOrder_SummarizesAtTheStopTrigger()
+    {
+        // Arrange
+        var composer = new OrderConfirmationComposer(_localization);
+        var request = new OrderRequest
+        {
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Sell,
+            Type = OrderType.StopMarket,
+            Quantity = new Quantity(0.02m),
+            StopPrice = new Price(49_900m),
+        };
+
+        // Act
+        var confirmation = composer.ForPlace(request);
+
+        // Assert: with no limit price, the trigger anchors the summary —
+        // never the market label, which meant nothing for a stop order.
+        confirmation.Arguments[1].Should().Be("[Order.StopMarket]");
+        confirmation.Arguments[4].Should().Be("49900.00000000");
+    }
+
+    [Fact]
+    public void ForPlace_TrailingStopOrder_SummarizesAtItsTriggerSeed()
+    {
+        // Arrange
+        var composer = new OrderConfirmationComposer(_localization);
+        var request = new OrderRequest
+        {
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Sell,
+            Type = OrderType.TrailingStop,
+            Quantity = new Quantity(0.02m),
+            StopPrice = new Price(49_500m),
+            TrailDistance = new Price(500m),
+        };
+
+        // Act
+        var confirmation = composer.ForPlace(request);
+
+        // Assert
+        confirmation.Arguments[1].Should().Be("[Order.TrailingStop]");
+        confirmation.Arguments[4].Should().Be("49500.00000000");
+    }
+
+    [Fact]
     public void ForCancel_BuildsPositionsTemplateWithOrderIdentity()
     {
         // Arrange
