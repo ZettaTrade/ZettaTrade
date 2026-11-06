@@ -9,6 +9,36 @@ before `alpha.10` was never versioned — what shipped in T-001 – T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.39] - 2026-11-06
+
+Build of board task T-074 (branch `feat/order-types`).
+
+### Added
+- Advanced order types end-to-end. The order request shapes grow an
+  additive `TrailDistance` and `OcoGroupId`, with the stop-limit
+  trigger-vs-limit matrix and the trailing-stop parameter requirements in
+  `Validate` — an inverted or unparsable shape is a returned error, never
+  a default. The paper adapter simulates the conditionals on the wrapped
+  adapter's live ticker stream: a stop-limit arms as a working order and
+  fills at its limit on the trigger tick; a trailing stop ratchets its
+  trigger along the favorable direction and fills at the ratcheted level;
+  OCO legs share an either-or group where the first terminal leg takes the
+  rest down (a trigger whose fill is refused lands the leg Rejected and
+  still tears the pair down; a leg joining a half pair is rejected
+  explicitly, and a refused placement leaves no phantom). Immediately
+  triggering stops are refused with an explicit error, and the risk hard
+  cap values stop orders at their trigger — the notional the order really
+  commits to.
+- The order ticket carries the conditional inputs: the stop trigger and
+  the trailing distance rows, and an OCO mode that places a take-profit
+  limit and a stop-loss stop-limit as two legs of a fresh group — each leg
+  through the full risk/confirmation gate, a half-placed pair aborted
+  best-effort so it never goes half-working. The trailing seed derives
+  from the newest reference close (the shared newest-by-bar-time
+  selection), and stop triggers and take-profit levels are
+  market-direction checked with localized refusals. Resx grows to 167 keys
+  on both en and ru.
+
 ## [0.1.0-alpha.38] - 2026-11-06
 
 Build of board task T-073 (branch `feat/flaky-localization`).

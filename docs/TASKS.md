@@ -78,7 +78,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-071 Window chrome follow-ups: fix the black content pane + caption strip polish (user-reported) | feat/window-chrome-black | done | - |
 | T-072 Order book empty under Bybit: the facade resolves the displayed depth against the served one (user-reported) | feat/order-book-depth | done | - |
 | T-073 Flaky concurrency test: GetString_AFactoryParkedAcrossASwitch fails intermittently under load (queued from the T-071/T-072 landing) | feat/flaky-localization | done | - |
-| T-074 Advanced order types: stop-limit, trailing stop, OCO | feat/order-types | queued | - |
+| T-074 Advanced order types: stop-limit, trailing stop, OCO | feat/order-types | done | - |
 | T-075 Amend a working order from the orders panel | feat/order-amend | queued | - |
 | T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | queued | - |
 | T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | queued | - |
@@ -166,6 +166,7 @@ the end of that file, so no effort is duplicated.
 - **Scope:** Core order shapes (additive), paper trading engine, ticket VM/view, adapters that can map the types (Bybit/demo; adapters that cannot return a rejected intent rather than degrade), resx en+ru, tests.
 - **Acceptance:** each type rides submit → working → fill/cancel on paper; the hard order-value cap applies to notional at trigger; unsupported adapters degrade explicitly.
 - **Tests:** the validation golden, per-type paper fills, OCO both-legs semantics (one fills → the other cancels best-effort, no orphans), the unparsable-params error path.
+- **Status:** done. Canon: the branch carries the additive order shapes (`29f8e2e`), the paper conditional simulation (`86ce25a`) with its semantics pins (`ac5bac9`), the trigger-anchored risk cap (`0c17c34`) and the conditional ticket (`182b549`), plus this release commit (the alpha.39 cut + this section's status flip); shipped as `0.1.0-alpha.39` (see CHANGELOG.md). No Core interface changes were needed — everything rides the existing `IMarketDataAdapter`/`ITradingAdapter` seams. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-075 — Amend a working order from the orders panel
 
