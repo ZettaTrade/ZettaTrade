@@ -1,13 +1,22 @@
-# Changelog
+## [0.1.0-alpha.45] - 2026-11-06
 
-All notable changes to ZettaTrade are documented here, newest first
-(Keep a Changelog format).
+Build of board task T-083 (branch `feat/trade-stats`).
 
-While the app is in alpha, one release == one merged board task: task
-`T-0NN` ships as `0.1.0-alpha.NN` and adds its section below. The state
-before `alpha.10` was never versioned — what shipped in T-001 – T-009
-(app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
-dialog, positions panel) is recorded in `docs/TASKS.md`.
+### Added
+- Trade statistics dashboard (Trading → «Trade Statistics...»). A
+  read-only scan of the persisted order journal builds the stats from raw
+  fills only: every closing fill counts as its own trade against the
+  average-entry bookkeeping — win rate, profit factor («∞» when no
+  losing fills, «—» when nothing to divide), maximum drawdown over the
+  equity curve including its zero-seeded start, average winner and
+  average loser, trade count and filled volume — all shown as metric
+  tiles over a Skia equity curve (zero anchor at the first fill, one
+  point per closing fill). Filters (symbol, exchange id, venue
+  all/paper/live, inclusive-from / exclusive-to dates) restart a paged
+  keyset scan ((CreatedAt, ExchangeId, OrderId) continuation) that
+  refines the result progressively; the read query lives in
+  Infrastructure Persistence with no write path and the aggregation math
+  in the App accumulator service. Fully localized en+ru.
 
 ## [0.1.0-alpha.44] - 2026-11-06
 
@@ -15,6 +24,55 @@ Build of board task T-075 (branch `feat/order-amend`).
 
 ### Added
 - Amend a working order from the orders panel: every working, amendable row (a limit, a stop-limit or a trailing stop; market, stop-market and OCO legs are refused explicitly) carries an Amend button that opens an edit dialog over the panel — quantity, plus the limit price for the limit-bearing types (a trailing stop's price is its ratcheting trigger, never editable). The amend is a full pipeline, not a field rewrite: the adapter's fresh open-order state is re-read (never the stale display row), the amended shape is validated and re-checked through `IRiskManager` (a rejected shape leaves the order untouched), and the confirmation dialog fires when the risk manager demands one, when the order carries any fill (the amend rewrites live exposure), or when the notional moves beyond 25% in either direction. The replace rides the adapter's in-place seam where an adapter offers it; the shipped paper adapter (no such seam) runs an explicit cancel + new order, surfaced to the user as cancel+new — never a silent fake replace. A fill racing the amend wins and is reported («the order is no longer working; the amend was not performed»), the row keeps an «Amending…» state for the whole flow (double-click in flight is a no-op), and a cancel-landed-but-replacement-failed hole is reported loudly. Fully localized en+ru.
+## [0.1.0-alpha.43] - 2026-11-06
+
+Build of board task T-082 (branch `feat/pnl-engine`).
+
+### Added
+- The headless PnL accounting core (T-082). `PnlAccountingService` keeps
+  average-price bookkeeping over the shipped paper/fill ledger (an order
+  with a positive `FilledQuantity` carries its execution, sans fee data),
+  realizes PnL per closing fill with the position-flip path (a closing
+  trade larger than the position re-opens the remainder on the other side
+  at the same fill price), prices the unrealized side from ticker feeds,
+  exposes state changes over an observable feed — and persists realized
+  history to SQLite (EF canon, `AddPnlRealized`) so an application restart
+  reconstructs the identical numbers from the persisted rows.
+- The App-side `PnlFeedService` wrapper: the engine's feed for future
+  panels, ticker pricing through the active-exchange facade, and a slow
+  idempotent ledger re-sync (the journal has no change notifications).
+- The fee seam, per the task decision: the ledger carries no fee data, so
+  commission enters only through an explicit per-fill parameter on the
+  domain API (absence ≡ zero; no fee fabricated); T-080 plugs real
+  schedule data into it without Core changes.
+
+## [0.1.0-alpha.42] - 2026-11-06
+
+Build of board task T-081 (branch `feat/balances`).
+
+### Added
+- The balances panel (Trading menu): one read-only surface next to the
+  positions/orders panels showing every active exchange's served balances
+  (per-exchange sections plus an aggregated view that sums the amounts per
+  asset across the adapters that actually provide balances). The panel
+  follows the adapters' honesty contract: an adapter without balance data
+  renders the explicit "not provided" state and a faulting query renders
+  the localized fault — a zero is never a plausible-but-wrong figure. Data
+  rides the shipped trading seam (`ITradingAdapter.GetBalancesAsync`): the
+  paper account serves rows live (empty before the first fill), while the
+  market-data-only faces (Binance/Bybit/demo) report the not-provided
+  state; manual refresh; en+ru localization; aggregation and state-machine
+  tests.
+
+## [0.1.0-alpha.41] - 2026-11-06
+
+Build of board task T-084 (branch `feat/csv-export`).
+
+### Added
+- CSV export for the app's local data surfaces (order journal, fills, candles): the `ICsvExportService` writer streams RFC 4180-quoted rows with invariant decimals, ISO-8601 UTC timestamps, UTF-8 (no BOM) and CRLF line endings, row by row with cancellation between rows and an honest `DirectoryNotFoundException` on a missing destination — a six-figure history exports with a one-row memory footprint.
+- The order history window gains Export Orders CSV and Export Fills CSV actions: the loaded journal rows are the export set, the destination comes through a save-file dialog (cancelled = nothing written, no error), and a write fault surfaces on the window's localized error line.
+- The chart panel gains Export Candles CSV: the displayed series is the export set and faults land on the panel's own error line (the status bar stays with connection state); the main window answers the save-file interaction for the app-lifetime display in `OnOpened`.
+- Localization: `History.Export*` and `Chart.Export*` keys in both en and ru catalogs.
 
 ## [0.1.0-alpha.40] - 2026-11-06
 

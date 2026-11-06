@@ -1,0 +1,133 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        xmlns:charting="using:ZettaTrade.UI.Charting"
+        x:Class="ZettaTrade.App.Views.TradeStatsWindow"
+        Classes="chrome"
+        x:DataType="vm:TradeStatsViewModel"
+        Title="{loc:Localized Stats.Title}"
+        Width="1000" Height="640"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="10">
+
+        <!-- Filters: text fields, the paper-live tag and the date range -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*" >
+            <WrapPanel Grid.Column="1">
+                <StackPanel Margin="0,0,16,8">
+                    <TextBlock Text="{loc:Localized Stats.FilterSymbol}" Margin="0,0,0,2" />
+                    <TextBox Width="120" Text="{Binding SymbolFilterText}"
+                             PlaceholderText="{loc:Localized Stats.FilterSymbolHint}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,8">
+                    <TextBlock Text="{loc:Localized Stats.FilterExchange}" Margin="0,0,0,2" />
+                    <TextBox Width="130" Text="{Binding ExchangeFilterText}"
+                             PlaceholderText="{loc:Localized Stats.FilterExchangeAny}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,8">
+                    <TextBlock Text="{loc:Localized Stats.FilterVenue}" Margin="0,0,0,2" />
+                    <ComboBox Width="150" SelectedIndex="{Binding VenueIndex}">
+                        <ComboBoxItem Content="{loc:Localized Stats.VenueAll}" />
+                        <ComboBoxItem Content="{loc:Localized Stats.VenuePaper}" />
+                        <ComboBoxItem Content="{loc:Localized Stats.VenueLive}" />
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Margin="0,0,16,8">
+                    <TextBlock Text="{loc:Localized Stats.FilterFrom}" Margin="0,0,0,2" />
+                    <DatePicker Width="165" SelectedDate="{Binding FromDate}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,8">
+                    <TextBlock Text="{loc:Localized Stats.FilterTo}" Margin="0,0,0,2" />
+                    <DatePicker Width="165" SelectedDate="{Binding ToDate}" />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Bottom">
+                    <Button Content="{loc:Localized Stats.Apply}"
+                            Command="{Binding ApplyCommand}"
+                            MinWidth="90" />
+                </StackPanel>
+            </WrapPanel>
+
+        </Grid>
+
+        <!-- Stats + equity area: the tiles stand over the chart; both honest
+             zero/dash baselines while nothing is scanned yet. -->
+        <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+            <UniformGrid Grid.Row="0" Columns="5" Rows="2" Margin="0,4,0,0">
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.Trades}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding TradesText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.Wins}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding WinsText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.Losses}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding LossesText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.WinRate}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding WinRateText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.ProfitFactor}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding ProfitFactorText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.AverageWinner}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding AverageWinnerText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.AverageLoser}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding AverageLoserText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.MaxDrawdown}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding MaxDrawdownText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.Realized}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding RealizedText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Spacing="2" Margin="0,0,8,4">
+                    <TextBlock Text="{loc:Localized Stats.Volume}" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Text="{Binding VolumeText}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+            </UniformGrid>
+
+            <!-- The equity curve: the Skia area over the cumulative realized PnL -->
+            <charting:EquityCurveChart Grid.Row="1"
+                                       Points="{Binding EquityPoints}"
+                                       IsVisible="{Binding HasTrades}" />
+
+            <!-- The honest empty state: no fabricated success numbers -->
+            <TextBlock Grid.Row="1"
+                       Text="{loc:Localized Stats.Empty}"
+                       IsVisible="{Binding !HasTrades}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap" />
+        </Grid>
+
+        <!-- Progress / failure -->
+        <StackPanel Grid.Row="2" Spacing="4">
+            <TextBlock Text="{Binding ScanStateText}"
+                       IsVisible="{Binding ScanStateText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{DynamicResource Error}"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasErrorMessage}" />
+        </StackPanel>
+
+        <Button Grid.Row="3"
+                Content="{loc:Localized Stats.Close}"
+                Click="OnCloseClick"
+                MinWidth="90"
+                HorizontalAlignment="Right" />
+
+    </Grid>
+</Window>
