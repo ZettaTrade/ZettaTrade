@@ -16,11 +16,17 @@ using ZettaTrade.Infrastructure.Persistence;
 /// <summary>
 /// Positions and orders panel view model (modal window). Loads positions,
 /// open orders and the session journal from the current trading adapter on
-/// demand, and routes cancel requests through the mandatory pipeline:
+/// demand, routes cancel requests through the mandatory pipeline:
 /// <see cref="IConfirmationService"/> → <see cref="ITradingAdapter.CancelOrderAsync"/>
 /// where the adapter always receives the order's own symbol and id (the
 /// Symbol-first contract) and the SQLite order history is updated after the
-/// adapter confirms the cancellation. Window plumbing stays in the View.
+/// adapter confirms the cancellation, and routes amend requests through the
+/// <see cref="Services.OrderAmendService"/> pipeline: the view asks for the
+/// edits through <see cref="AmendRequested"/> (window plumbing stays in the
+/// View), then the service re-reads the adapter state, revalidates the
+/// amended shape through <see cref="IRiskManager"/>, walks large-delta
+/// amends through the confirmation dialog and re-places the order — the
+/// row shows the amending state for as long as the replace is in flight.
 /// </summary>
 public sealed class PositionsPanelViewModel : ReactiveObject
 {
@@ -29,6 +35,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     private const string LoadFailedKey = "Positions.LoadFailed";
     private const string CancelledKey = "Positions.Cancelled";
     private const string CancelFailedKey = "Positions.CancelFailed";
+    private const string AmendFailedKey = "Positions.AmendFailed";
 
     #endregion Resx Keys
 
@@ -39,11 +46,18 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     private readonly IOrderHistoryStore _orderHistory;
     private readonly IConfirmationService _confirmation;
     private readonly OrderConfirmationComposer _composer;
+    private readonly OrderAmendService _amendService;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<PositionsPanelViewModel> _logger;
 
     /// <summary>Serializes the cancel pipeline; re-entrancy is an error state.</summary>
     private bool _cancelling;
+
+    /// <summary>Serializes the amend pipeline; never two pipelined amends.</summary>
+    private bool _amending;
+
+    /// <summary>Id of the order whose amend is in flight; drives the row's amending state.</summary>
+    private string? _amendingOrderId;
 
     #endregion Private Fields
 
@@ -158,6 +172,14 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     /// <summary>Reloads every section from the adapter and the journal.</summary>
     public ReactiveCommand<RxVoid, RxVoid> LoadCommand { get; }
 
+    /// <summary>
+    /// The amend dialog handoff: the view model asks for the edits over one
+    /// order, the View opens the amend dialog window and answers with the
+    /// parsed <see cref="Services.OrderAmendRequest"/> — or null when the
+    /// user cancelled the dialog. Window plumbing stays in the View.
+    /// </summary>
+    public Interaction<Order, OrderAmendRequest?> AmendRequested { get; }
+
     #endregion Properties
 
     #region Constructor
@@ -172,6 +194,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         IOrderHistoryStore orderHistory,
         IConfirmationService confirmation,
         OrderConfirmationComposer composer,
+        OrderAmendService amendService,
         ILocalizationManager localization,
         ILogger<PositionsPanelViewModel> logger)
     {
@@ -180,10 +203,12 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         _orderHistory = orderHistory ?? throw new ArgumentNullException(nameof(orderHistory));
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
+        _amendService = amendService ?? throw new ArgumentNullException(nameof(amendService));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         LoadCommand = ReactiveCommand.CreateFromTask(HandleLoadAsync);
+        AmendRequested = new Interaction<Order, OrderAmendRequest?>();
     }
 
     #endregion Constructor
@@ -270,6 +295,96 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         }
     }
 
+    /// <summary>
+    /// The amend flow for one order: the row state shows amending while the
+    /// flow is in flight, the View hands back the parsed edits (null = the
+    /// user cancelled the dialog), and the <see cref="Services.OrderAmendService"/>
+    /// pipeline carries the state re-read, the risk re-check, the
+    /// confirmation rule and the replace. The result line renders the
+    /// outcome — including the honest cancel+new-or-fill-won outcomes.
+    /// </summary>
+    private async Task HandleAmendAsync(Order order)
+    {
+        // The command can only fire from one row at a time in practice, but
+        // re-entrancy (double click, the dialog reopened while the flow
+        // runs) must still be impossible: never two pipelined amends.
+        if (_amending)
+        {
+            return;
+        }
+
+        // A fresh attempt replaces whatever the previous attempt reported.
+        ErrorMessage = null;
+        ResultMessage = null;
+
+        _amending = true;
+        _amendingOrderId = order.Id;
+        MarkAmendingRow(order.Id, isAmending: true);
+        try
+        {
+            var edits = await AmendRequested.Handle(order);
+            if (edits is null)
+            {
+                _logger.LogInformation(
+                    "Positions panel: the amend dialog of {OrderId} closed without an amend",
+                    order.Id);
+                return;
+            }
+
+            var result = await _amendService.AmendAsync(edits);
+            if (result.Message is { } message)
+            {
+                if (result.Succeeded)
+                {
+                    ResultMessage = message;
+                }
+                else
+                {
+                    ErrorMessage = message;
+                }
+            }
+
+            // The state clears BEFORE the reload: the fresh rows must render
+            // the post-amend state, not the still-amending marker.
+            _amending = false;
+            _amendingOrderId = null;
+            await ReloadSectionsAsync();
+        }
+        catch (Exception ex)
+        {
+            // Broader than the service's own conversion: only an unexpected
+            // fault of the dialog handoff itself can reach here, and the
+            // panel must report it instead of going silently stale.
+            _logger.LogError(ex, "Positions panel: the amend flow of {OrderId} failed", order.Id);
+            ErrorMessage = _localization.GetString(AmendFailedKey, ex.Message);
+        }
+        finally
+        {
+            // The declared end of every path, including the
+            // dialog-cancelled early return: the row's amending state ends
+            // exactly when the flow does.
+            _amending = false;
+            _amendingOrderId = null;
+            MarkAmendingRow(order.Id, isAmending: false);
+        }
+    }
+
+    /// <summary>
+    /// Flip the amending marker on the row that carries
+    /// <paramref name="orderId"/> in both order sections: the list itself is
+    /// rebuilt only at reload, so an in-flight reload cannot wipe the marker
+    /// (the row factory reads the id field at rebuild too).
+    /// </summary>
+    private void MarkAmendingRow(string orderId, bool isAmending)
+    {
+        OpenOrders = OpenOrders
+            .Select(row => row.OrderId == orderId ? row with { IsAmending = isAmending } : row)
+            .ToArray();
+        RecentOrders = RecentOrders
+            .Select(row => row.OrderId == orderId ? row with { IsAmending = isAmending } : row)
+            .ToArray();
+    }
+
     private async Task ReloadSectionsAsync()
     {
         try
@@ -317,7 +432,10 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     /// <summary>
     /// Build the immutable display row for one order. The per-row cancel
     /// command closes over the full order (adapter symbol + id) and is
-    /// enabled exactly when the status is still cancellable upstream.
+    /// enabled exactly when the status is still cancellable upstream; the
+    /// per-row amend command is enabled for the statuses AND types the
+    /// amend flow accepts, and the amending marker renders while that
+    /// row's flow is in flight.
     /// </summary>
     private OrderRowViewModel CreateOrderRow(Order order)
     {
@@ -325,6 +443,16 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             is OrderStatus.Pending
             or OrderStatus.Submitted
             or OrderStatus.PartiallyFilled;
+
+        // The amendable set narrows the cancellable one by type: market and
+        // stop-market orders execute at once and are never amendable, and
+        // the OCO legs the service refuses stay disabled at the button too.
+        // A partially filled working order stays amendable — its amend asks
+        // for the confirmation the flow's rule defines (fills rewrite the
+        // remaining exposure).
+        var isAmendable = isCancellable
+            && order.Type is OrderType.Limit or OrderType.StopLimit or OrderType.TrailingStop
+            && order.OcoGroupId is null;
 
         return new OrderRowViewModel
         {
@@ -340,9 +468,14 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             // (bug BUG-055: the panel used to print the raw UTC field).
             Opened = order.CreatedAt.ToLocalTime().ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
             IsCancellable = isCancellable,
+            IsAmendable = isAmendable,
+            IsAmending = _amendingOrderId == order.Id,
             CancelCommand = ReactiveCommand.CreateFromTask(
                 () => HandleCancelAsync(order),
                 Observable.Return(isCancellable)),
+            AmendCommand = ReactiveCommand.CreateFromTask(
+                () => HandleAmendAsync(order),
+                Observable.Return(isAmendable)),
         };
     }
 

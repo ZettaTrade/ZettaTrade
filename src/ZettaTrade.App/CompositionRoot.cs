@@ -203,6 +203,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();
+        services.AddOrderAmendServices();
         services.AddOrderHistory();
         services.AddHistoryUiServices();
 

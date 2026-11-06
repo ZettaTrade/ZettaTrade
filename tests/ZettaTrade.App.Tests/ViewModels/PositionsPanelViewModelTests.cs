@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
@@ -9,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Livery.Localization;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using ZettaTrade.App.Services;
@@ -27,7 +29,10 @@ using ZettaTrade.Infrastructure.Persistence;
 /// cancellable. Every load or cancel fault reaches the user as a localized
 /// error line (no silently stale sections, no unobserved command
 /// exceptions), and one order renders the same wall-clock time in the panel
-/// and in the order history window.
+/// and in the order history window. The amend flow (T-075) runs through the
+/// real <see cref="OrderAmendService"/> pipeline: the row gates the amend
+/// button, the interaction hands the dialog edits over, and the row shows
+/// its amending state for the whole flow, in-flight reloads included.
 /// </summary>
 public sealed class PositionsPanelViewModelTests
 {
@@ -36,6 +41,10 @@ public sealed class PositionsPanelViewModelTests
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
     private readonly IOrderJournal _journal = new OrderJournal();
     private readonly IOrderHistoryStore _history = Substitute.For<IOrderHistoryStore>();
+    private readonly IRiskManager _riskManager = Substitute.For<IRiskManager>();
+
+    /// <summary>The adapter's open-order set the panel and the amend flow both see.</summary>
+    private readonly List<Order> _openOrders = [];
 
     public PositionsPanelViewModelTests()
     {
@@ -45,6 +54,13 @@ public sealed class PositionsPanelViewModelTests
             $"[{call.ArgAt<string>(0)}]");
         _localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
             $"[{call.ArgAt<string>(0)}:{FormatArgs(call.ArgAt<object[]>(1))}]");
+
+        // The adapt flow re-validates the amended shape; the default test
+        // posture approves it without an extra confirmation demand.
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved());
+
+        _trading.GetOpenOrdersAsync().Returns(_ => [.. _openOrders]);
     }
 
     private PositionsPanelViewModel CreateViewModel() =>
@@ -54,19 +70,34 @@ public sealed class PositionsPanelViewModelTests
             _history,
             _confirmation,
             new OrderConfirmationComposer(_localization),
+            new OrderAmendService(
+                _trading,
+                _riskManager,
+                _confirmation,
+                new OrderConfirmationComposer(_localization),
+                _journal,
+                _history,
+                _localization,
+                NullLogger<OrderAmendService>.Instance),
             _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionsPanelViewModel>>());
 
-    private static Order BuildOrder(string id, OrderStatus status, string symbol = "BTC/USDT") => new()
+    private static Order BuildOrder(
+        string id,
+        OrderStatus status,
+        string symbol = "BTC/USDT",
+        OrderType type = OrderType.Limit,
+        string? ocoGroupId = null) => new()
     {
         Id = id,
         ExchangeId = "paper",
         Symbol = Symbol.Parse(symbol),
         Side = OrderSide.Buy,
-        Type = OrderType.Limit,
+        Type = type,
         Quantity = new Quantity(0.01m),
         Price = new Price(50_000m),
         Status = status,
+        OcoGroupId = ocoGroupId,
         TimeInForce = TimeInForce.GTC,
         CreatedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
     };
@@ -426,6 +457,258 @@ public sealed class PositionsPanelViewModelTests
             .Subscribe(value => canExecute = value);
         canExecute.Should().Be(expected);
     }
+
+    #region Amend Flow
+
+    [Theory]
+    [InlineData(OrderType.Limit, OrderStatus.Pending, false, true)]
+    [InlineData(OrderType.Limit, OrderStatus.Submitted, false, true)]
+    [InlineData(OrderType.Limit, OrderStatus.PartiallyFilled, false, true)]
+    [InlineData(OrderType.Limit, OrderStatus.Filled, false, false)]
+    [InlineData(OrderType.Limit, OrderStatus.Cancelled, false, false)]
+    [InlineData(OrderType.Market, OrderStatus.Pending, false, false)]
+    [InlineData(OrderType.StopMarket, OrderStatus.Pending, false, false)]
+    [InlineData(OrderType.Limit, OrderStatus.Pending, true, false)]
+    public async Task OrderRows_AreAmendableOnlyForWorkingStatusesAndAmendableTypes(
+        OrderType type,
+        OrderStatus status,
+        bool isOcoLeg,
+        bool expected)
+    {
+        // Arrange: journal rows carry the status at placement time.
+        var viewModel = CreateViewModel();
+        _journal.RecordPlaced(BuildOrder("paper-1", status, "ETH/USDT", type, isOcoLeg ? "oco-9" : null));
+        _trading.GetOpenOrdersAsync().Returns([]);
+        _trading.GetPositionsAsync().Returns([]);
+
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the row flag is the gate state.
+        viewModel.RecentOrders.Single().IsAmendable.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task AmendCommand_WithEdits_RunsThePipelineAndReportsTheSwap()
+    {
+        // Arrange: one resting ETH order; the edit is a small shrink far
+        // below every confirmation leg, so the flow goes straight through
+        // risk and swaps via cancel+new.
+        var order = BuildOrder("paper-1", OrderStatus.Pending, "ETH/USDT");
+        _journal.RecordPlaced(order);
+        _openOrders.Add(order);
+        _trading.GetPositionsAsync().Returns([]);
+
+        _trading.When(t => t.CancelOrderAsync(Arg.Any<Symbol>(), Arg.Any<string>(), Arg.Any<CancellationToken>()))
+            .Do(_ => _openOrders.Remove(order));
+
+        var replacement = BuildOrder("paper-2", OrderStatus.Pending, "ETH/USDT");
+        _trading.PlaceOrderAsync(Arg.Do<OrderRequest>(_ => _openOrders.Add(replacement)))
+            .Returns(replacement);
+
+        var viewModel = CreateViewModel();
+        viewModel.AmendRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(new OrderAmendRequest { Working = order, NewQuantity = 0.011m });
+            return Task.CompletedTask;
+        });
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act
+        await viewModel.RecentOrders.Single(r => r.OrderId == "paper-1").AmendCommand
+            .Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the honest cancel+new outcome, both orders named; the
+        // downstream reload shows the replacement working and nothing amending.
+        viewModel.ErrorMessage.Should().BeNull();
+        viewModel.ResultMessage.Should().Contain("Positions.AmendDone")
+            .And.Contain("paper-1")
+            .And.Contain("paper-2");
+        viewModel.OpenOrders.Should().ContainSingle().Which.OrderId.Should().Be("paper-2");
+        viewModel.RecentOrders.Select(r => r.OrderId)
+            .Should().Equal("paper-2", "paper-1");
+        viewModel.RecentOrders.Should().OnlyContain(r => !r.IsAmending);
+        await _trading.Received(1).CancelOrderAsync(
+            Arg.Is<Symbol>(s => s.Normalized == "ETH/USDT"),
+            "paper-1",
+            Arg.Any<CancellationToken>());
+        await _confirmation.DidNotReceive().RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+    }
+
+    [Fact]
+    public async Task AmendCommand_WhenTheDialogClosesWithoutEdits_NeverMutatesAndUnmarksTheRow()
+    {
+        // Arrange
+        var order = BuildOrder("paper-1", OrderStatus.Pending, "ETH/USDT");
+        _journal.RecordPlaced(order);
+        _openOrders.Add(order);
+        _trading.GetPositionsAsync().Returns([]);
+
+        var viewModel = CreateViewModel();
+        viewModel.AmendRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act
+        await viewModel.RecentOrders.Single().AmendCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: a cancelled dialog is a deliberate stop — no pipeline ran,
+        // no outcome line, and the row's amending state ended with the flow.
+        await _trading.DidNotReceive().CancelOrderAsync(
+            Arg.Any<Symbol>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>());
+        await _riskManager.DidNotReceive().CheckOrderAsync(Arg.Any<OrderRequest>());
+        viewModel.ResultMessage.Should().BeNull();
+        viewModel.ErrorMessage.Should().BeNull();
+        viewModel.RecentOrders.Single().IsAmending.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AmendCommand_WhenTheOrderLeftTheWorkingSet_ShowsTheStaleError()
+    {
+        // Arrange: the display row the user clicked no longer matches the
+        // adapter: the fresh re-read finds nothing — reported localized.
+        var order = BuildOrder("paper-1", OrderStatus.Pending, "ETH/USDT");
+        _journal.RecordPlaced(order);
+        _trading.GetOpenOrdersAsync().Returns([]);
+        _trading.GetPositionsAsync().Returns([]);
+
+        var viewModel = CreateViewModel();
+        viewModel.AmendRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(new OrderAmendRequest { Working = order, NewQuantity = 0.011m });
+            return Task.CompletedTask;
+        });
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act
+        await viewModel.RecentOrders.Single().AmendCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.ErrorMessage.Should().Contain("Positions.AmendStale").And.Contain("paper-1");
+        viewModel.ResultMessage.Should().BeNull();
+        await _trading.DidNotReceive().CancelOrderAsync(
+            Arg.Any<Symbol>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        viewModel.RecentOrders.Single().IsAmending.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AmendCommand_MarksTheRowAmending_KeepsTheMarkerThroughReloadsAndClearsItAtTheEnd()
+    {
+        // Arrange: the dialog handoff parks mid-flow, so the row's amending
+        // marker can be observed while the flow waits for the parsed edits.
+        var order = BuildOrder("paper-1", OrderStatus.Pending, "ETH/USDT");
+        _journal.RecordPlaced(order);
+        _openOrders.Add(order);
+        _trading.GetPositionsAsync().Returns([]);
+
+        var replacement = BuildOrder("paper-2", OrderStatus.Pending, "ETH/USDT");
+        _trading.When(t => t.CancelOrderAsync(Arg.Any<Symbol>(), Arg.Any<string>(), Arg.Any<CancellationToken>()))
+            .Do(_ => _openOrders.Remove(order));
+        _trading.PlaceOrderAsync(Arg.Do<OrderRequest>(_ => _openOrders.Add(replacement)))
+            .Returns(replacement);
+
+        var handlerReached = new TaskCompletionSource();
+        var dialogGate = new TaskCompletionSource<OrderAmendRequest?>();
+        var amendDone = new TaskCompletionSource();
+
+        var viewModel = CreateViewModel();
+        viewModel.AmendRequested.RegisterHandler(async context =>
+        {
+            handlerReached.TrySetResult();
+            context.SetOutput(await dialogGate.Task);
+        });
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act: park the flow inside the dialog handoff.
+        using var execution = viewModel.RecentOrders.Single().AmendCommand
+            .Execute(ReactiveUI.Primitives.RxVoid.Default)
+            .Subscribe(
+                _ => { },
+                error => amendDone.TrySetException(error),
+                () => amendDone.TrySetResult());
+        await handlerReached.Task;
+
+        // While the flow waits for the dialog: the row is marked amending —
+        // and a reload preserves the marker through the rebuilt rows.
+        viewModel.RecentOrders.Single().IsAmending.Should().BeTrue();
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        viewModel.RecentOrders.Single().IsAmending.Should().BeTrue(
+            "the amending state survives an in-flight reload of the sections");
+
+        // Complete the flow with the parsed edit set.
+        dialogGate.TrySetResult(new OrderAmendRequest { Working = order, NewQuantity = 0.011m });
+        await amendDone.Task;
+
+        // Assert: the marker ended exactly when the flow did. After the
+        // swap the journal carries both orders — filter to the target row.
+        viewModel.RecentOrders.Single(r => r.OrderId == "paper-1").IsAmending
+            .Should().BeFalse();
+        viewModel.RecentOrders.Should().Contain(r => r.OrderId == "paper-2");
+        viewModel.ResultMessage.Should().Contain("Positions.AmendDone");
+    }
+
+    [Fact]
+    public async Task AmendCommand_SecondAttemptWhileOneRuns_IsSwallowedByTheFlow()
+    {
+        // Arrange: the same guard the cancel path applies — never two
+        // pipelined amends, whatever double clicks or racing buttons do.
+        var order = BuildOrder("paper-1", OrderStatus.Pending, "ETH/USDT");
+        _journal.RecordPlaced(order);
+        _openOrders.Add(order);
+        _trading.GetPositionsAsync().Returns([]);
+
+        var replacement = BuildOrder("paper-2", OrderStatus.Pending, "ETH/USDT");
+        _trading.When(t => t.CancelOrderAsync(Arg.Any<Symbol>(), Arg.Any<string>(), Arg.Any<CancellationToken>()))
+            .Do(_ => _openOrders.Remove(order));
+        _trading.PlaceOrderAsync(Arg.Do<OrderRequest>(_ => _openOrders.Add(replacement)))
+            .Returns(replacement);
+
+        var handlerReached = new TaskCompletionSource();
+        var dialogGate = new TaskCompletionSource<OrderAmendRequest?>();
+        var handlerCalls = 0;
+        var amendDone = new TaskCompletionSource();
+        var secondDone = new TaskCompletionSource();
+
+        var viewModel = CreateViewModel();
+        viewModel.AmendRequested.RegisterHandler(async context =>
+        {
+            Interlocked.Increment(ref handlerCalls);
+            handlerReached.TrySetResult();
+            context.SetOutput(await dialogGate.Task);
+        });
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act: park the flow, then fire a second amend while it waits.
+        using var execution = viewModel.RecentOrders.Single().AmendCommand
+            .Execute(ReactiveUI.Primitives.RxVoid.Default)
+            .Subscribe(
+                _ => { },
+                error => amendDone.TrySetException(error),
+                () => amendDone.TrySetResult());
+        await handlerReached.Task;
+
+        using var secondExecution = viewModel.RecentOrders.Single().AmendCommand
+            .Execute(ReactiveUI.Primitives.RxVoid.Default)
+            .Subscribe(
+                _ => { },
+                error => secondDone.TrySetException(error),
+                () => secondDone.TrySetResult());
+        await secondDone.Task;
+
+        dialogGate.TrySetResult(new OrderAmendRequest { Working = order, NewQuantity = 0.011m });
+        await amendDone.Task;
+
+        // Assert: exactly one handoff ran, and the swap happened once.
+        handlerCalls.Should().Be(1);
+        await _trading.Received(1).CancelOrderAsync(
+            Arg.Any<Symbol>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _trading.Received(1).PlaceOrderAsync(Arg.Any<OrderRequest>());
+    }
+
+    #endregion
 
     /// <summary>
     /// BUG-055: the same order must render the same wall-clock time in the
