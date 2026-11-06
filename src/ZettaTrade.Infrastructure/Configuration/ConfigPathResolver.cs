@@ -51,6 +51,13 @@ public static class ConfigPathResolver
     public static string OrderHistoryDatabaseFile => Path.Combine(DataDirectory, "orders-history.db");
 
     /// <summary>
+    /// Path to the SQLite database holding the realized-trade accounting
+    /// (the PnL engine's own journal of record; read-only bookkeeping —
+    /// it never touches the trading flow).
+    /// </summary>
+    public static string PnlDatabaseFile => Path.Combine(DataDirectory, "pnl.db");
+
+    /// <summary>
     /// Ensure all required directories exist.
     /// </summary>
     public static void EnsureDirectoriesExist()

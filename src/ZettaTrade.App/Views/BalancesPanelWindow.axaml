@@ -1,0 +1,116 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.BalancesPanelWindow"
+        Classes="chrome"
+        x:DataType="vm:BalancesPanelViewModel"
+        Title="{loc:Localized Trading.BalancesTitle}"
+        Width="800" Height="560"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <Grid Margin="16" RowDefinitions="*,Auto,Auto" RowSpacing="10">
+
+        <ScrollViewer Grid.Row="0">
+            <StackPanel Spacing="14">
+
+                <!-- Per-exchange sections: every active adapter shows exactly
+                     what it serves — its rows, the explicit not-provided
+                     state, or the fault detail; never a zero figure. -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{loc:Localized Trading.BalancesPerExchangeHeader}" FontWeight="Bold" />
+                    <ItemsControl ItemsSource="{Binding Sources}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BalancesSourceViewModel">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding AdapterName}"
+                                               FontWeight="Bold"
+                                               Margin="0,6,0,0" />
+                                    <Grid ColumnDefinitions="150,150"
+                                          IsVisible="{Binding HasRows}">
+                                        <TextBlock Grid.Column="0" Text="{loc:Localized Trading.BalancesAsset}" />
+                                        <TextBlock Grid.Column="1" Text="{loc:Localized Trading.BalancesAmount}" />
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Rows}"
+                                                  IsVisible="{Binding HasRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:BalanceRowViewModel">
+                                                <Grid ColumnDefinitions="150,150">
+                                                    <TextBlock Grid.Column="0" Text="{Binding Asset}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Amount}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{loc:Localized Trading.BalancesNoServedBalances}"
+                                               IsVisible="{Binding IsProvidedButEmpty}"
+                                               Foreground="{DynamicResource TextSecondary}" />
+                                    <TextBlock Text="{loc:Localized Trading.BalancesNotProvided}"
+                                               IsVisible="{Binding IsNotProvided}"
+                                               Foreground="{DynamicResource TextSecondary}" />
+                                    <TextBlock Text="{Binding FailureMessage}"
+                                               IsVisible="{Binding IsFailed}"
+                                               Foreground="{DynamicResource Error}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Aggregated view: the per-asset sums across the sources
+                     that actually provide balances. -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{loc:Localized Trading.BalancesAggregatedHeader}" FontWeight="Bold" />
+                    <Grid ColumnDefinitions="150,150"
+                          IsVisible="{Binding HasAggregated}">
+                        <TextBlock Grid.Column="0" Text="{loc:Localized Trading.BalancesAsset}" />
+                        <TextBlock Grid.Column="1" Text="{loc:Localized Trading.BalancesAmount}" />
+                    </Grid>
+                    <TextBlock Text="{loc:Localized Trading.BalancesNoServedBalances}"
+                               IsVisible="{Binding !HasAggregated}"
+                               Foreground="{DynamicResource TextSecondary}" />
+                    <ItemsControl ItemsSource="{Binding Aggregated}"
+                                  IsVisible="{Binding HasAggregated}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BalanceRowViewModel">
+                                <Grid ColumnDefinitions="150,150">
+                                    <TextBlock Grid.Column="0" Text="{Binding Asset}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Amount}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Spacing="6">
+            <!-- Loading state of the aggregation handshake -->
+            <TextBlock Text="{loc:Localized Trading.BalancesLoading}"
+                       IsVisible="{Binding IsLoading}" />
+            <!-- Whole-load failure (per-source faults stay in their sections) -->
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{DynamicResource Error}"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasErrorMessage}" />
+        </StackPanel>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto">
+            <Button Grid.Column="1"
+                    Content="{loc:Localized Trading.BalancesRefresh}"
+                    Command="{Binding LoadCommand}"
+                    MinWidth="90" />
+            <Button Grid.Column="2"
+                    Content="{loc:Localized Trading.BalancesClose}"
+                    Click="OnCloseClick"
+                    MinWidth="90"
+                    Margin="8,0,0,0" />
+        </Grid>
+
+    </Grid>
+</Window>
