@@ -102,7 +102,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | queued | - |
 | T-096 Price and percent-move alerts with a manager | feat/price-alerts | queued | - |
 | T-097 Notification center: toasts, history, DND | feat/notif-center | queued | - |
-| T-098 Adapter health strip in the status bar | feat/health-strip | in-progress | - |
+| T-098 Adapter health strip in the status bar | feat/health-strip | done | - |
 | T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | queued | - |
 | T-100 Settings import/export + factory reset | feat/settings-port | queued | - |
 | T-101 Log viewer window + global crash guard | feat/log-viewer | queued | - |
@@ -232,16 +232,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a notification service + toast host, routing, resx en+ru, tests.
 - **Acceptance:** bursts of dozens of fills coalesce; the host never blocks the UI thread (async canon).
 - **Tests:** coalescing golden, DND replay, click-route matrix.
-
-## T-098 — Adapter health strip in the status bar
-
-- **Branch:** feat/health-strip (base `develop` at `df22054`; queued 2026-11-06 at the T-074…T-115 backlog cut, developed 2026-11-07).
-- **Status:** in-progress.
-- **Origin:** reconnect states exist inward (T-012, T-052); the user sees nothing in aggregate.
-- **What:** a dot-per-adapter in the status bar (connected/reconnecting/down/market-closed colors), a tooltip with the last event time and error counters from the existing transport state, click → an open log pane later (T-101 synergy); localized labels en+ru.
-- **Scope:** status bar VM composition (the T-018 slot), a state aggregator service, resx en+ru, tests.
-- **Acceptance:** state flips render within a beat; the strip adds no polling loops (observables only).
-- **Tests:** state mapping from transport events, tooltip composition.
 
 ## T-099 — First-run wizard (theme, adapter, symbol)
 
