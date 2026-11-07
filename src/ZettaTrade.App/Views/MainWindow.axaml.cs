@@ -9,12 +9,12 @@ using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
 using Serilog;
-// RxVoid rides an alias (not a plain ReactiveUI.Primitives import): plain both
-// imports would make every RxVoid Subscribe ambiguous against System's one.
-using RxVoid = ReactiveUI.Primitives.RxVoid;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.UI.Extensions;
+// RxVoid rides an alias (not a plain ReactiveUI.Primitives import): plain both
+// imports would make every RxVoid Subscribe ambiguous against System's one.
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 namespace ZettaTrade.App.Views;
 

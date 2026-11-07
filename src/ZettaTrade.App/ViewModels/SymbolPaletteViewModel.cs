@@ -433,7 +433,7 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     /// only guards the race where a ranking landed between the guard's
     /// evaluation and the call.
     /// </summary>
-    private Task<RxVoid> MoveSelectionAsync(CancellationToken ct, int step)
+    private async Task<RxVoid> MoveSelectionAsync(CancellationToken ct, int step)
     {
         if (IsOpen && Rows.Count > 0)
         {
@@ -444,7 +444,7 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
             }
         }
 
-        return Task.FromResult(RxVoid.Default);
+        return RxVoid.Default;
     }
 
     #endregion Open and Close
