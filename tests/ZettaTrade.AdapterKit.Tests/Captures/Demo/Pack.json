@@ -1,0 +1,13 @@
+{
+  "adapterId": "demo",
+  "adapterName": "Demo",
+  "capabilities": "MarketData | OrderBook | HistoricalData",
+  "connectsAtConstruction": true,
+  "symbols": [ "BTC/USDT", "ETH/USDT", "SOL/USDT", "BTC/USDC", "XRP/USDT", "ETH/BTC" ],
+  "strangerSymbol": "DOGE/GBP",
+  "clientSideGuards": [ "unknown-symbol", "bars-limit" ],
+  "depthProfile": "clamped",
+  "clampedServedDepth": 10,
+  "depthProbeRequests": [ 3, 20 ],
+  "reconnectMode": "always-on"
+}

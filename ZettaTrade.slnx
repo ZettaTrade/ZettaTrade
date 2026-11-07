@@ -14,6 +14,7 @@
   <Project Path="src/ZettaTrade.Plugins.Wma/ZettaTrade.Plugins.Wma.csproj" />
   <Project Path="src/ZettaTrade.UI/ZettaTrade.UI.csproj" />
   <Folder Name="/tests/">
+    <Project Path="tests/ZettaTrade.AdapterKit.Tests/ZettaTrade.AdapterKit.Tests.csproj" />
     <Project Path="tests/ZettaTrade.App.Tests/ZettaTrade.App.Tests.csproj" />
     <Project Path="tests/ZettaTrade.Core.Tests/ZettaTrade.Core.Tests.csproj" />
     <Project Path="tests/ZettaTrade.Infrastructure.Tests/ZettaTrade.Infrastructure.Tests.csproj" />
