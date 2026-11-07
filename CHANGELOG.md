@@ -1,3 +1,33 @@
+# Changelog
+
+All notable changes to ZettaTrade are documented here, newest first
+(Keep a Changelog format).
+
+While the app is in alpha, one release == one merged board task: task
+`T-0NN` ships as `0.1.0-alpha.NN` and adds its section below. The state
+before `alpha.10` was never versioned — what shipped in T-001 — T-009
+(app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
+dialog, positions panel) is recorded in `docs/TASKS.md`.
+
+## [0.1.0-alpha.46] - 2026-11-07
+
+Build of board task T-077 (branch `feat/position-actions`).
+
+### Added
+- Position actions on the positions panel rows: Close, Reduce and
+  Reverse ride the mandatory order pipeline - request validation,
+  `IRiskManager` (both legs of a reverse), then ONE
+  `IConfirmationService` confirmation over the composed orders (a
+  refusal leaves the book untouched) and only then the trading
+  adapter. Every size is computed against the CURRENT position
+  re-read at placement time, so an external fill that lands first
+  wins and is reported - no stale-sized order, no double entry, no
+  silent drop; a reverse whose exit leg leaves the symbol non-flat
+  aborts its re-entry with a localized report. Close on an empty
+  position and zero/oversized reductions are rejected explicitly;
+  demo/paper market legs fill against the freshest reference close
+  the `MarketReference` seam resolves and the in-flight rows are
+  disabled (a repeated click is a no-op). Fully localized en+ru.
 ## [0.1.0-alpha.45] - 2026-11-06
 
 Build of board task T-083 (branch `feat/trade-stats`).
