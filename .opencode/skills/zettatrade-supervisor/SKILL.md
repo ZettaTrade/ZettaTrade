@@ -3,8 +3,9 @@ name: ZettaTrade Supervisor
 description: >-
   ZettaTrade supervisor mode: run board task waves with up to four subagents,
   review their work, and self-merge into develop. Loads ONLY on explicit user
-  invocation ("работай по скиллу zettatrade-supervisor" / "@zettatrade-supervisor").
-  Never auto-invoke: by default the human reviews and approves every merge.
+  invocation (naming this skill: an explicit "@zettatrade-supervisor" mention
+  or a request to work per that skill). Never auto-invoke: by default the
+  human reviews and approves every merge.
 disable-model-invocation: true
 ---
 
@@ -16,8 +17,9 @@ top of it. Every judgment AGENTS.md settles is settled there — do not soften,
 do not improvise, especially the TRADING SAFETY section.
 
 **Invocation discipline.** These instructions apply only because the user
-explicitly invoked this skill (say: "работай по скиллу zettatrade-supervisor"
-or mention `@zettatrade-supervisor`). `disable-model-invocation: true` keeps
+explicitly invoked this skill by name — mentioning `@zettatrade-supervisor`
+or asking, in the session, to work per that skill.
+`disable-model-invocation: true` keeps
 the skill out of the model's auto list, so an ordinary session never receives
 these instructions and keeps the default mode: THE HUMAN REVIEWS EVERY MERGE.
 If the user did not invoke this skill, do not operate it. If invoked, confirm
@@ -25,14 +27,11 @@ the operating mode to the user in one sentence, then continue.
 
 ## The standing directives (user, 2026-11-07)
 
-Quoted verbatim from the user (Russian), with the translation:
-
-> "продолжай делать задачи. По возможности раздели выполнение на 4 субагента,
-> при условии если задачи не конфликтуют. Проводи ревью работы субагентов и
-> вливай сделанное в develop. При падении сессии продолжай работу. Апрув от
-> меня не жди, делай мёрж самостоятельно."
-
-Translated intent, binding as standing policy until the user retracts it:
+The user issued this policy in Russian in the supervising session; the repo
+carries no Russian content, so the shipped text is the English statement
+below. Quotations of the user's wording stay in session context or in the
+supervisor-local handoff files — never in tracked files. Binding as standing
+policy until the user retracts it:
 
 1. Keep executing the board continuously, wave after wave.
 2. Split execution across up to four concurrent subagents, provided the tasks
@@ -46,7 +45,10 @@ Translated intent, binding as standing policy until the user retracts it:
 
 While reasoning internally, in all outage-sensitive scratch files and in
 reports back to the user, think in English but reply to the user in Russian
-(token economy per AGENTS.md). Everything shipped to the repo stays English.
+(token economy per AGENTS.md). Everything shipped to the repo stays English —
+user-facing strings, docs, commit messages, task prose and this file
+included; user-idea quotes belong to session context or the handoff files,
+never to tracked content (see AGENTS.md, Localization).
 
 ## Wave planning
 
@@ -57,7 +59,9 @@ one board task. Choosing tasks for a wave:
    claim T-numbers only off the synced board. A new queue entry (a task the
    board does not yet list) first gets a board row + section next to siblings
    in canonical T order, and takes the next free `T-0NN` number unused by any
-   row or archived section.
+   row, any archived section, and any historical queue batch — verify the
+   number against `git log --all --grep` before claiming, and re-verify at
+   claim time that no concurrent session grabbed it first.
 2. Slice by conflict: every worker's brief names the file surfaces OTHER live
    workers own as hard fences ("do NOT collide"). Pick tasks whose surfaces
    are disjoint. One Charting task per wave (the chart family shares the chart
@@ -179,7 +183,7 @@ When starting (or resuming) in supervisor mode:
    parameter (background subagents keep their context); otherwise rebuild the
    brief from the worktree's on-disk state (typically: board claim committed,
    implementation uncommitted or partially committed) and proceed.
-   "_finish N" phrasing is forbidden: write the worktree facts into the brief
+   "finish N" phrasing is forbidden: write the worktree facts into the brief
    so any fresh instance can act on them.
 3. Dead worker, live supervisor: resume the worker by sessionID with a
    resume brief that states the current worktree facts and the remaining
@@ -210,7 +214,8 @@ When starting (or resuming) in supervisor mode:
 ## Known flake families (record, never fix in-flight)
 
 - `ZettaTrade.Infrastructure.Tests` WS E2E timeouts under parallel-suite load
-  (T-116's territory: the 10 s `EventWait` trips on scheduler starvation).
+  (the WS E2E budget task's territory: the 10 s `EventWait` trips on
+  scheduler starvation).
 - `ZettaTrade.App.Tests` load-sensitive timing family (e.g. the
   fallback-notice timings; the gate's flaky retry exists for these).
 Record in the report which suite retried; fixing them is a dedicated task
