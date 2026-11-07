@@ -20,6 +20,16 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZettaTrade.App\ZettaTrade.App.csproj" />
     <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Sma\ZettaTrade.Plugins.Sma.csproj" />
+    <!-- T-092: the standard pack's plugin assemblies. Compile-once for the
+         facts: the app itself carries no reference to any of them (the
+         laziness fact pins that); at runtime the catalog stages them from
+         this build output into its fixture directories. -->
+    <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Ema\ZettaTrade.Plugins.Ema.csproj" />
+    <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Wma\ZettaTrade.Plugins.Wma.csproj" />
+    <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Rsi\ZettaTrade.Plugins.Rsi.csproj" />
+    <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Macd\ZettaTrade.Plugins.Macd.csproj" />
+    <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Atr\ZettaTrade.Plugins.Atr.csproj" />
+    <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Bollinger\ZettaTrade.Plugins.Bollinger.csproj" />
   </ItemGroup>
 
 </Project>

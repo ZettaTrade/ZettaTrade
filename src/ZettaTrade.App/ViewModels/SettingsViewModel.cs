@@ -56,6 +56,21 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>The persisted SMA period sentinel meaning "no readable SMA row is cached yet" (the selection shows empty).</summary>
     private const int NoSmaPeriod = 0;
 
+    /// <summary>
+    /// The standard pack's row names (T-092): the plugin's canonical names,
+    /// keyed against the scanned catalog exactly the SMA row is keyed. They
+    /// stay product names, not localized strings.
+    /// </summary>
+    private const string EmaIndicatorName = "EMA";
+    private const string WmaIndicatorName = "WMA";
+    private const string RsiIndicatorName = "RSI";
+    private const string MacdIndicatorName = "MACD";
+    private const string AtrIndicatorName = "ATR";
+    private const string BollIndicatorName = "BOLL";
+
+    /// <summary>The period sentinel the pack rows share: "no row cached yet" (the selection shows empty).</summary>
+    private const int NoRowPeriod = 0;
+
     #endregion Constants
 
     #region Properties
@@ -78,6 +93,22 @@ public sealed class SettingsViewModel : ReactiveObject
     private bool _isSmaEnabled;
 
     private string _smaPeriodText = string.Empty;
+
+    /// <summary>The standard pack's enable drafts (T-092): the checkboxes the save applies real differences from.</summary>
+    private bool _isEmaEnabled;
+    private bool _isWmaEnabled;
+    private bool _isRsiEnabled;
+    private bool _isMacdEnabled;
+    private bool _isAtrEnabled;
+    private bool _isBollEnabled;
+
+    /// <summary>The standard pack's period drafts: free text, unparsable input skips the row on the save.</summary>
+    private string _emaPeriodText = string.Empty;
+    private string _wmaPeriodText = string.Empty;
+    private string _rsiPeriodText = string.Empty;
+    private string _macdPeriodText = string.Empty;
+    private string _atrPeriodText = string.Empty;
+    private string _bollPeriodText = string.Empty;
 
     /// <summary>Selected theme index (combo box); <see cref="NoSelection"/> when nothing is selected.</summary>
     public int SelectedThemeIndex
@@ -139,6 +170,119 @@ public sealed class SettingsViewModel : ReactiveObject
     /// exclusive with <see cref="IsSmaPluginLoaded"/> by construction.
     /// </summary>
     public bool IsIndicatorCatalogEmpty { get; }
+
+    /// <summary>
+    /// The standard pack's per-plugin gates (T-092): exactly the SMA row's
+    /// contract — the row renders only when the scanned catalog actually
+    /// registers the name, and a save never fabricates a config row for a
+    /// plugin the session does not own. The plugin set is fixed for the
+    /// session, so the flags are settled at construction.
+    /// </summary>
+    public bool IsEmaPluginLoaded { get; }
+
+    /// <summary>The WMA row's loaded-plugin gate (see <see cref="IsEmaPluginLoaded"/>).</summary>
+    public bool IsWmaPluginLoaded { get; }
+
+    /// <summary>The RSI row's loaded-plugin gate (see <see cref="IsEmaPluginLoaded"/>).</summary>
+    public bool IsRsiPluginLoaded { get; }
+
+    /// <summary>The MACD row's loaded-plugin gate (see <see cref="IsEmaPluginLoaded"/>).</summary>
+    public bool IsMacdPluginLoaded { get; }
+
+    /// <summary>The ATR row's loaded-plugin gate (see <see cref="IsEmaPluginLoaded"/>).</summary>
+    public bool IsAtrPluginLoaded { get; }
+
+    /// <summary>The Bollinger row's loaded-plugin gate (see <see cref="IsEmaPluginLoaded"/>).</summary>
+    public bool IsBollPluginLoaded { get; }
+
+    /// <summary>The EMA overlay row's enable draft (the checkbox; the save applies a real difference only).</summary>
+    public bool IsEmaEnabled
+    {
+        get => _isEmaEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isEmaEnabled, value);
+    }
+
+    /// <summary>
+    /// The EMA period as typed. Free text on purpose: an unparsable value
+    /// skips the row on the save (the cached config stays in charge -
+    /// nothing defaults or clamps), the invariant culture parses it. The
+    /// other pack rows' period drafts carry the same contract.
+    /// </summary>
+    public string EmaPeriodText
+    {
+        get => _emaPeriodText;
+        set => this.RaiseAndSetIfChanged(ref _emaPeriodText, value);
+    }
+
+    /// <summary>The WMA overlay row's enable draft.</summary>
+    public bool IsWmaEnabled
+    {
+        get => _isWmaEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isWmaEnabled, value);
+    }
+
+    /// <summary>The WMA period as typed.</summary>
+    public string WmaPeriodText
+    {
+        get => _wmaPeriodText;
+        set => this.RaiseAndSetIfChanged(ref _wmaPeriodText, value);
+    }
+
+    /// <summary>The RSI overlay row's enable draft.</summary>
+    public bool IsRsiEnabled
+    {
+        get => _isRsiEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isRsiEnabled, value);
+    }
+
+    /// <summary>The RSI period as typed.</summary>
+    public string RsiPeriodText
+    {
+        get => _rsiPeriodText;
+        set => this.RaiseAndSetIfChanged(ref _rsiPeriodText, value);
+    }
+
+    /// <summary>The MACD overlay row's enable draft.</summary>
+    public bool IsMacdEnabled
+    {
+        get => _isMacdEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isMacdEnabled, value);
+    }
+
+    /// <summary>The MACD period as typed (the fast EMA's length; the plugin pins the classic trio's slow/signal).</summary>
+    public string MacdPeriodText
+    {
+        get => _macdPeriodText;
+        set => this.RaiseAndSetIfChanged(ref _macdPeriodText, value);
+    }
+
+    /// <summary>The ATR overlay row's enable draft.</summary>
+    public bool IsAtrEnabled
+    {
+        get => _isAtrEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isAtrEnabled, value);
+    }
+
+    /// <summary>The ATR period as typed.</summary>
+    public string AtrPeriodText
+    {
+        get => _atrPeriodText;
+        set => this.RaiseAndSetIfChanged(ref _atrPeriodText, value);
+    }
+
+    /// <summary>The Bollinger overlay row's enable draft.</summary>
+    public bool IsBollEnabled
+    {
+        get => _isBollEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isBollEnabled, value);
+    }
+
+    /// <summary>The Bollinger window as typed (the deviation count stays the classic 2).</summary>
+    public string BollPeriodText
+    {
+        get => _bollPeriodText;
+        set => this.RaiseAndSetIfChanged(ref _bollPeriodText, value);
+    }
 
     /// <summary>
     /// Whether the local MCP server is enabled. A selection - like every
@@ -343,6 +487,20 @@ public sealed class SettingsViewModel : ReactiveObject
     private bool _persistedSmaEnabled;
     private int _persistedSmaPeriod = NoSmaPeriod;
 
+    /// <summary>The cached pack row pieces (T-092): per-name enable + period, the sentinel period means "no row cached".</summary>
+    private bool _persistedEmaEnabled;
+    private int _persistedEmaPeriod = NoRowPeriod;
+    private bool _persistedWmaEnabled;
+    private int _persistedWmaPeriod = NoRowPeriod;
+    private bool _persistedRsiEnabled;
+    private int _persistedRsiPeriod = NoRowPeriod;
+    private bool _persistedMacdEnabled;
+    private int _persistedMacdPeriod = NoRowPeriod;
+    private bool _persistedAtrEnabled;
+    private int _persistedAtrPeriod = NoRowPeriod;
+    private bool _persistedBollEnabled;
+    private int _persistedBollPeriod = NoRowPeriod;
+
     /// <summary>
     /// The persisted MCP server enable choice as last read: the checkbox
     /// drafts seed from it and the save persists only a real difference
@@ -433,6 +591,12 @@ public sealed class SettingsViewModel : ReactiveObject
         // two independent questions of the tab's honesty contract.
         var loadedNames = indicatorCatalog.LoadedNames ?? Array.Empty<string>();
         IsSmaPluginLoaded = loadedNames.Contains(SmaIndicatorName, StringComparer.Ordinal);
+        IsEmaPluginLoaded = loadedNames.Contains(EmaIndicatorName, StringComparer.Ordinal);
+        IsWmaPluginLoaded = loadedNames.Contains(WmaIndicatorName, StringComparer.Ordinal);
+        IsRsiPluginLoaded = loadedNames.Contains(RsiIndicatorName, StringComparer.Ordinal);
+        IsMacdPluginLoaded = loadedNames.Contains(MacdIndicatorName, StringComparer.Ordinal);
+        IsAtrPluginLoaded = loadedNames.Contains(AtrIndicatorName, StringComparer.Ordinal);
+        IsBollPluginLoaded = loadedNames.Contains(BollIndicatorName, StringComparer.Ordinal);
         IsIndicatorCatalogEmpty = loadedNames.Count == 0;
 
         OpenThemesFolderCommand = ReactiveCommand.Create(HandleOpenThemesFolder);
@@ -699,6 +863,69 @@ public sealed class SettingsViewModel : ReactiveObject
             }
         }
 
+        // The standard pack rows (T-092): the same loaded-plugins gate the
+        // SMA row rides, one shared row-save helper. The non-short-circuit
+        // OR is deliberate: every row runs (each decides its own silence),
+        // the write lands once for the whole tab (one settings key).
+        var persistedIndicatorRows = _persistedIndicatorConfig;
+        var wroteIndicatorRows =
+            TryPersistIndicatorRow(
+                EmaIndicatorName,
+                IsEmaPluginLoaded,
+                IsEmaEnabled,
+                EmaPeriodText,
+                ref _persistedEmaEnabled,
+                ref _persistedEmaPeriod,
+                ref persistedIndicatorRows)
+            | TryPersistIndicatorRow(
+                WmaIndicatorName,
+                IsWmaPluginLoaded,
+                IsWmaEnabled,
+                WmaPeriodText,
+                ref _persistedWmaEnabled,
+                ref _persistedWmaPeriod,
+                ref persistedIndicatorRows)
+            | TryPersistIndicatorRow(
+                RsiIndicatorName,
+                IsRsiPluginLoaded,
+                IsRsiEnabled,
+                RsiPeriodText,
+                ref _persistedRsiEnabled,
+                ref _persistedRsiPeriod,
+                ref persistedIndicatorRows)
+            | TryPersistIndicatorRow(
+                MacdIndicatorName,
+                IsMacdPluginLoaded,
+                IsMacdEnabled,
+                MacdPeriodText,
+                ref _persistedMacdEnabled,
+                ref _persistedMacdPeriod,
+                ref persistedIndicatorRows)
+            | TryPersistIndicatorRow(
+                AtrIndicatorName,
+                IsAtrPluginLoaded,
+                IsAtrEnabled,
+                AtrPeriodText,
+                ref _persistedAtrEnabled,
+                ref _persistedAtrPeriod,
+                ref persistedIndicatorRows)
+            | TryPersistIndicatorRow(
+                BollIndicatorName,
+                IsBollPluginLoaded,
+                IsBollEnabled,
+                BollPeriodText,
+                ref _persistedBollEnabled,
+                ref _persistedBollPeriod,
+                ref persistedIndicatorRows);
+        if (wroteIndicatorRows)
+        {
+            await _settings.SetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartIndicators,
+                persistedIndicatorRows);
+            _persistedIndicatorConfig = persistedIndicatorRows;
+        }
+
         // The MCP server enable: only a real difference applies (the same
         // no-op discipline every other row keeps). The persisted write lands
         // first, the host apply follows: the saved choice starts or stops
@@ -807,8 +1034,29 @@ public sealed class SettingsViewModel : ReactiveObject
         SmaPeriodText = _persistedSmaPeriod > NoSmaPeriod
             ? _persistedSmaPeriod.ToString(CultureInfo.InvariantCulture)
             : string.Empty;
+        IsEmaEnabled = _persistedEmaEnabled;
+        EmaPeriodText = PeriodTextOf(_persistedEmaPeriod);
+        IsWmaEnabled = _persistedWmaEnabled;
+        WmaPeriodText = PeriodTextOf(_persistedWmaPeriod);
+        IsRsiEnabled = _persistedRsiEnabled;
+        RsiPeriodText = PeriodTextOf(_persistedRsiPeriod);
+        IsMacdEnabled = _persistedMacdEnabled;
+        MacdPeriodText = PeriodTextOf(_persistedMacdPeriod);
+        IsAtrEnabled = _persistedAtrEnabled;
+        AtrPeriodText = PeriodTextOf(_persistedAtrPeriod);
+        IsBollEnabled = _persistedBollEnabled;
+        BollPeriodText = PeriodTextOf(_persistedBollPeriod);
         IsMcpServerEnabled = _persistedMcpServerEnabled;
     }
+
+    /// <summary>
+    /// Render one cached period for its draft box: the sentinel (no row
+    /// cached) reads as empty, any readable period renders invariant.
+    /// </summary>
+    private static string PeriodTextOf(int persistedPeriod) =>
+        persistedPeriod > NoRowPeriod
+            ? persistedPeriod.ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
 
     /// <summary>
     /// Repaint the pairs tab for the current exchange: the workspace
@@ -994,6 +1242,35 @@ public sealed class SettingsViewModel : ReactiveObject
 
         _persistedSmaEnabled = sma?.Enabled ?? false;
         _persistedSmaPeriod = sma?.Period ?? NoSmaPeriod;
+
+        // The standard pack rows (T-092): the same first-row-wins derivation
+        // keyed per canonical name. A nameless config leaves every gate
+        // false and every period at the sentinel (an empty period box).
+        var ema = configs.FirstOrDefault(config =>
+            string.Equals(config.Name, EmaIndicatorName, StringComparison.Ordinal));
+        var wma = configs.FirstOrDefault(config =>
+            string.Equals(config.Name, WmaIndicatorName, StringComparison.Ordinal));
+        var rsi = configs.FirstOrDefault(config =>
+            string.Equals(config.Name, RsiIndicatorName, StringComparison.Ordinal));
+        var macd = configs.FirstOrDefault(config =>
+            string.Equals(config.Name, MacdIndicatorName, StringComparison.Ordinal));
+        var atr = configs.FirstOrDefault(config =>
+            string.Equals(config.Name, AtrIndicatorName, StringComparison.Ordinal));
+        var boll = configs.FirstOrDefault(config =>
+            string.Equals(config.Name, BollIndicatorName, StringComparison.Ordinal));
+
+        _persistedEmaEnabled = ema?.Enabled ?? false;
+        _persistedEmaPeriod = ema?.Period ?? NoRowPeriod;
+        _persistedWmaEnabled = wma?.Enabled ?? false;
+        _persistedWmaPeriod = wma?.Period ?? NoRowPeriod;
+        _persistedRsiEnabled = rsi?.Enabled ?? false;
+        _persistedRsiPeriod = rsi?.Period ?? NoRowPeriod;
+        _persistedMacdEnabled = macd?.Enabled ?? false;
+        _persistedMacdPeriod = macd?.Period ?? NoRowPeriod;
+        _persistedAtrEnabled = atr?.Enabled ?? false;
+        _persistedAtrPeriod = atr?.Period ?? NoRowPeriod;
+        _persistedBollEnabled = boll?.Enabled ?? false;
+        _persistedBollPeriod = boll?.Period ?? NoRowPeriod;
     }
 
     /// <summary>
@@ -1009,6 +1286,83 @@ public sealed class SettingsViewModel : ReactiveObject
             NumberStyles.Integer,
             CultureInfo.InvariantCulture,
             out period);
+    }
+
+    /// <summary>
+    /// The pack row's save gate (T-092): exactly the discipline the SMA row
+    /// keeps, generalized. A plugin the session does not own saves nothing;
+    /// a readable draft with no real difference saves nothing (the no-op
+    /// discipline); a readable real difference patches the row into the
+    /// array and reports the write; an unreadable draft saves nothing — with
+    /// a real difference candidate it is loud (a warning, nothing defaults),
+    /// in the natural zero state (no row cached, the box empty, the enable
+    /// unchanged) it is silent. The cached pair and the array travel by
+    /// reference: the rows save sequentially, each seeing the previous
+    /// row's write.
+    /// </summary>
+    private bool TryPersistIndicatorRow(
+        string name,
+        bool isLoaded,
+        bool draftEnabled,
+        string draftPeriodText,
+        ref bool cachedEnabled,
+        ref int cachedPeriod,
+        ref string indicatorJson)
+    {
+        if (!isLoaded)
+        {
+            return false;
+        }
+
+        var readable = int.TryParse(
+            draftPeriodText.Trim(),
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var period);
+
+        if (readable)
+        {
+            if (draftEnabled == cachedEnabled && period == cachedPeriod)
+            {
+                return false;
+            }
+
+            indicatorJson = ReplaceIndicatorRow(indicatorJson, name, draftEnabled, period);
+            cachedEnabled = draftEnabled;
+            cachedPeriod = period;
+            return true;
+        }
+
+        if (draftEnabled == cachedEnabled && string.IsNullOrWhiteSpace(draftPeriodText))
+        {
+            return false;
+        }
+
+        _logger.LogWarning(
+            "The {Name} period '{PeriodText}' is not a readable integer; the indicator selection is not saved",
+            name,
+            draftPeriodText);
+        return false;
+    }
+
+    /// <summary>
+    /// Patch one row into the indicator config array: every other row rides
+    /// verbatim (T-067's rewrite discipline), the row's own previous entry
+    /// is replaced by the draft, a first-time entry appends.
+    /// </summary>
+    private static string ReplaceIndicatorRow(
+        string indicatorJson,
+        string name,
+        bool enabled,
+        int period)
+    {
+        var (configs, _) = ChartIndicatorConfig.ParseList(indicatorJson);
+        var updated = configs
+            .Where(config => !string.Equals(config.Name, name, StringComparison.Ordinal))
+            .ToList();
+        updated.Add(new ChartIndicatorConfig(name, enabled, period));
+
+        return ChartIndicatorConfig.Write(updated);
     }
 
     /// <summary>

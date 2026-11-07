@@ -9,6 +9,49 @@ before `alpha.10` was never versioned Р Р†Р вЂљРІР‚Сњ what ship
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.60] - 2026-11-07
+
+Build of board task T-092 (branch `feat/indicator-pack`).
+
+### Added
+- The classic indicator family ships as separate bundled plugin assemblies
+  (T-092): EMA, WMA, RSI, MACD, ATR and Bollinger join the SMA sample in
+  the plugins-directory scan - every one is its own assembly implementing
+  the same single-series `IIndicator` seam (T-034), resolved from the
+  plugins folder at runtime while the application carries no
+  compile-time reference to any of them. The cold-start charter is a
+  pinned fact: the production graph references zero plugin assemblies,
+  an unloaded pack costs nothing, and the tolerant scan keeps skipping
+  broken or non-plugin neighbors without tainting the healthy ones.
+- The formulas follow the reference conventions, each pinned by
+  hand-computed golden vectors over fixed series: EMA seeds with the
+  plain mean of the first N closes and walks alpha = 2/(N+1) per bar;
+  WMA weights the newest close heaviest (the ladder N..1 over the weight
+  sum N*(N+1)/2); RSI runs Wilder's smoothing with the zero-loss
+  shortcut; MACD renders the fast/slow EMA spread through the classic
+  seeded convention (the row's period knob drives the fast length while
+  the trio pins the canonical 26/9); ATR seeds Wilder's smoothed true
+  ranges (the opening bar's plain range stands in for the missing prior
+  close); Bollinger renders the upper band - the middle SMA plus k
+  population-deviation sigmas, the deviation count pinned at the classic
+  2. A construction an implementation rejects throws (the catalog skips
+  the overlay row, then nothing defaults silently): an out-of-range
+  period anywhere, a MACD fast length at or beyond the slow one, a
+  non-positive Bollinger deviation count.
+- The settings surface registers the whole pack under its own module rule
+  (T-092): the indicators tab renders every pack row through the same
+  loaded-plugins gate the SMA row established (T-067) - a row appears
+  only when the scanned catalog actually registers its canonical name,
+  the single period knob saves through the same draft contract (a real
+  difference patches its own row into the persisted array, every other
+  row rides verbatim, an unparsable or unchanged draft stays silent, a
+  plugin the session does not have never gains a config row) and the tab
+  still lands as one settings write. A workspace now picks indicators,
+  the pack registers cleanly.
+- New localized keys, en and ru (`Chart.Indicators.*`): one honest
+  tooltip per pack row summarizing its formula - the checkbox labels stay
+  the plugins' canonical names, product names rather than localized
+  strings.
 ## [0.1.0-alpha.59] - 2026-11-07
 
 Build of board task T-106 (branch `feat/rate-limiter`).
