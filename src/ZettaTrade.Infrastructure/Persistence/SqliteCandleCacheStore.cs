@@ -191,6 +191,38 @@ public sealed class SqliteCandleCacheStore(
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<Bar>> GetOlderThanAsync(
+        string adapterId,
+        Symbol symbol,
+        TimeFrame timeFrame,
+        DateTimeOffset before,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(adapterId);
+        ArgumentNullException.ThrowIfNull(symbol);
+
+        if (!_enabled)
+        {
+            return [];
+        }
+
+        var take = Math.Clamp(limit, 1, MaxLatestBatch);
+        await using var dbContext = new CandleCacheDbContext(options);
+
+        var entries = await dbContext.Candles
+            .Where(entry => entry.AdapterId == adapterId
+                && entry.Symbol == symbol.Normalized
+                && entry.TimeFrame == timeFrame
+                && entry.OpenTime < before)
+            .OrderByDescending(entry => entry.OpenTime)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+        entries.Reverse();
+        return entries.Select(ToBar).ToArray();
+    }
+
+    /// <inheritdoc/>
     public async Task WriteThroughAsync(
         string adapterId,
         Symbol symbol,

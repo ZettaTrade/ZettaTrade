@@ -23,8 +23,9 @@ using ZettaTrade.Infrastructure.Tests.Exchange;
 /// the upsert-by-open-time write-through (idempotency across restarts,
 /// range-overlap conflation, the check-then-act race pinned via two store
 /// instances on the same file), the per-series eviction cap, series
-/// isolation by (adapter, symbol, interval) and the reactive Caching
-/// settings policy.
+/// isolation by (adapter, symbol, interval), the reactive Caching
+/// settings policy, and the T-086 older-than probe (the strictly-older
+/// bounded window the deep-history repair chain reads).
 /// </summary>
 public sealed class SqliteCandleCacheStoreTests
 {
@@ -398,4 +399,66 @@ public sealed class SqliteCandleCacheStoreTests
     }
 
     #endregion Settings Policy
+
+    #region Older-than Probe (T-086)
+
+    [Fact]
+    public async Task GetOlderThan_ServesOnlyTheStrictlyOlderWindow_OldestFirst()
+    {
+        await WithTempDatabaseAsync(async file =>
+        {
+            var store = CreateStore(file, CreateSettings());
+            await store.InitializeAsync();
+            await store.WriteThroughAsync("paper", Symbol.Parse("BTC/USDT"), TimeFrame.M1, Bars(0, 5));
+
+            var older = await store.GetOlderThanAsync(
+                "paper",
+                Symbol.Parse("BTC/USDT"),
+                TimeFrame.M1,
+                BaseTime.AddMinutes(3),
+                100);
+
+            // Minutes 0..2 sit strictly below the boundary; the boundary's
+            // OWN open (minute 3) stays out — the probe serves the coverage
+            // behind the repair's window exactly, oldest-first like every
+            // window the cache returns.
+            older.Should().BeEquivalentTo(Bars(0, 3));
+            older.Should().BeInAscendingOrder(bar => bar.Time);
+        });
+    }
+
+    [Fact]
+    public async Task GetOlderThan_ClampsTheLimitAndIsolatesTheSeries()
+    {
+        await WithTempDatabaseAsync(async file =>
+        {
+            var store = CreateStore(file, CreateSettings());
+            await store.InitializeAsync();
+            await store.WriteThroughAsync("paper", Symbol.Parse("BTC/USDT"), TimeFrame.M1, Bars(0, 8));
+
+            var newestOlder = await store.GetOlderThanAsync(
+                "paper",
+                Symbol.Parse("BTC/USDT"),
+                TimeFrame.M1,
+                BaseTime.AddMinutes(10),
+                3);
+
+            // The newest strictly-older tail the cap allows, oldest-first:
+            // the probe is a bounded window, not the whole cached past.
+            newestOlder.Select(bar => bar.Time).Should().Equal(
+                BaseTime.AddMinutes(5),
+                BaseTime.AddMinutes(6),
+                BaseTime.AddMinutes(7));
+
+            (await store.GetOlderThanAsync(
+                "other",
+                Symbol.Parse("BTC/USDT"),
+                TimeFrame.M1,
+                BaseTime.AddMinutes(10),
+                100))
+                .Should().BeEmpty("another adapter's series key isolates the coverage");
+        });
+    }
+
+    #endregion Older-than Probe (T-086)
 }

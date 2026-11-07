@@ -147,7 +147,7 @@
 
                     <!-- Chart workspace -->
                     <Border Grid.Column="0" DataContext="{Binding Chart}">
-                        <Grid RowDefinitions="Auto,Auto,*">
+                        <Grid RowDefinitions="Auto,Auto,Auto,*">
                             <!-- Header: the symbol picker on the left (the star badge
                                  marks the favorites; both marks are managed in the
                                  settings window's pairs tab); the time frame picker
@@ -201,8 +201,18 @@
                                        IsVisible="{Binding HasErrorMessage}"
                                        Margin="0,0,0,8" />
 
+                            <!-- Deep-history end note (T-086): where the feed's
+                                 candle series ends — shown while the loaded
+                                 history proved a limit. -->
+                            <TextBlock Grid.Row="2"
+                                       Text="{Binding HistoryLimitNote}"
+                                       Foreground="{DynamicResource TextPrimary}"
+                                       TextWrapping="Wrap"
+                                       IsVisible="{Binding HasHistoryLimitNote}"
+                                       Margin="0,0,0,8" />
+
                             <!-- Chart -->
-                            <charting:CandlestickChart x:Name="CandlesChart" Grid.Row="2"
+                            <charting:CandlestickChart x:Name="CandlesChart" Grid.Row="3"
                                                        Bars="{Binding Bars}"
                                                        Use12HourClock="{Binding Use12HourClock}"
                                                        IndicatorLines="{Binding IndicatorLines}" />

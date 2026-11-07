@@ -1,5 +1,6 @@
 namespace ZettaTrade.Infrastructure.Persistence;
 
+using System;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.ValueObjects;
@@ -28,6 +29,20 @@ public interface ICandleCache
         string adapterId,
         Symbol symbol,
         TimeFrame timeFrame,
+        int limit,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The nearest bars of one series OLDER than an open time, oldest first —
+    /// the deep-history repair's probe of the cached coverage behind a
+    /// delivered window (T-086). An empty result is the honest
+    /// no-older-coverage answer, never an error.
+    /// </summary>
+    Task<IReadOnlyList<Bar>> GetOlderThanAsync(
+        string adapterId,
+        Symbol symbol,
+        TimeFrame timeFrame,
+        DateTimeOffset before,
         int limit,
         CancellationToken cancellationToken = default);
 

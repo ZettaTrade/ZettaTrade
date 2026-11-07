@@ -66,6 +66,62 @@ public static class BarSeriesMerge
         return prepend;
     }
 
+    /// <summary>
+    /// Set-union merge of two ascending series by open time (T-086's repair
+    /// lane): the result is one strictly-ascending series where an
+    /// equal-open bar keeps the EXISTING side — the displayed state stays
+    /// authoritative, the fetch/cached overlaps conflate in the cache store,
+    /// and the merge only adds what is absent. Either side empty yields the
+    /// other verbatim; a contract trip (any side not strictly ascending)
+    /// returns <c>null</c> — the caller keeps the view exactly as it stood
+    /// (the honest-view rule), never a repaired or defaulted substitute.
+    /// </summary>
+    /// <param name="existing">The loaded series (ascending open times).</param>
+    /// <param name="incoming">The additions (ascending open times), each
+    /// possibly overlapping the other side's coverage.</param>
+    /// <returns>The merged strictly-ascending series, or <c>null</c> when a
+    /// guard tripped.</returns>
+    public static IReadOnlyList<Bar>? UnionAscending(IReadOnlyList<Bar> existing, IReadOnlyList<Bar> incoming)
+    {
+        ArgumentNullException.ThrowIfNull(existing);
+        ArgumentNullException.ThrowIfNull(incoming);
+
+        if (existing.Count == 0)
+        {
+            return incoming;
+        }
+
+        if (incoming.Count == 0)
+        {
+            return existing;
+        }
+
+        if (!IsStrictlyAscending(existing) || !IsStrictlyAscending(incoming))
+        {
+            return null;
+        }
+
+        var merged = new List<Bar>(existing.Count + incoming.Count);
+        var i = 0;
+        var j = 0;
+        while (i < existing.Count || j < incoming.Count)
+        {
+            // On an equal open the EXISTING bar wins (see the summary) and the
+            // equal-open duplicate of the other side is skipped beneath.
+            var takeExisting = j >= incoming.Count ||
+                (i < existing.Count && existing[i].Time <= incoming[j].Time);
+            var chosen = takeExisting ? existing[i++] : incoming[j++];
+            if (merged.Count > 0 && merged[^1].Time == chosen.Time)
+            {
+                continue;
+            }
+
+            merged.Add(chosen);
+        }
+
+        return merged;
+    }
+
     /// <summary>Strictly-ascending open times: no equal opens, no order drift.</summary>
     private static bool IsStrictlyAscending(IReadOnlyList<Bar> bars)
     {

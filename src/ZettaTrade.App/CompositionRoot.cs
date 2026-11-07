@@ -191,6 +191,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ICsvExportService>(),
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ICandleCache>(), // T-085: the bootstrap page serves the cache first.
+                sp.GetRequiredService<CandleBackfillService>(), // T-086: the repair chain's fetcher.
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
@@ -221,6 +222,7 @@ internal static class CompositionRoot
         // it rides, so the walk loads the Caching policy before the chart's
         // bootstrap can serve a first page from the cache.
         services.AddCandleCache();
+        services.AddCandleBackfillServices(); // T-086: the deep-history fetcher (bounded channel, write-through).
         services.AddHistoryUiServices();
         services.AddTradeStatsServices();
         services.AddCsvExportServices();
