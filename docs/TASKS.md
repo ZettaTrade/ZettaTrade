@@ -124,6 +124,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
 | T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | done | - |
+| T-120 Supervisor-mode skill (OpenCode): the standing directives load only on explicit invocation | feat/supervisor-skill | in-progress | - |
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
 | T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | queued | - |
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
@@ -409,6 +410,16 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** every claim matches shipped features only (no promises beyond testnet/documentable paths).
 - **Tests:** none (docs), a words-only review.
 - **Status:** done. Docs-only (no version bump, no CHANGELOG section). Canon: the branch carries `577fd42` — the rewritten top-level README with the trading-safety guidance front and center: explicit alpha status, user-scoped key hygiene (read-only for market data, trade-only for trading, withdrawal/transfer off, IP allowlist where offered), testnet-first instructions tied to the configurable `Exchange` endpoint section and the paper-trading/risk/confirmation surfaces, the per-machine `ISecretStore` storage path, and the investment-disclaimer block; the docs-site instructions stay subordinated under a dedicated heading; `docs/SECURITY.md` is referenced as a link only (created by the sibling task T-117). Gate passed; this board-flip commit closes the section.
+
+## T-120 — Supervisor-mode skill (OpenCode): the standing directives on explicit invocation
+
+- **Branch:** queued 2026-11-07 (supervisor idea from the user: a NEW session should resume this operating mode by an explicit "работай по скиллу zettatrade-supervisor"; by default the review stays with the human).
+- **Origin:** the standing directives (waves of up to four subagents on non-conflicting tasks, supervisor review + self-merge into `develop`, handoff-state persistence, crash and zombie recovery) lived only in live session context — a fresh session must be able to pick them up from the repo itself.
+- **What:** an OpenCode skill at `.opencode/skills/zettatrade-supervisor/SKILL.md` encoding the full supervisor protocol: wave planning (max four subagents, conflict-sliced, one Charting task per wave), worker briefs + fences, version-bump assignment per wave, the landing/rebase protocol (sync check, bump/CHANGELOG/board conflict map, gates with or without `-AllowProtected`, ff-merge + worktree cleanup), the handoff-state-file convention, crash recovery including subagent re-spawn by sessionID and zombie stand-down arbitration, the standing self-merge directive (verbatim, RU), and the explicit-invocation discipline with `disable-model-invocation: true` (never auto-fires; default mode = human review).
+- **Scope:** `.opencode/skills/zettatrade-supervisor/SKILL.md` + the `docs/TASKS*.md` rows. Docs-only: no code, no version bump, no CHANGELOG section.
+- **Acceptance:** a fresh session invoked explicitly runs the next wave per the standing directives without further prompting; without the invocation the skill stays undiscoverable to the model and nothing changes in default behavior.
+- **Tests:** none (docs-only); the gate covers the mechanical checks. Manual proof: skill discovery from the project scope + explicit `@zettatrade-supervisor` load.
+- **Status:** in-progress.
 
 ## T-130 — Extract Livery into a standalone private repo (MIT kept), consume as a package
 
