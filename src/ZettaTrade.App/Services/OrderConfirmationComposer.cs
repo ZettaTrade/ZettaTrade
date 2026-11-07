@@ -4,13 +4,15 @@ using System.Globalization;
 using Livery.Localization;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
 /// Composes the structured confirmation requests for order operations, so
-/// the new-order dialog (placement) and the positions panel (cancellation,
-/// order amending) present summaries in exactly the shape the MCP trading
-/// tools use. Enum labels resolve through <see cref="ILocalizationManager"/>;
-/// callers never embed user-facing text themselves.
+/// the new-order dialog (placement), the positions panel (cancellation,
+/// order amending, position actions) and the bulk cancel pass (T-076)
+/// present summaries in exactly the shape the MCP trading tools use. Enum
+/// labels resolve through <see cref="ILocalizationManager"/>; callers never
+/// embed user-facing text themselves.
 /// </summary>
 public sealed class OrderConfirmationComposer
 {
@@ -21,9 +23,25 @@ public sealed class OrderConfirmationComposer
     private const string ConfirmAmendPriceKey = "Positions.ConfirmAmend";
     private const string ConfirmAmendQuantityKey = "Positions.ConfirmAmendQuantityOnly";
     private const string ConfirmReverseKey = "Positions.ConfirmReverseFormat";
+    private const string ConfirmBulkCancelKey = "Positions.ConfirmBulkCancelFormat";
+    private const string TagPaperKey = "Positions.BulkTagPaper";
     private const string MarketLabelKey = "Trading.PriceMarket";
 
     #endregion Resx Keys
+
+    #region Private Constants
+
+    /// <summary>
+    /// Prints the total notional without sum scale noise (a decimal sum
+    /// carries its widest addend's scale — a remaining-notional of exactly
+    /// 800 stores as 800.0000 and the trailing zeros carry no information).
+    /// The trailing-zero trim stops where the decimal's own ceiling is: a
+    /// sum scale of 28 fraction digits is the decimal type's maximum, so the
+    /// format covers every representable sum exactly.
+    /// </summary>
+    private const string NotionalFormat = "0.############################"; // 28 fraction digits.
+
+    #endregion Private Constants
 
     private readonly ILocalizationManager _localization;
 
@@ -127,6 +145,50 @@ public sealed class OrderConfirmationComposer
     }
 
     /// <summary>
+    /// Confirmation summary shown before a bulk cancel pass runs (T-076):
+    /// ONE mandatory summary naming the symbol, the working-order count the
+    /// pass will command, the total remaining notional (each order's
+    /// unfilled quantity at its own anchor price) and the paper/live tag —
+    /// the localized paper tag for the shipped demo venue, the venue's
+    /// display name for live. A refusal of this single summary must leave
+    /// every order in the set untouched.
+    /// </summary>
+    /// <param name="symbol">The symbol the pass is scoped to.</param>
+    /// <param name="orderCount">How many working orders the pass will command.</param>
+    /// <param name="totalNotional">Sum of the orders' remaining notional.</param>
+    /// <param name="isPaper">True when the pass rides the paper adapter.</param>
+    /// <param name="liveVenueName">The live venue's display name for the tag.</param>
+    public ConfirmationRequest ForBulkCancel(
+        Symbol symbol,
+        int orderCount,
+        decimal totalNotional,
+        bool isPaper,
+        string liveVenueName)
+    {
+        ArgumentNullException.ThrowIfNull(symbol);
+        ArgumentException.ThrowIfNullOrWhiteSpace(liveVenueName);
+
+        // The notional's counting asset: the symbol's quote currency; an
+        // instrument without a split quote (stocks) counts in its base asset
+        // — the quantity's own asset — until exchange metadata supplies a
+        // quote. Never a fabricated currency name.
+        var notionalAsset = symbol.QuoteAsset ?? symbol.BaseAsset;
+
+        return new ConfirmationRequest
+        {
+            MessageKey = ConfirmBulkCancelKey,
+            Arguments =
+            [
+                symbol.Normalized,
+                orderCount.ToString(CultureInfo.InvariantCulture),
+                FormatNotional(totalNotional),
+                notionalAsset,
+                isPaper ? _localization.GetString(TagPaperKey) : liveVenueName,
+            ],
+        };
+    }
+
+    /// <summary>
     /// Confirmation summary shown before a working order is amended: the
     /// same leading identity shape the cancel confirmation uses (side, id)
     /// plus the quantity delta, and — when the limit price is part of the
@@ -178,5 +240,13 @@ public sealed class OrderConfirmationComposer
                 ],
             };
     }
+
+    /// <summary>
+    /// The invariant, trailing-zero-trimmed text of a notional total: the
+    /// sum's own scale noise never enters the confirmation line (a
+    /// remaining-notional of exactly 800 prints as 800, not as 800.0000).
+    /// </summary>
+    private static string FormatNotional(decimal value) =>
+        value.ToString(NotionalFormat, CultureInfo.InvariantCulture);
 }
 

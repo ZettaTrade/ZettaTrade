@@ -80,7 +80,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-073 Flaky concurrency test: GetString_AFactoryParkedAcrossASwitch fails intermittently under load (queued from the T-071/T-072 landing) | feat/flaky-localization | done | - |
 | T-074 Advanced order types: stop-limit, trailing stop, OCO | feat/order-types | done | - |
 | T-075 Amend a working order from the orders panel | feat/order-amend | done | - |
-| T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | queued | - |
+| T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | done | - |
 | T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | done | - |
 | T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | queued | - |
 | T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | queued | - |
@@ -151,15 +151,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-
-## T-076 — Bulk order management: cancel every working order on a symbol
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** one-by-one cancel (T-031) is painful on stop runs; a blind global cancel is out of spec (`cancel_order` always requires the symbol).
-- **What:** cancel-all scoped to the active symbol (an optional narrower cut: the symbol's set on the current exchange): a confirmation with count and notional, per-item best-effort reports, every item riding the same cancel command path (no risk bypass), paper/live tags visible.
-- **Scope:** orders panel VM + a bulk service, resx en+ru, tests.
-- **Acceptance:** a mixed working/cancelled set cancels only working orders; one adapter fault never stops the others.
-- **Tests:** bulk cancel golden, partial-failure reporting, the confirmation gate.
 
 ## T-078 - Order ticket confirmation: the pre-submit summary
 

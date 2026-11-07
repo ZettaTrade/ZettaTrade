@@ -1079,6 +1079,16 @@ the board and its section below.
 - **Tests:** paper amend golden, fill-during-amend race, risk re-validation, unsupported-type error path.
 - **Status:** done. Canon: the amend pipeline (`dc69724`), the orders-panel amend surface with its dialog (`2684856`), the alpha.44 cut (`83e43b1`) and this section's status flip; shipped as `0.1.0-alpha.44` (see CHANGELOG.md). No Core interface changes were needed — the adapter-side replace seam is an App-owned interim interface (`IOrderReplaceSupport`, not Core) probing for optional support until Core lands the replace contract; the shipped paper adapter runs the surfaced cancel+new sequence. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
+## T-076 — Bulk order management: cancel every working order on a symbol
+
+- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Origin:** one-by-one cancel (T-031) is painful on stop runs; a blind global cancel is out of spec (`cancel_order` always requires the symbol).
+- **What:** cancel-all scoped to the active symbol (an optional narrower cut: the symbol's set on the current exchange): a confirmation with count and notional, per-item best-effort reports, every item riding the same cancel command path (no risk bypass), paper/live tags visible.
+- **Scope:** orders panel VM + a bulk service, resx en+ru, tests.
+- **Acceptance:** a mixed working/cancelled set cancels only working orders; one adapter fault never stops the others.
+- **Tests:** bulk cancel golden, partial-failure reporting, the confirmation gate.
+- **Status:** done. Canon: the confirmed per-symbol pass pipeline (`9ec0af1`), the orders-section action surface (`0194415`), the goldens/faults/gates test pack (`f9ca207`) and this section's status flip; shipped as `0.1.0-alpha.48` (see CHANGELOG.md). Scope decision: the workspace-symbol filter IS the spec's optional narrower cut - the panel rides one trading face, so the symbol's orders on that face ARE the symbol's set on the current exchange; the fresh adapter read at click time is always the target set. Core untouched - canon `CancelOrderAsync(symbol, id)` rides as-is, the pass adds no capability. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
+
 ## T-077 — Position actions: close, reverse, partial close (paper-first)
 
 - **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).

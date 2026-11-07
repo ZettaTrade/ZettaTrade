@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +21,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
@@ -33,7 +35,12 @@ using ZettaTrade.Infrastructure.Persistence;
 /// and in the order history window. The amend flow (T-075) runs through the
 /// real <see cref="OrderAmendService"/> pipeline: the row gates the amend
 /// button, the interaction hands the dialog edits over, and the row shows
-/// its amending state for the whole flow, in-flight reloads included.
+/// its amending state for the whole flow, in-flight reloads included. The
+/// bulk pass (T-076) rides the real <see cref="BulkCancelService"/>: a
+/// refused confirmation stays silent, only the fresh
+/// working orders on the workspace symbol get commands, and a row whose
+/// per-row cancel is already in flight is skipped and reported, never
+/// double-commanded.
 /// </summary>
 public sealed class PositionsPanelViewModelTests
 {
@@ -43,6 +50,9 @@ public sealed class PositionsPanelViewModelTests
     private readonly IOrderJournal _journal = new OrderJournal();
     private readonly IOrderHistoryStore _history = Substitute.For<IOrderHistoryStore>();
     private readonly IRiskManager _riskManager = Substitute.For<IRiskManager>();
+
+    /// <summary>The workspace symbol stream the bulk pass scopes by (the test posture stays on BTC/USDT).</summary>
+    private readonly BehaviorSubject<Symbol> _workspaceSymbols = new(Symbol.Parse("BTC/USDT"));
 
     /// <summary>The adapter's open-order set the panel and the amend flow both see.</summary>
     private readonly List<Order> _openOrders = [];
@@ -62,6 +72,11 @@ public sealed class PositionsPanelViewModelTests
             .Returns(RiskCheckResult.Approved());
 
         _trading.GetOpenOrdersAsync().Returns(_ => [.. _openOrders]);
+
+        // The venue identity the bulk pass tags the confirmation with: the
+        // shipped paper venue (the panel rides the same substitute).
+        _trading.Id.Returns(PaperTradingAdapter.ExchangeId);
+        _trading.Name.Returns(PaperTradingAdapter.ExchangeName);
     }
 
     /// <summary>The actions service the panel rows ride, over the same trading substitute.</summary>
@@ -74,6 +89,16 @@ public sealed class PositionsPanelViewModelTests
         _history,
         _localization,
         Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionActionsService>>());
+
+    /// <summary>The bulk pass the panel's Cancel All command rides.</summary>
+    private BulkCancelService CreateBulkCancelService() => new(
+        _trading,
+        _confirmation,
+        new OrderConfirmationComposer(_localization),
+        new WorkspaceSymbolService(_workspaceSymbols),
+        _history,
+        _localization,
+        NullLogger<BulkCancelService>.Instance);
 
     private PositionsPanelViewModel CreateViewModel() =>
         new(
@@ -92,6 +117,7 @@ public sealed class PositionsPanelViewModelTests
                 _localization,
                 NullLogger<OrderAmendService>.Instance),
             CreateActionsService(),
+            CreateBulkCancelService(),
             _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionsPanelViewModel>>());
 
@@ -101,6 +127,7 @@ public sealed class PositionsPanelViewModelTests
         string symbol = "BTC/USDT",
         OrderType type = OrderType.Limit,
         string? ocoGroupId = null,
+        decimal filled = decimal.Zero,
         decimal? commission = null) => new()
         {
             Id = id,
@@ -113,6 +140,7 @@ public sealed class PositionsPanelViewModelTests
             Status = status,
             OcoGroupId = ocoGroupId,
             TimeInForce = TimeInForce.GTC,
+            FilledQuantity = new Quantity(filled),
             CreatedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
             Commission = commission,
         };
@@ -785,6 +813,129 @@ public sealed class PositionsPanelViewModelTests
         viewModel.RecentOrders.Single(row => row.OrderId == "paper-1").Opened
             .Should().Be(history.Rows.Single().Opened);
     }
+
+    #region Bulk Cancel
+
+    [Fact]
+    public async Task CancelAllCommand_WhenConfirmed_CancelsOnlyTheWorkingOrdersAndReports()
+    {
+        // Arrange: a mixed set — two working orders on the workspace symbol,
+        // one terminal, one on another symbol.
+        _openOrders.Add(BuildOrder("paper-1", OrderStatus.Pending));
+        _openOrders.Add(BuildOrder("paper-2", OrderStatus.PartiallyFilled, filled: 0.004m));
+        _openOrders.Add(BuildOrder("paper-3", OrderStatus.Filled));
+        _openOrders.Add(BuildOrder("paper-4", OrderStatus.Pending, "ETH/USDT"));
+        _trading.GetPositionsAsync().Returns([]);
+        _confirmation
+            .RequestConfirmationAsync(Arg.Any<ConfirmationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        var viewModel = CreateViewModel();
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act
+        await viewModel.CancelAllCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: exactly the two working BTC/USDT orders were commanded,
+        // the report line lists the pass summary, the error line stays clear.
+        await _trading.Received(1).CancelOrderAsync(
+            Symbol.Parse("BTC/USDT"), "paper-1", Arg.Any<CancellationToken>());
+        await _trading.Received(1).CancelOrderAsync(
+            Symbol.Parse("BTC/USDT"), "paper-2", Arg.Any<CancellationToken>());
+        await _trading.DidNotReceive().CancelOrderAsync(
+            Arg.Any<Symbol>(), "paper-3", Arg.Any<CancellationToken>());
+        await _trading.DidNotReceive().CancelOrderAsync(
+            Arg.Any<Symbol>(), "paper-4", Arg.Any<CancellationToken>());
+        await _history.Received(2).MarkCancelledAsync(
+            "paper", Arg.Any<string>(), Arg.Any<DateTimeOffset>());
+        viewModel.ResultMessage.Should()
+            .Contain("Positions.BulkCancelDone")
+            .And.Contain("[Positions.BulkCancelDone:BTC/USDT|2|0|0|0|.]");
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CancelAllCommand_WhenRefused_ThePanelStaysSilent()
+    {
+        // Arrange
+        _openOrders.Add(BuildOrder("paper-1", OrderStatus.Pending));
+        _trading.GetPositionsAsync().Returns([]);
+        _confirmation
+            .RequestConfirmationAsync(Arg.Any<ConfirmationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+        var viewModel = CreateViewModel();
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Act
+        await viewModel.CancelAllCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: a refusal leaves every order untouched and the panel
+        // silent (the user gave the answer themselves).
+        await _trading.DidNotReceive().CancelOrderAsync(
+            Arg.Any<Symbol>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _history.DidNotReceive().MarkCancelledAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>());
+        viewModel.ResultMessage.Should().BeNull();
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CancelAllCommand_WhileARowCancelIsInFlight_SkipsAndReportsThatRow()
+    {
+        // Arrange: park the per-row cancel of paper-1 inside the adapter
+        // call; the bulk pass must skip that row and report it rather than
+        // double-commanding it.
+        _openOrders.Add(BuildOrder("paper-1", OrderStatus.Pending));
+        _openOrders.Add(BuildOrder("paper-2", OrderStatus.Pending));
+        _trading.GetPositionsAsync().Returns([]);
+        // Both gates open: the row's own cancel confirmation and the bulk
+        // pass confirmation ride the same substitute.
+        _confirmation
+            .RequestConfirmationAsync(Arg.Any<ConfirmationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        var rowCancelReached = new TaskCompletionSource();
+        var rowCancelGate = new TaskCompletionSource();
+        var rowCancelDone = new TaskCompletionSource();
+
+        _trading
+            .When(t => t.CancelOrderAsync(Arg.Any<Symbol>(), "paper-1", Arg.Any<CancellationToken>()))
+            .Do(_ => rowCancelReached.TrySetResult());
+        _trading
+            .CancelOrderAsync(Arg.Any<Symbol>(), "paper-1", Arg.Any<CancellationToken>())
+            .Returns((Func<NSubstitute.Core.CallInfo, Task>)(_ => rowCancelGate.Task));
+
+        var viewModel = CreateViewModel();
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Park the row flow inside its own cancel command.
+        using var rowExecution = viewModel.OpenOrders.Single(row => row.OrderId == "paper-1").CancelCommand
+            .Execute(ReactiveUI.Primitives.RxVoid.Default)
+            .Subscribe(
+                _ => { },
+                error => rowCancelDone.TrySetException(error),
+                () => rowCancelDone.TrySetResult());
+        await rowCancelReached.Task;
+
+        // Act: the pass reads the in-flight id the row flow owns.
+        await viewModel.CancelAllCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: paper-2 was the only order the pass commanded, the report
+        // line declares one cancel and one skipped (already in flight) row.
+        await _trading.Received(1).CancelOrderAsync(
+            Arg.Any<Symbol>(), "paper-2", Arg.Any<CancellationToken>());
+        viewModel.ResultMessage.Should()
+            .Contain("Positions.BulkCancelDone")
+            .And.Contain("[Positions.BulkCancelDone:BTC/USDT|1|1|0|0|.]");
+        viewModel.ErrorMessage.Should().BeNull();
+
+        // The row's own flow completes when the gate releases — exactly one
+        // command for paper-1 in total (the row's own, never a bulk copy).
+        rowCancelGate.TrySetResult();
+        await rowCancelDone.Task;
+        await _trading.Received(1).CancelOrderAsync(
+            Arg.Any<Symbol>(), "paper-1", Arg.Any<CancellationToken>());
+    }
+
+    #endregion
 
     #region Position Actions
 

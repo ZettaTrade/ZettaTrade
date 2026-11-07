@@ -630,6 +630,30 @@
   <data name="Positions.ReverseLeg2FailedFormat" xml:space="preserve">
     <value>Ордер закрытия {0} размещён, но повторный вход не удался: {1}</value>
   </data>
+  <data name="Positions.ActionBulkCancel" xml:space="preserve">
+    <value>Отменить всё…</value>
+  </data>
+  <data name="Positions.ConfirmBulkCancelFormat" xml:space="preserve">
+    <value>Массовая отмена по {0}: ордеров к отмене: {1}, остаточная стоимость {2} {3} ({4}). Подтвердить?</value>
+  </data>
+  <data name="Positions.BulkTagPaper" xml:space="preserve">
+    <value>Paper</value>
+  </data>
+  <data name="Positions.BulkNoSymbol" xml:space="preserve">
+    <value>Активного символа нет: сначала выберите символ в рабочем пространстве.</value>
+  </data>
+  <data name="Positions.BulkCancelNothing" xml:space="preserve">
+    <value>Рабочих ордеров для отмены по {0} нет.</value>
+  </data>
+  <data name="Positions.BulkCancelDone" xml:space="preserve">
+    <value>Массовая отмена по {0}: отменено {1}, пропущено {2} (уже в обработке), с ошибкой {3}, не отправлено {4}{5}</value>
+  </data>
+  <data name="Positions.BulkCancelFailedItems" xml:space="preserve">
+    <value>. Не отменены: {0}.</value>
+  </data>
+  <data name="Positions.BulkCancelAborted" xml:space="preserve">
+    <value>Массовая отмена не завершилась: {0}</value>
+  </data>
   <data name="History.Title" xml:space="preserve">
     <value>История ордеров</value>
   </data>
