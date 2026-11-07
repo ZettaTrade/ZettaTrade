@@ -92,7 +92,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | done | - |
 | T-086 Deep-history backfill and gap repair | feat/backfill | done | T-085 |
 | T-087 Trade tape (time & sales) panel | feat/trade-tape | done | - |
-| T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | in-progress | - |
+| T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | done | - |
 | T-089 Chart types: line, area, bars, Heikin-Ashi | feat/chart-types | queued | - |
 | T-090 Y-axis scale modes: log and percent | feat/chart-scales | queued | - |
 | T-091 Drawing tools: trend line, horizontal level, fib retracement | feat/draw-tools | queued | - |
@@ -151,16 +151,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-
-## T-088 — Depth chart: cumulative bid/ask areas view
-
-- **Branch:** feat/depth-chart (base `develop` at `df22054`; queued 2026-11-06 at the T-074…T-115 backlog cut, developed 2026-11-07).
-- **Origin:** the ladder (T-011) shows levels; the cumulative shape of the book is its own read.
-- **What:** a cumulative bid/ask area around midspread beside the ladder, riding the same book stream (no new transport), redraw throttled to the 60 fps target, and the depth-resolution discipline of T-072 reused (the served vs displayed depth contract).
-- **Scope:** a Skia renderer in Charting, panel composition, resx en+ru, tests.
-- **Acceptance:** 1000+ levels hold 60 fps; both components agree on the same resolved depth.
-- **Tests:** cumulative math golden, fps budget, empty-book state.
-- **Status:** in-progress.
 
 ## T-089 — Chart types: line, area, bars, Heikin-Ashi
 
