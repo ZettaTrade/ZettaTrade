@@ -84,7 +84,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | done | - |
 | T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | queued | - |
 | T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | queued | - |
-| T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | queued | - |
+| T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | done | - |
 | T-081 Balances panel: per-exchange and aggregated | feat/balances | done | - |
 | T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | done | - |
 | T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | done | T-082 (soft) |
@@ -181,12 +181,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-080 — Fees: maker/taker in the ticket, fills and history
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/fees (base `develop` at `966592c`; queued 2026-11-06; developed 2026-11-07).
 - **Origin:** PnL without fees lies; fee surfaces are absent everywhere.
 - **What:** a per-adapter fee schedule (paper: a configurable maker/taker model), an estimate line in the ticket, fee columns in fills and order history, and fee inclusion in the T-082 PnL accounting. A missing schedule surfaces as an explicit "—" (never a zero default that hides the cost).
 - **Scope:** fill DTO extension if fees are absent (additive, supervisor-gated Core diff), paper engine, panels, resx en+ru, tests.
 - **Acceptance:** maker vs taker selection visible everywhere the cost matters.
 - **Tests:** schedule selection golden, rounding policy, the no-schedule passthrough (a displayed unknown, not a zero).
+- **Status:** done. Canon: the branch carries the fee schedule model and registry (`3fec2fb`), the paper-fill commission stamping + PnL passthrough (`83d5301`), the role-interface seam with the harmed harnesses rewired (`480bbbd`), the schedule/rounding/passthrough goldens (`d867808`), the ticket's estimate line (`da0f61a`), the Fee columns + the fills-CSV fee (`f231334`) and this release commit (the alpha.47 cut + this section's status flip); shipped as `0.1.0-alpha.47` (see CHANGELOG.md). The Core diff stayed at the one pre-authorized additive `Order.Commission` field (+ migration); commission enters the T-082 PnL ledger through the existing per-fill fee parameter, and every unknown (schedule or amount) renders the localized dash, never a fabricated zero. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-085 — Local candle cache in SQLite (write-through, offline start)
 
