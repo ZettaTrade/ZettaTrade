@@ -120,7 +120,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-113 Backtest harness over stored candles | feat/backtest | queued | T-111 + T-085 |
 | T-114 AI market-context injection into the chat | feat/ai-context | queued | - |
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
-| T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | feat/ws-e2e-budget | in-progress | - |
+| T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | feat/ws-e2e-budget | done | - |
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
 | T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | done | - |
@@ -360,21 +360,7 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** every shipped surface documented; the README links it.
 - **Tests:** none (docs).
 
-## T-116 — Adapter WS E2E tests flake under solution-parallel load: the 10 s `EventWait` trips on scheduler starvation (queued from the T-073 verification)
-
-- **Branch:** feat/ws-e2e-budget (base `develop` at `df22054`; queued 2026-11-06 from the T-073 post-fix verification, developed 2026-11-07).
-- **Origin:** during the T-073 post-fix full-solution verification, `ZettaTrade.Infrastructure.Tests.Exchange.BinanceAdapterWsE2eTests.Depth_and_trade_frames_publish_order_book_and_trades` failed with `System.TimeoutException` inside `WaitAsync(EventWait)` (captured console: the xUnit `[FAIL]` line, 10 s mark, Infrastructure run at 23 s duration) while every focused/localization run stayed green; the merged-tree capture run (`post5.trx` window) left the mock-server handshake, subscribe and all frames delivered under no extra load — the fact passes solo. Entire E2E family carries `private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(10)` (`BinanceAdapterWsE2eTests`, `BybitAdapterWsE2eTests`, `BinanceAdapterResubscribeTests`, `BybitAdapterResubscribeTests`, `WebSocketClientTests`, `PaperTradingAdapterTests`).
-- **Capture 2026-11-07:** the same starvation signature reproduced on
-  `ZettaTrade.Infrastructure.Tests.Exchange.ExchangeAdapterBaseSubscriptionTests`
-  during the T-075/T-077 landing wave (a fail under solution-parallel load; green
-  solo and on the gate's built-in flaky retry). Add the test to the family pass.
-- **What:** the mock-server collect/subscribe/frame budget is a bare-bones constant with a 10 s cap; under solution-level load (parallel testhosts chewing cores, xUnit parallelism in sibling assemblies) a scheduler stall crosses it and the fact fails spuriously — no product defect is involved (the WS client and adapter behave). Root-cause the real latency budget (collector wait vs scheduling), then either raise the family budget uniformly (60 s) or split tight timing assertions (latency ceilings) from the completion waits; no production code changes expected.
-- **Scope:** `tests/ZettaTrade.Infrastructure.Tests/Exchange/*Tests.cs` (the shared `EventWait` constants and `PollUntilAsync` budgets), tests only.
-- **Acceptance:** full-solution consecutive runs (≥20, cold and warm) hold zero WS E2E timeout failures; the budget rationale is written into the test files' headers.
-- **Tests:** no new logic; the existing E2E battery (mock server + adapters) is the test.
-- **Status:** in-progress.
-
-## T-117 — Secret scanner: gitleaks in CI + one-shot full-history audit
+## T-1117 — Secret scanner: gitleaks in CI + one-shot full-history audit
 
 - **Branch:** feat/secret-scanner (base `develop` at `e2d1ac5`; developed 2026-11-06).
 - **Origin:** an open-source terminal makes the repo the trust surface: the repo carries an `origin` remote and ships harder, but there is no CI or scanning at all (no `.github`). A quick regex probe of HEAD (sk-/AKIA/ghp_/AIza/PEM markers) is clean, though the 260-commit history has never been machine-audited.
