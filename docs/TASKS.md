@@ -90,7 +90,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | done | T-082 (soft) |
 | T-084 CSV export: order history, fills, candles | feat/csv-export | done | - |
 | T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | done | - |
-| T-086 Deep-history backfill and gap repair | feat/backfill | in-progress | T-085 |
+| T-086 Deep-history backfill and gap repair | feat/backfill | done | T-085 |
 | T-087 Trade tape (time & sales) panel | feat/trade-tape | queued | - |
 | T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | queued | - |
 | T-089 Chart types: line, area, bars, Heikin-Ashi | feat/chart-types | queued | - |
@@ -151,15 +151,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-
-## T-086 — Deep-history backfill and gap repair
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut). **Blocker:** T-085.
-- **Origin:** pan/paging (T-033) re-requests ranges, and gaps after outages render as holes; nothing stitches.
-- **What:** on demand past cached ranges, fetch older segments and stitch without overlap or dup; a calendar-aware gap detector (session/timeframe calendar) with a repair pass on subscription; backpressure rides the existing `Channel<T>` legs; per-adapter depth ability surfaced (some feeds cap history — display the limit, never fabricate).
-- **Scope:** the fetcher service + cache write-through (T-085), chart VM integration, tests.
-- **Acceptance:** after an outage of hours, the chart heals itself on restart/subscription.
-- **Tests:** stitch golden, gap detection over calendars, depth-limited adapter behavior, batching against T-106 later.
 
 ## T-087 — Trade tape (time & sales) panel
 
