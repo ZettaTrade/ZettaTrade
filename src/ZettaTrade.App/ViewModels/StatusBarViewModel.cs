@@ -2,6 +2,8 @@ namespace ZettaTrade.App.ViewModels;
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -25,7 +27,9 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// would never fire for it. Both managers broadcast their current value on
 /// subscribe, so the chips start with the state applied at startup. The exchange
 /// chips render only when more than one adapter is registered — with a single
-/// exchange the toolbar looks exactly as before the selector existed.
+/// exchange the toolbar looks exactly as before the selector existed. The
+/// adapter health strip rides the same pattern: the fold's snapshots arrive
+/// through the injected stream and re-render the dot rows on the UI thread.
 /// </remarks>
 public sealed class StatusBarViewModel : ReactiveObject
 {
@@ -36,6 +40,17 @@ public sealed class StatusBarViewModel : ReactiveObject
 
     /// <summary>Localized fallback notice: the persisted choice was unavailable.</summary>
     private const string FallbackNoticeKey = "Status.ExchangeFallback";
+
+    /// <summary>Localized strip state labels: the connected/disconnected pair rides the connection chip's existing keys (<see cref="ConnectedStatusKey"/>, <see cref="DisconnectedStatusKey"/>).</summary>
+    private const string ReconnectingStateKey = "Status.Health.Reconnecting";
+    private const string UnsupervisedStateKey = "Status.Health.Unsupervised";
+
+    /// <summary>Localized strip tooltip templates: the supervised one carries name, state label, last event time and the failure counter.</summary>
+    private const string TooltipFormatKey = "Status.Health.Tooltip";
+    private const string TooltipUnsupervisedFormatKey = "Status.Health.TooltipUnsupervised";
+
+    /// <summary>Compact clock format of the tooltip's last-event member (the tape's pinned precedent).</summary>
+    private const string TimeFormat = "HH:mm:ss";
 
     private string _currentThemeName = string.Empty;
     private string _currentLanguage = string.Empty;
@@ -60,6 +75,13 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// the loud warning.
     /// </summary>
     private DateTimeOffset _noticeHeldUntil = DateTimeOffset.MinValue;
+
+    /// <summary>
+    /// The last health snapshot the strip rows were built from (empty until
+    /// the first stream emission); a language switch re-composes the
+    /// tooltips from it rather than from a stale collection.
+    /// </summary>
+    private IReadOnlyList<AdapterHealth> _lastAdapterHealth = [];
 
     /// <summary>Running application version for the status bar chip.</summary>
     public string AppVersion
@@ -121,6 +143,15 @@ public sealed class StatusBarViewModel : ReactiveObject
         private set => this.RaiseAndSetIfChanged(ref _activeExchangeName, value);
     }
 
+    /// <summary>
+    /// The adapter health strip's rows (T-098): one display dot per
+    /// registered adapter, refreshed wholesale on every health snapshot.
+    /// The collection is plain (no per-row change machinery) and the
+    /// refreshes land on the user-interface thread through the shared
+    /// marshal.
+    /// </summary>
+    public ObservableCollection<AdapterHealthRow> AdapterHealthRows { get; } = new();
+
     #endregion Properties
 
     #region Constructor
@@ -132,6 +163,11 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// <param name="localizationManager">Localization manager providing the language chip state.</param>
     /// <param name="activeExchanges">The active-exchange facade providing the picker and the exchange/mode chip.</param>
     /// <param name="appVersion">Running version for the version chip.</param>
+    /// <param name="adapterHealth">
+    /// The adapter health fold's snapshot stream (T-098): the strip's rows
+    /// re-render on every health emission; the subscription lives as long
+    /// as the singleton view model.
+    /// </param>
     /// <param name="fallbackNoticeDuration">
     /// How long the fallback notice stays in the connection chip; defaults to
     /// five seconds (the parameter exists so tests can shorten the wait).
@@ -142,6 +178,7 @@ public sealed class StatusBarViewModel : ReactiveObject
         ILocalizationManager localizationManager,
         ActiveExchangeService activeExchanges,
         string appVersion,
+        IObservable<IReadOnlyList<AdapterHealth>> adapterHealth,
         TimeSpan? fallbackNoticeDuration = null,
         ILogger<StatusBarViewModel>? logger = null)
     {
@@ -216,6 +253,29 @@ public sealed class StatusBarViewModel : ReactiveObject
             .Subscribe(
                 _ => ShowFallbackNotice(),
                 ex => _logger.LogError(ex, "The fallback warning stream stopped unexpectedly"));
+
+        // The adapter health strip (T-098): the fold's snapshots re-render
+        // the dot rows — every write rides the shared marshal (the fold
+        // emits from the supervisor's pump thread), so a state flip renders
+        // within one posted beat and never from a foreign thread.
+        adapterHealth
+            .ObserveOnUiThread()
+            .Subscribe(
+                RefreshAdapterHealthRows,
+                ex => _logger.LogError(ex, "The adapter health stream stopped unexpectedly"));
+
+        // A language switch re-composes the strip's localized tooltips from
+        // the stored snapshot: the rows survive the switch, only their
+        // composed texts change. The rows rebuild must stay a
+        // user-interface-thread write, so this subscription marshals like
+        // the strip's own (the language broadcasts may be off-thread).
+        localizationManager
+            .LanguageChanged
+            .Select(_ => RxVoid.Default)
+            .ObserveOnUiThread()
+            .Subscribe(
+                _ => RefreshAdapterHealthRows(_lastAdapterHealth),
+                ex => _logger.LogError(ex, "The strip's language re-composition stream stopped unexpectedly"));
     }
 
     #endregion Constructor
@@ -242,6 +302,65 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// </summary>
     private const string ConnectedStatusKey = "Status.Connected";
     private const string DisconnectedStatusKey = "Status.Disconnected";
+
+    /// <summary>
+    /// Re-render the strip's rows from one health snapshot: the rows
+    /// replace wholesale (no per-row machinery), each carrying its
+    /// composed localized tooltip. Callers deliver this on the user
+    /// interface thread (both strip subscriptions marshal upstream); the
+    /// snapshot is stored before the rebuild so a language switch re-composes
+    /// from the live values.
+    /// </summary>
+    private void RefreshAdapterHealthRows(IReadOnlyList<AdapterHealth> snapshot)
+    {
+        _lastAdapterHealth = snapshot;
+
+        AdapterHealthRows.Clear();
+        foreach (var health in snapshot)
+        {
+            AdapterHealthRows.Add(new AdapterHealthRow(
+                health.AdapterName,
+                health.State,
+                ComposeHealthTooltip(_localizationManager, health)));
+        }
+    }
+
+    /// <summary>
+    /// Compose one row's localized tooltip: the supervised states ride the
+    /// four-slot template (name, state label, last event clock, consecutive
+    /// failures), the unsupervised state — the two-slot one (an adapter
+    /// without supervised transport has no event moment to timestamp). The
+    /// state labels reuse the connection chip's keys where they exist.
+    /// </summary>
+    /// <remarks>
+    /// The supervised fold always timestamps its state (<see cref="AdapterHealth.LastEventUtc"/>
+    /// is null only for the unsupervised branch below), so the
+    /// <c>??</c> slot feed only guards the impossible shape — it degrades
+    /// the one slot instead of crashing a paint callback.
+    /// </remarks>
+    internal static string ComposeHealthTooltip(ILocalizationManager localization, AdapterHealth health)
+    {
+        var stateLabel = localization.GetString(ResolveStateKey(health.State));
+
+        return health.State == AdapterHealthState.Unsupervised
+            ? localization.GetString(TooltipUnsupervisedFormatKey, health.AdapterName, stateLabel)
+            : localization.GetString(
+                TooltipFormatKey,
+                health.AdapterName,
+                stateLabel,
+                health.LastEventUtc?.LocalDateTime.ToString(TimeFormat, CultureInfo.InvariantCulture) ?? string.Empty,
+                health.ConsecutiveFailures);
+    }
+
+    /// <summary>The state label's resx key for one strip state (an unknown state is an error — never a substituted label).</summary>
+    private static string ResolveStateKey(AdapterHealthState state) => state switch
+    {
+        AdapterHealthState.Connected => ConnectedStatusKey,
+        AdapterHealthState.Reconnecting => ReconnectingStateKey,
+        AdapterHealthState.Down => DisconnectedStatusKey,
+        AdapterHealthState.Unsupervised => UnsupervisedStateKey,
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, "The strip state has no localized label."),
+    };
 
     /// <summary>
     /// Resolve the picker's display name to the registered exchange id

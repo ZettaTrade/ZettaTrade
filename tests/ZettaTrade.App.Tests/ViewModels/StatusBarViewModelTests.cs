@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
+using System.Collections.Generic;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -47,6 +48,7 @@ public sealed class StatusBarViewModelTests
     private readonly ISettingsService _settings = Substitute.For<ISettingsService>();
     private readonly IMarketDataAdapter _first = Substitute.For<IMarketDataAdapter>();
     private readonly IMarketDataAdapter _second = Substitute.For<IMarketDataAdapter>();
+    private readonly Subject<IReadOnlyList<AdapterHealth>> _health = new();
 
     public StatusBarViewModelTests()
     {
@@ -82,6 +84,7 @@ public sealed class StatusBarViewModelTests
             _localizationManager,
             exchanges ?? CreateService(),
             "0.1.0-test",
+            _health,
             fallbackNoticeDuration,
             NullLogger<StatusBarViewModel>.Instance);
 

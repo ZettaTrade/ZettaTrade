@@ -234,6 +234,18 @@
   <data name="Status.ExchangeFallback" xml:space="preserve">
     <value>Saved exchange unavailable — continuing on the default one</value>
   </data>
+  <data name="Status.Health.Reconnecting" xml:space="preserve">
+    <value>Reconnecting</value>
+  </data>
+  <data name="Status.Health.Unsupervised" xml:space="preserve">
+    <value>No transport supervision</value>
+  </data>
+  <data name="Status.Health.Tooltip" xml:space="preserve">
+    <value>{0} — {1}. Last event {2}, consecutive failures: {3}.</value>
+  </data>
+  <data name="Status.Health.TooltipUnsupervised" xml:space="preserve">
+    <value>{0} — {1}.</value>
+  </data>
   <data name="AI.Assistant" xml:space="preserve">
     <value>AI Assistant</value>
   </data>

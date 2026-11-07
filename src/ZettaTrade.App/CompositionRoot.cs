@@ -95,6 +95,14 @@ internal static class CompositionRoot
         // consumer VM is constructed.
         services.AddActiveExchange();
 
+        // Adapter health fold (T-098): the status bar's dot strip folds the
+        // facade's adapter catalog (populated by the construction above,
+        // which binds the adapters' reconnect policies to the supervisor)
+        // with the supervisor's transport state stream. Registered AFTER
+        // the facade and BEFORE every consumer VM; the fold itself only
+        // subscribes when the status bar VM resolves it.
+        services.AddHealthUiServices();
+
         services.AddBalancesServices(); // T-081: balances panel (aggregation service + panel VM).
 
         // AI chat: the Ollama completion service (local models first) and its
@@ -143,6 +151,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ActiveExchangeService>(),
                 AppVersion.Current,
+                sp.GetRequiredService<AdapterHealthService>().HealthStream,
                 logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>()));
         services.AddSingleton<ChatContextService>(sp =>
             new ChatContextService(

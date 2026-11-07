@@ -68,7 +68,7 @@
                 Background="{DynamicResource SystemAccentColorLight2}"
                 Padding="8,4"
                 DataContext="{Binding StatusBar}">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0" Text="{loc:Localized Status.Ready}" VerticalAlignment="Center" />
                 <!-- One concept, one control (T-016 anti-confusion rules): the
                      exchange picker renders only when two or more adapters are
@@ -91,6 +91,49 @@
                 <TextBlock Grid.Column="4" Text="{Binding CurrentThemeName}" Margin="16,0" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="5" Text="{Binding CurrentLanguage}" Margin="16,0" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="6" Text="{Binding AppVersion}" Margin="16,0" VerticalAlignment="Center" />
+                <!-- The adapter health strip (T-098): one dot per registered
+                     adapter. The palette keys re-tint live on theme switches
+                     (DynamicResource); the state flags are what the dot's
+                     styles pick the fill from — connected / reconnecting /
+                     down / unsupervised, and the localized tooltip carries
+                     the last event moment and the failure counter. -->
+                <ItemsControl Grid.Column="7"
+                              ItemsSource="{Binding AdapterHealthRows}"
+                              Margin="8,0"
+                              VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Ellipse Width="9"
+                                     Height="9"
+                                     VerticalAlignment="Center"
+                                     ToolTip.Tip="{Binding Tooltip}"
+                                     Classes.connected="{Binding IsConnected}"
+                                     Classes.reconnecting="{Binding IsReconnecting}"
+                                     Classes.down="{Binding IsDown}"
+                                     Classes.unsupervised="{Binding IsUnsupervised}">
+                                <Ellipse.Styles>
+                                    <Style Selector="Ellipse.connected">
+                                        <Setter Property="Fill" Value="{DynamicResource CandleUp}" />
+                                    </Style>
+                                    <Style Selector="Ellipse.reconnecting">
+                                        <Setter Property="Fill" Value="{DynamicResource Highlight}" />
+                                    </Style>
+                                    <Style Selector="Ellipse.down">
+                                        <Setter Property="Fill" Value="{DynamicResource Error}" />
+                                    </Style>
+                                    <Style Selector="Ellipse.unsupervised">
+                                        <Setter Property="Fill" Value="{DynamicResource TextSecondary}" />
+                                    </Style>
+                                </Ellipse.Styles>
+                            </Ellipse>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </Grid>
         </Border>
 
