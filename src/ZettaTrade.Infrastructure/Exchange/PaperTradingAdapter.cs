@@ -68,7 +68,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     #region Fields
 
     private readonly IMarketDataAdapter _marketData;
-    private readonly FeeScheduleService _feeSchedules;
+    private readonly IFeeScheduleProvider _feeSchedules;
     private readonly ILogger<PaperTradingAdapter> _logger;
 
     /// <summary>Serializes order placement / cancellation; positions are mutated under it.</summary>
@@ -108,7 +108,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     /// <param name="logger">The adapter's logger.</param>
     public PaperTradingAdapter(
         IMarketDataAdapter marketData,
-        FeeScheduleService feeSchedules,
+        IFeeScheduleProvider feeSchedules,
         ILogger<PaperTradingAdapter> logger)
     {
         _marketData = marketData ?? throw new ArgumentNullException(nameof(marketData));

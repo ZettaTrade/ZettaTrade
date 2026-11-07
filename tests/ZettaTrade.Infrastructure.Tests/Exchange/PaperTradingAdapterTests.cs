@@ -13,6 +13,7 @@ using Core.Interfaces;
 using Core.ValueObjects;
 using FluentAssertions;
 using Infrastructure.Exchange;
+using Infrastructure.Fees;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -659,7 +660,19 @@ public sealed class PaperTradingAdapterTests
     #region Helpers
 
     private static PaperTradingAdapter CreateAdapter(IMarketDataAdapter marketData) =>
-        new(marketData, NullLogger<PaperTradingAdapter>.Instance);
+        new(marketData, CreateFeeSchedules(), NullLogger<PaperTradingAdapter>.Instance);
+
+    /// <summary>
+    /// The fee registry the harness builds on: an unconfigured settings
+    /// snapshot means the shipped paper schedule answers (the market-fill
+    /// commission goldens in this file pin those numbers).
+    /// </summary>
+    internal static FeeScheduleService CreateFeeSchedules()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.Changes.Returns(System.Reactive.Linq.Observable.Empty<SettingsChange>());
+        return new(settings, NullLogger<FeeScheduleService>.Instance);
+    }
 
     /// <summary>Market data substitute returning one reference H1 bar with the given close.</summary>
     private static IMarketDataAdapter CreateMarketData()

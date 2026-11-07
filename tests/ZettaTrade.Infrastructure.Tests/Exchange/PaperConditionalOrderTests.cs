@@ -590,7 +590,7 @@ public sealed class PaperConditionalOrderTests
     private static decimal Dec(Price? price) => price!.Value.Value;
 
     private static PaperTradingAdapter CreateAdapter(IMarketDataAdapter marketData) =>
-        new(marketData, NullLogger<PaperTradingAdapter>.Instance);
+        new(marketData, PaperTradingAdapterTests.CreateFeeSchedules(), NullLogger<PaperTradingAdapter>.Instance);
 
     /// <summary>
     /// Bounded wait until the asynchronous tick evaluations settle: polls the

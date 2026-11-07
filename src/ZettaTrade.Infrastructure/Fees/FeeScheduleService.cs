@@ -28,7 +28,7 @@ using ZettaTrade.Infrastructure.Exchange;
 /// </summary>
 public sealed class FeeScheduleService(
     ISettingsService settings,
-    ILogger<FeeScheduleService> logger) : IAsyncInitializable
+    ILogger<FeeScheduleService> logger) : IFeeScheduleProvider, IAsyncInitializable
 {
     #region Constants
 

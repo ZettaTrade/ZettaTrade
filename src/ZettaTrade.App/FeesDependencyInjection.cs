@@ -17,5 +17,7 @@ public static class FeesDependencyInjection
     /// the walk).
     /// </summary>
     public static IServiceCollection AddFeeServices(this IServiceCollection services) =>
-        services.AddSingleton<FeeScheduleService>();
+        services
+            .AddSingleton<FeeScheduleService>()
+            .AddSingleton<IFeeScheduleProvider>(sp => sp.GetRequiredService<FeeScheduleService>());
 }
