@@ -1099,6 +1099,16 @@ the board and its section below.
 - **Tests:** close/reduce/reverse goldens on paper, rejection paths, the in-flight disable case.
 - **Status:** done. Canon: the position-actions pipeline (`6485f80`), the row action surface (`e309636`), the goldens/races/in-flight test pack (`8452cb9`) and this section's status flip; shipped as `0.1.0-alpha.46` (see CHANGELOG.md). No Core changes were needed - the actions compose validated orders through the existing trading seam (`OrderRequest.Validate` - `IRiskManager` - `IConfirmationService` - `ITradingAdapter`); the reverse is two risk-checked legs under ONE confirmation, an outside fill wins and is reported, and an exit that leaves the symbol non-flat aborts the re-entry with a localized report. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
+## T-079 — Position sizing helper in the ticket
+
+- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Origin:** sizing is raw quantities; browsers of every terminal offer balance-percent and risk-anchored sizing.
+- **What:** a quick-size row: presets of available balance (25/50/100%) and a risk-percent mode anchored on the distance to the ticket's stop price; rounding to the instrument step sizes via existing metadata; preview updates live; zero network calls; hidden for instruments without metadata.
+- **Scope:** ticket VM, `Settings.*` keys for defaults, resx en+ru, tests.
+- **Acceptance:** no sizing path bypasses the ticket validation (the helper only proposed quantities).
+- **Tests:** step-size rounding golden, risk-percent math, the stale-balance snapshot handling.
+- **Status:** done. Canon: the quick-size row seam and the App-owned paper lot-step metadata lane (`ad53514`), the recoverable-capture refinements (`af8497d`) and the math/capture/ticket goldens (`430864c`), shipped as `0.1.0-alpha.52` (`080bf32`, see CHANGELOG.md); the ship-time review fixes are on the same landed chain: the step-invariant prose pass (`db52b5a`), capture absence over an empty balance table + the shortest exact proposal text (`24b614d`), the publish-seam await and the type-combo slot in the ticket facts (`639ed22`), the preset guard switch format (`9705169`). Scope decision: the row rides ONLY the App-owned `IInstrumentMetadataProvider` seam - the paper surface declares its demo lot steps today, exchange-backed adapters stay hidden until a Core adapter-face contract lands (supervisor-gated follow-up). No sizing path touches an order: proposals land solely in the ticket's own quantity field and the submit pipeline (parse/validate/risk/confirmation) stays the only order path. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
+
 ## T-080 — Fees: maker/taker in the ticket, fills and history
 
 - **Branch:** feat/fees (base `develop` at `966592c`; queued 2026-11-06; developed 2026-11-07).
