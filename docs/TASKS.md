@@ -91,7 +91,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-084 CSV export: order history, fills, candles | feat/csv-export | done | - |
 | T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | done | - |
 | T-086 Deep-history backfill and gap repair | feat/backfill | done | T-085 |
-| T-087 Trade tape (time & sales) panel | feat/trade-tape | queued | - |
+| T-087 Trade tape (time & sales) panel | feat/trade-tape | in-progress | - |
 | T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | queued | - |
 | T-089 Chart types: line, area, bars, Heikin-Ashi | feat/chart-types | queued | - |
 | T-090 Y-axis scale modes: log and percent | feat/chart-scales | queued | - |
@@ -154,12 +154,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-087 — Trade tape (time & sales) panel
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/trade-tape (base `develop` at `cde0631`; queued 2026-11-06 at the T-074…T-115 backlog cut, developed 2026-11-07).
 - **Origin:** only candles and the book render; the tick-by-tick tape is a terminal staple.
 - **What:** a scrolling tape per symbol — price/size/side coloring, newest at top, ring-buffer rendering at the book's 60 fps discipline (the T-011 pattern), pause-on-hover, clear button. Trades ride a stream seam: if the read-only adapter face lacks trades, the addition is additive Core (supervisor-gated); the demo adapter seeds synthetic trades.
 - **Scope:** the trades stream (seam), panel VM/view in the workspace layout (splitters of T-038), resx en+ru, tests.
 - **Acceptance:** 1000+ trades/s hold the 60 fps target without unbounded memory (ring buffer).
 - **Tests:** ring-buffer perf, side-color assignment, empty/paused states.
+- **Status:** in-progress.
 
 ## T-088 — Depth chart: cumulative bid/ask areas view
 
