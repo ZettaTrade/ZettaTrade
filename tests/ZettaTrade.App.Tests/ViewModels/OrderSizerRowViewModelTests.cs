@@ -104,13 +104,20 @@ public sealed class OrderSizerRowViewModelTests
     /// <summary>
     /// Commit the symbol into the row and await the capture publish the
     /// deterministic seam emits — when this returns, the capture has landed
-    /// (present or explicitly absent).
+    /// (present or explicitly absent). The publish subscription is created
+    /// BEFORE the commit: the capture pipeline runs synchronously whenever
+    /// its adapter stubs are synchronous, and a hot Subject drops
+    /// pre-subscriber emissions by design — the ticket wires its consumer
+    /// before it pushes symbols, and the helper holds the same contract.
+    /// (A late `FirstAsync()` subscribed only at the await and could miss
+    /// the one-shot emission entirely, parking the fact forever.)
     /// </summary>
     private static async Task CommitAndAwaitCaptureAsync(OrderSizerRowViewModel row, Symbol symbol)
     {
-        var capture = row.ContextCaptures.FirstAsync();
+        var published = new TaskCompletionSource<RxVoid>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = row.ContextCaptures.Subscribe(_ => published.TrySetResult(RxVoid.Default));
         row.UpdateSymbol(symbol);
-        await capture;
+        await published.Task;
     }
 
     private static string FormatArgs(object?[] args) => string.Join(",", args ?? []);
