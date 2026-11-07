@@ -96,7 +96,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-089 Chart types: line, area, bars, Heikin-Ashi | feat/chart-types | queued | - |
 | T-090 Y-axis scale modes: log and percent | feat/chart-scales | queued | - |
 | T-091 Drawing tools: trend line, horizontal level, fib retracement | feat/draw-tools | queued | - |
-| T-092 Standard indicator pack (EMA, RSI, MACD, Bollinger… as bundled plugins) | feat/indicator-pack | queued | - |
+| T-092 Standard indicator pack (EMA, RSI, MACD, Bollinger… as bundled plugins) | feat/indicator-pack | in-progress | - |
 | T-093 VWAP + volume profile overlay | feat/vol-vwap | queued | - |
 | T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | queued | - |
 | T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | queued | - |
@@ -182,7 +182,8 @@ the end of that file, so no effort is duplicated.
 
 ## T-092 — Standard indicator pack (bundled plugins)
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/indicator-pack (base `develop` at `086579b`; queued 2026-11-06 at the T-074…T-115 backlog cut, developed 2026-11-07).
+- **Status:** in-progress.
 - **Origin:** only the seam + an SMA sample (T-034) exist; the standard set is missing while the plugin machinery is ready (T-054, T-067, T-068).
 - **What:** EMA, WMA, RSI, MACD, ATR and Bollinger as separate bundled plugin assemblies (plugin-first canon), registered into the existing catalog, parameter editors through the loaded-plugins gate, reference-formula tests over fixed series.
 - **Scope:** the new plugin assemblies + catalog registration + resx for names, tests.
