@@ -90,7 +90,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | done | T-082 (soft) |
 | T-084 CSV export: order history, fills, candles | feat/csv-export | done | - |
 | T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | done | - |
-| T-086 Deep-history backfill and gap repair | feat/backfill | queued | T-085 |
+| T-086 Deep-history backfill and gap repair | feat/backfill | in-progress | T-085 |
 | T-087 Trade tape (time & sales) panel | feat/trade-tape | queued | - |
 | T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | queued | - |
 | T-089 Chart types: line, area, bars, Heikin-Ashi | feat/chart-types | queued | - |
