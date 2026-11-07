@@ -245,6 +245,37 @@ public sealed class PnlAccountingServiceTests
     }
 
     [Fact]
+    public async Task LedgerFillCommissionPersists_AndPricesTheRealizedBooks()
+    {
+        await WithLedgerAsync(async (_, pnlFile, journal, createEngine) =>
+        {
+            // The paper fill path stamps a commission onto the executed
+            // order (T-080); the journal row carries it into the ledger,
+            // and the accounting core prices it per fill.
+            await journal.RecordPlacedAsync(
+                Fill("f1", OrderSide.Buy, "BTC/USDT", quantity: 1m, price: 10m, minute: 1, commission: 0.5m));
+            await journal.RecordPlacedAsync(
+                Fill("f2", OrderSide.Sell, "BTC/USDT", quantity: 1m, price: 12m, minute: 2, commission: 0.3m));
+
+            var engine = createEngine();
+            await engine.InitializeAsync();
+
+            // The round trip realizes 2.0 gross minus both commissions.
+            Position(engine, "BTC/USDT").RealizedPnl.Amount.Should().Be(1.2m);
+
+            await using var context = new PnlDbContext(
+                new DbContextOptionsBuilder<PnlDbContext>()
+                    .UseSqlite($"Data Source={pnlFile};Pooling=false")
+                    .Options);
+            var rows = await context.Realized.OrderBy(row => row.OrderId).ToListAsync();
+
+            rows.Should().HaveCount(2);
+            rows.Single(row => row.OrderId == "f1").Commission.Should().Be(0.5m);
+            rows.Single(row => row.OrderId == "f2").Commission.Should().Be(0.3m);
+        });
+    }
+
+    [Fact]
     public async Task SyncWithLedger_IngestsOnce_AndSkipsNonFills()
     {
         await WithLedgerAsync(async (_, pnlFile, journal, createEngine) =>
@@ -323,7 +354,8 @@ public sealed class PnlAccountingServiceTests
         OrderStatus status = OrderStatus.Filled,
         string exchange = "paper",
         int minute = 0,
-        DateTimeOffset? createdAt = null) => new()
+        DateTimeOffset? createdAt = null,
+        decimal? commission = null) => new()
         {
             Id = id,
             ExchangeId = exchange,
@@ -336,6 +368,7 @@ public sealed class PnlAccountingServiceTests
             TimeInForce = TimeInForce.GTC,
             CreatedAt = createdAt ?? BaseTime.AddMinutes(minute),
             FilledQuantity = filledQuantity < 0m ? new Quantity(quantity) : new Quantity(filledQuantity),
+            Commission = commission,
         };
 
     private static PnlSnapshot Snapshot(PnlAccountingService engine)

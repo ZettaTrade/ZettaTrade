@@ -14,6 +14,7 @@ using Core.Interfaces;
 using Core.ValueObjects;
 using FluentAssertions;
 using Infrastructure.Exchange;
+using Infrastructure.Fees;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -468,6 +469,44 @@ public sealed class PaperConditionalOrderTests
         await cancelStopLoss.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Cancelled*");
         (await adapter.GetBalancesAsync())[PaperTradingAdapter.QuoteCurrency].Amount
             .Should().Be(PaperTradingAdapter.InitialQuoteAmount + (51_000m * OrderQuantity));
+    }
+
+    [Fact]
+    public async Task PlaceOrder_OcoTakeProfitTriggered_TheRestingLimitLegFillsAsMaker()
+    {
+        // Arrange
+        var (marketData, ticker) = CreateConditionalMarketData();
+        var adapter = CreateAdapter(marketData);
+        var groupId = OcoId();
+
+        var takeProfit = await adapter.PlaceOrderAsync(LimitOrder(
+            BtcUsdt(),
+            OrderSide.Sell,
+            OrderQuantity,
+            51_000m,
+            groupId));
+        var stopLoss = await adapter.PlaceOrderAsync(StopLimitOrder(
+            BtcUsdt(),
+            OrderSide.Sell,
+            OrderQuantity,
+            trigger: 49_000m,
+            limit: 48_900m,
+            groupId));
+
+        // Act: the rising market reaches the take-profit first.
+        ticker.OnNext(Tick(51_050m));
+        await AwaitSettledAsync(async () => (await adapter.GetOpenOrdersAsync()).Count == 0);
+
+        // Assert: the stream-matched resting limit leg PROVIDED liquidity —
+        // its fill stamps the maker branch of the shipped schedule (10 bps
+        // of the 10 200 notional), unlike a crossing fill.
+        var orders = (ConcurrentDictionary<string, Order>)typeof(PaperTradingAdapter)
+            .GetField("_orders", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(adapter)!;
+
+        var filled = orders[takeProfit.Id];
+        filled.Status.Should().Be(OrderStatus.Filled);
+        filled.Commission.Should().Be(51_000m * OrderQuantity * 10m / FeeSchedule.BpsDenominator);
     }
 
     [Fact]

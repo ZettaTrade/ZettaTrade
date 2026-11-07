@@ -190,6 +190,54 @@ public sealed class PaperTradingAdapterTests
 
     #endregion
 
+    #region Fees (T-080)
+
+    [Fact]
+    public async Task PlaceOrder_MarketFill_StampsTheTakerCommissionFromTheShippedSchedule()
+    {
+        // Arrange
+        var adapter = CreateAdapter(CreateMarketData());
+
+        // Act
+        var order = await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
+
+        // Assert: the shipped paper taker rate (20 bps of the 10 000 notional).
+        order.Commission.Should().Be(MarketNotional * 20m / FeeSchedule.BpsDenominator);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_CrossingLimitFill_ConsumesLiquidity_StampedAsTaker()
+    {
+        // Arrange
+        var adapter = CreateAdapter(CreateMarketData());
+
+        // Act
+        var order = await adapter.PlaceOrderAsync(LimitOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity, CrossingBuyLimitPrice));
+
+        // Assert: a crossing limit EXECUTES as a taker fill, whatever the
+        // pre-trade estimate said — the commission prices the executed role.
+        order.Commission.Should().Be(CrossingBuyNotional * 20m / FeeSchedule.BpsDenominator);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_FillWithoutASchedule_TheCommissionStaysAbsent_UnknownNotZero()
+    {
+        // Arrange
+        var adapter = CreateNoScheduleAdapter(CreateMarketData());
+
+        // Act
+        var order = await adapter.PlaceOrderAsync(MarketOrder(BtcUsdt(), OrderSide.Buy, OrderQuantity));
+
+        // Assert: the no-schedule passthrough — the commission stays the
+        // honest unknown (null, rendered as a dash downstream), never a
+        // fabricated zero, and the fill itself stays untouched: a portfolio
+        // without fee data stamps no fee either.
+        order.Commission.Should().BeNull();
+        order.Status.Should().Be(OrderStatus.Filled);
+    }
+
+    #endregion
+
     #region Limit Resting
 
     [Fact]
@@ -661,6 +709,18 @@ public sealed class PaperTradingAdapterTests
 
     private static PaperTradingAdapter CreateAdapter(IMarketDataAdapter marketData) =>
         new(marketData, CreateFeeSchedules(), NullLogger<PaperTradingAdapter>.Instance);
+
+    /// <summary>
+    /// An adapter over a schedule registry that publishes nothing anywhere:
+    /// the no-schedule passthrough golden rides it (the commission stays the
+    /// unknown instead of a zero).
+    /// </summary>
+    private static PaperTradingAdapter CreateNoScheduleAdapter(IMarketDataAdapter marketData)
+    {
+        var feeSchedules = Substitute.For<IFeeScheduleProvider>();
+        feeSchedules.GetSchedule(Arg.Any<string>()).Returns((FeeSchedule?)null);
+        return new(marketData, feeSchedules, NullLogger<PaperTradingAdapter>.Instance);
+    }
 
     /// <summary>
     /// The fee registry the harness builds on: an unconfigured settings
