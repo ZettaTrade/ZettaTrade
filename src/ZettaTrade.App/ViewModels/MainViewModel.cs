@@ -36,7 +36,7 @@ public sealed class MainViewModel : ReactiveObject
     /// <summary>Order book ViewModel for the depth panel.</summary>
     public OrderBookViewModel OrderBook { get; }
 
-    /// <summary>Trade tape ViewModel for the time &amp; sales panel.</summary>
+    /// <summary>Trade tape ViewModel for the time and sales panel.</summary>
     public TradeTapeViewModel TradeTape { get; }
 
     /// <summary>Workspace layout ViewModel owning the persisted splitter column widths.</summary>

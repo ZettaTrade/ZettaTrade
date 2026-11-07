@@ -9,7 +9,7 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
-/// Trade tape (time &amp; sales) panel state: a typed symbol input (free-form,
+/// Trade tape (time and sales) panel state: a typed symbol input (free-form,
 /// like the order book panel, so the tape still works offline), and the live
 /// trades stream for the parsed symbol.
 /// </summary>

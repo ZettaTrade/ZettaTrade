@@ -24,7 +24,7 @@ using ZettaTrade.Core.Enums;
 using ZettaTrade.UI.Resources;
 
 /// <summary>
-/// Trade tape (time &amp; sales) widget drawing directly onto the Avalonia Skia
+/// Trade tape (time and sales) widget drawing directly onto the Avalonia Skia
 /// canvas via <see cref="ICustomDrawOperation"/> (the OrderBookWidget pattern,
 /// no intermediate bitmaps or per-trade controls, so a burst feed stays in
 /// frame budget). The raw trades stream arrives through <see cref="Trades"/>:
