@@ -23,7 +23,7 @@ using Xunit;
 /// machine, the gap recovery (a gap discards the book and re-subscribes the
 /// topic) and the reconnect re-subscribe of every tracked symbol.
 ///
-/// Wait budgets (T-116, 2026-11-07): <c>EventWait</c> is the 120 s house
+/// Wait budgets (T-116, 2026-11-07): <c>EventWait</c> is the 240 s house
 /// completion budget shared by the whole WS E2E family, raised from 10 s.
 /// The old cap tripped under full-solution parallel test load (xUnit hosts
 /// across sibling assemblies chewing cores): a scheduler stall starved the
@@ -39,11 +39,11 @@ public sealed class BybitAdapterWsE2eTests
     #region Constants
 
     /// <summary>
-    /// The 120 s house load budget (T-116, see the class header): bounded wait
+    /// The 240 s house load budget (T-116, see the class header): bounded wait
     /// for any expected observable event or connection — completion patience,
     /// never a latency ceiling.
     /// </summary>
-    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(120);
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(240);
 
     /// <summary>The adapter's pinned order book depth (the spot depth topics the suite asserts).</summary>
     private const int DepthLevelCount = 50;

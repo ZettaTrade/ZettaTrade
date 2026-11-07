@@ -19,7 +19,7 @@ using Xunit;
 /// subscription re-runs the idempotent start while the per-symbol subject
 /// stays shared.
 ///
-/// Wait budget (T-116, 2026-11-07): <c>EventWait</c> is the 120 s house
+/// Wait budget (T-116, 2026-11-07): <c>EventWait</c> is the 240 s house
 /// completion budget shared by the WS E2E family, and the starvation
 /// signature reproduced right here: during the T-075/T-077 landing wave a
 /// full-solution parallel test run failed on a poll deadline (5 s inline at
@@ -34,10 +34,10 @@ public sealed class ExchangeAdapterBaseSubscriptionTests
     #region Constants
 
     /// <summary>
-    /// The 120 s house load budget (T-116, see the class header) for polls on
+    /// The 240 s house load budget (T-116, see the class header) for polls on
     /// cross-thread settlement — completion patience, never a latency ceiling.
     /// </summary>
-    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(120);
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(240);
 
     #endregion
 
