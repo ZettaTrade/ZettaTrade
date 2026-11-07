@@ -771,6 +771,27 @@
   <data name="OrderBook.SpreadFormat" xml:space="preserve">
     <value>Спред: {0}</value>
   </data>
+  <data name="Tape.Title" xml:space="preserve">
+    <value>Лента сделок</value>
+  </data>
+  <data name="Tape.NoDataMessage" xml:space="preserve">
+    <value>Сделок пока нет</value>
+  </data>
+  <data name="Tape.PausedHint" xml:space="preserve">
+    <value>Пауза — уберите курсор, чтобы продолжить</value>
+  </data>
+  <data name="Tape.Clear" xml:space="preserve">
+    <value>Очистить</value>
+  </data>
+  <data name="Tape.Time" xml:space="preserve">
+    <value>Время</value>
+  </data>
+  <data name="Tape.Price" xml:space="preserve">
+    <value>Цена</value>
+  </data>
+  <data name="Tape.Size" xml:space="preserve">
+    <value>Объём</value>
+  </data>
   <data name="Chrome.Title" xml:space="preserve">
     <value>ZettaTrade</value>
   </data>

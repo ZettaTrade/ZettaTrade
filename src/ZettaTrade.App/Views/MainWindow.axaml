@@ -122,6 +122,9 @@
                         <ColumnDefinition Width="8" />
                         <ColumnDefinition Width="{Binding Layout.BookColumnWidth, Mode=TwoWay}"
                                           MinWidth="{x:Static app:UiSettingsKeys.MinBookPanelWidth}" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="{Binding Layout.TapeColumnWidth, Mode=TwoWay}"
+                                          MinWidth="{x:Static app:UiSettingsKeys.MinTapePanelWidth}" />
                     </Grid.ColumnDefinitions>
 
                     <!-- Chart/book splitter: drags resize the persisted book
@@ -142,6 +145,35 @@
                                        FontSize="14"
                                        Margin="8,0,0,4" />
                             <charting:OrderBookWidget x:Name="BookWidget" Grid.Row="1" Book="{Binding Book}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Book/tape splitter: drags resize the persisted tape
+                         column; the book column keeps its persisted width. -->
+                    <GridSplitter Grid.Column="3" Focusable="True" />
+
+                    <!-- Trade tape panel: the newest trades on top (side
+                         coloring on the aggressor), pauses on hover, clears
+                         on the button; a switched symbol clears the old
+                         symbol's rows in the widget. -->
+                    <Border Grid.Column="4"
+                            Margin="8,0,0,0"
+                            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                            BorderThickness="1,0,0,0"
+                            DataContext="{Binding TradeTape}">
+                        <Grid RowDefinitions="Auto,*">
+                            <DockPanel Grid.Row="0" Margin="8,0,4,4">
+                                <Button x:Name="TapeClearButton"
+                                        DockPanel.Dock="Right"
+                                        Content="{loc:Localized Tape.Clear}"
+                                        Click="OnTapeClearClick"
+                                        MinWidth="72" />
+                                <TextBlock Text="{loc:Localized Tape.Title}"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           VerticalAlignment="Center" />
+                            </DockPanel>
+                            <charting:TradeTapeWidget x:Name="TapeWidget" Grid.Row="1" Trades="{Binding Updates}" />
                         </Grid>
                     </Border>
 
