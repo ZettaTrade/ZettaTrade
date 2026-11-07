@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Livery.Extensions;
 using Microsoft.Extensions.DependencyInjection;
@@ -88,6 +89,13 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
 
     /// <summary>Subscription of the chart older-history request stream; disposed with the window.</summary>
     private IDisposable? _olderHistoryRequests;
+
+    /// <summary>
+    /// The tape's clear button: the buffered tape lives entirely in the
+    /// widget (rows, pause, symbol switch), so emptying it is a view
+    /// concern — no ViewModel state is involved.
+    /// </summary>
+    private void OnTapeClearClick(object? sender, RoutedEventArgs e) => TapeWidget.Clear();
 
     /// <summary>
     /// The frames (queued below the render priority) the chat focus is

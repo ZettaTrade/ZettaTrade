@@ -9,6 +9,47 @@ before `alpha.10` was never versioned РІР‚вЂќ what shipped in T-001 РІ
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.56] - 2026-11-07
+
+Build of board task T-087 (branch `feat/trade-tape`).
+
+### Added
+- The trade tape (time & sales) lands beside the order book (T-087):
+  the newest trades of the workspace symbol stream through a
+  `TradeTapeWidget` Skia renderer — time / price / size columns, the
+  aggressor side colored with the candle palette (buys bullish, sells
+  bearish), the newest trade on top. The trades ride the existing
+  `IMarketDataAdapter.SubscribeTrades` seam (Binance, Bybit and the
+  demo adapter already publish it; Core is untouched). The panel
+  ViewModel mirrors the book discipline — an application-lifetime
+  singleton with a free-typed offline symbol input owned by the
+  workspace combo, Rx Switch cancelling the previous symbol stream and
+  a per-symbol failure guard (logged, never a substituted state).
+- The tape's 60 fps discipline is ring-buffered: a fixed 4096-trade
+  `TradeTapeRingBuffer` evicts the oldest trade on overflow, so memory
+  stays bounded however long the burst runs; streaming trades queue
+  through a `ConcurrentQueue` the render path drains on the
+  user-interface thread (the only cross-thread seam), invalidations
+  coalesce behind an `Interlocked` flag (one post per frame at any
+  burst rate) and the pure `TradeTapePageLayout` plans, copies and
+  formats only the rows the panel height can show — the 60-frame
+  median and mean stay inside the 16 ms budget with 1000 trades
+  buffered (pinned facts for the layout and for one ring-frame at the
+  1000 trades/s load). The bounding invariant is also pinned as a bug
+  guard: a partial copy serves the newest end of the ring, never the
+  stale end.
+- Tape UX: the pointer pauses the tape on hover (the page freezes, the
+  localized hint replaces the streaming silence, new trades stay
+  buffered out of the visible rows), the panel's clear button empties
+  it, and a switched symbol clears the previous symbol's rows — an
+  old tape never lingers above the new symbol. The workspace gains a
+  resizable tape column with the T-038 splitter persistence: the
+  `UI.TapePanelWidth` restore lands before any window opens, a settled
+  drag persists once per burst and external writers apply live.
+- New localized keys, en and ru (`Tape.*`): the panel title, the
+  no-trades state, the paused hint, the clear label and the time /
+  price / size column headers.
+
 ## [0.1.0-alpha.55] - 2026-11-07
 
 Build of board task T-105 (branch `feat/reconnect-policy`).

@@ -62,6 +62,9 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     /// </summary>
     private double _persistedBookWidth = UiSettingsKeys.DefaultBookPanelWidth;
 
+    /// <summary>See <see cref="_persistedBookWidth"/>; the tape column's own cache.</summary>
+    private double _persistedTapeWidth = UiSettingsKeys.DefaultTapePanelWidth;
+
     /// <summary>
     /// The book width the user saw before a hide (drags may outpace the
     /// debounced persistence, so the capture — not the persisted value — is
@@ -81,6 +84,7 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     private bool _aiColumnShown = true;
 
     private GridLength _bookColumnWidth = new(UiSettingsKeys.DefaultBookPanelWidth);
+    private GridLength _tapeColumnWidth = new(UiSettingsKeys.DefaultTapePanelWidth);
     private GridLength _aiColumnWidth = new(UiSettingsKeys.DefaultAiPanelWidth);
     private double _aiColumnMinWidth = UiSettingsKeys.MinAiPanelWidth;
     private GridLength _aiSplitterColumnWidth = SplitterTrack;
@@ -156,6 +160,25 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
                 width => ApplyExternalAiWidth(width),
                 ex => _logger.LogError(ex, "The AI panel width stream stopped unexpectedly"));
 
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.TapePanelWidth)
+            .Select(change => change.NewValue)
+            .OfType<double>()
+            .Subscribe(
+                width =>
+                {
+                    // The same external-writer discipline as the book side:
+                    // the value becomes the tape width truth, the cache
+                    // leads the property change, everything is applied live.
+                    _persistedTapeWidth = ClampStoredWidth(
+                        width,
+                        UiSettingsKeys.MinTapePanelWidth,
+                        UiSettingsKeys.DefaultTapePanelWidth);
+                    TapeColumnWidth = new GridLength(_persistedTapeWidth);
+                },
+                ex => _logger.LogError(ex, "The tape width stream stopped unexpectedly"));
+
         // Persist every settled drag (the debounce keeps a drag burst from
         // writing the settings file per pixel; Concat serializes the
         // writes). The BookColumnWidth property is the binding writeback
@@ -176,6 +199,21 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
             .Subscribe(
                 issuedWidth => _persistedBookWidth = issuedWidth.Value,
                 ex => _logger.LogError(ex, "Failed to persist the book panel width"));
+
+        this.WhenAnyValue(x => x.TapeColumnWidth)
+            .Skip(1)
+            .Where(width => !IsSameWidth(width, _persistedTapeWidth))
+            .Throttle(DragQuietTime)
+            .Select(width => Observable
+                .FromAsync(() => _settings.SetAsync(
+                    UiSettingsKeys.Section,
+                    UiSettingsKeys.TapePanelWidth,
+                    ClampStoredWidth(width.Value, UiSettingsKeys.MinTapePanelWidth, UiSettingsKeys.DefaultTapePanelWidth)))
+                .Select(_ => width))
+            .Concat()
+            .Subscribe(
+                issuedWidth => _persistedTapeWidth = issuedWidth.Value,
+                ex => _logger.LogError(ex, "Failed to persist the tape panel width"));
 
         this.WhenAnyValue(x => x.AiColumnWidth)
             .Skip(1)
@@ -206,6 +244,17 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     {
         get => _bookColumnWidth;
         set => this.RaiseAndSetIfChanged(ref _bookColumnWidth, value);
+    }
+
+    /// <summary>
+    /// Width of the trade tape column (logical pixels). The grid's tape
+    /// column binds it TwoWay: the splitter's dragged widths flow in and
+    /// persist through the pipeline once the drag settles.
+    /// </summary>
+    public GridLength TapeColumnWidth
+    {
+        get => _tapeColumnWidth;
+        set => this.RaiseAndSetIfChanged(ref _tapeColumnWidth, value);
     }
 
     /// <summary>
@@ -255,6 +304,13 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
                 UiSettingsKeys.DefaultBookPanelWidth),
             UiSettingsKeys.MinBookPanelWidth,
             UiSettingsKeys.DefaultBookPanelWidth);
+        var tape = ClampStoredWidth(
+            await _settings.GetAsync<double>(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.TapePanelWidth,
+                UiSettingsKeys.DefaultTapePanelWidth),
+            UiSettingsKeys.MinTapePanelWidth,
+            UiSettingsKeys.DefaultTapePanelWidth);
         var ai = ClampStoredWidth(
             await _settings.GetAsync<double>(
                 UiSettingsKeys.Section,
@@ -268,6 +324,8 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
         // guards, so a restore never rewrites the value it just read.
         _persistedBookWidth = book;
         BookColumnWidth = new GridLength(book);
+        _persistedTapeWidth = tape;
+        TapeColumnWidth = new GridLength(tape);
         _aiWidthAtHide = new GridLength(ai);
         if (_aiColumnShown)
         {
@@ -281,8 +339,9 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
         }
 
         _logger.LogInformation(
-            "Restored persisted workspace widths: book {BookWidth:F0}px, assistant {AiWidth:F0}px ({AiState})",
+            "Restored persisted workspace widths: book {BookWidth:F0}px, tape {TapeWidth:F0}px, assistant {AiWidth:F0}px ({AiState})",
             book,
+            tape,
             ai,
             _aiColumnShown ? "visible" : "hidden");
     }

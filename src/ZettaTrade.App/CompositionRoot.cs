@@ -198,6 +198,11 @@ internal static class CompositionRoot
                 sp.GetRequiredService<IMarketDataAdapter>(),
                 sp.GetRequiredService<ChartViewModel>().SymbolSelections,
                 sp.GetRequiredService<ILogger<OrderBookViewModel>>()));
+        services.AddSingleton<TradeTapeViewModel>(sp =>
+            new TradeTapeViewModel(
+                sp.GetRequiredService<IMarketDataAdapter>(),
+                sp.GetRequiredService<ChartViewModel>().SymbolSelections,
+                sp.GetRequiredService<ILogger<TradeTapeViewModel>>()));
         services.AddTransient<MainViewModel>(sp =>
             new MainViewModel(
                 sp.GetRequiredService<MenuViewModel>(),
@@ -206,6 +211,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<SettingsViewModel>(),
                 sp.GetRequiredService<ChartViewModel>(),
                 sp.GetRequiredService<OrderBookViewModel>(),
+                sp.GetRequiredService<TradeTapeViewModel>(),
                 sp.GetRequiredService<WorkspaceLayoutViewModel>(),
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<ILogger<MainViewModel>>()));

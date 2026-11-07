@@ -771,6 +771,27 @@ Estimated fee: {7}</value>
   <data name="OrderBook.SpreadFormat" xml:space="preserve">
     <value>Spread: {0}</value>
   </data>
+  <data name="Tape.Title" xml:space="preserve">
+    <value>Trade Tape</value>
+  </data>
+  <data name="Tape.NoDataMessage" xml:space="preserve">
+    <value>No trades yet</value>
+  </data>
+  <data name="Tape.PausedHint" xml:space="preserve">
+    <value>Paused — move the cursor off to resume</value>
+  </data>
+  <data name="Tape.Clear" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="Tape.Time" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="Tape.Price" xml:space="preserve">
+    <value>Price</value>
+  </data>
+  <data name="Tape.Size" xml:space="preserve">
+    <value>Size</value>
+  </data>
   <data name="Chrome.Title" xml:space="preserve">
     <value>ZettaTrade</value>
   </data>

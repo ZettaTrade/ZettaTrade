@@ -36,6 +36,9 @@ public sealed class MainViewModel : ReactiveObject
     /// <summary>Order book ViewModel for the depth panel.</summary>
     public OrderBookViewModel OrderBook { get; }
 
+    /// <summary>Trade tape ViewModel for the time &amp; sales panel.</summary>
+    public TradeTapeViewModel TradeTape { get; }
+
     /// <summary>Workspace layout ViewModel owning the persisted splitter column widths.</summary>
     public WorkspaceLayoutViewModel Layout { get; }
 
@@ -49,6 +52,7 @@ public sealed class MainViewModel : ReactiveObject
         SettingsViewModel settings,
         ChartViewModel chart,
         OrderBookViewModel orderBook,
+        TradeTapeViewModel tradeTape,
         WorkspaceLayoutViewModel layout,
         ActiveExchangeService activeExchanges,
         ILogger<MainViewModel> logger)
@@ -59,6 +63,7 @@ public sealed class MainViewModel : ReactiveObject
         Settings = settings;
         Chart = chart;
         OrderBook = orderBook;
+        TradeTape = tradeTape;
         Layout = layout;
         _logger = logger;
 

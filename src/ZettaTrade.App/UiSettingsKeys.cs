@@ -60,6 +60,13 @@ public static class UiSettingsKeys
     public const string AiPanelWidth = "AiPanelWidth";
 
     /// <summary>
+    /// Settings key of the persisted trade tape panel width (logical pixels):
+    /// the same splitter-drag persistence discipline as
+    /// <see cref="BookPanelWidth"/>, for the book/tape splitter.
+    /// </summary>
+    public const string TapePanelWidth = "TapePanelWidth";
+
+    /// <summary>
     /// The panel width applied until a stored width is loaded: the 300 px
     /// both adjustable columns always had before the splitters existed.
     /// </summary>
@@ -67,6 +74,10 @@ public static class UiSettingsKeys
 
     /// <summary>See <see cref="DefaultBookPanelWidth"/>; the AI column ships with the same default.</summary>
     public const double DefaultAiPanelWidth = 300;
+
+    /// <summary>See <see cref="DefaultBookPanelWidth"/>; the tape column ships with a narrower
+    /// default — a time &amp; sales strip wants less space than the depth panel.</summary>
+    public const double DefaultTapePanelWidth = 240;
 
     /// <summary>
     /// Usable-minimum clamp of the order book column (logical pixels): bound
@@ -77,6 +88,10 @@ public static class UiSettingsKeys
 
     /// <summary>See <see cref="MinBookPanelWidth"/>; the AI column clamp.</summary>
     public const double MinAiPanelWidth = 220;
+
+    /// <summary>See <see cref="MinBookPanelWidth"/>; the tape column clamp — at least one
+    /// headered time/price/size row set stays readable.</summary>
+    public const double MinTapePanelWidth = 160;
 
     /// <summary>
     /// Settings key of the persisted chart indicator overlay configuration:
