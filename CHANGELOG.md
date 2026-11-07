@@ -9,6 +9,50 @@ before `alpha.10` was never versioned Р Р†Р вЂљРІР‚Сњ what ship
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.59] - 2026-11-07
+
+Build of board task T-106 (branch `feat/rate-limiter`).
+
+### Added
+- The REST rate limiter budgets the exchange lanes (T-106): every
+  outbound REST call of the Binance and Bybit adapters acquires its
+  budget before the send through a per-endpoint token bucket
+  (`IRestRateLimiter`), so the T-086 deep-history backfill borrows only
+  a capped slice of the venue flow while a user submit is served from
+  the main pool — a background burst can never starve or delay a user
+  action. The lanes are classified adapter-side from the request shape
+  (`RestLaneResolver`): a bar range ending at (or within the two-minute
+  grace of) the present rides the user lane, a past-ended range — the
+  gap walk — rides the background lane, and ambiguity always defaults
+  to the user lane so background never gains priority by error.
+- Each adapter ships its budget manifest as a static default: Binance
+  meters weight-per-minute (klines 3600 + symbol pricing 2400 of the
+  venue's 6000-per-minute allowance, the kline weight following the
+  venue's tier schedule by limit window — heavier slices over-estimate
+  upward, the safe metering direction), Bybit meters each public market
+  endpoint family at ten requests per second. Both are rescalable live
+  through the `Limiter.*` settings keys (`Enabled`, `BackgroundShare`,
+  `Binance.RequestWeightMinute`, `Bybit.RequestsPerSecond`: the keys
+  hydrate once before the first acquire and are then followed
+  reactively, so a settings edit reshapes the buckets without a
+  restart; absent keys leave the shipped defaults standing).
+- The 429 path is honest end to end: a rate-limited response reports
+  the venue's `Retry-After` into the limiter before the failure throws
+  exactly as any transport failure did, every lane parks for the span
+  (the venue's own accountant restarts the window — the expiry refills
+  both pools to full), a missing or nonsensical guidance applies the
+  limiter's short default block span (the block is real, only the
+  guidance is missing), and a park or token deficit longer than the
+  ten-minute bounded-wait ceiling surfaces as an error — the REST wait
+  is always bounded, never an infinite stall.
+- The demo and paper adapters stay exempt by design: they are synthetic
+  surfaces with no venue and no IP budget, so there is nothing for a
+  limiter to police — the throttling is a production posture applied by
+  the DI seam (`AddRestRateLimiters`: one keyed singleton limiter per
+  adapter under the adapter's own HttpClient identity), and unwired
+  adapter constructions (tests, plugin hosts) run through a
+  pass-through limiter instead of failing.
+
 ## [0.1.0-alpha.58] - 2026-11-07
 
 Build of board task T-098 (branch `feat/health-strip`).

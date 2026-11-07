@@ -2,6 +2,7 @@ namespace ZettaTrade.Infrastructure.Exchange;
 
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -12,6 +13,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.RateLimiting;
 
 /// <summary>
 /// Bybit v5 spot exchange adapter implementation (read-only market data).
@@ -48,8 +50,34 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <summary>REST path of the kline history endpoint.</summary>
     private const string KlineRequestPath = "/v5/market/kline";
 
+    /// <summary>The per-second request budget the venue publishes for its public market REST endpoints, as shipped.</summary>
+    private const int PublicRequestsPerSecond = 10;
+
+    /// <summary>The refill cadence of Bybit's per-endpoint request budgets.</summary>
+    private static readonly TimeSpan RestRefillInterval = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// The shipped REST budget manifest (T-106): the venue caps each public
+    /// market endpoint with its own requests-per-second count, so each
+    /// family carries its own bucket in that dialect, rescalable live
+    /// through <c>Limiter.Bybit.RequestsPerSecond</c>.
+    /// </summary>
+    public static RestRateLimiterOptions DefaultRestLimits { get; } = new()
+    {
+        SettingsKey = "Bybit",
+        ScaleKind = RestBudgetScaleKind.RequestsPerSecond,
+        Endpoints =
+        [
+            new RestEndpointBudget(KlineRequestPath, PublicRequestsPerSecond, RestRefillInterval),
+            new RestEndpointBudget(CatalogRequestPath, PublicRequestsPerSecond, RestRefillInterval),
+        ],
+    };
+
     /// <summary>Page size requested for the spot catalog (the server's own cap).</summary>
     private const int CatalogPageSize = 1000;
+
+    /// <summary>The request weight a public Bybit market REST call spends from its bucket (one per request).</summary>
+    private const int CatalogPageWeight = 1;
 
     /// <summary>
     /// Upper bound of catalog pages per load: protects the cursor loop from a
@@ -121,6 +149,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     private readonly WebSocketClient _wsClient;
     private readonly string _baseUrl;
     private readonly string _wsUrl;
+    private readonly IRestRateLimiter _restLimiter;
 
     /// <summary>Serializes every outbound frame across concurrent stream starts, reconnect re-subscribes and the keepalive.</summary>
     private readonly SemaphoreSlim _sendGate = new(1, 1);
@@ -170,12 +199,17 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// The reconnect supervisor is bound when provided (T-105): the adapter
     /// registers its policy and hands the transport a state sink; direct
     /// constructions without one keep compiling and report nothing.
+    /// The REST rate limiter is wired when provided (T-106): the
+    /// registration seam builds it from the shipped manifest and the
+    /// settings service; unwired constructions (tests, plugin hosts) run
+    /// unshaped through the pass-through limiter.
     /// </summary>
     public BybitAdapter(
         ILogger<BybitAdapter> logger,
         IHttpClientFactory httpClientFactory,
         BybitEndpoints? endpoints = null,
-        ReconnectSupervisor? reconnectSupervisor = null)
+        ReconnectSupervisor? reconnectSupervisor = null,
+        IRestRateLimiter? restLimiter = null)
         : base(logger)
     {
         _baseUrl = endpoints?.RestBaseUrl ?? DefaultRestBaseUrl;
@@ -189,6 +223,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         }
 
         _httpClient = httpClientFactory.CreateClient(HttpClientName);
+        _restLimiter = restLimiter ?? UnthrottledRestRateLimiter.Instance;
         _wsClient = new WebSocketClient(
             _wsUrl,
             logger,
@@ -270,7 +305,12 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
                 url += $"&cursor={Uri.EscapeDataString(cursor)}";
             }
 
-            var result = await GetRestResultAsync(url, ct);
+            var result = await GetRestResultAsync(
+                RestLane.Background,
+                CatalogRequestPath,
+                CatalogPageWeight,
+                url,
+                ct);
             foreach (var item in result.GetProperty("list").EnumerateArray())
             {
                 var baseCoin = TryGetString(item, "baseCoin");
@@ -340,7 +380,12 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
                   $"&end={endTime}" +
                   $"&limit={limit}";
 
-        var result = await GetRestResultAsync(url, ct);
+        var result = await GetRestResultAsync(
+            RestLaneResolver.LaneForBarRange(to, DateTimeOffset.UtcNow),
+            KlineRequestPath,
+            CatalogPageWeight,
+            url,
+            ct);
         var rows = result.GetProperty("list");
 
         // Bybit v5 kline rows: [startMs, open, high, low, close, volume,
@@ -874,10 +919,21 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// Bybit v5 REST responses wrap the payload in {"retCode","retMsg","result"}:
     /// a non-zero retCode is a protocol-level failure (HTTP may still be 200)
     /// and throws — never a defaulted result. The "result" member is the value.
+    /// The request rides the rate limiter first (T-106): the acquire waits out
+    /// the bucket, and a 429 response with a <c>Retry-After</c> feeds the
+    /// venue's park guidance back into the limiter before the failure throws.
     /// </summary>
-    private async Task<JsonElement> GetRestResultAsync(string url, CancellationToken ct)
+    private async Task<JsonElement> GetRestResultAsync(
+        RestLane lane,
+        string endpointKey,
+        int weight,
+        string url,
+        CancellationToken ct)
     {
-        using var document = await _httpClient.GetFromJsonAsync<JsonDocument>(url, ct);
+        using var response = await SendRateLimitedGetAsync(lane, endpointKey, weight, url, ct);
+        response.EnsureSuccessStatusCode();
+
+        using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(options: null, cancellationToken: ct);
         var root = document?.RootElement
             ?? throw new InvalidOperationException($"Bybit REST request returned an empty body: {url}");
 
@@ -893,6 +949,33 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         // The result element outlives this method: clone it out of the
         // document's pooled memory before the document is disposed.
         return root.GetProperty("result").Clone();
+    }
+
+    /// <summary>
+    /// One outbound REST GET through the rate limiter (T-106): the acquire
+    /// waits before the send, and a 429 feeds the venue's retry guidance
+    /// back into the limiter so every lane parks for the span.
+    /// </summary>
+    /// <param name="lane">The traffic lane of the call.</param>
+    /// <param name="endpointKey">The endpoint family (the adapter's path-template constant).</param>
+    /// <param name="weight">The request's documented token cost.</param>
+    /// <param name="url">The fully built request URL.</param>
+    /// <param name="ct">The caller's cancellation (covers the acquire wait and the send).</param>
+    private async Task<HttpResponseMessage> SendRateLimitedGetAsync(
+        RestLane lane,
+        string endpointKey,
+        int weight,
+        string url,
+        CancellationToken ct)
+    {
+        await _restLimiter.AcquireAsync(lane, endpointKey, weight, ct);
+        var response = await _httpClient.GetAsync(url, ct);
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            _restLimiter.ReportBlocked(endpointKey, RestRetryAfterParser.Parse(response.Headers));
+        }
+
+        return response;
     }
 
     private static string ConvertTimeFrame(TimeFrame timeFrame)
