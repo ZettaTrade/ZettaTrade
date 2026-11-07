@@ -183,7 +183,19 @@ public sealed class BinanceAdapterWsE2eTests
             .WaitAsync(EventWait);
 
         var connection = await server.WaitForConnectionAsync(1, EventWait);
-        await server.WaitForFrameAsync(f => f.Contains("\"SUBSCRIBE\""), EventWait);
+
+        // Each feed arms on its own idempotent stream start (one SUBSCRIBE
+        // request each), so the pushes follow BOTH starts on the wire: under
+        // a full-solution load stall the serialized send gate lagged the
+        // second start whole frames behind, the pushed trade frames landed
+        // before their feed was armed and the collector sat silent until the
+        // WaitAsync budget elapsed as a bare TimeoutException. Arm-then-push
+        // keeps the feed interleaving deterministic; the count is the
+        // observable fact, not any two requests' internals.
+        await TestPoll.PollUntilAsync(
+            () => server.SnapshotFrames()
+                .Count(f => f.Contains("\"SUBSCRIBE\"")) >= 2,
+            EventWait);
 
         await connection.SendTextAsync(DepthStringFrame);
         await connection.SendTextAsync(DepthNumericFrame);
