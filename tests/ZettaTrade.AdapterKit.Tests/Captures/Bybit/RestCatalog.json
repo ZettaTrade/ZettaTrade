@@ -1,0 +1,1 @@
+{"retCode":0,"retMsg":"OK","result":{"category":"spot","list":[{"symbol":"BTCUSDT","baseCoin":"BTC","quoteCoin":"USDT","status":"Trading"},{"symbol":"ETHUSDT","baseCoin":"ETH","quoteCoin":"USDT","status":"Trading"}],"nextPageCursor":"","retExtInfo":{},"time":1900000000000}}
