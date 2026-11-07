@@ -127,7 +127,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
 | T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | queued | - |
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
-| T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | queued | T-082 |
+| T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | done | T-082 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -517,3 +517,4 @@ the end of that file, so no effort is duplicated.
 - **Scope:** Infrastructure/App wiring under the MCP trading tools (Infra-only; no Core entity or interface changes expected), tests.
 - **Acceptance:** a fill executed via an MCP tool becomes visible in every journal-backed surface and is accounted in PnL deterministically across restarts, exactly like a fill placed from the UI.
 - **Tests:** MCP-placed fill golden (a journal row and a PnL realized entry appear), mixed UI+MCP fills keep the expected ordering, restart determinism holds.
+- **Status:** done. Canon: the journaling wrapper seam (`58f3296`), the MCP fill goldens (`c25c872`) and shipped as `0.1.0-alpha.50` (see CHANGELOG.md). Chosen cut: the tools' registrar resolves a `McpJournalingTradingAdapter` decorator around the paper adapter, recording every accepted placement into the same session-journal + SQLite-ledger pair the dialog and position actions write, and every accepted cancellation via the same `MarkCancelledAsync` under the wrapped adapter's exchange identity - the lightest cut, no duplicated ingestion. PnL parity rides the engine's 5-second ledger sync and its boot replay (the same surface the UI lane uses), each fill ingested exactly once with the T-080 commission passthrough; restart determinism pinned by a recomputed-engine golden. Both persistence arms best effort: a journal fault is logged and never fails an accepted tool action. Risk-check order untouched; Core untouched (0 diff). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).

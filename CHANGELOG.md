@@ -9,6 +9,32 @@ before `alpha.10` was never versioned — what shipped in T-001 — T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.50] - 2026-11-07
+
+Build of board task T-133 (branch `feat/mcp-journal`).
+
+### Added
+- The MCP trading lane enters the same journals every panel reads: the
+  tools' execution path now runs against a journaling wrapper around the
+  paper adapter, so a tool-placed order lands in the session journal
+  (the positions panel's recent orders) AND in the persistent SQLite
+  ledger (order history, CSV exports, trade statistics and the T-082
+  PnL realized history) exactly like a fill placed from the UI. The
+  wrapper only records: every accepted placement is journaled with the
+  T-080 commission flowing through untouched, every accepted
+  cancellation marks its row cancelled under the wrapped adapter's own
+  exchange identity, and both persistence arms are best effort - a
+  journal fault is logged and never turns an accepted trade action
+  into a tool error. The risk-check order in the tool handlers is
+  untouched (every order passes `IRiskManager` before any placement),
+  and no Core entity or interface changed. Determinism holds across
+  restarts: a persisted fill reaches the PnL engine's ledger replay
+  within the same 5-second sync cadence the UI lane rides, each fill
+  ingested exactly once - the goldens pin a recomputed engine state
+  with the realized commission repeated, never doubled. The wrapper is
+  the only new construction unit: the composition root registers it
+  with one line, the tools' registrar resolves it, no resx changes.
+
 ## [0.1.0-alpha.48] - 2026-11-07
 
 Build of board task T-076 (branch `feat/order-bulk`).
