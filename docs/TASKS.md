@@ -99,7 +99,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-092 Standard indicator pack (EMA, RSI, MACD, Bollinger… as bundled plugins) | feat/indicator-pack | done | - |
 | T-093 VWAP + volume profile overlay | feat/vol-vwap | queued | - |
 | T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | queued | - |
-| T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | queued | - |
+| T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | in-progress | - |
 | T-096 Price and percent-move alerts with a manager | feat/price-alerts | queued | - |
 | T-097 Notification center: toasts, history, DND | feat/notif-center | queued | - |
 | T-098 Adapter health strip in the status bar | feat/health-strip | done | - |
@@ -200,7 +200,8 @@ the end of that file, so no effort is duplicated.
 
 ## T-095 — Global symbol palette (Ctrl+K)
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/symbol-palette (base `develop` at `086579b`; queued 2026-11-06 at the T-074…T-115 backlog cut, developed 2026-11-07).
+- **Status:** in-progress.
 - **Origin:** T-014's autocomplete lives inside the ticket only; a Ctrl+K palette is the terminal norm.
 - **What:** a fuzzy palette over all adapters' instruments with recents and the existing favorites store as inputs (read-only — the favorites area is parked task A's turf), keyboard-first, Enter applies the workspace symbol context (T-017 discipline); backdrop styling via the chrome canon.
 - **Scope:** palette VM/view, instrument source wiring, resx en+ru, tests.
