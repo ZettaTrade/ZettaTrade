@@ -630,6 +630,30 @@
   <data name="Positions.ReverseLeg2FailedFormat" xml:space="preserve">
     <value>The exit order {0} was placed but the re-entry failed: {1}</value>
   </data>
+  <data name="Positions.ActionBulkCancel" xml:space="preserve">
+    <value>Cancel All…</value>
+  </data>
+  <data name="Positions.ConfirmBulkCancelFormat" xml:space="preserve">
+    <value>Bulk cancel on {0}: orders to cancel: {1}, remaining notional {2} {3} ({4}). Confirm?</value>
+  </data>
+  <data name="Positions.BulkTagPaper" xml:space="preserve">
+    <value>Paper</value>
+  </data>
+  <data name="Positions.BulkNoSymbol" xml:space="preserve">
+    <value>No active symbol: select a symbol in the workspace first.</value>
+  </data>
+  <data name="Positions.BulkCancelNothing" xml:space="preserve">
+    <value>No working orders to cancel on {0}.</value>
+  </data>
+  <data name="Positions.BulkCancelDone" xml:space="preserve">
+    <value>Bulk cancel on {0}: {1} cancelled, {2} skipped (already in flight), {3} failed, {4} not attempted{5}</value>
+  </data>
+  <data name="Positions.BulkCancelFailedItems" xml:space="preserve">
+    <value>. Failed items: {0}.</value>
+  </data>
+  <data name="Positions.BulkCancelAborted" xml:space="preserve">
+    <value>The bulk cancel did not complete: {0}</value>
+  </data>
   <data name="History.Title" xml:space="preserve">
     <value>Order History</value>
   </data>
