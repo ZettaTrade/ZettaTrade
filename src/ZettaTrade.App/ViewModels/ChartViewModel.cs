@@ -15,6 +15,7 @@ using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
+using ZettaTrade.Infrastructure.Persistence;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
@@ -96,6 +97,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private readonly SymbolListProvider _symbolList;
     private readonly ICsvExportService _export;
     private readonly ILocalizationManager _localization;
+
+    /// <summary>
+    /// The local candle cache the bootstrap serves from and the loaded
+    /// pages ride WRITE-THROUGH (T-085): every adapter-served bar set
+    /// persists so the next start renders instantly from the cache.
+    /// </summary>
+    private readonly ICandleCache _candleCache;
 
     /// <summary>
     /// Whether the constructor restore is writing its own value into
@@ -497,6 +505,10 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// streams through when the user asks for the candles file.</param>
     /// <param name="localization">The resx mirror the export fault line
     /// resolves its message through.</param>
+    /// <param name="candleCache">The local candle cache (T-085): the
+    /// bootstrap page serves the newest cached window first and the
+    /// network refresh rides behind it; every served bar set persists
+    /// write-through, so the next start renders instantly.</param>
     public ChartViewModel(
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
@@ -504,6 +516,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         IIndicatorCatalog indicatorCatalog,
         ICsvExportService export,
         ILocalizationManager localization,
+        ICandleCache candleCache,
         ILogger<ChartViewModel> logger)
     {
         _activeExchanges = activeExchanges;
@@ -512,6 +525,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _indicatorCatalog = indicatorCatalog;
         _export = export;
         _localization = localization;
+        _candleCache = candleCache;
         _logger = logger;
 
         ExportCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportCandlesAsync);
@@ -1382,9 +1396,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>
     /// Bars load for one selection on the exchange that triggered it, for
-    /// the exact time frame of the triggering change. A failure ends this
-    /// selection's data (logged, never a default value) but must not
-    /// terminate the switching machine for later selections.
+    /// the exact time frame of the triggering change: the cached page (if
+    /// any) rides FIRST and the network refresh follows behind it, so a
+    /// fresh start renders instantly from the cache (T-085). A failure
+    /// ends this selection's data (logged, never a default value) but must
+    /// not terminate the switching machine for later selections.
     /// </summary>
     private IObservable<IReadOnlyList<Bar>> LoadBars(
         Symbol symbol,
@@ -1397,30 +1413,126 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             timeFrame,
             adapter.Name);
 
-        // From = the frame's own bar depth walked back from now: every time
-        // frame loads its full history depth. The limit is one over the bar
-        // count because the request window [start, now] contains count+1
-        // open times when start lands on a bar boundary (the current,
-        // still-forming candle included), and the exchange answers a
-        // saturated window with its OLDEST bars — a saturated limit would
-        // cut exactly the fresh edge.
-        return Observable
-            .FromAsync(token => adapter.GetBarsAsync(
+        return Observable.Concat(
+            CachedBars(symbol, timeFrame, adapter),
+            FetchBars(symbol, timeFrame, adapter));
+    }
+
+    /// <summary>
+    /// The cached window for the selection (T-085): the newest
+    /// <see cref="InitialBarCount"/>+1 bars the cache holds for this
+    /// (adapter, symbol, interval) key, delivered BEFORE the fetch so a
+    /// fresh start renders instantly. An empty or faulted read delivers
+    /// nothing — the fetch page then stands alone. The page may end at the
+    /// previous session's edge: the still-forming candle shown until the
+    /// refresh lands is the honest cache picture, never a fabricated bar.
+    /// </summary>
+    private IObservable<IReadOnlyList<Bar>> CachedBars(
+        Symbol symbol,
+        TimeFrame timeFrame,
+        IMarketDataAdapter adapter) => Observable
+        .FromAsync(token => _candleCache.GetLatestAsync(
+            adapter.Id,
+            symbol,
+            timeFrame,
+            InitialBarCount + 1,
+            token))
+        // A cancelled read is the normal outcome of Switch dropping the
+        // previous selection or exchange: keep it silent (real failures
+        // log below).
+        .Catch<IReadOnlyList<Bar>, OperationCanceledException>(_ =>
+            Observable.Empty<IReadOnlyList<Bar>>())
+        .Where(static bars => bars.Count > 0)
+        .Catch<IReadOnlyList<Bar>, Exception>(ex =>
+        {
+            _logger.LogWarning(
+                ex,
+                "Candle cache read failed for {Symbol} {TimeFrame} on {Exchange}; the fetch page stands alone",
+                symbol.Normalized,
+                timeFrame,
+                adapter.Id);
+            return Observable.Empty<IReadOnlyList<Bar>>();
+        });
+
+    /// <summary>
+    /// The network page for the selection, riding WRITE-THROUGH (T-085):
+    /// the adapter-served set persists before the page delivers, so the
+    /// next start serves these bars from the cache even if this session
+    /// dies right after.
+    /// </summary>
+    private IObservable<IReadOnlyList<Bar>> FetchBars(
+        Symbol symbol,
+        TimeFrame timeFrame,
+        IMarketDataAdapter adapter) => Observable
+        .FromAsync(async token =>
+        {
+            // From = the frame's own bar depth walked back from now: every time
+            // frame loads its full history depth. The limit is one over the bar
+            // count because the request window [start, now] contains count+1
+            // open times when start lands on a bar boundary (the current,
+            // still-forming candle included), and the exchange answers a
+            // saturated window with its OLDEST bars — a saturated limit would
+            // cut exactly the fresh edge.
+            var bars = await adapter.GetBarsAsync(
                 symbol,
                 timeFrame,
                 HistoryStart(DateTimeOffset.UtcNow, timeFrame, InitialBarCount),
                 limit: InitialBarCount + 1,
-                ct: token))
-            // A cancelled load is the normal outcome of Switch dropping the
-            // previous selection or exchange: keep it silent (real failures
-            // log below).
-            .Catch<IReadOnlyList<Bar>, OperationCanceledException>(_ =>
-                Observable.Empty<IReadOnlyList<Bar>>())
-            .Catch<IReadOnlyList<Bar>, Exception>(ex =>
+                ct: token);
+
+            if (bars.Count > 0)
             {
-                _logger.LogError(ex, "Failed to load chart data for {Symbol}", symbol);
-                return Observable.Empty<IReadOnlyList<Bar>>();
-            });
+                await WriteThroughBarsAsync(adapter, symbol, timeFrame, bars, token);
+            }
+
+            return bars;
+        })
+        // A cancelled load is the normal outcome of Switch dropping the
+        // previous selection or exchange: keep it silent (real failures
+        // log below).
+        .Catch<IReadOnlyList<Bar>, OperationCanceledException>(_ =>
+            Observable.Empty<IReadOnlyList<Bar>>())
+        .Catch<IReadOnlyList<Bar>, Exception>(ex =>
+        {
+            _logger.LogError(ex, "Failed to load chart data for {Symbol}", symbol);
+            return Observable.Empty<IReadOnlyList<Bar>>();
+        });
+
+    /// <summary>
+    /// One best-effort write-through: a cache fault is logged and never
+    /// breaks the load (the refresh page still delivers — the cache is
+    /// bookkeeping, not a source of truth), while a cancellation
+    /// propagates (the Switch dropped this load; its bookkeeping must stop).
+    /// </summary>
+    private async Task WriteThroughBarsAsync(
+        IMarketDataAdapter adapter,
+        Symbol symbol,
+        TimeFrame timeFrame,
+        IReadOnlyList<Bar> bars,
+        CancellationToken ct)
+    {
+        try
+        {
+            await _candleCache.WriteThroughAsync(
+                adapter.Id,
+                symbol,
+                timeFrame,
+                bars,
+                ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Candle cache write-through failed for {Symbol} {TimeFrame} on {Exchange}",
+                symbol.Normalized,
+                timeFrame,
+                adapter.Name);
+        }
     }
 
     #endregion
@@ -1511,6 +1623,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             // result dedupes against exactly the series it was captured on.
             var series = Bars;
             var anchor = series[0].Time;
+            var token = CancellationTokenSource.CreateLinkedTokenSource(ct, _olderFetchEpoch.Token).Token;
 
             var page = await _loadedAdapter.GetBarsAsync(
                 target.Symbol,
@@ -1518,7 +1631,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 HistoryStart(anchor, target.TimeFrame, InitialBarCount),
                 to: anchor,
                 limit: InitialBarCount + 1,
-                ct: CancellationTokenSource.CreateLinkedTokenSource(ct, _olderFetchEpoch.Token).Token);
+                ct: token);
 
             // The rebase check: a delivered full load replaced the collection
             // (and cancelled this epoch) while the page was in flight — the
@@ -1557,6 +1670,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     target.ExchangeId);
                 return;
             }
+
+            // WRITE-THROUGH (T-085): the fetched page persists before the
+            // prepend delivers — the overlap conflates on the composite key,
+            // so the next start serves the extended history from the cache.
+            await WriteThroughBarsAsync(_loadedAdapter, target.Symbol, target.TimeFrame, page, token);
 
             _olderAppendsPending++;
             _olderPages.OnNext(prepend);
