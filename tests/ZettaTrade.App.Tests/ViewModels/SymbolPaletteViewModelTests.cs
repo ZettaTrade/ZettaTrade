@@ -272,7 +272,7 @@ public sealed class SymbolPaletteViewModelTests
             TimeFrame timeFrame,
             int limit,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<Bar>>([]);
+            BarsAsync();
 
         public Task<IReadOnlyList<Bar>> GetOlderThanAsync(
             string adapterId,
@@ -281,14 +281,26 @@ public sealed class SymbolPaletteViewModelTests
             DateTimeOffset before,
             int limit,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<Bar>>([]);
+            BarsAsync();
 
         public Task WriteThroughAsync(
             string adapterId,
             Symbol symbol,
             TimeFrame timeFrame,
             IReadOnlyList<Bar> bars,
-            CancellationToken cancellationToken = default) => Task.CompletedTask;
+            CancellationToken cancellationToken = default) =>
+            DoneAsync();
+
+        private static async Task<IReadOnlyList<Bar>> BarsAsync()
+        {
+            await Task.CompletedTask;
+            return [];
+        }
+
+        private static async Task DoneAsync()
+        {
+            await Task.CompletedTask;
+        }
     }
 
     #endregion Scene kit

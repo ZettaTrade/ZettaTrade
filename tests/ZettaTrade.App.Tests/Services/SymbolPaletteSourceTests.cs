@@ -104,13 +104,17 @@ public sealed class SymbolPaletteSourceTests
                 : _symbolPlans.Peek();
         }
 
-        public Task<IReadOnlyList<Bar>> GetBarsAsync(
+        public async Task<IReadOnlyList<Bar>> GetBarsAsync(
             Symbol symbol,
             TimeFrame timeFrame,
             DateTimeOffset from,
             DateTimeOffset? to = null,
             int limit = 500,
-            CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Bar>>([]);
+            CancellationToken ct = default)
+        {
+            await Task.CompletedTask;
+            return [];
+        }
 
         public IObservable<Ticker> SubscribeTicker(Symbol symbol) => Observable.Never<Ticker>();
 
