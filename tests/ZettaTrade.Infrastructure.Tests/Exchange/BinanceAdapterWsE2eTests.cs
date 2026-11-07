@@ -18,6 +18,18 @@ using ZettaTrade.Infrastructure.Exchange;
 /// handshake, the adapter's SUBSCRIBE frame, combined-envelope responses and
 /// the published domain entities. This is the pinned regression for the T-013
 /// combined-envelope framing bug (the one only a live probe used to catch).
+///
+/// Wait budgets (T-116, 2026-11-07): <c>EventWait</c> is the 60 s house
+/// completion budget shared by the whole WS E2E family, raised from 10 s.
+/// The old cap tripped under full-solution parallel test load (xUnit hosts
+/// across sibling assemblies chewing cores): a scheduler stall starved the
+/// loopback handshake and frame beats past the cap and
+/// <see cref="Depth_and_trade_frames_publish_order_book_and_trades"/> died
+/// as a bare System.TimeoutException inside WaitAsync(EventWait) at the 10 s
+/// mark, while every focused run stayed green — the adapter pipeline was
+/// healthy all along. This is load patience, never a product timing claim:
+/// solo runs always passed and still must, and deliberate latency ceilings
+/// (where any ever appear) stay separate from this budget.
 /// </summary>
 /// <remarks>
 /// The reconnect delay stays with the production 5 s inside the adapter
@@ -28,8 +40,12 @@ public sealed class BinanceAdapterWsE2eTests
 {
     #region Constants
 
-    /// <summary>Bounded wait for any expected observable event or connection.</summary>
-    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// The 60 s house load budget (T-116, see the class header): bounded wait
+    /// for any expected observable event or connection — completion patience,
+    /// never a latency ceiling.
+    /// </summary>
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(60);
 
     /// <summary>Symbol used in every scenario; its lowercase exchange form is "btcusdt".</summary>
     private static readonly Symbol BtcUsdt = new("btc", "usdt", AssetClass.Crypto);

@@ -28,13 +28,30 @@ using ZettaTrade.Infrastructure.Exchange;
 /// Exercised over the in-process loopback Kestrel server; the reconnect delay
 /// stays with the production 5 s inside the adapter, so every scenario that
 /// drops the socket takes that long between sessions.
+///
+/// Wait budgets (T-116, 2026-11-07): <c>EventWait</c> is the 60 s house
+/// completion budget shared by the whole WS E2E family, raised from 10 s.
+/// The old cap tripped under full-solution parallel test load (xUnit hosts
+/// across sibling assemblies chewing cores): a scheduler stall starved the
+/// loopback handshake and frame beats past the cap and the collector died as
+/// a bare System.TimeoutException inside WaitAsync(EventWait) while every
+/// focused run stayed green — the adapter pipeline was healthy all along.
+/// This is load patience, never a product timing claim: solo runs always
+/// passed and still must, and deliberate latency ceilings (where any ever
+/// appear) stay separate from this budget. The 2 s ConnectionStabilityWait
+/// bake stays as-is: it is an intentional observation window after
+/// settlement, not a bounded completion wait.
 /// </summary>
 public sealed class BinanceAdapterResubscribeTests
 {
     #region Constants
 
-    /// <summary>Bounded wait for any expected event or connection.</summary>
-    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// The 60 s house load budget (T-116, see the class header): bounded wait
+    /// for any expected event or connection — completion patience, never a
+    /// latency ceiling.
+    /// </summary>
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(60);
 
     /// <summary>
     /// The bake after settlement: a churned adapter piles up further sessions

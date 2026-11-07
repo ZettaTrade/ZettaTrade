@@ -18,9 +18,29 @@ using Xunit;
 /// start is cancelled together with the subscription, and every new outer
 /// subscription re-runs the idempotent start while the per-symbol subject
 /// stays shared.
+///
+/// Wait budget (T-116, 2026-11-07): <c>EventWait</c> is the 60 s house
+/// completion budget shared by the WS E2E family, and the starvation
+/// signature reproduced right here: during the T-075/T-077 landing wave a
+/// full-solution parallel test run failed on a poll deadline (5 s inline at
+/// the time) that a scheduler stall across sibling test hosts chewed past,
+/// while every focused run and the gate's flaky retry stayed green — the
+/// adapter pipeline was healthy all along. Load patience, never a product
+/// timing claim: solo runs always passed and still must, and deliberate
+/// latency ceilings stay separate from this budget.
 /// </summary>
 public sealed class ExchangeAdapterBaseSubscriptionTests
 {
+    #region Constants
+
+    /// <summary>
+    /// The 60 s house load budget (T-116, see the class header) for polls on
+    /// cross-thread settlement — completion patience, never a latency ceiling.
+    /// </summary>
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(60);
+
+    #endregion
+
     #region Test Adapter
 
     /// <summary>
@@ -243,13 +263,13 @@ public sealed class ExchangeAdapterBaseSubscriptionTests
         var failures = new List<Exception>();
         using (source.Subscribe(_ => { }, failures.Add))
         {
-            await TestPoll.PollUntilAsync(() => failures.Count >= 1, TimeSpan.FromSeconds(5));
+            await TestPoll.PollUntilAsync(() => failures.Count >= 1, EventWait);
         }
 
         // The rejection is handed out per subscription, not a one-shot state.
         using (source.Subscribe(_ => { }, failures.Add))
         {
-            await TestPoll.PollUntilAsync(() => failures.Count >= 2, TimeSpan.FromSeconds(5));
+            await TestPoll.PollUntilAsync(() => failures.Count >= 2, EventWait);
         }
 
         failures.Should().HaveCount(2);
