@@ -221,6 +221,7 @@ internal static class CompositionRoot
         services.AddPositionActionsServices(); // T-077: position actions (close, partial close, reverse).
         services.AddBulkCancelServices(); // T-076: bulk cancel (per-symbol, confirmed, best-effort).
         services.AddFeeServices(); // T-080: fees (schedule, estimate, columns).
+        services.AddSingleton<McpJournalingTradingAdapter>(); // T-133: MCP fills enter the journal.
 
         var provider = services.BuildServiceProvider();
 
@@ -228,15 +229,18 @@ internal static class CompositionRoot
 
         // MCP trading tools: registered once, against the paper trading adapter
         // (mock surface; real exchange adapters are plugged in as plugins later).
-        // Registration runs AFTER the startup walk: resolving ITradingAdapter
-        // constructs the whole adapter stack (PaperTradingAdapter wraps the
-        // market data adapter), and the Binance adapter reads its endpoints
-        // from the endpoint registry at construction time — the walk must
-        // have loaded the settings file first, or every adapter would
-        // silently run on the shipped production endpoints.
+        // Registration runs AFTER the startup walk: resolving the tool lane's
+        // journaling wrapper constructs the whole adapter stack behind it
+        // (the wrapper rides the registered ITradingAdapter paper adapter),
+        // and the Binance adapter reads its endpoints from the endpoint
+        // registry at construction time — the walk must have loaded the
+        // settings file first, or every adapter would silently run on the
+        // shipped production endpoints. The wrapper (not the raw adapter)
+        // is what the tools execute against: a tool-placed order then lands
+        // in the same session and SQLite journals the panels write (T-133).
         provider.GetRequiredService<TradingToolsRegistrar>().RegisterAll(
             provider.GetRequiredService<IMcpServerHost>(),
-            provider.GetRequiredService<ITradingAdapter>(),
+            provider.GetRequiredService<McpJournalingTradingAdapter>(),
             provider.GetRequiredService<IRiskManager>(),
             provider.GetRequiredService<IConfirmationService>(),
             provider.GetRequiredService<ILocalizationManager>());
