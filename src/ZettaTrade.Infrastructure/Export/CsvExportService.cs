@@ -69,10 +69,10 @@ public sealed class CsvExportService : ICsvExportService
 
     /// <summary>
     /// Fill columns mirroring the trade ledger shape: every execution (a
-    /// journal order with filled quantity) becomes one row. The fee column of
-    /// the Core Trade record stays out until the journal persistence records
-    /// fees (T-080 canon: a missing fee is surfaced explicitly then, never
-    /// zero-padded here).
+    /// journal order with filled quantity) becomes one row, and the fee
+    /// column carries the commission the adapter stamped at execution
+    /// (T-080): an absent commission exports as an empty cell — the honest
+    /// unknown, never zero-padded.
     /// </summary>
     private static readonly string[] FillsHeader =
     [
@@ -83,6 +83,7 @@ public sealed class CsvExportService : ICsvExportService
         "price",
         "quantity",
         "executedAt",
+        "fee",
     ];
 
     /// <summary>Candle columns: the acceptance's timestamp plus OHLCV.</summary>
@@ -266,8 +267,10 @@ public sealed class CsvExportService : ICsvExportService
     /// One execution as a trade-ledger row: the fill's identity rides its
     /// journal order (a paper execution fills the whole order), the price is
     /// the execution price the adapter recorded, the quantity is the filled
-    /// part, and the execution time is the order's last update (the fill
-    /// time in the paper ledger) or the placement when no update was written.
+    /// part, the execution time is the order's last update (the fill time in
+    /// the paper ledger) or the placement when no update was written, and
+    /// the fee is the recorded commission — an empty cell when the adapter
+    /// published none (an honest unknown, never a fabricated zero).
     /// </summary>
     private static string?[] OrderToFillRow(Order order) => new string?[]
     {
@@ -278,6 +281,7 @@ public sealed class CsvExportService : ICsvExportService
         FormatAmount(order.Price.Value),
         FormatAmount(order.FilledQuantity.Value),
         FormatTimestamp(order.UpdatedAt ?? order.CreatedAt),
+        order.Commission is { } fee ? FormatAmount(fee) : null,
     };
 
     /// <summary>One candle as a CSV row (timestamp UTC, OHLCV invariant).</summary>

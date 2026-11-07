@@ -6,7 +6,7 @@
         Classes="chrome"
         x:DataType="vm:OrderHistoryViewModel"
         Title="{loc:Localized History.Title}"
-        Width="920" Height="520"
+        Width="1000" Height="520"
         WindowStartupLocation="CenterOwner"
         CanResize="True"
         ShowInTaskbar="False"
@@ -18,7 +18,7 @@
             <StackPanel Spacing="6">
 
                 <!-- Column headers -->
-                <Grid ColumnDefinitions="150,90,125,55,75,75,150,125"
+                <Grid ColumnDefinitions="150,90,125,55,75,75,150,125,110"
                       IsVisible="{Binding HasRows}">
                     <TextBlock Grid.Column="0" Text="{loc:Localized History.ColOpened}" />
                     <TextBlock Grid.Column="1" Text="{loc:Localized History.ColExchange}" />
@@ -28,6 +28,7 @@
                     <TextBlock Grid.Column="5" Text="{loc:Localized History.ColQuantity}" />
                     <TextBlock Grid.Column="6" Text="{loc:Localized History.ColPrice}" />
                     <TextBlock Grid.Column="7" Text="{loc:Localized History.ColStatus}" />
+                    <TextBlock Grid.Column="8" Text="{loc:Localized Fees.ColumnTitle}" />
                 </Grid>
 
                 <!-- Empty state -->
@@ -39,7 +40,7 @@
                               IsVisible="{Binding HasRows}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:OrderHistoryRowViewModel">
-                            <Grid ColumnDefinitions="150,90,125,55,75,75,150,125">
+                            <Grid ColumnDefinitions="150,90,125,55,75,75,150,125,110">
                                 <TextBlock Grid.Column="0" Text="{Binding Opened}" />
                                 <TextBlock Grid.Column="1" Text="{Binding Exchange}" />
                                 <TextBlock Grid.Column="2" Text="{Binding Symbol}" />
@@ -48,6 +49,7 @@
                                 <TextBlock Grid.Column="5" Text="{Binding Quantity}" />
                                 <TextBlock Grid.Column="6" Text="{Binding Price}" />
                                 <TextBlock Grid.Column="7" Text="{Binding Status}" />
+                                <TextBlock Grid.Column="8" Text="{Binding Fee}" />
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

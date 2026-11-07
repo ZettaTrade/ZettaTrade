@@ -828,6 +828,18 @@
   <data name="Trading.BalancesRefresh" xml:space="preserve">
     <value>Refresh</value>
   </data>
+  <data name="Fees.ColumnTitle" xml:space="preserve">
+    <value>Fee</value>
+  </data>
+  <data name="Fees.Unknown" xml:space="preserve">
+    <value>—</value>
+  </data>
+  <data name="Fees.EstimateMakerFormat" xml:space="preserve">
+    <value>Est. fee (maker): {0}</value>
+  </data>
+  <data name="Fees.EstimateTakerFormat" xml:space="preserve">
+    <value>Est. fee (taker): {0}</value>
+  </data>
   <data name="Trading.BalancesClose" xml:space="preserve">
     <value>Close</value>
   </data>

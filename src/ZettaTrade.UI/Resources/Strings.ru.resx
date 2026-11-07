@@ -828,6 +828,18 @@
   <data name="Trading.BalancesRefresh" xml:space="preserve">
     <value>Обновить</value>
   </data>
+  <data name="Fees.ColumnTitle" xml:space="preserve">
+    <value>Комиссия</value>
+  </data>
+  <data name="Fees.Unknown" xml:space="preserve">
+    <value>—</value>
+  </data>
+  <data name="Fees.EstimateMakerFormat" xml:space="preserve">
+    <value>Оценка комиссии (мейкер): {0}</value>
+  </data>
+  <data name="Fees.EstimateTakerFormat" xml:space="preserve">
+    <value>Оценка комиссии (тейкер): {0}</value>
+  </data>
   <data name="Trading.BalancesClose" xml:space="preserve">
     <value>Закрыть</value>
   </data>

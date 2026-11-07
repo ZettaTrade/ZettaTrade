@@ -31,6 +31,8 @@ public sealed class OrderHistoryViewModel : ReactiveObject
 
     private const string LoadFailedKey = "History.LoadFailed";
     private const string ExportFailedKey = "History.ExportFailed";
+    private const string FeeUnknownKey = "Fees.Unknown";
+    private const string FeeDisplayFormat = "F8";
 
     #endregion Resx Keys
 
@@ -238,7 +240,19 @@ public sealed class OrderHistoryViewModel : ReactiveObject
         Quantity = order.Quantity.Value.ToString(CultureInfo.InvariantCulture),
         Price = order.Price.Value.ToString("F8", CultureInfo.InvariantCulture),
         Status = _localization.GetString($"Positions.Status{order.Status}"),
+        Fee = FormatFee(order.Commission),
     };
+
+    /// <summary>
+    /// The commission the order's execution carried, invariant-formatted
+    /// like the other money cells; an order without recorded execution fee
+    /// data shows the localized dash — an honest unknown, never a
+    /// fabricated zero.
+    /// </summary>
+    private string FormatFee(decimal? commission) =>
+        commission is { } fee
+            ? fee.ToString(FeeDisplayFormat, CultureInfo.InvariantCulture)
+            : _localization.GetString(FeeUnknownKey);
 
     #endregion Private Methods
 }

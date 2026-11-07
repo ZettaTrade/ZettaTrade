@@ -25,6 +25,7 @@ $ModulePrefixes = @(
     'Positions.',
     'History.',
     'Stats.',
+    'Fees.',
     'OrderBook.'
 )
 

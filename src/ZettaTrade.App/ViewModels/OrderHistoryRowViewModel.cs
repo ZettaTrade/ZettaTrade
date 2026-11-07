@@ -30,4 +30,11 @@ public sealed record OrderHistoryRowViewModel
 
     /// <summary>Localized order status.</summary>
     public required string Status { get; init; }
+
+    /// <summary>
+    /// Commission the order's execution carried, invariant-formatted; an
+    /// order without recorded execution fee data shows the localized dash —
+    /// an honest unknown, never a fabricated zero.
+    /// </summary>
+    public required string Fee { get; init; }
 }

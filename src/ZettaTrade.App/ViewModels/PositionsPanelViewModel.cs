@@ -42,6 +42,8 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     private const string CancelledKey = "Positions.Cancelled";
     private const string CancelFailedKey = "Positions.CancelFailed";
     private const string AmendFailedKey = "Positions.AmendFailed";
+    private const string FeeUnknownKey = "Fees.Unknown";
+    private const string FeeDisplayFormat = "F8";
 
     #endregion Resx Keys
 
@@ -603,6 +605,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             IsCancellable = isCancellable,
             IsAmendable = isAmendable,
             IsAmending = _amendingOrderId == order.Id,
+            Fee = FormatFee(order.Commission),
             CancelCommand = ReactiveCommand.CreateFromTask(
                 () => HandleCancelAsync(order),
                 Observable.Return(isCancellable)),
@@ -611,6 +614,17 @@ public sealed class PositionsPanelViewModel : ReactiveObject
                 Observable.Return(isAmendable)),
         };
     }
+
+    /// <summary>
+    /// The commission the order's execution carried, invariant-formatted
+    /// like the other money cells; an order without recorded execution fee
+    /// data shows the localized dash — an honest unknown, never a
+    /// fabricated zero (a working order has not executed yet: same dash).
+    /// </summary>
+    private string FormatFee(decimal? commission) =>
+        commission is { } fee
+            ? fee.ToString(FeeDisplayFormat, CultureInfo.InvariantCulture)
+            : _localization.GetString(FeeUnknownKey);
 
     #endregion Private Methods
 }

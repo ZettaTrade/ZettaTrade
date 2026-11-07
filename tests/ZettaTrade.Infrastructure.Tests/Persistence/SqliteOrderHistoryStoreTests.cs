@@ -316,6 +316,7 @@ public sealed class SqliteOrderHistoryStoreTests
             "ExchangeId", "OrderId", "Symbol", "Side", "Type", "Quantity", "Price",
             "Status", "TimeInForce", "CreatedAt", "UpdatedAt", "FilledQuantity",
             "ClientOrderId", "StopPrice", "ExchangeOrderId", "RejectReason", "Expiry",
+            "Commission",
         };
 
         await WithTempDatabaseAsync(async (file, store) =>
