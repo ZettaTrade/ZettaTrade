@@ -89,7 +89,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | done | - |
 | T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | done | T-082 (soft) |
 | T-084 CSV export: order history, fills, candles | feat/csv-export | done | - |
-| T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | in-progress | - |
+| T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | done | - |
 | T-086 Deep-history backfill and gap repair | feat/backfill | queued | T-085 |
 | T-087 Trade tape (time & sales) panel | feat/trade-tape | queued | - |
 | T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | queued | - |
@@ -169,15 +169,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** ticket VM, `Settings.*` keys for defaults, resx en+ru, tests.
 - **Acceptance:** no sizing path bypasses the ticket validation (the helper only proposed quantities).
 - **Tests:** step-size rounding golden, risk-percent math, the stale-balance snapshot handling.
-
-## T-085 — Local candle cache in SQLite (write-through, offline start)
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** every start re-requests the history; EF Core + SQLite are in place since T-010 and the upsert-race lesson is T-061.
-- **What:** a write-through candle cache keyed (adapter, symbol, interval), upserted by open time; startup serves from cache, then refreshes over the feeds; an eviction cap and a `Caching.*` settings section; EF migrations per canon.
-- **Scope:** Infrastructure persistence + the chart VM's bootstrap path, `Caching.*` settings keys, tests.
-- **Acceptance:** a fresh start renders instantly from cache with the refresh riding behind; overlap conflates, never duplicates.
-- **Tests:** upsert idempotency across restarts, range-overlap golden, eviction cap, the check-then-act race pinned.
 
 ## T-086 — Deep-history backfill and gap repair
 
