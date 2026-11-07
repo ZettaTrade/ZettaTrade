@@ -36,6 +36,7 @@ public sealed class OrderHistoryDbContext(DbContextOptions<OrderHistoryDbContext
             entity.Property(entry => entry.Price).HasConversion(OrderHistoryConversions.Amount);
             entity.Property(entry => entry.FilledQuantity).HasConversion(OrderHistoryConversions.Amount);
             entity.Property(entry => entry.StopPrice).HasConversion(OrderHistoryConversions.NullableAmount);
+            entity.Property(entry => entry.Commission).HasConversion(OrderHistoryConversions.NullableAmount);
 
             entity.Property(entry => entry.CreatedAt).HasConversion(OrderHistoryConversions.Timestamp);
             entity.Property(entry => entry.UpdatedAt).HasConversion(OrderHistoryConversions.NullableTimestamp);

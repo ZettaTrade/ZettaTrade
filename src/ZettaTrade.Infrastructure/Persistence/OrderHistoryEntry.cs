@@ -61,4 +61,12 @@ public sealed class OrderHistoryEntry
 
     /// <summary>Expiry time (GTD orders).</summary>
     public DateTimeOffset? Expiry { get; set; }
+
+    /// <summary>
+    /// Commission the fill executed with, in the symbol's quote currency —
+    /// the <see cref="Order.Commission"/> mirror (T-080). Null is the honest
+    /// unknown (no execution, or the adapter published no fee schedule),
+    /// never a zero.
+    /// </summary>
+    public decimal? Commission { get; set; }
 }

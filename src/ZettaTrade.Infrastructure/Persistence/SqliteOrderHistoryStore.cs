@@ -115,17 +115,18 @@ public sealed class SqliteOrderHistoryStore(
         var exchangeOrderId = order.ExchangeOrderId;
         var rejectReason = order.RejectReason;
         var expiry = NullableTimestampText(order.Expiry);
+        var commission = NullableAmountText(order.Commission);
 
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"""
             INSERT INTO Orders (
                 ExchangeId, OrderId, Symbol, Side, Type, Quantity, Price, Status, TimeInForce,
                 CreatedAt, UpdatedAt, FilledQuantity, ClientOrderId, StopPrice, ExchangeOrderId,
-                RejectReason, Expiry)
+                RejectReason, Expiry, Commission)
             VALUES (
                 {exchangeId}, {orderId}, {symbol}, {side}, {type}, {quantity}, {price}, {status},
                 {timeInForce}, {createdAt}, {updatedAt}, {filledQuantity}, {clientOrderId}, {stopPrice},
-                {exchangeOrderId}, {rejectReason}, {expiry})
+                {exchangeOrderId}, {rejectReason}, {expiry}, {commission})
             ON CONFLICT (ExchangeId, OrderId) DO UPDATE SET
                 Symbol = {symbol},
                 Side = {side},
@@ -141,7 +142,8 @@ public sealed class SqliteOrderHistoryStore(
                 StopPrice = {stopPrice},
                 ExchangeOrderId = {exchangeOrderId},
                 RejectReason = {rejectReason},
-                Expiry = {expiry}
+                Expiry = {expiry},
+                Commission = {commission}
             """,
             cancellationToken);
     }
@@ -246,6 +248,7 @@ public sealed class SqliteOrderHistoryStore(
         ExchangeOrderId = entry.ExchangeOrderId,
         RejectReason = entry.RejectReason,
         Expiry = entry.Expiry,
+        Commission = entry.Commission,
     };
 
     #endregion Private Methods

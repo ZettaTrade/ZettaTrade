@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Demo;
+using ZettaTrade.Infrastructure.Fees;
 
 /// <summary>
 /// DI wiring for exchange adapters. Transport details (client name, timeouts) belong
@@ -119,6 +120,7 @@ public static class ExchangeAdaptersDependencyInjection
     public static IServiceCollection AddPaperTrading(this IServiceCollection services) =>
         services.AddSingleton<ITradingAdapter>(sp => new PaperTradingAdapter(
             sp.GetRequiredService<IMarketDataAdapter>(),
+            sp.GetRequiredService<FeeScheduleService>(),
             sp.GetRequiredService<ILogger<PaperTradingAdapter>>()));
 
     #endregion

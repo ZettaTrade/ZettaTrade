@@ -73,4 +73,13 @@ public sealed record Order
 
     /// <summary>Expiry time (for GTD orders).</summary>
     public DateTimeOffset? Expiry { get; init; }
+
+    /// <summary>
+    /// Commission the fill executed with, in the symbol's quote currency
+    /// (T-080: the adapter stamps it at execution time). Null means absence:
+    /// the order carries no execution fee data (it has not executed, or the
+    /// adapter published no fee schedule) — an honest unknown, arithmetically
+    /// identical to zero, never a fabricated cost.
+    /// </summary>
+    public decimal? Commission { get; init; }
 }
