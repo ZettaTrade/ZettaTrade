@@ -81,7 +81,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-074 Advanced order types: stop-limit, trailing stop, OCO | feat/order-types | done | - |
 | T-075 Amend a working order from the orders panel | feat/order-amend | done | - |
 | T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | queued | - |
-| T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | queued | - |
+| T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | done | - |
 | T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | queued | - |
 | T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | queued | - |
 | T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | queued | - |
@@ -169,8 +169,9 @@ the end of that file, so no effort is duplicated.
 - **Scope:** positions panel VM + a service, confirmation wiring, adapter mapping, resx en+ru, tests.
 - **Acceptance:** close-on-empty is rejected; reverse math is two validated orders; double-click while in flight is a no-op (idempotent disable).
 - **Tests:** close/reduce/reverse goldens on paper, rejection paths, the in-flight disable case.
+- **Status:** done. Canon: the position-actions pipeline (`6485f80`), the row action surface (`e309636`), the goldens/races/in-flight test pack (`8452cb9`) and this section's status flip; shipped as `0.1.0-alpha.46` (see CHANGELOG.md). No Core changes were needed - the actions compose validated orders through the existing trading seam (`OrderRequest.Validate` - `IRiskManager` - `IConfirmationService` - `ITradingAdapter`); the reverse is two risk-checked legs under ONE confirmation, an outside fill wins and is reported, and an exit that leaves the symbol non-flat aborts the re-entry with a localized report. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
-## T-078 — Order ticket confirmation: the pre-submit summary
+## T-078 - Order ticket confirmation: the pre-submit summary
 
 - **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
 - **Origin:** `IRiskManager`/`IConfirmationService` exist (T-057) but the gate is invisible; traders want one look at the order economics before submit.
