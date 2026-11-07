@@ -432,6 +432,42 @@
   <data name="NewOrder.OcoAborted" xml:space="preserve">
     <value>OCO placement aborted: the placed leg was cancelled.</value>
   </data>
+  <data name="NewOrder.SizerBalanceCaption" xml:space="preserve">
+    <value>Share of the available balance</value>
+  </data>
+  <data name="NewOrder.SizerQuarter" xml:space="preserve">
+    <value>25 %</value>
+  </data>
+  <data name="NewOrder.SizerHalf" xml:space="preserve">
+    <value>50 %</value>
+  </data>
+  <data name="NewOrder.SizerWhole" xml:space="preserve">
+    <value>100 %</value>
+  </data>
+  <data name="NewOrder.SizerSnapshotRefresh" xml:space="preserve">
+    <value>Refresh balance snapshot</value>
+  </data>
+  <data name="NewOrder.SizerSnapshotAbsent" xml:space="preserve">
+    <value>No balance snapshot yet</value>
+  </data>
+  <data name="NewOrder.SizerSnapshotDetail" xml:space="preserve">
+    <value>Snapshot: {0}, {1} (taken at {2})</value>
+  </data>
+  <data name="NewOrder.SizerAssetMissing" xml:space="preserve">
+    <value>not held</value>
+  </data>
+  <data name="NewOrder.SizerRiskCaption" xml:space="preserve">
+    <value>Risk percent of the quote balance</value>
+  </data>
+  <data name="NewOrder.SizerRiskApply" xml:space="preserve">
+    <value>Propose size</value>
+  </data>
+  <data name="NewOrder.SizerRiskHint" xml:space="preserve">
+    <value>Sized by the distance from the entry price to the stop price</value>
+  </data>
+  <data name="NewOrder.SizerNoProposal" xml:space="preserve">
+    <value>The balance is below one lot step; nothing proposed.</value>
+  </data>
   <data name="Positions.Title" xml:space="preserve">
     <value>Positions and orders</value>
   </data>

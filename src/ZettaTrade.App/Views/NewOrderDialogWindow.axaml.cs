@@ -36,6 +36,16 @@ public partial class NewOrderDialogWindow : ReactiveWindow<NewOrderDialogViewMod
                     ex => Log.Error(ex, "Order dialog: symbol list load failed to start"))
                 .DisposeWith(disposables);
 
+            // The quick-size row's stored default loads once per open, the
+            // same transient lifetime; the snapshots ride the symbol
+            // commits, never the sizing itself.
+            ViewModel?.InitializeSizingCommand
+                .Execute(RxVoid.Default)
+                .Subscribe(
+                    _ => { },
+                    ex => Log.Error(ex, "Order dialog: sizing default load failed to start"))
+                .DisposeWith(disposables);
+
             ViewModel?.CloseRequested
                 .RegisterHandler(context =>
                 {

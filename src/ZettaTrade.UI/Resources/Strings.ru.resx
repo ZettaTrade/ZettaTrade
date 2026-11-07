@@ -432,6 +432,42 @@
   <data name="NewOrder.OcoAborted" xml:space="preserve">
     <value>Размещение OCO прервано: размещённое плечо отменено.</value>
   </data>
+  <data name="NewOrder.SizerBalanceCaption" xml:space="preserve">
+    <value>Доля доступного баланса</value>
+  </data>
+  <data name="NewOrder.SizerQuarter" xml:space="preserve">
+    <value>25 %</value>
+  </data>
+  <data name="NewOrder.SizerHalf" xml:space="preserve">
+    <value>50 %</value>
+  </data>
+  <data name="NewOrder.SizerWhole" xml:space="preserve">
+    <value>100 %</value>
+  </data>
+  <data name="NewOrder.SizerSnapshotRefresh" xml:space="preserve">
+    <value>Обновить снимок баланса</value>
+  </data>
+  <data name="NewOrder.SizerSnapshotAbsent" xml:space="preserve">
+    <value>Снимка баланса пока нет</value>
+  </data>
+  <data name="NewOrder.SizerSnapshotDetail" xml:space="preserve">
+    <value>Снимок: {0}, {1} (взят в {2})</value>
+  </data>
+  <data name="NewOrder.SizerAssetMissing" xml:space="preserve">
+    <value>не держится</value>
+  </data>
+  <data name="NewOrder.SizerRiskCaption" xml:space="preserve">
+    <value>Процент риска от баланса котировки</value>
+  </data>
+  <data name="NewOrder.SizerRiskApply" xml:space="preserve">
+    <value>Рассчитать размер</value>
+  </data>
+  <data name="NewOrder.SizerRiskHint" xml:space="preserve">
+    <value>Размер по расстоянию от цены входа до стоп-цены</value>
+  </data>
+  <data name="NewOrder.SizerNoProposal" xml:space="preserve">
+    <value>Баланса меньше одного лота; размер не предложен.</value>
+  </data>
   <data name="Positions.Title" xml:space="preserve">
     <value>Позиции и ордера</value>
   </data>
