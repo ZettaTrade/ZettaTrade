@@ -1079,6 +1079,16 @@ the board and its section below.
 - **Tests:** paper amend golden, fill-during-amend race, risk re-validation, unsupported-type error path.
 - **Status:** done. Canon: the amend pipeline (`dc69724`), the orders-panel amend surface with its dialog (`2684856`), the alpha.44 cut (`83e43b1`) and this section's status flip; shipped as `0.1.0-alpha.44` (see CHANGELOG.md). No Core interface changes were needed — the adapter-side replace seam is an App-owned interim interface (`IOrderReplaceSupport`, not Core) probing for optional support until Core lands the replace contract; the shipped paper adapter runs the surfaced cancel+new sequence. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
+## T-077 — Position actions: close, reverse, partial close (paper-first)
+
+- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Origin:** positions exist (T-009) but every action is a hand-built order today.
+- **What:** context actions sized against the current position: close (market, paper-first), reduce by N, reverse (close + open opposite — two risk-checked orders, `IConfirmationService` mandatory); demo/paper lane first, live adapters only where the mapping exists.
+- **Scope:** positions panel VM + a service, confirmation wiring, adapter mapping, resx en+ru, tests.
+- **Acceptance:** close-on-empty is rejected; reverse math is two validated orders; double-click while in flight is a no-op (idempotent disable).
+- **Tests:** close/reduce/reverse goldens on paper, rejection paths, the in-flight disable case.
+- **Status:** done. Canon: the position-actions pipeline (`6485f80`), the row action surface (`e309636`), the goldens/races/in-flight test pack (`8452cb9`) and this section's status flip; shipped as `0.1.0-alpha.46` (see CHANGELOG.md). No Core changes were needed - the actions compose validated orders through the existing trading seam (`OrderRequest.Validate` - `IRiskManager` - `IConfirmationService` - `ITradingAdapter`); the reverse is two risk-checked legs under ONE confirmation, an outside fill wins and is reported, and an exit that leaves the symbol non-flat aborts the re-entry with a localized report. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
+
 ## T-081 — Balances panel: per-exchange and aggregated
 
 - **Branch:** feat/balances (base `develop` at `3c6228b`; queued 2026-11-06; developed 2026-11-06).

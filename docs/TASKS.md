@@ -161,16 +161,6 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** a mixed working/cancelled set cancels only working orders; one adapter fault never stops the others.
 - **Tests:** bulk cancel golden, partial-failure reporting, the confirmation gate.
 
-## T-077 — Position actions: close, reverse, partial close (paper-first)
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** positions exist (T-009) but every action is a hand-built order today.
-- **What:** context actions sized against the current position: close (market, paper-first), reduce by N, reverse (close + open opposite — two risk-checked orders, `IConfirmationService` mandatory); demo/paper lane first, live adapters only where the mapping exists.
-- **Scope:** positions panel VM + a service, confirmation wiring, adapter mapping, resx en+ru, tests.
-- **Acceptance:** close-on-empty is rejected; reverse math is two validated orders; double-click while in flight is a no-op (idempotent disable).
-- **Tests:** close/reduce/reverse goldens on paper, rejection paths, the in-flight disable case.
-- **Status:** done. Canon: the position-actions pipeline (`6485f80`), the row action surface (`e309636`), the goldens/races/in-flight test pack (`8452cb9`) and this section's status flip; shipped as `0.1.0-alpha.46` (see CHANGELOG.md). No Core changes were needed - the actions compose validated orders through the existing trading seam (`OrderRequest.Validate` - `IRiskManager` - `IConfirmationService` - `ITradingAdapter`); the reverse is two risk-checked legs under ONE confirmation, an outside fill wins and is reported, and an exit that leaves the symbol non-flat aborts the re-entry with a localized report. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
-
 ## T-078 - Order ticket confirmation: the pre-submit summary
 
 - **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
@@ -481,6 +471,10 @@ the end of that file, so no effort is duplicated.
 
 - **Branch:** queued 2026-11-06 from the T-073 post-fix verification, no branch yet.
 - **Origin:** during the T-073 post-fix full-solution verification, `ZettaTrade.Infrastructure.Tests.Exchange.BinanceAdapterWsE2eTests.Depth_and_trade_frames_publish_order_book_and_trades` failed with `System.TimeoutException` inside `WaitAsync(EventWait)` (captured console: the xUnit `[FAIL]` line, 10 s mark, Infrastructure run at 23 s duration) while every focused/localization run stayed green; the merged-tree capture run (`post5.trx` window) left the mock-server handshake, subscribe and all frames delivered under no extra load — the fact passes solo. Entire E2E family carries `private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(10)` (`BinanceAdapterWsE2eTests`, `BybitAdapterWsE2eTests`, `BinanceAdapterResubscribeTests`, `BybitAdapterResubscribeTests`, `WebSocketClientTests`, `PaperTradingAdapterTests`).
+- **Capture 2026-11-07:** the same starvation signature reproduced on
+  `ZettaTrade.Infrastructure.Tests.Exchange.ExchangeAdapterBaseSubscriptionTests`
+  during the T-075/T-077 landing wave (a fail under solution-parallel load; green
+  solo and on the gate's built-in flaky retry). Add the test to the family pass.
 - **What:** the mock-server collect/subscribe/frame budget is a bare-bones constant with a 10 s cap; under solution-level load (parallel testhosts chewing cores, xUnit parallelism in sibling assemblies) a scheduler stall crosses it and the fact fails spuriously — no product defect is involved (the WS client and adapter behave). Root-cause the real latency budget (collector wait vs scheduling), then either raise the family budget uniformly (60 s) or split tight timing assertions (latency ceilings) from the completion waits; no production code changes expected.
 - **Scope:** `tests/ZettaTrade.Infrastructure.Tests/Exchange/*Tests.cs` (the shared `EventWait` constants and `PollUntilAsync` budgets), tests only.
 - **Acceptance:** full-solution consecutive runs (≥20, cold and warm) hold zero WS E2E timeout failures; the budget rationale is written into the test files' headers.
