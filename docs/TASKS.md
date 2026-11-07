@@ -110,7 +110,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-103 Detachable panels: multi-window workspaces | feat/multi-window | queued | - |
 | T-104 Single instance hand-off + CLI symbol open | feat/single-instance | queued | - |
 | T-105 Reconnect policy hardening: backoff, jitter, watchdog | feat/reconnect-policy | done | - |
-| T-106 Exchange rate limiter with per-endpoint budgets | feat/rate-limiter | queued | - |
+| T-106 Exchange rate limiter with per-endpoint budgets | feat/rate-limiter | in-progress | - |
 | T-107 Adapter conformance test kit (shared battery) | feat/adapter-kit | queued | - |
 | T-108 Performance HUD overlay (fps, memory, WS latency) | feat/perf-hud | queued | - |
 | T-109 Soak harness and budget gates (cold start < 3 s, memory < 500 MB) | feat/soak | queued | - |
@@ -290,12 +290,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-106 — Exchange rate limiter with per-endpoint budgets
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/rate-limiter (base `develop` at `df22054`; queued 2026-11-06 at the T-074…T-115 backlog cut, developed 2026-11-07).
 - **Origin:** REST/token budgets are unmanaged today; bursts risk 429s and bans.
 - **What:** per-endpoint token buckets with weights, a priority queue (user actions over background fills from T-086), 429/Retry-After aware; limits live adapter-side so the UI never busy-waits; demo/testnet exempt.
 - **Scope:** an Infrastructure limiter + adapter hooks, `Settings.*` keys, tests.
 - **Acceptance:** background backfill never starves a user submit; Retry-After honored.
 - **Tests:** drain/refill timing golden, Retry-After compliance, preemption.
+- **Status:** in-progress.
 
 ## T-107 — Adapter conformance test kit (shared battery)
 
