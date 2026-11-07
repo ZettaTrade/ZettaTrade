@@ -120,7 +120,7 @@ public static class ExchangeAdaptersDependencyInjection
     public static IServiceCollection AddPaperTrading(this IServiceCollection services) =>
         services.AddSingleton<ITradingAdapter>(sp => new PaperTradingAdapter(
             sp.GetRequiredService<IMarketDataAdapter>(),
-            sp.GetRequiredService<FeeScheduleService>(),
+            sp.GetRequiredService<IFeeScheduleProvider>(),
             sp.GetRequiredService<ILogger<PaperTradingAdapter>>()));
 
     #endregion
