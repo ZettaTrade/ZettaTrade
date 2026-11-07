@@ -24,6 +24,14 @@ using Xunit;
 /// market plus their cancellation, and balance and netted-position bookkeeping.
 /// All market data comes from an NSubstitute <see cref="IMarketDataAdapter"/>, so
 /// these tests are exchange-agnostic by construction.
+///
+/// Wait budget (T-116, 2026-11-07): <c>EventWait</c> is the 60 s house
+/// completion budget shared by the WS E2E family, raised from 10 s. Its one
+/// use here bounds a cancel that must abort immediately — a completion wait,
+/// never a latency ceiling: the abort completes in microseconds solo, and
+/// the generous budget only stops a full-solution parallel test load (xUnit
+/// hosts across sibling assemblies chewing cores, a scheduler stall) from
+/// failing the fact spuriously. Solo runs always passed and still must.
 /// </summary>
 public sealed class PaperTradingAdapterTests
 {
@@ -66,8 +74,12 @@ public sealed class PaperTradingAdapterTests
 
     #region T-051 Ledger Constants
 
-    /// <summary>Bounded wait for a cancel that must abort immediately.</summary>
-    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// The 60 s house load budget (T-116, see the class header): bounded wait
+    /// for a cancel that must abort immediately — completion patience, never
+    /// a latency ceiling.
+    /// </summary>
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(60);
 
     /// <summary>Close of the bar the reducing (partial-close) fill executes at.</summary>
     private const decimal ReduceFillPrice = 51_000m;
