@@ -120,7 +120,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-113 Backtest harness over stored candles | feat/backtest | queued | T-111 + T-085 |
 | T-114 AI market-context injection into the chat | feat/ai-context | queued | - |
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
-| T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | - | queued | - |
+| T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | feat/ws-e2e-budget | in-progress | - |
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
 | T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | done | - |
@@ -362,7 +362,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-116 — Adapter WS E2E tests flake under solution-parallel load: the 10 s `EventWait` trips on scheduler starvation (queued from the T-073 verification)
 
-- **Branch:** queued 2026-11-06 from the T-073 post-fix verification, no branch yet.
+- **Branch:** feat/ws-e2e-budget (base `develop` at `df22054`; queued 2026-11-06 from the T-073 post-fix verification, developed 2026-11-07).
 - **Origin:** during the T-073 post-fix full-solution verification, `ZettaTrade.Infrastructure.Tests.Exchange.BinanceAdapterWsE2eTests.Depth_and_trade_frames_publish_order_book_and_trades` failed with `System.TimeoutException` inside `WaitAsync(EventWait)` (captured console: the xUnit `[FAIL]` line, 10 s mark, Infrastructure run at 23 s duration) while every focused/localization run stayed green; the merged-tree capture run (`post5.trx` window) left the mock-server handshake, subscribe and all frames delivered under no extra load — the fact passes solo. Entire E2E family carries `private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(10)` (`BinanceAdapterWsE2eTests`, `BybitAdapterWsE2eTests`, `BinanceAdapterResubscribeTests`, `BybitAdapterResubscribeTests`, `WebSocketClientTests`, `PaperTradingAdapterTests`).
 - **Capture 2026-11-07:** the same starvation signature reproduced on
   `ZettaTrade.Infrastructure.Tests.Exchange.ExchangeAdapterBaseSubscriptionTests`
@@ -372,6 +372,7 @@ the end of that file, so no effort is duplicated.
 - **Scope:** `tests/ZettaTrade.Infrastructure.Tests/Exchange/*Tests.cs` (the shared `EventWait` constants and `PollUntilAsync` budgets), tests only.
 - **Acceptance:** full-solution consecutive runs (≥20, cold and warm) hold zero WS E2E timeout failures; the budget rationale is written into the test files' headers.
 - **Tests:** no new logic; the existing E2E battery (mock server + adapters) is the test.
+- **Status:** in-progress.
 
 ## T-117 — Secret scanner: gitleaks in CI + one-shot full-history audit
 
