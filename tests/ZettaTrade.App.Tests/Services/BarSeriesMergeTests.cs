@@ -117,6 +117,78 @@ public sealed class BarSeriesMergeTests
 
     #endregion
 
+    #region Repair Union
+
+    /// <summary>
+    /// The set-union merge the repair lane rides (T-086): every displayed
+    /// bar survives, an equal open keeps the displayed side, the additions
+    /// only ever ADD what is absent — no depth change, no duplicate.
+    /// </summary>
+    [Fact]
+    public void UnionAscending_MergesSetsKeepingEveryDisplayedBar()
+    {
+        var existing = new[] { At(20), At(30) };
+        var incoming = new[] { At(10), At(20), At(40) };
+
+        var merged = BarSeriesMerge.UnionAscending(existing, incoming);
+
+        merged.Should().HaveCount(4);
+        merged.Should().BeEquivalentTo(
+            [At(10), At(20), At(30), At(40)],
+            options => options.WithStrictOrdering());
+        merged![1].Close.Should().Be(
+            existing[1].Close,
+            "the equal open keeps the displayed side — the incoming duplicate is skipped");
+    }
+
+    [Fact]
+    public void UnionAscending_SkipsTheIncomingDuplicateEntirely()
+    {
+        var existing = new[] { At(40), At(50) };
+        var incoming = new[] { At(20), At(40), At(60) };
+
+        var merged = BarSeriesMerge.UnionAscending(existing, incoming);
+
+        merged.Should().HaveCount(4, "one open appears once, whatever side it came from");
+        merged![3].Time.Should().Be(Base.AddMinutes(60), "the incoming bar after the display's head is kept");
+    }
+
+    [Fact]
+    public void UnionAscending_EitherSideEmptyYieldsTheOtherVerbatim()
+    {
+        var existing = new[] { At(20), At(30) };
+
+        BarSeriesMerge.UnionAscending(existing, []).Should().BeSameAs(existing);
+        BarSeriesMerge.UnionAscending([], existing).Should().BeSameAs(existing);
+        BarSeriesMerge.UnionAscending([], []).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void UnionAscending_TheNonAscendingSideTripsTheGuard()
+    {
+        var existing = new[] { At(20), At(10) };
+
+        BarSeriesMerge.UnionAscending(existing, [At(5)]).Should().BeNull(
+            "the displayed series' violation must not be healed into a fabricated order");
+
+        var incomingBroken = new[] { At(5), At(5) };
+        BarSeriesMerge.UnionAscending([At(20)], incomingBroken).Should().BeNull(
+            "a broken additions page is rejected, never repaired or defaulted");
+    }
+
+    [Fact]
+    public void UnionAscending_RejectsNullArguments()
+    {
+        var act = () => BarSeriesMerge.UnionAscending(null!, [At(0)]);
+
+        act.Should().Throw<ArgumentNullException>();
+        var actIncoming = () => BarSeriesMerge.UnionAscending([At(0)], null!);
+
+        actIncoming.Should().Throw<ArgumentNullException>();
+    }
+
+    #endregion
+
     [Fact]
     public void PrependOlder_SkipsFetchedBarsNewerThanTheHead()
     {

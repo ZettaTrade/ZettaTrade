@@ -282,6 +282,9 @@
   <data name="Chart.ExportFailed" xml:space="preserve">
     <value>Не удалось экспортировать CSV-файл: {0}</value>
   </data>
+  <data name="Chart.HistoryLimit" xml:space="preserve">
+    <value>Глубокая история заканчивается на {0}: более старых свечей биржа не предоставляет.</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>

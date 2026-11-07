@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.ViewModels;
 
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Livery.Contracts;
@@ -62,6 +63,18 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// takes the chart — when a save hides the shown pair the chart switches to
 /// the first visible one (persisted, so a restart does not re-open it
 /// either).
+/// The delivered series also runs the deep-history repair (T-086): every
+/// delivered page (the cached one and the fetched one behind it) kicks a
+/// bounded pass chain that probes the cache behind the window's head,
+/// detects the calendar holes (<see cref="Services.CandleGapDetector"/>) and
+/// fills the fillable ones through
+/// <see cref="Services.CandleBackfillService"/> — the additions are
+/// FETCHED bars only (contiguous cached bars never deepen the boot view),
+/// the merge is strictly additive on the UI thread, oversized truncated
+/// holes are left to the paging machinery, and a feed floor discovered on
+/// the way surfaces as the localized <c>Chart.HistoryLimit</c> note (the
+/// paging machinery composes the same note when its own anchor proves the
+/// end of history).
 /// The ViewModel lives as long as the application (singleton), so the
 /// subscriptions mirror it and need no explicit disposal.
 /// </remarks>
@@ -86,6 +99,20 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>The resx key of the candles export fault line.</summary>
     private const string ExportFailedKey = "Chart.ExportFailed";
+
+    /// <summary>The resx key of the deep-history end note (T-086).</summary>
+    private const string HistoryLimitKey = "Chart.HistoryLimit";
+
+    /// <summary>How many cached bars older than the series' head one repair
+    /// probe reads (the same clamp the batched cache reads keep).</summary>
+    private const int RepairOlderProbeBars = 1_000;
+
+    /// <summary>How many repair passes one delivered page may chain: bounded
+    /// work per delivery — the rest belongs to the paging machinery.</summary>
+    private const int MaxRepairPasses = 3;
+
+    /// <summary>The UTC format the history-limit note prints its boundary in.</summary>
+    private const string UtcTimestampFormat = "yyyy-MM-dd HH:mm 'UTC'";
 
     #endregion
 
@@ -326,6 +353,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     public IObservable<IReadOnlyList<Bar>> OlderBarsUpdates { get; }
 
     /// <summary>
+    /// The gap-repair additions the delivered series heals with (T-086):
+    /// each emission is the fetched hole-filling slice one repair pass
+    /// produced for the CURRENT delivery. Raw — the UI-thread subscriber
+    /// merges it into <see cref="Bars"/> by open time (the displayed bar
+    /// wins every equal open; the merge is strictly additive).
+    /// </summary>
+    public IObservable<IReadOnlyList<Bar>> RepairedBarsUpdates =>
+        _repairedAdds.Select(static payload => payload.Adds);
+
+    /// <summary>
     /// The indicator overlay lines computed for the current series (see
     /// <see cref="ChartIndicatorPipeline.Compute"/>). Raw - not UI-marshaled;
     /// the property assignment is the marshalled hop, this stream lets tests
@@ -381,6 +418,33 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>True while <see cref="ErrorMessage"/> holds text; drives the error line visibility.</summary>
     public bool HasErrorMessage => _errorMessage is not null;
 
+    private string? _historyLimitNote;
+
+    /// <summary>
+    /// The localized note stating where the deep history ENDS for the loaded
+    /// triple (T-086): the feed serves no candles older than the boundary
+    /// the repair chain or the paging machinery discovered. Null while the
+    /// limit is unknown — a rebase clears it with the fresh series.
+    /// </summary>
+    public string? HistoryLimitNote
+    {
+        get => _historyLimitNote;
+        private set
+        {
+            if (HistoryLimitNote == value)
+            {
+                return;
+            }
+
+            _historyLimitNote = value;
+            this.RaisePropertyChanged(nameof(HistoryLimitNote));
+            this.RaisePropertyChanged(nameof(HasHistoryLimitNote));
+        }
+    }
+
+    /// <summary>True while <see cref="HistoryLimitNote"/> holds text; drives the note line visibility.</summary>
+    public bool HasHistoryLimitNote => _historyLimitNote is not null;
+
     /// <summary>Exports the loaded candle series as a CSV file.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ExportCandlesCommand { get; }
 
@@ -423,6 +487,50 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// raw bars off it, the delivered subscriber reads the page.
     /// </summary>
     private IObservable<ChartBarsPage> _barsPages = default!;
+
+    #endregion
+
+    #region Deep-history Repair State
+
+    /// <summary>
+    /// One repair chain's additions payload: the fetched hole-filling bars
+    /// for the given delivered page (the page is the stamp the UI-thread
+    /// merge subscriber matches against <see cref="_loadedTarget"/> — a
+    /// repair racing a rebase drops with its stale stamp).
+    /// </summary>
+    private sealed record RepairedBars(
+        ChartBarsPage Source,
+        IReadOnlyList<Bar> Adds);
+
+    /// <summary>The repair additions' sink (hot; see <see cref="RepairedBarsUpdates"/>).</summary>
+    private readonly Subject<RepairedBars> _repairedAdds = new();
+
+    /// <summary>
+    /// One history-limit note payload: the boundary text stamped with the
+    /// delivered page it was composed for (the chain composes on its own
+    /// thread — the marshalled apply matches the stamp against
+    /// <see cref="_loadedTarget"/> in dispatch order, so a note racing a
+    /// rebase drops exactly like stale additions).
+    /// </summary>
+    private sealed record HistoryNote(
+        ChartBarsPage Source,
+        string Text);
+
+    /// <summary>The history-limit notes' sink (hot; see the marshalled apply).</summary>
+    private readonly Subject<HistoryNote> _historyNotes = new();
+
+    /// <summary>
+    /// The LIVING repair epoch: the pass chain in flight claims exactly this
+    /// source, and the delivery boundary that replaces it takes it
+    /// ATOMICALLY (an exchange — the chain's own finally clears the field
+    /// with a compare-exchange that only ever matches its own epoch, so a
+    /// newer delivery's epoch is never destroyed by a finishing chain). The
+    /// cancel and dispose belong exactly to one side at any moment.
+    /// </summary>
+    private CancellationTokenSource? _repairEpoch;
+
+    /// <summary>The deep-history fetcher the repair passes ride (bounded segments, write-through before emit).</summary>
+    private readonly CandleBackfillService _backfill;
 
     #endregion
 
@@ -509,6 +617,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// bootstrap page serves the newest cached window first and the
     /// network refresh rides behind it; every served bar set persists
     /// write-through, so the next start renders instantly.</param>
+    /// <param name="backfill">The deep-history fetcher (T-086): the repair
+    /// chain's passes ride it for the holes the calendar detects behind a
+    /// delivered window.</param>
     public ChartViewModel(
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
@@ -517,6 +628,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         ICsvExportService export,
         ILocalizationManager localization,
         ICandleCache candleCache,
+        CandleBackfillService backfill,
         ILogger<ChartViewModel> logger)
     {
         _activeExchanges = activeExchanges;
@@ -526,6 +638,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _export = export;
         _localization = localization;
         _candleCache = candleCache;
+        _backfill = backfill;
         _logger = logger;
 
         ExportCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportCandlesAsync);
@@ -571,11 +684,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // A full load is a rebase: the series belongs to the new
                     // triple. The paging state resets with it — the in-flight
                     // stale fetch is cancelled, exhaustion clears, and the
-                    // new series pages from its own head.
+                    // new series pages from its own head. The repair chain of
+                    // the replaced series dies at its kick (the delivery
+                    // boundary owns the epoch's cancel and dispose), and the
+                    // fresh note (if this series proves a limit) recomposes.
                     _olderFetchEpoch?.Cancel();
                     _olderFetchEpoch = null;
                     _olderAppendsPending = 0;
                     _olderHistoryExhausted = false;
+                    HistoryLimitNote = null;
                     _loadedTarget = (page.Symbol, page.TimeFrame, page.Adapter.Id);
                     _loadedAdapter = page.Adapter;
 
@@ -586,6 +703,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // delivered list IS the compute input (a 200-bar copy of
                     // the collection's content, marshal-free).
                     PublishIndicatorLines(page.Bars);
+
+                    // The delivered page starts this series' repair chain
+                    // (T-086): the passes probe the cache and the feed behind
+                    // the window's head and fill the calendar's missing bars.
+                    KickRepairPass(page);
                 },
                 ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
 
@@ -614,6 +736,64 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishIndicatorLines(Bars);
                 },
                 ex => _logger.LogError(ex, "The chart older-bars stream stopped unexpectedly"));
+
+        // The repair additions merge into the displayed series on the UI
+        // thread: they fill a hole the delivered page left, so the merge is
+        // strictly additive (UnionAscending keeps every displayed bar and an
+        // equal open keeps the displayed side). A repair racing a rebase
+        // carries the stale page's stamp and drops — the delivered page owns
+        // the series, not the stale repair.
+        _repairedAdds.ObserveOnUiThread()
+            .Subscribe(
+                payload =>
+                {
+                    if (IsStaleDelivery(payload.Source))
+                    {
+                        _logger.LogInformation(
+                            "Chart repair additions dropped: the series was rebased during the repair pass");
+                        return;
+                    }
+
+                    if (BarSeriesMerge.UnionAscending(Bars, payload.Adds) is not { } merged)
+                    {
+                        _logger.LogError(
+                            "Chart repair additions rejected: the merged sides are not strictly ascending ({Symbol} {TimeFrame} on {Exchange})",
+                            payload.Source.Symbol.Normalized,
+                            payload.Source.TimeFrame,
+                            payload.Source.Adapter.Id);
+                        return;
+                    }
+
+                    Bars = new ObservableCollection<Bar>(merged);
+                    _logger.LogInformation(
+                        "Chart bars healed: {Count} candles filled ({Symbol} {TimeFrame})",
+                        payload.Adds.Count,
+                        payload.Source.Symbol.Normalized,
+                        payload.Source.TimeFrame);
+
+                    // The merge GREW the series: the overlays re-align with
+                    // the patched collection (the compute runs right here on
+                    // the UI thread — the same discipline as the prepends).
+                    PublishIndicatorLines(Bars);
+                },
+                ex => _logger.LogError(ex, "The chart repair stream stopped unexpectedly"));
+
+        // The history-limit note applies stamped (the same stale-drop the
+        // additions keep): the repair chain composes on its own thread and
+        // the marshalled apply assigns only while the page still owns the
+        // series — in dispatch order with the deliveries.
+        _historyNotes.ObserveOnUiThread()
+            .Subscribe(
+                note =>
+                {
+                    if (IsStaleDelivery(note.Source))
+                    {
+                        return;
+                    }
+
+                    HistoryLimitNote = note.Text;
+                },
+                ex => _logger.LogError(ex, "The chart history-limit stream stopped unexpectedly"));
 
         // The time frame persists: every USER change writes the enum name
         // into the UI settings section (the debounced settings service calls
@@ -1661,8 +1841,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             {
                 // Nothing older arrived at this anchor: the loaded series
                 // already reaches the adapter's first candle for this triple.
-                // Deeper panning stays on the loaded bars until a rebase.
+                // Deeper panning stays on the loaded bars until a rebase, and
+                // the series' own depth edge surfaces as the localized note
+                // (T-086 — the honest end, never a fabricated substitute).
                 _olderHistoryExhausted = true;
+                // The request path runs marshalled end-to-end (the chart's
+                // fetch threshold drives it on the UI thread), so the note
+                // assigns directly: the anchor is where the loaded history
+                // ends — the feed served nothing older (T-086, the honest
+                // end, never a fabricated substitute).
+                HistoryLimitNote = BuildHistoryLimitText(series[0].Time);
                 _logger.LogInformation(
                     "Chart older history exhausted for {Symbol} {TimeFrame} on {Exchange}",
                     target.Symbol.Normalized,
@@ -1697,5 +1885,279 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     #endregion
+
+    #region Deep-history Repair
+
+    /// <summary>
+    /// Whether a payload stamped with the given delivered page still owns the
+    /// series: the target triple must match exactly (a rebase re-pins the
+    /// triple — they compare by field, so a page of a REPLACED series drops).
+    /// The marshalled applies call this in dispatch order, so a rebase that
+    /// landed before the payload's dispatch makes every stale payload drop.
+    /// </summary>
+    private bool IsStaleDelivery(ChartBarsPage source) =>
+        _loadedTarget is not { } target
+        || target.Symbol != source.Symbol
+        || target.TimeFrame != source.TimeFrame
+        || target.ExchangeId != source.Adapter.Id
+        || !ReferenceEquals(_loadedAdapter, source.Adapter);
+
+    /// <summary>
+    /// Start one repair chain for a freshly delivered page (T-086): the chain
+    /// probes the cache behind the window's head, detects the calendar holes
+    /// and fills the fillable ones through <see cref="_backfill"/>. One epoch
+    /// per delivery: the boundary takes the living chain's epoch atomically
+    /// (cancel and dispose are the replacing delivery's property — no stale
+    /// chain is ever cancelled after its own or another's dispose, and no
+    /// finished chain re-clears a newer chain's epoch).
+    /// </summary>
+    private void KickRepairPass(ChartBarsPage page)
+    {
+        var spent = Interlocked.Exchange(ref _repairEpoch, null);
+        if (spent is not null)
+        {
+            spent.Cancel();
+            spent.Dispose();
+        }
+
+        var epoch = new CancellationTokenSource();
+        _repairEpoch = epoch;
+
+        Observable
+            .FromAsync(_ => RepairLoadedSeriesAsync(page, epoch))
+            .Subscribe(
+                static _ => { },
+                error => _logger.LogError(
+                    error,
+                    "Failed to repair the chart series for {Symbol} {TimeFrame} on {Exchange}",
+                    page.Symbol.Normalized,
+                    page.TimeFrame,
+                    page.Adapter.Id));
+    }
+
+    /// <summary>
+    /// The repair chain for one delivered page: every pass probes the cache
+    /// strictly older than the candidate series' head, grows the candidate
+    /// with the cached coverage (detection context only — contiguous cached
+    /// bars NEVER deepen the view; the additions stay fetched gap-fill bars),
+    /// detects the calendar holes and fetches the fillable ones through the
+    /// backfill service, then publishes the pass's additions — the marshalled
+    /// merge subscriber applies them by open time. Oversized truncated holes
+    /// stay unfetched (deeper history is the paging machinery's own bounded
+    /// passes), and a floor the feed reveals ends the chain with the
+    /// localized <c>Chart.HistoryLimit</c> note at the merged series' oldest
+    /// bar. A cancelled epoch is the normal rebase outcome — quiet.
+    /// </summary>
+    private async Task RepairLoadedSeriesAsync(ChartBarsPage page, CancellationTokenSource epoch)
+    {
+        try
+        {
+            if (page.Bars.Count == 0 || IsStaleDelivery(page))
+            {
+                // Nothing to repair behind an empty window, and an already
+                // stale kick (a rebase landed between the delivery and this
+                // start) belongs to the replaced series.
+                return;
+            }
+
+            // The candidate is the pure working series: the delivered page
+            // plus the cached coverage behind its head. It never touches the
+            // UI collection cross-thread — additions publish through
+            // <see cref="_repairedAdds"/> and the marshalled subscriber
+            // merges them (the displayed bar wins every equal open).
+            var candidate = page.Bars;
+            var floored = false;
+
+            for (var pass = 1; pass <= MaxRepairPasses; pass++)
+            {
+                // The probe reaches strictly BELOW the candidate head: the
+                // repair works behind the delivered window, never in front.
+                var cachedOlder = await ReadOlderCoverageAsync(page, candidate[0].Time, epoch.Token);
+                var grew = false;
+                if (cachedOlder.Count > 0 &&
+                    BarSeriesMerge.UnionAscending(candidate, cachedOlder) is { } grown)
+                {
+                    candidate = grown;
+                    grew = true;
+                }
+
+                var gaps = CandleGapDetector.DetectGaps(
+                    candidate,
+                    page.TimeFrame,
+                    page.Symbol.AssetClass,
+                    DateTimeOffset.UtcNow);
+                if (gaps is null)
+                {
+                    _logger.LogError(
+                        "Chart repair rejected: the candidate series is not strictly ascending ({Symbol} {TimeFrame} on {Exchange})",
+                        page.Symbol.Normalized,
+                        page.TimeFrame,
+                        page.Adapter.Id);
+                    return;
+                }
+
+                List<Bar> fetched = [];
+                foreach (var gap in gaps)
+                {
+                    if (gap.IsTruncated)
+                    {
+                        // The enumeration stopped at the detector's bound:
+                        // the hole continues wider than one bounded pass can
+                        // fetch — the paging machinery's own passes continue.
+                        _logger.LogInformation(
+                            "Chart repair skips a truncated gap ({Missing}+ bars missing until {Until}) for {Symbol} {TimeFrame}",
+                            gap.MissingBars,
+                            gap.LastMissingOpen,
+                            page.Symbol.Normalized,
+                            page.TimeFrame);
+                        continue;
+                    }
+
+                    // The fetch window carries the hole exactly: the lower
+                    // edge is the first missing OPEN, the upper edge is the
+                    // open right above the hole (exclusive — the band filter
+                    // keeps only genuinely missing opens).
+                    var upper = TimeFrameCalendar.NextOpenAfter(
+                        page.TimeFrame,
+                        page.Symbol.AssetClass,
+                        gap.LastMissingOpen);
+                    var request = new CandleBackfillRequest(
+                        page.Adapter,
+                        page.Symbol,
+                        page.TimeFrame,
+                        gap.FirstMissingOpen,
+                        upper);
+
+                    await foreach (var batch in _backfill.FetchAsync(request, epoch.Token))
+                    {
+                        if (batch.EndOfHistory)
+                        {
+                            floored = true;
+                        }
+
+                        fetched.AddRange(batch.Bars);
+                    }
+                }
+
+                if (fetched.Count == 0)
+                {
+                    // The pass produced nothing: every fillable gap was
+                    // already served or the feed answered empty in them.
+                    // The pass that GREW the candidate may have more cache
+                    // behind the new head — one more pass probes it; a pass
+                    // that grew nothing ends the chain here.
+                    if (!grew)
+                    {
+                        break;
+                    }
+
+                    continue;
+                }
+
+                // One open, one bar: the segments' band filter already keeps
+                // the window exclusive at the top; the compact pass is the
+                // belt-and-braces against any adapter boundary quirk.
+                fetched.Sort(static (left, right) => left.Time.CompareTo(right.Time));
+                List<Bar> additions = [];
+                foreach (var bar in fetched)
+                {
+                    if (additions.Count == 0 || additions[^1].Time < bar.Time)
+                    {
+                        additions.Add(bar);
+                    }
+                }
+
+                if (BarSeriesMerge.UnionAscending(candidate, additions) is not { } healed)
+                {
+                    _logger.LogError(
+                        "Chart repair rejected: the fetched additions are not strictly ascending ({Symbol} {TimeFrame} on {Exchange})",
+                        page.Symbol.Normalized,
+                        page.TimeFrame,
+                        page.Adapter.Id);
+                    return;
+                }
+
+                candidate = healed;
+                _repairedAdds.OnNext(new RepairedBars(page, additions));
+            }
+
+            // The floor claims live at the series' CURRENT depth: the note
+            // composes at chain end so the boundary names the deepest bar the
+            // merged series reaches (a mid-chain floor before more coverage
+            // landed would understate it). The page stamp makes a note
+            // racing a rebase drop at the marshalled apply.
+            if (floored)
+            {
+                _historyNotes.OnNext(
+                    new HistoryNote(page, BuildHistoryLimitText(candidate[0].Time)));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The epoch was cancelled: a rebase owns the series now, and the
+            // merge subscriber would drop anything this chain publishes.
+        }
+        finally
+        {
+            // The chain clears exactly its OWN epoch: a compare-exchange only
+            // ever matches this chain's source, so a newer delivery's epoch
+            // is never destroyed by this finishing chain. The cancel and
+            // dispose of a REPLACED epoch belong to the delivery that took
+            // it; a chain that finishes while its epoch is still claimed
+            // (no newer delivery) leaves the field clear for the next kick.
+            Interlocked.CompareExchange(ref _repairEpoch, null, epoch);
+        }
+    }
+
+    /// <summary>
+    /// One best-effort probe of the cached coverage strictly older than the
+    /// given open (the pass's detection context behind the delivered head):
+    /// a fault is bookkeeping noise (logged, the pass continues on the
+    /// fetched coverage), while a cancellation propagates (the epoch dropped
+    /// this chain; its bookkeeping must stop).
+    /// </summary>
+    private async Task<IReadOnlyList<Bar>> ReadOlderCoverageAsync(
+        ChartBarsPage page,
+        DateTimeOffset before,
+        CancellationToken ct)
+    {
+        try
+        {
+            return await _candleCache.GetOlderThanAsync(
+                page.Adapter.Id,
+                page.Symbol,
+                page.TimeFrame,
+                before,
+                RepairOlderProbeBars,
+                ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Candle cache older-coverage probe failed for {Symbol} {TimeFrame} on {Exchange}; the pass continues on the fetched coverage",
+                page.Symbol.Normalized,
+                page.TimeFrame,
+                page.Adapter.Id);
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// The localized text of the deep-history end note for one boundary: the
+    /// paging request path runs marshalled end-to-end and assigns directly;
+    /// the repair chain composes the same text and stamps it for the
+    /// marshalled apply.
+    /// </summary>
+    private string BuildHistoryLimitText(DateTimeOffset boundary) =>
+        _localization.GetString(
+            HistoryLimitKey,
+            boundary.ToString(UtcTimestampFormat, CultureInfo.InvariantCulture));
+
+    #endregion Deep-history Repair
 }
 

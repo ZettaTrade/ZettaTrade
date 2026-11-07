@@ -282,6 +282,9 @@
   <data name="Chart.ExportFailed" xml:space="preserve">
     <value>Could not export the CSV file: {0}</value>
   </data>
+  <data name="Chart.HistoryLimit" xml:space="preserve">
+    <value>Deep history ends at {0}: the feed serves no older candles.</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>

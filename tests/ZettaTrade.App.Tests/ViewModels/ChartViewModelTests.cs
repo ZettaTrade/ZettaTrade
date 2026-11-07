@@ -64,6 +64,8 @@ public sealed class ChartViewModelTests
         private readonly List<Symbol> _failingSymbols;
         private readonly IReadOnlyList<Symbol> _symbolList;
         private readonly decimal _btcClose;
+        private readonly IReadOnlyList<IReadOnlyList<Bar>>? _barsPagePlan;
+        private int _pageCursor;
 
         public FakeMarketData(
             int barDelayMs = 0,
@@ -71,7 +73,8 @@ public sealed class ChartViewModelTests
             string id = "fake",
             string name = "Fake",
             IReadOnlyList<string>? symbolNames = null,
-            decimal btcClose = 100m)
+            decimal btcClose = 100m,
+            IReadOnlyList<IReadOnlyList<Bar>>? barsPagePlan = null)
         {
             _barDelayMs = barDelayMs;
             _failingSymbols = (failingSymbols ?? []).Select(Symbol.Parse).ToList();
@@ -79,6 +82,7 @@ public sealed class ChartViewModelTests
                 ? [Symbol.Parse("BTC/USDT"), Symbol.Parse("ETH/BTC"), Symbol.Parse("SOL/USDC")]
                 : symbolNames.Select(Symbol.Parse).ToList();
             _btcClose = btcClose;
+            _barsPagePlan = barsPagePlan;
             Id = id;
             Name = name;
         }
@@ -147,6 +151,16 @@ public sealed class ChartViewModelTests
             if (_barDelayMs > 0)
             {
                 await Task.Delay(_barDelayMs, ct);
+            }
+
+            // The T-086 plan slot: every bars call consumes the NEXT planned
+            // page verbatim (an empty page is the feed's empty answer), so a
+            // fact can script the boot page, the repair fetch and the paging
+            // fetch in exact order. An exhausted plan stays silent and the
+            // standing one-bar behavior continues below.
+            if (_barsPagePlan is { } plan && _pageCursor < plan.Count)
+            {
+                return plan[_pageCursor++];
             }
 
             // The standing behavior: one bar at the requested start edge.
@@ -255,6 +269,28 @@ public sealed class ChartViewModelTests
             return _served;
         }
 
+        public async Task<IReadOnlyList<Bar>> GetOlderThanAsync(
+            string adapterId,
+            Symbol symbol,
+            TimeFrame timeFrame,
+            DateTimeOffset before,
+            int limit,
+            CancellationToken ct = default)
+        {
+            // The repair chain's probe marker reads alongside the facts' own
+            // delivery log (the T-085 write-through ordering discipline).
+            Sequence.Enqueue("cache-probe");
+            if (ReadFault is { } fault)
+            {
+                throw fault;
+            }
+
+            return _served
+                .Where(bar => bar.Time < before)
+                .TakeLast(limit)
+                .ToArray();
+        }
+
         public async Task WriteThroughAsync(
             string adapterId,
             Symbol symbol,
@@ -304,6 +340,11 @@ public sealed class ChartViewModelTests
                 .Returns(Task.CompletedTask);
         }
 
+        // The cache the chart facts ride (an empty one by default) is the
+        // SAME cache the repair chain probes: the T-086 facts watch the
+        // probe and the fetched segments on the one fake.
+        var cache = candleCache ?? new FakeCandleCache([]);
+
         return new(
             service,
             new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
@@ -311,9 +352,10 @@ public sealed class ChartViewModelTests
             new EmptyIndicatorCatalog(),
             export ?? Substitute.For<ICsvExportService>(),
             localization ?? Substitute.For<ILocalizationManager>(),
-            // The cache-void default: an empty cached page, silent writes —
-            // the facts that never touch the cache stay the pre-T-085 world.
-            candleCache ?? new FakeCandleCache([]),
+            cache,
+            // The repair chain's fetcher: every pass rides the same fake
+            // cache (write-before-emit visibility) and a plain logger.
+            new CandleBackfillService(cache, NullLogger<CandleBackfillService>.Instance),
             NullLogger<ChartViewModel>.Instance);
     }
 
@@ -340,9 +382,11 @@ public sealed class ChartViewModelTests
     /// ownership is claimed ONCE by <see cref="AvaloniaDispatcherPump"/> —
     /// every test thread is off-owner, so the apply mode is deterministically
     /// "posted and never pumped" (an xUnit method can otherwise run on any
-    /// thread pool thread, making the same facts order-dependent). Nothing
-    /// in these facts drains the dispatcher; the pre-drain frozen state is
-    /// every assert's world.
+    /// thread pool thread, making the same facts order-dependent). The
+    /// pre-drain frozen state is the default world; the facts that must walk
+    /// INTO a posted apply — the export command flow and the T-086
+    /// deep-history repair chain — call
+    /// <see cref="AvaloniaDispatcherPump.DrainAsync"/> explicitly.
     /// </summary>
     static ChartViewModelTests() => AvaloniaDispatcherPump.EnsureInstalled();
 
@@ -1718,6 +1762,218 @@ public sealed class ChartViewModelTests
     #endregion Candle Export
 
     #endregion
+
+    #region Deep-history Repair (T-086)
+
+    /// <summary>The open the repair facts' windows anchor at: a clean H1
+    /// edge in January 2026, far away from every other fact's synthetic
+    /// base time.</summary>
+    private static readonly DateTimeOffset RepairBaseTime = new(2026, 1, 1, 13, 0, 0, TimeSpan.Zero);
+
+    /// <summary>One synthetic H1 bar at <see cref="RepairBaseTime"/> plus
+    /// the given hour offset: per-hour ohlcv values make every merge
+    /// position assertable by value, not just by open time.</summary>
+    private static Bar At(int hour) => new(
+        RepairBaseTime.AddHours(hour),
+        500m + hour,
+        501m + hour,
+        499m + hour,
+        500m + hour,
+        5);
+
+    [Fact]
+    public async Task TheRepairChain_HealsTheDeliveryHoleWithFetchedBars()
+    {
+        var cache = new FakeCandleCache([]);
+        var marketData = new FakeMarketData(barsPagePlan: [[At(0), At(2)], [At(1)]]);
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            candleCache: cache);
+        var healed = new List<IReadOnlyList<Bar>>();
+
+        using var healedWatch = chart.RepairedBarsUpdates.Subscribe(healed.Add);
+        chart.Bars.Should().BeEmpty("nothing delivered yet");
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The delivered page [13:00, 15:00] left the 14:00 open missing: the
+        // repair chain probed the empty cache, detected exactly that hole and
+        // fetched it through the backfill service.
+        marketData.BarsWindowRequests.Should().HaveCount(
+            2,
+            "the boot page fetched first and the repair pass's hole window second");
+        marketData.BarsWindowRequests[1].From.Should().Be(At(1).Time, "the hole's first missing open");
+        marketData.BarsWindowRequests[1].To.Should().Be(At(2).Time, "the open right above the hole (exclusive)");
+        marketData.BarsWindowRequests[1].Limit.Should().Be(
+            CandleBackfillService.SegmentSizeBars,
+            "one hole fits one segment inside a single adapter request");
+
+        // Write-before-emit: the raw segment persisted before the merge
+        // applies it (the T-085 discipline, continued behind the window).
+        cache.Writes.Should().HaveCount(2, "the boot page and the repair segment both persist");
+        cache.Writes[1].Bars.Should().ContainSingle().Which.Time.Should().Be(At(1).Time);
+        cache.Sequence.Should().Contain("cache-probe", "the pass probes the cached coverage first");
+
+        // The merge keeps every delivered bar and inserts the fetched one in
+        // its calendar slot.
+        chart.Bars.Should().HaveCount(3, "the delivered pair plus the fetched hole-filler");
+        chart.Bars.Select(static bar => bar.Time).Should().Equal(
+            At(0).Time,
+            At(1).Time,
+            At(2).Time);
+        chart.Bars[1].Close.Should().Be(At(1).Close, "the merged bar carries the fetched values");
+
+        healed.Should().ContainSingle("the pass publishes its additions once");
+        healed[0].Should().ContainSingle().Which.Time.Should().Be(At(1).Time);
+
+        chart.HistoryLimitNote.Should().BeNull("the feed still serves below the hole — no floor claim");
+    }
+
+    [Fact]
+    public async Task TheRepairChain_TheOversizedHoleStaysThePagingMachinery()
+    {
+        var cache = new FakeCandleCache([]);
+        var marketData = new FakeMarketData(barsPagePlan: [[At(0), At(1300)]]);
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            candleCache: cache);
+        var healed = new List<IReadOnlyList<Bar>>();
+
+        using var healedWatch = chart.RepairedBarsUpdates.Subscribe(healed.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // 1299 hours are missing between the delivered pair — far over one
+        // bounded pass's enumeration bound: the detector marks the run
+        // truncated, the repair skips it and nothing fetches, writes or
+        // merges (deeper history is the paging machinery's subject).
+        marketData.BarsWindowRequests
+            .Where(window => window.To is null)
+            .Should().ContainSingle("only the boot fetch ran — the truncated hole stays the paging machinery's subject");
+        cache.Writes.Should().ContainSingle("only the boot page persists");
+        chart.Bars.Select(static bar => bar.Time).Should().Equal(At(0).Time, At(1300).Time);
+        healed.Should().BeEmpty("a truncated hole never fills");
+        chart.HistoryLimitNote.Should().BeNull("a truncation is not a floor claim");
+    }
+
+    [Fact]
+    public async Task TheRepairChain_TheUnfillableHoleSurfacesTheLocalNote()
+    {
+        var cache = new FakeCandleCache([]);
+        var marketData = new FakeMarketData(barsPagePlan: [[At(0), At(2)], []]);
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
+            $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            localization: localization,
+            candleCache: cache);
+        var healed = new List<IReadOnlyList<Bar>>();
+
+        using var healedWatch = chart.RepairedBarsUpdates.Subscribe(healed.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The hole window asked the feed and it answered EMPTY: the chain
+        // ends with the floor claim anchored at the merged series' oldest
+        // open — the honest deep-history end, localized.
+        chart.HistoryLimitNote.Should().Be("[Chart.HistoryLimit:2026-01-01 13:00 UTC]");
+        chart.HasHistoryLimitNote.Should().BeTrue();
+        marketData.BarsWindowRequests.Should().HaveCount(2, "the boot page and the hole window");
+        cache.Writes.Should().ContainSingle("an empty answer persists nothing");
+        chart.Bars.Select(static bar => bar.Time).Should().Equal(
+            [At(0).Time, At(2).Time],
+            "the view stands on the delivered series");
+        healed.Should().BeEmpty("an empty answer fills nothing");
+    }
+
+    [Fact]
+    public async Task TheRepairChain_ContiguousCachedBarsNeverDeepenTheView()
+    {
+        var cache = new FakeCandleCache([At(-1)]);
+        var marketData = new FakeMarketData(barsPagePlan: [[At(0)]]);
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            candleCache: cache);
+        var healed = new List<IReadOnlyList<Bar>>();
+
+        using var healedWatch = chart.RepairedBarsUpdates.Subscribe(healed.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The cached 12:00 open sits contiguous with the delivered 13:00:
+        // the refresh page's chain grew its candidate WITH it and re-probed
+        // behind the grown head — but the displayed series stays the
+        // delivered one.
+        cache.Sequence.Count(marker => marker == "cache-probe").Should().BeGreaterThanOrEqualTo(
+            2,
+            "the second pass probes strictly below the candidate the cache already grew");
+        marketData.BarsWindowRequests
+            .Where(window => window.To is null)
+            .Should().ContainSingle("no repair fetch fires for a hole the cache already covers");
+        cache.Writes.Should().ContainSingle("only the boot page persists");
+        chart.Bars.Select(static bar => bar.Time).Should().Equal(
+            [At(0).Time],
+            "the displayed series is the delivered page: cached coverage is context, never additions");
+        healed.Should().BeEmpty("the additions are fetched hole-fill bars only");
+        chart.HistoryLimitNote.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ThePagedExhaustSurfacesTheNote_AndTheRebaseClearsIt()
+    {
+        var first = new FakeMarketData(barsPagePlan: [[At(0), At(1)], []]);
+        var second = new FakeMarketData(
+            barsPagePlan: [[At(2), At(3)]],
+            id: "fake2",
+            name: "Fake2");
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
+            $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
+        var service = CreateService(first, second);
+        var chart = CreateChart(service, localization: localization);
+        var delivered = new List<IReadOnlyList<Bar>>();
+
+        using var deliveredWatch = chart.BarsUpdates.Subscribe(delivered.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        delivered.Should().ContainSingle("the cache is empty — the fetch page stands alone");
+        first.BarsWindowRequests
+            .Where(window => window.To is null)
+            .Should().ContainSingle("only the boot page fetched before the paging request");
+        chart.HistoryLimitNote.Should().BeNull("no paging ran yet — the deep-history edge is unknown");
+
+        // The pan crossed the left edge: the older-window page answers empty
+        // and the request path surfaces the loaded series' own depth edge,
+        // localized.
+        await chart.RequestOlderBarsAsync();
+
+        first.BarsWindowRequests.Should().HaveCount(2, "the paging fetch carried the loaded series' head");
+        first.BarsWindowRequests[1].To.Should().Be(At(0).Time, "the anchor is the loaded series' oldest open");
+        chart.HistoryLimitNote.Should().Be("[Chart.HistoryLimit:2026-01-01 13:00 UTC]");
+        chart.HasHistoryLimitNote.Should().BeTrue();
+
+        // Act: a rebase (the exchange switch) delivers a fresh series — the
+        // note drops with the replaced world.
+        await service.SwitchToAsync("fake2");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.HistoryLimitNote.Should().BeNull("the fresh series owns the note: the limit cleared with the rebase");
+        chart.HasHistoryLimitNote.Should().BeFalse();
+        second.BarsWindowRequests
+            .Where(window => window.To is null)
+            .Should().ContainSingle("the rebase fetched its own boot page and nothing else");
+        delivered.Should().HaveCount(2, "the fresh delivery rode behind the first series' page");
+        delivered[1].Select(static bar => bar.Time).Should().Equal(At(2).Time, At(3).Time);
+    }
+
+    #endregion Deep-history Repair (T-086)
 
     #endregion
 }
