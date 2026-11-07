@@ -32,7 +32,12 @@ using ZettaTrade.Infrastructure.Persistence;
 /// (validate → risk → confirmation → adapter), every attempt is serialized
 /// by one in-flight gate — a busy panel disables the rows' action commands,
 /// so a double click is a no-op — and the sections reload after every
-/// resolved attempt.
+/// resolved attempt. The orders section carries ONE bulk action (T-076):
+/// cancel every working order on the workspace's active symbol through the
+/// <see cref="Services.BulkCancelService"/> — the service re-reads the
+/// adapter state at click time, one confirmation gates the whole pass, and
+/// every order whose per-row pipeline is already in flight is skipped and
+/// reported instead of double-commanded.
 /// </summary>
 public sealed class PositionsPanelViewModel : ReactiveObject
 {
@@ -56,17 +61,27 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     private readonly OrderConfirmationComposer _composer;
     private readonly OrderAmendService _amendService;
     private readonly PositionActionsService _actions;
+    private readonly BulkCancelService _bulkCancel;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<PositionsPanelViewModel> _logger;
 
     /// <summary>Serializes the cancel pipeline; re-entrancy is an error state.</summary>
     private bool _cancelling;
 
+    /// <summary>
+    /// Id of the order whose per-row cancel flow is in flight: the bulk pass
+    /// skips and reports this row instead of double-commanding it.
+    /// </summary>
+    private string? _cancellingOrderId;
+
     /// <summary>Serializes the amend pipeline; never two pipelined amends.</summary>
     private bool _amending;
 
     /// <summary>Id of the order whose amend is in flight; drives the row's amending state.</summary>
     private string? _amendingOrderId;
+
+    /// <summary>Serializes the bulk pass; re-entrancy is an error state.</summary>
+    private bool _bulkCancelling;
 
     /// <summary>Serializes the action pipeline; re-entrancy is an error state.</summary>
     private bool _isBusy;
@@ -207,6 +222,15 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     /// </summary>
     public Interaction<Order, OrderAmendRequest?> AmendRequested { get; }
 
+    /// <summary>
+    /// The bulk action of the orders section (T-076): confirm once, then
+    /// cancel every working order the adapter still serves on the workspace's
+    /// active symbol. Enabled while the panel is idle and the section is
+    /// non-empty; the rows already in flight are skipped and reported by the
+    /// service, never double-commanded.
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> CancelAllCommand { get; }
+
     #endregion Properties
 
     #region Constructor
@@ -223,6 +247,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         OrderConfirmationComposer composer,
         OrderAmendService amendService,
         PositionActionsService actions,
+        BulkCancelService bulkCancel,
         ILocalizationManager localization,
         ILogger<PositionsPanelViewModel> logger)
     {
@@ -233,6 +258,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
         _amendService = amendService ?? throw new ArgumentNullException(nameof(amendService));
         _actions = actions ?? throw new ArgumentNullException(nameof(actions));
+        _bulkCancel = bulkCancel ?? throw new ArgumentNullException(nameof(bulkCancel));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -244,6 +270,12 @@ public sealed class PositionsPanelViewModel : ReactiveObject
 
         LoadCommand = ReactiveCommand.CreateFromTask(HandleLoadAsync);
         AmendRequested = new Interaction<Order, OrderAmendRequest?>();
+        CancelAllCommand = ReactiveCommand.CreateFromTask(
+            HandleBulkCancelAsync,
+            Observable.CombineLatest(
+                _actionsIdle,
+                this.WhenAnyValue(x => x.HasOpenOrders),
+                (idle, hasOpenOrders) => idle && hasOpenOrders));
     }
 
     #endregion Constructor
@@ -274,6 +306,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         ResultMessage = null;
 
         _cancelling = true;
+        _cancellingOrderId = order.Id;
         try
         {
             var confirmed = await _confirmation.RequestConfirmationAsync(_composer.ForCancel(order));
@@ -327,6 +360,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         finally
         {
             _cancelling = false;
+            _cancellingOrderId = null;
         }
     }
 
@@ -418,6 +452,66 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         RecentOrders = RecentOrders
             .Select(row => row.OrderId == orderId ? row with { IsAmending = isAmending } : row)
             .ToArray();
+    }
+
+    /// <summary>
+    /// The bulk flow for the orders section (T-076): one confirmation over
+    /// the pass, then the service cancels every working order the adapter
+    /// still serves on the workspace's active symbol. The in-flight ids of
+    /// the panel's own per-row pipelines (the flow currently cancelling, the
+    /// flow currently amending) ride into the pass as the skip set — the
+    /// service reports those rows and never double-commands them. The
+    /// service resolves every path into a result; this coordination adds no
+    /// error handling of its own beyond the unloaded flow's cancellation.
+    /// </summary>
+    private async Task HandleBulkCancelAsync()
+    {
+        // Belt-and-braces against a raced click: the canExecute gate disables
+        // the command, but anything that still arrives while a pass runs is
+        // dropped, not queued into a second pipeline.
+        if (_bulkCancelling)
+        {
+            return;
+        }
+
+        // A fresh attempt replaces whatever the previous attempt reported.
+        ErrorMessage = null;
+        ResultMessage = null;
+
+        _bulkCancelling = true;
+        IsBusy = true;
+        try
+        {
+            var overrideIds = new[] { _cancellingOrderId, _amendingOrderId };
+            var inFlight = overrideIds
+                .Where(id => id is not null)
+                .Select(id => id!)
+                .ToArray();
+
+            var result = await _bulkCancel.CancelWorkingOrdersAsync(inFlight);
+
+            // The sections refresh BEFORE the outcome line so the lists the
+            // rows render are the ones the report describes.
+            await ReloadSectionsAsync();
+
+            switch (result.Outcome)
+            {
+                case BulkCancelOutcome.Done:
+                    ResultMessage = result.ResultMessage;
+                    break;
+
+                case BulkCancelOutcome.Failed:
+                    ErrorMessage = result.ErrorMessage;
+                    break;
+            }
+        }
+        finally
+        {
+            // The shared action-surface gate reopens exactly when the pass
+            // ends: the position rows' commands were disabled for it too.
+            IsBusy = false;
+            _bulkCancelling = false;
+        }
     }
 
     /// <summary>

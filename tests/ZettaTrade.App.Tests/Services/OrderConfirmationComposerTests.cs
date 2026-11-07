@@ -13,9 +13,11 @@ using ZettaTrade.Core.ValueObjects;
 /// <summary>
 /// Tests for the shared confirmation composer: the place confirmation must
 /// keep the exact MCP-tool argument shape the new-order dialog tests lock
-/// in, the cancel confirmation carries the order's own identity facts, and
-/// the amend confirmation (T-075) extends that identity with the honest
-/// quantity and price deltas.
+/// in, the cancel confirmation carries the order's own identity facts, the
+/// amend confirmation (T-075) extends that identity with the honest
+/// quantity and price deltas, and the bulk cancel confirmation (T-076)
+/// names the whole set: symbol, count, remaining notional, counting asset
+/// and the paper/live tag.
 /// </summary>
 public sealed class OrderConfirmationComposerTests
 {
@@ -283,6 +285,68 @@ public sealed class OrderConfirmationComposerTests
         var composer = new OrderConfirmationComposer(_localization);
         var act = () => composer.ForCancel(null!);
         act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void ForBulkCancel_ParallelSetsTheCountNotionalQuoteAndPaperTag()
+    {
+        // Arrange
+        var composer = new OrderConfirmationComposer(_localization);
+
+        // Act
+        var confirmation = composer.ForBulkCancel(
+            Symbol.Parse("BTC/USDT"),
+            orderCount: 2,
+            totalNotional: 800m,
+            isPaper: true,
+            liveVenueName: "Live Venue");
+
+        // Assert: symbol, count, remaining notional, quote asset, the
+        // localized paper tag — one summary over the whole set.
+        confirmation.MessageKey.Should().Be("Positions.ConfirmBulkCancelFormat");
+        confirmation.Arguments.Should().HaveCount(5);
+        confirmation.Arguments[0].Should().Be("BTC/USDT");
+        confirmation.Arguments[1].Should().Be("2");
+        confirmation.Arguments[2].Should().Be("800");
+        confirmation.Arguments[3].Should().Be("USDT");
+        confirmation.Arguments[4].Should().Be("[Positions.BulkTagPaper]");
+    }
+
+    [Fact]
+    public void ForBulkCancel_LiveVenue_TagsTheVenueNameAndCountsInBaseWhenNoQuote()
+    {
+        // Arrange: a stock symbol has no split quote asset — the notional
+        // counts in the base asset (the quantity's own asset), and a live
+        // venue tags itself with its display name.
+        var composer = new OrderConfirmationComposer(_localization);
+
+        // Act
+        var confirmation = composer.ForBulkCancel(
+            Symbol.Parse("AAPL"),
+            orderCount: 3,
+            totalNotional: 450m,
+            isPaper: false,
+            liveVenueName: "Demo Live");
+
+        // Assert
+        confirmation.MessageKey.Should().Be("Positions.ConfirmBulkCancelFormat");
+        confirmation.Arguments[0].Should().Be("AAPL");
+        confirmation.Arguments[1].Should().Be("3");
+        confirmation.Arguments[3].Should().Be("AAPL");
+        confirmation.Arguments[4].Should().Be("Demo Live");
+    }
+
+    [Fact]
+    public void ForBulkCancel_WithMissingVenueName_Throws()
+    {
+        var composer = new OrderConfirmationComposer(_localization);
+        var act = () => composer.ForBulkCancel(
+            Symbol.Parse("BTC/USDT"),
+            orderCount: 1,
+            totalNotional: 1m,
+            isPaper: false,
+            liveVenueName: " ");
+        act.Should().Throw<ArgumentException>();
     }
 
     private static Order BuildOrder(string id, OrderSide side) => new()
