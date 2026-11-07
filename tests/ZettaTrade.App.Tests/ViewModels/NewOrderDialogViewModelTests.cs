@@ -3,6 +3,7 @@ namespace ZettaTrade.App.Tests.ViewModels;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -38,6 +39,7 @@ public sealed class NewOrderDialogViewModelTests
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
     private readonly IOrderJournal _journal = new OrderJournal();
     private readonly IOrderHistoryStore _history = Substitute.For<IOrderHistoryStore>();
+    private readonly Subject<SettingsChange> _settingsChanges = new();
 
     public NewOrderDialogViewModelTests()
     {
@@ -51,6 +53,20 @@ public sealed class NewOrderDialogViewModelTests
         // The default facade's single adapter IS the trading stub itself: with
         // the paper id the estimate goldens resolve the shipped schedule.
         _trading.Id.Returns(PaperTradingAdapter.ExchangeId);
+    }
+
+    /// <summary>
+    /// The settings substitute the dialog rides: no persisted sizing
+    /// default (the hardcoded one applies) and a live change stream the
+    /// sizing row subscribes.
+    /// </summary>
+    private ISettingsService CreateSettings()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<double>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<double>())
+            .Returns(SizerSettingsKeys.DefaultRiskPercentValue);
+        settings.Changes.Returns(_settingsChanges);
+        return settings;
     }
 
     private NewOrderDialogViewModel CreateViewModel(
@@ -81,7 +97,13 @@ public sealed class NewOrderDialogViewModelTests
             _history,
             feeSchedules ?? CreatePaperFeeSchedules(),
             _localization,
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>());
+            new PositionSizingService(
+                new PaperInstrumentMetadataProvider(),
+                _trading,
+                Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionSizingService>>()),
+            CreateSettings(),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>(),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderSizerRowViewModel>>());
     }
 
     /// <summary>
@@ -1081,6 +1103,80 @@ public sealed class NewOrderDialogViewModelTests
         provider.GetSchedule(Arg.Any<string>()).Returns((FeeSchedule?)null);
         return provider;
     }
+
+    #region The Ticket-Local Sizing Row (T-079)
+
+    /// <summary>
+    /// The sizing row only PROPOSES: its proposal lands in this dialog's
+    /// own quantity field — the very field the submit pipeline parses with
+    /// its invariant-culture parsing, validation and risk checks — so no
+    /// sizing path can ever bypass the ticket's gates.
+    /// </summary>
+    [Fact]
+    public async Task Sizer_TheProposalLandsInTheTicketQuantityField()
+    {
+        // Arrange: custody served once; the dialog parses the pair onto the row.
+        _trading.GetBalancesAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, Money>
+            {
+                ["USDT"] = new(1_000m, "USDT"),
+                ["BTC"] = new(0.8m, "BTC"),
+            });
+        using var viewModel = CreateViewModel();
+        var capture = viewModel.Sizer.ContextCaptures.FirstAsync();
+
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.SelectedSideIndex = (int)OrderSide.Sell;
+        await capture;
+
+        // Act: the 50 % preset proposes; the ticket's quantity field is the
+        // only destination.
+        await viewModel.Sizer.ApplyHalfCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.QuantityInput.Should().Be("0.4");
+        _ = _trading.Received(1).GetBalancesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Sizer_TracksTheTicketSymbol_MetadataKnownPairsOnly()
+    {
+        using var viewModel = CreateViewModel();
+
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.Sizer.IsRowVisible.Should().BeTrue();
+
+        viewModel.SymbolInput = "AAPL";
+        viewModel.Sizer.IsRowVisible.Should().BeFalse("the stock carries no round-size metadata");
+        viewModel.Sizer.IsRiskModeAvailable.Should().BeFalse();
+        viewModel.Sizer.IsSnapshotAvailable.Should().BeFalse("the hidden row owns no stale context");
+    }
+
+    [Fact]
+    public void Sizer_RiskMode_RidesTheTicketShapeStopDistance()
+    {
+        using var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+
+        // Act: a stop-limit whose |limit − trigger| is 1000 quote units.
+        viewModel.SelectedTypeIndex = (int)OrderType.StopLimit;
+        viewModel.PriceInput = "51000";
+        viewModel.StopTriggerInput = "50000";
+
+        // Assert
+        viewModel.Sizer.IsRiskModeAvailable.Should().BeTrue("a stop-limit anchors |limit − trigger|");
+        viewModel.Sizer.TicketStopDistance.Should().Be(1000m);
+        viewModel.Sizer.TicketEntryPrice.Should().Be(51_000m);
+
+        // Act: the same ticket without a stop shape.
+        viewModel.SelectedTypeIndex = (int)OrderType.Market;
+
+        // Assert
+        viewModel.Sizer.IsRiskModeAvailable.Should().BeFalse("a market order carries no stop anchor");
+        viewModel.Sizer.TicketStopDistance.Should().BeNull();
+    }
+
+    #endregion The Ticket-Local Sizing Row (T-079)
 
     /// <summary>
     /// A schedule registry resolved by adapter id: the paper adapter answers
