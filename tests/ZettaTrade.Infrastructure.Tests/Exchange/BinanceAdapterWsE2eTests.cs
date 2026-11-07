@@ -19,7 +19,7 @@ using ZettaTrade.Infrastructure.Exchange;
 /// the published domain entities. This is the pinned regression for the T-013
 /// combined-envelope framing bug (the one only a live probe used to catch).
 ///
-/// Wait budgets (T-116, 2026-11-07): <c>EventWait</c> is the 120 s house
+/// Wait budgets (T-116, 2026-11-07): <c>EventWait</c> is the 240 s house
 /// completion budget shared by the whole WS E2E family, raised from 10 s.
 /// The old cap tripped under full-solution parallel test load (xUnit hosts
 /// across sibling assemblies chewing cores): a scheduler stall starved the
@@ -41,11 +41,11 @@ public sealed class BinanceAdapterWsE2eTests
     #region Constants
 
     /// <summary>
-    /// The 120 s house load budget (T-116, see the class header): bounded wait
+    /// The 240 s house load budget (T-116, see the class header): bounded wait
     /// for any expected observable event or connection — completion patience,
     /// never a latency ceiling.
     /// </summary>
-    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(120);
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(240);
 
     /// <summary>Symbol used in every scenario; its lowercase exchange form is "btcusdt".</summary>
     private static readonly Symbol BtcUsdt = new("btc", "usdt", AssetClass.Crypto);
