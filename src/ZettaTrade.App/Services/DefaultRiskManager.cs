@@ -26,8 +26,11 @@ public sealed class DefaultRiskManager : IRiskManager
     /// <summary>
     /// Order value in USD that is outright rejected regardless of confirmation.
     /// Hard caps are the checks that must never be bypassable by any caller.
+    /// Exposed (T-078) so the ticket's pre-submit summary names its headroom
+    /// from the same authority the risk check enforces — the cap is never
+    /// a locally duplicated number.
     /// </summary>
-    private const decimal MaxOrderValueHardCapUsd = 100000m;
+    public const decimal MaxOrderValueHardCapUsd = 100000m;
 
     /// <summary>
     /// Create a new DefaultRiskManager instance.

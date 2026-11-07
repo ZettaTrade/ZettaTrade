@@ -19,6 +19,11 @@ public sealed class OrderConfirmationComposer
     #region Resx Keys
 
     private const string ConfirmPlaceOrderKey = "Trading.ConfirmPlaceOrderFormat";
+    private const string ConfirmPlaceOrderDetailedKey = "Trading.ConfirmPlaceOrderDetailedFormat";
+    private const string ConfirmNotionalKey = "Trading.ConfirmNotionalFormat";
+    private const string ConfirmNotionalUnknownKey = "Trading.ConfirmNotionalUnknownFormat";
+    private const string ConfirmFeeKey = "Trading.ConfirmFeeFormat";
+    private const string ConfirmFeeUnknownKey = "Trading.ConfirmFeeUnknownFormat";
     private const string ConfirmCancelOrderKey = "Positions.ConfirmCancelFormat";
     private const string ConfirmAmendPriceKey = "Positions.ConfirmAmend";
     private const string ConfirmAmendQuantityKey = "Positions.ConfirmAmendQuantityOnly";
@@ -61,7 +66,23 @@ public sealed class OrderConfirmationComposer
     /// orders summarize at the level whose crossing converts them into an
     /// executable commitment, T-074), else the market-price label.
     /// </summary>
-    public ConfirmationRequest ForPlace(OrderRequest request)
+    /// <remarks>
+    /// Without facts the summary keeps the compact base shape. With facts
+    /// (T-078) the ticket's detailed summary composes ONCE from the final
+    /// submit state: the venue tag line leads (the localized paper tag or
+    /// the venue's display name), the base question follows, and the
+    /// economics lines — the estimated notional against the hard cap's
+    /// headroom, the estimated fee — close the message. An unknown estimate
+    /// renders its own honest unknown line, never a fabricated number.
+    /// </remarks>
+    /// <param name="request">The final request the submit pipeline built.</param>
+    /// <param name="facts">
+    /// The placement's submit-time facts, or null for the compact base
+    /// summary (callers that compose a fact-less working confirm).
+    /// </param>
+    public ConfirmationRequest ForPlace(
+        OrderRequest request,
+        OrderPlaceFacts? facts = null)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -72,9 +93,61 @@ public sealed class OrderConfirmationComposer
             ? price.Value.ToString("F8", CultureInfo.InvariantCulture)
             : _localization.GetString(MarketLabelKey);
 
+        return facts is null
+            ? new ConfirmationRequest
+            {
+                MessageKey = ConfirmPlaceOrderKey,
+                Arguments =
+                [
+                    sideText,
+                    typeText,
+                    request.Quantity.Value.ToString(CultureInfo.InvariantCulture),
+                    request.Symbol.Normalized,
+                    priceText,
+                ],
+            }
+            : ComposeDetailed(request, facts, sideText, typeText, priceText);
+    }
+
+    /// <summary>
+    /// The detailed place summary (T-078): the venue tag line leading, the
+    /// base question following, and the economics lines closing. The
+    /// sub-lines resolve their own templates, so both languages keep one
+    /// argument order across the family.
+    /// </summary>
+    /// <param name="request">The final request the compact lines ride.</param>
+    /// <param name="facts">The placement facts the extra lines print.</param>
+    /// <param name="sideText">The already-resolved side label.</param>
+    /// <param name="typeText">The already-resolved type label.</param>
+    /// <param name="priceText">The already-resolved price-or-market text.</param>
+    private ConfirmationRequest ComposeDetailed(
+        OrderRequest request,
+        OrderPlaceFacts facts,
+        string sideText,
+        string typeText,
+        string priceText)
+    {
+        var venueText = facts.IsPaper
+            ? _localization.GetString(TagPaperKey)
+            : facts.LiveVenueName;
+
+        var notionalLine = facts.EstimatedNotionalUsd is { } notional
+            ? _localization.GetString(
+                ConfirmNotionalKey,
+                FormatNotional(notional),
+                FormatNotional(DefaultRiskManager.MaxOrderValueHardCapUsd),
+                FormatNotional(DefaultRiskManager.MaxOrderValueHardCapUsd - notional))
+            : _localization.GetString(
+                ConfirmNotionalUnknownKey,
+                FormatNotional(DefaultRiskManager.MaxOrderValueHardCapUsd));
+
+        var feeLine = facts.EstimatedFee is { } fee
+            ? _localization.GetString(ConfirmFeeKey, FormatNotional(fee))
+            : _localization.GetString(ConfirmFeeUnknownKey);
+
         return new ConfirmationRequest
         {
-            MessageKey = ConfirmPlaceOrderKey,
+            MessageKey = ConfirmPlaceOrderDetailedKey,
             Arguments =
             [
                 sideText,
@@ -82,6 +155,9 @@ public sealed class OrderConfirmationComposer
                 request.Quantity.Value.ToString(CultureInfo.InvariantCulture),
                 request.Symbol.Normalized,
                 priceText,
+                venueText,
+                notionalLine,
+                feeLine,
             ],
         };
     }

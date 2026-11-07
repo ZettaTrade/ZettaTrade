@@ -9,6 +9,35 @@ before `alpha.10` was never versioned — what shipped in T-001 — T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.53] - 2026-11-07
+
+Build of board task T-078 (branch `feat/order-confirm`).
+
+### Added
+- The order ticket consults before every submit: the confirmation
+  dialog (`IConfirmationService`) leads with the venue tag and the
+  order essentials, then the honest economics — the estimated notional
+  against the configured hard-cap headroom and the scheduled fee
+  estimate (an unknown is a localized "unknown" line, never a
+  fabricated zero). The decision is ONE `OrderConfirmPolicy` over the
+  settings, read at submit time (no per-keystroke re-valuation, no
+  subscription drift): a live place always asks even when the master
+  switch is off, market orders always ask, paper defaults to no gate
+  (`OrderConfirm.EnabledInPaper`), the notional threshold
+  (`OrderConfirm.SkipBelowNotionalUsd`, a negative clamps to
+  no-skip) skips small orders, an unknown notional fails to the ask,
+  and a risk-mandated confirmation is never lowered by policy (the
+  caller ORs it in). The notional anchor follows the stop family —
+  stop-limit and trailing stop anchor on the stop price, everything
+  else on the ticket price; the captured reference close substitutes
+  only where no price exists across the OCO pair. Double-Enter
+  protection moved under the whole pipeline: the submit handler
+  (build → risk → confirmation → placement) rides one `SemaphoreSlim`
+  gate acquired at the top and released in `finally`, so an Enter
+  while the dialog stands open can neither re-confirm nor re-place
+  (the parked-confirmation harness pins it). Fully localized en+ru
+  (`Trading.Confirm*`).
+
 ## [0.1.0-alpha.52] - 2026-11-07
 
 Build of board task T-079 (branch `feat/position-sizer`).
