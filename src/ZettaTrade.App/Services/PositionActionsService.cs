@@ -401,14 +401,14 @@ public sealed class PositionActionsService
         decimal quantity,
         bool reduceOnly,
         Price reference) => new()
-    {
-        Symbol = symbol,
-        Side = side,
-        Type = OrderType.Market,
-        Quantity = new Quantity(quantity),
-        Price = reference,
-        ReduceOnly = reduceOnly,
-    };
+        {
+            Symbol = symbol,
+            Side = side,
+            Type = OrderType.Market,
+            Quantity = new Quantity(quantity),
+            Price = reference,
+            ReduceOnly = reduceOnly,
+        };
 
     /// <summary>
     /// The side that exits a position: an undefined side is never defaulted

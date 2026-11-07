@@ -35,11 +35,11 @@ public sealed record PositionActionResult
     public static PositionActionResult PlacedOk(
         IReadOnlyList<Order> orders,
         string resultMessage) => new()
-    {
-        Outcome = PositionActionOutcome.Placed,
-        PlacedOrders = orders,
-        ResultMessage = resultMessage,
-    };
+        {
+            Outcome = PositionActionOutcome.Placed,
+            PlacedOrders = orders,
+            ResultMessage = resultMessage,
+        };
 
     /// <summary>The user refused the confirmation: nothing placed, nothing reported.</summary>
     public static PositionActionResult Declined() => new()
@@ -51,9 +51,9 @@ public sealed record PositionActionResult
     public static PositionActionResult Fail(
         string errorMessage,
         IReadOnlyList<Order>? placedOrders = null) => new()
-    {
-        Outcome = PositionActionOutcome.Failed,
-        PlacedOrders = placedOrders ?? [],
-        ErrorMessage = errorMessage,
-    };
+        {
+            Outcome = PositionActionOutcome.Failed,
+            PlacedOrders = placedOrders ?? [],
+            ErrorMessage = errorMessage,
+        };
 }
