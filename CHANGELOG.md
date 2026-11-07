@@ -9,6 +9,45 @@ before `alpha.10` was never versioned РІР‚вЂќ what shipped in T-001 РІ
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.57] - 2026-11-07
+
+Build of board task T-088 (branch `feat/depth-chart`).
+
+### Added
+- The cumulative shape of the book lands beside the ladder (T-088): a
+  `DepthChartWidget` Skia renderer stacks into the book column — the bid
+  side's area grows downward from the shared mid line band by band, the
+  ask side mirrors upward, and each band's fill width carries its
+  level's cumulative share of the side's visible total (exactly the
+  fractions the ladder's cumulative bars draw: the band-for-band
+  agreement is a pinned fact). The mid price prints on the line, the
+  sides tint with the candle palette at the ladder bar's alpha, and an
+  empty served book falls back to the localized no-data note. No new
+  transport: the widget binds the same `OrderBookViewModel.Book`
+  snapshot property the ladder binds; no new services, no composition
+  edits.
+- The served-vs-displayed depth discipline is the T-072 contract reused:
+  the pure `DepthChartLayout` consumes only the book it is handed and
+  cuts the displayed depth to the panel's pixels — one band per served
+  level until the band budget the height can show runs out, never a
+  separate re-request (a deeper served book never reaches the plan; a
+  book shallower than the budget ends mid-panel, never stretched to fill
+  it). The ladder and the depth chart planning over the same snapshot
+  agree on the same resolved depth, pinned by a cross-component fact
+  that plans both against one book and compares the cumulative
+  fractions level for level.
+- Frame discipline per the house charts (the T-011 pattern and the
+  T-087 refinements): theme and resource colors snapshot per render with
+  dark fallbacks, theme and language switches re-render live through
+  subscriptions disposed on detach, the per-frame work is bounded by the
+  visible bands, and the fills' geometry is precomputed in the plan so
+  the draw operation allocates paints and the two staircase paths once
+  per frame. The 60-frame burst fact pins the median and the mean
+  inside the 16 ms budget with 1000+ levels per side (the worst frame
+  stays observation-only output). New localized key (`OrderBook.DepthTitle`)
+  in en and ru: the depth panel's caption row, styled like its sibling
+  titles.
+
 ## [0.1.0-alpha.56] - 2026-11-07
 
 Build of board task T-087 (branch `feat/trade-tape`).

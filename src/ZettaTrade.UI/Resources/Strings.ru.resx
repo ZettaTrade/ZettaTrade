@@ -771,6 +771,9 @@
   <data name="OrderBook.SpreadFormat" xml:space="preserve">
     <value>Спред: {0}</value>
   </data>
+  <data name="OrderBook.DepthTitle" xml:space="preserve">
+    <value>Кумулятивный стакан</value>
+  </data>
   <data name="Tape.Title" xml:space="preserve">
     <value>Лента сделок</value>
   </data>
