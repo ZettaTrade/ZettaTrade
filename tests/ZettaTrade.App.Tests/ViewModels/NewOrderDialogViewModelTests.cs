@@ -22,8 +22,10 @@ using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// Tests for the New Order dialog pipeline: every placement must pass risk
-/// validation and human confirmation before reaching the trading adapter, a
-/// rejected order never opens the confirmation dialog, and an unparsable
+/// validation and — per the confirmation policy's decision (T-078) or the
+/// risk engine's own demand — human confirmation before reaching the
+/// trading adapter: a rejected order never opens the confirmation dialog,
+/// and an unparsable
 /// input surfaces a localized error instead of a defaulted number. The
 /// symbol autocomplete additionally loads the adapter symbol list and
 /// derives case-insensitive suggestions per keystroke (silently empty
@@ -56,15 +58,25 @@ public sealed class NewOrderDialogViewModelTests
     }
 
     /// <summary>
-    /// The settings substitute the dialog rides: no persisted sizing
-    /// default (the hardcoded one applies) and a live change stream the
-    /// sizing row subscribes.
+    /// The settings substitute: the sizer's default percent applies, and
+    /// the confirmation policy (T-078) reads its own keys over the SAME
+    /// instance — live/paper master switches and the skip threshold, so a
+    /// test pins the exact decision inputs.
     /// </summary>
-    private ISettingsService CreateSettings()
+    private ISettingsService CreateSettings(
+        bool confirmLive = true,
+        bool confirmPaper = false,
+        decimal skipBelowNotionalUsd = 0m)
     {
         var settings = Substitute.For<ISettingsService>();
         settings.GetAsync<double>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<double>())
             .Returns(SizerSettingsKeys.DefaultRiskPercentValue);
+        settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(confirmLive);
+        settings.GetAsync<bool>(Arg.Any<string>(), ConfirmSettingsKeys.EnabledInPaper, Arg.Any<bool>())
+            .Returns(confirmPaper);
+        settings.GetAsync(Arg.Any<string>(), ConfirmSettingsKeys.SkipBelowNotionalUsd, Arg.Any<decimal>())
+            .Returns(skipBelowNotionalUsd);
         settings.Changes.Returns(_settingsChanges);
         return settings;
     }
@@ -72,7 +84,10 @@ public sealed class NewOrderDialogViewModelTests
     private NewOrderDialogViewModel CreateViewModel(
         IMarketDataAdapter? marketData = null,
         ActiveExchangeService? exchanges = null,
-        IFeeScheduleProvider? feeSchedules = null)
+        IFeeScheduleProvider? feeSchedules = null,
+        bool confirmLive = true,
+        bool confirmPaper = false,
+        decimal skipBelowNotionalUsd = 0m)
     {
         // The dialog sees the market data side through the provider, and the
         // provider is now scoped to the active-exchange facade: compose a
@@ -84,6 +99,7 @@ public sealed class NewOrderDialogViewModelTests
             [adapter],
             Substitute.For<ISettingsService>(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<ActiveExchangeService>>());
+        var settings = CreateSettings(confirmLive, confirmPaper, skipBelowNotionalUsd);
         return new NewOrderDialogViewModel(
             _trading,
             new SymbolListProvider(
@@ -93,6 +109,7 @@ public sealed class NewOrderDialogViewModelTests
             _riskManager,
             _confirmation,
             new OrderConfirmationComposer(_localization),
+            new OrderConfirmPolicy(settings),
             _journal,
             _history,
             feeSchedules ?? CreatePaperFeeSchedules(),
@@ -101,7 +118,7 @@ public sealed class NewOrderDialogViewModelTests
                 new PaperInstrumentMetadataProvider(),
                 _trading,
                 Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionSizingService>>()),
-            CreateSettings(),
+            settings,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderSizerRowViewModel>>());
     }
@@ -257,6 +274,213 @@ public sealed class NewOrderDialogViewModelTests
         viewModel.ErrorMessage.Should().BeNull();
     }
 
+    /// <summary>
+    /// The skip threshold (T-078) releases small live orders from the gate:
+    /// a 500 USD limit under a 1000 USD threshold places directly, no
+    /// confirmation dialog ever opens.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrderCommand_LiveLimitBelowSkipThreshold_SkipsTheConfirmationDialog()
+    {
+        // Arrange: a live venue (the fixture's default venue is paper) so
+        // the skip threshold — not the paper master switch — decides.
+        var viewModel = CreateViewModel(skipBelowNotionalUsd: 1_000m);
+        _trading.Id.Returns("binance-live");
+        FillValidLimitOrder(viewModel);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: false));
+        _trading.PlaceOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        await _confirmation.DidNotReceive().RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+        await _trading.Received().PlaceOrderAsync(Arg.Any<OrderRequest>());
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    /// <summary>
+    /// The paper sandbox defaults to no gate (T-078): a normal-sized paper
+    /// order places without the confirmation dialog, since only the risk
+    /// engine's own demand can open it there.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrderCommand_PaperDefault_SkipsTheConfirmationDialog()
+    {
+        // Arrange
+        var viewModel = CreateViewModel();
+        FillValidLimitOrder(viewModel);
+        _trading.Id.Returns(PaperTradingAdapter.ExchangeId);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: false));
+        _trading.PlaceOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        await _confirmation.DidNotReceive().RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+        await _trading.Received().PlaceOrderAsync(Arg.Any<OrderRequest>());
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    /// <summary>
+    /// The risk engine's own demand (T-057) is never relaxed — whatever the
+    /// confirmation policy answers, a requiresConfirmation approval still
+    /// opens the gate, paper master switch or not.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrderCommand_RiskDemandsConfirmation_PaperDefaultStillAsks()
+    {
+        // Arrange
+        var viewModel = CreateViewModel();
+        FillValidLimitOrder(viewModel);
+        _trading.Id.Returns(PaperTradingAdapter.ExchangeId);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: true));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+        _trading.PlaceOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        await _confirmation.Received(1).RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+        await _trading.Received().PlaceOrderAsync(Arg.Any<OrderRequest>());
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    /// <summary>
+    /// The paper gate enabled (T-078) asks with the detailed facts summary:
+    /// the paper venue tag leads, the base question follows, and the
+    /// economics lines close — notional against the hard cap and the fee
+    /// estimate.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrderCommand_PaperEnabled_AsksWithTheDetailedFactsSummary()
+    {
+        // Arrange
+        var viewModel = CreateViewModel(confirmPaper: true);
+        FillValidLimitOrder(viewModel);
+        _trading.Id.Returns(PaperTradingAdapter.ExchangeId);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: false));
+        _trading.PlaceOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        var confirmation = (ConfirmationRequest?)null;
+        _confirmation
+            .RequestConfirmationAsync(Arg.Do<ConfirmationRequest>(cr => confirmation = cr))
+            .Returns(true);
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: venue tag, notional (500 USD against the 100k cap) and a
+        // scheduled fee line — the estimates ride the ticket's final state.
+        await _confirmation.Received(1).RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+        confirmation.Should().NotBeNull();
+        confirmation!.MessageKey.Should().Be("Trading.ConfirmPlaceOrderDetailedFormat");
+        confirmation.Arguments.Should().HaveCount(8);
+        confirmation.Arguments[5].Should().Be("[Positions.BulkTagPaper]");
+        confirmation.Arguments[6].Should().Be("[Trading.ConfirmNotionalFormat:500|100000|99500]");
+        ((string)confirmation.Arguments[7]).Should()
+            .StartWith("[Trading.ConfirmFeeFormat:");
+    }
+
+    /// <summary>
+    /// Double-Enter submit protection (T-078): while the confirmation stays
+    /// open, a second Enter can neither re-confirm nor re-place — the
+    /// in-flight command gates it and the pipeline guard under it.
+    /// </summary>
+    [Fact]
+    public async Task PlaceOrderCommand_SecondEnterWhileConfirmationPending_SubmitsOnce()
+    {
+        // Arrange: a live venue (the fixture's default venue is paper, whose
+        // master switch is off there) so the policy opens the gate itself.
+        var viewModel = CreateViewModel();
+        _trading.Id.Returns("binance-live");
+        FillValidLimitOrder(viewModel);
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: false));
+        var confirmationGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _trading.PlaceOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act: the command's execution observable is COLD — work starts on
+        // subscription, not at Execute(). The first Enter is therefore
+        // STARTED, never awaited: it runs to the pending confirmation and
+        // parks there holding the in-flight gate. Only then the second
+        // Enter starts; it must bounce off the busy gate and complete
+        // without ever reaching the confirmation service again.
+        var firstDialogShown = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>())
+            .Returns(call =>
+            {
+                firstDialogShown.TrySetResult(true);
+                return confirmationGate.Task;
+            });
+        var firstStarted = viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default)
+            .Subscribe(
+                _ => firstCompleted.TrySetResult(true),
+                ex => firstCompleted.TrySetException(ex));
+        await firstDialogShown.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var secondCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using (viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default)
+            .Subscribe(
+                _ => secondCompleted.TrySetResult(true),
+                ex => secondCompleted.TrySetException(ex)))
+        {
+            await secondCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+
+        // While the dialog is open: exactly ONE consultation, the busy gate
+        // dropped the second Enter silently, and the first flow is parked —
+        // still unplaced.
+        await _confirmation.Received(1).RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>());
+
+        confirmationGate.TrySetResult(true);
+        await firstCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        firstStarted.Dispose();
+
+        // Assert: exactly ONE confirmation and ONE placement.
+        await _confirmation.Received(1).RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+        await _trading.Received(1).PlaceOrderAsync(Arg.Any<OrderRequest>());
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
     [Fact]
     public async Task PlaceOrderCommand_WithUnparsableQuantity_ErrorsWithoutRiskCheck()
     {
@@ -369,13 +593,17 @@ public sealed class NewOrderDialogViewModelTests
         // Act
         await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
 
-        // Assert: the same localized summary the MCP trading tools build, with
-        // the market label in place of a price.
+        // Assert: the detailed summary (T-078) keeps the compact question —
+        // with the market label in place of a price — over the venue tag and
+        // the honest unknown economics lines (a market order has no priced
+        // anchor and no scheduled fee).
         confirmationRequest.Should().NotBeNull();
-        confirmationRequest!.MessageKey.Should().Be("Trading.ConfirmPlaceOrderFormat");
-        confirmationRequest.Arguments.Should().HaveCount(5);
+        confirmationRequest!.MessageKey.Should().Be("Trading.ConfirmPlaceOrderDetailedFormat");
+        confirmationRequest.Arguments.Should().HaveCount(8);
         confirmationRequest.Arguments[1].Should().Be("[Order.Market]");
         confirmationRequest.Arguments[4].Should().Be("[Trading.PriceMarket]");
+        confirmationRequest.Arguments[5].Should().Be("[Positions.BulkTagPaper]");
+        confirmationRequest.Arguments[6].Should().Be("[Trading.ConfirmNotionalUnknownFormat:100000]");
         closes.Should().Be(1);
         viewModel.ErrorMessage.Should().BeNull();
     }
@@ -750,9 +978,12 @@ public sealed class NewOrderDialogViewModelTests
     public async Task PlaceOrderCommand_WithOcoPair_ConfirmsPlacesBothLegsAndClosesOnce()
     {
         // Arrange: the OCO pair places a take-profit limit first, then the
-        // stop-loss stop-limit — both sharing one either-or group id.
+        // stop-loss stop-limit — both sharing one either-or group id. The
+        // runs on the fixture's paper venue, so its sandbox gate must be
+        // enabled explicitly: the pairs confirmation policy decides the ask,
+        // and this test pins the mechanics, not the policy off.
         StubReferenceClose(50_000m);
-        var viewModel = CreateViewModel();
+        var viewModel = CreateViewModel(confirmPaper: true);
         viewModel.SymbolInput = "BTC/USDT";
         viewModel.QuantityInput = "0.2";
         viewModel.SelectedSideIndex = 1; // Sell

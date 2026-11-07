@@ -306,6 +306,24 @@
   <data name="Trading.ConfirmPlaceOrderFormat" xml:space="preserve">
     <value>Place {0} {1} order {2} {3} at {4}?</value>
   </data>
+  <data name="Trading.ConfirmPlaceOrderDetailedFormat" xml:space="preserve">
+    <value>Venue: {5}
+Place {0} {1} order {2} {3} at {4}?
+Estimated notional: {6}
+Estimated fee: {7}</value>
+  </data>
+  <data name="Trading.ConfirmNotionalFormat" xml:space="preserve">
+    <value>{0} USD — hard cap {1} USD (headroom {2} USD)</value>
+  </data>
+  <data name="Trading.ConfirmNotionalUnknownFormat" xml:space="preserve">
+    <value>Unknown — the order has no priced anchor; the {0} USD hard cap still applies</value>
+  </data>
+  <data name="Trading.ConfirmFeeFormat" xml:space="preserve">
+    <value>{0} (estimated, the schedule's quote currency)</value>
+  </data>
+  <data name="Trading.ConfirmFeeUnknownFormat" xml:space="preserve">
+    <value>Unknown — no fee schedule answered</value>
+  </data>
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>market price</value>
   </data>

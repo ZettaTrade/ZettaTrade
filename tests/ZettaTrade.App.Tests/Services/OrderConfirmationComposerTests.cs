@@ -85,6 +85,71 @@ public sealed class OrderConfirmationComposerTests
     }
 
     /// <summary>
+    /// The detailed summary (T-078): the venue tag line leads, the base
+    /// question follows in its exact MCP argument shape, and the economics
+    /// lines close — notional against the hard cap with its headroom, and
+    /// the estimated fee. The paper tag rides the shared tag key.
+    /// </summary>
+    [Fact]
+    public void ForPlace_WithFacts_ComposesVenueNotionalAndFeeLines()
+    {
+        var composer = new OrderConfirmationComposer(_localization);
+        var request = new OrderRequest
+        {
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Buy,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(0.01m),
+            Price = new Price(50_000m),
+        };
+        var facts = new OrderPlaceFacts(
+            IsPaper: true,
+            LiveVenueName: "ignored for paper",
+            EstimatedNotionalUsd: 500m,
+            EstimatedFee: 0.0025m);
+
+        var confirmation = composer.ForPlace(request, facts);
+
+        confirmation.MessageKey.Should().Be("Trading.ConfirmPlaceOrderDetailedFormat");
+        confirmation.Arguments.Should().HaveCount(8);
+        confirmation.Arguments[2].Should().Be("0.01");
+        confirmation.Arguments[3].Should().Be("BTC/USDT");
+        confirmation.Arguments[4].Should().Be("50000.00000000");
+        confirmation.Arguments[5].Should().Be("[Positions.BulkTagPaper]");
+        confirmation.Arguments[6].Should().Be("[Trading.ConfirmNotionalFormat:500|100000|99500]");
+        confirmation.Arguments[7].Should().Be("[Trading.ConfirmFeeFormat:0.0025]");
+    }
+
+    /// <summary>
+    /// The live venue keeps its own name (never the paper tag), and an
+    /// absent estimate renders its honest unknown line — the summary never
+    /// fabricates a notional or fee number.
+    /// </summary>
+    [Fact]
+    public void ForPlace_WithUnknownEstimates_RendersUnknownLines()
+    {
+        var composer = new OrderConfirmationComposer(_localization);
+        var request = new OrderRequest
+        {
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Sell,
+            Type = OrderType.Market,
+            Quantity = new Quantity(0.02m),
+        };
+        var facts = new OrderPlaceFacts(
+            IsPaper: false,
+            LiveVenueName: "Binance",
+            EstimatedNotionalUsd: null,
+            EstimatedFee: null);
+
+        var confirmation = composer.ForPlace(request, facts);
+
+        confirmation.Arguments[5].Should().Be("Binance");
+        confirmation.Arguments[6].Should().Be("[Trading.ConfirmNotionalUnknownFormat:100000]");
+        confirmation.Arguments[7].Should().Be("[Trading.ConfirmFeeUnknownFormat]");
+    }
+
+    /// <summary>
     /// The reverse confirmation names both legs in one mandatory summary:
     /// the reduce-only exit and the opposite-side re-entry — exit side,
     /// exit quantity, symbol, entry side, entry quantity (T-077).

@@ -13,6 +13,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Fees;
 using ZettaTrade.Infrastructure.Persistence;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
@@ -23,7 +24,10 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// legs) and routes every request through the mandatory pipeline:
 /// <c>OrderRequest.Validate</c> → <see cref="IRiskManager"/> (rejection stops
 /// here and never opens the confirmation dialog) →
-/// <see cref="IConfirmationService"/> → <see cref="ITradingAdapter"/>. A
+/// <see cref="IConfirmationService"/> — the pre-submit gate: its content
+/// composes ONCE from the submit-time state and its ask-or-skip rides the
+/// confirmation policy (T-078), except where the risk engine demands
+/// confirmation itself → <see cref="ITradingAdapter"/>. A
 /// partially-placed OCO pair is aborted best-effort — the placed leg is
 /// cancelled, the pair never goes half-working. Window plumbing (close on
 /// success or on Cancel) stays in the View via <see cref="CloseRequested"/>.
@@ -113,6 +117,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private readonly IRiskManager _riskManager;
     private readonly IConfirmationService _confirmation;
     private readonly OrderConfirmationComposer _composer;
+    private readonly OrderConfirmPolicy _confirmPolicy;
     private readonly IOrderJournal _orderJournal;
     private readonly IOrderHistoryStore _orderHistory;
     private readonly IFeeScheduleProvider _feeSchedules;
@@ -134,7 +139,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         [OrderType.Market, OrderType.Limit, OrderType.StopLimit, OrderType.TrailingStop, OrderType.Limit];
 
     /// <summary>Serializes the placement pipeline; re-entrancy is an error state.</summary>
-    private bool _placing;
+    private readonly SemaphoreSlim _submitGate = new(1, 1);
 
     /// <summary>
     /// The symbol text a click's prefill deposited, held while the field is
@@ -441,6 +446,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// </param>
     /// <param name="sizing">The position-sizing captures (T-079): balance and reference snapshots for the row.</param>
     /// <param name="settings">The settings service: the sizing row's stored defaults ride it.</param>
+    /// <param name="confirmPolicy">The pre-submit confirmation policy (T-078): whether a placement's confirmation gate opens at all.</param>
     public NewOrderDialogViewModel(
         ITradingAdapter trading,
         SymbolListProvider symbolList,
@@ -448,6 +454,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         IRiskManager riskManager,
         IConfirmationService confirmation,
         OrderConfirmationComposer composer,
+        OrderConfirmPolicy confirmPolicy,
         IOrderJournal orderJournal,
         IOrderHistoryStore orderHistory,
         IFeeScheduleProvider feeSchedules,
@@ -463,6 +470,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         _riskManager = riskManager ?? throw new ArgumentNullException(nameof(riskManager));
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
+        _confirmPolicy = confirmPolicy ?? throw new ArgumentNullException(nameof(confirmPolicy));
         _orderJournal = orderJournal ?? throw new ArgumentNullException(nameof(orderJournal));
         _orderHistory = orderHistory ?? throw new ArgumentNullException(nameof(orderHistory));
         _feeSchedules = feeSchedules ?? throw new ArgumentNullException(nameof(feeSchedules));
@@ -482,6 +490,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         _sizer = new OrderSizerRowViewModel(_sizing, _settings, _localization, sizerLogger);
         Sizer = _sizer;
         _subscriptions.Add(_sizer);
+        _subscriptions.Add(_submitGate);
         _subscriptions.Add(
             _sizer
                 .QuantityProposals
@@ -703,6 +712,38 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
     #endregion Fee Estimates
 
+    #region Confirmation Facts
+
+    /// <summary>
+    /// Whether the placement's venue is the paper adapter: the canonical
+    /// venue-id comparison every service rides (BulkCancelService), since
+    /// the placement pipeline crosses the registered trading adapter that
+    /// the market-data facade's switches never re-route.
+    /// </summary>
+    private bool IsPaperVenue() =>
+        string.Equals(_trading.Id, PaperTradingAdapter.ExchangeId, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The schedule's estimated commission for the order's role: the SAME
+    /// seam the header estimate lines price (the active venue's schedule,
+    /// the maker/taker role the type runs) over the order's estimated
+    /// notional. Nothing answers when the schedule or notional is absent —
+    /// the summary's unknown line, never a fabricated number.
+    /// </summary>
+    private decimal? EstimateScheduleFee(OrderRequest request)
+    {
+        var schedule = _activeExchangeId.Length == 0
+            ? null
+            : _feeSchedules.GetSchedule(_activeExchangeId);
+        var notional = OrderNotional.EstimateUsd(request, _referenceClose);
+
+        return schedule is { } scheduleValue && notional is { } notionalValue
+            ? scheduleValue.Commission(FeeRoleEstimation.ForOrderType(request.Type), notionalValue)
+            : null;
+    }
+
+    #endregion Confirmation Facts
+
     #region IDisposable
 
     /// <summary>
@@ -909,42 +950,56 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private async Task HandlePlaceOrderAsync()
     {
         // The command can only fire from one UI place, but re-entrancy (double
-        // click) must still be impossible: never two pipelined placements.
-        if (_placing)
+        // click, double Enter) must still be impossible: never two pipelined
+        // placements. The command's invocations may run concurrently, so the
+        // gate is an atomic try-acquire at the TOP of the handler — the whole
+        // submit rides it, the build's yields included.
+        if (!await _submitGate.WaitAsync(TimeSpan.Zero))
         {
             return;
         }
 
+        try
+        {
+            await RunPlaceOrderAsync();
+        }
+        finally
+        {
+            _submitGate.Release();
+        }
+    }
+
+    private async Task RunPlaceOrderAsync()
+    {
         // A fresh attempt replaces whatever the previous attempt reported.
         ErrorMessage = null;
         ResultMessage = null;
 
-        // The conditional types ride a market reference rate fetched during
-        // the build, so even the build can fail over the network — the same
-        // localized-error-line treatment as a failed placement, never an
-        // escape into the unobserved ReactiveCommand.ThrownExceptions.
-        RequestBuild build;
-        try
-        {
-            build = await BuildRequestsAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Order dialog: building the order requests failed");
-            ErrorMessage = _localization.GetString(PlaceFailedKey, ex.Message);
-            return;
-        }
-
-        if (build.Failed)
-        {
-            ErrorMessage = build.Error;
-            return;
-        }
-
-        _placing = true;
+        var build = (RequestBuild?)null;
         var placed = new List<Order>();
         try
         {
+            // The conditional types ride a market reference rate fetched during
+            // the build, so even the build can fail over the network — the same
+            // localized-error-line treatment as a failed placement, never an
+            // escape into the unobserved ReactiveCommand.ThrownExceptions.
+            try
+            {
+                build = await BuildRequestsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Order dialog: building the order requests failed");
+                ErrorMessage = _localization.GetString(PlaceFailedKey, ex.Message);
+                return;
+            }
+
+            if (build.Failed)
+            {
+                ErrorMessage = build.Error;
+                return;
+            }
+
             foreach (var request in build.Requests)
             {
                 var order = await PlaceSingleAsync(request);
@@ -997,15 +1052,11 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             // placed, no message, no journal entry (BUG-017).
             _logger.LogError(ex, "Order dialog: placement failed");
 
-            var single = build.Requests.Count == 1;
+            var single = (build?.Requests.Count ?? 0) == 1;
             await CancelPlacedLegsAsync(single ? [] : placed);
             ErrorMessage = single
                 ? _localization.GetString(PlaceFailedKey, ex.Message)
                 : _localization.GetString(OcoAbortedKey);
-        }
-        finally
-        {
-            _placing = false;
         }
     }
 
@@ -1044,7 +1095,24 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             return null;
         }
 
-        var confirmed = await _confirmation.RequestConfirmationAsync(_composer.ForPlace(request));
+        // The confirm composes ONCE from the final ticket state (T-078): the
+        // facts and the ask decision are submit-time snapshots — inputs stop
+        // moving while the placement pipeline runs, so no per-keystroke
+        // re-valuation ever rides the dialog. The risk engine's own demand
+        // is never relaxed: a large-order gate the manager mandated stands
+        // whatever the policy says (and paper's master switch, however it
+        // is set, cannot remove a mandated gate either).
+        var isPaper = IsPaperVenue();
+        var facts = new OrderPlaceFacts(
+            IsPaper: isPaper,
+            LiveVenueName: _trading.Name,
+            EstimatedNotionalUsd: OrderNotional.EstimateUsd(request, _referenceClose),
+            EstimatedFee: EstimateScheduleFee(request));
+        var asksConfirmation = risk.RequiresConfirmation
+            || await _confirmPolicy.ShouldConfirmAsync(isPaper, request.Type, facts.EstimatedNotionalUsd);
+
+        var confirmed = !asksConfirmation
+            || await _confirmation.RequestConfirmationAsync(_composer.ForPlace(request, facts));
         if (!confirmed)
         {
             _logger.LogInformation("Order dialog: user cancelled the confirmation; nothing placed");

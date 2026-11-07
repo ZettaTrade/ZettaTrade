@@ -15,6 +15,7 @@ public static class TradingUiDependencyInjection
         services
             .AddSingleton<IOrderJournal, OrderJournal>()
             .AddSingleton<OrderConfirmationComposer>()
+            .AddSingleton<OrderConfirmPolicy>()
             .AddSingleton<SymbolListProvider>()
             .AddTransient<NewOrderDialogViewModel>();
 }

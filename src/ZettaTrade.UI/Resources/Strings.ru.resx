@@ -306,6 +306,24 @@
   <data name="Trading.ConfirmPlaceOrderFormat" xml:space="preserve">
     <value>Ордер {1}: {0} {2} {3} — {4}?</value>
   </data>
+  <data name="Trading.ConfirmPlaceOrderDetailedFormat" xml:space="preserve">
+    <value>Площадка: {5}
+Ордер {1}: {0} {2} {3} — {4}?
+Расчётная стоимость: {6}
+Расчётная комиссия: {7}</value>
+  </data>
+  <data name="Trading.ConfirmNotionalFormat" xml:space="preserve">
+    <value>{0} USD — жёсткий лимит {1} USD (запас {2} USD)</value>
+  </data>
+  <data name="Trading.ConfirmNotionalUnknownFormat" xml:space="preserve">
+    <value>Неизвестна — у ордера нет ценовой опоры; жёсткий лимит {0} USD всё равно действует</value>
+  </data>
+  <data name="Trading.ConfirmFeeFormat" xml:space="preserve">
+    <value>{0} (оценка, в валюте котировки тарифа)</value>
+  </data>
+  <data name="Trading.ConfirmFeeUnknownFormat" xml:space="preserve">
+    <value>Неизвестна — тариф не ответил</value>
+  </data>
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>по рыночной цене</value>
   </data>
