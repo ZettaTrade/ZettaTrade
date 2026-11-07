@@ -1099,6 +1099,16 @@ the board and its section below.
 - **Tests:** close/reduce/reverse goldens on paper, rejection paths, the in-flight disable case.
 - **Status:** done. Canon: the position-actions pipeline (`6485f80`), the row action surface (`e309636`), the goldens/races/in-flight test pack (`8452cb9`) and this section's status flip; shipped as `0.1.0-alpha.46` (see CHANGELOG.md). No Core changes were needed - the actions compose validated orders through the existing trading seam (`OrderRequest.Validate` - `IRiskManager` - `IConfirmationService` - `ITradingAdapter`); the reverse is two risk-checked legs under ONE confirmation, an outside fill wins and is reported, and an exit that leaves the symbol non-flat aborts the re-entry with a localized report. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
+## T-078 - Order ticket confirmation: the pre-submit summary
+
+- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Origin:** `IRiskManager`/`IConfirmationService` exist (T-057) but the gate is invisible; traders want one look at the order economics before submit.
+- **What:** a modal confirm listing side/qty/type/limit/exchange, the paper-live tag prominently, estimated notional vs the hard cap headroom and an estimated fee line; defaults ON for live, OFF in paper; a settings key to skip below a configurable notional; market orders always confirm in live.
+- **Scope:** a confirm dialog + ticket VM wiring, `Settings.*` keys + reactive settings change, resx en+ru, tests.
+- **Acceptance:** the confirm composes once from the final ticket state at submit — no per-keystroke re-valuation, no double-Enter double submit.
+- **Tests:** pass/block matrix, the settings-driven skip, double-Enter submit protection.
+- **Status:** done. Canon: the submit-consultation lane — the `OrderConfirmPolicy` settings gate, the notional anchor helpers and the detailed composer summary with the resx en+ru `Trading.Confirm*` keys (`27c6267`), shipped as `0.1.0-alpha.53` (see CHANGELOG.md). Scope decisions: the policy reads the settings fresh at submit time instead of subscribing to changes (an external reload delivers a boxed `JsonElement` — typed handlers would silently miss the flip; one read per submit is one final-state consultation, exactly the acceptance), the anchor follows the stop family (stop-limit/trailing stop anchor on the stop price, the captured reference close substitutes only where no ticket price exists), risk-mandated confirmation is ORed in by the caller and never relaxable, and the double-Enter guard is one `SemaphoreSlim` held across the whole submit handler (build → risk → confirmation → placement) — a parked dialog can neither be re-confirmed nor re-placed. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
+
 ## T-079 — Position sizing helper in the ticket
 
 - **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
