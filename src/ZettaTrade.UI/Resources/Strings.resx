@@ -978,4 +978,22 @@ Estimated fee: {7}</value>
   <data name="Trading.BalancesClose" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="Palette.Title" xml:space="preserve">
+    <value>Symbols</value>
+  </data>
+  <data name="Palette.Placeholder" xml:space="preserve">
+    <value>Match symbols across exchanges...</value>
+  </data>
+  <data name="Palette.Loading" xml:space="preserve">
+    <value>Loading instruments...</value>
+  </data>
+  <data name="Palette.Empty" xml:space="preserve">
+    <value>No instruments yet — no registered adapter serves a symbol list.</value>
+  </data>
+  <data name="Palette.NoMatches" xml:space="preserve">
+    <value>No symbol matches that query.</value>
+  </data>
+  <data name="Palette.Hint" xml:space="preserve">
+    <value>Up/Down navigate — Enter apply — Esc close</value>
+  </data>
 </root>

@@ -1,14 +1,17 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Livery.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
-using ReactiveUI.Primitives;
 using Serilog;
+// RxVoid rides an alias (not a plain ReactiveUI.Primitives import): plain both
+// imports would make every RxVoid Subscribe ambiguous against System's one.
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.UI.Extensions;
@@ -82,6 +85,23 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             var path = await CsvSaveFilePicker.PickAsync(this, context.Input);
             context.SetOutput(path);
         });
+
+        // The T-095 palette's own route: its both interactions live for the
+        // window's lifetime (a workspace singleton behind them), and the
+        // overlay's key route is a routed-event handler added now and
+        // removed with the window (AddHandler/RemoveHandler pair below).
+        ViewModel?.Palette.FocusQueryRequested.RegisterHandler(FocusPaletteQueryAsync);
+        ViewModel?.Palette.FocusReturnRequested.RegisterHandler(FocusReturnAsync);
+        // handledEventsToo is the point of the route: the query text box's
+        // own caret handling marks Up/Down/PageUp/PageDown handled before
+        // the event bubbles here, and the route must outrank it — inside the
+        // palette those keys mean row navigation, never caret movement.
+        PaletteOverlay.AddHandler(
+            InputElement.KeyDownEvent,
+            OnPaletteKeyDown,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        Closed += (_, _) => PaletteOverlay.RemoveHandler(InputElement.KeyDownEvent, OnPaletteKeyDown);
     }
 
     /// <summary>Subscription of the book level click stream; disposed with the window.</summary>
@@ -96,6 +116,132 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     /// concern — no ViewModel state is involved.
     /// </summary>
     private void OnTapeClearClick(object? sender, RoutedEventArgs e) => TapeWidget.Clear();
+
+    #region Palette overlay (T-095)
+
+    /// <summary>
+    /// The frames (queued below the render priority) the palette focus may
+    /// stay refused for before giving up: the overlay only just flipped
+    /// visible, and arrangement can take more than one frame — the chat
+    /// focus's budget.
+    /// </summary>
+    private const int MaxPaletteFocusFrames = 8;
+
+    /// <summary>The pre-open element the palette returns the focus to.</summary>
+    private Control? _paletteFocusReturn;
+
+    /// <summary>The element currently holding the keyboard focus, or null.</summary>
+    private Control? FindFocusedControl() =>
+        TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
+
+    /// <summary>
+    /// Land the keyboard focus on the palette query AFTER layout, then
+    /// complete the request (the T-012 chat-focus pattern: every attempt
+    /// queues below the render priority so the not-yet-arranged box can
+    /// accept it). The element under the focus BEFORE any move is stashed
+    /// as the return point — a palette opened from the chart drops the
+    /// user back on the chart.
+    /// </summary>
+    private async Task FocusPaletteQueryAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        _paletteFocusReturn = FindFocusedControl();
+        var focused = false;
+        for (var attempt = MaxPaletteFocusFrames; attempt > 0 && !focused; attempt--)
+        {
+            focused = await Dispatcher.UIThread.InvokeAsync(
+                () => PaletteQuery.Focus(),
+                DispatcherPriority.Background);
+        }
+
+        context.SetOutput(RxVoid.Default);
+    }
+
+    /// <summary>Hand the pre-open focus back and complete the request.</summary>
+    private Task FocusReturnAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        _paletteFocusReturn?.Focus();
+        _paletteFocusReturn = null;
+        context.SetOutput(RxVoid.Default);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// A press on the backdrop closes the palette — a click in the open
+    /// that landed on nothing the panel serves is the mouse's way back out.
+    /// The palette never writes state by itself; the close rides the same
+    /// command Esc rides.
+    /// </summary>
+    private void OnPaletteScrimPressed(object? sender, PointerPressedEventArgs e)
+    {
+        e.Handled = true;
+        var palette = ViewModel?.Palette;
+        if (palette is { } owner)
+        {
+            DispatchPaletteCommand(owner.CloseCommand);
+        }
+    }
+
+    /// <summary>
+    /// The palette's key route — the only place the palette's keys live.
+    /// It runs only while the palette is open (the overlay receives key
+    /// events from its own subtree alone: the workspace can never trigger
+    /// row navigation from outside), and every dispatch re-checks the row
+    /// bounds so a keystroke never executes a gated command. The ViewModel
+    /// stays keyboard-agnostic: these are its commands and its selection,
+    /// the window only translates keys into them.
+    /// </summary>
+    private void OnPaletteKeyDown(object? sender, KeyEventArgs e)
+    {
+        var palette = ViewModel?.Palette;
+        if (palette is null || !palette.IsOpen)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Up when palette.SelectedIndex > 0:
+                e.Handled = true;
+                DispatchPaletteCommand(palette.MoveSelectionUpCommand);
+                break;
+            case Key.Down when palette.HasRowAfter(palette.SelectedIndex):
+                e.Handled = true;
+                DispatchPaletteCommand(palette.MoveSelectionDownCommand);
+                break;
+            case Key.PageUp when palette.SelectedIndex > 0:
+                e.Handled = true;
+                DispatchPaletteCommand(palette.MoveSelectionPageUpCommand);
+                break;
+            case Key.PageDown when palette.HasRowAfter(palette.SelectedIndex):
+                e.Handled = true;
+                DispatchPaletteCommand(palette.MoveSelectionPageDownCommand);
+                break;
+            case Key.Enter when palette.HasRowAt(palette.SelectedIndex):
+                e.Handled = true;
+                DispatchPaletteCommand(palette.ApplySelectionCommand);
+                break;
+            case Key.Enter:
+                // No row stands to apply: swallow the key so nothing below
+                // the route reacts to it, and apply nothing.
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                e.Handled = true;
+                DispatchPaletteCommand(palette.CloseCommand);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Execute a palette command with its error handled — the view's only
+    /// command dispatch, so a keyboard event never goes fire-and-forget.
+    /// </summary>
+    private static void DispatchPaletteCommand(ReactiveCommand<RxVoid, RxVoid> command) =>
+        command.Execute(RxVoid.Default).Subscribe(
+            _ => { },
+            error => Log.Error(error, "A palette command failed"));
+
+    #endregion Palette overlay (T-095)
 
     /// <summary>
     /// The frames (queued below the render priority) the chat focus is

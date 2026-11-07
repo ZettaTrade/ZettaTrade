@@ -978,4 +978,22 @@
   <data name="Trading.BalancesClose" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="Palette.Title" xml:space="preserve">
+    <value>Инструменты</value>
+  </data>
+  <data name="Palette.Placeholder" xml:space="preserve">
+    <value>Поиск символов по биржам...</value>
+  </data>
+  <data name="Palette.Loading" xml:space="preserve">
+    <value>Загрузка инструментов...</value>
+  </data>
+  <data name="Palette.Empty" xml:space="preserve">
+    <value>Инструментов пока нет — ни один активный адаптер не отдаёт список символов.</value>
+  </data>
+  <data name="Palette.NoMatches" xml:space="preserve">
+    <value>Ни один символ не отвечает запросу.</value>
+  </data>
+  <data name="Palette.Hint" xml:space="preserve">
+    <value>Up/Down выбрать — Enter применить — Esc закрыть</value>
+  </data>
 </root>
