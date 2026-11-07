@@ -1,4 +1,4 @@
-﻿namespace ZettaTrade.Infrastructure.Tests.Fees;
+namespace ZettaTrade.Infrastructure.Tests.Fees;
 
 using System;
 using System.Collections.Generic;
