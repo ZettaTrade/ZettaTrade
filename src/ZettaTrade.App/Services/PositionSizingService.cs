@@ -87,6 +87,14 @@ public sealed class PositionSizingService
             return null;
         }
 
+        if (balances is null)
+        {
+            _logger.LogWarning(
+                "Position sizer: the trading face served no balance dictionary for {Symbol}; the ticket shows an absent reference",
+                symbol.Normalized);
+            return null;
+        }
+
         var capturedAt = DateTimeOffset.UtcNow;
         var quote = symbol.QuoteAsset;
         if (quote is null)

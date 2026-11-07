@@ -90,6 +90,9 @@ public sealed class OrderSizerRowViewModel : ReactiveObject, IDisposable
     /// <summary>Symbol commits (metadata-known pairs only) that demand a fresh capture.</summary>
     private readonly Subject<Symbol> _symbolCommitted = new();
 
+    /// <summary>One emission per capture publish; the tests' deterministic seam.</summary>
+    private readonly Subject<RxVoid> _capturesPublished = new();
+
     /// <summary>The instrument the current context belongs to; null while hidden.</summary>
     private Symbol? _committedSymbol;
 
@@ -243,9 +246,19 @@ public sealed class OrderSizerRowViewModel : ReactiveObject, IDisposable
     /// Deliberately re-captures the balance and reference snapshots for
     /// the committed symbol — the freshness lever. It is user-invoked only:
     /// captures happen here, and every sizing click after one rides the new
-    /// moment, with zero network activity inside the sizing itself.
+    /// moment, with zero network activity inside the sizing itself. It stays
+    /// usable while the row is visible even when the last capture failed —
+    /// an absent reference is recoverable by refresh, never stuck.
     /// </summary>
     public ReactiveCommand<RxVoid, RxVoid> RefreshSnapshotCommand { get; }
+
+    /// <summary>
+    /// The capture-publish stream: one emission per capture leg that
+    /// actually published a context. The view does not bind it — it is the
+    /// deterministic seam tests await; production logging rides the same
+    /// pipeline.
+    /// </summary>
+    public IObservable<RxVoid> ContextCaptures => _capturesPublished;
 
     #endregion Properties
 
@@ -284,8 +297,8 @@ public sealed class OrderSizerRowViewModel : ReactiveObject, IDisposable
                 CanProposeRisk(snapshot, stopDistance, percentText));
 
         var refreshCanExecute = this
-            .WhenAnyValue(x => x.BalanceSnapshot)
-            .Select(static snapshot => snapshot is not null);
+            .WhenAnyValue(x => x.IsRowVisible)
+            .Select(static visible => visible);
 
         ApplyQuarterCommand = ReactiveCommand.Create(() => ProposePreset(QuarterFraction), presetsCanExecute);
         ApplyHalfCommand = ReactiveCommand.Create(() => ProposePreset(HalfFraction), presetsCanExecute);
@@ -301,7 +314,7 @@ public sealed class OrderSizerRowViewModel : ReactiveObject, IDisposable
                 .Select(StartCapture)
                 .Switch()
                 .Subscribe(
-                    _ => { },
+                    _ => _capturesPublished.OnNext(RxVoid.Default),
                     ex => _logger.LogError(ex, "Position sizer: the snapshot capture pipeline stopped unexpectedly")));
 
         // Reactive settings: the stored default re-applies live until the
@@ -313,6 +326,7 @@ public sealed class OrderSizerRowViewModel : ReactiveObject, IDisposable
 
         _disposables.Add(_symbolCommitted);
         _disposables.Add(_quantityProposals);
+        _disposables.Add(_capturesPublished);
     }
 
     #endregion Constructor
