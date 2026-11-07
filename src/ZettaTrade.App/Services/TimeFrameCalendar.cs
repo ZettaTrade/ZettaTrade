@@ -61,25 +61,25 @@ public static class TimeFrameCalendar
         TimeFrame timeFrame,
         AssetClass assetClass,
         DateTimeOffset open) => timeFrame switch
-    {
-        TimeFrame.M1 => open.AddMinutes(1),
-        TimeFrame.M5 => open.AddMinutes(5),
-        TimeFrame.M15 => open.AddMinutes(15),
-        TimeFrame.M30 => open.AddMinutes(30),
-        TimeFrame.H1 => open.AddHours(1),
-        TimeFrame.H4 => open.AddHours(4),
-        TimeFrame.D1 => assetClass == AssetClass.Crypto
-            ? open.AddDays(1)
-            : NextMarketWeekday(open),
-        TimeFrame.W1 => assetClass == AssetClass.Crypto
-            ? open.AddDays(7)
-            : NextCalendarWeek(open),
-        TimeFrame.MN1 => open.AddMonths(1),
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(timeFrame),
-            timeFrame,
-            "Unknown time frame has no bar cadence."),
-    };
+        {
+            TimeFrame.M1 => open.AddMinutes(1),
+            TimeFrame.M5 => open.AddMinutes(5),
+            TimeFrame.M15 => open.AddMinutes(15),
+            TimeFrame.M30 => open.AddMinutes(30),
+            TimeFrame.H1 => open.AddHours(1),
+            TimeFrame.H4 => open.AddHours(4),
+            TimeFrame.D1 => assetClass == AssetClass.Crypto
+                ? open.AddDays(1)
+                : NextMarketWeekday(open),
+            TimeFrame.W1 => assetClass == AssetClass.Crypto
+                ? open.AddDays(7)
+                : NextCalendarWeek(open),
+            TimeFrame.MN1 => open.AddMonths(1),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(timeFrame),
+                timeFrame,
+                "Unknown time frame has no bar cadence."),
+        };
 
     /// <summary>The first session weekday strictly after the open:</summary>
     private static DateTimeOffset NextMarketWeekday(DateTimeOffset open)
