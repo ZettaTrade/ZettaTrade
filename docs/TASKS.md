@@ -89,7 +89,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | done | - |
 | T-083 Trade statistics dashboard: win rate, profit factor, equity curve | feat/trade-stats | done | T-082 (soft) |
 | T-084 CSV export: order history, fills, candles | feat/csv-export | done | - |
-| T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | queued | - |
+| T-085 Local candle cache in SQLite (write-through, offline start) | feat/candle-cache | in-progress | - |
 | T-086 Deep-history backfill and gap repair | feat/backfill | queued | T-085 |
 | T-087 Trade tape (time & sales) panel | feat/trade-tape | queued | - |
 | T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | queued | - |
