@@ -109,7 +109,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-102 Hotkey manager + cheat sheet overlay | feat/hotkey-manager | queued | - |
 | T-103 Detachable panels: multi-window workspaces | feat/multi-window | queued | - |
 | T-104 Single instance hand-off + CLI symbol open | feat/single-instance | queued | - |
-| T-105 Reconnect policy hardening: backoff, jitter, watchdog | feat/reconnect-policy | in-progress | - |
+| T-105 Reconnect policy hardening: backoff, jitter, watchdog | feat/reconnect-policy | done | - |
 | T-106 Exchange rate limiter with per-endpoint budgets | feat/rate-limiter | queued | - |
 | T-107 Adapter conformance test kit (shared battery) | feat/adapter-kit | queued | - |
 | T-108 Performance HUD overlay (fps, memory, WS latency) | feat/perf-hud | queued | - |
@@ -313,16 +313,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** app bootstrapping, a handoff service, resx en+ru, tests.
 - **Acceptance:** a second start on any platform redirects cleanly and exits promptly.
 - **Tests:** handoff golden, malformed-arg rejection, exit-parity cases.
-
-## T-105 — Reconnect policy hardening: backoff, jitter, watchdog
-
-- **Branch:** feat/reconnect-policy (base `develop` at `8e6d430`; queued 2026-11-06 at the T-074…T-115 backlog cut, developed 2026-11-07).
-- **Origin:** reconnect fixes are per-adapter (T-048, T-052); the policy itself is implicit and untestable.
-- **What:** an explicit per-adapter policy object (exponential + jitter bounds + max delay) and a health watchdog that force-cycles a silent socket; a central supervisor exposing state (later to T-098); adapter implementations consume the policy — zero behavior drift on the happy path.
-- **Scope:** a policy/supervisor service in Infrastructure, adapter wiring, tests.
-- **Acceptance:** a half-open socket heals inside the watchdog window; churn with 2+ symbols stays fixed (T-048 regression pinned).
-- **Tests:** watchdog golden, jitter bounds, churn regression.
-- **Status:** in-progress.
 
 ## T-106 — Exchange rate limiter with per-endpoint budgets
 
