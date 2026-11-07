@@ -111,7 +111,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-104 Single instance hand-off + CLI symbol open | feat/single-instance | queued | - |
 | T-105 Reconnect policy hardening: backoff, jitter, watchdog | feat/reconnect-policy | done | - |
 | T-106 Exchange rate limiter with per-endpoint budgets | feat/rate-limiter | done | - |
-| T-107 Adapter conformance test kit (shared battery) | feat/adapter-kit | in-progress | - |
+| T-107 Adapter conformance test kit (shared battery) | feat/adapter-kit | done | - |
 | T-108 Performance HUD overlay (fps, memory, WS latency) | feat/perf-hud | queued | - |
 | T-109 Soak harness and budget gates (cold start < 3 s, memory < 500 MB) | feat/soak | queued | - |
 | T-110 Accessibility pass (keyboard, automation peers, contrast) | feat/a11y | queued | - |
@@ -278,16 +278,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** app bootstrapping, a handoff service, resx en+ru, tests.
 - **Acceptance:** a second start on any platform redirects cleanly and exits promptly.
 - **Tests:** handoff golden, malformed-arg rejection, exit-parity cases.
-
-## T-107 — Adapter conformance test kit (shared battery)
-
-- **Branch:** feat/adapter-kit (base `develop` at `ce580b6`; queued 2026-11-06 at the T-074…T-115 backlog cut, developed 2026-11-07).
-- **Origin:** every adapter carries bespoke tests; the shared contract deserves a common gauntlet (the Bybit/demo/Binance variance shows it).
-- **What:** an abstract test battery parameterized over canned offline captures: subscribe/reconnect restore, depth resolution (T-072's resolver), the rejected-not-default error contract, guard invariants; new adapters run the kit as part of gate.
-- **Scope:** the kit as a test project + gate integration, capture-pack fixtures.
-- **Acceptance:** the demo and Bybit adapters pass the kit outright; the kit documents itself as the adapter recipe.
-- **Tests:** the kit itself (this is a test deliverable) plus its gate wiring.
-- **Status:** in-progress.
 
 ## T-108 — Performance HUD overlay (fps, memory, WS latency)
 
