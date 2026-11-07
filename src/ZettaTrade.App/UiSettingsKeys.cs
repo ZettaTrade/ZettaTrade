@@ -76,7 +76,7 @@ public static class UiSettingsKeys
     public const double DefaultAiPanelWidth = 300;
 
     /// <summary>See <see cref="DefaultBookPanelWidth"/>; the tape column ships with a narrower
-    /// default — a time &amp; sales strip wants less space than the depth panel.</summary>
+    /// default — a time and sales strip wants less space than the depth panel.</summary>
     public const double DefaultTapePanelWidth = 240;
 
     /// <summary>
