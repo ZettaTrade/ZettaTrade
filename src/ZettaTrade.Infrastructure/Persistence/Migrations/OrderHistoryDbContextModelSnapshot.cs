@@ -27,6 +27,9 @@ namespace ZettaTrade.Infrastructure.Persistence.Migrations
                     b.Property<string>("ClientOrderId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Commission")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("CreatedAt")
                         .IsRequired()
                         .HasColumnType("TEXT");

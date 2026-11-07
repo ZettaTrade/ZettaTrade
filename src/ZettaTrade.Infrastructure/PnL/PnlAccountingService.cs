@@ -137,7 +137,9 @@ public sealed class PnlAccountingService(
     /// symbol's quote currency. The shipped ledger carries no fee data, so
     /// the fee enters ONLY through this explicit parameter: callers with a
     /// real fee schedule (T-080) pass the amount, and the journal-driven
-    /// path passes null. Null means absence and is arithmetically identical
+    /// path passes the commission the ledger row carries (stamped on the
+    /// fill at execution time; a row without fee data passes null). Null
+    /// means absence and is arithmetically identical
     /// to zero (the persisted row keeps a zero commission so no fee is
     /// fabricated). A commission is a realized cost: it is subtracted from
     /// the fill's own realized contribution, making a pure opening fill
@@ -345,9 +347,11 @@ public sealed class PnlAccountingService(
 
             try
             {
-                // The journal-driven adapter path: the ledger carries no fee
-                // data, so commission stays absent (null), identical to zero.
-                await IngestFillLockedAsync(order, commission: null, ct);
+                // The journal-driven adapter path: the commission the row
+                // carries rides the same per-fill parameter — a row stamped
+                // at execution (T-080) prices its fee, a row without fee
+                // data carries null (absence, identical to zero).
+                await IngestFillLockedAsync(order, commission: order.Commission, ct);
                 ingested++;
             }
             catch (InvalidOperationException ex)

@@ -1,12 +1,14 @@
 namespace ZettaTrade.Infrastructure.Exchange;
 
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Fees;
 
 /// <summary>
 /// Simulated (paper) trading adapter. Market, stop-market and market-crossing
@@ -20,7 +22,11 @@ using ZettaTrade.Core.ValueObjects;
 /// it, so no half pair keeps working. A stop-side order that would trigger
 /// immediately, and a leg joining an OCO group whose partner already ended,
 /// are rejected with an explicit error instead of a degraded execution.
-/// In-memory balances and netted positions are maintained for every fill.
+/// In-memory balances and netted positions are maintained for every fill,
+/// and every fill stamps its computed commission (T-080): the schedule is
+/// resolved per fill from the fee registry, a missing schedule leaves the
+/// commission null — the honest unknown, never a fabricated zero. The stamp
+/// never alters a placement decision: the fee observes and records only.
 /// Never touches real funds or exchange keys, which makes it the safe default
 /// trading surface for MCP tools and demos on any exchange.
 /// </summary>
@@ -62,6 +68,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     #region Fields
 
     private readonly IMarketDataAdapter _marketData;
+    private readonly FeeScheduleService _feeSchedules;
     private readonly ILogger<PaperTradingAdapter> _logger;
 
     /// <summary>Serializes order placement / cancellation; positions are mutated under it.</summary>
@@ -96,9 +103,16 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     /// <summary>
     /// Create a new paper trading adapter around any market data adapter.
     /// </summary>
-    public PaperTradingAdapter(IMarketDataAdapter marketData, ILogger<PaperTradingAdapter> logger)
+    /// <param name="marketData">The market data adapter that supplies reference prices.</param>
+    /// <param name="feeSchedules">The per-adapter fee registry the fills stamp commissions from (T-080).</param>
+    /// <param name="logger">The adapter's logger.</param>
+    public PaperTradingAdapter(
+        IMarketDataAdapter marketData,
+        FeeScheduleService feeSchedules,
+        ILogger<PaperTradingAdapter> logger)
     {
         _marketData = marketData ?? throw new ArgumentNullException(nameof(marketData));
+        _feeSchedules = feeSchedules ?? throw new ArgumentNullException(nameof(feeSchedules));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -177,7 +191,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
 
             // Market and stop-market orders keep the long-standing immediate-fill semantics.
             var fillPrice = await ResolveFillPriceAsync(request, ct);
-            return RecordFillLocked(FillOrder(request, fillPrice), fillPrice);
+            return RecordFillLocked(FillOrder(request, fillPrice), fillPrice, FeeRole.Taker);
         }
         finally
         {
@@ -219,7 +233,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         }
 
         // A crossing limit takes liquidity at its own price (the limit price itself).
-        return RecordFillLocked(FillOrder(request, limitPrice), limitPrice);
+        return RecordFillLocked(FillOrder(request, limitPrice), limitPrice, FeeRole.Taker);
     }
 
     /// <summary>
@@ -293,7 +307,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
 
                 try
                 {
-                    return RecordFillLocked(fillOrder, limitPrice);
+                    return RecordFillLocked(fillOrder, limitPrice, FeeRole.Taker);
                 }
                 catch (InvalidOperationException)
                 {
@@ -390,10 +404,21 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     /// Record a pre-built filled order and apply its portfolio effect, under
     /// the trading lock. A portfolio refusal (insufficient balance) throws —
     /// placement-time fills surface the refusal to the caller and leave no
-    /// phantom record (BUG-033).
+    /// phantom record (BUG-033). The commission rides the same record (T-080):
+    /// computed from the adapter's schedule for the fill's executed role —
+    /// a missing schedule stamps nothing (the null unknown — the fee surfaces
+    /// display it, no zero hides the cost) — and never alters the placement.
     /// </summary>
-    private Order RecordFillLocked(Order filled, Price fillPrice)
+    private Order RecordFillLocked(Order filled, Price fillPrice, FeeRole feeRole)
     {
+        // The commission stamps BEFORE the portfolio applies: the record the
+        // caller receives (and the journal persists) carries its own fee data.
+        var commission = ComputeCommissionForFillLocked(filled, fillPrice, feeRole);
+        if (commission is not null)
+        {
+            filled = filled with { Commission = commission.Value };
+        }
+
         // The portfolio applies BEFORE the order is recorded: a fill rejected
         // for insufficient balance throws out of here and leaves no phantom
         // Filled record behind — the caller receives the exception and every
@@ -402,17 +427,36 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         _orders[filled.Id] = filled;
 
         _logger.LogInformation(
-            "Paper fill: {Side} {Quantity} {Symbol} at {Price} ({Type})",
+            "Paper fill: {Side} {Quantity} {Symbol} at {Price} ({Type}) commission {Commission}",
             filled.Side,
             filled.Quantity.Value,
             filled.Symbol.Normalized,
             fillPrice.Value,
-            filled.Type);
+            filled.Type,
+            commission?.ToString(CultureInfo.InvariantCulture) ?? "unknown");
 
         // A filled leg of an OCO pair takes every remaining leg down with it.
         CancelOcoSiblingsLocked(filled);
 
         return filled;
+    }
+
+    /// <summary>
+    /// The fill's commission from the adapter's fee schedule in the fill's
+    /// executed role: notional × rate with the schedule's own rounding and
+    /// floor policy (T-080). Null when the adapter carries no schedule — the
+    /// commission stays absent, never a fabricated zero.
+    /// </summary>
+    private decimal? ComputeCommissionForFillLocked(Order filled, Price fillPrice, FeeRole feeRole)
+    {
+        var schedule = _feeSchedules.GetSchedule(filled.ExchangeId);
+        if (schedule is null)
+        {
+            return null;
+        }
+
+        var notional = fillPrice.Value * filled.Quantity.Value;
+        return schedule.Commission(feeRole, notional);
     }
 
     /// <inheritdoc/>
@@ -773,10 +817,12 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     /// <summary>
     /// The terminal-transition fill of a triggered conditional: the fill rides
     /// the shared record path, the working state disappears, and the OCO
-    /// siblings go down with the leg. A portfolio refusal (insufficient
-    /// balance) rejects the trigger instead of throwing out of the evaluation
-    /// lane — the caller is long gone there, so the refusal becomes an order
-    /// status, not an exception.
+    /// siblings go down with the leg. The fill's fee role follows its executed
+    /// behavior (T-080): a stream-matched resting limit leg provides liquidity
+    /// (maker); stop-trigger fills cross the market (taker). A portfolio
+    /// refusal (insufficient balance) rejects the trigger instead of throwing
+    /// out of the evaluation lane — the caller is long gone there, so the
+    /// refusal becomes an order status, not an exception.
     /// </summary>
     private void FillConditionalLocked(ConditionalState state, Price fillPrice)
     {
@@ -788,9 +834,10 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
+        var feeRole = order.Type == OrderType.Limit ? FeeRole.Maker : FeeRole.Taker;
         try
         {
-            RecordFillLocked(order, fillPrice);
+            RecordFillLocked(order, fillPrice, feeRole);
         }
         catch (InvalidOperationException ex)
         {
