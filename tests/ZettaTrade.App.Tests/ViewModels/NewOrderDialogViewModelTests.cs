@@ -1123,11 +1123,21 @@ public sealed class NewOrderDialogViewModelTests
                 ["BTC"] = new(0.8m, "BTC"),
             });
         using var viewModel = CreateViewModel();
-        var capture = viewModel.Sizer.ContextCaptures.FirstAsync();
+
+        // The publish is subscribed BEFORE the commit: the capture legs run
+        // synchronously whenever their adapter stubs are synchronous, and a
+        // hot Subject drops pre-subscriber emissions by design. (Also: an
+        // `await`ed FirstAsync parks forever — the Rx awaiter waits for
+        // OnCompleted, and a Subject never completes; the seam awaits the
+        // resolved task, not the pipeline.)
+        var publish = new System.Threading.Tasks.TaskCompletionSource<ReactiveUI.Primitives.RxVoid>(
+            System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
+        using var publishWatch = viewModel.Sizer.ContextCaptures.Subscribe(
+            _ => publish.TrySetResult(ReactiveUI.Primitives.RxVoid.Default));
 
         viewModel.SymbolInput = "BTC/USDT";
         viewModel.SelectedSideIndex = (int)OrderSide.Sell;
-        await capture;
+        await publish.Task;
 
         // Act: the 50 % preset proposes; the ticket's quantity field is the
         // only destination.
@@ -1159,7 +1169,9 @@ public sealed class NewOrderDialogViewModelTests
         viewModel.SymbolInput = "BTC/USDT";
 
         // Act: a stop-limit whose |limit − trigger| is 1000 quote units.
-        viewModel.SelectedTypeIndex = (int)OrderType.StopLimit;
+        // The type combo SKIPS stop-market (TypeValues is its own order),
+        // so its StopLimit slot is 2 — never the enum's raw 3.
+        viewModel.SelectedTypeIndex = StopLimitTypeIndex;
         viewModel.PriceInput = "51000";
         viewModel.StopTriggerInput = "50000";
 
@@ -1201,6 +1213,9 @@ public sealed class NewOrderDialogViewModelTests
 
     /// <summary>The combo index of the OCO pair mode (a pair builder, never an OrderType).</summary>
     private const int OcoModeIndex = 4;
+
+    /// <summary>The type combo's StopLimit slot: the combo skips stop-market, so its indexes never equal the enum's raw values.</summary>
+    private const int StopLimitTypeIndex = 2;
 
     /// <summary>Named trading stubs for the facade behind the estimate tests.</summary>
     private static ITradingAdapter NewNamedTradingAdapter(string id, string name)
