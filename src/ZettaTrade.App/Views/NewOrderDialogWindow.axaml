@@ -107,6 +107,18 @@
                  PlaceholderText="48000"
                  IsVisible="{Binding IsOcoStopLimitVisible}" />
 
+        <!-- Fee estimate (T-080): one line per leg the ticket would place,
+             each naming the maker/taker role and the schedule-priced
+             commission — a missing schedule or incomplete inputs render the
+             localized dash, never a fabricated zero. -->
+        <ItemsControl ItemsSource="{Binding FeeEstimates}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding}" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
         <!-- Flow errors (parse failure, risk rejection, adapter failure) -->
         <TextBlock Text="{Binding ErrorMessage}"
                    Foreground="{DynamicResource Error}"

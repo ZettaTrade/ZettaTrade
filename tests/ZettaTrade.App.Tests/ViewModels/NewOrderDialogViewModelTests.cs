@@ -15,6 +15,8 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Fees;
 using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
@@ -45,11 +47,16 @@ public sealed class NewOrderDialogViewModelTests
             $"[{call.ArgAt<string>(0)}]");
         _localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
             $"[{call.ArgAt<string>(0)}:{FormatArgs(call.ArgAt<object[]>(1))}]");
+
+        // The default facade's single adapter IS the trading stub itself: with
+        // the paper id the estimate goldens resolve the shipped schedule.
+        _trading.Id.Returns(PaperTradingAdapter.ExchangeId);
     }
 
     private NewOrderDialogViewModel CreateViewModel(
         IMarketDataAdapter? marketData = null,
-        ActiveExchangeService? exchanges = null)
+        ActiveExchangeService? exchanges = null,
+        IFeeScheduleProvider? feeSchedules = null)
     {
         // The dialog sees the market data side through the provider, and the
         // provider is now scoped to the active-exchange facade: compose a
@@ -72,8 +79,20 @@ public sealed class NewOrderDialogViewModelTests
             new OrderConfirmationComposer(_localization),
             _journal,
             _history,
+            feeSchedules ?? CreatePaperFeeSchedules(),
             _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>());
+    }
+
+    /// <summary>
+    /// A real fee registry over nothing configured: the shipped paper
+    /// schedule answers, so the estimate goldens price known numbers.
+    /// </summary>
+    private static FeeScheduleService CreatePaperFeeSchedules()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.Changes.Returns(System.Reactive.Linq.Observable.Empty<SettingsChange>());
+        return new(settings, Substitute.For<Microsoft.Extensions.Logging.ILogger<FeeScheduleService>>());
     }
 
     /// <summary>
@@ -812,6 +831,10 @@ public sealed class NewOrderDialogViewModelTests
 
     private static string FormatArgs(object[] args) => string.Join("|", args);
 
+    /// <summary>The fake fetch of the disposal test: it parks forever on the caller's token.</summary>
+    private static Task<IReadOnlyList<Symbol>> AwaitCancellationAsync(CancellationToken token) =>
+        Task.FromCanceled<IReadOnlyList<Symbol>>(token);
+
     [Fact]
     public async Task LoadSymbolsCommand_Executed_DerivesSuggestionsWithPrefixMatchesFirst()
     {
@@ -919,8 +942,8 @@ public sealed class NewOrderDialogViewModelTests
     {
         // Arrange: the facade starts on its first registered adapter.
         var service = CreateSwitchableFacade(
-            CreateNamedAdapter("binance", "Binance Spot"),
-            CreateNamedAdapter("demo", "Demo"));
+            NewNamedTradingAdapter("binance", "Binance Spot"),
+            NewNamedTradingAdapter("demo", "Demo"));
 
         // Act + assert: the behavioral stream emits its current adapter on
         // subscribe, so the bootstrap is a synchronous constructor side
@@ -938,8 +961,8 @@ public sealed class NewOrderDialogViewModelTests
         // VM subscribes to the same behavioral stream) while the toolbar
         // switches to Demo.
         var service = CreateSwitchableFacade(
-            CreateNamedAdapter("binance", "Binance Spot"),
-            CreateNamedAdapter("demo", "Demo"));
+            NewNamedTradingAdapter("binance", "Binance Spot"),
+            NewNamedTradingAdapter("demo", "Demo"));
         using var viewModel = CreateViewModel(exchanges: service);
         viewModel.ActiveExchangeName.Should().Be("Binance Spot");
 
@@ -1048,23 +1071,158 @@ public sealed class NewOrderDialogViewModelTests
         viewModel.SymbolSuggestions.Should().Contain("ETH/BTC", "typed intent restores the suggestion pipeline");
     }
 
-    /// <summary>Named adapter stub for the two-entry facade tests.</summary>
-    private static IMarketDataAdapter CreateNamedAdapter(string id, string name)
+    /// <summary>
+    /// A schedule registry that publishes nothing anywhere: every fee
+    /// surface must render the honest unknown.
+    /// </summary>
+    private static IFeeScheduleProvider UnknownFeeSchedules()
     {
-        var adapter = Substitute.For<IMarketDataAdapter>();
+        var provider = Substitute.For<IFeeScheduleProvider>();
+        provider.GetSchedule(Arg.Any<string>()).Returns((FeeSchedule?)null);
+        return provider;
+    }
+
+    /// <summary>
+    /// A schedule registry resolved by adapter id: the paper adapter answers
+    /// the shipped schedule, every other id stays unknown — the exchange
+    /// switch's re-pricing golden rides it.
+    /// </summary>
+    private static IFeeScheduleProvider IdleSelectableFees()
+    {
+        var provider = Substitute.For<IFeeScheduleProvider>();
+        // The any-id fallback is configured FIRST: the specific paper setup
+        // below must be the most recent match (NSubstitute resolves the
+        // last configured match), or it would answer null everywhere.
+        provider.GetSchedule(Arg.Any<string>()).Returns((FeeSchedule?)null);
+        provider
+            .GetSchedule(Arg.Is(PaperTradingAdapter.ExchangeId))
+            .Returns(new FeeSchedule(
+                FeeScheduleService.PaperMakerRateBps,
+                FeeScheduleService.PaperTakerRateBps,
+                FeeScheduleService.PaperMinimumFee));
+        return provider;
+    }
+
+    /// <summary>The combo index of the OCO pair mode (a pair builder, never an OrderType).</summary>
+    private const int OcoModeIndex = 4;
+
+    /// <summary>Named trading stubs for the facade behind the estimate tests.</summary>
+    private static ITradingAdapter NewNamedTradingAdapter(string id, string name)
+    {
+        var adapter = Substitute.For<ITradingAdapter>();
         adapter.Id.Returns(id);
         adapter.Name.Returns(name);
         return adapter;
     }
 
+    #region Fee Estimates (T-080)
+
     /// <summary>
-    /// Fake adapter fetch: enters once, then parks on the received token —
-    /// only cancellation completes it.
+    /// The two-adapter facade the switch test prices across: a paper-first
+    /// registry over an id the tests control ("no persisted choice" so the
+    /// restore path stays untouched).
     /// </summary>
-    private static async Task<IReadOnlyList<Symbol>> AwaitCancellationAsync(CancellationToken ct)
+    private static ActiveExchangeService NewPaperAndOtherFacade()
     {
-        await Task.Delay(Timeout.Infinite, ct);
-        throw new InvalidOperationException("the delay returned without cancellation");
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        return new ActiveExchangeService(
+            [NewNamedTradingAdapter("paper", "Paper Trading"), NewNamedTradingAdapter("other", "Other")],
+            settings,
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<ActiveExchangeService>>());
     }
+
+    [Fact]
+    public void FeeEstimates_PricedLimitTicket_NamesTheMakerRoleAndTheScheduleAmount()
+    {
+        using var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.01";
+        viewModel.SelectedTypeIndex = (int)OrderType.Limit;
+        viewModel.PriceInput = "50000";
+
+        // 0.01 × 50 000 = 500 notional at the shipped 10 bps maker rate
+        // (500 × 10 / 10 000): the golden prices a half-unit commission.
+        viewModel.FeeEstimates.Should().ContainSingle()
+            .Which.Should().Be("[Fees.EstimateMakerFormat:0.50000000]");
+    }
+
+    [Fact]
+    public void FeeEstimates_MarketTicket_NamesTheTakerRole_AndAnUnresolvedNotionalIsTheDash()
+    {
+        using var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.01";
+        viewModel.SelectedTypeIndex = (int)OrderType.Market;
+
+        // The fake adapter serves no bars, so the market reference never
+        // resolves within the test: the role stays visible and the amount
+        // is the dash — a displayed unknown, never a fabricated zero.
+        viewModel.FeeEstimates.Should().ContainSingle()
+            .Which.Should().Be("[Fees.EstimateTakerFormat:[Fees.Unknown]]");
+    }
+
+    [Fact]
+    public void FeeEstimates_UnknownSchedule_TheRoleStaysVisible_WithTheDashAmount()
+    {
+        using var viewModel = CreateViewModel(feeSchedules: UnknownFeeSchedules());
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.01";
+        viewModel.PriceInput = "50000";
+        viewModel.SelectedTypeIndex = (int)OrderType.Limit;
+
+        viewModel.FeeEstimates.Should().ContainSingle()
+            .Which.Should().Be("[Fees.EstimateMakerFormat:[Fees.Unknown]]");
+
+        viewModel.SelectedTypeIndex = (int)OrderType.Market;
+        viewModel.FeeEstimates.Should().ContainSingle()
+            .Which.Should().Be("[Fees.EstimateTakerFormat:[Fees.Unknown]]");
+    }
+
+    [Fact]
+    public void FeeEstimates_OcoTicket_PricesBothLegsInTheirExpectedRoles()
+    {
+        using var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.01";
+        viewModel.SelectedTypeIndex = OcoModeIndex;
+        viewModel.PriceInput = "50000"; // the take-profit limit leg
+        viewModel.OcoStopLimitInput = "48000"; // the stop-loss leg's limit
+
+        viewModel.FeeEstimates.Should().HaveCount(2);
+        viewModel.FeeEstimates[0].Should().Be(
+            "[Fees.EstimateMakerFormat:0.50000000]",
+            "the take-profit limit leg is expected to rest as maker");
+        viewModel.FeeEstimates[1].Should().Be(
+            "[Fees.EstimateTakerFormat:0.96000000]",
+            "the stop-loss leg crosses once it triggers (0.01 × 48 000 at the 20 bps taker rate)");
+    }
+
+    [Fact]
+    public async Task FeeEstimates_ExchangeSwitch_RepricesOnTheSwitchedAdaptersSchedule()
+    {
+        // Arrange: the shared estimator resolves paper with the shipped
+        // schedule and stays unknown for the "other" adapter.
+        var facade = NewPaperAndOtherFacade();
+        using var viewModel = CreateViewModel(
+            exchanges: facade,
+            feeSchedules: IdleSelectableFees());
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.01";
+        viewModel.PriceInput = "50000";
+        viewModel.SelectedTypeIndex = (int)OrderType.Limit;
+        viewModel.FeeEstimates.Should().ContainSingle()
+            .Which.Should().Be("[Fees.EstimateMakerFormat:0.50000000]");
+
+        // Act: the toolbar switch while the dialog stays open.
+        await facade.SwitchToAsync("other");
+
+        // Assert: the estimate flips to the honest dash without reopening.
+        viewModel.FeeEstimates.Should().ContainSingle()
+            .Which.Should().Be("[Fees.EstimateMakerFormat:[Fees.Unknown]]");
+    }
+
+    #endregion
 }
 

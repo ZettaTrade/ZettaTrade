@@ -3,16 +3,19 @@ namespace ZettaTrade.App.ViewModels;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
+using Livery.Extensions;
 using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
-using ReactiveUI.Primitives;
 using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Fees;
 using ZettaTrade.Infrastructure.Persistence;
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
 /// New Order dialog view model. Collects the order inputs (market, limit,
@@ -26,7 +29,10 @@ using ZettaTrade.Infrastructure.Persistence;
 /// success or on Cancel) stays in the View via <see cref="CloseRequested"/>.
 /// The header names the active exchange: the behavioral facade stream
 /// bootstraps <see cref="ActiveExchangeName"/> on subscribe and keeps it
-/// current through toolbar switches while the dialog is open. The view
+/// current through toolbar switches while the dialog is open. The fee
+/// estimate line (T-080) re-prices with the ticket inputs and names each
+/// leg's expected maker/taker role — an unknown schedule renders the
+/// localized dash, never a fabricated zero. The view
 /// model is transient (one instance per window) and implements
 /// <see cref="IDisposable"/>: the owning window releases the facade
 /// subscription on closure.
@@ -56,6 +62,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private const string OrderPlacedKey = "NewOrder.OrderPlaced";
     private const string OcoPlacedKey = "NewOrder.OcoPlaced";
     private const string OcoAbortedKey = "NewOrder.OcoAborted";
+    private const string FeeEstimateMakerKey = "Fees.EstimateMakerFormat";
+    private const string FeeEstimateTakerKey = "Fees.EstimateTakerFormat";
+    private const string FeeUnknownKey = "Fees.Unknown";
 
     #endregion Resx Keys
 
@@ -79,6 +88,17 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// <summary>Prefix of the either-or group id the OCO legs share.</summary>
     private const string OcoGroupIdPrefix = "oco-";
 
+    /// <summary>Decimal places of a displayed fee amount (the schedule's own commission precision).</summary>
+    private const string FeeAmountFormat = "F8";
+
+    /// <summary>
+    /// Typed-symbol quiet window before the fee estimate's reference-read
+    /// fires: typing a symbol must not fetch a bar per keystroke, the next
+    /// quiet text does. Short enough to feel live; cancel switches coalesce
+    /// the wider scrambles.
+    /// </summary>
+    private static readonly TimeSpan EstimateReferenceThrottle = TimeSpan.FromMilliseconds(400);
+
     #endregion Constants
 
     #region Private Fields
@@ -91,6 +111,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private readonly OrderConfirmationComposer _composer;
     private readonly IOrderJournal _orderJournal;
     private readonly IOrderHistoryStore _orderHistory;
+    private readonly IFeeScheduleProvider _feeSchedules;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<NewOrderDialogViewModel> _logger;
 
@@ -123,6 +144,20 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// </summary>
     private readonly CompositeDisposable _subscriptions = new();
 
+    /// <summary>
+    /// The estimate id of the schedule-owning adapter (T-080); empty until
+    /// the facade's bootstrap emission lands (an unknown exchange prices
+    /// the localized dash).
+    /// </summary>
+    private string _activeExchangeId = string.Empty;
+
+    /// <summary>
+    /// The latest resolved reference close for the price-less types'
+    /// notional; null until the throttled read answers (or failed — the
+    /// estimate stays unknown either way).
+    /// </summary>
+    private decimal? _referenceClose;
+
     #endregion Private Fields
 
     #region Properties
@@ -138,6 +173,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private string? _errorMessage;
     private string? _resultMessage;
     private string _activeExchangeName = string.Empty;
+    private IReadOnlyList<string> _feeEstimates = [];
 
     private IReadOnlyList<string> _allSymbols = [];
     private IReadOnlyList<string> _symbolSuggestions = [];
@@ -324,6 +360,20 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     }
 
     /// <summary>
+    /// The fee estimate lines of the ticket (T-080): one per leg the ticket
+    /// would place, each naming the role the leg is expected to ride
+    /// (maker for the resting limit legs, taker for everything else) and
+    /// the priced commission from the adapter's schedule — or the localized
+    /// dash when the schedule is unknown or the inputs incomplete. The fee
+    /// observes only: nothing here feeds a placement decision.
+    /// </summary>
+    public IReadOnlyList<string> FeeEstimates
+    {
+        get => _feeEstimates;
+        private set => this.RaiseAndSetIfChanged(ref _feeEstimates, value);
+    }
+
+    /// <summary>
     /// Whether the symbol suggestion dropdown should be visible. The
     /// AutoCompleteBox refreshes the popup only on a text change, so when
     /// the symbol list arrives AFTER the user already typed (slow network),
@@ -377,6 +427,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         OrderConfirmationComposer composer,
         IOrderJournal orderJournal,
         IOrderHistoryStore orderHistory,
+        IFeeScheduleProvider feeSchedules,
         ILocalizationManager localization,
         ILogger<NewOrderDialogViewModel> logger)
     {
@@ -388,6 +439,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
         _orderJournal = orderJournal ?? throw new ArgumentNullException(nameof(orderJournal));
         _orderHistory = orderHistory ?? throw new ArgumentNullException(nameof(orderHistory));
+        _feeSchedules = feeSchedules ?? throw new ArgumentNullException(nameof(feeSchedules));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -398,16 +450,61 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         // The header mirrors the active exchange on the same behavioral
         // stream every other consumer uses: emission zero provides the
         // bootstrap value (the stream emits its current adapter on
-        // subscribe), later emissions track toolbar switches. Switches fire
-        // on the UI thread; the restore emission precedes any dialog
-        // lifetime. The subscription parks in the composite disposable —
-        // the transient VM must not outlive its window.
+        // subscribe), later emissions track toolbar switches. The exchange
+        // id rides along — the fee schedule resolves per adapter id (T-080).
+        // Subscriptions park in the composite disposable — the transient VM
+        // must not outlive its window.
         _subscriptions.Add(
             _activeExchanges
                 .AdapterChanges
                 .Subscribe(
-                    adapter => ActiveExchangeName = adapter.Name,
+                    adapter =>
+                    {
+                        // The id first: the name assignment re-prices the
+                        // estimate synchronously (the WhenAnyValue chain),
+                        // and it must read the FRESH schedule id — the
+                        // reverse order left the lines one switch behind.
+                        _activeExchangeId = adapter.Id ?? string.Empty;
+                        ActiveExchangeName = adapter.Name;
+                    },
                     ex => _logger.LogError(ex, "The dialog exchange header stream stopped unexpectedly")));
+
+        // The estimate lines re-price on every input the notional reads and
+        // on the exchange switch (whose id resolves the schedule). The
+        // bootstrapping initial emission prices the empty-ticket dash.
+        _subscriptions.Add(
+            this.WhenAnyValue(
+                    x => x.ActiveExchangeName,
+                    x => x.SymbolInput,
+                    x => x.QuantityInput,
+                    x => x.PriceInput,
+                    x => x.OcoStopLimitInput,
+                    x => x.SelectedTypeIndex)
+                .Subscribe(_ => RefreshFeeEstimates()));
+
+        // The price-less types (market, trailing) price their notional with
+        // the latest close: one throttled convenience read per settled
+        // symbol, tolerated to fail (the line keeps its dash — the estimate
+        // never blocks, never errors the ticket).
+        _subscriptions.Add(
+            this.WhenAnyValue(
+                    x => x.SymbolInput,
+                    x => x.ActiveExchangeName,
+                    (symbol, exchange) => (symbol, exchange))
+                .Where(context => !string.IsNullOrWhiteSpace(context.symbol))
+                .Throttle(EstimateReferenceThrottle)
+                .Select(_ => Observable.FromAsync(FetchEstimateReferenceAsync))
+                .Switch()
+                .ObserveOnUiThread()
+                .Subscribe(
+                    close =>
+                    {
+                        _referenceClose = close;
+                        RefreshFeeEstimates();
+                    },
+                    error => _logger.LogWarning(
+                        error,
+                        "Order dialog: the fee-estimate reference stream stopped unexpectedly")));
     }
 
     #endregion Constructor
@@ -442,6 +539,113 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     }
 
     #endregion Public Methods
+
+    #region Fee Estimates
+
+    /// <summary>
+    /// Re-price the estimate lines from the current ticket state: the
+    /// schedule resolves for the active exchange's id, and every leg the
+    /// ticket would place prices maker or taker per its type. Never a
+    /// placement input — the recomputation only ever writes display state.
+    /// </summary>
+    private void RefreshFeeEstimates()
+    {
+        // The id may be empty before (or without) the facade's bootstrap
+        // emission: an exchange without an id has no schedule to name.
+        var schedule = _activeExchangeId.Length == 0
+            ? null
+            : _feeSchedules.GetSchedule(_activeExchangeId);
+
+        var legs = SelectedTypeIndex == OcoTypeIndex
+            ? new[] { (OrderType.Limit, PriceInput), (OrderType.StopLimit, OcoStopLimitInput) }
+            : new[] { SingleEstimateOrder() };
+
+        FeeEstimates = legs
+            .Select(leg => FormatEstimateLeg(schedule, leg.Item1, leg.Item2))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The order shape the current single-selection maps to: the type (the
+    /// OCO index never reaches here) and the field that prices the leg —
+    /// the limit price for a price-bearing shape, nothing otherwise (the
+    /// market reference answers, or stays absent).
+    /// </summary>
+    private (OrderType Type, string PriceText) SingleEstimateOrder() =>
+        SelectedType is not { } type
+            ? (OrderType.Market, string.Empty)
+            : type is OrderType.Limit or OrderType.StopLimit
+                ? (type, PriceInput)
+                : (type, string.Empty);
+
+    /// <summary>
+    /// One estimate line for one leg: its expected role rides the type
+    /// (limit = maker, everything else crosses), the notional needs a
+    /// positive quantity and price (the leg's own limit, or the resolved
+    /// market reference for the price-less shapes), and the commission is
+    /// the schedule's own rounding/floor policy applied — the localized
+    /// dash whenever any of these stays unknown, never a fabricated zero.
+    /// </summary>
+    /// <param name="schedule">The active adapter's fee schedule; null prices the dash.</param>
+    /// <param name="type">The leg's order type.</param>
+    /// <param name="priceText">The leg's limit-price field when it carries one.</param>
+    private string FormatEstimateLeg(FeeSchedule? schedule, OrderType type, string priceText)
+    {
+        var role = FeeRoleEstimation.ForOrderType(type);
+        var quantity = TryParsePositiveAmount(QuantityInput);
+        var price = type is OrderType.Limit or OrderType.StopLimit
+            ? TryParsePositiveAmount(priceText)
+            : _referenceClose;
+
+        var amount = schedule is { } scheduleValue && quantity is { } quantityValue && price is { } priceValue
+            ? scheduleValue
+                .Commission(role, quantityValue * priceValue)
+                .ToString(FeeAmountFormat, CultureInfo.InvariantCulture)
+            : _localization.GetString(FeeUnknownKey);
+
+        return _localization.GetString(
+            role == FeeRole.Maker ? FeeEstimateMakerKey : FeeEstimateTakerKey,
+            amount);
+    }
+
+    /// <summary>
+    /// Parse a positive invariant-culture amount, or answer nothing: the
+    /// estimate stays unknown while a field is blank, unparsable or
+    /// non-positive (never a defaulted number).
+    /// </summary>
+    private static decimal? TryParsePositiveAmount(string? rawText)
+    {
+        var raw = rawText?.Trim();
+        return decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value > 0m
+            ? value
+            : null;
+    }
+
+    /// <summary>
+    /// The throttled reference read the price-less types' notional rides:
+    /// one H1-close fetch per settled symbol/exchange switch, answered with
+    /// nothing when the reference cannot resolve (offline, no bars) — a
+    /// convenience upgrade of the estimate, never a ticket error.
+    /// </summary>
+    private async Task<decimal?> FetchEstimateReferenceAsync(CancellationToken ct)
+    {
+        try
+        {
+            var symbol = Symbol.Parse(SymbolInput.Trim());
+            return (await MarketReference.GetLatestCloseAsync(_trading, symbol, ct)).Value;
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Order dialog: no market reference for the fee estimate right now");
+            return null;
+        }
+    }
+
+    #endregion Fee Estimates
 
     #region IDisposable
 
