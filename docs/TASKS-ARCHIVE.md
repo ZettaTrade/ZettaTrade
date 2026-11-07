@@ -1099,6 +1099,16 @@ the board and its section below.
 - **Tests:** close/reduce/reverse goldens on paper, rejection paths, the in-flight disable case.
 - **Status:** done. Canon: the position-actions pipeline (`6485f80`), the row action surface (`e309636`), the goldens/races/in-flight test pack (`8452cb9`) and this section's status flip; shipped as `0.1.0-alpha.46` (see CHANGELOG.md). No Core changes were needed - the actions compose validated orders through the existing trading seam (`OrderRequest.Validate` - `IRiskManager` - `IConfirmationService` - `ITradingAdapter`); the reverse is two risk-checked legs under ONE confirmation, an outside fill wins and is reported, and an exit that leaves the symbol non-flat aborts the re-entry with a localized report. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
+## T-080 — Fees: maker/taker in the ticket, fills and history
+
+- **Branch:** feat/fees (base `develop` at `966592c`; queued 2026-11-06; developed 2026-11-07).
+- **Origin:** PnL without fees lies; fee surfaces are absent everywhere.
+- **What:** a per-adapter fee schedule (paper: a configurable maker/taker model), an estimate line in the ticket, fee columns in fills and order history, and fee inclusion in the T-082 PnL accounting. A missing schedule surfaces as an explicit "—" (never a zero default that hides the cost).
+- **Scope:** fill DTO extension if fees are absent (additive, supervisor-gated Core diff), paper engine, panels, resx en+ru, tests.
+- **Acceptance:** maker vs taker selection visible everywhere the cost matters.
+- **Tests:** schedule selection golden, rounding policy, the no-schedule passthrough (a displayed unknown, not a zero).
+- **Status:** done. Canon: the branch carries the fee schedule model and registry (`3fec2fb`), the paper-fill commission stamping + PnL passthrough (`83d5301`), the role-interface seam with the harmed harnesses rewired (`480bbbd`), the schedule/rounding/passthrough goldens (`d867808`), the ticket's estimate line (`da0f61a`), the Fee columns + the fills-CSV fee (`f231334`) and this release commit (the alpha.47 cut + this section's status flip); shipped as `0.1.0-alpha.47` (see CHANGELOG.md). The Core diff stayed at the one pre-authorized additive `Order.Commission` field (+ migration); commission enters the T-082 PnL ledger through the existing per-fill fee parameter, and every unknown (schedule or amount) renders the localized dash, never a fabricated zero. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
+
 ## T-081 — Balances panel: per-exchange and aggregated
 
 - **Branch:** feat/balances (base `develop` at `3c6228b`; queued 2026-11-06; developed 2026-11-06).
