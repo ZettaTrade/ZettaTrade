@@ -152,7 +152,7 @@
                      the real catalog, it never assumes a shipped assembly);
                      with a whole empty catalog the honest empty state shows
                      instead. -->
-                <Grid ColumnDefinitions="*" ColumnSpacing="14" RowDefinitions="Auto,Auto" RowSpacing="10" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10" Margin="0,12,0,0">
                     <StackPanel Grid.Row="0" IsVisible="{Binding IsSmaPluginLoaded}">
                         <!-- The row layout (label column + controls) as long
                              as the SMA row renders. -->
@@ -196,9 +196,210 @@
                             </StackPanel>
                         </Grid>
                     </StackPanel>
+                    <!-- The standard pack's rows (T-092): every one the exact
+                         contract the SMA row carries - a row renders only for
+                         a plugin the scanned catalog actually loaded, the
+                         checkbox is the enable draft, the period box is the
+                         plugin's single parameter knob. The row label stays
+                         on the first row; the rows below keep the same two
+                         columns so the controls align. The checkbox labels
+                         are the plugins' canonical names - product names, not
+                         localized strings. -->
+                    <StackPanel Grid.Row="1" IsVisible="{Binding IsEmaPluginLoaded}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                <CheckBox Content="EMA"
+                                          IsChecked="{Binding IsEmaEnabled}"
+                                          VerticalAlignment="Center" />
+                                <Border Width="16" Height="16"
+                                        CornerRadius="8"
+                                        Background="Transparent"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        VerticalAlignment="Center">
+                                    <ToolTip.Tip>
+                                        <TextBlock MaxWidth="260"
+                                                   Text="{loc:Localized Chart.Indicators.EmaTip}"
+                                                   TextWrapping="Wrap" />
+                                    </ToolTip.Tip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Text="{Binding EmaPeriodText}"
+                                         MinWidth="64"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" IsVisible="{Binding IsWmaPluginLoaded}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                <CheckBox Content="WMA"
+                                          IsChecked="{Binding IsWmaEnabled}"
+                                          VerticalAlignment="Center" />
+                                <Border Width="16" Height="16"
+                                        CornerRadius="8"
+                                        Background="Transparent"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        VerticalAlignment="Center">
+                                    <ToolTip.Tip>
+                                        <TextBlock MaxWidth="260"
+                                                   Text="{loc:Localized Chart.Indicators.WmaTip}"
+                                                   TextWrapping="Wrap" />
+                                    </ToolTip.Tip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Text="{Binding WmaPeriodText}"
+                                         MinWidth="64"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel Grid.Row="3" IsVisible="{Binding IsRsiPluginLoaded}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                <CheckBox Content="RSI"
+                                          IsChecked="{Binding IsRsiEnabled}"
+                                          VerticalAlignment="Center" />
+                                <Border Width="16" Height="16"
+                                        CornerRadius="8"
+                                        Background="Transparent"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        VerticalAlignment="Center">
+                                    <ToolTip.Tip>
+                                        <TextBlock MaxWidth="260"
+                                                   Text="{loc:Localized Chart.Indicators.RsiTip}"
+                                                   TextWrapping="Wrap" />
+                                    </ToolTip.Tip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Text="{Binding RsiPeriodText}"
+                                         MinWidth="64"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel Grid.Row="4" IsVisible="{Binding IsMacdPluginLoaded}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                <CheckBox Content="MACD"
+                                          IsChecked="{Binding IsMacdEnabled}"
+                                          VerticalAlignment="Center" />
+                                <Border Width="16" Height="16"
+                                        CornerRadius="8"
+                                        Background="Transparent"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        VerticalAlignment="Center">
+                                    <ToolTip.Tip>
+                                        <TextBlock MaxWidth="260"
+                                                   Text="{loc:Localized Chart.Indicators.MacdTip}"
+                                                   TextWrapping="Wrap" />
+                                    </ToolTip.Tip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Text="{Binding MacdPeriodText}"
+                                         MinWidth="64"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel Grid.Row="5" IsVisible="{Binding IsAtrPluginLoaded}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                <CheckBox Content="ATR"
+                                          IsChecked="{Binding IsAtrEnabled}"
+                                          VerticalAlignment="Center" />
+                                <Border Width="16" Height="16"
+                                        CornerRadius="8"
+                                        Background="Transparent"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        VerticalAlignment="Center">
+                                    <ToolTip.Tip>
+                                        <TextBlock MaxWidth="260"
+                                                   Text="{loc:Localized Chart.Indicators.AtrTip}"
+                                                   TextWrapping="Wrap" />
+                                    </ToolTip.Tip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Text="{Binding AtrPeriodText}"
+                                         MinWidth="64"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel Grid.Row="6" IsVisible="{Binding IsBollPluginLoaded}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                <CheckBox Content="BOLL"
+                                          IsChecked="{Binding IsBollEnabled}"
+                                          VerticalAlignment="Center" />
+                                <Border Width="16" Height="16"
+                                        CornerRadius="8"
+                                        Background="Transparent"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        VerticalAlignment="Center">
+                                    <ToolTip.Tip>
+                                        <TextBlock MaxWidth="260"
+                                                   Text="{loc:Localized Chart.Indicators.BollTip}"
+                                                   TextWrapping="Wrap" />
+                                    </ToolTip.Tip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Text="{Binding BollPeriodText}"
+                                         MinWidth="64"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
                     <!-- The honest empty state: zero indicators registered by the
                          scan (missing or skipped plugin assemblies). -->
-                    <TextBlock Grid.Row="1"
+                    <TextBlock Grid.Row="7"
                                IsVisible="{Binding IsIndicatorCatalogEmpty}"
                                Text="{loc:Localized Settings.Indicators.Empty}"
                                TextWrapping="Wrap" />

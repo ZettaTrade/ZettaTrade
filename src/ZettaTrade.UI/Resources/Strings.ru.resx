@@ -288,6 +288,24 @@
   <data name="Chart.Indicators.SmaTip" xml:space="preserve">
     <value>Простая скользящая средняя: среднее закрытие за последние N баров, линия поверх свечей.</value>
   </data>
+  <data name="Chart.Indicators.EmaTip" xml:space="preserve">
+    <value>Экспоненциальная скользящая средняя: свежие закрытия весят больше (альфа 2/(N+1)), посев — среднее первых N баров.</value>
+  </data>
+  <data name="Chart.Indicators.WmaTip" xml:space="preserve">
+    <value>Взвешенная скользящая средняя: линейные веса от N до 1 за последние N закрытий, свежее — весомее.</value>
+  </data>
+  <data name="Chart.Indicators.RsiTip" xml:space="preserve">
+    <value>Индекс относительной силы: осциллятор импульса по Уайльдеру, 0–100 (классический период 14, посев первым средним).</value>
+  </data>
+  <data name="Chart.Indicators.MacdTip" xml:space="preserve">
+    <value>MACD: быстрая EMA минус медленная EMA (классическая тройка 12/26/9; поле «Период» задаёт быструю EMA).</value>
+  </data>
+  <data name="Chart.Indicators.AtrTip" xml:space="preserve">
+    <value>Средний истинный диапазон: сглаживание по Уайльдеру истинных диапазонов баров (классический период 14).</value>
+  </data>
+  <data name="Chart.Indicators.BollTip" xml:space="preserve">
+    <value>Верхняя полоса Боллинджера: SMA за N периодов плюс 2 стандартных отклонения; средняя — обычная SMA, нижняя зеркальна.</value>
+  </data>
   <data name="Chart.ExportCandlesCsv" xml:space="preserve">
     <value>Экспорт свечей в CSV</value>
   </data>

@@ -288,6 +288,24 @@
   <data name="Chart.Indicators.SmaTip" xml:space="preserve">
     <value>Simple Moving Average: the mean close over the last N bars, drawn as a line over the candles.</value>
   </data>
+  <data name="Chart.Indicators.EmaTip" xml:space="preserve">
+    <value>Exponential Moving Average: the recent closes weigh more (alpha 2/(N+1)), seeded with the mean of the first N bars.</value>
+  </data>
+  <data name="Chart.Indicators.WmaTip" xml:space="preserve">
+    <value>Weighted Moving Average: linear weights from N down to 1 over the last N closes, the newest close weighs most.</value>
+  </data>
+  <data name="Chart.Indicators.RsiTip" xml:space="preserve">
+    <value>Relative Strength Index: Wilder's 0-100 momentum oscillator (classic 14, seeded first average).</value>
+  </data>
+  <data name="Chart.Indicators.MacdTip" xml:space="preserve">
+    <value>MACD: the fast EMA minus the slow EMA (classic trio 12/26/9; the period field sets the fast EMA).</value>
+  </data>
+  <data name="Chart.Indicators.AtrTip" xml:space="preserve">
+    <value>Average True Range: Wilder's smoothed average of the bars' true ranges (classic 14).</value>
+  </data>
+  <data name="Chart.Indicators.BollTip" xml:space="preserve">
+    <value>Bollinger upper band: the N-period SMA of the closes plus 2 standard deviations; the middle is the plain SMA, the lower band mirrors them.</value>
+  </data>
   <data name="Chart.ExportCandlesCsv" xml:space="preserve">
     <value>Export Candles CSV</value>
   </data>
