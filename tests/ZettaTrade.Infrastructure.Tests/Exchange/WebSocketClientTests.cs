@@ -276,12 +276,24 @@ public sealed class WebSocketClientTests
 
     #region Helpers
 
+    /// <summary>Deterministic fast-retry policy for the transport tests: the short initial delay with the jitter switched off.</summary>
+    private static ReconnectPolicy TimedPolicy(TimeSpan initialDelay, int maxAttempts) => new()
+    {
+        InitialDelay = initialDelay,
+        MaxDelay = MaxReconnectDelay,
+        BackoffMultiplier = 2.0,
+        JitterFraction = 0.0,
+        MaxAttempts = maxAttempts,
+    };
+
+    /// <summary>Growth cap of the test policies (retries stay sub-second-batched under the event wait).</summary>
+    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(2);
+
     private static WebSocketClient CreateClient(string url, TimeSpan reconnectDelay, int maxConnectAttempts) =>
         new(
             url,
             NullLogger.Instance,
-            reconnectDelay: reconnectDelay,
-            maxReconnectAttempts: maxConnectAttempts);
+            TimedPolicy(reconnectDelay, maxConnectAttempts));
 
     private static WebSocketClient CreateClient(
         string url,
@@ -291,8 +303,7 @@ public sealed class WebSocketClientTests
         new(
             url,
             logger,
-            reconnectDelay: reconnectDelay,
-            maxReconnectAttempts: maxConnectAttempts);
+            TimedPolicy(reconnectDelay, maxConnectAttempts));
 
     /// <summary>Materialize the first <paramref name="expectedCount"/> stream events into a bounded task.</summary>
     private static Task<IList<T>> CollectAsync<T>(IObservable<T> source, int expectedCount) =>

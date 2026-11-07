@@ -31,13 +31,26 @@ public static class ExchangeAdaptersDependencyInjection
         // The endpoint registry must come FIRST: the composition-root init
         // loop initializes in registration order, so the settings file is
         // already read (and the configured endpoints cached) before the
-        // first adapter resolves them synchronously.
+        // first adapter resolves them synchronously. The reconnect supervisor
+        // rides beside it: adapters bind their policy to it at construction,
+        // and the resolution order of the adapters below is unaffected.
         return services
+            .AddReconnectSupervisor()
             .AddExchangeEndpointRegistry()
             .AddBinanceAdapter()
             .AddBybitAdapter()
             .AddDemoAdapter();
     }
+
+    /// <summary>
+    /// Register the central reconnect supervisor (T-105): per-adapter
+    /// reconnect policies with live per-adapter connection state and a hot
+    /// state stream — the surface T-098's adapter health strip will consume.
+    /// Registered as a singleton ahead of the adapters so their constructors
+    /// resolve it during the same <see cref="AddExchangeAdapters"/> chain.
+    /// </summary>
+    public static IServiceCollection AddReconnectSupervisor(this IServiceCollection services) =>
+        services.AddSingleton<ReconnectSupervisor>();
 
     /// <summary>
     /// Register the adapter registry seam's configuration piece: a
@@ -77,7 +90,8 @@ public static class ExchangeAdaptersDependencyInjection
             new BinanceAdapter(
                 sp.GetRequiredService<ILogger<BinanceAdapter>>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
-                sp.GetRequiredService<ExchangeEndpointRegistry>().Binance));
+                sp.GetRequiredService<ExchangeEndpointRegistry>().Binance,
+                reconnectSupervisor: sp.GetService<ReconnectSupervisor>()));
 
         return services;
     }
@@ -106,7 +120,8 @@ public static class ExchangeAdaptersDependencyInjection
             new BybitAdapter(
                 sp.GetRequiredService<ILogger<BybitAdapter>>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
-                sp.GetRequiredService<ExchangeEndpointRegistry>().Bybit));
+                sp.GetRequiredService<ExchangeEndpointRegistry>().Bybit,
+                reconnectSupervisor: sp.GetService<ReconnectSupervisor>()));
 
         return services;
     }
