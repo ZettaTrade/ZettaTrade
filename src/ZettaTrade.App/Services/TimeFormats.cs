@@ -8,4 +8,7 @@ public static class TimeFormats
 {
     /// <summary>Column-friendly, culture-pinned order/position timestamp.</summary>
     public const string OrderTimestamp = "yyyy-MM-dd HH:mm";
+
+    /// <summary>Plain capture clock for the order ticket's sizing snapshots (a snapshot's staleness shown as taken-at).</summary>
+    public const string SizeSnapshotTime = "HH:mm:ss";
 }

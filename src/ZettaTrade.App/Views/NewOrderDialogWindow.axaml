@@ -119,6 +119,62 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
+        <!-- Quick-size row (T-079): balance-share presets and the
+             risk-percent proposal. The row only PROPOSES — every proposal
+             lands in the quantity field above and rides the ticket's own
+             parse → risk → confirmation path at submit. Proposals ride
+             captured snapshots and the ticket's own inputs: zero network
+             calls at sizing time, and the plain capture line says when
+             the reference was taken. -->
+        <StackPanel IsVisible="{Binding Sizer.IsRowVisible}" Spacing="6">
+            <TextBlock Text="{loc:Localized NewOrder.SizerBalanceCaption}" />
+            <UniformGrid Columns="3">
+                <Button Command="{Binding Sizer.ApplyQuarterCommand}"
+                        Content="{loc:Localized NewOrder.SizerQuarter}"
+                        MinWidth="52" Margin="0,0,8,0" />
+                <Button Command="{Binding Sizer.ApplyHalfCommand}"
+                        Content="{loc:Localized NewOrder.SizerHalf}"
+                        MinWidth="52" Margin="0,0,8,0" />
+                <Button Command="{Binding Sizer.ApplyWholeCommand}"
+                        Content="{loc:Localized NewOrder.SizerWhole}"
+                        MinWidth="62" />
+            </UniformGrid>
+
+            <Button Command="{Binding Sizer.RefreshSnapshotCommand}"
+                    Content="{loc:Localized NewOrder.SizerSnapshotRefresh}"
+                    HorizontalAlignment="Left"
+                    MinWidth="110" />
+
+            <!-- Risk percent: only while the order type anchors a stop
+                 (a stop-limit's trigger distance, a trailing stop's trail);
+                 a market or plain-limit order has no stop context, and the
+                 OCO pair has none it could anchor one distance on — the
+                 row hides the mode for exactly those. -->
+            <StackPanel IsVisible="{Binding Sizer.IsRiskModeAvailable}" Spacing="4">
+                <TextBlock Text="{loc:Localized NewOrder.SizerRiskCaption}" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBox Text="{Binding Sizer.RiskPercentText}"
+                             PlaceholderText="1"
+                             MinWidth="80" />
+                    <Button Command="{Binding Sizer.ApplyRiskCommand}"
+                            Content="{loc:Localized NewOrder.SizerRiskApply}"
+                            MinWidth="110" />
+                </StackPanel>
+                <TextBlock Text="{loc:Localized NewOrder.SizerRiskHint}"
+                           TextWrapping="Wrap" Opacity="0.7" />
+            </StackPanel>
+
+            <TextBlock Text="{loc:Localized NewOrder.SizerSnapshotAbsent}"
+                       IsVisible="{Binding Sizer.IsSnapshotMissing}"
+                       Opacity="0.7" />
+            <TextBlock Text="{Binding Sizer.SnapshotDetail}"
+                       IsVisible="{Binding Sizer.IsSnapshotAvailable}"
+                       TextWrapping="Wrap" Opacity="0.85" />
+            <TextBlock Text="{Binding Sizer.ProposalState}"
+                       IsVisible="{Binding Sizer.HasProposalState}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
         <!-- Flow errors (parse failure, risk rejection, adapter failure) -->
         <TextBlock Text="{Binding ErrorMessage}"
                    Foreground="{DynamicResource Error}"

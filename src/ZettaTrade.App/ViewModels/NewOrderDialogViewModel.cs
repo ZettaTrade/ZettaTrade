@@ -32,7 +32,11 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// current through toolbar switches while the dialog is open. The fee
 /// estimate line (T-080) re-prices with the ticket inputs and names each
 /// leg's expected maker/taker role — an unknown schedule renders the
-/// localized dash, never a fabricated zero. The view
+/// localized dash, never a fabricated zero. A ticket-local quick-size
+/// row (<see cref="Sizer"/>, T-079) proposes quantities into the
+/// quantity field from captured balance/reference snapshots plus the
+/// ticket's own stop context — sizing never bypasses the placement
+/// pipeline. The view
 /// model is transient (one instance per window) and implements
 /// <see cref="IDisposable"/>: the owning window releases the facade
 /// subscription on closure.
@@ -113,7 +117,12 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private readonly IOrderHistoryStore _orderHistory;
     private readonly IFeeScheduleProvider _feeSchedules;
     private readonly ILocalizationManager _localization;
+    private readonly PositionSizingService _sizing;
+    private readonly ISettingsService _settings;
     private readonly ILogger<NewOrderDialogViewModel> _logger;
+
+    /// <summary>The ticket-local quick-size row (T-079): proposes quantities, places nothing.</summary>
+    private readonly OrderSizerRowViewModel _sizer;
 
     /// <summary>
     /// Combo index → order type for every single-order selection; the OCO
@@ -405,6 +414,18 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// <summary>Runs the full validation → confirmation → placement pipeline.</summary>
     public ReactiveCommand<RxVoid, RxVoid> PlaceOrderCommand { get; }
 
+    /// <summary>
+    /// Loads the sizing default once per dialog open — the stored
+    /// risk-percent default of the ticket's quick-size row
+    /// (settings changes afterwards ride the reactive subscription). The
+    /// captures themselves start on the symbol commits; nothing here
+    /// fetches at sizing time.
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> InitializeSizingCommand { get; }
+
+    /// <summary>The quick-size row the ticket hosts (hidden for metadata-less instruments).</summary>
+    public OrderSizerRowViewModel Sizer { get; }
+
     #endregion Properties
 
     #region Constructor
@@ -418,6 +439,8 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// The active-exchange facade: its behavioral stream names the exchange
     /// the dialog's price context rides (the header property).
     /// </param>
+    /// <param name="sizing">The position-sizing captures (T-079): balance and reference snapshots for the row.</param>
+    /// <param name="settings">The settings service: the sizing row's stored defaults ride it.</param>
     public NewOrderDialogViewModel(
         ITradingAdapter trading,
         SymbolListProvider symbolList,
@@ -429,7 +452,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         IOrderHistoryStore orderHistory,
         IFeeScheduleProvider feeSchedules,
         ILocalizationManager localization,
-        ILogger<NewOrderDialogViewModel> logger)
+        PositionSizingService sizing,
+        ISettingsService settings,
+        ILogger<NewOrderDialogViewModel> logger,
+        ILogger<OrderSizerRowViewModel> sizerLogger)
     {
         _trading = trading ?? throw new ArgumentNullException(nameof(trading));
         _symbolList = symbolList ?? throw new ArgumentNullException(nameof(symbolList));
@@ -441,11 +467,41 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         _orderHistory = orderHistory ?? throw new ArgumentNullException(nameof(orderHistory));
         _feeSchedules = feeSchedules ?? throw new ArgumentNullException(nameof(feeSchedules));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+        _sizing = sizing ?? throw new ArgumentNullException(nameof(sizing));
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         CloseRequested = new Interaction<RxVoid, RxVoid>();
         LoadSymbolsCommand = ReactiveCommand.CreateFromTask(HandleLoadSymbolsAsync);
         PlaceOrderCommand = ReactiveCommand.CreateFromTask(HandlePlaceOrderAsync);
+        InitializeSizingCommand = ReactiveCommand.CreateFromTask(HandleInitializeSizingAsync);
+
+        // The ticket-local quick-size row: its quantity proposals land in
+        // THIS dialog's quantity field (the same field the submit pipeline
+        // parses), and the row's subscriptions die with the ticket's.
+        _sizer = new OrderSizerRowViewModel(_sizing, _settings, _localization, sizerLogger);
+        Sizer = _sizer;
+        _subscriptions.Add(_sizer);
+        _subscriptions.Add(
+            _sizer
+                .QuantityProposals
+                .Subscribe(quantity => QuantityInput = quantity));
+
+        // The sizing contexts ride the ticket's own inputs: every symbol
+        // edit re-commits the metadata-known pair (or hides the row), and
+        // every shape input recomputes the entry price and stop distance
+        // the row's presets and risk mode ride.
+        _subscriptions.Add(
+            this.WhenAnyValue(x => x.SymbolInput)
+                .Subscribe(_ => UpdateSizerSymbol()));
+        _subscriptions.Add(
+            this.WhenAnyValue(
+                    x => x.SelectedTypeIndex,
+                    x => x.SelectedSideIndex,
+                    x => x.PriceInput,
+                    x => x.StopTriggerInput,
+                    x => x.TrailDistanceInput)
+                .Subscribe(_ => UpdateSizerOrderShape()));
 
         // The header mirrors the active exchange on the same behavioral
         // stream every other consumer uses: emission zero provides the
@@ -658,6 +714,95 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     #endregion IDisposable
 
     #region Private Methods
+
+    /// <summary>
+    /// The sizing default load (one dialog open pays it once): the stored
+    /// risk-percent default applies onto the row's untouched field. A
+    /// failure keeps the hardcoded default — a convenience load, never a
+    /// dialog error. The execution token rides the comment's lifetime:
+    /// the window disposal cancels the command's token.
+    /// </summary>
+    private async Task HandleInitializeSizingAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _sizer.InitializeDefaultsAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // The dialog closed while the load ran in flight: nothing
+            // user-visible remains.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Order dialog: the sizing default load failed; the hardcoded default stays");
+        }
+    }
+
+    /// <summary>
+    /// Push the ticket's parsed symbol to the sizing row: exact parses
+    /// commit (a metadata-known commit also schedules the fresh
+    /// capture), everything else hides the row without stale context.
+    /// </summary>
+    private void UpdateSizerSymbol()
+    {
+        var raw = SymbolInput.Trim();
+        Symbol? symbol = null;
+        if (raw.Length > 0)
+        {
+            try
+            {
+                symbol = Symbol.Parse(raw);
+            }
+            catch (ArgumentException)
+            {
+                // Unparsable text keeps the row parked; no sizing context
+                // is derived from garbage input.
+            }
+        }
+
+        _sizer.UpdateSymbol(symbol);
+    }
+
+    /// <summary>
+    /// Push the ticket's current order shape to the sizing row: the side,
+    /// the execution price the type carries (the limit price for limit,
+    /// stop-limit and the OCO take-profit leg), and the type's stop
+    /// distance when it anchors one — a stop-limit's |limit − trigger|, a
+    /// trailing stop's trail. Market and plain-limit orders (and the OCO
+    /// pair) carry none: the risk mode stays hidden for exactly those.
+    /// Unparsable or empty fields contribute nothing — no sizing input
+    /// substitutes a default for a field the user has not finished
+    /// entering.
+    /// </summary>
+    private void UpdateSizerOrderShape()
+    {
+        var side = (OrderSide)SelectedSideIndex;
+        var type = SelectedType;
+        var selectsLimitPrice = type is OrderType.Limit or OrderType.StopLimit || IsOcoMode;
+        var entryPrice = selectsLimitPrice ? TryParsePositiveOrNull(PriceInput) : null;
+
+        decimal? stopDistance = type switch
+        {
+            OrderType.StopLimit => TryParsePositiveOrNull(StopTriggerInput) is { } trigger
+                && entryPrice is { } limit
+                ? Math.Abs(limit - trigger)
+                : null,
+            OrderType.TrailingStop => TryParsePositiveOrNull(TrailDistanceInput),
+            _ => null,
+        };
+
+        _sizer.UpdateOrderShape(side, type, entryPrice, stopDistance);
+    }
+
+    /// <summary>Parse an invariant-culture positive number, or null when the field is empty, garbage or non-positive.</summary>
+    private static decimal? TryParsePositiveOrNull(string raw) =>
+        decimal.TryParse(raw.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
+            && value > 0m
+            ? value
+            : null;
 
     /// <summary>
     /// Load the tradable symbol list from the shared application-lifetime
