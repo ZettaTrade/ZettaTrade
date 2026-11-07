@@ -557,13 +557,13 @@ public sealed class PositionActionsServiceTests
     private static Task<Order> SeedLongAsync(
         PaperTradingAdapter paper,
         decimal quantity) => paper.PlaceOrderAsync(new OrderRequest
-    {
-        Symbol = BtcUsdt,
-        Side = OrderSide.Buy,
-        Type = OrderType.Market,
-        Quantity = new Quantity(quantity),
-        Price = new Price(ReferenceClose),
-    });
+        {
+            Symbol = BtcUsdt,
+            Side = OrderSide.Buy,
+            Type = OrderType.Market,
+            Quantity = new Quantity(quantity),
+            Price = new Price(ReferenceClose),
+        });
 
     /// <summary>Two H1 reference bars; the newest by time closes at the reference level.</summary>
     private static IReadOnlyList<Bar> ReferenceBars() =>
@@ -576,37 +576,37 @@ public sealed class PositionActionsServiceTests
     private static Order BuildFilledOrder(
         OrderRequest request,
         string id) => new()
-    {
-        Id = id,
-        ExchangeId = "paper",
-        ExchangeOrderId = id,
-        Symbol = request.Symbol,
-        Side = request.Side,
-        Type = request.Type,
-        Quantity = request.Quantity,
-        Price = request.Price ?? Price.Zero,
-        Status = OrderStatus.Filled,
-        FilledQuantity = request.Quantity,
-        TimeInForce = request.TimeInForce,
-        CreatedAt = DateTimeOffset.UtcNow,
-        UpdatedAt = DateTimeOffset.UtcNow,
-    };
+        {
+            Id = id,
+            ExchangeId = "paper",
+            ExchangeOrderId = id,
+            Symbol = request.Symbol,
+            Side = request.Side,
+            Type = request.Type,
+            Quantity = request.Quantity,
+            Price = request.Price ?? Price.Zero,
+            Status = OrderStatus.Filled,
+            FilledQuantity = request.Quantity,
+            TimeInForce = request.TimeInForce,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
 
     /// <summary>An open position fixture on the symbol.</summary>
     private static Position BuildPosition(
         Symbol symbol,
         OrderSide side,
         decimal quantity) => new()
-    {
-        Id = $"pos-{symbol.Normalized}",
-        ExchangeId = "paper",
-        Symbol = symbol,
-        Side = side,
-        Quantity = new Quantity(quantity),
-        EntryPrice = new Price(ReferenceClose),
-        CurrentPrice = new Price(ReferenceClose),
-        OpenedAt = DateTimeOffset.UtcNow,
-    };
+        {
+            Id = $"pos-{symbol.Normalized}",
+            ExchangeId = "paper",
+            Symbol = symbol,
+            Side = side,
+            Quantity = new Quantity(quantity),
+            EntryPrice = new Price(ReferenceClose),
+            CurrentPrice = new Price(ReferenceClose),
+            OpenedAt = DateTimeOffset.UtcNow,
+        };
 
     private static string FormatArgs(object[] args) => string.Join("|", args);
 
