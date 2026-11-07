@@ -82,7 +82,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-075 Amend a working order from the orders panel | feat/order-amend | done | - |
 | T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | done | - |
 | T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | done | - |
-| T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | in-progress | - |
+| T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | done | - |
 | T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | done | - |
 | T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | done | - |
 | T-081 Balances panel: per-exchange and aggregated | feat/balances | done | - |
@@ -151,24 +151,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-
-## T-078 - Order ticket confirmation: the pre-submit summary
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** `IRiskManager`/`IConfirmationService` exist (T-057) but the gate is invisible; traders want one look at the order economics before submit.
-- **What:** a modal confirm listing side/qty/type/limit/exchange, the paper-live tag prominently, estimated notional vs the hard cap headroom and an estimated fee line; defaults ON for live, OFF in paper; a settings key to skip below a configurable notional; market orders always confirm in live.
-- **Scope:** a confirm dialog + ticket VM wiring, `Settings.*` keys + reactive settings change, resx en+ru, tests.
-- **Acceptance:** the confirm composes once from the final ticket state at submit — no per-keystroke re-valuation, no double-Enter double submit.
-- **Tests:** pass/block matrix, the settings-driven skip, double-Enter submit protection.
-
-## T-079 — Position sizing helper in the ticket
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** sizing is raw quantities; browsers of every terminal offer balance-percent and risk-anchored sizing.
-- **What:** a quick-size row: presets of available balance (25/50/100%) and a risk-percent mode anchored on the distance to the ticket's stop price; rounding to the instrument step sizes via existing metadata; preview updates live; zero network calls; hidden for instruments without metadata.
-- **Scope:** ticket VM, `Settings.*` keys for defaults, resx en+ru, tests.
-- **Acceptance:** no sizing path bypasses the ticket validation (the helper only proposed quantities).
-- **Tests:** step-size rounding golden, risk-percent math, the stale-balance snapshot handling.
 
 ## T-086 — Deep-history backfill and gap repair
 
