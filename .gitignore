@@ -30,3 +30,6 @@ secrets.enc.salt
 
 ## Logs
 *.log
+
+## Test artifacts
+TestResults/
