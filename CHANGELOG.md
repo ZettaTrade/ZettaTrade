@@ -9,6 +9,35 @@ before `alpha.10` was never versioned — what shipped in T-001 — T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.47] - 2026-11-07
+
+Build of board task T-080 (branch `feat/fees`).
+
+### Added
+- Per-adapter fee schedules: maker/taker rates in basis points plus a
+  minimum fee, keyed by adapter id in the `Fees` settings section. The
+  shipped paper model (10/20 bps, no floor) answers out of the box,
+  configured entries re-price live through the reactive settings
+  change stream, an invalid entry is dropped with a warning, and an
+  adapter without a schedule stays the explicit dash — never a zero
+  default that hides the cost.
+- The order ticket prices an estimate line per leg: the expected
+  maker/taker role (a resting limit is maker, everything else
+  crosses) names itself per the leg's shape and the notional rides
+  the typed price or, for the price-less types, the throttled
+  freshest market reference. An incomplete input or an unknown
+  schedule keeps the dash — the estimate is display only and never
+  touches a placement decision.
+- The paper engine stamps the computed commission (half-away-from-zero
+  at 8 decimals, lifted to the minimum fee) on every fill and passes
+  it into the T-082 PnL ledger through the ledger's per-fill fee
+  parameter.
+- Fee surfaces: the order history window and the positions panel's
+  recent orders show the Fee column (a recorded commission prints
+  invariant-formatted like the other money cells, an absence prints
+  the dash), and the fills CSV gains a fee column (an absent
+  commission exports as an empty cell). Fully localized en+ru.
+
 ## [0.1.0-alpha.46] - 2026-11-07
 
 Build of board task T-077 (branch `feat/position-actions`).
