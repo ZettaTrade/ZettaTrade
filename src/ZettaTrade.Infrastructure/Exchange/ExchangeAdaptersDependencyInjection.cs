@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Demo;
 using ZettaTrade.Infrastructure.Fees;
+using ZettaTrade.Infrastructure.RateLimiting;
 
 /// <summary>
 /// DI wiring for exchange adapters. Transport details (client name, timeouts) belong
@@ -34,9 +35,13 @@ public static class ExchangeAdaptersDependencyInjection
         // first adapter resolves them synchronously. The reconnect supervisor
         // rides beside it: adapters bind their policy to it at construction,
         // and the resolution order of the adapters below is unaffected.
+        // The REST rate limiters (T-106) register beside them: the adapter
+        // factories below resolve theirs by key, each built from its own
+        // shipped manifest over the settings stream already held here.
         return services
             .AddReconnectSupervisor()
             .AddExchangeEndpointRegistry()
+            .AddRestRateLimiters()
             .AddBinanceAdapter()
             .AddBybitAdapter()
             .AddDemoAdapter();
@@ -91,7 +96,8 @@ public static class ExchangeAdaptersDependencyInjection
                 sp.GetRequiredService<ILogger<BinanceAdapter>>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
                 sp.GetRequiredService<ExchangeEndpointRegistry>().Binance,
-                reconnectSupervisor: sp.GetService<ReconnectSupervisor>()));
+                reconnectSupervisor: sp.GetService<ReconnectSupervisor>(),
+                restLimiter: sp.GetRequiredKeyedService<IRestRateLimiter>(BinanceAdapter.HttpClientName)));
 
         return services;
     }
@@ -121,7 +127,8 @@ public static class ExchangeAdaptersDependencyInjection
                 sp.GetRequiredService<ILogger<BybitAdapter>>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
                 sp.GetRequiredService<ExchangeEndpointRegistry>().Bybit,
-                reconnectSupervisor: sp.GetService<ReconnectSupervisor>()));
+                reconnectSupervisor: sp.GetService<ReconnectSupervisor>(),
+                restLimiter: sp.GetRequiredKeyedService<IRestRateLimiter>(BybitAdapter.HttpClientName)));
 
         return services;
     }

@@ -2,6 +2,7 @@ namespace ZettaTrade.Infrastructure.Exchange;
 
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -12,6 +13,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.RateLimiting;
 
 /// <summary>
 /// Binance exchange adapter implementation (read-only market data).
@@ -57,6 +59,15 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// pair has no price tick and is absent).
     /// </summary>
     private const string SymbolsRequestPath = "/api/v3/ticker/price";
+
+    /// <summary>REST path of the kline (candle) series, the T-086 backfill's segment fetcher.</summary>
+    private const string KlinesRequestPath = "/api/v3/klines";
+
+    /// <summary>The request weight the venue documents for an unsymbol'd priced-symbols REST call.</summary>
+    private const int SymbolsRequestWeight = 4;
+
+    /// <summary>The request weight the venue documents for the lightest kline slice (limit up to 100 bars).</summary>
+    private const int KlinesBaseWeight = 2;
 
     /// <summary>
     /// Quote assets Binance spot symbols are denominated in. The static array is
@@ -123,10 +134,66 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         MaxAttempts = 5,
     };
 
+    /// <summary>
+    /// The kline weight tiers the limiter meters (the venue documents the
+    /// schedule per limit window). The mapping delegates confidence to the
+    /// venue's own published schedule as of the shipped alpha cut and stays
+    /// rescalable through <c>Limiter.Binance.RequestWeightMinute</c> at
+    /// runtime.
+    /// </summary>
+    private const int KlinesTierLimit = 100;
+
+    /// <summary>The second tier's window bound (bars per request).</summary>
+    private const int KlinesMidTierLimit = 500;
+
+    /// <summary>The venue's kline request cap; wider requests overestimate to the top tier (the safe metering direction).</summary>
+    private const int KlinesTopTierLimit = 1000;
+
+    /// <summary>The kline slice of the venue's per-minute allowance (weight tokens).</summary>
+    private const int KlinesMinuteBudget = 3600;
+
+    /// <summary>The priced-symbols slice of the venue's per-minute allowance.</summary>
+    private const int SymbolsMinuteBudget = 2400;
+
+    /// <summary>
+    /// The kline request weight by limit window: the venue's published tier
+    /// schedule, each heavier slice costing more of the bucket. A limit
+    /// beyond the venue's cap overestimates to the top tier — the safe
+    /// metering direction for an out-of-range ask.
+    /// </summary>
+    /// <param name="limit">The requested bar count.</param>
+    /// <returns>The weight the request spends from its bucket.</returns>
+    private static int KlineWeightFor(int limit) => limit switch
+    {
+        <= KlinesTierLimit => KlinesBaseWeight,
+        <= KlinesMidTierLimit => 2 * KlinesBaseWeight,
+        <= KlinesTopTierLimit => 3 * KlinesBaseWeight,
+        _ => 3 * KlinesBaseWeight,
+    };
+
+    /// <summary>
+    /// The shipped REST budget manifest (T-106): the endpoint families this
+    /// adapter serves, budgeted from the venue's published per-IP, per-minute
+    /// weight allowance (6,000) and split per family so one hot family cannot
+    /// eat another's budget. It rides the <c>Limiter.Binance.*</c> settings
+    /// keys (see <see cref="RestRateLimiterOptions"/>' remarks) live.
+    /// </summary>
+    public static RestRateLimiterOptions DefaultRestLimits { get; } = new()
+    {
+        SettingsKey = "Binance",
+        ScaleKind = RestBudgetScaleKind.WeightPerMinute,
+        Endpoints =
+        [
+            new RestEndpointBudget(KlinesRequestPath, KlinesMinuteBudget, TimeSpan.FromMinutes(1)),
+            new RestEndpointBudget(SymbolsRequestPath, SymbolsMinuteBudget, TimeSpan.FromMinutes(1)),
+        ],
+    };
+
     private readonly HttpClient _httpClient;
     private readonly WebSocketClient _wsClient;
     private readonly string _baseUrl;
     private readonly string _wsUrl;
+    private readonly IRestRateLimiter _restLimiter;
     private readonly IDisposable _messageSubscription;
     private readonly IDisposable _connectionSubscription;
 
@@ -181,12 +248,17 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// The reconnect supervisor is bound when provided (T-105): the adapter
     /// registers its policy and hands the transport a state sink; direct
     /// constructions without one keep compiling and report nothing.
+    /// The REST rate limiter is wired when provided (T-106): the
+    /// registration seam builds it from the shipped manifest and the
+    /// settings service; unwired constructions (tests, plugin hosts) run
+    /// unshaped through the pass-through limiter.
     /// </summary>
     public BinanceAdapter(
         ILogger<BinanceAdapter> logger,
         IHttpClientFactory httpClientFactory,
         BinanceEndpoints? endpoints = null,
-        ReconnectSupervisor? reconnectSupervisor = null)
+        ReconnectSupervisor? reconnectSupervisor = null,
+        IRestRateLimiter? restLimiter = null)
         : base(logger)
     {
         _baseUrl = endpoints?.RestBaseUrl ?? DefaultRestBaseUrl;
@@ -200,6 +272,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         }
 
         _httpClient = httpClientFactory.CreateClient(HttpClientName);
+        _restLimiter = restLimiter ?? UnthrottledRestRateLimiter.Instance;
         _wsClient = new WebSocketClient(
             _wsUrl,
             logger,
@@ -271,34 +344,44 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <inheritdoc/>
     public override async Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default)
     {
-        var response = await _httpClient.GetFromJsonAsync<JsonElement[]>($"{_baseUrl}{SymbolsRequestPath}", ct) ?? [];
-
-        var symbols = new List<Symbol>();
-        var unrecognized = 0;
-
-        foreach (var item in response)
+        var response = await SendRateLimitedGetAsync(
+            RestLane.Background,
+            SymbolsRequestPath,
+            SymbolsRequestWeight,
+            $"{_baseUrl}{SymbolsRequestPath}",
+            ct);
+        using (response)
         {
-            var name = item.GetProperty("symbol").GetString()!;
-            var split = SplitBinanceName(name);
+            response.EnsureSuccessStatusCode();
+            var priced = await response.Content.ReadFromJsonAsync<JsonElement[]>(options: null, cancellationToken: ct) ?? [];
 
-            if (split is { } pair)
+            var symbols = new List<Symbol>();
+            var unrecognized = 0;
+
+            foreach (var item in priced)
             {
-                symbols.Add(new Symbol(pair.Base, pair.Quote, AssetClass.Crypto));
+                var name = item.GetProperty("symbol").GetString()!;
+                var split = SplitBinanceName(name);
+
+                if (split is { } pair)
+                {
+                    symbols.Add(new Symbol(pair.Base, pair.Quote, AssetClass.Crypto));
+                }
+                else
+                {
+                    unrecognized++;
+                }
             }
-            else
+
+            if (unrecognized > 0)
             {
-                unrecognized++;
+                Logger.LogWarning(
+                    "{Count} Binance symbols arrived with an unrecognized quote asset and are dropped",
+                    unrecognized);
             }
-        }
 
-        if (unrecognized > 0)
-        {
-            Logger.LogWarning(
-                "{Count} Binance symbols arrived with an unrecognized quote asset and are dropped",
-                unrecognized);
+            return symbols;
         }
-
-        return symbols;
     }
 
     /// <summary>
@@ -339,32 +422,42 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         var startTime = from.ToUnixTimeMilliseconds();
         var endTime = to?.ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        var url = $"{_baseUrl}/api/v3/klines" +
+        var url = $"{_baseUrl}{KlinesRequestPath}" +
                   $"?symbol={symbol.GetExchangeFormat(Id)}" +
                   $"&interval={interval}" +
                   $"&startTime={startTime}" +
                   $"&endTime={endTime}" +
                   $"&limit={limit}";
 
-        var response = await _httpClient.GetFromJsonAsync<JsonElement[]>(url, ct);
-
-        var bars = new List<Bar>();
-        if (response != null)
+        var response = await SendRateLimitedGetAsync(
+            RestLaneResolver.LaneForBarRange(to, DateTimeOffset.UtcNow),
+            KlinesRequestPath,
+            KlineWeightFor(limit),
+            url,
+            ct);
+        using (response)
         {
-            foreach (var item in response)
-            {
-                bars.Add(new Bar(
-                    DateTimeOffset.FromUnixTimeMilliseconds(item[0].GetInt64()),
-                    BinanceJsonNumbers.ParseDecimal(item[1]),
-                    BinanceJsonNumbers.ParseDecimal(item[2]),
-                    BinanceJsonNumbers.ParseDecimal(item[3]),
-                    BinanceJsonNumbers.ParseDecimal(item[4]),
-                    BinanceJsonNumbers.ParseDecimal(item[5])
-                ));
-            }
-        }
+            response.EnsureSuccessStatusCode();
+            var rows = await response.Content.ReadFromJsonAsync<JsonElement[]>(options: null, cancellationToken: ct);
 
-        return bars;
+            var bars = new List<Bar>();
+            if (rows != null)
+            {
+                foreach (var item in rows)
+                {
+                    bars.Add(new Bar(
+                        DateTimeOffset.FromUnixTimeMilliseconds(item[0].GetInt64()),
+                        BinanceJsonNumbers.ParseDecimal(item[1]),
+                        BinanceJsonNumbers.ParseDecimal(item[2]),
+                        BinanceJsonNumbers.ParseDecimal(item[3]),
+                        BinanceJsonNumbers.ParseDecimal(item[4]),
+                        BinanceJsonNumbers.ParseDecimal(item[5])
+                    ));
+                }
+            }
+
+            return bars;
+        }
     }
 
     /// <summary>
@@ -427,6 +520,35 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     #endregion
 
     #region Private Methods
+
+    /// <summary>
+    /// One outbound REST GET through the rate limiter (T-106): the acquire
+    /// waits before the send (so the wait never busy-waits anywhere else),
+    /// the response is returned for the caller's read, and a 429 feeds the
+    /// venue's retry guidance back into the limiter so every lane parks for
+    /// the span.
+    /// </summary>
+    /// <param name="lane">The traffic lane of the call.</param>
+    /// <param name="endpointKey">The endpoint family (the adapter's path-template constant).</param>
+    /// <param name="weight">The request's documented token cost.</param>
+    /// <param name="url">The fully built request URL.</param>
+    /// <param name="ct">The caller's cancellation (covers the acquire wait and the send).</param>
+    private async Task<HttpResponseMessage> SendRateLimitedGetAsync(
+        RestLane lane,
+        string endpointKey,
+        int weight,
+        string url,
+        CancellationToken ct)
+    {
+        await _restLimiter.AcquireAsync(lane, endpointKey, weight, ct);
+        var response = await _httpClient.GetAsync(url, ct);
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            _restLimiter.ReportBlocked(endpointKey, RestRetryAfterParser.Parse(response.Headers));
+        }
+
+        return response;
+    }
 
     private string[] BuildStreamNames(Symbol symbol, int bookDepth)
     {
