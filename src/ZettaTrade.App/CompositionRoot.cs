@@ -219,6 +219,7 @@ internal static class CompositionRoot
         services.AddTradeStatsServices();
         services.AddCsvExportServices();
         services.AddPositionActionsServices(); // T-077: position actions (close, partial close, reverse).
+        services.AddFeeServices(); // T-080: fees (schedule, estimate, columns).
 
         var provider = services.BuildServiceProvider();
 
