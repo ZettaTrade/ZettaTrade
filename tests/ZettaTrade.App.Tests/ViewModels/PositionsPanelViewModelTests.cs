@@ -100,7 +100,8 @@ public sealed class PositionsPanelViewModelTests
         OrderStatus status,
         string symbol = "BTC/USDT",
         OrderType type = OrderType.Limit,
-        string? ocoGroupId = null) => new()
+        string? ocoGroupId = null,
+        decimal? commission = null) => new()
         {
             Id = id,
             ExchangeId = "paper",
@@ -113,6 +114,7 @@ public sealed class PositionsPanelViewModelTests
             OcoGroupId = ocoGroupId,
             TimeInForce = TimeInForce.GTC,
             CreatedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
+            Commission = commission,
         };
 
     private static Position BuildPosition(string symbol) => new()
@@ -167,6 +169,31 @@ public sealed class PositionsPanelViewModelTests
         viewModel.RecentOrders[1].OrderId.Should().Be("paper-1");
         viewModel.RecentOrders[1].Status.Should().Be("[Positions.StatusFilled]");
         viewModel.HasRecentOrders.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The recent-orders fee column (T-080): an executed order prices its
+    /// recorded commission invariant-formatted, an order without fee data —
+    /// a working order that has not filled yet included — shows the
+    /// localized dash, never a fabricated zero.
+    /// </summary>
+    [Fact]
+    public async Task LoadCommand_RecentOrders_PresentTheCommissionAndTheHonestUnknown()
+    {
+        // Arrange: a filled order the fee schedule priced, and a working
+        // order whose execution (and therefore fee) does not exist yet.
+        var viewModel = CreateViewModel();
+        _journal.RecordPlaced(BuildOrder("paper-fee", OrderStatus.Filled, commission: 0.96m));
+        _journal.RecordPlaced(BuildOrder("paper-no-fee", OrderStatus.Pending, "ETH/USDT"));
+
+        // Act
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        var feeRow = viewModel.RecentOrders.Single(r => r.OrderId == "paper-fee");
+        feeRow.Fee.Should().Be("0.96000000", "the recorded commission is invariant-formatted");
+        var noFeeRow = viewModel.RecentOrders.Single(r => r.OrderId == "paper-no-fee");
+        noFeeRow.Fee.Should().Be("[Fees.Unknown]", "the fee absence is the dash, including before a fill");
     }
 
     [Fact]

@@ -111,7 +111,7 @@
                 <!-- Orders placed this session (from the session order journal) -->
                 <StackPanel Spacing="6">
                     <TextBlock Text="{loc:Localized Positions.RecentHeader}" FontWeight="Bold" />
-                    <Grid ColumnDefinitions="125,50,75,150,125,150,180"
+                    <Grid ColumnDefinitions="125,50,75,150,125,150,110,180"
                           IsVisible="{Binding HasRecentOrders}">
                         <TextBlock Grid.Column="0" Text="{loc:Localized Positions.Symbol}" />
                         <TextBlock Grid.Column="1" Text="{loc:Localized Positions.Side}" />
@@ -119,6 +119,7 @@
                         <TextBlock Grid.Column="3" Text="{loc:Localized Positions.ColPrice}" />
                         <TextBlock Grid.Column="4" Text="{loc:Localized Positions.ColStatus}" />
                         <TextBlock Grid.Column="5" Text="{loc:Localized Positions.ColOpened}" />
+                        <TextBlock Grid.Column="6" Text="{loc:Localized Fees.ColumnTitle}" />
                     </Grid>
                     <TextBlock Text="{loc:Localized Positions.NoRecent}"
                                IsVisible="{Binding !HasRecentOrders}" />
@@ -126,7 +127,7 @@
                                   IsVisible="{Binding HasRecentOrders}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:OrderRowViewModel">
-                                <Grid ColumnDefinitions="125,50,75,150,125,150,180">
+                                <Grid ColumnDefinitions="125,50,75,150,125,150,110,180">
                                     <TextBlock Grid.Column="0" Text="{Binding Symbol}" />
                                     <TextBlock Grid.Column="1" Text="{Binding Side}" />
                                     <TextBlock Grid.Column="2" Text="{Binding Quantity}" />
@@ -139,7 +140,8 @@
                                                    IsVisible="{Binding IsAmending}" />
                                     </Grid>
                                     <TextBlock Grid.Column="5" Text="{Binding Opened}" />
-                                    <StackPanel Grid.Column="6" Orientation="Horizontal">
+                                    <TextBlock Grid.Column="6" Text="{Binding Fee}" />
+                                    <StackPanel Grid.Column="7" Orientation="Horizontal">
                                         <Button Content="{loc:Localized Positions.Amend}"
                                                 Command="{Binding AmendCommand}"
                                                 IsVisible="{Binding IsAmendable}"

@@ -43,19 +43,24 @@ public sealed class OrderHistoryViewModelTests
         _localization,
         Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderHistoryViewModel>>());
 
-    private static Order BuildOrder(string id, OrderStatus status, DateTimeOffset createdAt) => new()
-    {
-        Id = id,
-        ExchangeId = "paper",
-        Symbol = Symbol.Parse("BTC/USDT"),
-        Side = OrderSide.Sell,
-        Type = OrderType.Market,
-        Quantity = new Quantity(0.02m),
-        Price = new Price(50_100m),
-        Status = status,
-        TimeInForce = TimeInForce.GTC,
-        CreatedAt = createdAt,
-    };
+    private static Order BuildOrder(
+        string id,
+        OrderStatus status,
+        DateTimeOffset createdAt,
+        decimal? commission = null) => new()
+        {
+            Id = id,
+            ExchangeId = "paper",
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = OrderSide.Sell,
+            Type = OrderType.Market,
+            Quantity = new Quantity(0.02m),
+            Price = new Price(50_100m),
+            Status = status,
+            TimeInForce = TimeInForce.GTC,
+            CreatedAt = createdAt,
+            Commission = commission,
+        };
 
     [Fact]
     public async Task LoadCommand_WithPersistedOrders_PopulatesRowsNewestFirst()
@@ -138,6 +143,34 @@ public sealed class OrderHistoryViewModelTests
 
         // Assert: the view asks for a positive, bounded batch, not zero.
         await _store.Received(1).GetRecentAsync(Arg.Is<int>(v => v > 0));
+    }
+
+    /// <summary>
+    /// The fee column (T-080): a filled order prices its recorded commission
+    /// invariant-formatted like the other money cells, an order without fee
+    /// data shows the localized dash — an honest unknown, never a zero.
+    /// </summary>
+    [Fact]
+    public async Task LoadCommand_WithFeeData_FormatsTheCommission_AndUnknownsTheAbsence()
+    {
+        // Arrange: two filled orders — one with a recorded commission (the
+        // priced schedule answer), one without (the adapter published none).
+        var localOffset = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 1, 1, 12, 0, 0));
+        _store.GetRecentAsync(Arg.Any<int>())
+            .Returns(
+            [
+                BuildOrder("paper-fee", OrderStatus.Filled, new DateTimeOffset(2026, 1, 1, 12, 5, 0, localOffset), commission: 0.5m),
+                BuildOrder("paper-no-fee", OrderStatus.Filled, new DateTimeOffset(2026, 1, 1, 12, 0, 0, localOffset)),
+            ]);
+
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.Rows[0].Fee.Should().Be("0.50000000", "the recorded commission is invariant-formatted");
+        viewModel.Rows[1].Fee.Should().Be("[Fees.Unknown]", "the fee absence is the dash");
     }
 
     #region Export Flows

@@ -32,6 +32,13 @@ public sealed record OrderRowViewModel
     public required string Opened { get; init; }
 
     /// <summary>
+    /// Commission the executed fill carried, invariant-formatted; an order
+    /// without recorded execution fee data shows the localized dash — an
+    /// honest unknown, never a fabricated zero.
+    /// </summary>
+    public required string Fee { get; init; }
+
+    /// <summary>
     /// True only for statuses a cancel request can act on (Pending,
     /// Submitted, PartiallyFilled); drives the Cancel button enable state.
     /// </summary>

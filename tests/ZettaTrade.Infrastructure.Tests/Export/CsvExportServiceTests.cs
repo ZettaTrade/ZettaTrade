@@ -227,7 +227,8 @@ public sealed class CsvExportServiceTests
                 status: OrderStatus.Filled,
                 createdAt: BaseTime,
                 updatedAt: BaseTime.AddSeconds(90),
-                filledQuantity: 0.02m);
+                filledQuantity: 0.02m,
+                commission: 0.2004m);
             var partial = BuildOrder(
                 id: "partial-order",
                 status: OrderStatus.PartiallyFilled,
@@ -244,9 +245,9 @@ public sealed class CsvExportServiceTests
             await Service.ExportFillsAsync(path, [executed, partial, untouched]);
 
             (await File.ReadAllTextAsync(path)).Should().Be(
-                "id,orderId,symbol,side,price,quantity,executedAt\r\n" +
-                "fill-order,fill-order,BTC/USDT,Sell,50100,0.02,2026-01-01T12:01:30.000Z\r\n" +
-                "partial-order,partial-order,BTC/USDT,Sell,50100,0.01,2026-01-01T12:05:00.000Z\r\n");
+                "id,orderId,symbol,side,price,quantity,executedAt,fee\r\n" +
+                "fill-order,fill-order,BTC/USDT,Sell,50100,0.02,2026-01-01T12:01:30.000Z,0.2004\r\n" +
+                "partial-order,partial-order,BTC/USDT,Sell,50100,0.01,2026-01-01T12:05:00.000Z,\r\n");
         });
     }
 
@@ -257,7 +258,7 @@ public sealed class CsvExportServiceTests
         {
             await Service.ExportFillsAsync(path, []);
 
-            (await File.ReadAllTextAsync(path)).Should().Be("id,orderId,symbol,side,price,quantity,executedAt\r\n");
+            (await File.ReadAllTextAsync(path)).Should().Be("id,orderId,symbol,side,price,quantity,executedAt,fee\r\n");
         });
     }
 
@@ -375,7 +376,8 @@ public sealed class CsvExportServiceTests
         DateTimeOffset? updatedAt,
         decimal filledQuantity,
         decimal price = 50_100m,
-        decimal quantity = 0.02m) => new()
+        decimal quantity = 0.02m,
+        decimal? commission = null) => new()
         {
             Id = id,
             ExchangeId = "paper",
@@ -389,6 +391,7 @@ public sealed class CsvExportServiceTests
             CreatedAt = createdAt,
             UpdatedAt = updatedAt,
             FilledQuantity = new Quantity(filledQuantity),
+            Commission = commission,
         };
 
     /// <summary>
