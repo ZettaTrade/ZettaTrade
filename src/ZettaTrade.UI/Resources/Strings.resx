@@ -771,6 +771,9 @@ Estimated fee: {7}</value>
   <data name="OrderBook.SpreadFormat" xml:space="preserve">
     <value>Spread: {0}</value>
   </data>
+  <data name="OrderBook.DepthTitle" xml:space="preserve">
+    <value>Cumulative Depth</value>
+  </data>
   <data name="Tape.Title" xml:space="preserve">
     <value>Trade Tape</value>
   </data>
