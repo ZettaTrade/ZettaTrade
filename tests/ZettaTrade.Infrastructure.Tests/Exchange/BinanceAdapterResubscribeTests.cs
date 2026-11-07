@@ -29,7 +29,7 @@ using ZettaTrade.Infrastructure.Exchange;
 /// stays with the production 5 s inside the adapter, so every scenario that
 /// drops the socket takes that long between sessions.
 ///
-/// Wait budgets (T-116, 2026-11-07): <c>EventWait</c> is the 60 s house
+/// Wait budgets (T-116, 2026-11-07): <c>EventWait</c> is the 120 s house
 /// completion budget shared by the whole WS E2E family, raised from 10 s.
 /// The old cap tripped under full-solution parallel test load (xUnit hosts
 /// across sibling assemblies chewing cores): a scheduler stall starved the
@@ -47,11 +47,11 @@ public sealed class BinanceAdapterResubscribeTests
     #region Constants
 
     /// <summary>
-    /// The 60 s house load budget (T-116, see the class header): bounded wait
+    /// The 120 s house load budget (T-116, see the class header): bounded wait
     /// for any expected event or connection — completion patience, never a
     /// latency ceiling.
     /// </summary>
-    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan EventWait = TimeSpan.FromSeconds(120);
 
     /// <summary>
     /// The bake after settlement: a churned adapter piles up further sessions
