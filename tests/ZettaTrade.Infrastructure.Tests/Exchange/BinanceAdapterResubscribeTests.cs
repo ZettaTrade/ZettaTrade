@@ -152,10 +152,36 @@ public sealed class BinanceAdapterResubscribeTests
         Func<Task> act = () => Task.WhenAll(subscribeEth, unsubscribeBtc);
         await act.Should().NotThrowAsync();
 
+        // The book-triggered stream start crosses the wire before its feed is
+        // driven. The public calls complete on enqueue, and under a
+        // full-solution load stall the serialized send gate lagged whole
+        // frames behind — a push racing its own SUBSCRIBE starves the
+        // collector until the WaitAsync budget elapses. Arm-then-push keeps
+        // the feed interleaving deterministic.
+        var solDepthStreamParam = "\"" + SolUsdt.GetExchangeFormat(BinanceId).ToLowerInvariant()
+            + "@depth" + TenBookDepth.ToString(CultureInfo.InvariantCulture) + "@100ms\"";
+        await server.WaitForFrameAsync(
+            f => f.Contains("\"method\":\"SUBSCRIBE\"", StringComparison.Ordinal)
+                 && f.Contains(solDepthStreamParam, StringComparison.Ordinal),
+            EventWait);
+
         await first.SendTextAsync(DepthFrame(SolUsdt, TenBookDepth, 1, "49999.5", "12.5", "50000.5", "7.5"));
         var solBooks = await solBooksTask;
         solBooks[0].Bids.Should().Equal(new[] { new PriceLevel(49999.5m, 12.5m) });
         solBooks[0].Asks.Should().Equal(new[] { new PriceLevel(50000.5m, 7.5m) });
+
+        // Both racing requests' sends are on the wire before the request
+        // layout is pinned: the counts assert exactly once the send gate has
+        // drained — a snapshot pinned at enqueue-time churned under the
+        // same load stall (the sub-second assertion churn of the family).
+        await TestPoll.PollUntilAsync(
+            () =>
+            {
+                var wire = server.SnapshotFrames();
+                return wire.Count(f => f.Contains("\"method\":\"SUBSCRIBE\"", StringComparison.Ordinal)) >= 2
+                       && wire.Count(f => f.Contains("\"method\":\"UNSUBSCRIBE\"", StringComparison.Ordinal)) >= 1;
+            },
+            EventWait);
 
         // Exactly three whole requests reached the wire: two SUBSCRIBE and
         // one UNSUBSCRIBE, each parsing cleanly (interleaved writes corrupt
