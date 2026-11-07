@@ -237,7 +237,7 @@ public sealed class ChartViewModelTests
 
         #region Public Methods
 
-        public Task<IReadOnlyList<Bar>> GetLatestAsync(
+        public async Task<IReadOnlyList<Bar>> GetLatestAsync(
             string adapterId,
             Symbol symbol,
             TimeFrame timeFrame,
@@ -247,13 +247,15 @@ public sealed class ChartViewModelTests
             Sequence.Enqueue("cache-read");
             if (ReadFault is { } fault)
             {
-                return Task.FromException<IReadOnlyList<Bar>>(fault);
+                // A throw inside an async method surfaces as a faulted task:
+                // the stream reports it, never a live throw past Subscribe.
+                throw fault;
             }
 
-            return Task.FromResult(_served);
+            return _served;
         }
 
-        public Task WriteThroughAsync(
+        public async Task WriteThroughAsync(
             string adapterId,
             Symbol symbol,
             TimeFrame timeFrame,
@@ -264,10 +266,8 @@ public sealed class ChartViewModelTests
             Writes.Add(new WriteThroughStamp(adapterId, symbol.Normalized, timeFrame, bars));
             if (WriteFault is { } fault)
             {
-                return Task.FromException(fault);
+                throw fault;
             }
-
-            return Task.CompletedTask;
         }
 
         #endregion Public Methods
