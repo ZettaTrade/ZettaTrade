@@ -83,7 +83,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | done | - |
 | T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | done | - |
 | T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | queued | - |
-| T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | queued | - |
+| T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | done | - |
 | T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | done | - |
 | T-081 Balances panel: per-exchange and aggregated | feat/balances | done | - |
 | T-082 PnL engine: realized/unrealized accounting core | feat/pnl-engine | done | - |
@@ -169,6 +169,7 @@ the end of that file, so no effort is duplicated.
 - **Scope:** ticket VM, `Settings.*` keys for defaults, resx en+ru, tests.
 - **Acceptance:** no sizing path bypasses the ticket validation (the helper only proposed quantities).
 - **Tests:** step-size rounding golden, risk-percent math, the stale-balance snapshot handling.
+- **Status:** done. Canon: the quick-size row seam and the App-owned paper lot-step metadata lane (`ad53514`), the recoverable-capture refinements (`af8497d`) and the math/capture/ticket goldens (`6d44d00`); shipped as `0.1.0-alpha.52` (see CHANGELOG.md). Scope decision: the row rides ONLY the App-owned `IInstrumentMetadataProvider` seam - the paper surface declares its demo lot steps today, exchange-backed adapters stay hidden until a Core adapter-face contract lands (supervisor-gated follow-up). No sizing path touches an order: proposals land solely in the ticket's own quantity field and the submit pipeline (parse/validate/risk/confirmation) stays the only order path. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-086 — Deep-history backfill and gap repair
 

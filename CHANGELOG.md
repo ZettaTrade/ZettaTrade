@@ -9,6 +9,42 @@ before `alpha.10` was never versioned — what shipped in T-001 — T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.52] - 2026-11-07
+
+Build of board task T-079 (branch `feat/position-sizer`).
+
+### Added
+- Quick position sizing in the order ticket: ONE quick-size row under the
+  quantity field proposes sizes and never touches an order - the proposal
+  lands ONLY in the ticket's own quantity input, so the submit pipeline
+  (invariant-culture parsing, validation, `IRiskManager`, confirmation)
+  stays the one and only order path and no sizing shortcut exists. The
+  presets spend the captured balance: 25/50/100 % of the base custody for
+  sells (no price needed), of the quote custody converted at the entry
+  estimate for buys (the ticket's own price when the order type carries
+  one - limit/stop-limit/OCO take-profit - the captured market reference
+  close otherwise, market/trailing stop). The risk-percent mode anchors
+  on the ticket's stop context: a stop-limit's |limit − trigger|, a
+  trailing stop's trail distance; market and plain limit carry no stop
+  price and the OCO pair has two conflicting legs, so the mode stays
+  hidden exactly there; the stored default percent is a reactive
+  settings key (`PositionSizer.DefaultRiskPercent`, applied only onto
+  the untouched field, live on change). Every proposal is floored onto
+  the instrument's round lot step - a sizing can not carry more
+  precision than the venue trades, and never overshoots the balance or
+  the risk budget; a flooring below one step surfaces a localized state
+  note instead of a plausible-but-wrong zero (rounding goldens tested).
+  Zero network calls at sizing time: the balance snapshot and the
+  reference close are captured at ticket open/symbol commit or via the
+  row's deliberate refresh button only, sizing rides the captured
+  moment, and the snapshot line displays its capture time - staleness
+  shown plainly, never claimed fresh. The row hides itself entirely for
+  instruments without round-size metadata: the paper surface declares
+  its demo lot steps through an App-owned metadata seam
+  (`IInstrumentMetadataProvider`); exchange-backed adapters stay hidden
+  until a Core adapter-face contract (supervisor-gated follow-up) lands.
+  Fully localized en+ru (`NewOrder.Sizer*`).
+
 ## [0.1.0-alpha.51] - 2026-11-07
 
 Build of board task T-085 (branch `feat/candle-cache`).
