@@ -563,7 +563,7 @@ public sealed class OrderSizerRowViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        _quantityProposals.OnNext(quantity.ToString(CultureInfo.InvariantCulture));
+        _quantityProposals.OnNext(PositionSizingMath.ToProposalText(quantity));
         ProposalState = null;
     }
 

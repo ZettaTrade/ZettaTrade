@@ -60,7 +60,8 @@ public sealed class PositionSizingService
     /// face once and keep what it serves for the instrument's base and
     /// quote assets. An unserved asset stays an explicit null; a failed
     /// capture surfaces as an absent snapshot (null) with the fault
-    /// logged, never a fabricated zero set. Cancellation propagates to the
+    /// logged, never a fabricated zero set — and an empty balance
+    /// dictionary (nothing served at all) is exactly such a failure. Cancellation propagates to the
     /// caller (a cancelled open is not a service failure).
     /// </summary>
     public async Task<SizingBalanceSnapshot?> CaptureBalanceSnapshotAsync(
@@ -91,6 +92,19 @@ public sealed class PositionSizingService
         {
             _logger.LogWarning(
                 "Position sizer: the trading face served no balance dictionary for {Symbol}; the ticket shows an absent reference",
+                symbol.Normalized);
+            return null;
+        }
+
+        if (balances.Count == 0)
+        {
+            // A served dictionary without a single balance is not a custody
+            // fact: the trading face effectively served nothing for this
+            // capture, and building the instrument's snapshot over it would
+            // fabricate a both-sides-missing "availability" the row would
+            // wrongly claim fresh. Absence is the honest answer.
+            _logger.LogWarning(
+                "Position sizer: the trading face served an empty balance dictionary for {Symbol}; the ticket shows an absent reference",
                 symbol.Normalized);
             return null;
         }

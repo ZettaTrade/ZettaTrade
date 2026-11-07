@@ -1,5 +1,7 @@
 namespace ZettaTrade.App.Services;
 
+using System.Globalization;
+
 /// <summary>
 /// Pure sizing math of the position sizing helper — the golden-tested core
 /// the ticket's quick-size row rides. Every function is total and guarded:
@@ -60,6 +62,34 @@ public static class PositionSizingMath
         }
 
         return floored;
+    }
+
+    /// <summary>
+    /// The proposal text the ticket's quantity field receives: the floored
+    /// step multiple in its shortest EXACT invariant form. Flooring carries
+    /// the step's own scale (a 0.00001 step keeps 0.2 as 0.20000) — that is
+    /// the step's bookkeeping, not a bigger size; the ticket parses with
+    /// the invariant culture and the user reads plain numbers, so spurious
+    /// trailing zeros are dropped without touching the value (every
+    /// rendered digit stays exact).
+    /// </summary>
+    /// <param name="quantity">The floored step-grid quantity (zero or positive).</param>
+    /// <returns>The invariant proposal text, trailing zeros dropped.</returns>
+    public static string ToProposalText(decimal quantity)
+    {
+        if (quantity < 0m)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity), quantity, "A proposed quantity must not be negative.");
+        }
+
+        var text = quantity.ToString(CultureInfo.InvariantCulture);
+        if (!text.Contains('.'))
+        {
+            return text;
+        }
+
+        var trimmed = text.TrimEnd('0').TrimEnd('.');
+        return trimmed.Length == 0 ? "0" : trimmed;
     }
 
     /// <summary>

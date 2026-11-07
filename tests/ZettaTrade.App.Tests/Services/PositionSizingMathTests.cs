@@ -129,4 +129,27 @@ public sealed class PositionSizingMathTests
         FluentActions.Invoking(() => PositionSizingMath.RiskQuantity(1000m, 1m, 0m))
             .Should().Throw<ArgumentOutOfRangeException>();
     }
+
+    [Fact]
+    public void ToProposalText_DropsOnlyTheStepScale_SpuriousZeros()
+    {
+        // The step's scale stands (0.00001 keeps five decimals), not a
+        // bigger size — its trailing zeros are bookkeeping: drop them.
+        PositionSizingMath.ToProposalText(0.20000m).Should().Be("0.2");
+        PositionSizingMath.ToProposalText(59.52380m).Should().Be("59.5238");
+        PositionSizingMath.ToProposalText(100.00000m).Should().Be("100");
+    }
+
+    [Fact]
+    public void ToProposalText_KeepsExactAndInformationalDigits()
+    {
+        PositionSizingMath.ToProposalText(0.00001m).Should().Be("0.00001");
+        PositionSizingMath.ToProposalText(8m).Should().Be("8");
+        PositionSizingMath.ToProposalText(0.2m).Should().Be("0.2");
+    }
+
+    [Fact]
+    public void ToProposalText_NegativeQuantity_Throws() =>
+        FluentActions.Invoking(() => PositionSizingMath.ToProposalText(-0.00001m))
+            .Should().Throw<ArgumentOutOfRangeException>();
 }
