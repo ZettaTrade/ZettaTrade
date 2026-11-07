@@ -18,8 +18,8 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Fees;
-using ZettaTrade.Infrastructure.PnL;
 using ZettaTrade.Infrastructure.Persistence;
+using ZettaTrade.Infrastructure.PnL;
 
 /// <summary>
 /// Tests for the MCP trading lane's journaling wrapper: a tool-placed
