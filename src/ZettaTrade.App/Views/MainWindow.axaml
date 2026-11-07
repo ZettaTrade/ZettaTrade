@@ -25,13 +25,23 @@
              - Ctrl+Shift+A  -> ToggleAiChatCommand: bound, real behavior —
                                 toggles the assistant panel (shows + focuses the
                                 input, or hides it); the AI menu item is a
-                                checkable one-way mirror of the visibility. -->
+                                checkable one-way mirror of the visibility.
+             - Ctrl+K        -> Palette.ToggleCommand: the T-095 global symbol
+                                palette's own route — a closed palette opens, an
+                                open one closes; the arrow/enter/escape layer
+                                lives inside the palette overlay below. -->
         <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding Menu.OpenSettingsCommand}" />
         <KeyBinding Gesture="Ctrl+N" Command="{Binding Menu.NewOrderCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+A" Command="{Binding Menu.ToggleAiChatCommand}" />
+        <KeyBinding Gesture="Ctrl+K" Command="{Binding Palette.ToggleCommand}" />
     </Window.KeyBindings>
 
-    <DockPanel>
+    <!-- The window content root is a grid so the T-095 palette overlay can
+         ride ON TOP of the workspace as a sibling: the overlay only receives
+         keys routed from inside itself, which keeps the palette route and the
+         workspace's own key surface strictly apart. -->
+    <Grid>
+        <DockPanel>
         <!-- Top menu bar -->
         <Menu DockPanel.Dock="Top" DataContext="{Binding Menu}">
             <MenuItem Header="{loc:Localized Menu.File}">
@@ -360,5 +370,115 @@
                 </DockPanel>
             </Border>
         </Grid>
-    </DockPanel>
+        </DockPanel>
+
+        <!-- T-095: the global symbol palette overlay, a sibling above the
+             workspace. Keyboard-first: Ctrl+K toggles (the window binding
+             above), the query box takes the focus (the interaction the
+             ViewModel raises), Up/Down/PageUp/PageDown move the keyboard
+             selection, Enter applies the highlighted pair, Esc closes — the
+             code-behind route carries exactly those keys. The panel rides the
+             chrome canon (Surface border + Border stroke on the theme); the
+             backdrop veils the workspace with the theme's own Background at
+             reduced opacity and a press on it closes the palette too. The
+             rows list is pointer-only by design: the items never take focus,
+             so a click keeps the query holding the keyboard and the route
+             never races the list's own selection machinery. -->
+        <Grid x:Name="PaletteOverlay"
+              IsVisible="{Binding Palette.IsOpen}">
+            <Border x:Name="PaletteScrim"
+                    Background="{DynamicResource Background}"
+                    Opacity="0.75"
+                    PointerPressed="OnPaletteScrimPressed" />
+            <Panel HorizontalAlignment="Center"
+                   VerticalAlignment="Top"
+                   Margin="0,72,0,0">
+                <Border Width="640"
+                        Background="{DynamicResource Surface}"
+                        BorderBrush="{DynamicResource Border}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        ClipToBounds="True">
+                    <Grid RowDefinitions="Auto,Auto,*,Auto"
+                          RowSpacing="10"
+                          Margin="14,12,14,10">
+                        <TextBlock Grid.Row="0"
+                                   Text="{loc:Localized Palette.Title}"
+                                   FontWeight="Bold"
+                                   FontSize="14" />
+                        <TextBox x:Name="PaletteQuery"
+                                 Grid.Row="1"
+                                 Text="{Binding Palette.Query}"
+                                 PlaceholderText="{loc:Localized Palette.Placeholder}" />
+                        <Grid Grid.Row="2">
+                            <ListBox x:Name="PaletteRows"
+                                     IsVisible="{Binding Palette.HasRows}"
+                                     ItemsSource="{Binding Palette.Rows}"
+                                     SelectedIndex="{Binding Palette.SelectedIndex, Mode=TwoWay}"
+                                     Focusable="False"
+                                     MaxHeight="420">
+                                <ListBox.Styles>
+                                    <Style Selector="ListBoxItem">
+                                        <Setter Property="Focusable" Value="False" />
+                                    </Style>
+                                </ListBox.Styles>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SymbolPaletteRow">
+                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto"
+                                              ColumnSpacing="8"
+                                              Margin="2">
+                                            <!-- The star: the favorites read-only mirror
+                                                 (the marks are made in the settings window's
+                                                 pairs tab, the same source the chart picker
+                                                 binds); the recent marker: the palette's own
+                                                 in-memory session list. -->
+                                            <TextBlock Grid.Column="0"
+                                                       Text="★"
+                                                       Foreground="{DynamicResource Highlight}"
+                                                       VerticalAlignment="Center"
+                                                       IsVisible="{Binding IsFavorite}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="↺"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       VerticalAlignment="Center"
+                                                       IsVisible="{Binding IsRecent}" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding Symbol.Normalized}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding ExchangeName}"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <!-- The three honest states of a rowless page:
+                                 loading (the first fetch never finished),
+                                 empty (every adapter settled on nothing),
+                                 no matches (the query found none). At most
+                                 one is visible; the ListBox shows otherwise. -->
+                            <TextBlock IsVisible="{Binding Palette.IsSourceWaiting}"
+                                       Text="{loc:Localized Palette.Loading}"
+                                       Foreground="{DynamicResource TextSecondary}"
+                                       Margin="4,8" />
+                            <TextBlock IsVisible="{Binding Palette.HasNoInstruments}"
+                                       Text="{loc:Localized Palette.Empty}"
+                                       Foreground="{DynamicResource TextSecondary}"
+                                       Margin="4,8" />
+                            <TextBlock IsVisible="{Binding Palette.HasNoMatches}"
+                                       Text="{loc:Localized Palette.NoMatches}"
+                                       Foreground="{DynamicResource TextSecondary}"
+                                       Margin="4,8" />
+                        </Grid>
+                        <TextBlock Grid.Row="3"
+                                   Text="{loc:Localized Palette.Hint}"
+                                   Foreground="{DynamicResource TextSecondary}"
+                                   FontSize="11" />
+                    </Grid>
+                </Border>
+            </Panel>
+        </Grid>
+    </Grid>
 </Window>

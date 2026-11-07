@@ -212,6 +212,12 @@ internal static class CompositionRoot
                 sp.GetRequiredService<IMarketDataAdapter>(),
                 sp.GetRequiredService<ChartViewModel>().SymbolSelections,
                 sp.GetRequiredService<ILogger<TradeTapeViewModel>>()));
+        // T-095: the global symbol palette — the Ctrl+K instrument picker
+        // over ALL registered adapters. Both singletons, registered after
+        // the chart ViewModel it applies into and before MainViewModel;
+        // the source rides IAsyncInitializable, so the startup walk warms
+        // the instrument snapshot before any window opens.
+        services.AddPaletteServices();
         services.AddTransient<MainViewModel>(sp =>
             new MainViewModel(
                 sp.GetRequiredService<MenuViewModel>(),
@@ -222,6 +228,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<OrderBookViewModel>(),
                 sp.GetRequiredService<TradeTapeViewModel>(),
                 sp.GetRequiredService<WorkspaceLayoutViewModel>(),
+                sp.GetRequiredService<SymbolPaletteViewModel>(),
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();

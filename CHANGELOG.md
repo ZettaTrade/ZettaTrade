@@ -1,3 +1,52 @@
+## [0.1.0-alpha.61] - 2026-11-08
+
+Build of board task T-095 (branch `feat/symbol-palette`).
+
+### Added
+- The global symbol palette (T-095): Ctrl+K everywhere opens a
+  workspace-wide instrument picker over ALL registered exchange
+  adapters at once, not just the active one - a few keystrokes reach
+  any configured adapter's symbol. The picker is keyboard-first:
+  Ctrl+K toggles the overlay, the query box takes the focus, the
+  arrow/PageUp/PageDown keys move the keyboard selection, Enter
+  applies the highlighted pair, Esc closes, and a press on the
+  overlay's backdrop closes it for mouse users.
+- The palette's fuzzy matcher (`FuzzySymbolMatcher`) ranks the
+  adapters' symbol catalogs through one pure, culture-free scorer:
+  an exact (leading) prefix beats a word-start contiguous hit, then
+  an anywhere-contiguous hit, an in-order subsequence and a
+  one-typo-tolerant subsequence (one skipped query character at
+  most). Inside a tier the ranking prefers query coverage, a
+  first match on a word boundary and fewer skipped characters
+  between matches; ties keep the source order. A blank query pages
+  the session's recents first, then the favorites, then the
+  adapters' natural registration order - every page capped at 24
+  rows.
+- The instrument source (`SymbolPaletteSource`) keeps ONE behavioral
+  snapshot over all registered adapters: the warm-up rides the
+  startup walk (`IAsyncInitializable`, non-blocking), every adapter
+  change kicks an epoch-guarded recomposition, and a faulting
+  adapter contributes zero rows and logs - the healthy adapters'
+  rows still serve, nothing is fabricated (the no-defaults rule).
+- The palette's rows carry the per-pair marks: the star mirrors the
+  user's favorites (read-only; the marks are made from the chart's
+  toolbar, the palette never writes them) and the recency marker
+  rides the palette's own in-memory session recents (deduped,
+  bounded at 8, never persisted).
+- A same-exchange apply writes `ChartViewModel.SelectedSymbol`
+  directly; a cross-exchange apply carries the applied pair into the
+  SAME workspace symbol preference the chart's setter maintains
+  BEFORE switching the active exchange, so the pending symbol
+  bootstrap preselects the applied pair - the delivered selection
+  raises while its exchange is already the current one and no
+  intermediate rebase can replace the applied choice with the
+  previous exchange's head (the T-017 selected-during-fetch
+  discipline).
+- The overlay rides the chrome canon (Surface border + Border stroke
+  on the theme), carries three honest rowless states (loading /
+  no adapter serves a symbol list / no match for the query) and new
+  localized keys, en and ru (`Palette.*`).
+
  Changelog
 
 All notable changes to ZettaTrade are documented here, newest first

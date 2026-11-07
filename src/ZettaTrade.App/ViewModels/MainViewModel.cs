@@ -42,6 +42,9 @@ public sealed class MainViewModel : ReactiveObject
     /// <summary>Workspace layout ViewModel owning the persisted splitter column widths.</summary>
     public WorkspaceLayoutViewModel Layout { get; }
 
+    /// <summary>The global symbol palette (T-095): Ctrl+K's instrument picker over all adapters.</summary>
+    public SymbolPaletteViewModel Palette { get; }
+
     /// <summary>
     /// Create a new MainViewModel instance.
     /// </summary>
@@ -54,6 +57,7 @@ public sealed class MainViewModel : ReactiveObject
         OrderBookViewModel orderBook,
         TradeTapeViewModel tradeTape,
         WorkspaceLayoutViewModel layout,
+        SymbolPaletteViewModel palette,
         ActiveExchangeService activeExchanges,
         ILogger<MainViewModel> logger)
     {
@@ -65,6 +69,7 @@ public sealed class MainViewModel : ReactiveObject
         OrderBook = orderBook;
         TradeTape = tradeTape;
         Layout = layout;
+        Palette = palette;
         _logger = logger;
 
         // The status chip mirrors the adapter connection state. The Core
