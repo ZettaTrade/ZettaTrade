@@ -9,6 +9,31 @@ before `alpha.10` was never versioned — what shipped in T-001 — T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.48] - 2026-11-07
+
+Build of board task T-076 (branch `feat/order-bulk`).
+
+### Added
+- Bulk order management (the orders panel): one Cancel All action on the
+  open-orders section cancels every working order on the workspace's
+  ACTIVE symbol in a single confirmed pass. The pass re-reads the
+  adapter's open orders at click time (the display rows are never the
+  target set), filters the symbol by its normalized form and commands
+  ONLY the still-working statuses - the exact cancel command path every
+  row uses, the order's own symbol always carried, no risk bypass, no
+  new adapter capability. ONE confirmation gates the pass with the
+  symbol, the count, the orders' remaining notional at their own anchor
+  prices and the paper/live tag; a refusal leaves every order
+  untouched. A row whose per-row pipeline is already in flight (a
+  cancel or an amend) is skipped and reported instead of
+  double-commanded; one adapter fault produces that item's failed
+  report and never stops the others, a persistence fault after an
+  accepted cancel can never fail the pass, and an aborted pass still
+  renders an honest not-attempted tail. The summary line counts the
+  cancelled, skipped, failed and not-attempted items with the failed
+  ones' reasons; per-item best-effort reports carry the adapter's own
+  order ids and symbols. Fully localized en+ru (`Positions.Bulk*`).
+
 ## [0.1.0-alpha.46] - 2026-11-07
 
 Build of board task T-077 (branch `feat/position-actions`).

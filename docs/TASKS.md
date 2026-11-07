@@ -80,7 +80,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-073 Flaky concurrency test: GetString_AFactoryParkedAcrossASwitch fails intermittently under load (queued from the T-071/T-072 landing) | feat/flaky-localization | done | - |
 | T-074 Advanced order types: stop-limit, trailing stop, OCO | feat/order-types | done | - |
 | T-075 Amend a working order from the orders panel | feat/order-amend | done | - |
-| T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | queued | - |
+| T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | done | - |
 | T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | done | - |
 | T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | queued | - |
 | T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | queued | - |
@@ -160,6 +160,7 @@ the end of that file, so no effort is duplicated.
 - **Scope:** orders panel VM + a bulk service, resx en+ru, tests.
 - **Acceptance:** a mixed working/cancelled set cancels only working orders; one adapter fault never stops the others.
 - **Tests:** bulk cancel golden, partial-failure reporting, the confirmation gate.
+- **Status:** done. Canon: the confirmed per-symbol pass pipeline (`9ec0af1`), the orders-section action surface (`0194415`), the goldens/faults/gates test pack (`f9ca207`) and this section's status flip; shipped as `0.1.0-alpha.48` (see CHANGELOG.md). Scope decision: the workspace-symbol filter IS the spec's optional narrower cut - the panel rides one trading face, so the symbol's orders on that face ARE the symbol's set on the current exchange; the fresh adapter read at click time is always the target set. Core untouched - canon `CancelOrderAsync(symbol, id)` rides as-is, the pass adds no capability. Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file).
 
 ## T-078 - Order ticket confirmation: the pre-submit summary
 
