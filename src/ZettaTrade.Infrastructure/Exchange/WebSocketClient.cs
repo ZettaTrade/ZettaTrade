@@ -11,19 +11,39 @@ using Microsoft.Extensions.Logging;
 /// WebSocket client with automatic reconnection and reactive message streams.
 /// <see cref="ConnectAsync"/> returns once the initial connection is established;
 /// the receive/reconnect loop then keeps running in the background until
-/// <see cref="DisconnectAsync"/> or disposal.
+/// <see cref="DisconnectAsync"/> or disposal. The reconnect waits come from the
+/// explicit <see cref="ReconnectPolicy"/> (exponential + bounded jitter + max
+/// delay, T-105), and a per-session silence watchdog force-cycles a half-open
+/// socket — a cut network never delivers FIN/RST, so the parked receive would
+/// otherwise watch a dead session forever.
 /// </summary>
 public sealed class WebSocketClient : IAsyncDisposable
 {
     /// <summary>Size of a single WebSocket receive chunk in bytes.</summary>
     private const int ReceiveChunkSize = 8192;
 
+    /// <summary>Inbound silence after which the watchdog force-cycles the socket (heals inside the window; see the watchdog's arming rule).</summary>
+    private static readonly TimeSpan DefaultSilenceWindow = TimeSpan.FromSeconds(DefaultSilenceWindowSeconds);
+
+    /// <summary>The shipped default silence window, in seconds — fast streaming feeds are orders of magnitude under it.</summary>
+    private const int DefaultSilenceWindowSeconds = 60;
+
+    /// <summary>The probe samples the silence every window/N; too fine wastes ticks, too coarse adds reaction latency.</summary>
+    private const int SilenceProbeWindowDivisor = 4;
+
+    /// <summary>Smallest probe interval, in milliseconds — the reaction floor for the tiny test windows.</summary>
+    private const int MinSilenceProbeMilliseconds = 100;
+
+    /// <summary>Largest probe interval, in milliseconds — the worst added reaction latency for the long production windows.</summary>
+    private const int MaxSilenceProbeMilliseconds = 2000;
+
     #region Properties
 
     private readonly ILogger _logger;
     private readonly string _url;
-    private readonly TimeSpan _reconnectDelay;
-    private readonly int _maxReconnectAttempts;
+    private readonly ReconnectPolicy _policy;
+    private readonly IReconnectStateSink? _stateSink;
+    private readonly TimeSpan _silenceWindow;
 
     private readonly Subject<string> _messageSubject = new();
     private readonly BehaviorSubject<bool> _connectionStateSubject = new(false);
@@ -44,6 +64,14 @@ public sealed class WebSocketClient : IAsyncDisposable
     private int _disposed;
     private bool _isConnected;
 
+    /// <summary>
+    /// The ACTIVE session's silence watchdog: written right after the
+    /// per-session construction and cleared on teardown — outbound sends arm
+    /// through it (Volatile reads/writes only; the send path must stay
+    /// lock-free and never block).
+    /// </summary>
+    private SocketSilenceWatchdog? _activeWatchdog;
+
     /// <summary>Whether the WebSocket is currently connected.</summary>
     public bool IsConnected => _isConnected && _webSocket?.State == WebSocketState.Open;
 
@@ -58,21 +86,29 @@ public sealed class WebSocketClient : IAsyncDisposable
     #region Constructor
 
     /// <summary>
-    /// Create a new WebSocketClient instance.
+    /// Create a new WebSocketClient instance. The reconnect timing and the
+    /// watchdog window come from the explicit policy knobs (no hidden
+    /// constants): adapters pass their own <see cref="ReconnectPolicy"/> and
+    /// state sink (the transport reports its transitions there, T-105); every
+    /// knob keeps its shipped default so existing call sites compile and
+    /// behave as before.
     /// </summary>
     public WebSocketClient(
         string url,
         ILogger logger,
-        TimeSpan? reconnectDelay = null,
-        int maxReconnectAttempts = 5)
+        ReconnectPolicy? policy = null,
+        IReconnectStateSink? stateSink = null,
+        TimeSpan? silenceWindow = null)
     {
         _url = url;
         _logger = logger;
-        _reconnectDelay = reconnectDelay ?? TimeSpan.FromSeconds(5);
-        _maxReconnectAttempts = maxReconnectAttempts;
+        _policy = policy ?? ReconnectPolicy.Default;
+        _stateSink = stateSink;
+        _silenceWindow = silenceWindow ?? DefaultSilenceWindow;
     }
 
     #endregion
+
 
     #region Public Methods
 
@@ -110,8 +146,9 @@ public sealed class WebSocketClient : IAsyncDisposable
                 // A fresh session resets the budget: the failed window of a
                 // previous session must not consume this caller's attempts.
                 _reconnectAttempts = 0;
+                Report(ReconnectionPhase.Connecting, 0, null);
 
-                while (!ct.IsCancellationRequested && _reconnectAttempts < _maxReconnectAttempts)
+                while (!ct.IsCancellationRequested && _reconnectAttempts < _policy.MaxAttempts)
                 {
                     try
                     {
@@ -138,18 +175,23 @@ public sealed class WebSocketClient : IAsyncDisposable
                             ex,
                             "WebSocket connection failed (attempt {Attempt}/{MaxAttempts}).",
                             _reconnectAttempts,
-                            _maxReconnectAttempts);
+                            _policy.MaxAttempts);
 
-                        if (_reconnectAttempts < _maxReconnectAttempts)
-                            await Task.Delay(_reconnectDelay, ct);
+                        if (_reconnectAttempts < _policy.MaxAttempts)
+                        {
+                            var delay = _policy.ComputeDelay(_reconnectAttempts, Random.Shared.NextDouble());
+                            Report(ReconnectionPhase.Reconnecting, _reconnectAttempts, delay);
+                            await Task.Delay(delay, ct);
+                        }
                     }
                 }
 
                 if (ct.IsCancellationRequested)
                     return;
 
+                Report(ReconnectionPhase.Disconnected, _reconnectAttempts, null);
                 throw new InvalidOperationException(
-                    $"Failed to connect to {_url} after {_maxReconnectAttempts} attempts.");
+                    $"Failed to connect to {_url} after {_policy.MaxAttempts} attempts.");
             }
             finally
             {
@@ -204,7 +246,12 @@ public sealed class WebSocketClient : IAsyncDisposable
         if (socket is null || socket.State != WebSocketState.Open)
             throw new InvalidOperationException("WebSocket is not connected");
 
+        // Outbound frames arm the silence watchdog (see its arming rule) but
+        // deliberately never refresh its silence clock.
+        NotifyOutbound();
+
         var bytes = Encoding.UTF8.GetBytes(message);
+
         await socket.SendAsync(
             new ArraySegment<byte>(bytes),
             WebSocketMessageType.Text,
@@ -234,6 +281,7 @@ public sealed class WebSocketClient : IAsyncDisposable
         _isConnected = true;
         _reconnectAttempts = 0;
         _connectionStateSubject.OnNext(true);
+        Report(ReconnectionPhase.Connected, 0, null);
     }
 
     /// <summary>
@@ -295,6 +343,10 @@ public sealed class WebSocketClient : IAsyncDisposable
             // first connect) must never paint a second disconnected event.
             _isConnected = false;
             _connectionStateSubject.OnNext(false);
+            Report(
+                ReconnectionPhase.Disconnected,
+                Volatile.Read(ref _reconnectAttempts),
+                backoffDelay: null);
         }
     }
 
@@ -302,21 +354,45 @@ public sealed class WebSocketClient : IAsyncDisposable
     {
         try
         {
+            // The reconnect attempt position of the CURRENT failing streak:
+            // zero whenever a socket opened successfully, so every streak
+            // restarts the exponential backoff from the policy's initial delay.
+            var reconnectAttempt = 0;
+
             while (!ct.IsCancellationRequested)
             {
-                await ReceiveLoopAsync(ct);
+                // One watchdog per open session: created here, registered for
+                // the outbound-arming path (sends bubble through the field in
+                // Volatile scope), disposed BEFORE the reconnect step — the
+                // probe never watches a dead socket or races a socket swap.
+                var watchdog = CreateSilenceWatchdog();
+                Volatile.Write(ref _activeWatchdog, watchdog);
+                try
+                {
+                    await ReceiveLoopAsync(ct, watchdog);
+                }
+                finally
+                {
+                    Volatile.Write(ref _activeWatchdog, null);
+                    await watchdog.DisposeAsync();
+                }
 
                 if (ct.IsCancellationRequested)
                     break;
 
+                reconnectAttempt++;
+                var delay = _policy.ComputeDelay(reconnectAttempt, Random.Shared.NextDouble());
+
                 _logger.LogWarning(
                     "WebSocket disconnected; reconnecting in {Delay}...",
-                    _reconnectDelay);
+                    delay);
+                Report(ReconnectionPhase.Reconnecting, reconnectAttempt, delay);
 
                 try
                 {
-                    await Task.Delay(_reconnectDelay, ct);
+                    await Task.Delay(delay, ct);
                     await OpenSocketAsync(ct);
+                    reconnectAttempt = 0;
                     _logger.LogInformation("WebSocket reconnected to {Url}", _url);
                 }
                 catch (OperationCanceledException)
@@ -341,7 +417,7 @@ public sealed class WebSocketClient : IAsyncDisposable
         }
     }
 
-    private async Task ReceiveLoopAsync(CancellationToken ct)
+    private async Task ReceiveLoopAsync(CancellationToken ct, SocketSilenceWatchdog watchdog)
     {
         var buffer = new byte[ReceiveChunkSize];
 
@@ -366,6 +442,9 @@ public sealed class WebSocketClient : IAsyncDisposable
 
                 if (result.EndOfMessage)
                 {
+                    // Armed-and-refreshed silence clock: data just crossed.
+                    watchdog.NotifyInbound();
+
                     var message = Encoding.UTF8.GetString(
                         messageBuffer.GetBuffer(),
                         0,
@@ -396,6 +475,85 @@ public sealed class WebSocketClient : IAsyncDisposable
 
         _isConnected = false;
         _connectionStateSubject.OnNext(false);
+    }
+
+    /// <summary>
+    /// The per-session <see cref="SocketSilenceWatchdog"/>: the shipped window
+    /// and a probe derived from it (every Nth of the window, clamped to a
+    /// sane reaction band). The violation action is the force-cycle below.
+    /// </summary>
+    private SocketSilenceWatchdog CreateSilenceWatchdog() => new(
+        _silenceWindow,
+        ProbeIntervalFor(_silenceWindow),
+        CycleSilentSocket);
+
+    /// <summary>Probe cadence for a window: window/N clamped into the reaction band (the floor keeps tiny test windows observable).</summary>
+    private static TimeSpan ProbeIntervalFor(TimeSpan silenceWindow) => TimeSpan.FromMilliseconds(
+        Math.Clamp(
+            silenceWindow.TotalMilliseconds / SilenceProbeWindowDivisor,
+            MinSilenceProbeMilliseconds,
+            MaxSilenceProbeMilliseconds));
+
+    /// <summary>
+    /// The watchdog's violation action, running on the probe tick: force-cycle
+    /// the silent socket — report the phase, then abort the dying TCP
+    /// connection so the parked <c>ReceiveAsync</c> throws and the usual
+    /// reconnect path (policy-computed backoff, re-subscribe burst) takes
+    /// over. A half-open socket never heals by itself: this IS the heal.
+    /// </summary>
+    private void CycleSilentSocket(TimeSpan silence)
+    {
+        _logger.LogWarning(
+            "WebSocket silent for {Silence} (window {Window}); the watchdog force-cycles the socket.",
+            silence,
+            _silenceWindow);
+        Report(ReconnectionPhase.ForceCycling, Volatile.Read(ref _reconnectAttempts), silence);
+
+        var socket = _webSocket;
+        if (socket is null || socket.State != WebSocketState.Open)
+        {
+            return;
+        }
+
+        try
+        {
+            socket.Abort();
+        }
+        catch (Exception ex)
+        {
+            // A race with the session teardown (socket already disposed) is a
+            // non-event: the cycle already happened through that exit.
+            _logger.LogWarning(ex, "Watchdog socket abort raced the session teardown");
+        }
+    }
+
+    /// <summary>
+    /// Arm the active session's watchdog for an outbound frame (sends prove
+    /// the session intended to exchange data — but never refresh its silence
+    /// clock, see the watchdog's rule). A silently-racing session swap simply
+    /// arms the stale instance, whose probes already end with the swap.
+    /// </summary>
+    private void NotifyOutbound()
+    {
+        if (Volatile.Read(ref _activeWatchdog) is { } watchdog)
+        {
+            watchdog.NotifyOutbound();
+        }
+    }
+
+    /// <summary>
+    /// Push one transport transition into the supervisor's sink (the T-098
+    /// health strip's future source). A transport without a sink (direct
+    /// constructions, all existing tests) reports nothing — zero drift.
+    /// </summary>
+    private void Report(ReconnectionPhase phase, int consecutiveFailures, TimeSpan? backoffDelay)
+    {
+        if (_stateSink is not { } sink)
+        {
+            return;
+        }
+
+        sink.Publish(new ReconnectReport(phase, DateTimeOffset.UtcNow, consecutiveFailures, backoffDelay));
     }
 
     #endregion

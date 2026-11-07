@@ -5,17 +5,62 @@ All notable changes to ZettaTrade are documented here, newest first
 
 While the app is in alpha, one release == one merged board task: task
 `T-0NN` ships as `0.1.0-alpha.NN` and adds its section below. The state
-before `alpha.10` was never versioned вЂ” what shipped in T-001 вЂ” T-009
+before `alpha.10` was never versioned РІР‚вЂќ what shipped in T-001 РІР‚вЂќ T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.55] - 2026-11-07
+
+Build of board task T-105 (branch `feat/reconnect-policy`).
+
+### Added
+- The reconnect policy goes explicit and observable (T-105): a
+  `ReconnectPolicy` value object carries every timing knob the
+  previously implicit fixed five-second `WebSocketClient` delay hid вЂ”
+  the initial delay (the shipped first retry keeps the T-052 spacing so
+  an existing burst behaves identically on attempt one), an exponential
+  backoff multiplier, a bounded В±25 % jitter against thundering-herd
+  reconnects (samples drawn at the compute site, the computation itself
+  pure and deterministic), a hard max-delay cap the jitter can never
+  push past (the re-clamp pins it), and a per-session failed-handshake
+  attempt budget the fresh `ConnectAsync` resets (BUG-029 keeps its
+  semantics; the background reconnect loop stays unbounded). The
+  constructor guards fail loudly вЂ” a bad knob is an error, never a
+  substituted default. The central `ReconnectSupervisor` binds one
+  adapter's policy via `For(id, policy)` and folds the transports'
+  reported transitions into per-adapter `AdapterConnectionState`
+  snapshots (phase, the consecutive-failure streak, the last
+  transition, the live policy) plus a hot `StateStream` вЂ” the surface
+  T-098's adapter health strip will consume; reports ride an unbounded
+  `Channel` applied by ONE sequential pump task (a single-threaded
+  fold, no concurrent-notification hazards; a throwing subscriber
+  never kills the pump), and `IAsyncDisposable` reaps it. The transport
+  reports Connecting/Connected/Reconnecting/Disconnected/ForceCycling
+  transitions through an optional `IReconnectStateSink` вЂ” direct
+  constructions without a supervisor keep reporting nothing (zero
+  behavior drift on the happy path). The half-open socket heals at
+  last: a per-session `SocketSilenceWatchdog` fires when an OPEN
+  session that already exchanged at least one frame (the arming rule вЂ”
+  a bare socket that never talks is never condemned) goes inbound-
+  silent past the window; outbound frames only ever arm it (a
+  half-open socket happily accepts sends into its TCP buffer, so
+  outbound traffic can never refresh the silence), inbound frames both
+  arm and refresh; liveness timestamps ride `Interlocked`/`Volatile`
+  over bare longs (no lock, no semaphore). The violation action aborts
+  the dying socket вЂ” the parked `ReceiveAsync` throws and the usual
+  policy-computed reconnect path takes over (one watchdog per session,
+  disposed before the reconnect step, the probe never races a socket
+  swap). Wired end to end: `AddExchangeAdapters` registers the
+  supervisor singleton and both exchange adapters hand their policy to
+  the transport and register it with the supervisor when resolved.
+  No resx (no user-facing surface yet; T-098 renders later).
 ## [0.1.0-alpha.54] - 2026-11-07
 
 Build of board task T-086 (branch `feat/backfill`).
 
 ### Added
 - The chart heals its own history (T-086): every delivered page starts
-  a bounded repair chain вЂ” the pass probes the cached coverage strictly
+  a bounded repair chain РІР‚вЂќ the pass probes the cached coverage strictly
   behind the window's head (the T-085 write-through continues behind
   the view), walks the venue calendar (`TimeFrameCalendar`: weekday
   sessions for the class, crypto trades both weekend days), detects
@@ -26,14 +71,14 @@ Build of board task T-086 (branch `feat/backfill`).
   through a bounded `Channel<T>` so a slow consumer backpressures the
   producer mid-pass. The detection bound
   (`CandleGapDetector.MaxMissingBarsPerGap`, 1200 opens) caps one
-  pass's enumeration вЂ” a hole exactly at the bound is one whole
+  pass's enumeration РІР‚вЂќ a hole exactly at the bound is one whole
   bounded fetch; a wider one reports truncated and stays the paging
   machinery's own subject (a bounded repair never chews an open-ended
   hole; the batching discipline against the T-106 rate limiter). The
   chain's boundary is one `Interlocked`-claimed epoch per delivery (a
   rebase cancels and owns the living chain's epoch, a finishing chain
   can never destroy a newer one's), and contiguous cached bars only
-  grow the detection context behind the head вЂ” the displayed series
+  grow the detection context behind the head РІР‚вЂќ the displayed series
   stays the delivered page's (the cache is context, never depth). The
   additions merge strictly additively (`BarSeriesMerge.UnionAscending`:
   every displayed bar survives, an equal open keeps the displayed
@@ -41,9 +86,9 @@ Build of board task T-086 (branch `feat/backfill`).
   drops. The feed's own depth edge surfaces honestly: an empty answer
   or a floor strictly above the window's lower edge ends the chain
   with the localized `Chart.HistoryLimit` note anchored at the merged
-  series' oldest open (cleared with the rebase) вЂ” never a fabricated
+  series' oldest open (cleared with the rebase) РІР‚вЂќ never a fabricated
   continuation. The older-than probe rides the candle cache seam
-  (an additive `ICandleCache.GetOlderThanAsync` вЂ” bounded, oldest
+  (an additive `ICandleCache.GetOlderThanAsync` РІР‚вЂќ bounded, oldest
   first, an empty answer is the honest no-coverage case). Fully
   localized en+ru (`Chart.HistoryLimit`).
 ## [0.1.0-alpha.53] - 2026-11-07
@@ -53,7 +98,7 @@ Build of board task T-078 (branch `feat/order-confirm`).
 ### Added
 - The order ticket consults before every submit: the confirmation
   dialog (`IConfirmationService`) leads with the venue tag and the
-  order essentials, then the honest economics вЂ” the estimated notional
+  order essentials, then the honest economics РІР‚вЂќ the estimated notional
   against the configured hard-cap headroom and the scheduled fee
   estimate (an unknown is a localized "unknown" line, never a
   fabricated zero). The decision is ONE `OrderConfirmPolicy` over the
@@ -64,12 +109,12 @@ Build of board task T-078 (branch `feat/order-confirm`).
   (`OrderConfirm.SkipBelowNotionalUsd`, a negative clamps to
   no-skip) skips small orders, an unknown notional fails to the ask,
   and a risk-mandated confirmation is never lowered by policy (the
-  caller ORs it in). The notional anchor follows the stop family вЂ”
+  caller ORs it in). The notional anchor follows the stop family РІР‚вЂќ
   stop-limit and trailing stop anchor on the stop price, everything
   else on the ticket price; the captured reference close substitutes
   only where no price exists across the OCO pair. Double-Enter
   protection moved under the whole pipeline: the submit handler
-  (build в†’ risk в†’ confirmation в†’ placement) rides one `SemaphoreSlim`
+  (build РІвЂ вЂ™ risk РІвЂ вЂ™ confirmation РІвЂ вЂ™ placement) rides one `SemaphoreSlim`
   gate acquired at the top and released in `finally`, so an Enter
   while the dialog stands open can neither re-confirm nor re-place
   (the parked-confirmation harness pins it). Fully localized en+ru
@@ -90,7 +135,7 @@ Build of board task T-079 (branch `feat/position-sizer`).
   estimate for buys (the ticket's own price when the order type carries
   one - limit/stop-limit/OCO take-profit - the captured market reference
   close otherwise, market/trailing stop). The risk-percent mode anchors
-  on the ticket's stop context: a stop-limit's |limit в€’ trigger|, a
+  on the ticket's stop context: a stop-limit's |limit РІв‚¬вЂ™ trigger|, a
   trailing stop's trail distance; market and plain limit carry no stop
   price and the OCO pair has two conflicting legs, so the mode stays
   hidden exactly there; the stored default percent is a reactive
@@ -120,14 +165,14 @@ Build of board task T-085 (branch `feat/candle-cache`).
   (`candles.db`) keyed by (adapter, symbol, interval) and upserted by
   open time, so every fetch rides WRITE-THROUGH and the next start
   renders the chart instantly from the cache (the network refresh then
-  lands behind it). Overlaps conflate вЂ” one TRUE database upsert decides
+  lands behind it). Overlaps conflate РІР‚вЂќ one TRUE database upsert decides
   insert-or-update per bar (the T-061 lesson), a restart replay or a
   racing surface merges on the composite key instead of colliding, and
   the served page commits as one transaction. The per-series eviction
   cap keeps only the newest `Caching.MaxBarsPerSeries` bars (default
   100k, the chart target's depth); the whole cache is switchable with
   `Caching.Enabled`, both keys re-read live on settings changes. A cache
-  fault is bookkeeping noise: reads serve nothing and writes log вЂ” the
+  fault is bookkeeping noise: reads serve nothing and writes log РІР‚вЂќ the
   chart's refresh page still delivers, the honest-view and paging
   machinery stay untouched. No Core entity or interface changed (the
   `ICandleCache` seam lives in Infrastructure next to the other
@@ -194,14 +239,14 @@ Build of board task T-080 (branch `feat/fees`).
   shipped paper model (10/20 bps, no floor) answers out of the box,
   configured entries re-price live through the reactive settings
   change stream, an invalid entry is dropped with a warning, and an
-  adapter without a schedule stays the explicit dash вЂ” never a zero
+  adapter without a schedule stays the explicit dash РІР‚вЂќ never a zero
   default that hides the cost.
 - The order ticket prices an estimate line per leg: the expected
   maker/taker role (a resting limit is maker, everything else
   crosses) names itself per the leg's shape and the notional rides
   the typed price or, for the price-less types, the throttled
   freshest market reference. An incomplete input or an unknown
-  schedule keeps the dash вЂ” the estimate is display only and never
+  schedule keeps the dash РІР‚вЂќ the estimate is display only and never
   touches a placement decision.
 - The paper engine stamps the computed commission (half-away-from-zero
   at 8 decimals, lifted to the minimum fee) on every fill and passes
@@ -237,13 +282,13 @@ Build of board task T-077 (branch `feat/position-actions`).
 Build of board task T-083 (branch `feat/trade-stats`).
 
 ### Added
-- Trade statistics dashboard (Trading в†’ В«Trade Statistics...В»). A
+- Trade statistics dashboard (Trading РІвЂ вЂ™ Р’В«Trade Statistics...Р’В»). A
   read-only scan of the persisted order journal builds the stats from raw
   fills only: every closing fill counts as its own trade against the
-  average-entry bookkeeping вЂ” win rate, profit factor (В«в€ћВ» when no
-  losing fills, В«вЂ”В» when nothing to divide), maximum drawdown over the
+  average-entry bookkeeping РІР‚вЂќ win rate, profit factor (Р’В«РІв‚¬С›Р’В» when no
+  losing fills, Р’В«РІР‚вЂќР’В» when nothing to divide), maximum drawdown over the
   equity curve including its zero-seeded start, average winner and
-  average loser, trade count and filled volume вЂ” all shown as metric
+  average loser, trade count and filled volume РІР‚вЂќ all shown as metric
   tiles over a Skia equity curve (zero anchor at the first fill, one
   point per closing fill). Filters (symbol, exchange id, venue
   all/paper/live, inclusive-from / exclusive-to dates) restart a paged
@@ -257,7 +302,7 @@ Build of board task T-083 (branch `feat/trade-stats`).
 Build of board task T-075 (branch `feat/order-amend`).
 
 ### Added
-- Amend a working order from the orders panel: every working, amendable row (a limit, a stop-limit or a trailing stop; market, stop-market and OCO legs are refused explicitly) carries an Amend button that opens an edit dialog over the panel вЂ” quantity, plus the limit price for the limit-bearing types (a trailing stop's price is its ratcheting trigger, never editable). The amend is a full pipeline, not a field rewrite: the adapter's fresh open-order state is re-read (never the stale display row), the amended shape is validated and re-checked through `IRiskManager` (a rejected shape leaves the order untouched), and the confirmation dialog fires when the risk manager demands one, when the order carries any fill (the amend rewrites live exposure), or when the notional moves beyond 25% in either direction. The replace rides the adapter's in-place seam where an adapter offers it; the shipped paper adapter (no such seam) runs an explicit cancel + new order, surfaced to the user as cancel+new вЂ” never a silent fake replace. A fill racing the amend wins and is reported (В«the order is no longer working; the amend was not performedВ»), the row keeps an В«AmendingвЂ¦В» state for the whole flow (double-click in flight is a no-op), and a cancel-landed-but-replacement-failed hole is reported loudly. Fully localized en+ru.
+- Amend a working order from the orders panel: every working, amendable row (a limit, a stop-limit or a trailing stop; market, stop-market and OCO legs are refused explicitly) carries an Amend button that opens an edit dialog over the panel РІР‚вЂќ quantity, plus the limit price for the limit-bearing types (a trailing stop's price is its ratcheting trigger, never editable). The amend is a full pipeline, not a field rewrite: the adapter's fresh open-order state is re-read (never the stale display row), the amended shape is validated and re-checked through `IRiskManager` (a rejected shape leaves the order untouched), and the confirmation dialog fires when the risk manager demands one, when the order carries any fill (the amend rewrites live exposure), or when the notional moves beyond 25% in either direction. The replace rides the adapter's in-place seam where an adapter offers it; the shipped paper adapter (no such seam) runs an explicit cancel + new order, surfaced to the user as cancel+new РІР‚вЂќ never a silent fake replace. A fill racing the amend wins and is reported (Р’В«the order is no longer working; the amend was not performedР’В»), the row keeps an Р’В«AmendingРІР‚В¦Р’В» state for the whole flow (double-click in flight is a no-op), and a cancel-landed-but-replacement-failed hole is reported loudly. Fully localized en+ru.
 
 ## [0.1.0-alpha.43] - 2026-11-06
 
@@ -270,7 +315,7 @@ Build of board task T-082 (branch `feat/pnl-engine`).
   realizes PnL per closing fill with the position-flip path (a closing
   trade larger than the position re-opens the remainder on the other side
   at the same fill price), prices the unrealized side from ticker feeds,
-  exposes state changes over an observable feed вЂ” and persists realized
+  exposes state changes over an observable feed РІР‚вЂќ and persists realized
   history to SQLite (EF canon, `AddPnlRealized`) so an application restart
   reconstructs the identical numbers from the persisted rows.
 - The App-side `PnlFeedService` wrapper: the engine's feed for future
@@ -278,7 +323,7 @@ Build of board task T-082 (branch `feat/pnl-engine`).
   idempotent ledger re-sync (the journal has no change notifications).
 - The fee seam, per the task decision: the ledger carries no fee data, so
   commission enters only through an explicit per-fill parameter on the
-  domain API (absence в‰Ў zero; no fee fabricated); T-080 plugs real
+  domain API (absence РІвЂ°РЋ zero; no fee fabricated); T-080 plugs real
   schedule data into it without Core changes.
 
 ## [0.1.0-alpha.42] - 2026-11-06
@@ -292,7 +337,7 @@ Build of board task T-081 (branch `feat/balances`).
   asset across the adapters that actually provide balances). The panel
   follows the adapters' honesty contract: an adapter without balance data
   renders the explicit "not provided" state and a faulting query renders
-  the localized fault вЂ” a zero is never a plausible-but-wrong figure. Data
+  the localized fault РІР‚вЂќ a zero is never a plausible-but-wrong figure. Data
   rides the shipped trading seam (`ITradingAdapter.GetBalancesAsync`): the
   paper account serves rows live (empty before the first fill), while the
   market-data-only faces (Binance/Bybit/demo) report the not-provided
@@ -304,7 +349,7 @@ Build of board task T-081 (branch `feat/balances`).
 Build of board task T-084 (branch `feat/csv-export`).
 
 ### Added
-- CSV export for the app's local data surfaces (order journal, fills, candles): the `ICsvExportService` writer streams RFC 4180-quoted rows with invariant decimals, ISO-8601 UTC timestamps, UTF-8 (no BOM) and CRLF line endings, row by row with cancellation between rows and an honest `DirectoryNotFoundException` on a missing destination вЂ” a six-figure history exports with a one-row memory footprint.
+- CSV export for the app's local data surfaces (order journal, fills, candles): the `ICsvExportService` writer streams RFC 4180-quoted rows with invariant decimals, ISO-8601 UTC timestamps, UTF-8 (no BOM) and CRLF line endings, row by row with cancellation between rows and an honest `DirectoryNotFoundException` on a missing destination РІР‚вЂќ a six-figure history exports with a one-row memory footprint.
 - The order history window gains Export Orders CSV and Export Fills CSV actions: the loaded journal rows are the export set, the destination comes through a save-file dialog (cancelled = nothing written, no error), and a write fault surfaces on the window's localized error line.
 - The chart panel gains Export Candles CSV: the displayed series is the export set and faults land on the panel's own error line (the status bar stays with connection state); the main window answers the save-file interaction for the app-lifetime display in `OnOpened`.
 - Localization: `History.Export*` and `Chart.Export*` keys in both en and ru catalogs.
@@ -314,7 +359,7 @@ Build of board task T-084 (branch `feat/csv-export`).
 Build of board task T-119 (branch `feat/first-run-disclaimer`).
 
 ### Added
-- The first-run disclaimer: the first launch shows a modal over the main window holding the shipped wording вЂ” В«educational software, not investment adviceВ» plus the explicit alpha posture (alpha software, paper-first trading, the own-testing-first real-funds statement, user-scoped key hygiene) вЂ” and an В«AcknowledgeВ» button persists a versioned acknowledgment flag through the existing settings store, so a future wording update re-shows the dialog exactly once per install. A plain dismissal leaves the flag unset (the next launch re-shows), the flag itself never gates any trading action, and the wording stays discoverable later from Help в†’ About / Disclaimer. Fully localized en+ru (all wording in resx).
+- The first-run disclaimer: the first launch shows a modal over the main window holding the shipped wording РІР‚вЂќ Р’В«educational software, not investment adviceР’В» plus the explicit alpha posture (alpha software, paper-first trading, the own-testing-first real-funds statement, user-scoped key hygiene) РІР‚вЂќ and an Р’В«AcknowledgeР’В» button persists a versioned acknowledgment flag through the existing settings store, so a future wording update re-shows the dialog exactly once per install. A plain dismissal leaves the flag unset (the next launch re-shows), the flag itself never gates any trading action, and the wording stays discoverable later from Help РІвЂ вЂ™ About / Disclaimer. Fully localized en+ru (all wording in resx).
 
 ## [0.1.0-alpha.39] - 2026-11-06
 
@@ -324,7 +369,7 @@ Build of board task T-074 (branch `feat/order-types`).
 - Advanced order types end-to-end. The order request shapes grow an
   additive `TrailDistance` and `OcoGroupId`, with the stop-limit
   trigger-vs-limit matrix and the trailing-stop parameter requirements in
-  `Validate` вЂ” an inverted or unparsable shape is a returned error, never
+  `Validate` РІР‚вЂќ an inverted or unparsable shape is a returned error, never
   a default. The paper adapter simulates the conditionals on the wrapped
   adapter's live ticker stream: a stop-limit arms as a working order and
   fills at its limit on the trigger tick; a trailing stop ratchets its
@@ -334,11 +379,11 @@ Build of board task T-074 (branch `feat/order-types`).
   still tears the pair down; a leg joining a half pair is rejected
   explicitly, and a refused placement leaves no phantom). Immediately
   triggering stops are refused with an explicit error, and the risk hard
-  cap values stop orders at their trigger вЂ” the notional the order really
+  cap values stop orders at their trigger РІР‚вЂќ the notional the order really
   commits to.
 - The order ticket carries the conditional inputs: the stop trigger and
   the trailing distance rows, and an OCO mode that places a take-profit
-  limit and a stop-loss stop-limit as two legs of a fresh group вЂ” each leg
+  limit and a stop-loss stop-limit as two legs of a fresh group РІР‚вЂќ each leg
   through the full risk/confirmation gate, a half-placed pair aborted
   best-effort so it never goes half-working. The trailing seed derives
   from the newest reference close (the shared newest-by-bar-time
@@ -351,7 +396,7 @@ Build of board task T-074 (branch `feat/order-types`).
 Build of board task T-073 (branch `feat/flaky-localization`).
 
 ### Fixed
-- The flaky localization parking fact (`GetString_AFactoryParkedAcrossASwitch`, captured twice during the T-071/T-072 landing verification): the race lived in the test harness, not the manager вЂ” a class-wide "any lookup parked" witness could be opened by a foreign lookup resolving the same process-wide `LocalizationManager` instance (the order book layout's `Build` path), so under parallel-suite load the switch committed over a lookup that had never reached its snapshot, and that inconsequential call read the fresh culture and returned it вЂ” exactly the manager's documented snapshot-consistency promise. The handshake now waits for the fact's own thread id at a per-name register; the static-resolving `OrderBookPageLayoutTests` join the localization singleton collection; and `LocalizationManager.Dispose` clears the stale `Instance` pointer, so a torn-down manager stops claiming process-wide initialization (the same leak let parallel `Build` facts resolve a stamping fake's template вЂ” the captured `"en:OrderBook.SpreadFormat"` spread text).
+- The flaky localization parking fact (`GetString_AFactoryParkedAcrossASwitch`, captured twice during the T-071/T-072 landing verification): the race lived in the test harness, not the manager РІР‚вЂќ a class-wide "any lookup parked" witness could be opened by a foreign lookup resolving the same process-wide `LocalizationManager` instance (the order book layout's `Build` path), so under parallel-suite load the switch committed over a lookup that had never reached its snapshot, and that inconsequential call read the fresh culture and returned it РІР‚вЂќ exactly the manager's documented snapshot-consistency promise. The handshake now waits for the fact's own thread id at a per-name register; the static-resolving `OrderBookPageLayoutTests` join the localization singleton collection; and `LocalizationManager.Dispose` clears the stale `Instance` pointer, so a torn-down manager stops claiming process-wide initialization (the same leak let parallel `Build` facts resolve a stamping fake's template РІР‚вЂќ the captured `"en:OrderBook.SpreadFormat"` spread text).
 
 ## [0.1.0-alpha.37] - 2026-11-06
 
@@ -363,7 +408,7 @@ Build of board task T-072 (branch `feat/order-book-depth`).
   rejected the interface-default request of 20 levels as a contract error,
   emptying the widget on a stream failure (the rejections stood in the daily
   logs since 2026-10-18). The facade now resolves the requested depth
-  against the active adapter's served set вЂ” the smallest deep-enough depth
+  against the active adapter's served set РІР‚вЂќ the smallest deep-enough depth
   wins, else the deepest served one; undeclared adapters pass through; the
   adapter-side rejection contract stays untouched.
 
@@ -374,13 +419,13 @@ Build of board task T-071 (branch `feat/window-chrome-black`).
 ### Fixed
 - The chrome windows rendered a black void where content belongs: Avalonia 12
   presents template content only through explicit bindings and the fresh
-  `Window.chrome` templates never bound `PART_ContentPresenter` вЂ” `Content`,
+  `Window.chrome` templates never bound `PART_ContentPresenter` РІР‚вЂќ `Content`,
   `ContentTemplate`, the `Padding` margin and both alignments ride it now in
   both chrome templates, regression-tested.
 
 ### Changed
 - Caption strip polish: the title centers on the strip at 13px; the caption
-  glyphs center in their 44Г—32 buttons at a 1.5 stroke; the hover feedback
+  glyphs center in their 44Р“вЂ”32 buttons at a 1.5 stroke; the hover feedback
   rides the icon itself (button opacity states, the Fluent presenter fill
   suppressed), and the close glyph retints to the palette error color.
 
@@ -389,14 +434,14 @@ Build of board task T-071 (branch `feat/window-chrome-black`).
 Build of board task T-069 (branch `feat/appearance-contracts`).
 
 ### Changed
-- The appearance contracts leave `ZettaTrade.Core.Interfaces` for Livery: `IThemeManager` + `ThemeInfo` now live in `Livery.Themes`, `ILocalizationManager` + `LanguageInfo` in `Livery.Localization` and `IAsyncInitializable` in `Livery.Contracts` вЂ” the appearance library references nothing ZettaTrade-branded and can package standalone for its second consumer, the `App`/`AI`/`Infrastructure` consumers rehome their usings (AI and Infrastructure gain the Livery project reference), the settings window's XAML datatypes switch to the library prefixes, and the move ships as a clean flip with no backward-compat shims.
+- The appearance contracts leave `ZettaTrade.Core.Interfaces` for Livery: `IThemeManager` + `ThemeInfo` now live in `Livery.Themes`, `ILocalizationManager` + `LanguageInfo` in `Livery.Localization` and `IAsyncInitializable` in `Livery.Contracts` РІР‚вЂќ the appearance library references nothing ZettaTrade-branded and can package standalone for its second consumer, the `App`/`AI`/`Infrastructure` consumers rehome their usings (AI and Infrastructure gain the Livery project reference), the settings window's XAML datatypes switch to the library prefixes, and the move ships as a clean flip with no backward-compat shims.
 
 ## [0.1.0-alpha.34] - 2026-11-06
 
 Build of board task T-068 (branch `feat/mcp-client-settings`).
 
 ### Added
-- External MCP servers in the settings' Mcp tab: per-entry editing (name, transport Stdio/Streamable HTTP, command+args for stdio, address+port for HTTP, the enabled flag, an auth secret REFERENCE key that resolves through the secret store, and the optional HTTP timeout seconds) persisted under the new `McpClients` settings section, with per-entry honest state rows (Disabled/Connecting/Connected/Failed) fed by the new `McpClientManager` вЂ” enabled entries connect on startup and after each save through the same `McpClientService.ConnectAsync` path, unchanged saves keep live connections, removed/changed/disabled entries disconnect, outages pin Failed with the transport's own reason instead of hanging anything, and unparsable persisted rows are skipped loudly.
+- External MCP servers in the settings' Mcp tab: per-entry editing (name, transport Stdio/Streamable HTTP, command+args for stdio, address+port for HTTP, the enabled flag, an auth secret REFERENCE key that resolves through the secret store, and the optional HTTP timeout seconds) persisted under the new `McpClients` settings section, with per-entry honest state rows (Disabled/Connecting/Connected/Failed) fed by the new `McpClientManager` РІР‚вЂќ enabled entries connect on startup and after each save through the same `McpClientService.ConnectAsync` path, unchanged saves keep live connections, removed/changed/disabled entries disconnect, outages pin Failed with the transport's own reason instead of hanging anything, and unparsable persisted rows are skipped loudly.
 
 ## [0.1.0-alpha.33] - 2026-11-06
 
@@ -412,7 +457,7 @@ Build of board task T-067 (branch `feat/indicator-settings-gate`).
 ### Fixed
 - A settings save without the loaded plugin never fabricates its config
   row: the indicator block of the save runs only when the session actually
-  owns the plugin вЂ” the persisted `ChartIndicators` config rides untouched
+  owns the plugin РІР‚вЂќ the persisted `ChartIndicators` config rides untouched
   (the chart pipeline already skips unknown names on its own seam).
 
 ## [0.1.0-alpha.32] - 2026-11-06
@@ -421,8 +466,8 @@ Build of board task T-066 (branch `feat/window-chrome`).
 
 ### Added
 - Styled window chrome across the shell (all six windows): the `Livery`
-  `TitleBar` strip вЂ” localized title, drag, double-click maximize,
-  minimize/maximize/restore/close вЂ” mounts through the `Window.chrome` /
+  `TitleBar` strip РІР‚вЂќ localized title, drag, double-click maximize,
+  minimize/maximize/restore/close РІР‚вЂќ mounts through the `Window.chrome` /
   `Window.chrome-compact` templates on Avalonia 12 `BorderOnly` decorations,
   so the native resize borders and AeroSnap survive while the system caption
   disappears; the strip's window-wide key hook restores the Alt+F4 close
@@ -447,13 +492,13 @@ Build of board task T-059 (branch `feat/theme-hot-reload`).
 ### Fixed
 - BUG-046: the theme hot-reload debounces PER FILE, so a burst saving
   several theme files inside one debounce window reloads every one of
-  them (before: only the last-changed file reloaded); a watcher error вЂ”
+  them (before: only the last-changed file reloaded); a watcher error РІР‚вЂќ
   the internal-buffer-overflow case that permanently stops the current
-  watcher's raise loop вЂ” logs a warning and re-subscribes a fresh
+  watcher's raise loop РІР‚вЂќ logs a warning and re-subscribes a fresh
   `FileSystemWatcher` instead of silently dying.
 - BUG-047: `ThemeManager.AvailableThemes` returns an immutable snapshot
   taken under the load lock instead of the live list the reload pipeline
-  mutates вЂ” no more `InvalidOperationException` racing a consumer that
+  mutates РІР‚вЂќ no more `InvalidOperationException` racing a consumer that
   enumerates it.
 - BUG-050: the order book widget re-renders on theme and language
   changes (the chart's convention), so its colors and column headers
@@ -466,15 +511,15 @@ Build of board task T-058 (branch `feat/ui-primitives`).
 ### Fixed
 - BUG-025: the async subscription helper `SubscribeAsync` runs its
   per-notification tasks one at a time in emission order (`Concat`
-  instead of `Merge`) вЂ” dependent steps (serialized page fetches) no
+  instead of `Merge`) РІР‚вЂќ dependent steps (serialized page fetches) no
   longer interleave while an earlier run pends; a queued run starts the
   moment its predecessor completes.
 - BUG-048: the chart pan step paces by the pitch the draw pass actually
   painted with (plot width minus the measured price gutter, cached from
   the last draw pass) instead of re-deriving it from the raw window
-  bounds вЂ” dragging one bar's width moves the window exactly one slot.
+  bounds РІР‚вЂќ dragging one bar's width moves the window exactly one slot.
 - BUG-049: the `SKPath` detached for each indicator line disposes in a
-  `using` scope right after the `DrawPath` call вЂ” no native wrapper
+  `using` scope right after the `DrawPath` call РІР‚вЂќ no native wrapper
   parked for the finalizer on every redraw.
 
 ## [0.1.0-alpha.29] - 2026-11-05
@@ -489,7 +534,7 @@ Build of board task T-070 (branch `feat/livery-resx`).
   composition root binds `ZettaTrade.UI.Resources.Strings.ResourceManager`
   into `LocalizationManager`; the charting widgets read the catalog
   directly again; `Livery.dll` now ships no application strings.
-- Choreography: the closed merged sections T-063вЂ“T-065 archive off the
+- Choreography: the closed merged sections T-063РІР‚вЂњT-065 archive off the
   board (rule 5 catch-up), and the follow-up is recorded as T-070.
 
 ## [0.1.0-alpha.28] - 2026-11-05
@@ -620,18 +665,18 @@ Build of the ui-colors refactor (supervisor-direct task; branch `feat/ui-colors`
 
 Build of task T-039 (symbol favorites + hidden pairs).
 
-### Added (T-039 вЂ” symbol marks)
+### Added (T-039 РІР‚вЂќ symbol marks)
 - The symbols combo gained per-symbol marks persisted per workspace exchange
   (`Workspace.FavoriteSymbols` / `Workspace.HiddenSymbols` JSON maps): a
   favorite renders a star badge in every row and pins to the head of the
   list; hidden pairs leave the everyday list.
 - The toolbar next to the symbol combo: a star toggle (favorite/unfavorite
   the selected symbol). Hidden pairs never take the chart (the review round
-  decided the rebase вЂ” below).
+  decided the rebase РІР‚вЂќ below).
 - The marks fail safe: a malformed stored map drops to no marks instead of
   crashing the picker, and the bootstrap never rewrites the maps it reads.
 
-### Changed (T-039 review round вЂ” the favorite stars move into the pairs tab)
+### Changed (T-039 review round РІР‚вЂќ the favorite stars move into the pairs tab)
 - The star leaves the chart toolbar: the "Pairs" tab's all-pairs list carries
   a star button on every row (next to the name). Pressing it stars the pair
   in the draft: the row pins to the list head at once; the toolbar star
@@ -646,13 +691,13 @@ Build of task T-039 (symbol favorites + hidden pairs).
   the map applies and persists only on Save (the same contract the moves
   follow); the chart combo re-applies the lands live through the settings
   changes stream.
-- The `в…` badge in the combo picker rows and the rebase/keep-one rules stay
+- The `РІВвЂ¦` badge in the combo picker rows and the rebase/keep-one rules stay
   as they were; `Chart.Symbols.FavoriteTip` is gone (en + ru),
   `Settings.Pairs.Star` names the row buttons.
 
-### Changed (T-039 review round вЂ” hidden pairs move to Settings)
+### Changed (T-039 review round РІР‚вЂќ hidden pairs move to Settings)
 - The hidden pairs are managed in the settings window's new "Pairs" tab: two
-  lists вЂ” all pairs of the workspace exchange and the hidden ones. The move
+  lists РІР‚вЂќ all pairs of the workspace exchange and the hidden ones. The move
   buttons sit in the center column between the lists, the classic two-list
   dialog shape: `>` hides the picked pair, `<` brings it back (the former
   bottom row of full buttons is gone). A pick plus a move repaints the
@@ -663,7 +708,7 @@ Build of task T-039 (symbol favorites + hidden pairs).
 - The last visible pair can never hide: the Hide move disarms when one
   visible pair remains, so the workspace always keeps a tradable context.
 - The settings save that hides the pair whose chart is shown switches the
-  chart to the first visible pair and persists the switch вЂ” the hidden
+  chart to the first visible pair and persists the switch РІР‚вЂќ the hidden
   pair never holds the selection (the round-1 invisible pinned row is
   gone), and a restart never re-opens a hidden chart either. A hidden pair
   leaves the picker unconditionally; the tab's reveal is its only way back.
@@ -676,7 +721,7 @@ Build of task T-039 (symbol favorites + hidden pairs).
 
 ### Fixed (T-039 review round)
 - The settings window no longer resizes when switching tabs: the dialog is
-  pinned to a fixed 560Г—640, Save/Close ride a pinned bottom row (never
+  pinned to a fixed 560Р“вЂ”640, Save/Close ride a pinned bottom row (never
   scrolled out of sight), and the long lists scroll their own viewports
   (the pairs lists, the theme-error list) instead of one dialog-wide
   scrollbar.
@@ -685,16 +730,16 @@ Build of task T-039 (symbol favorites + hidden pairs).
 
 Build of task T-024 (the demo seeded-walk underflow).
 
-### Fixed (T-024 вЂ” demo bar loads overflowed)
+### Fixed (T-024 РІР‚вЂќ demo bar loads overflowed)
 - Loading a full chart range of demo bars overflowed: `BarStep` evaluated
   `Next % 2001 - 1000` in unsigned semantics, so ~half the steps wrapped to
-  в‰€+42 949 % instead of the documented (в€’1%, +1%) and the compounding prices
+  РІвЂ°в‚¬+42 949 % instead of the documented (РІв‚¬вЂ™1%, +1%) and the compounding prices
   blew past the decimal range with `OverflowException`. The modulo and the
-  subtraction now run in `long` semantics (the healthy path is unchanged вЂ”
+  subtraction now run in `long` semantics (the healthy path is unchanged РІР‚вЂќ
   only the wrapped values were wrong).
 - The same unsigned wrap sat in the ticker's 24 h change (`PriceChange24h`):
   four of the six demo symbols permanently displayed a ~+429 496 729 %
-  rise. They now carry the documented (в€’1%, +1%) move.
+  rise. They now carry the documented (РІв‚¬вЂ™1%, +1%) move.
 - Pinned by tests: the full 7 day H1 range loads for every demo symbol with
   every close inside the documented-walk bounds, and every ticker stays in
   the documented band.
@@ -703,7 +748,7 @@ Build of task T-024 (the demo seeded-walk underflow).
 
 Build of task T-023 (the second real adapter: Bybit).
 
-### Added (T-023 вЂ” the Bybit adapter)
+### Added (T-023 РІР‚вЂќ the Bybit adapter)
 - A second production market data adapter, Bybit v5 spot (read-only
   `IMarketDataAdapter`, transport untouched Trading Safety invariants: no
   keys are read or carried; orders stay paper-only). Measured against
@@ -715,7 +760,7 @@ Build of task T-023 (the second real adapter: Bybit).
   malformed entries dropped and counted, never guessed), bars from `kline`
   (newest-first wire order reversed to the adapter contract; all numbers
   arrive as strings and parse to exact decimals), plus live `tickers` (the
-  spot payload carries no bid/ask вЂ” mapped honestly as zero, no guessed
+  spot payload carries no bid/ask РІР‚вЂќ mapped honestly as zero, no guessed
   substitutes), `orderbook.50` (snapshot + delta state machine with
   monotonic `u`, quantity `"0"` deletes a level, a detected gap discards
   the state and re-subscribes the topic) and `publicTrade` (aggressor side).
@@ -731,11 +776,11 @@ Build of task T-023 (the second real adapter: Bybit).
 
 Build of task T-022 (the order dialog names its exchange).
 
-### Added (T-022 вЂ” the order dialog header names the active exchange)
+### Added (T-022 РІР‚вЂќ the order dialog header names the active exchange)
 - The order dialog opens context-free: the toolbar selector can switch the
   exchange at any moment, and nothing in the dialog said which exchange the
   symbol suggestions and reference prices ride. A header line now shows the
-  localized title plus the live active-exchange name (e.g. `New order вЂ”
+  localized title plus the live active-exchange name (e.g. `New order РІР‚вЂќ
   Binance Spot`), bootstrapped on open and flipped by toolbar switches
   while the dialog stays open.
 
@@ -743,16 +788,16 @@ Build of task T-022 (the order dialog names its exchange).
 
 Build of task T-021 (cold-start polish: the first symbols apply).
 
-### Changed (T-021 вЂ” the symbols catalog source)
+### Changed (T-021 РІР‚вЂќ the symbols catalog source)
 - The chart's symbol combo filled only after the multi-megabyte
   `exchangeInfo` document finished streaming and parsing (measured
-  1.2вЂ“3.7 s inside the app; the raw document is ~17.8 MB and took up to
+  1.2РІР‚вЂњ3.7 s inside the app; the raw document is ~17.8 MB and took up to
   7.8 s on a real network). The adapter now draws the symbol catalog from
   the compact priced-symbols list (~160 KB): the combo appears within
-  ~0.5вЂ“0.9 s of the window showing (probe), the first chart bars ride the
+  ~0.5РІР‚вЂњ0.9 s of the window showing (probe), the first chart bars ride the
   same speedup, and the whole cold start sits well inside the 3 s envelope.
 - Symbol names split by a Binance-local quote table (USDT, FDUSD, USD1, the
-  recent AED/KZT fiats, the one-letter "U" quote, вЂ¦) sorted longest-first
+  recent AED/KZT fiats, the one-letter "U" quote, РІР‚В¦) sorted longest-first
   in the adapter; a pair whose quote is unrecognized (52 delisted remnants
   like PAX/UST/IDRT that still carry a price) is dropped and counted once
   in a warning, never guessed.
@@ -761,16 +806,16 @@ Build of task T-021 (cold-start polish: the first symbols apply).
 
 Build of task T-016 (exchange selector in the toolbar + the Demo adapter).
 
-### Added (T-016 вЂ” the exchange selector)
+### Added (T-016 РІР‚вЂќ the exchange selector)
 - Status bar exchange picker (visible only when two or more adapters are
   registered): picking an entry switches every market data consumer, the
   paper trading adapter and the symbol autocomplete to that exchange
   atomically; the choice persists (`Workspace:ExchangeId`) and is restored
   at the next start (restore runs inside the startup walk).
-- `Exchange В· Mode` chip next to the picker (`Binance В· Paper`): the trading
+- `Exchange Р’В· Mode` chip next to the picker (`Binance Р’В· Paper`): the trading
   mode stays a separate always-visible concern and is never folded into the
   picker (exchange and mode are two different decisions).
-- `DemoMarketDataAdapter` вЂ” a deterministic canned-data adapter (no network,
+- `DemoMarketDataAdapter` РІР‚вЂќ a deterministic canned-data adapter (no network,
   no keys; six fixed symbols, seeded bars per (symbol, time frame) from an
   explicit anchor, cadenced book/ticker/trades snapshots), always registered
   to give the selector a second entry. It will be replaced by a real
@@ -781,13 +826,13 @@ Build of task T-016 (exchange selector in the toolbar + the Demo adapter).
 - resx keys `Status.ExchangePicker` / `Status.PaperMode` /
   `Status.ExchangeFallback` (en + ru).
 
-### Changed (T-016 вЂ” the active-exchange facade)
+### Changed (T-016 РІР‚вЂќ the active-exchange facade)
 - `ActiveExchangeService` (app-lifetime singleton, `IAsyncInitializable`) is
   now the single registered `IMarketDataAdapter`: everything forwards to the
   active adapter; the behavioral `AdapterChanges` stream re-switches the
   running market data streams (book/ticker/trades), the chart bars trigger
   (`CombineLatest` with `AdapterChanges`) and the connection poll (a switch
-  reports the new adapter's state immediately) вЂ” a switch is context-wide by
+  reports the new adapter's state immediately) РІР‚вЂќ a switch is context-wide by
   construction, no consumer can stay on the previous exchange.
 - `SymbolListProvider` drops its cache on every exchange switch (the next
   fetch targets the new exchange; a fetch racing a switch returns its data
@@ -798,7 +843,7 @@ Build of task T-016 (exchange selector in the toolbar + the Demo adapter).
   so trading follows the exchange automatically. The exact-one-`exchangeInfo`
   path per run is preserved (the chart bootstrap joins the startup warm-up
   through the provider's single-flight gate).
-- Test suite 176 в†’ 207 (Demo adapter determinism + rejection rules, facade
+- Test suite 176 РІвЂ вЂ™ 207 (Demo adapter determinism + rejection rules, facade
   restore/switch/stream semantics, picker visibility + fallback UX, chart
   switch-and-cancel, provider flush).
 
@@ -806,24 +851,24 @@ Build of task T-016 (exchange selector in the toolbar + the Demo adapter).
 
 Build of task T-015 (configurable exchange endpoints + registry seam).
 
-### Added (T-015 вЂ” the registry seam)
+### Added (T-015 РІР‚вЂќ the registry seam)
 - `Exchange:Binance` settings section configures the Binance adapter's
   transport endpoints at startup: rest base URL and WebSocket URL (camelCase
   `restBaseUrl`/`wsUrl` in `appsettings.json`). Testnet, regional mirrors and
   proxies no longer need a recompile; a section change takes effect on the
   next app restart.
-- `BinanceEndpoints` вЂ” immutable value object (`RestBaseUrl`, `WsUrl`) with
+- `BinanceEndpoints` РІР‚вЂќ immutable value object (`RestBaseUrl`, `WsUrl`) with
   the shipped `Production` default; `ExchangeEndpointRegistry` (app-lifetime
   singleton) reads the section ONCE during the composition root's startup
   walk and serves the pair synchronously to the adapter factory.
-- `BinanceAdapter` constructor accepts the endpoints pair: omitted в†’
+- `BinanceAdapter` constructor accepts the endpoints pair: omitted РІвЂ вЂ™
   shipped defaults; a provided pair with blank members fails fast
-  (`ArgumentException`) вЂ” the tolerant missing-entry case belongs to the
+  (`ArgumentException`) РІР‚вЂќ the tolerant missing-entry case belongs to the
   registry, not the adapter.
-- Tolerance rules: missing section в†’ shipped production endpoints silently;
-  present-but-blank members в†’ warning in the log + production endpoints.
+- Tolerance rules: missing section РІвЂ вЂ™ shipped production endpoints silently;
+  present-but-blank members РІвЂ вЂ™ warning in the log + production endpoints.
 
-### Changed (T-015 вЂ” startup walk ordering)
+### Changed (T-015 РІР‚вЂќ startup walk ordering)
 - The composition root's startup walk now initializes TYPED registrations
   too: the static guard checks `typeof(IAsyncInitializable).IsAssignableFrom`
   instead of a `type is IAsyncInitializable` pattern that never matched a
@@ -832,10 +877,10 @@ Build of task T-015 (configurable exchange endpoints + registry seam).
   constructing the whole adapter stack before the settings file was loaded.
 - `RegisterAll` (MCP trading tools) moved after the startup walk: resolving
   `ITradingAdapter` constructs the adapter stack, and the Binance adapter
-  reads its endpoints from the registry at construction time вЂ” the walk must
+  reads its endpoints from the registry at construction time РІР‚вЂќ the walk must
   have loaded the settings file first, or every adapter silently ran on the
   shipped production hosts.
-- Test suite 159 в†’ 169 (10 new `ExchangeEndpointRegistryTests`: walk
+- Test suite 159 РІвЂ вЂ™ 169 (10 new `ExchangeEndpointRegistryTests`: walk
   semantics, ctor validation, a startup replica wiring the configured host
   into the resolved adapter, a real-file end-to-end read).
 
@@ -843,11 +888,11 @@ Build of task T-015 (configurable exchange endpoints + registry seam).
 
 Build of task T-014 (instrument autocomplete in the order dialog).
 
-### Added (T-014 вЂ” symbol autocomplete)
+### Added (T-014 РІР‚вЂќ symbol autocomplete)
 - Free-form symbol input in the New Order dialog: case-insensitive VM
   suggestions (prefix matches first, adapter order preserved) via the
   `SymbolSuggestions` list; Enter fills the field. Offline (or while the
-  list loads) there are no suggestions and no error UI вЂ” free text is
+  list loads) there are no suggestions and no error UI РІР‚вЂќ free text is
   always accepted; a late-arriving list opens the dropdown over already
   typed text.
 - `SymbolListProvider` (app-lifetime singleton): normalized tradable
@@ -859,18 +904,18 @@ Build of task T-014 (instrument autocomplete in the order dialog).
 - The dialog's symbol-list fetch runs under its command's execution
   token: closing the order dialog cancels an in-flight download
   silently. `SymbolListProvider.GetSymbolsAsync` takes no default token
-  вЂ” every consumer passes an explicit one; the only
+  РІР‚вЂќ every consumer passes an explicit one; the only
   `CancellationToken.None` left is the deliberate app-lifetime warm-up.
 
-### Changed (T-014 вЂ” speed)
+### Changed (T-014 РІР‚вЂќ speed)
 - The chart symbols combo comes from the same provider (the startup used
   to run two competing `exchangeInfo` downloads); `ChartViewModel`
   re-parses the cached names through `Symbol.Parse` and keeps the
   50-symbol dropdown trim.
 - The named Binance HTTP client decompresses responses (gzip, deflate,
-  brotli) вЂ” the uncompressed multi-megabyte `exchangeInfo` was the main
+  brotli) РІР‚вЂќ the uncompressed multi-megabyte `exchangeInfo` was the main
   cold-start blocker. Real-Binance probe: chart symbols ready 2.39 s
-  after process start (was ~8.4 s+; gzip в‰€ 6Г— smaller), klines response
+  after process start (was ~8.4 s+; gzip РІвЂ°в‚¬ 6Р“вЂ” smaller), klines response
   317 ms, `Symbol list cached` fires exactly once per run (1373
   instruments).
 
@@ -884,17 +929,17 @@ Build of task T-014 (instrument autocomplete in the order dialog).
 Build of task T-018 (app version chip); the board's T-017 ships in this
 release as well (it merged without its own version bump).
 
-### Added (T-018 вЂ” version display)
+### Added (T-018 РІР‚вЂќ version display)
 - App version chip in the status bar: the running `0.1.0-alpha.N` is read
   once from the exe's `AssemblyInformationalVersionAttribute` (baked from
   `Directory.Build.props`; the `+<git-commit>` suffix the SDK adds in
   repositories is trimmed) by the `AppVersion` accessor and shown through
   `StatusBarViewModel.AppVersion` in a new status column.
 
-### Added (T-017 вЂ” workspace symbol context)
+### Added (T-017 РІР‚вЂќ workspace symbol context)
 - One symbol context for the workspace: `ChartViewModel` boots in the
   constructor (the dead `WhenActivated` path for nested-panel VMs is gone)
-  вЂ” a raw `SymbolSelections` stream plus a hot-shared bars machine (`Switch`
+  РІР‚вЂќ a raw `SymbolSelections` stream plus a hot-shared bars machine (`Switch`
   cancels the in-flight load, `Replay(1).RefCount()` keeps one pipeline);
   the order book follows workspace selections by rewriting its typed symbol
   input (the free-typed input stays the offline override, last user action
@@ -905,7 +950,7 @@ release as well (it merged without its own version bump).
 
 Build of task T-011 (order book widget).
 
-### Added (T-011 вЂ” order book)
+### Added (T-011 РІР‚вЂќ order book)
 - Live order book panel in the workspace: Skia depth widget
   (`OrderBookWidget`, `ICustomDrawOperation` like the chart) driven by a
   self-fed `OrderBookViewModel` (free-typed symbol, default BTC/USDT) over
@@ -915,7 +960,7 @@ Build of task T-011 (order book widget).
 - Demand-driven stream start: the first subscriber of any feed starts the
   adapter-side streams (`ExchangeAdapterBase` virtual
   `StartSymbolStreamsAsync`; Binance connects once, then SUBSCRIBEs the
-  symbol's ticker/book/trade streams under a semaphore) вЂ” market data no
+  symbol's ticker/book/trade streams under a semaphore) РІР‚вЂќ market data no
   longer stays dark because nothing ever called `ConnectAsync`.
 
 ### Fixed
@@ -924,7 +969,7 @@ Build of task T-011 (order book widget).
   runs the receive/reconnect loop on an adapter-owned session token.
 - SUBSCRIBE payloads lacked the required `id`, and the raw `/ws` endpoint
   did not emit the `{"stream","data"}` envelope the message handler
-  expects вЂ” both dropped depth frames silently; now serialized with id and
+  expects РІР‚вЂќ both dropped depth frames silently; now serialized with id and
   connected via the combined `/stream` endpoint.
 
 ### Changed
@@ -938,7 +983,7 @@ Build of task T-011 (order book widget).
 First versioned state (build of task T-010; app shell and everything
 through T-009 is included per the note above).
 
-### Added (T-010 вЂ” order history + persistence)
+### Added (T-010 РІР‚вЂќ order history + persistence)
 - SQLite order history: every order the trading adapter accepts is
   persisted (`SqliteOrderHistoryStore`, EF Core migrations) by the New
   Order dialog, and cancellations are recorded by the positions panel.

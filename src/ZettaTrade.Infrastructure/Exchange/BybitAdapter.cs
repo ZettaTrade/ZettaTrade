@@ -102,6 +102,21 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <inheritdoc/>
     protected override IReadOnlySet<int> SupportedBookDepths => SupportedOrderBookDepths;
 
+    /// <summary>
+    /// The adapter's explicit reconnect policy (T-105): the shipped production
+    /// timing — the same shape <see cref="ReconnectPolicy.Default"/> carries.
+    /// A visible per-adapter object, not hidden constants: a future
+    /// settings-driven or per-venue divergence stays a one-line change.
+    /// </summary>
+    public static ReconnectPolicy DefaultReconnectPolicy { get; } = new()
+    {
+        InitialDelay = TimeSpan.FromSeconds(5),
+        MaxDelay = TimeSpan.FromSeconds(60),
+        BackoffMultiplier = 2.0,
+        JitterFraction = 0.25,
+        MaxAttempts = 5,
+    };
+
     private readonly HttpClient _httpClient;
     private readonly WebSocketClient _wsClient;
     private readonly string _baseUrl;
@@ -152,11 +167,15 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// or fall back to the production hosts; providing a pair with blank
     /// members is a configuration error and throws immediately (the
     /// tolerant missing-entry case is the registry's job, not the adapter's).
+    /// The reconnect supervisor is bound when provided (T-105): the adapter
+    /// registers its policy and hands the transport a state sink; direct
+    /// constructions without one keep compiling and report nothing.
     /// </summary>
     public BybitAdapter(
         ILogger<BybitAdapter> logger,
         IHttpClientFactory httpClientFactory,
-        BybitEndpoints? endpoints = null)
+        BybitEndpoints? endpoints = null,
+        ReconnectSupervisor? reconnectSupervisor = null)
         : base(logger)
     {
         _baseUrl = endpoints?.RestBaseUrl ?? DefaultRestBaseUrl;
@@ -170,7 +189,11 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         }
 
         _httpClient = httpClientFactory.CreateClient(HttpClientName);
-        _wsClient = new WebSocketClient(_wsUrl, logger);
+        _wsClient = new WebSocketClient(
+            _wsUrl,
+            logger,
+            DefaultReconnectPolicy,
+            reconnectSupervisor?.For(Id, DefaultReconnectPolicy));
 
         _messageSubscription = _wsClient.MessageStream.Subscribe(HandleWebSocketMessage);
         _connectionSubscription = _wsClient.ConnectionStateStream.Subscribe(HandleConnectionStateChanged);
