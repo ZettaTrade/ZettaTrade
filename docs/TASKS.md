@@ -82,7 +82,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-075 Amend a working order from the orders panel | feat/order-amend | done | - |
 | T-076 Bulk order management: cancel every working order on a symbol | feat/order-bulk | done | - |
 | T-077 Position actions: close, reverse, partial close (paper-first) | feat/position-actions | done | - |
-| T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | queued | - |
+| T-078 Order ticket confirmation: the pre-submit summary | feat/order-confirm | in-progress | - |
 | T-079 Position sizing helper in the ticket (percent / risk-anchored) | feat/position-sizer | done | - |
 | T-080 Fees: maker/taker in the ticket, fills and history | feat/fees | done | - |
 | T-081 Balances panel: per-exchange and aggregated | feat/balances | done | - |
