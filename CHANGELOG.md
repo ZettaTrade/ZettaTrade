@@ -9,6 +9,28 @@ before `alpha.10` was never versioned — what shipped in T-001 — T-009
 (app shell, themes + hot reload, settings, hotkeys, resx sync gate, order
 dialog, positions panel) is recorded in `docs/TASKS.md`.
 
+## [0.1.0-alpha.51] - 2026-11-07
+
+Build of board task T-085 (branch `feat/candle-cache`).
+
+### Added
+- The local candle cache: adapter-served bars persist into SQLite
+  (`candles.db`) keyed by (adapter, symbol, interval) and upserted by
+  open time, so every fetch rides WRITE-THROUGH and the next start
+  renders the chart instantly from the cache (the network refresh then
+  lands behind it). Overlaps conflate — one TRUE database upsert decides
+  insert-or-update per bar (the T-061 lesson), a restart replay or a
+  racing surface merges on the composite key instead of colliding, and
+  the served page commits as one transaction. The per-series eviction
+  cap keeps only the newest `Caching.MaxBarsPerSeries` bars (default
+  100k, the chart target's depth); the whole cache is switchable with
+  `Caching.Enabled`, both keys re-read live on settings changes. A cache
+  fault is bookkeeping noise: reads serve nothing and writes log — the
+  chart's refresh page still delivers, the honest-view and paging
+  machinery stay untouched. No Core entity or interface changed (the
+  `ICandleCache` seam lives in Infrastructure next to the other
+  persistence services); no resx changes.
+
 ## [0.1.0-alpha.50] - 2026-11-07
 
 Build of board task T-133 (branch `feat/mcp-journal`).
