@@ -17,6 +17,7 @@ using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Fees;
 using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
@@ -106,7 +107,19 @@ public sealed class OrderAmendServiceTests
     }
 
     private static PaperTradingAdapter CreatePaperAdapter(IMarketDataAdapter marketData) =>
-        new(marketData, NullLogger<PaperTradingAdapter>.Instance);
+        new(marketData, CreateFeeSchedules(), NullLogger<PaperTradingAdapter>.Instance);
+
+    /// <summary>
+    /// A fee schedule registry over empty settings: the shipped paper
+    /// schedule answers, so the amend-side placements carry computed
+    /// commissions (display only in this file, never asserted).
+    /// </summary>
+    internal static FeeScheduleService CreateFeeSchedules()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.Changes.Returns(System.Reactive.Linq.Observable.Empty<SettingsChange>());
+        return new(settings, NullLogger<FeeScheduleService>.Instance);
+    }
 
     private static readonly Bar ReferenceBar =
         new(DateTimeOffset.Parse("2026-11-06T12:00:00+00:00"), 49_500m, 50_500m, 49_000m, ReferenceClose, 1_000m);

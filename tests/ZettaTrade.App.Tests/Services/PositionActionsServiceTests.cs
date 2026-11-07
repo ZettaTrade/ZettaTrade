@@ -16,6 +16,7 @@ using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Fees;
 using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
@@ -538,7 +539,20 @@ public sealed class PositionActionsServiceTests
 
     #region Test Helpers
 
-    private PaperTradingAdapter CreatePaperAdapter() => new(_marketData, NullLogger<PaperTradingAdapter>.Instance);
+    private PaperTradingAdapter CreatePaperAdapter() =>
+        new(_marketData, CreateFeeSchedules(), NullLogger<PaperTradingAdapter>.Instance);
+
+    /// <summary>
+    /// A fee schedule registry over empty settings: the shipped paper
+    /// schedule answers, so the action placements carry computed
+    /// commissions (display only in this file, never asserted).
+    /// </summary>
+    internal static FeeScheduleService CreateFeeSchedules()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.Changes.Returns(System.Reactive.Linq.Observable.Empty<SettingsChange>());
+        return new(settings, NullLogger<FeeScheduleService>.Instance);
+    }
 
     private PositionActionsService CreateService(
         ITradingAdapter trading,
