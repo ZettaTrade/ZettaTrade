@@ -31,7 +31,8 @@ public static class PositionSizingMath
     /// risk budget is not. A divide that drifts by decimal precision is
     /// corrected by stepping up while the floor still fits the raw value,
     /// so the result always satisfies the invariant
-    /// <c>0 ≤ result ≤ raw</c> and <c>raw - result &lt; step</c>.
+    /// <c>0 ≤ result ≤ raw</c> and the remainder <c>raw - result</c>
+    /// stays strictly below the step.
     /// </summary>
     /// <param name="rawQuantity">The unrounded raw proposal (zero or positive).</param>
     /// <param name="quantityStep">The instrument's positive lot step.</param>
