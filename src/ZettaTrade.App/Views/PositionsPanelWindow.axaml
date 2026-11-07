@@ -64,6 +64,12 @@
                 <!-- Open orders -->
                 <StackPanel Spacing="6">
                     <TextBlock Text="{loc:Localized Positions.OpenOrdersHeader}" FontWeight="Bold" />
+                    <!-- Bulk action (T-076): cancel every working order on the
+                         workspace's active symbol; the panel gates it by the
+                         idle state and the non-empty section. -->
+                    <Button Content="{loc:Localized Positions.ActionBulkCancel}"
+                            Command="{Binding CancelAllCommand}"
+                            MinWidth="90" HorizontalAlignment="Left" />
                     <Grid ColumnDefinitions="125,50,75,150,125,150,180"
                           IsVisible="{Binding HasOpenOrders}">
                         <TextBlock Grid.Column="0" Text="{loc:Localized Positions.Symbol}" />
