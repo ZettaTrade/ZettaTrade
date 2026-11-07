@@ -625,11 +625,11 @@ public sealed class OrderSizerRowViewModel : ReactiveObject, IDisposable
         SizingBalanceSnapshot? snapshot,
         OrderSide side,
         decimal? entryEstimate) => snapshot is not null && side switch
-    {
-        OrderSide.Sell => snapshot.BaseAvailable is > 0m,
-        OrderSide.Buy => snapshot.QuoteAvailable is > 0m && entryEstimate is > 0m,
-        _ => false,
-    };
+        {
+            OrderSide.Sell => snapshot.BaseAvailable is > 0m,
+            OrderSide.Buy => snapshot.QuoteAvailable is > 0m && entryEstimate is > 0m,
+            _ => false,
+        };
 
     /// <summary>Guard the risk mode: quote custody, a positive stop distance and a positive parsed percent.</summary>
     private static bool CanProposeRisk(
