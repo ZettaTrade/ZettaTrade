@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
@@ -19,6 +20,7 @@ using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
@@ -185,6 +187,92 @@ public sealed class ChartViewModelTests
 
     #region Composition
 
+    /// <summary>
+    /// An ICandleCache fake for the chart facts: every read serves the
+    /// pre-written page (deterministically, inline), every write-through is
+    /// recorded, and both arms can fault on demand — the cache-void and
+    /// fault worlds are explicit facts, never implicit substitutes.
+    /// </summary>
+    private sealed class FakeCandleCache : ICandleCache
+    {
+        #region Private Fields
+
+        /// <summary>The delivery sequence markers (the write-through facts),
+        /// synchronized with the facts' own delivery markers.</summary>
+        private readonly IReadOnlyList<Bar> _served;
+
+        #endregion Private Fields
+
+        #region Properties
+
+        /// <summary>When set, every cache read faults (the chart must keep
+        /// the fetch page as its only delivery).</summary>
+        public Exception? ReadFault { get; set; }
+
+        /// <summary>When set, every write-through faults (the load must
+        /// still deliver its page — the cache is bookkeeping, not truth).</summary>
+        public Exception? WriteFault { get; set; }
+
+        /// <summary>The recorded write-throughs, in call order.</summary>
+        public List<WriteThroughStamp> Writes { get; } = new();
+
+        /// <summary>The arm markers appended at every cache call: the
+        /// ordering facts read this together with their own delivery log.</summary>
+        public ConcurrentQueue<string> Sequence { get; } = new();
+
+        #endregion Properties
+
+        #region Records
+
+        /// <summary>One recorded write-through: the key triple and the bars.</summary>
+        public sealed record WriteThroughStamp(string AdapterId, string Symbol, TimeFrame TimeFrame, IReadOnlyList<Bar> Bars);
+
+        #endregion Records
+
+        #region Constructors
+
+        public FakeCandleCache(IReadOnlyList<Bar> served) => _served = served;
+
+        #endregion Constructors
+
+        #region Public Methods
+
+        public Task<IReadOnlyList<Bar>> GetLatestAsync(
+            string adapterId,
+            Symbol symbol,
+            TimeFrame timeFrame,
+            int limit,
+            CancellationToken ct = default)
+        {
+            Sequence.Enqueue("cache-read");
+            if (ReadFault is { } fault)
+            {
+                return Task.FromException<IReadOnlyList<Bar>>(fault);
+            }
+
+            return Task.FromResult(_served);
+        }
+
+        public Task WriteThroughAsync(
+            string adapterId,
+            Symbol symbol,
+            TimeFrame timeFrame,
+            IReadOnlyList<Bar> bars,
+            CancellationToken ct = default)
+        {
+            Sequence.Enqueue("cache-write");
+            Writes.Add(new WriteThroughStamp(adapterId, symbol.Normalized, timeFrame, bars));
+            if (WriteFault is { } fault)
+            {
+                return Task.FromException(fault);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        #endregion Public Methods
+    }
+
     private static ActiveExchangeService CreateService(FakeMarketData first, FakeMarketData second)
     {
         var settings = Substitute.For<ISettingsService>();
@@ -200,7 +288,8 @@ public sealed class ChartViewModelTests
         ActiveExchangeService service,
         ISettingsService? settings = null,
         ICsvExportService? export = null,
-        ILocalizationManager? localization = null)
+        ILocalizationManager? localization = null,
+        ICandleCache? candleCache = null)
     {
         var timeFrameSettings = settings;
         if (timeFrameSettings is null)
@@ -222,6 +311,9 @@ public sealed class ChartViewModelTests
             new EmptyIndicatorCatalog(),
             export ?? Substitute.For<ICsvExportService>(),
             localization ?? Substitute.For<ILocalizationManager>(),
+            // The cache-void default: an empty cached page, silent writes —
+            // the facts that never touch the cache stay the pre-T-085 world.
+            candleCache ?? new FakeCandleCache([]),
             NullLogger<ChartViewModel>.Instance);
     }
 
@@ -396,6 +488,109 @@ public sealed class ChartViewModelTests
         delivered.Should().ContainSingle(
             "only the healthy symbol delivers bars; the failure must not end the machine");
         delivered[0].Should().ContainSingle().Which.Close.Should().Be(200m);
+    }
+
+    /// <summary>The open time of the cached stub page's single bar.</summary>
+    private static readonly DateTimeOffset CachedBaseTime = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+
+    /// <summary>
+    /// The T-085 bootstrap shape: the cached page delivers FIRST (rendered
+    /// instantly on a restart) and the network refresh rides behind it; the
+    /// served set persists write-through BEFORE the refresh page delivers.
+    /// </summary>
+    [Fact]
+    public async Task BarsLoad_ServesTheCachedPageFirst_AndTheRefreshRidesWriteThroughBehind()
+    {
+        var marketData = new FakeMarketData(barDelayMs: 50);
+        var cached = new Bar[] { new(CachedBaseTime, 91m, 97m, 90m, 94m, 12.5m) };
+        var cache = new FakeCandleCache(cached);
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            candleCache: cache);
+        var delivered = new List<IReadOnlyList<Bar>>();
+        var refresh = new TaskCompletionSource<IReadOnlyList<Bar>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writesAtRefreshDelivery = 0;
+
+        using var subscription = chart.BarsUpdates.Subscribe(
+            bars =>
+            {
+                delivered.Add(bars);
+                if (delivered.Count == 2)
+                {
+                    writesAtRefreshDelivery = cache.Writes.Count;
+                    refresh.TrySetResult(bars);
+                }
+            });
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        var refreshed = await refresh.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        delivered.Should().HaveCount(2, "the cache page and the refresh page both deliver");
+        delivered[0].Should().BeEquivalentTo(cached, "the cached page renders instantly");
+        delivered[1].Should().BeEquivalentTo(refreshed, "the refresh page is the trailing delivery");
+        refreshed[0].Close.Should().Be(100m, "the refresh page is the adapter's own bars, not the cache's");
+        writesAtRefreshDelivery.Should().Be(1, "the write-through completed before the refresh page delivered");
+        cache.Writes.Should().ContainSingle("the served set rides write-through");
+        cache.Writes[0].AdapterId.Should().Be("fake");
+        cache.Writes[0].Symbol.Should().Be("BTC/USDT");
+        cache.Writes[0].TimeFrame.Should().Be(TimeFrame.H1);
+        cache.Writes[0].Bars.Should().BeEquivalentTo(refreshed, "the persisted set is exactly the delivered one");
+    }
+
+    /// <summary>
+    /// An offline-style start: the cache serves and the fetch fails — the
+    /// cached bars stay the chart's world and nothing writes through.
+    /// </summary>
+    [Fact]
+    public void BarsLoad_WhenTheFetchFails_TheCachedBarsStand()
+    {
+        var marketData = new FakeMarketData(failingSymbols: ["BTC/USDT"]);
+        var cached = new Bar[] { new(CachedBaseTime, 91m, 97m, 90m, 94m, 12.5m) };
+        var cache = new FakeCandleCache(cached);
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            candleCache: cache);
+        var delivered = new List<IReadOnlyList<Bar>>();
+
+        using var subscription = chart.BarsUpdates.Subscribe(delivered.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        delivered.Should().ContainSingle("the failing fetch ends its own data, not the cached delivery");
+        delivered[0].Should().BeEquivalentTo(cached, "the cached page stands as the chart's world");
+        cache.Writes.Should().BeEmpty("nothing the adapter served is persisted");
+        marketData.BarsRequested.Should().ContainSingle("the fetch was still attempted");
+    }
+
+    /// <summary>
+    /// A faulted cache never breaks the chart: a read fault leaves the
+    /// fetch page as the only delivery, a write fault still records the
+    /// attempt and delivers the page — the cache is bookkeeping, never a
+    /// source of truth.
+    /// </summary>
+    [Fact]
+    public void BarsLoad_WhenTheCacheFaults_TheFetchPageStillDelivers()
+    {
+        var marketData = new FakeMarketData();
+        var cache = new FakeCandleCache([])
+        {
+            ReadFault = new InvalidOperationException("cache read failed"),
+            WriteFault = new InvalidOperationException("cache write failed"),
+        };
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            candleCache: cache);
+        var delivered = new List<IReadOnlyList<Bar>>();
+
+        using var subscription = chart.BarsUpdates.Subscribe(delivered.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        delivered.Should().ContainSingle("a read fault serves nothing, a write fault delivers anyway");
+        delivered[0].Should().ContainSingle().Which.Close.Should().Be(100m);
+        cache.Writes.Should().ContainSingle("the faulting write-through still records the served set");
+        marketData.BarsRequested.Should().ContainSingle("the load survived both cache faults");
     }
 
     [Fact]

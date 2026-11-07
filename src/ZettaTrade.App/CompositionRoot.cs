@@ -190,6 +190,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<IIndicatorCatalog>(),
                 sp.GetRequiredService<ICsvExportService>(),
                 sp.GetRequiredService<ILocalizationManager>(),
+                sp.GetRequiredService<ICandleCache>(), // T-085: the bootstrap page serves the cache first.
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
@@ -215,6 +216,11 @@ internal static class CompositionRoot
         // order history registration, so the walk initializes the ledger
         // store before the engine's boot replay reads it.
         services.AddPnlServices();
+
+        // The local candle cache (T-085): after the settings registration
+        // it rides, so the walk loads the Caching policy before the chart's
+        // bootstrap can serve a first page from the cache.
+        services.AddCandleCache();
         services.AddHistoryUiServices();
         services.AddTradeStatsServices();
         services.AddCsvExportServices();

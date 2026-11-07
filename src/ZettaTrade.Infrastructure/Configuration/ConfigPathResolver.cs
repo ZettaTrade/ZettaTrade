@@ -58,6 +58,14 @@ public static class ConfigPathResolver
     public static string PnlDatabaseFile => Path.Combine(DataDirectory, "pnl.db");
 
     /// <summary>
+    /// Path to the SQLite database holding the local candle cache
+    /// (T-085): the write-through ledger of adapter-served bars — a
+    /// disposable bookkeeping, rebuilt from the feeds as the stale window
+    /// refreshes, never a source of truth the trading flow depends on.
+    /// </summary>
+    public static string CandleCacheDatabaseFile => Path.Combine(DataDirectory, "candles.db");
+
+    /// <summary>
     /// Ensure all required directories exist.
     /// </summary>
     public static void EnsureDirectoriesExist()
