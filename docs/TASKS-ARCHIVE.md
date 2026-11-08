@@ -1410,6 +1410,55 @@ the board and its section below.
 - **Tests:** the pacing/dedupe facts, the row math (change, monotonic ring), the sparkline geometry builder, and the DI registration facts over the real graph shell.
 - **Status:** done. Canon: the branch carries `5bfd55c` (the board claim) and `2352416` — the feat commit: the `WatchlistFeedService` over the facade's ticker streams coalesces the wire ticks into ONE snapshot per 500 ms pulse (the first beat always ships the starter row set before any tick; unpriced rows bind empty texts; a beat without fresh data re-ships nothing — the Rx sample's clearing semantics), stable row identities in `WatchlistViewModel` (per-pulse field churn in place, no collection events for data), the tape-neighbor column in `MainWindow.axaml` whose `Polyline` binds `IList<Point>` (Avalonia 12's shape — `PointCollection` no longer exists there), the persisted `UI.WatchlistPanelWidth` riding the book/tape drag discipline, `Watch.Title` en+ru + the `Watch.` resx-gate prefix, all with the alpha.74 bump + the CHANGELOG section in the same commit. The facts run over a controllable pulse seam (no new test packages): row maths, formatting/sparkline geometry over the invariant culture, and the registration shape facts (factory registrations stay conservative walk candidates; the walk's instance guard sorts the rows ViewModel at runtime — the full graph activation rides the launch smoke, canonized). 23 new watchlist facts green over the full 1148-run App suite; one intermediate full-suite red (50 Dispatcher-pump-family failures) was environmental — stale pre-restart testhost processes, the same suite passed 1148/1148 after their cleanup. The launch smoke stayed clean: 58 log lines in its own run segment with zero failure-like entries, the workspace walk restored the watchlist column (book 300px, tape 240px, watchlist 260px), and `ProductVersion=0.1.0-alpha.74+2352416` bound the binary. Gate passed with `-AllowProtected` (first run tripped only `dotnet format`'s import-order lint on four new files, fixed by `dotnet format` itself). This board-flip commit closes the section.
 
+## T-122 — My footprint on the chart: position lines + working-order markers
+
+- **Branch:** feat/chart-mine, worktree zt-chart-mine, based on develop@e06b198 (claimed 2026-11-09; queued 2026-11-06 (functional presentation gap)).
+- **Origin:** when the demo trades (paper now, T-127's testnet later), the eye needs boundaries ON the chart — the entry and the working orders; today all trading state lives in the side panels.
+- **What:** chart overlays driven ONLY by the existing positions/orders streams (no new data): the position entry line with the direction arrow and a floating PnL tag snapped to the latest price, working-order lines styled by side (dashed limit lines), fill markers on executions. The lines respect the pan/zoom anchoring discipline (T-033/T-035/T-036 canon) and never violate the axis-bucket invariants. Renders my own activity only — nothing leaves the process.
+- **Scope:** Charting overlay + an App-side feed, resx en+ru for the legend, tests.
+- **Acceptance:** an amend (T-075) moves the line live; the entry line survives interval switches and stays anchored across candles; the legend explains every drawn shape.
+- **Tests:** anchoring goldens across pan/zoom/interval churn, the live-move golden, edge clamping at the visible window, multi-order styling.
+- **Status:** done. Canon: the branch carries
+  `3f39220` (the board claim, rebased onto the T-135 tip before landing) and
+  `eb4b6cf` (the feat: the `ChartFootprintService` composes the trading
+  lane's ONE keyed snapshot — the lane's non-flat accounts map to entry
+  overlays with the direction the signed quantity carries, the LIMIT legs
+  to side-colored dashed lines (stops and trailing legs carry no standing
+  level and own no line), the journal's Filled rows to fill diamonds
+  ascending by their own times; the open-order side needs no lane
+  qualification — it is the lane's own adapter read by construction; the
+  refresh economy: a price-only update recomposes from the caches, a
+  shaped change or a ledger/placement trigger pulls the adapter once
+  through the one drain loop; the chart's pure pick pass draws the
+  workspace symbol's shapes through the shared price scale/bar-slot math
+  — an out-of-window level resolves to no line, the PnL tag clamps into
+  the headroom band, fills anchor by [open, next open) containment with
+  the time axis' own borrow-the-previous-span convention for the last
+  bar; the legend lists exactly the shapes the frame drew, in both
+  languages; `IOrderJournal` gains the additive backward-compatible
+  `Placements` stream the placement re-pulls read; the ambient
+  `IObservable<PnlSnapshot>` rides the PnL engine's own state feed). 31
+  new facts: the compose matrix (6), the pure picks (8, an ordinal
+  symbol contract included), the placement math (11) and the legend
+  (3), plus the 3 DI registration facts.
+  - The REAL find the pre-merge launch smoke surfaced: the first smoke
+    crashed the app before a window existed — the feed's activation
+    could not resolve `IObservable<PnlSnapshot>` (no registration for
+    the engine stream), and no unit fact pins DI activation shape. The
+    fix rides the feat commit (the stream registered as the PnL feed's
+    own `Snapshots` factory BEFORE the feed) with the registration facts;
+    the second smoke passed clean (`0.1.0-alpha.77+eb4b6cf`, a 53-line
+    startup walk with zero ERR/FTL/exception entries, both process-hygiene
+    sweeps clean).
+  - Gate history: run 1 = whitespace-format verdicts (the legend swatch's
+    aligning indents and three comment sites) fixed via `dotnet format`;
+    run 2 = `GATE PASSED`; run 3 = `GATE PASSED` as the post-smoke-fix
+    validation (one documented deviation per the T-123 run-3 precedent;
+    `App.Tests` used the load-sensitive family's flaky retry once).
+  - `ProductVersion` rides `eb4b6cf`; supervisor-solo takeover: the
+    original T-122 worker died at the quota wall mid-draft and the wave-4
+    stretch carried the branch the rest of the way.
+
 ## T-123 — Trading-mode chip: paper/testnet/live always visible
 
 - **Branch:** feat/trading-mode-chip (worktree `zt-trading-mode-chip`, based on develop@e06b198).
@@ -1420,7 +1469,7 @@ the board and its section below.
 - **Tests:** the mode-mapping matrix (demo/testnet/live by endpoint identity, minus the rejection path), the flip confirmation gate, multi-window propagation.
 - **Status:** done. Canon: the branch carries `96701d2` (the board claim), `6a2b4ab` (the feat: `TradingLane` + `TradingModeService` — the resolver maps the paper identity to the paper lane and classifies venue surfaces by their configured record's `IsTestnet`; an identity outside the registry snapshot throws, never resolves by default; the standing `BehaviorSubject` stream bootstraps late subscribers; `ConfirmLaneFlipAsync` gates the live target behind the `Trading.ConfirmGoLive` prompt and passes paper/testnet through), `eca19c6` (the settings-port fix the feat surfaced: the `UrlPairs` shape allowed only string members and rejected the records' own exported `isTestnet` — every store holding an endpoint record refused its own re-import; the gate keeps the one optional camel-case identity member, two-string exports stay valid, functions pin all three sides) and `c6ae166` (the launch-smoke process-hygiene rule the user dutied after night-long leftover exes). The chip rides the status bar between the active exchange name and the language field with clean-theme tint bindings over the candle palette keys; 40 new facts (the mapping matrix + flip gate + the posted-beat chip renders) green. Gate history is thick: the first run tripped on the load-sensitive pump family across a box carrying two stuck verify-loop runs (killed, the box swept empty); the second run surfaced the REAL settings-port regression above and was resolved by the fix; the third run printed `GATE PASSED` with `-AllowProtected` (the bump). The pre-merge launch smoke stayed clean: the walk completed in its run segment with zero ERR/FTL/exception entries (`ProductVersion=0.1.0-alpha.76+eca19c62`, six demo watchlist WRN ticks are the ambient stream fallbacks, not failures), and the process hygiene rule ran both sweeps clean. Supervisor-solo: the original T-123 worker died at the quota wall after its claim; the slot took over in the wave-4 stretch.
 
-## T-133 — MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read
+## T-133 - MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read
 
 - **Branch:** queued 2026-11-06 (supervisor note raised at the T-082 landing: the PnL core's report flagged the blind spot; queued immediately so the seam does not rot).
 - **Origin:** fills placed through the `TradingToolsRegistrar` MCP tools bypass the App-side SQLite order journal - the canonical local ledger that order history, positions, CSV export, trade statistics and the T-082 PnL engine all read. An MCP-placed paper fill is a real (paper-lane) money flow invisible to every accounting surface.
