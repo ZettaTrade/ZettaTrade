@@ -1,0 +1,106 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:themes="using:Livery.Themes"
+        xmlns:interfaces="using:ZettaTrade.Core.Interfaces"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.FirstRunWizardWindow"
+        Classes="chrome-compact"
+        x:DataType="vm:FirstRunWizardViewModel"
+        Title="{loc:Localized Wizard.Title}"
+        Width="520" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <!-- The three steps share one body area; the visible step swaps and the
+         nav row always stays in place (the wizard never moves its controls —
+         a step is a panel flip, not a window shuffle). Every step's pick is
+         a draft: nothing applies before the finish button's task lands. -->
+    <StackPanel Margin="20" Spacing="12">
+
+        <!-- Step one: the theme pick. -->
+        <StackPanel IsVisible="{Binding IsThemeStepVisible}" Spacing="10">
+            <TextBlock Text="{loc:Localized Wizard.Theme.Header}"
+                       FontWeight="Bold"
+                       FontSize="16" />
+            <TextBlock Text="{loc:Localized Wizard.Theme.Caption}"
+                       TextWrapping="Wrap" />
+            <ComboBox ItemsSource="{Binding ThemeOptions}"
+                      SelectedItem="{Binding SelectedTheme}"
+                      MinWidth="240"
+                      HorizontalAlignment="Left">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="themes:ThemeInfo">
+                        <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </StackPanel>
+
+        <!-- Step two: the adapter pick. Demo stays the default lane; the
+             keys note is text only — the wizard never collects secrets. -->
+        <StackPanel IsVisible="{Binding IsAdapterStepVisible}" Spacing="10">
+            <TextBlock Text="{loc:Localized Wizard.Adapter.Header}"
+                       FontWeight="Bold"
+                       FontSize="16" />
+            <TextBlock Text="{loc:Localized Wizard.Adapter.Caption}"
+                       TextWrapping="Wrap" />
+            <ComboBox ItemsSource="{Binding AdapterOptions}"
+                      SelectedItem="{Binding SelectedAdapter}"
+                      MinWidth="240"
+                      HorizontalAlignment="Left">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="interfaces:IMarketDataAdapter">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Id}" FontSize="12" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Text="{loc:Localized Wizard.Adapter.Secrets}"
+                       TextWrapping="Wrap"
+                       FontSize="12" />
+        </StackPanel>
+
+        <!-- Step three: the first symbol pick, refilled on every draft-adapter
+             selection; the list scrolls inside its own viewport. -->
+        <StackPanel IsVisible="{Binding IsSymbolStepVisible}" Spacing="10">
+            <TextBlock Text="{loc:Localized Wizard.Symbol.Header}"
+                       FontWeight="Bold"
+                       FontSize="16" />
+            <TextBlock Text="{loc:Localized Wizard.Symbol.Caption}"
+                       TextWrapping="Wrap" />
+            <ListBox ItemsSource="{Binding SymbolNames}"
+                     SelectedItem="{Binding SelectedSymbolName}"
+                     Height="180" />
+        </StackPanel>
+
+        <!-- The nav row: back walks the drafts, next advances, finish is the
+             last step's confirm, skip leaves without applying anything (a
+             plain close — the same path the system close takes). -->
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+            <Button Grid.Column="0"
+                    IsVisible="{Binding IsBackVisible}"
+                    Content="{loc:Localized Wizard.Back}"
+                    Command="{Binding BackCommand}"
+                    MinWidth="90" />
+            <Button Grid.Column="2"
+                    IsVisible="{Binding IsNextVisible}"
+                    Content="{loc:Localized Wizard.Next}"
+                    Command="{Binding NextCommand}"
+                    MinWidth="90" />
+            <Button Grid.Column="3"
+                    IsVisible="{Binding IsFinishVisible}"
+                    Content="{loc:Localized Wizard.Finish}"
+                    Command="{Binding FinishCommand}"
+                    MinWidth="90" />
+        </Grid>
+        <Button Click="OnSkipClick"
+               Content="{loc:Localized Wizard.Skip}"
+               HorizontalAlignment="Right"
+               MinWidth="90" />
+    </StackPanel>
+</Window>

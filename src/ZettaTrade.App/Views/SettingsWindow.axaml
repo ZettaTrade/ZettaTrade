@@ -143,6 +143,22 @@
                             </ItemsControl>
                         </ScrollViewer>
                     </StackPanel>
+
+                    <!-- The first-run wizard's re-run entry (T-099): the board
+                         names the settings window as the only way back into
+                         the wizard. Closing this window first and modally
+                         opening the wizard over the owner keeps one modal at
+                         a time; the entries are View behavior (window
+                         lifecycle), no ViewModel state involved. -->
+                    <Separator Margin="0,4" />
+                    <TextBlock Text="{loc:Localized Settings.FirstRunWizard.Hint}"
+                               TextWrapping="Wrap"
+                               FontSize="12" />
+                    <Button x:Name="FirstRunWizardButton"
+                            Content="{loc:Localized Settings.FirstRunWizard.RunAgain}"
+                            HorizontalAlignment="Left"
+                            MinWidth="160"
+                            Click="OnFirstRunWizardClick" />
                 </StackPanel>
             </TabItem>
 
