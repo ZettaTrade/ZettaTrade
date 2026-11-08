@@ -312,9 +312,6 @@
   <data name="Status.ExchangePicker" xml:space="preserve">
     <value>Активная биржа</value>
   </data>
-  <data name="Status.PaperMode" xml:space="preserve">
-    <value>Paper</value>
-  </data>
   <data name="Status.ExchangeFallback" xml:space="preserve">
     <value>Сохранённая биржа недоступна — продолжаем на бирже по умолчанию</value>
   </data>
@@ -449,6 +446,27 @@
   </data>
   <data name="Trading.Cancel" xml:space="preserve">
     <value>Отмена</value>
+  </data>
+  <data name="Trading.Lane.Paper" xml:space="preserve">
+    <value>Симулятор</value>
+  </data>
+  <data name="Trading.Lane.Testnet" xml:space="preserve">
+    <value>Тестнет</value>
+  </data>
+  <data name="Trading.Lane.Live" xml:space="preserve">
+    <value>Реальный</value>
+  </data>
+  <data name="Trading.Lane.TooltipPaper" xml:space="preserve">
+    <value>Paper-трейдинг: имитация сделок по живым ценам — без реальных средств и биржевых ключей.</value>
+  </data>
+  <data name="Trading.Lane.TooltipTestnet" xml:space="preserve">
+    <value>Тестнет: эндпоинты биржи несут тестовую подпись — заявки не касаются реальных средств.</value>
+  </data>
+  <data name="Trading.Lane.TooltipLive" xml:space="preserve">
+    <value>Реальный торговый режим: настоящие заявки на настоящей бирже; каждая заявка — реальные деньги.</value>
+  </data>
+  <data name="Trading.ConfirmGoLive" xml:space="preserve">
+    <value>Переключить торговый режим на РЕАЛЬНЫЙ? Далее идут настоящие заявки.</value>
   </data>
   <data name="Order.StopMarket" xml:space="preserve">
     <value>Стоп-маркет</value>

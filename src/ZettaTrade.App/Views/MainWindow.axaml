@@ -98,11 +98,47 @@
                           Margin="16,0"
                           VerticalAlignment="Center"
                           ToolTip.Tip="{loc:Localized Status.ExchangePicker}" />
-                <TextBlock Grid.Column="2" Margin="16,0" VerticalAlignment="Center">
-                    <Run Text="{Binding ActiveExchangeName}" />
-                    <Run Text=" · " />
-                    <Run Text="{loc:Localized Status.PaperMode}" />
-                </TextBlock>
+                <!-- The trading lane chip (T-123): the always-visible
+                     PAPER/TESTNET/LIVE pill next to the active exchange
+                     name. The lane is a property of the TRADED surface (the
+                     trading-mode service's stream), never of the market
+                     data picker (T-016: exchange and mode are two
+                     different decisions). Colors reuse the palette keys the
+                     adapter health dots already speak — calm CandleUp,
+                     prompt Highlight, danger Error — and re-tint live on
+                     theme switches; the caption and tooltip are dynamic
+                     localized data from the view model. -->
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            Margin="16,0"
+                            VerticalAlignment="Center">
+                    <TextBlock VerticalAlignment="Center">
+                        <Run Text="{Binding ActiveExchangeName}" />
+                    </TextBlock>
+                    <Border CornerRadius="9"
+                            Padding="8,2"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="{Binding TradingLaneTooltip}"
+                            Classes.paper="{Binding IsPaperLane}"
+                            Classes.testnet="{Binding IsTestnetLane}"
+                            Classes.live="{Binding IsLiveLane}">
+                        <Border.Styles>
+                            <Style Selector="Border.paper">
+                                <Setter Property="Background" Value="{DynamicResource CandleUp}" />
+                            </Style>
+                            <Style Selector="Border.testnet">
+                                <Setter Property="Background" Value="{DynamicResource Highlight}" />
+                            </Style>
+                            <Style Selector="Border.live">
+                                <Setter Property="Background" Value="{DynamicResource Error}" />
+                            </Style>
+                        </Border.Styles>
+                        <TextBlock Text="{Binding TradingLaneLabel}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
                 <TextBlock Grid.Column="3" Text="{Binding ConnectionStatus}" Margin="16,0" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="4" Text="{Binding CurrentThemeName}" Margin="16,0" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="5" Text="{Binding CurrentLanguage}" Margin="16,0" VerticalAlignment="Center" />

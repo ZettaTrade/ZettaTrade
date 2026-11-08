@@ -1,3 +1,25 @@
+## [0.1.0-alpha.76] - 2026-11-09
+
+Build of board task T-123 (branch `feat/trading-mode-chip`).
+
+### Added
+- The trading-mode chip (T-123): the status bar always shows which lane
+  the workspace's traded surface occupies — PAPER/TESTNET/LIVE — as a
+  pill next to the active-exchange name. The lane resolves over the
+  T-015 endpoint identity: the shipped paper simulator parks the chip
+  on the paper lane, a venue surface classifies by the configured
+  endpoint record's testnet flag, and an identity outside the endpoint
+  registry snapshot is an error, never a substituted lane. The pill
+  re-tints live on theme switches (the palette keys the T-098 health
+  dots already speak) and its caption/tooltip re-compose on language
+  switches.
+- The `TradingModeService`: the lane resolver and the standing
+  `IObservable<TradingLane>` stream future per-window chips attach to.
+  The go-live invariant lives here: a flip INTO the live lane must ride
+  an `IConfirmationService` prompt (`Trading.ConfirmGoLive` in both
+  languages) — the runtime flip call site arrives with the
+  venue-trading surface, so today the gate is the invariant's keeper.
+
 ## [0.1.0-alpha.74] - 2026-11-08
 
 Build of board task T-120 (branch `feat/watchlist`).

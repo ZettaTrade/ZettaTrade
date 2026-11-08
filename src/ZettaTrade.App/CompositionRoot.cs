@@ -108,6 +108,14 @@ internal static class CompositionRoot
         // subscribes when the status bar VM resolves it.
         services.AddHealthUiServices();
 
+        // Trading mode (T-123): the lane service behind the status-bar chip.
+        // Registered after the exchange adapters (the resolver reads the
+        // endpoint registry they initialize) and before every consumer VM;
+        // the traded surface resolves from the active-exchange wiring's
+        // paper registration and the prompt gate from the confirmation
+        // service below.
+        services.AddTradingModeServices();
+
         services.AddBalancesServices(); // T-081: balances panel (aggregation service + panel VM).
 
         // AI chat: the Ollama completion service (local models first) and its
@@ -164,6 +172,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<IThemeManager>(),
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ActiveExchangeService>(),
+                sp.GetRequiredService<TradingModeService>(),
                 AppVersion.Current,
                 sp.GetRequiredService<AdapterHealthService>().HealthStream,
                 logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>()));

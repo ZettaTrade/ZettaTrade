@@ -152,6 +152,58 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// </summary>
     public ObservableCollection<AdapterHealthRow> AdapterHealthRows { get; } = new();
 
+    private string _tradingLaneLabel = string.Empty;
+    private string _tradingLaneTooltip = string.Empty;
+    private bool _isPaperLane;
+    private bool _isTestnetLane;
+    private bool _isLiveLane;
+    private readonly TradingModeService _tradingMode;
+
+    /// <summary>Localized lane labels: the chip's caption per resolved lane.</summary>
+    private const string LaneLabelPaperKey = "Trading.Lane.Paper";
+    private const string LaneLabelTestnetKey = "Trading.Lane.Testnet";
+    private const string LaneLabelLiveKey = "Trading.Lane.Live";
+
+    /// <summary>Localized lane tooltips: what each lane means at one glance.</summary>
+    private const string LaneTooltipPaperKey = "Trading.Lane.TooltipPaper";
+    private const string LaneTooltipTestnetKey = "Trading.Lane.TooltipTestnet";
+    private const string LaneTooltipLiveKey = "Trading.Lane.TooltipLive";
+
+    /// <summary>The chip's caption for the resolved lane (localized; re-derived on language changes).</summary>
+    public string TradingLaneLabel
+    {
+        get => _tradingLaneLabel;
+        private set => this.RaiseAndSetIfChanged(ref _tradingLaneLabel, value);
+    }
+
+    /// <summary>The chip's tooltip for the resolved lane (localized; re-derived on language changes).</summary>
+    public string TradingLaneTooltip
+    {
+        get => _tradingLaneTooltip;
+        private set => this.RaiseAndSetIfChanged(ref _tradingLaneTooltip, value);
+    }
+
+    /// <summary>Class flags the chip's per-state styles bind to (the lane's calm/prompt/danger tint).</summary>
+    public bool IsPaperLane
+    {
+        get => _isPaperLane;
+        private set => this.RaiseAndSetIfChanged(ref _isPaperLane, value);
+    }
+
+    /// <inheritdoc cref="IsPaperLane"/>
+    public bool IsTestnetLane
+    {
+        get => _isTestnetLane;
+        private set => this.RaiseAndSetIfChanged(ref _isTestnetLane, value);
+    }
+
+    /// <inheritdoc cref="IsPaperLane"/>
+    public bool IsLiveLane
+    {
+        get => _isLiveLane;
+        private set => this.RaiseAndSetIfChanged(ref _isLiveLane, value);
+    }
+
     #endregion Properties
 
     #region Constructor
@@ -162,6 +214,7 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// <param name="themeManager">Theme manager providing the theme chip state.</param>
     /// <param name="localizationManager">Localization manager providing the language chip state.</param>
     /// <param name="activeExchanges">The active-exchange facade providing the picker and the exchange/mode chip.</param>
+    /// <param name="tradingMode">The trading-mode service providing the lane chip's resolved lane stream (T-123).</param>
     /// <param name="appVersion">Running version for the version chip.</param>
     /// <param name="adapterHealth">
     /// The adapter health fold's snapshot stream (T-098): the strip's rows
@@ -177,6 +230,7 @@ public sealed class StatusBarViewModel : ReactiveObject
         IThemeManager themeManager,
         ILocalizationManager localizationManager,
         ActiveExchangeService activeExchanges,
+        TradingModeService tradingMode,
         string appVersion,
         IObservable<IReadOnlyList<AdapterHealth>> adapterHealth,
         TimeSpan? fallbackNoticeDuration = null,
@@ -184,6 +238,8 @@ public sealed class StatusBarViewModel : ReactiveObject
     {
         _localizationManager = localizationManager;
         _exchanges = activeExchanges;
+        _tradingMode = tradingMode
+            ?? throw new ArgumentNullException(nameof(tradingMode));
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StatusBarViewModel>.Instance;
         AppVersion = appVersion;
         _fallbackNoticeDuration = fallbackNoticeDuration ?? TimeSpan.FromSeconds(DefaultFallbackNoticeSeconds);
@@ -276,6 +332,32 @@ public sealed class StatusBarViewModel : ReactiveObject
             .Subscribe(
                 _ => RefreshAdapterHealthRows(_lastAdapterHealth),
                 ex => _logger.LogError(ex, "The strip's language re-composition stream stopped unexpectedly"));
+
+        // The trading lane chip's captions and tooltips are localized data:
+        // the same language switch re-derives the chip from its standing
+        // lane, so the chip never renders a stale-culture caption.
+        localizationManager
+            .LanguageChanged
+            .Select(_ => RxVoid.Default)
+            .ObserveOnUiThread()
+            .Subscribe(
+                _ => RefreshTradingLaneChip(_tradingMode.CurrentLane),
+                ex => _logger.LogError(ex, "The lane chip's language re-composition stream stopped unexpectedly"));
+
+        // The trading lane chip (T-123): the mode service's behavioral
+        // stream delivers the standing lane on subscribe (the chip starts
+        // rendered from the same resolution the pipeline used at rise) and
+        // every later flip after that. The status bar is an
+        // application-lifetime singleton, so the subscription mirrors its
+        // lifetime; a future flip site may emit off the user-interface
+        // thread, so the chip writes marshal like the other chip writers
+        // (BUG-018's shape).
+        tradingMode
+            .Lane
+            .ObserveOnUiThread()
+            .Subscribe(
+                RefreshTradingLaneChip,
+                ex => _logger.LogError(ex, "The trading lane chip stream stopped unexpectedly"));
     }
 
     #endregion Constructor
@@ -452,6 +534,40 @@ public sealed class StatusBarViewModel : ReactiveObject
         themeManager.AvailableThemes
             .FirstOrDefault(t => t.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase))
             ?.DisplayName ?? themeName;
+
+    /// <summary>
+    /// Re-render the trading lane chip from one resolved lane: the class
+    /// flags (the per-state tint) and the localized caption/tooltip swap
+    /// together, so a lane change and a language change can never leave the
+    /// chip with a mismatched pair. Callers deliver this on the
+    /// user-interface thread (both chip subscriptions marshal upstream).
+    /// </summary>
+    private void RefreshTradingLaneChip(TradingLane lane)
+    {
+        IsPaperLane = lane == TradingLane.Paper;
+        IsTestnetLane = lane == TradingLane.Testnet;
+        IsLiveLane = lane == TradingLane.Live;
+        TradingLaneLabel = _localizationManager.GetString(ResolveLaneLabelKey(lane));
+        TradingLaneTooltip = _localizationManager.GetString(ResolveLaneTooltipKey(lane));
+    }
+
+    /// <summary>The chip caption's resx key for one lane (an unknown lane is an error — never a substituted label).</summary>
+    private static string ResolveLaneLabelKey(TradingLane lane) => lane switch
+    {
+        TradingLane.Paper => LaneLabelPaperKey,
+        TradingLane.Testnet => LaneLabelTestnetKey,
+        TradingLane.Live => LaneLabelLiveKey,
+        _ => throw new ArgumentOutOfRangeException(nameof(lane), lane, "The trading lane has no localized label."),
+    };
+
+    /// <summary>The chip tooltip's resx key for one lane (an unknown lane is an error — never a substituted tooltip).</summary>
+    private static string ResolveLaneTooltipKey(TradingLane lane) => lane switch
+    {
+        TradingLane.Paper => LaneTooltipPaperKey,
+        TradingLane.Testnet => LaneTooltipTestnetKey,
+        TradingLane.Live => LaneTooltipLiveKey,
+        _ => throw new ArgumentOutOfRangeException(nameof(lane), lane, "The trading lane has no localized tooltip."),
+    };
 
     #endregion Private Methods
 }
