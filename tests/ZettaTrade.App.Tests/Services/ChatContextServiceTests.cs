@@ -3,6 +3,7 @@ namespace ZettaTrade.App.Tests.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
@@ -34,6 +35,11 @@ public sealed class ChatContextServiceTests
     /// <summary>The staged ethereum tick price for the re-attach fact.</summary>
     private const decimal EthereumFirstTick = 777.5m;
 
+    /// <summary>The staged ticker's 24h change (the tick carries it; the
+    /// context renders it alongside the price since the market context
+    /// reads both).</summary>
+    private const decimal StagedTicker24hChange = 0.4m;
+
     #endregion
 
     #region Fixtures
@@ -45,7 +51,7 @@ public sealed class ChatContextServiceTests
         Bid: lastPrice - 1m,
         Ask: lastPrice + 1m,
         Volume24h: 12m,
-        PriceChange24hPercent: 0.4m,
+        PriceChange24hPercent: StagedTicker24hChange,
         Timestamp: DateTimeOffset.UtcNow);
 
     /// <summary>The wired rig: the context and everything that drives it.</summary>
@@ -74,6 +80,14 @@ public sealed class ChatContextServiceTests
 
         var symbols = new Subject<Symbol>();
         var timeFrames = new Subject<TimeFrame>();
+
+        // The market-data face serves book frames for the context since the
+        // market context rides the book too: the rig's scenarios write no
+        // book facts (the empty stream is the no-frame shape).
+        adapter
+            .SubscribeOrderBook(Arg.Any<Symbol>(), Arg.Any<int>())
+            .Returns(Observable.Empty<Core.Entities.OrderBook>());
+
         var context = new ChatContextService(
             adapter,
             symbols,
@@ -132,6 +146,7 @@ public sealed class ChatContextServiceTests
             Symbol = bitcoin.Normalized,
             TimeFrame = TimeFrame.H4,
             LastPrice = BitcoinFirstTick,
+            PriceChange24hPercent = StagedTicker24hChange,
         });
     }
 

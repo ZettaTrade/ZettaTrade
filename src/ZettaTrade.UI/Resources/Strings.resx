@@ -249,6 +249,12 @@
   <data name="AI.Assistant" xml:space="preserve">
     <value>AI Assistant</value>
   </data>
+  <data name="AI.Chat.ContextToggle" xml:space="preserve">
+    <value>Market snapshot</value>
+  </data>
+  <data name="AI.Chat.ContextToggle.Hint" xml:space="preserve">
+    <value>Inject a compact live market snapshot (venue, price, top of the book, indicator setup) into every message</value>
+  </data>
   <data name="AI.Chat.Send" xml:space="preserve">
     <value>Send</value>
   </data>

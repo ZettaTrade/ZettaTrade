@@ -397,6 +397,19 @@
                                FontSize="14"
                                Margin="8" />
 
+                    <!-- T-114: the market-context consent chip — the one
+                         explicit toggle behind which every send carries the
+                         token-bounded market snapshot (compacted fresh from
+                         the workspace moment). Off until stored, so the
+                         silent crowd keeps the exact pre-consent wording. -->
+                    <ToggleButton DockPanel.Dock="Top"
+                                  Margin="8,0,8,0"
+                                  HorizontalContentAlignment="Left"
+                                  Content="{loc:Localized AI.Chat.ContextToggle}"
+                                  ToolTip.Tip="{loc:Localized AI.Chat.ContextToggle.Hint}"
+                                  Command="{Binding ToggleContextCommand}"
+                                  IsChecked="{Binding IsMarketContextEnabled, Mode=OneWay}" />
+
                     <!-- Chat input + send (named input: the menu/hotkey focus
                          request lands on it, so the assistant is one
                          keystroke away); the send button carries the
