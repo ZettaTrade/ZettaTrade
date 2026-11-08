@@ -50,6 +50,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
         ViewModel?.Menu.ShowTradeStatsRequested.RegisterHandler(OpenTradeStatsAsync);
+        ViewModel?.Menu.ShowBacktestRequested.RegisterHandler(OpenBacktestAsync);
         ViewModel?.Menu.ShowNotificationsRequested.RegisterHandler(OpenNotificationHistoryAsync);
         ViewModel?.Menu.ShowBalancesRequested.RegisterHandler(OpenBalancesAsync);
         ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
@@ -435,6 +436,36 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             DataContext = App.Services.GetRequiredService<ViewModels.TradeStatsViewModel>(),
         };
         await window.ShowDialog<object>(this);
+    }
+
+    /// <summary>
+    /// The backtest window's core: the view model is transient, so every
+    /// open arms a fresh run form over the shared singleton harness — the
+    /// attach pattern owns the subscriptions, the opener only opens.
+    /// </summary>
+    private async Task ShowBacktestWindowAsync()
+    {
+        var window = new BacktestWindow
+        {
+            DataContext = App.Services.GetRequiredService<ViewModels.BacktestRunViewModel>(),
+        };
+        await window.ShowDialog<object>(this);
+    }
+
+    private async Task OpenBacktestAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            await ShowBacktestWindowAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the backtest window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
     }
 
     private async Task OpenNotificationHistoryAsync(IInteractionContext<RxVoid, RxVoid> context)
