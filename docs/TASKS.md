@@ -105,7 +105,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-098 Adapter health strip in the status bar | feat/health-strip | done | - |
 | T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | done | - |
 | T-100 Settings import/export + factory reset | feat/settings-port | done | - |
-| T-101 Log viewer window + global crash guard | feat/log-viewer | queued | - |
+| T-101 Log viewer window + global crash guard | feat/log-viewer | in-progress | - |
 | T-102 Hotkey manager + cheat sheet overlay | feat/hotkey-manager | queued | - |
 | T-103 Detachable panels: multi-window workspaces | feat/multi-window | queued | - |
 | T-104 Single instance hand-off + CLI symbol open | feat/single-instance | queued | - |
