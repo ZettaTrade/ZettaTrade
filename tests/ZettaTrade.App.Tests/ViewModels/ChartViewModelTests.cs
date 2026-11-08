@@ -21,6 +21,7 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
+using ZettaTrade.Strategies;
 
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
@@ -345,6 +346,19 @@ public sealed class ChartViewModelTests
         // probe and the fetched segments on the one fake.
         var cache = candleCache ?? new FakeCandleCache([]);
 
+        // The T-112 seam's inert hosting pair: no plugin resolves (the
+        // substitute catalog is empty), so the markers stream stays silent
+        // and the chart facts' pre-existing expectations hold untouched.
+        var relay = new SignalSeriesRelay();
+        var signals = new StrategySignalService(
+            relay.Pages,
+            Substitute.For<IStrategyCatalog>(),
+            NullLoggerFactory.Instance);
+        var rail = new SignalRailViewModel(
+            signals.Signals,
+            localization ?? Substitute.For<ILocalizationManager>(),
+            NullLogger<SignalRailViewModel>.Instance);
+
         return new(
             service,
             new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
@@ -356,6 +370,9 @@ public sealed class ChartViewModelTests
             // The repair chain's fetcher: every pass rides the same fake
             // cache (write-before-emit visibility) and a plain logger.
             new CandleBackfillService(cache, NullLogger<CandleBackfillService>.Instance),
+            signals,
+            rail,
+            relay,
             NullLogger<ChartViewModel>.Instance);
     }
 

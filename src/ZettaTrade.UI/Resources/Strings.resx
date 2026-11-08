@@ -1239,4 +1239,19 @@ Estimated fee: {7}</value>
   <data name="Settings.FirstRunWizard.RunAgain" xml:space="preserve">
     <value>Run setup wizard…</value>
   </data>
+  <data name="Signal.Rail.Title" xml:space="preserve">
+    <value>Signal rail</value>
+  </data>
+  <data name="Signal.Rail.Empty" xml:space="preserve">
+    <value>No strategy readings yet</value>
+  </data>
+  <data name="Signal.Rail.StanceLong" xml:space="preserve">
+    <value>Long</value>
+  </data>
+  <data name="Signal.Rail.StanceFlat" xml:space="preserve">
+    <value>Flat</value>
+  </data>
+  <data name="Signal.Rail.Row.Tooltip" xml:space="preserve">
+    <value>{0} reading at {1}, close {2} ({3}) — the click prefills the order ticket, nothing is sent.</value>
+  </data>
 </root>
