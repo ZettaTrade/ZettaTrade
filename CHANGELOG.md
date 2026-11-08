@@ -1,3 +1,29 @@
+## [0.1.0-alpha.68] - 2026-11-08
+
+Build of board task T-111 (branch `feat/strategies`).
+
+### Added
+- The strategy plugin seam (T-111): a minimal contracts kit — an
+  IStrategy evaluates a read-only closed-candle window per (symbol,
+  interval) and answers one neutral/long/flat stance at the last closed
+  candle, the StrategyContext carries the series identity, and the host
+  stamps every evaluation into a StrategySignal naming the strategy,
+  symbol, interval and the exact candle it judged.
+- The host + loader in the new ZettaTrade.Strategies project: one
+  candle-close evaluation loop consuming final candles and emitting one
+  stamped signal per (strategy, series) per accepted candle into an
+  inert signals channel — the output is read-only events for the human
+  and the UI tasks ahead; nothing rides a signal to an order, to the
+  risk lane or to any trading adapter, the human decides. The loader
+  scans the strategies plugins directory once per session reusing the
+  indicator scanner's T-054 tolerance canon: a broken, missing-
+  dependency or empty-id plugin is skipped with a loud warning while the
+  healthy neighbors keep registering.
+- The demo golden-cross strategy plus its seeded-candle golden, the
+  conformance battery every implementation must clear, and the loader
+  matrix pinning the T-054 regression: a broken/unloadable plugin
+  degrades the scan, never the app.
+
 ## [0.1.0-alpha.66] - 2026-11-08
 
 Build of board task T-099 (branch `feat/first-run-wizard`).
@@ -69,6 +95,7 @@ Build of board task T-114 (branch `feat/ai-context`).
   indicator setup from the persisted settings (read once at
   initialization, re-applied live from the changes stream); a part the
   streams never carried stays absent instead of being substituted.
+
 
 ## [0.1.0-alpha.64] - 2026-11-08
 

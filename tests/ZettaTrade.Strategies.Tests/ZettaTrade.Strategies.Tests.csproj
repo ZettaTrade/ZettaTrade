@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>ZettaTrade.Strategies.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="7.2.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ZettaTrade.Core\ZettaTrade.Core.csproj" />
+    <ProjectReference Include="..\..\src\ZettaTrade.Strategies\ZettaTrade.Strategies.csproj" />
+    <!-- The valid out-of-tree strategy fixture: its dll lands in the test
+         output (located by NAME by the catalog fixture - staging is what
+         the loader scans at runtime). -->
+    <ProjectReference Include="..\ZettaTrade.Plugins.SampleStrategy\ZettaTrade.Plugins.SampleStrategy.csproj" />
+    <!-- T-054 fixture reuse: the Broken plugin's dll lands in the test
+         output (its base assembly is compile-only: ExcludeAssets="runtime"
+         keeps it OFF disk, so the dependency is genuinely missing when the
+         scan loads the plugin - the ReflectionTypeLoadException path). -->
+    <ProjectReference Include="..\ZettaTrade.Plugins.Broken\ZettaTrade.Plugins.Broken.csproj" />
+    <ProjectReference Include="..\ZettaTrade.Plugins.BrokenBase\ZettaTrade.Plugins.BrokenBase.csproj" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>
