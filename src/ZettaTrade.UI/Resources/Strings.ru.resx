@@ -1011,4 +1011,79 @@
   <data name="Palette.Hint" xml:space="preserve">
     <value>Up/Down выбрать — Enter применить — Esc закрыть</value>
   </data>
+  <data name="Menu.Trading.Notifications" xml:space="preserve">
+    <value>Центр уведомлений</value>
+  </data>
+  <data name="Notif.AdapterDown" xml:space="preserve">
+    <value>Адаптер {0} недоступен</value>
+  </data>
+  <data name="Notif.AdapterReconnecting" xml:space="preserve">
+    <value>Адаптер {0} переподключается</value>
+  </data>
+  <data name="Notif.AdapterRecovered" xml:space="preserve">
+    <value>Адаптер {0} восстановлен</value>
+  </data>
+  <data name="Notif.Cancel" xml:space="preserve">
+    <value>Ордер отменён</value>
+  </data>
+  <data name="Notif.CancelDigest" xml:space="preserve">
+    <value>Отмен: {0} — {1}</value>
+  </data>
+  <data name="Notif.CancelOn" xml:space="preserve">
+    <value>Ордер отменён: {0}</value>
+  </data>
+  <data name="Notif.DndSummary" xml:space="preserve">
+    <value>«Не беспокоить» завершён — в истории {0} пропущенных уведомлений</value>
+  </data>
+  <data name="Notif.DndToggle" xml:space="preserve">
+    <value>Не беспокоить</value>
+  </data>
+  <data name="Notif.Fill" xml:space="preserve">
+    <value>Исполнено {0} {1} по {2}</value>
+  </data>
+  <data name="Notif.FillDigest" xml:space="preserve">
+    <value>Исполнений: {0} — {1}</value>
+  </data>
+  <data name="Notif.HistoryClear" xml:space="preserve">
+    <value>Очистить историю</value>
+  </data>
+  <data name="Notif.HistoryClose" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="Notif.HistoryEmpty" xml:space="preserve">
+    <value>В этой сессии уведомлений пока нет.</value>
+  </data>
+  <data name="Notif.HistoryTitle" xml:space="preserve">
+    <value>Центр уведомлений</value>
+  </data>
+  <data name="Notif.MuteHeader" xml:space="preserve">
+    <value>Отключить источники:</value>
+  </data>
+  <data name="Notif.MuteHint" xml:space="preserve">
+    <value>Отключённый источник пишет в историю, но не показывает всплывающих уведомлений.</value>
+  </data>
+  <data name="Notif.Reject" xml:space="preserve">
+    <value>Ордер отклонён: {0} — {1}</value>
+  </data>
+  <data name="Notif.RejectDigest" xml:space="preserve">
+    <value>Отклонений: {0} — {1}</value>
+  </data>
+  <data name="Notif.SaveFailed" xml:space="preserve">
+    <value>Не удалось сохранить изменение: {0}</value>
+  </data>
+  <data name="Notif.SourceAdapterStates" xml:space="preserve">
+    <value>Состояния адаптеров</value>
+  </data>
+  <data name="Notif.SourceCancels" xml:space="preserve">
+    <value>Отмены</value>
+  </data>
+  <data name="Notif.SourceFills" xml:space="preserve">
+    <value>Исполнения</value>
+  </data>
+  <data name="Notif.SourceRejections" xml:space="preserve">
+    <value>Отклонения</value>
+  </data>
+  <data name="Notif.ToastHint" xml:space="preserve">
+    <value>Нажатие закрывает уведомление; уведомление с панелью также откроет её.</value>
+  </data>
 </root>

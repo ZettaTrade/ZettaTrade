@@ -1,3 +1,46 @@
+## [0.1.0-alpha.63] - 2026-11-08
+
+Build of board task T-097 (branch `feat/notif-center`).
+
+### Added
+- The notification center (T-097): one publish surface, two read lanes.
+  Every journaled terminal order outcome (fills, accepted cancellations,
+  rejections) rides the center through the journal tap exactly once per
+  journal write, the adapter health fold's transport flips (reconnecting,
+  down, recovered) announce through their own tap, and the raw lane streams
+  every event while the display lane coalesces bursts of it into one digest
+  per source per 2-second window: the digest carries the burst size as a
+  count badge and the newest event's facts as the headline.
+- The toast host: a top-right stack of chrome-styled cards over the
+  workspace, newest on top, at most five visible, every card leaving on its
+  own after five seconds or on a click. All timing lives on the publishing
+  threads; the host only marshals the writes onto the user-interface thread
+  (the overlay never blocks it). A click dismisses the toast and routes
+  through the tested route map: fills open the trade statistics window,
+  cancellations and rejections the order journal, the Do-Not-Disturb
+  summary the notification itself; an adapter state keeps no deeper panel
+  (the health strip is always visible, so the click only dismisses).
+- Do Not Disturb and per-source mutes ride the reactive settings service:
+  four mute toggles plus the DND flag persist in the Notifications
+  settings section, subscribe-time seeds plus live re-application mean an
+  external settings-file edit lands without a restart. While DND runs,
+  toastable events skip the popups but keep their history rows, and the
+  flip back to off emits exactly one system summary counting the span's
+  missed events. A muted source is silenced for popups only — its events
+  keep reaching history.
+- The notification history window (the Trading menu's "Notification
+  center" entry): the session ring (200 entries, newest first) as live
+  rows, the Do-Not-Disturb checkbox and the four mute checkboxes mirroring
+  the reactive state read-only (their toggles write), a persist fault
+  surfaces on the footer's error line without losing the flagged state, a
+  Clear-history button and the empty state; window chrome per the T-066
+  canon, strings in en and ru.
+- Source taps keep the journal honest: a cancellation's symbol recovers
+  from the journal of record, an outcome the journal never saw (a
+  pre-acceptance venue refusal) publishes nothing, and a persistence fault
+  announces nothing (nothing is fabricated). The demo lane's unsupervised
+  adapters stay silent (no transport fact exists to report).
+
 ## [0.1.0-alpha.62] - 2026-11-08
 
 Build of board task T-093 (branch `feat/vol-vwap`).

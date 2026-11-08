@@ -1,0 +1,114 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.NotificationHistoryWindow"
+        Classes="chrome"
+        x:DataType="vm:NotificationHistoryViewModel"
+        Title="{loc:Localized Notif.HistoryTitle}"
+        Width="560" Height="640"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+
+        <!-- Do-Not-Disturb: the mirrored flag (read-only) takes its truth
+             from the reactive settings stream; the toggle writes through
+             the service and every re-application lands live. -->
+        <CheckBox Grid.Row="0"
+                  Content="{loc:Localized Notif.DndToggle}"
+                  IsChecked="{Binding IsDoNotDisturb, Mode=OneWay}"
+                  Command="{Binding ToggleDoNotDisturbCommand}" />
+
+        <!-- The per-source mutes: toggles flip through the reactive keys;
+             the boxes mirror the applied set (Drawer or external settings
+             edit re-applies without a restart). -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="{loc:Localized Notif.MuteHeader}"
+                       VerticalAlignment="Center"
+                       FontWeight="Bold"
+                       FontSize="13" />
+            <ItemsControl ItemsSource="{Binding MuteRows}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="10" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:NotificationMuteRow">
+                        <CheckBox Content="{Binding Label}"
+                                  IsChecked="{Binding IsMuted, Mode=OneWay}"
+                                  Command="{Binding ToggleCommand}"
+                                  ToolTip.Tip="{loc:Localized Notif.MuteHint}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- Session history: the live lane prepends while the window
+             stays; a burst keeps its count badge. Clicking does nothing
+             here: the route affordance is the toast stack's, the history
+             is the record. -->
+        <Grid Grid.Row="2">
+            <ScrollViewer IsVisible="{Binding HasRows}">
+                <ItemsControl ItemsSource="{Binding Rows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:NotificationRow">
+                            <Border BorderBrush="{DynamicResource Border}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="0,5,0,5">
+                                <Grid ColumnDefinitions="Auto,Auto,*"
+                                      ColumnSpacing="8">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Moment}"
+                                               Foreground="{DynamicResource TextSecondary}"
+                                               FontSize="11"
+                                               VerticalAlignment="Top" />
+                                    <Border Grid.Column="1"
+                                            CornerRadius="6"
+                                            Background="{DynamicResource Highlight}"
+                                            Padding="5,1"
+                                            IsVisible="{Binding HasCountBadge}"
+                                            VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding Count}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource Background}" />
+                                    </Border>
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Summary}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Top" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            <TextBlock IsVisible="{Binding !HasRows}"
+                       Text="{loc:Localized Notif.HistoryEmpty}"
+                       Foreground="{DynamicResource TextSecondary}" />
+        </Grid>
+
+        <!-- Toggle fault -->
+        <TextBlock Grid.Row="3"
+                   Text="{Binding ErrorMessage}"
+                   Foreground="{DynamicResource Error}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasErrorMessage}" />
+
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto">
+            <Button Grid.Column="1"
+                    Content="{loc:Localized Notif.HistoryClear}"
+                    Command="{Binding ClearHistoryCommand}"
+                    MinWidth="90" />
+            <Button Grid.Column="2"
+                    Content="{loc:Localized Notif.HistoryClose}"
+                    Click="OnCloseClick"
+                    MinWidth="90"
+                    Margin="8,0,0,0" />
+        </Grid>
+
+    </Grid>
+</Window>

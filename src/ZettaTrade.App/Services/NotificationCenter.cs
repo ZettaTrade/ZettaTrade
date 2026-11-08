@@ -4,8 +4,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Reactive.Linq;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -284,25 +284,32 @@ public sealed class NotificationCenter
                         var replay = gated
                             .Where(entry => entry.DndActive)
                             .Select(entry => entry.Notification)
-                            // One window per flip: the window a flip OPENS
-                            // covers that flip's span (its events missed); the
-                            // window flushes when the NEXT flip arrives, so
-                            // the replay pairs each window with the flip that
-                            // closed it. A closing flip that turned DND OFF
+                            // Window k spans [flip_{k-1}, flip_k): the missed
+                            // events of one ACTIVE span form one window, and
+                            // its own closing flip is the boundary that ends
+                            // it (the pre-seed head forms window 0 and stays
+                            // empty — the events before the seed never
+                            // classify and never enter the gate). The pages
+                            // materialize while their window is OPEN (hot
+                            // windows replay nothing to a late subscriber),
+                            // re-emit here the moment the window closes, and
+                            // the zip pairs each page with its own closing
+                            // flip. A closing flip that turned DND OFF
                             // (flips alternate) is the signature of a window
                             // that covered an ACTIVE span — exactly one
-                            // summary per missed span.
+                            // summary per missed span, emitted the moment
+                            // the closing flip lands.
                             .Window(dndFlips)
-                            .Zip(dndFlips.Skip(1), (window, closingDndActive) => (Window: window, ClosingDndActive: closingDndActive))
+                            .Select(span => span.ToList())
+                            .Merge()
+                            .Zip(dndFlips, (page, closingDndActive) => (Page: page, ClosingDndActive: closingDndActive))
                             .SelectMany(pair => pair.ClosingDndActive
                                 ? Observable.Empty<Notification>()
-                                : pair.Window
-                                    .ToList()
-                                    .SelectMany(page => page.Count == 0
-                                        ? Observable.Empty<Notification>()
-                                        : Observable.Return(Notification.ForDoNotDisturbSummary(
-                                            page.Count,
-                                            page[page.Count - 1].OccurredUtc))));
+                                : pair.Page.Count == 0
+                                    ? Observable.Empty<Notification>()
+                                    : Observable.Return(Notification.ForDoNotDisturbSummary(
+                                        pair.Page.Count,
+                                        pair.Page[pair.Page.Count - 1].OccurredUtc)));
 
                         return toasts.Merge(replay);
                     })));

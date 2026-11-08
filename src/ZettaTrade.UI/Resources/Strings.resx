@@ -1011,4 +1011,79 @@ Estimated fee: {7}</value>
   <data name="Palette.Hint" xml:space="preserve">
     <value>Up/Down navigate — Enter apply — Esc close</value>
   </data>
+  <data name="Menu.Trading.Notifications" xml:space="preserve">
+    <value>Notification center</value>
+  </data>
+  <data name="Notif.AdapterDown" xml:space="preserve">
+    <value>Adapter {0} went down</value>
+  </data>
+  <data name="Notif.AdapterReconnecting" xml:space="preserve">
+    <value>Adapter {0} is reconnecting</value>
+  </data>
+  <data name="Notif.AdapterRecovered" xml:space="preserve">
+    <value>Adapter {0} recovered</value>
+  </data>
+  <data name="Notif.Cancel" xml:space="preserve">
+    <value>Order cancelled</value>
+  </data>
+  <data name="Notif.CancelDigest" xml:space="preserve">
+    <value>{0} cancellations — {1}</value>
+  </data>
+  <data name="Notif.CancelOn" xml:space="preserve">
+    <value>Order cancelled on {0}</value>
+  </data>
+  <data name="Notif.DndSummary" xml:space="preserve">
+    <value>Do Not Disturb ended — {0} missed notifications are in history</value>
+  </data>
+  <data name="Notif.DndToggle" xml:space="preserve">
+    <value>Do Not Disturb</value>
+  </data>
+  <data name="Notif.Fill" xml:space="preserve">
+    <value>{0} {1} on {2}</value>
+  </data>
+  <data name="Notif.FillDigest" xml:space="preserve">
+    <value>{0} fills — {1}</value>
+  </data>
+  <data name="Notif.HistoryClear" xml:space="preserve">
+    <value>Clear history</value>
+  </data>
+  <data name="Notif.HistoryClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Notif.HistoryEmpty" xml:space="preserve">
+    <value>No notifications in this session yet.</value>
+  </data>
+  <data name="Notif.HistoryTitle" xml:space="preserve">
+    <value>Notification center</value>
+  </data>
+  <data name="Notif.MuteHeader" xml:space="preserve">
+    <value>Mute sources:</value>
+  </data>
+  <data name="Notif.MuteHint" xml:space="preserve">
+    <value>Muted sources keep writing to history but raise no toasts.</value>
+  </data>
+  <data name="Notif.Reject" xml:space="preserve">
+    <value>Order rejected: {0} — {1}</value>
+  </data>
+  <data name="Notif.RejectDigest" xml:space="preserve">
+    <value>{0} rejections — {1}</value>
+  </data>
+  <data name="Notif.SaveFailed" xml:space="preserve">
+    <value>The change could not be saved: {0}</value>
+  </data>
+  <data name="Notif.SourceAdapterStates" xml:space="preserve">
+    <value>Adapter states</value>
+  </data>
+  <data name="Notif.SourceCancels" xml:space="preserve">
+    <value>Cancellations</value>
+  </data>
+  <data name="Notif.SourceFills" xml:space="preserve">
+    <value>Fills</value>
+  </data>
+  <data name="Notif.SourceRejections" xml:space="preserve">
+    <value>Rejections</value>
+  </data>
+  <data name="Notif.ToastHint" xml:space="preserve">
+    <value>Click to dismiss; a routed toast also opens its panel.</value>
+  </data>
 </root>

@@ -45,6 +45,9 @@ public sealed class MainViewModel : ReactiveObject
     /// <summary>The global symbol palette (T-095): Ctrl+K's instrument picker over all adapters.</summary>
     public SymbolPaletteViewModel Palette { get; }
 
+    /// <summary>The notification toast host (T-097): the top-right stack the center's display lane feeds.</summary>
+    public NotificationToastHostViewModel ToastHost { get; }
+
     /// <summary>
     /// Create a new MainViewModel instance.
     /// </summary>
@@ -58,6 +61,7 @@ public sealed class MainViewModel : ReactiveObject
         TradeTapeViewModel tradeTape,
         WorkspaceLayoutViewModel layout,
         SymbolPaletteViewModel palette,
+        NotificationToastHostViewModel toastHost,
         ActiveExchangeService activeExchanges,
         ILogger<MainViewModel> logger)
     {
@@ -70,6 +74,7 @@ public sealed class MainViewModel : ReactiveObject
         TradeTape = tradeTape;
         Layout = layout;
         Palette = palette;
+        ToastHost = toastHost;
         _logger = logger;
 
         // The status chip mirrors the adapter connection state. The Core
