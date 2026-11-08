@@ -32,7 +32,8 @@ $ModulePrefixes = @(
     'Notif.',
     'Wizard.',
     'Port.',
-    'Signal.'
+    'Signal.',
+    'Backtest.'
 )
 
 function Get-ResxKeys([string]$Path) {
