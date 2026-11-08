@@ -204,6 +204,90 @@
   <data name="Settings.ThemeErrors.Hint" xml:space="preserve">
     <value>Темы — JSON-файлы; схема описана в themes/trading-pro.json.</value>
   </data>
+  <data name="Settings.Tab.Port" xml:space="preserve">
+    <value>Импорт / экспорт</value>
+  </data>
+  <data name="Port.Export" xml:space="preserve">
+    <value>Экспортировать настройки…</value>
+  </data>
+  <data name="Port.Hint" xml:space="preserve">
+    <value>Экспорт переносит пользовательские настройки (тему, символы, переключатели графика, уведомления, адреса бирж, индикаторы) — и никогда не переносит API-ключи и секреты.</value>
+  </data>
+  <data name="Port.Import" xml:space="preserve">
+    <value>Импортировать настройки…</value>
+  </data>
+  <data name="Port.PreviewHeader" xml:space="preserve">
+    <value>Этот импорт изменит:</value>
+  </data>
+  <data name="Port.Change.Added" xml:space="preserve">
+    <value>добавлено</value>
+  </data>
+  <data name="Port.Change.Changed" xml:space="preserve">
+    <value>изменено</value>
+  </data>
+  <data name="Port.From" xml:space="preserve">
+    <value>с</value>
+  </data>
+  <data name="Port.To" xml:space="preserve">
+    <value>на</value>
+  </data>
+  <data name="Port.Apply" xml:space="preserve">
+    <value>Применить импорт</value>
+  </data>
+  <data name="Port.Reset" xml:space="preserve">
+    <value>Возврат к заводским настройкам</value>
+  </data>
+  <data name="Port.Reset.Hint" xml:space="preserve">
+    <value>Возвращает каждую пользовательскую настройку к заводскому значению. Секреты и API-ключи остаются нетронутыми.</value>
+  </data>
+  <data name="Port.Reset.Button" xml:space="preserve">
+    <value>Сбросить к заводским…</value>
+  </data>
+  <data name="Port.ResetConfirm" xml:space="preserve">
+    <value>Вернуть каждую пользовательскую настройку к заводскому значению? Секреты останутся нетронутыми.</value>
+  </data>
+  <data name="Port.ExportedTo" xml:space="preserve">
+    <value>Настройки экспортированы в {0}.</value>
+  </data>
+  <data name="Port.ImportApplied" xml:space="preserve">
+    <value>Импорт применён; все изменения уже вступили в силу.</value>
+  </data>
+  <data name="Port.ImportNoChange" xml:space="preserve">
+    <value>В файле импорта нет отличий от текущих настроек; применять нечего.</value>
+  </data>
+  <data name="Port.ResetDone" xml:space="preserve">
+    <value>Возврат к заводским настройкам применён; каждая перечисленная настройка снова по умолчанию.</value>
+  </data>
+  <data name="Port.ResetDeclined" xml:space="preserve">
+    <value>Возврат к заводским настройкам отклонён — ничего не изменилось.</value>
+  </data>
+  <data name="Port.Error.ExportFailed" xml:space="preserve">
+    <value>Экспорт не удался; ничего не записано. Подробности в журнале.</value>
+  </data>
+  <data name="Port.Error.ImportRejected" xml:space="preserve">
+    <value>Импорт отклонён.</value>
+  </data>
+  <data name="Port.Error.ApplyFailed" xml:space="preserve">
+    <value>Импорт не удался во время применения; настройки могут быть применены частично. Подробности в журнале.</value>
+  </data>
+  <data name="Port.Error.ResetFailed" xml:space="preserve">
+    <value>Возврат к заводским настройкам не удался. Подробности в журнале.</value>
+  </data>
+  <data name="Port.Error.MalformedJson" xml:space="preserve">
+    <value>Файл не является корректным JSON.</value>
+  </data>
+  <data name="Port.Error.Schema" xml:space="preserve">
+    <value>Файл не является экспортом настроек ZettaTrade (неизвестная схема).</value>
+  </data>
+  <data name="Port.Error.Version" xml:space="preserve">
+    <value>Версия схемы файла не поддерживается. ZettaTrade не может угадать смысл чужой версии — ничего не изменено.</value>
+  </data>
+  <data name="Port.Error.UnknownEntry" xml:space="preserve">
+    <value>Файл содержит настройку, которой эта версия ZettaTrade не управляет. Ничего не изменено.</value>
+  </data>
+  <data name="Port.Error.WrongType" xml:space="preserve">
+    <value>Файл содержит значение, не соответствующее своему типу. Ничего не изменено — ничего не угадано и не подменено значением по умолчанию.</value>
+  </data>
   <data name="Order.Buy" xml:space="preserve">
     <value>Купить</value>
   </data>

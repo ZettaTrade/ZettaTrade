@@ -204,6 +204,90 @@
   <data name="Settings.ThemeErrors.Hint" xml:space="preserve">
     <value>Themes are JSON files; themes/trading-pro.json is the schema example.</value>
   </data>
+  <data name="Settings.Tab.Port" xml:space="preserve">
+    <value>Import / Export</value>
+  </data>
+  <data name="Port.Export" xml:space="preserve">
+    <value>Export settings…</value>
+  </data>
+  <data name="Port.Hint" xml:space="preserve">
+    <value>The export carries the user-adjustable settings (theme, columns, chart toggles, notifications DND/mutes, exchange URLs, indicators) — never API keys or secrets.</value>
+  </data>
+  <data name="Port.Import" xml:space="preserve">
+    <value>Import settings…</value>
+  </data>
+  <data name="Port.PreviewHeader" xml:space="preserve">
+    <value>This import would change:</value>
+  </data>
+  <data name="Port.Change.Added" xml:space="preserve">
+    <value>added</value>
+  </data>
+  <data name="Port.Change.Changed" xml:space="preserve">
+    <value>changed</value>
+  </data>
+  <data name="Port.From" xml:space="preserve">
+    <value>from</value>
+  </data>
+  <data name="Port.To" xml:space="preserve">
+    <value>to</value>
+  </data>
+  <data name="Port.Apply" xml:space="preserve">
+    <value>Apply import</value>
+  </data>
+  <data name="Port.Reset" xml:space="preserve">
+    <value>Factory reset</value>
+  </data>
+  <data name="Port.Reset.Hint" xml:space="preserve">
+    <value>Returns every user-adjustable setting to its shipped default. Secrets and API keys stay untouched.</value>
+  </data>
+  <data name="Port.Reset.Button" xml:space="preserve">
+    <value>Reset to defaults…</value>
+  </data>
+  <data name="Port.ResetConfirm" xml:space="preserve">
+    <value>Reset every user-adjustable setting to its factory default? Secrets stay untouched.</value>
+  </data>
+  <data name="Port.ExportedTo" xml:space="preserve">
+    <value>Settings exported to {0}.</value>
+  </data>
+  <data name="Port.ImportApplied" xml:space="preserve">
+    <value>The import applied; every change is live.</value>
+  </data>
+  <data name="Port.ImportNoChange" xml:space="preserve">
+    <value>The import file matches the current settings; nothing to change.</value>
+  </data>
+  <data name="Port.ResetDone" xml:space="preserve">
+    <value>The factory reset applied; every listed setting is back at its default.</value>
+  </data>
+  <data name="Port.ResetDeclined" xml:space="preserve">
+    <value>The factory reset was declined — nothing changed.</value>
+  </data>
+  <data name="Port.Error.ExportFailed" xml:space="preserve">
+    <value>The export failed; nothing was written. See the log for details.</value>
+  </data>
+  <data name="Port.Error.ImportRejected" xml:space="preserve">
+    <value>The import was rejected.</value>
+  </data>
+  <data name="Port.Error.ApplyFailed" xml:space="preserve">
+    <value>The import failed while applying; the settings may be partially written. See the log for details.</value>
+  </data>
+  <data name="Port.Error.ResetFailed" xml:space="preserve">
+    <value>The factory reset failed. See the log for details.</value>
+  </data>
+  <data name="Port.Error.MalformedJson" xml:space="preserve">
+    <value>The file is not valid JSON.</value>
+  </data>
+  <data name="Port.Error.Schema" xml:space="preserve">
+    <value>The file is not a ZettaTrade settings export (unknown schema).</value>
+  </data>
+  <data name="Port.Error.Version" xml:space="preserve">
+    <value>The file's schema version is not supported. ZettaTrade cannot guess the meaning of a foreign version — nothing was changed.</value>
+  </data>
+  <data name="Port.Error.UnknownEntry" xml:space="preserve">
+    <value>The file carries a setting this version of ZettaTrade does not manage. Nothing was changed.</value>
+  </data>
+  <data name="Port.Error.WrongType" xml:space="preserve">
+    <value>The file carries a value that does not fit what it is a value of. Nothing was changed — nothing was guessed or defaulted.</value>
+  </data>
   <data name="Order.Buy" xml:space="preserve">
     <value>Buy</value>
   </data>

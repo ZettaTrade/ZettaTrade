@@ -16,9 +16,15 @@ namespace ZettaTrade.App.Views;
 /// and "Close" discards unsaved selection changes (the ViewModel re-syncs its
 /// selections on the next open). Closing/click handling stays in code-behind
 /// on purpose — window lifecycle is View behavior, not ViewModel logic.
+/// The settings port's (T-100) file dialogs ride the same discipline: the
+/// code-behind picks the file (View behavior over the storage provider),
+/// then hands the path to the ViewModel's port methods.
 /// </summary>
 public partial class SettingsWindow : ReactiveWindow<SettingsViewModel>
 {
+    /// <summary>The export file's suggested name: the app name (the picker appends its extension).</summary>
+    private const string ExportSuggestedFileName = "zettatrade-settings";
+
     /// <summary>
     /// Create a new SettingsWindow instance.
     /// </summary>
@@ -74,5 +80,67 @@ public partial class SettingsWindow : ReactiveWindow<SettingsViewModel>
             DataContext = App.Services.GetRequiredService<FirstRunWizardViewModel>(),
         };
         await dialog.ShowDialog(owner!);
+    }
+
+    private async void OnExportClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.IsPortAvailable != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var destination = await SettingsPortFilePicker.PickSaveAsync(this, ExportSuggestedFileName);
+            if (destination is not null)
+            {
+                await ViewModel.ExportToFileAsync(destination);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to export the settings");
+        }
+    }
+
+    private async void OnImportClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.IsPortAvailable != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var source = await SettingsPortFilePicker.PickOpenAsync(this);
+            if (source is null)
+            {
+                return;
+            }
+
+            var jsonText = await File.ReadAllTextAsync(source);
+            await ViewModel.DraftImportAsync(jsonText);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to read the file the import picked");
+        }
+    }
+
+    private async void OnResetClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.IsPortAvailable != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await ViewModel.ResetToDefaultsAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to run the factory reset");
+        }
     }
 }
