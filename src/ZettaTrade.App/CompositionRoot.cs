@@ -299,6 +299,7 @@ internal static class CompositionRoot
         services.AddPositionActionsServices(); // T-077: position actions (close, partial close, reverse).
         services.AddBulkCancelServices(); // T-076: bulk cancel (per-symbol, confirmed, best-effort).
         services.AddFeeServices(); // T-080: fees (schedule, estimate, columns).
+        services.AddBacktestServices(); // T-113: the offline deterministic backtest harness + the run VM.
         services.AddSingleton<McpJournalingTradingAdapter>(); // T-133: MCP fills enter the journal.
         services.AddPositionSizerServices(); // T-079: position sizer (balance presets, risk-percent).
 

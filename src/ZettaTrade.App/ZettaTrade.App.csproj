@@ -53,6 +53,7 @@
     <ProjectReference Include="..\Livery\Livery.csproj" />
     <ProjectReference Include="..\ZettaTrade.Charting\ZettaTrade.Charting.csproj" />
     <ProjectReference Include="..\ZettaTrade.Infrastructure\ZettaTrade.Infrastructure.csproj" />
+    <ProjectReference Include="..\ZettaTrade.Backtest\ZettaTrade.Backtest.csproj" />
     <ProjectReference Include="..\ZettaTrade.Strategies\ZettaTrade.Strategies.csproj" />
     <ProjectReference Include="..\ZettaTrade.UI\ZettaTrade.UI.csproj" />
   </ItemGroup>

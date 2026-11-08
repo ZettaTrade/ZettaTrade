@@ -1254,4 +1254,85 @@ Estimated fee: {7}</value>
   <data name="Signal.Rail.Row.Tooltip" xml:space="preserve">
     <value>{0} reading at {1}, close {2} ({3}) — the click prefills the order ticket, nothing is sent.</value>
   </data>
+  <data name="Menu.Trading.Backtest" xml:space="preserve">
+    <value>Backtest…</value>
+  </data>
+  <data name="Backtest.Title" xml:space="preserve">
+    <value>Backtest</value>
+  </data>
+  <data name="Backtest.Strategy" xml:space="preserve">
+    <value>Strategy</value>
+  </data>
+  <data name="Backtest.Symbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="Backtest.Interval" xml:space="preserve">
+    <value>Interval</value>
+  </data>
+  <data name="Backtest.Bars" xml:space="preserve">
+    <value>Candles</value>
+  </data>
+  <data name="Backtest.Seed" xml:space="preserve">
+    <value>Seed</value>
+  </data>
+  <data name="Backtest.Slippage" xml:space="preserve">
+    <value>Slippage (quote)</value>
+  </data>
+  <data name="Backtest.LongFraction" xml:space="preserve">
+    <value>Long fraction</value>
+  </data>
+  <data name="Backtest.Start" xml:space="preserve">
+    <value>Run backtest</value>
+  </data>
+  <data name="Backtest.Cancel" xml:space="preserve">
+    <value>Cancel run</value>
+  </data>
+  <data name="Backtest.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Backtest.Status.Idle" xml:space="preserve">
+    <value>Ready — nothing replayed yet</value>
+  </data>
+  <data name="Backtest.Status.Running" xml:space="preserve">
+    <value>Replaying cached candles…</value>
+  </data>
+  <data name="Backtest.Status.Completed" xml:space="preserve">
+    <value>Completed — the report is below</value>
+  </data>
+  <data name="Backtest.Status.Cancelled" xml:space="preserve">
+    <value>Cancelled — nothing was produced</value>
+  </data>
+  <data name="Backtest.Status.Failed" xml:space="preserve">
+    <value>Refused — the reason is above</value>
+  </data>
+  <data name="Backtest.Progress.Format" xml:space="preserve">
+    <value>{0} of {1} candles replayed</value>
+  </data>
+  <data name="Backtest.Error.InvalidSymbol" xml:space="preserve">
+    <value>The symbol spelling '{0}' is not parsable — nothing was started.</value>
+  </data>
+  <data name="Backtest.Error.InvalidBars" xml:space="preserve">
+    <value>The candle count '{0}' is not an integer — nothing was started.</value>
+  </data>
+  <data name="Backtest.Error.InvalidSeed" xml:space="preserve">
+    <value>The seed '{0}' is not an integer — nothing was started.</value>
+  </data>
+  <data name="Backtest.Error.InvalidSlippage" xml:space="preserve">
+    <value>The slippage '{0}' is not a number — nothing was started.</value>
+  </data>
+  <data name="Backtest.Error.InvalidFraction" xml:space="preserve">
+    <value>The long fraction '{0}' is not a number — nothing was started.</value>
+  </data>
+  <data name="Backtest.Error.StartFailed" xml:space="preserve">
+    <value>The run was refused: {0}</value>
+  </data>
+  <data name="Backtest.Error.NoStrategy" xml:space="preserve">
+    <value>No strategy is selected — the catalog is empty, so nothing was started.</value>
+  </data>
+  <data name="Backtest.Report.SummaryTitle" xml:space="preserve">
+    <value>Report</value>
+  </data>
+  <data name="Backtest.Report.Summary.Format" xml:space="preserve">
+    <value>Fills {0}, closed trades {1}; win rate {2}, profit factor {3}; max drawdown {4}; final equity {5} (start {6}).</value>
+  </data>
 </root>

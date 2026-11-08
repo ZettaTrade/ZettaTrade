@@ -26,6 +26,9 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to show the notification center window.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowNotificationsCommand { get; }
 
+    /// <summary>Command to open the offline backtest window (T-113).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ShowBacktestCommand { get; }
+
     /// <summary>Command to toggle the AI chat panel column.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleAiChatCommand { get; }
 
@@ -84,6 +87,13 @@ public sealed class MenuViewModel : ReactiveObject
     /// </summary>
     public Interaction<RxVoid, RxVoid> ShowBalancesRequested { get; }
 
+    /// <summary>
+    /// Interaction that routes the show-backtest request to the View, which
+    /// hosts the modal window (same pattern as
+    /// <see cref="ShowTradeStatsRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowBacktestRequested { get; }
+
     /// <summary>Command to show balances panel.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowBalancesCommand { get; }
 
@@ -125,6 +135,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowTradeStatsRequested = new Interaction<RxVoid, RxVoid>();
         ShowNotificationsRequested = new Interaction<RxVoid, RxVoid>();
         ShowBalancesRequested = new Interaction<RxVoid, RxVoid>();
+        ShowBacktestRequested = new Interaction<RxVoid, RxVoid>();
         FocusAiChatRequested = new Interaction<RxVoid, RxVoid>();
         ShowDisclaimerRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
@@ -133,6 +144,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowTradeStatsCommand = ReactiveCommand.CreateFromTask(HandleShowTradeStatsAsync);
         ShowNotificationsCommand = ReactiveCommand.CreateFromTask(HandleShowNotificationsAsync);
         ShowBalancesCommand = ReactiveCommand.CreateFromTask(HandleShowBalancesAsync);
+        ShowBacktestCommand = ReactiveCommand.CreateFromTask(HandleShowBacktestAsync);
         ToggleAiChatCommand = ReactiveCommand.CreateFromTask(HandleToggleAiChatAsync);
         ManageMcpServersCommand = ReactiveCommand.CreateFromTask(HandleManageMcpServersAsync);
         OpenSettingsCommand = ReactiveCommand.CreateFromTask(HandleOpenSettingsAsync);
@@ -202,6 +214,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// out of the ViewModel, same as the positions panel).
     /// </summary>
     private Task HandleShowBalancesAsync() => ShowBalancesRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the show-backtest request to the View (window plumbing stays
+    /// out of the ViewModel, same as the stats window).
+    /// </summary>
+    private Task HandleShowBacktestAsync() => ShowBacktestRequested.Handle(RxVoid.Default);
 
     /// <summary>
     /// Toggle the assistant panel; when the toggle SHOWS it, route the

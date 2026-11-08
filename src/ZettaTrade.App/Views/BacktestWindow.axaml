@@ -1,0 +1,128 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        xmlns:charting="using:ZettaTrade.UI.Charting"
+        x:Class="ZettaTrade.App.Views.BacktestWindow"
+        Classes="chrome"
+        x:DataType="vm:BacktestRunViewModel"
+        Title="{loc:Localized Backtest.Title}"
+        Width="1000" Height="720"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+
+        <!-- The run form: strategy over the T-111 seam, the active venue's
+             cached series identity, the seed and the execution policy. Every
+             field parses explicitly at start (an unparsable spelling is a
+             refused start with its own line, never a substituted default). -->
+        <WrapPanel Grid.Row="0">
+            <StackPanel Margin="0,0,16,8">
+                <TextBlock Text="{loc:Localized Backtest.Strategy}" Margin="0,0,0,2" />
+                <ComboBox Width="190"
+                          ItemsSource="{Binding StrategyIds}"
+                          SelectedItem="{Binding StrategyId}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,16,8">
+                <TextBlock Text="{loc:Localized Backtest.Symbol}" Margin="0,0,0,2" />
+                <TextBox Width="120" Text="{Binding SymbolText}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,16,8">
+                <TextBlock Text="{loc:Localized Backtest.Interval}" Margin="0,0,0,2" />
+                <ComboBox Width="100"
+                          ItemsSource="{Binding TimeFrames}"
+                          SelectedItem="{Binding SelectedTimeFrame}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,16,8">
+                <TextBlock Text="{loc:Localized Backtest.Bars}" Margin="0,0,0,2" />
+                <TextBox Width="110" Text="{Binding BarsText}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,16,8">
+                <TextBlock Text="{loc:Localized Backtest.Seed}" Margin="0,0,0,2" />
+                <TextBox Width="110" Text="{Binding SeedText}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,16,8">
+                <TextBlock Text="{loc:Localized Backtest.Slippage}" Margin="0,0,0,2" />
+                <TextBox Width="110" Text="{Binding SlippageText}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,16,8">
+                <TextBlock Text="{loc:Localized Backtest.LongFraction}" Margin="0,0,0,2" />
+                <TextBox Width="110" Text="{Binding LongFractionText}" />
+            </StackPanel>
+        </WrapPanel>
+
+        <!-- The run surface: the phase line, the progress bar and the
+             refusal/failure line. The cancelled run surfaces no report. -->
+        <StackPanel Grid.Row="1" Spacing="4">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontWeight="SemiBold" />
+                <ProgressBar Grid.Column="1"
+                             Minimum="0" Maximum="1"
+                             Value="{Binding ProgressFraction, Mode=OneWay}"
+                             Height="10"
+                             VerticalAlignment="Center"
+                             IsIndeterminate="False" />
+                <TextBlock Grid.Column="2" Text="{Binding ProgressText}"
+                           Foreground="{DynamicResource TextSecondary}" />
+            </Grid>
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{DynamicResource Error}"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasErrorMessage}" />
+        </StackPanel>
+
+        <!-- The report surface: the equity curve over the mark-to-cloud path
+             and the localized headline line; the honest empty state while
+             nothing replayed yet. -->
+        <Grid Grid.Row="2" RowDefinitions="Auto,Auto,*" RowSpacing="8">
+            <Button Grid.Row="0"
+                    Content="{loc:Localized Backtest.Report.SummaryTitle}"
+                    IsVisible="{Binding HasReport}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Padding="0"
+                    FontWeight="Bold"
+                    HorizontalAlignment="Left" />
+            <TextBlock Grid.Row="1"
+                       Text="{Binding SummaryText}"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasReport}" />
+            <charting:EquityCurveChart Grid.Row="2"
+                                       Points="{Binding EquityPoints}"
+                                       IsVisible="{Binding HasEquity}" />
+        </Grid>
+
+        <!-- The canonical report text: the byte-stable serialization the
+             determinism acceptance pins — a replay diff is exactly this
+             text against the previous one. -->
+        <TextBox Grid.Row="3"
+                 Text="{Binding ReportText}"
+                 IsReadOnly="True"
+                 AcceptsReturn="True"
+                 TextWrapping="NoWrap"
+                 Height="150"
+                 FontSize="12"
+                 FontFamily="Consolas,Menlo,DejaVu Sans Mono"
+                 IsVisible="{Binding HasReport}" />
+
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
+            <Button Grid.Column="1"
+                    Content="{loc:Localized Backtest.Start}"
+                    Command="{Binding StartCommand}"
+                    MinWidth="110" />
+            <Button Grid.Column="2"
+                    Content="{loc:Localized Backtest.Cancel}"
+                    Command="{Binding CancelCommand}"
+                    MinWidth="110"
+                    IsVisible="{Binding IsRunning}" />
+            <Button Grid.Column="3"
+                    Content="{loc:Localized Backtest.Close}"
+                    Click="OnCloseClick"
+                    MinWidth="90" />
+        </Grid>
+
+    </Grid>
+</Window>

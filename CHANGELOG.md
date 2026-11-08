@@ -1,3 +1,22 @@
+## [0.1.0-alpha.70] - 2026-11-08
+
+Build of board task T-113 (branch `feat/backtest`).
+
+### Added
+- The offline deterministic backtest harness (T-113): a run pages the
+  newest cached candles for its series and replays them through the real
+  T-111 strategy seam; stance changes execute as paper-parity fills
+  (weighted-average entries, BUG-034 flip semantics, fee-registry
+  commissions) and the run folds an equity report with the fill/trade
+  statistics and the byte-stable canonical report text. Entirely offline
+  - no adapters, no rate limiter - the same seed reproduces the curve
+  byte-for-byte, and a cancelled run produces no report.
+- The Backtest window: a fresh run form per open (strategy picker over
+  the catalog, symbol, interval, bars, seed, slippage, long sizing
+  fraction - every input refused-not-defaulted), live progress over the
+  Started/Progress/Completed events, cooperative cancel, and status
+  lines that re-resolve live on language switch.
+
 ## [0.1.0-alpha.69] - 2026-11-08
 
 Build of board task T-112 (branch `feat/signal-markers`).

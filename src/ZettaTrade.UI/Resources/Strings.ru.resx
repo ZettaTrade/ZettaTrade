@@ -1254,4 +1254,85 @@
   <data name="Signal.Rail.Row.Tooltip" xml:space="preserve">
     <value>{0} оценка по {1}, закрытие {2} ({3}) — клик предзаполняет заявку, сама она не отправляется.</value>
   </data>
+  <data name="Menu.Trading.Backtest" xml:space="preserve">
+    <value>Бэктест…</value>
+  </data>
+  <data name="Backtest.Title" xml:space="preserve">
+    <value>Бэктест</value>
+  </data>
+  <data name="Backtest.Strategy" xml:space="preserve">
+    <value>Стратегия</value>
+  </data>
+  <data name="Backtest.Symbol" xml:space="preserve">
+    <value>Инструмент</value>
+  </data>
+  <data name="Backtest.Interval" xml:space="preserve">
+    <value>Интервал</value>
+  </data>
+  <data name="Backtest.Bars" xml:space="preserve">
+    <value>Свечей</value>
+  </data>
+  <data name="Backtest.Seed" xml:space="preserve">
+    <value>Seed</value>
+  </data>
+  <data name="Backtest.Slippage" xml:space="preserve">
+    <value>Проскальзывание (quoted)</value>
+  </data>
+  <data name="Backtest.LongFraction" xml:space="preserve">
+    <value>Доля лонга</value>
+  </data>
+  <data name="Backtest.Start" xml:space="preserve">
+    <value>Запустить бэктест</value>
+  </data>
+  <data name="Backtest.Cancel" xml:space="preserve">
+    <value>Отменить прогон</value>
+  </data>
+  <data name="Backtest.Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="Backtest.Status.Idle" xml:space="preserve">
+    <value>Готово — прогонов пока не было</value>
+  </data>
+  <data name="Backtest.Status.Running" xml:space="preserve">
+    <value>Повторение кеша свечей…</value>
+  </data>
+  <data name="Backtest.Status.Completed" xml:space="preserve">
+    <value>Готово — отчёт ниже</value>
+  </data>
+  <data name="Backtest.Status.Cancelled" xml:space="preserve">
+    <value>Отменено — ничего не произведено</value>
+  </data>
+  <data name="Backtest.Status.Failed" xml:space="preserve">
+    <value>Отказ — причина выше</value>
+  </data>
+  <data name="Backtest.Progress.Format" xml:space="preserve">
+    <value>{0} из {1} свечей повторено</value>
+  </data>
+  <data name="Backtest.Error.InvalidSymbol" xml:space="preserve">
+    <value>Запись инструмента «{0}» не разбирается — запуск не состоялся.</value>
+  </data>
+  <data name="Backtest.Error.InvalidBars" xml:space="preserve">
+    <value>Число свечей «{0}» не целое — запуск не состоялся.</value>
+  </data>
+  <data name="Backtest.Error.InvalidSeed" xml:space="preserve">
+    <value>Seed «{0}» не целое — запуск не состоялся.</value>
+  </data>
+  <data name="Backtest.Error.InvalidSlippage" xml:space="preserve">
+    <value>Проскальзывание «{0}» не число — запуск не состоялся.</value>
+  </data>
+  <data name="Backtest.Error.InvalidFraction" xml:space="preserve">
+    <value>Доля лонга «{0}» не число — запуск не состоялся.</value>
+  </data>
+  <data name="Backtest.Error.StartFailed" xml:space="preserve">
+    <value>Прогон отклонён: {0}</value>
+  </data>
+  <data name="Backtest.Error.NoStrategy" xml:space="preserve">
+    <value>Стратегия не выбрана — каталог пуст, поэтому запуск не выполнен.</value>
+  </data>
+  <data name="Backtest.Report.SummaryTitle" xml:space="preserve">
+    <value>Отчёт</value>
+  </data>
+  <data name="Backtest.Report.Summary.Format" xml:space="preserve">
+    <value>Исполнений {0}, закрытых сделок {1}; доля прибыльных {2}, профит-фактор {3}; макс. просадка {4}; финальный капитал {5} (старт {6}).</value>
+  </data>
 </root>
