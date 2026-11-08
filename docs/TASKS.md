@@ -126,7 +126,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | done | - |
 | T-120 Streaming watchlist panel: live quotes, 24h change, sparklines | feat/watchlist | done | - |
 | T-121 Market heatmap: top pairs as change-colored tiles | feat/market-heatmap | queued | - |
-| T-122 My footprint on the chart: position lines + working-order markers | feat/chart-mine | queued | - |
+| T-122 My footprint on the chart: position lines + working-order markers | feat/chart-mine | in-progress | - |
 | T-123 Trading-mode chip: paper/testnet/live always visible | feat/trading-mode-chip | done | - |
 | T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | queued | - |
 | T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | queued | - |
@@ -287,12 +287,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-122 — My footprint on the chart: position lines + working-order markers
 
-- **Branch:** queued 2026-11-06 (functional presentation gap).
+- **Branch:** feat/chart-mine, worktree zt-chart-mine, based on develop@e06b198 (claimed 2026-11-09; queued 2026-11-06 (functional presentation gap)).
 - **Origin:** when the demo trades (paper now, T-127's testnet later), the eye needs boundaries ON the chart — the entry and the working orders; today all trading state lives in the side panels.
 - **What:** chart overlays driven ONLY by the existing positions/orders streams (no new data): the position entry line with the direction arrow and a floating PnL tag snapped to the latest price, working-order lines styled by side (dashed limit lines), fill markers on executions. The lines respect the pan/zoom anchoring discipline (T-033/T-035/T-036 canon) and never violate the axis-bucket invariants. Renders my own activity only — nothing leaves the process.
 - **Scope:** Charting overlay + an App-side feed, resx en+ru for the legend, tests.
 - **Acceptance:** an amend (T-075) moves the line live; the entry line survives interval switches and stays anchored across candles; the legend explains every drawn shape.
 - **Tests:** anchoring goldens across pan/zoom/interval churn, the live-move golden, edge clamping at the visible window, multi-order styling.
+- **Status:** in-progress.
 
 ## T-123 — Trading-mode chip: paper/testnet/live always visible
 
