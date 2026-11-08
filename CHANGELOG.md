@@ -1,3 +1,35 @@
+## [0.1.0-alpha.72] - 2026-11-08
+
+Build of board task T-101 (branch `feat/log-viewer`).
+
+### Added
+- The in-app log viewer (T-101): the window reads the existing Serilog
+  file sinks the way a user does — every byte chunk rides the secret
+  redactor gate before the parser, so no raw credential can reach the
+  ring, the surface or the export — and a bounded history ring with a
+  drop-oldest backpressure channel keeps a log flood's memory footprint
+  fixed while the live tail stays smooth.
+- The viewer's attach/seed discipline: activation attaches the live
+  slice lane first and seeds from the ring's history snapshot behind it
+  with value-identity dedupe, so slices crossing the open render exactly
+  once; the surface is a fixed-capacity virtualized list applying one
+  multi-element collection event per drained slice (tens of thousands of
+  lines never storm the list), and eviction mirrors onto the head.
+- Level and source filters rebuild the surface synchronously out of the
+  ring's filtered projection (never a disk read), the line counter keeps
+  the honest tally, and the bounded excerpt export writes the matching
+  slice to a user-picked text file (a cancelled pick exports nothing; a
+  failed write surfaces on the error line).
+- The global crash guard (T-101): the runtime's
+  `AppDomain.UnhandledException` leg and the Avalonia UI-thread
+  `Dispatcher.UnhandledException` leg both log FIRST, then present the
+  one crash dialog — a last-inform hook pair that never suppresses, never
+  exits and composes nothing but the exception's type, its bounded
+  single-line summary and the raw log path the user acts on without the
+  app running.
+- Localization for the viewer, the crash dialog and their states
+  (`Log.*` keys, both English and Russian catalogs kept at full parity).
+
 ## [0.1.0-alpha.71] - 2026-11-08
 
 Build of board task T-096 (branch `feat/price-alerts`).

@@ -156,6 +156,11 @@ internal static class CompositionRoot
         // the same way; the wizard view model is transient per open.
         services.AddFirstRunWizardServices();
 
+        // Log viewer + global crash guard (T-101): the tail ring and the
+        // guard are process-wide singletons; the viewer's view model is
+        // transient per open.
+        services.AddLogViewerServices();
+
         services.AddSingleton<MenuViewModel>();
         services.AddSingleton<StatusBarViewModel>(sp =>
             new StatusBarViewModel(

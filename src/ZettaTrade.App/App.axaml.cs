@@ -39,6 +39,16 @@ public partial class App : Application
 
             Services = await CompositionRoot.BuildServiceProviderAsync();
 
+            // The global crash guard (T-101): both process hooks (the
+            // runtime's terminating leg and the UI dispatcher's fatal leg)
+            // attach right after the container builds, so every later
+            // failure lands as a logged, dialog-informed crash — never a
+            // silent death. The guard is LAST-INFORM: it logs + composes +
+            // presents the dialog once and returns; it never suppresses,
+            // never marks anything handled, never writes state — the
+            // platform's own exit follows it exactly as before.
+            Services.GetRequiredService<CrashGuard>().Attach();
+
             await ApplyStoredUiSettingsAsync();
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

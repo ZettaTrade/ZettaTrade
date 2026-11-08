@@ -56,6 +56,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowBalancesRequested.RegisterHandler(OpenBalancesAsync);
         ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
         ViewModel?.Menu.ShowDisclaimerRequested.RegisterHandler(OpenDisclaimerAsync);
+        ViewModel?.Menu.ShowLogViewerRequested.RegisterHandler(OpenLogViewerAsync);
 
         // The toast host lives for the whole window's stay like the other
         // singletons: its clicked rows pose their routes through this
@@ -528,6 +529,43 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             DataContext = App.Services.GetRequiredService<ViewModels.NotificationHistoryViewModel>(),
         };
         await window.ShowDialog<object>(this);
+    }
+
+    /// <summary>
+    /// The log viewer window's core (T-101): the view model is transient, so
+    /// every open attaches the live tail lane and seeds fresh from the tail's
+    /// history snapshot (the window's activation drives the pair). The tail
+    /// service itself is the process-wide singleton — one bounded redacted
+    /// ring across every open.
+    /// </summary>
+    private async Task ShowLogViewerWindowAsync()
+    {
+        var window = new LogViewerWindow
+        {
+            DataContext = App.Services.GetRequiredService<ViewModels.LogViewerViewModel>(),
+        };
+        await window.ShowDialog<object>(this);
+    }
+
+    /// <summary>
+    /// Land the menu's show-log-viewer route: the window opens modally, a
+    /// failure logs loud and the menu route still settles (the same posture
+    /// the other window routes keep).
+    /// </summary>
+    private async Task OpenLogViewerAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            await ShowLogViewerWindowAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the log viewer window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
     }
 
     /// <summary>

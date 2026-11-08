@@ -1,0 +1,150 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.LogViewerWindow"
+        Classes="chrome"
+        x:DataType="vm:LogViewerViewModel"
+        Title="{loc:Localized Log.Window.Title}"
+        Width="940" Height="620"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <Window.Styles>
+        <!-- Continuations (stack traces, multi-line messages) indent under
+             their header's entry: the log's own visual grammar keeps the
+             readable pairing of headers and their continuation bodies. -->
+        <Style Selector="Border.tailRow.continuation">
+            <Setter Property="Margin" Value="16,0,0,0" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
+
+        <!-- Filters: the min-level picker and the source-contains text;
+             both rebuild the bound surface synchronously out of the ring
+             mirror (a filter flip never re-reads the disk). -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="{loc:Localized Log.Filter.Level}"
+                       VerticalAlignment="Center"
+                       FontWeight="Bold"
+                       FontSize="13" />
+            <ComboBox MinWidth="190"
+                      SelectedIndex="{Binding LevelFilterIndex}">
+                <ComboBoxItem Content="{loc:Localized Log.Filter.Level.All}" />
+                <ComboBoxItem Content="{loc:Localized Log.Filter.Level.InfoPlus}" />
+                <ComboBoxItem Content="{loc:Localized Log.Filter.Level.WarnPlus}" />
+                <ComboBoxItem Content="{loc:Localized Log.Filter.Level.ErrorPlus}" />
+            </ComboBox>
+            <TextBlock Text="{loc:Localized Log.Filter.Source}"
+                       VerticalAlignment="Center"
+                       FontWeight="Bold"
+                       FontSize="13" />
+            <TextBox MinWidth="220"
+                     PlaceholderText="{loc:Localized Log.Filter.SourceWatermark}"
+                     Text="{Binding SourceFilter, Mode=TwoWay}" />
+        </StackPanel>
+
+        <!-- The counters strip: which file the tail rides and how many
+             rows the surface holds (the seed composes both once). -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding TailFileLabel}"
+                       Foreground="{DynamicResource TextSecondary}"
+                       FontSize="11"
+                       TextWrapping="NoWrap"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding LinesLabel}"
+                       Foreground="{DynamicResource TextSecondary}"
+                       FontSize="11" />
+        </Grid>
+
+        <!-- The tail itself: the fixed-capacity virtualized list whose
+             collection events stay at one multi-element event per drained
+             slice — a flood never storms the panel with per-line events.
+             Continuation rows indent; header rows carry moment, level and
+             source in the log's own reading order. -->
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource Border}"
+                BorderThickness="1"
+                ClipToBounds="True">
+            <Panel>
+                <ListBox ItemsSource="{Binding Rows}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LogViewerRow">
+                            <Border Classes="tailRow"
+                                    Classes.continuation="{Binding Line.IsContinuation}"
+                                    BorderBrush="{DynamicResource Border}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="0,3,0,3">
+                                <Grid ColumnDefinitions="Auto,Auto,Auto,*"
+                                      ColumnSpacing="10">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Moment}"
+                                               MinWidth="160"
+                                               Foreground="{DynamicResource TextSecondary}"
+                                               FontSize="11"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding LevelName}"
+                                               MinWidth="86"
+                                               Foreground="{DynamicResource TextSecondary}"
+                                               FontSize="11"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Line.Source}"
+                                               MinWidth="150"
+                                               TextTrimming="CharacterEllipsis"
+                                               FontSize="11"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock Grid.Column="3"
+                                               Text="{Binding Line.Message}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Top" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock IsVisible="{Binding !HasRows}"
+                           Text="{loc:Localized Log.Empty}"
+                           Foreground="{DynamicResource TextSecondary}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Margin="0,0,0,40" />
+            </Panel>
+        </Border>
+
+        <!-- The feedback strip: the export's confirmation or its fault line
+             (the same posture the notification center keeps; a new run
+             clears both before it fires, so at most one line shows). -->
+        <TextBlock Grid.Row="3"
+                   Text="{Binding StatusNote}"
+                   IsVisible="{Binding HasStatusNote}"
+                   Foreground="{DynamicResource TextSecondary}"
+                   TextWrapping="Wrap"
+                   FontSize="11" />
+        <TextBlock Grid.Row="4"
+                   Text="{Binding ErrorMessage}"
+                   IsVisible="{Binding HasErrorMessage}"
+                   Foreground="{DynamicResource Error}"
+                   TextWrapping="Wrap"
+                   FontSize="11" />
+
+        <Grid Grid.Row="5" ColumnDefinitions="*,Auto,Auto">
+            <Button Grid.Column="1"
+                    Content="{loc:Localized Log.Export}"
+                    Command="{Binding ExportCommand}"
+                    MinWidth="90" />
+            <Button Grid.Column="2"
+                    Content="{loc:Localized Log.Close}"
+                    Click="OnCloseClick"
+                    MinWidth="90"
+                    Margin="8,0,0,0" />
+        </Grid>
+
+    </Grid>
+</Window>

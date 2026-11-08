@@ -1449,4 +1449,88 @@
   <data name="Alert.Error.OperationFailed" xml:space="preserve">
     <value>Операция с оповещениями не удалась: {0}</value>
   </data>
+  <data name="Log.Window.Title" xml:space="preserve">
+    <value>Журнал</value>
+  </data>
+  <data name="Log.Filter.Level" xml:space="preserve">
+    <value>Уровень</value>
+  </data>
+  <data name="Log.Filter.Level.All" xml:space="preserve">
+    <value>Все уровни</value>
+  </data>
+  <data name="Log.Filter.Level.InfoPlus" xml:space="preserve">
+    <value>Информация и выше</value>
+  </data>
+  <data name="Log.Filter.Level.WarnPlus" xml:space="preserve">
+    <value>Предупреждения и выше</value>
+  </data>
+  <data name="Log.Filter.Level.ErrorPlus" xml:space="preserve">
+    <value>Ошибки и выше</value>
+  </data>
+  <data name="Log.Filter.Source" xml:space="preserve">
+    <value>Источник</value>
+  </data>
+  <data name="Log.Filter.SourceWatermark" xml:space="preserve">
+    <value>Источник содержит… (пусто = все)</value>
+  </data>
+  <data name="Log.Empty" xml:space="preserve">
+    <value>Журнал пуст — записей ещё нет</value>
+  </data>
+  <data name="Log.Export" xml:space="preserve">
+    <value>Экспорт…</value>
+  </data>
+  <data name="Log.Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="Log.Lines" xml:space="preserve">
+    <value>Строк: {0}</value>
+  </data>
+  <data name="Log.Tail.File" xml:space="preserve">
+    <value>Читается {0}</value>
+  </data>
+  <data name="Log.Tail.NoFile" xml:space="preserve">
+    <value>Файла журнала ещё нет — хвост начнётся с первой записи</value>
+  </data>
+  <data name="Log.Excerpt.Saved" xml:space="preserve">
+    <value>Экспортировано строк: {0} ({1})</value>
+  </data>
+  <data name="Log.Excerpt.Failed" xml:space="preserve">
+    <value>Экспорт не удался: {0}</value>
+  </data>
+  <data name="Log.Level.Trace" xml:space="preserve">
+    <value>Трассировка</value>
+  </data>
+  <data name="Log.Level.Debug" xml:space="preserve">
+    <value>Отладка</value>
+  </data>
+  <data name="Log.Level.Information" xml:space="preserve">
+    <value>Инфо</value>
+  </data>
+  <data name="Log.Level.Warning" xml:space="preserve">
+    <value>Предупреждение</value>
+  </data>
+  <data name="Log.Level.Error" xml:space="preserve">
+    <value>Ошибка</value>
+  </data>
+  <data name="Log.Level.Critical" xml:space="preserve">
+    <value>Критическая</value>
+  </data>
+  <data name="Log.Crash.Title" xml:space="preserve">
+    <value>Непредвиденная ошибка</value>
+  </data>
+  <data name="Log.Crash.Summary" xml:space="preserve">
+    <value>Произошла непредвиденная ошибка: {0}: {1}.</value>
+  </data>
+  <data name="Log.Crash.SummaryEmpty" xml:space="preserve">
+    <value>Произошла непредвиденная ошибка без диагностированного исключения.</value>
+  </data>
+  <data name="Log.Crash.LogPath" xml:space="preserve">
+    <value>Подробности записаны в журнал: {0}</value>
+  </data>
+  <data name="Log.Crash.Dismiss" xml:space="preserve">
+    <value>ОК</value>
+  </data>
+  <data name="Menu.Help.LogViewer" xml:space="preserve">
+    <value>Открыть журнал…</value>
+  </data>
 </root>

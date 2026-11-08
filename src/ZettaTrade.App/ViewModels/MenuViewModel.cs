@@ -44,6 +44,16 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to show the first-run disclaimer dialog again (Help menu).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowDisclaimerCommand { get; }
 
+    /// <summary>Command to open the log viewer window (Help menu, T-101).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ShowLogViewerCommand { get; }
+
+    /// <summary>
+    /// Interaction that routes the show-log-viewer request to the View,
+    /// which hosts the modal window (same pattern as
+    /// <see cref="ShowTradeStatsRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowLogViewerRequested { get; }
+
     /// <summary>
     /// Interaction that routes the show-disclaimer request to the View, which
     /// hosts the dialog window (same pattern as <see cref="OpenSettingsRequested"/>).
@@ -149,6 +159,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowBacktestRequested = new Interaction<RxVoid, RxVoid>();
         FocusAiChatRequested = new Interaction<RxVoid, RxVoid>();
         ShowDisclaimerRequested = new Interaction<RxVoid, RxVoid>();
+        ShowLogViewerRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
@@ -161,6 +172,7 @@ public sealed class MenuViewModel : ReactiveObject
         ManageMcpServersCommand = ReactiveCommand.CreateFromTask(HandleManageMcpServersAsync);
         OpenSettingsCommand = ReactiveCommand.CreateFromTask(HandleOpenSettingsAsync);
         ShowDisclaimerCommand = ReactiveCommand.CreateFromTask(HandleShowDisclaimerAsync);
+        ShowLogViewerCommand = ReactiveCommand.CreateFromTask(HandleShowLogViewerAsync);
         ExitCommand = ReactiveCommand.Create(HandleExit);
 
         // The checkable item mirrors the panel state: the when-any-value
@@ -263,6 +275,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// out of the ViewModel, same as the settings window).
     /// </summary>
     private Task HandleShowDisclaimerAsync() => ShowDisclaimerRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the show-log-viewer request to the View (window plumbing stays
+    /// out of the ViewModel, same as the stats window).
+    /// </summary>
+    private Task HandleShowLogViewerAsync() => ShowLogViewerRequested.Handle(RxVoid.Default);
 
     private void HandleExit()
     {
