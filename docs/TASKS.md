@@ -100,7 +100,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-093 VWAP + volume profile overlay | feat/vol-vwap | done | - |
 | T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | queued | - |
 | T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | done | - |
-| T-096 Price and percent-move alerts with a manager | feat/price-alerts | queued | - |
+| T-096 Price and percent-move alerts with a manager | feat/price-alerts | in-progress | - |
 | T-097 Notification center: toasts, history, DND | feat/notif-center | done | - |
 | T-098 Adapter health strip in the status bar | feat/health-strip | done | - |
 | T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | done | - |
