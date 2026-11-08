@@ -118,7 +118,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | queued | - |
 | T-112 Signal markers on the chart + signal rail | feat/signal-markers | queued | T-111 |
 | T-113 Backtest harness over stored candles | feat/backtest | queued | T-111 + T-085 |
-| T-114 AI market-context injection into the chat | feat/ai-context | queued | - |
+| T-114 AI market-context injection into the chat | feat/ai-context | in-progress | - |
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
 | T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | feat/ws-e2e-budget | done | - |
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
