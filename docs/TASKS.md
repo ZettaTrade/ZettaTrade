@@ -124,7 +124,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
 | T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | done | - |
-| T-120 Streaming watchlist panel: live quotes, 24h change, sparklines | feat/watchlist | queued | - |
+| T-120 Streaming watchlist panel: live quotes, 24h change, sparklines | feat/watchlist | in-progress | - |
 | T-121 Market heatmap: top pairs as change-colored tiles | feat/market-heatmap | queued | - |
 | T-122 My footprint on the chart: position lines + working-order markers | feat/chart-mine | queued | - |
 | T-123 Trading-mode chip: paper/testnet/live always visible | feat/trading-mode-chip | queued | - |
@@ -401,3 +401,13 @@ the end of that file, so no effort is duplicated.
 - **Scope:** PositionsPanelViewModelTests and the test harness seam only; no production code change.
 - **Acceptance:** the test is green in 10 consecutive full-suite parallel App.Tests runs under local load.
 - **Tests:** the fix IS the test; the assertion semantics stay intact.
+
+## T-120 — Streaming watchlist panel: live quotes, 24h change, sparklines
+
+- **Branch:** feat/watchlist (worktree `zt-watchlist`, based on develop@bc17e83).
+- **Origin:** the presentation-track queue's first info panel: a compact watchlist the terminal gains now that the market-data streams already fan through `IMarketDataAdapter` — the panel mirrors the house precedent of the order-book/trade-tape panels (follow the workspace selection) and rides the one-observable-wrapper-over-an-adapter shape the PnL feed uses.
+- **What:** a watchlist panel listing the majors on the active exchange with the live last price, the 24h change, and a per-row sparkline built from a small ring buffer; updates arrive batched and throttled so a quote storm cannot storm the UI (fixed memory, no per-frame full redraws).
+- **Scope:** a new `WatchlistFeedService` (an `IObservable` wrapper over the existing adapter ticker streams) + `WatchlistViewModel` (rows, pacing) + the panel view region in `MainWindow.axaml` + `AddWatchlistServices` registration + `Watch.*` resx keys in BOTH languages (+ the resx-gate prefix registration, house precedent) + the registration/feed/geometry facts; app-changing so the feat commit carries the alpha.74 bump + the CHANGELOG section; nothing in `Core/Interfaces`, no adapter changes, no persistence.
+- **Acceptance:** the registration/feed/geometry facts pin the shape; the gate passes; after the merge the pre-merge launch smoke (standing directive 5) shows the panel alive with zero failure entries in its own run segment — the 24h change is DERIVED app-side if the ticker payload lacks it, and the canon says so plainly.
+- **Tests:** the pacing/dedupe facts, the row math (change, monotonic ring), the sparkline geometry builder, and the DI registration facts over the real graph shell.
+- **Status:** in-progress.
