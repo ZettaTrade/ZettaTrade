@@ -1489,6 +1489,41 @@ the board and its section below.
 - **Tests:** the mode-mapping matrix (demo/testnet/live by endpoint identity, minus the rejection path), the flip confirmation gate, multi-window propagation.
 - **Status:** done. Canon: the branch carries `96701d2` (the board claim), `6a2b4ab` (the feat: `TradingLane` + `TradingModeService` — the resolver maps the paper identity to the paper lane and classifies venue surfaces by their configured record's `IsTestnet`; an identity outside the registry snapshot throws, never resolves by default; the standing `BehaviorSubject` stream bootstraps late subscribers; `ConfirmLaneFlipAsync` gates the live target behind the `Trading.ConfirmGoLive` prompt and passes paper/testnet through), `eca19c6` (the settings-port fix the feat surfaced: the `UrlPairs` shape allowed only string members and rejected the records' own exported `isTestnet` — every store holding an endpoint record refused its own re-import; the gate keeps the one optional camel-case identity member, two-string exports stay valid, functions pin all three sides) and `c6ae166` (the launch-smoke process-hygiene rule the user dutied after night-long leftover exes). The chip rides the status bar between the active exchange name and the language field with clean-theme tint bindings over the candle palette keys; 40 new facts (the mapping matrix + flip gate + the posted-beat chip renders) green. Gate history is thick: the first run tripped on the load-sensitive pump family across a box carrying two stuck verify-loop runs (killed, the box swept empty); the second run surfaced the REAL settings-port regression above and was resolved by the fix; the third run printed `GATE PASSED` with `-AllowProtected` (the bump). The pre-merge launch smoke stayed clean: the walk completed in its run segment with zero ERR/FTL/exception entries (`ProductVersion=0.1.0-alpha.76+eca19c62`, six demo watchlist WRN ticks are the ambient stream fallbacks, not failures), and the process hygiene rule ran both sweeps clean. Supervisor-solo: the original T-123 worker died at the quota wall after its claim; the slot took over in the wave-4 stretch.
 
+## T-128 — Demo video: storyboard + shot list (docs/ops)
+
+- **Branch:** feat/demo-script, worktree `zt-demo-script`, based on develop@0823719 (claimed 2026-11-09).
+- **Origin:** a 2-3 minute video is the artifact that sells to partners and investors without a live walk; the board lacks it — and the recording needs a script to be honest with real keys never involved.
+- **What:** `docs/DEMO-SCRIPT.md` — a shot-by-shot storyboard (90-180 s): the problem hook, the workspace tour, the AI chat answering with the live market context (T-114), a testnet limit order placed and filled (T-127), the portfolio/stats view (T-081–T-083), an alert firing with a toast (T-096/T-097), an outro with the download CTA; recording instructions (theme set, demo/paper data, screen 1080p, no real keys on screen ever — the standing security rule), a narration draft in en and ru. The recording itself is a human task; the deliverable here is the script + the final tracked file/hosting link referenced from the landing (T-126).
+- **Scope:** docs + a hosted/linked video artifact; statics may reuse the T-115 manual screenshots.
+- **Acceptance:** an agent or the supervisor can produce the video from the script inside a session's work window; no frame carries real credentials; the video is linked from the landing.
+- **Tests:** none.
+- **Status:** done. Canon: the branch carries
+  `2cd0188` (the board claim: the T-128 row to in-progress and the section
+  stamped with the branch facts) and `418813d` (the script:
+  `docs/DEMO-SCRIPT.md` - a 150 s budget inside the board's 90-180 s
+  window, the per-shot table with the English narration draft, the
+  recording checklist and the honesty ledger). The vaporware cut: the
+  board text named the testnet limit-order walk (T-127, queued) and hedged
+  the alerts beat; on the current tree the alert + toast beat is SHIPPED
+  (T-096/T-097 done), so it stays a live beat, while the testnet order
+  walk survives ONLY as an explicitly marked placeholder under S6 (+8 s
+  when T-127 lands, never filmed before that landing) and the outro CTA
+  keeps the verbatim "download CTA (pending the release pipeline landing)"
+  wording (T-125/T-126 queued - the Releases pointer and the landing link
+  replace it when they exist).
+  - The narration canon: the board's "en and ru" detail is outranked by
+    the AGENTS localization canon - the in-repo draft is English-only and
+    the ru narration is the human recording artifact, stated in the
+    script.
+  - Hazards for the human recording: Ollama + a pulled model required for
+    the AI beats (or drop them, never fake a chat), no real keys on screen
+    ever (the standing security rule: demo/paper only on camera, Testnet
+    reserved for the T-127 insert), and no machine-local absolute paths in
+    repo text (`[MACHINE-PATH]`). The README, `docs/SECURITY.md` and
+    `docs/USER-MANUAL.md` are other workers' legs and stay untouched. The
+    recording is the human task; T-126 owns the eventual landing
+    reference.
+
 ## T-133 - MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read
 
 - **Branch:** queued 2026-11-06 (supervisor note raised at the T-082 landing: the PnL core's report flagged the blind spot; queued immediately so the seam does not rot).
