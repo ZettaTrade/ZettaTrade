@@ -225,17 +225,25 @@ try {
         $errors.Add('[RESX] scripts/check-resx.ps1 not found.')
     }
 
-    # ---------------------------------------------------------------- baked mojibake scan (repair prevention)
-    # Whole-repo scan for corruption-only markers of the double-encoding bug:
-    # UTF-8 bytes re-read as Windows-1251 produce these markers, and legit
-    # Russian typography or English prose never uses them, so any hit is a
-    # tombstone of pasted garbage. Files are read as UTF-8 explicitly: Windows
-    # PowerShell 5.1 reads BOM-less files as ANSI (CP1251) and would then turn
-    # every legit dash or quote into exactly the junk family this lint hunts.
+    # ---------------------------------------------------------------- repo-hygiene lints (repair prevention)
+    # a) Whole-repo scan for corruption-only markers of the double-encoding bug:
+    #    UTF-8 bytes re-read as Windows-1251 produce these markers, and legit
+    #    typography never uses them, so any hit is a tombstone of pasted garbage.
+    # b) Whole-repo scan for machine-local absolute paths: branches, worktree
+    #    names and base hashes are the portable facts, a drive-letter path
+    #    rooted in programmer-typical directories (Users, Projects) is one
+    #    machine's layout and rots everywhere else. The lookbehind keeps URL
+    #    schemes (https://, avares://) from matching; generic roots such as
+    #    C:Program-Files stay allowed. Files are read as UTF-8 explicitly:
+    #    Windows PowerShell 5.1 reads BOM-less files as ANSI (CP1251) and
+    #    would then turn every legit dash or quote into exactly the junk
+    #    family lint a) hunts.
     $mojibakePattern = '[\u0402\u0406\u0459\u045A\u201A\u2020]'
+    $machinePathPattern = '(?<![A-Za-z])[A-Za-z]:[\\/]+(Users|Projects)([\\/]|$)'
     $mojibakeExts = @('.cs', '.axaml', '.xaml', '.md', '.props', '.targets', '.csproj', '.sln', '.slnx', '.json', '.yml', '.yaml', '.txt', '.toml', '.ps1', '.cmd')
     $utf8Gated = New-Object System.Text.UTF8Encoding($false, $true)
     $mojibakeHits = [System.Collections.Generic.List[string]]::new()
+    $machinePathHits = [System.Collections.Generic.List[string]]::new()
     $scanRoots = @(Get-ChildItem -LiteralPath $root -Recurse -File |
         Where-Object { ($mojibakeExts -contains $_.Extension.ToLowerInvariant()) -and
             ($_.FullName -notmatch '\\(\.git|bin|obj|node_modules)(\\|$)') })
@@ -249,11 +257,19 @@ try {
                 $mojibakeHits.Add("${relative}:$($scanIndex + 1)")
                 if ($mojibakeHits.Count -ge 25) { break }
             }
+            if ($scanLines[$scanIndex] -match $machinePathPattern) {
+                $relative = $scanFile.FullName.Substring($root.Length + 1).Replace('\', '/')
+                $machinePathHits.Add("${relative}:$($scanIndex + 1)")
+                if ($machinePathHits.Count -ge 25) { break }
+            }
         }
-        if ($mojibakeHits.Count -ge 25) { break }
+        if (($mojibakeHits.Count + $machinePathHits.Count) -ge 25) { break }
     }
     if ($mojibakeHits.Count -gt 0) {
         $errors.Add("[MOJIBAKE] baked double-encoded characters (UTF-8 re-read as CP1251), repair before commit:`n    " + ($mojibakeHits -join "`n    "))
+    }
+    if ($machinePathHits.Count -gt 0) {
+        $errors.Add("[MACHINE-PATH] machine-local absolute paths baked into repository text; name branches, worktrees and base hashes instead:`n    " + ($machinePathHits -join "`n    "))
     }
 
     # ---------------------------------------------------------------- commit messages
