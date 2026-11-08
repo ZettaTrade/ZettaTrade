@@ -11,4 +11,7 @@ public static class TimeFormats
 
     /// <summary>Plain capture clock for the order ticket's sizing snapshots (a snapshot's staleness shown as taken-at).</summary>
     public const string SizeSnapshotTime = "HH:mm:ss";
+
+    /// <summary>The notification and history rows' moment prefix (a toast lives for seconds; the rows carry no date).</summary>
+    public const string NotificationMoment = "HH:mm:ss";
 }
