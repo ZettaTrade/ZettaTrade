@@ -59,10 +59,7 @@ internal static class CompositionRoot
         services.AddSingleton<ISecretStore>(sp =>
             SecretStoreFactory.Create(sp.GetRequiredService<ILoggerFactory>()));
 
-        services.AddSingleton<ISettingsService>(sp =>
-            new SettingsService(
-                ConfigPathResolver.MainSettingsFile,
-                sp.GetRequiredService<ILogger<SettingsService>>()));
+        services.AddSettingsStoreServices(); // T-137: one concrete store singleton, forwarded as ISettingsService — the port resolves.
         services.AddSettingsPortServices(); // T-100: settings import/export + factory reset over the store above.
 
         // ThemeManager is registered both by its concrete type (the read-only
