@@ -1,0 +1,160 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.AlertsWindow"
+        Classes="chrome"
+        x:DataType="vm:AlertsViewModel"
+        Title="{loc:Localized Alert.Title}"
+        Width="860" Height="640"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <Grid Margin="16" RowDefinitions="*,Auto,Auto,Auto" RowSpacing="10">
+
+        <!-- The manager table: the engine's roster, one row per alert. Every
+             text re-renders live on roster events and language switches. -->
+        <Grid Grid.Row="0" RowDefinitions="Auto,*" RowSpacing="6">
+            <Grid Grid.Row="0"
+                  ColumnDefinitions="1.1*,1.5*,1.1*,1.1*,1.4*"
+                  ColumnSpacing="8">
+                <TextBlock Grid.Column="0"
+                           Text="{loc:Localized Alert.Column.Symbol}"
+                           FontWeight="Bold" />
+                <TextBlock Grid.Column="1"
+                           Text="{loc:Localized Alert.Column.Condition}"
+                           FontWeight="Bold" />
+                <TextBlock Grid.Column="2"
+                           Text="{loc:Localized Alert.Column.Status}"
+                           FontWeight="Bold" />
+                <TextBlock Grid.Column="3"
+                           Text="{loc:Localized Alert.Column.LastFired}"
+                           FontWeight="Bold" />
+                <TextBlock Grid.Column="4"
+                           Text="{loc:Localized Alert.Column.Note}"
+                           FontWeight="Bold" />
+            </Grid>
+
+            <ScrollViewer Grid.Row="1">
+                <ListBox Name="AlertRows"
+                         ItemsSource="{Binding Rows}"
+                         SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                         Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AlertsRowViewModel">
+                            <Grid ColumnDefinitions="1.1*,1.5*,1.1*,1.1*,1.4*" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding SymbolText}"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding ConditionText}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding StatusText}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Grid.Column="3"
+                                           Text="{Binding LastFiredText}"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextSecondary}" />
+                                <TextBlock Grid.Column="4"
+                                           Text="{Binding NoteText}"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondary}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- The editor: the selected row's facts (a fresh create composes from
+             here too). The kind's own fields show; the other kind's stay
+             hidden. Every spelling parses at submit, nothing defaults. -->
+        <Grid Grid.Row="1"
+              ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*"
+              ColumnSpacing="8">
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{loc:Localized Alert.Editing.Kind}" FontSize="11" />
+                <ComboBox Width="130"
+                          ItemsSource="{Binding KindOptions}"
+                          SelectedItem="{Binding SelectedKind, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AlertKindOption">
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="1"
+                        IsVisible="{Binding IsPriceKind}">
+                <TextBlock Text="{loc:Localized Alert.Editing.Trigger}" FontSize="11" />
+                <ComboBox Width="110"
+                          ItemsSource="{Binding TriggerOptions}"
+                          SelectedItem="{Binding SelectedTrigger, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AlertTriggerOption">
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="2"
+                        IsVisible="{Binding IsPriceKind}">
+                <TextBlock Text="{loc:Localized Alert.Editing.Target}" FontSize="11" />
+                <TextBox Width="110" Text="{Binding TargetText}" />
+            </StackPanel>
+            <StackPanel Grid.Column="3"
+                        IsVisible="{Binding IsPercentKind}">
+                <TextBlock Text="{loc:Localized Alert.Editing.Percent}" FontSize="11" />
+                <TextBox Width="80" Text="{Binding PercentText}" />
+            </StackPanel>
+            <StackPanel Grid.Column="4"
+                        IsVisible="{Binding IsPercentKind}">
+                <TextBlock Text="{loc:Localized Alert.Editing.Window}" FontSize="11" />
+                <TextBox Width="70" Text="{Binding WindowText}" />
+            </StackPanel>
+            <StackPanel Grid.Column="5">
+                <TextBlock Text="{loc:Localized Alert.Editing.Symbol}" FontSize="11" />
+                <TextBox Width="120" Text="{Binding SymbolText}" />
+            </StackPanel>
+            <StackPanel Grid.Column="6">
+                <TextBlock Text="{loc:Localized Alert.Editing.Note}" FontSize="11" />
+                <TextBox Text="{Binding NoteText}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- The refusal/failure surface: a garbage spelling or an engine
+             refusal lands here in its own localized line. -->
+        <TextBlock Grid.Row="2"
+                   Text="{Binding ErrorMessage}"
+                   Foreground="{DynamicResource Error}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasErrorMessage}" />
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+            <Button Grid.Column="1"
+                    Content="{loc:Localized Alert.Create}"
+                    Command="{Binding CreateCommand}"
+                    MinWidth="100" />
+            <Button Grid.Column="2"
+                    Content="{loc:Localized Alert.UpdateSelected}"
+                    Command="{Binding UpdateSelectedCommand}"
+                    MinWidth="100" />
+            <Button Grid.Column="3"
+                    Content="{loc:Localized Alert.SnoozeSelected}"
+                    Command="{Binding SnoozeSelectedCommand}"
+                    MinWidth="100" />
+            <Button Grid.Column="4"
+                    Content="{loc:Localized Alert.DeleteSelected}"
+                    Command="{Binding DeleteSelectedCommand}"
+                    MinWidth="100" />
+            <Button Grid.Column="5"
+                    Content="{loc:Localized Alert.Close}"
+                    Click="OnCloseClick"
+                    MinWidth="90"
+                    Margin="8,0,0,0" />
+        </Grid>
+    </Grid>
+</Window>

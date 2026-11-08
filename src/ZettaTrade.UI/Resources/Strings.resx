@@ -1125,6 +1125,9 @@ Estimated fee: {7}</value>
   <data name="Menu.Trading.Notifications" xml:space="preserve">
     <value>Notification center</value>
   </data>
+  <data name="Menu.Trading.Alerts" xml:space="preserve">
+    <value>Price alerts...</value>
+  </data>
   <data name="Notif.AdapterDown" xml:space="preserve">
     <value>Adapter {0} went down</value>
   </data>
@@ -1334,5 +1337,116 @@ Estimated fee: {7}</value>
   </data>
   <data name="Backtest.Report.Summary.Format" xml:space="preserve">
     <value>Fills {0}, closed trades {1}; win rate {2}, profit factor {3}; max drawdown {4}; final equity {5} (start {6}).</value>
+  </data>
+  <data name="Alert.Title" xml:space="preserve">
+    <value>Price alerts</value>
+  </data>
+  <data name="Alert.Column.Symbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="Alert.Column.Condition" xml:space="preserve">
+    <value>Condition</value>
+  </data>
+  <data name="Alert.Column.Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Alert.Column.LastFired" xml:space="preserve">
+    <value>Last fired</value>
+  </data>
+  <data name="Alert.Column.Note" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="Alert.Editing.Kind" xml:space="preserve">
+    <value>Kind</value>
+  </data>
+  <data name="Alert.Editing.Trigger" xml:space="preserve">
+    <value>Edge</value>
+  </data>
+  <data name="Alert.Editing.Target" xml:space="preserve">
+    <value>Target price</value>
+  </data>
+  <data name="Alert.Editing.Percent" xml:space="preserve">
+    <value>Percent</value>
+  </data>
+  <data name="Alert.Editing.Window" xml:space="preserve">
+    <value>Window, min</value>
+  </data>
+  <data name="Alert.Editing.Symbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="Alert.Editing.Note" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="Alert.Kind.Price" xml:space="preserve">
+    <value>Price level</value>
+  </data>
+  <data name="Alert.Kind.PercentMove" xml:space="preserve">
+    <value>Percent move</value>
+  </data>
+  <data name="Alert.Trigger.Above" xml:space="preserve">
+    <value>Rises above</value>
+  </data>
+  <data name="Alert.Trigger.Below" xml:space="preserve">
+    <value>Falls below</value>
+  </data>
+  <data name="Alert.Trigger.At" xml:space="preserve">
+    <value>Reaches exactly</value>
+  </data>
+  <data name="Alert.Status.Armed" xml:space="preserve">
+    <value>Armed</value>
+  </data>
+  <data name="Alert.Status.Snoozed.Format" xml:space="preserve">
+    <value>Snoozed until {0}</value>
+  </data>
+  <data name="Alert.Status.Fired" xml:space="preserve">
+    <value>Fired</value>
+  </data>
+  <data name="Alert.Status.Never" xml:space="preserve">
+    <value>-</value>
+  </data>
+  <data name="Alert.Status.LastFired.Format" xml:space="preserve">
+    <value>{0}</value>
+  </data>
+  <data name="Alert.Condition.Price.Above" xml:space="preserve">
+    <value>rises above {0}</value>
+  </data>
+  <data name="Alert.Condition.Price.Below" xml:space="preserve">
+    <value>falls below {0}</value>
+  </data>
+  <data name="Alert.Condition.Price.At" xml:space="preserve">
+    <value>reaches exactly {0}</value>
+  </data>
+  <data name="Alert.Condition.PercentMove.Format" xml:space="preserve">
+    <value>moves {0}% within {1} min</value>
+  </data>
+  <data name="Alert.Create" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="Alert.UpdateSelected" xml:space="preserve">
+    <value>Apply to selected</value>
+  </data>
+  <data name="Alert.SnoozeSelected" xml:space="preserve">
+    <value>Snooze 15 min</value>
+  </data>
+  <data name="Alert.DeleteSelected" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Alert.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Alert.Error.InvalidSymbol" xml:space="preserve">
+    <value>'{0}' is not a parsable symbol spelling.</value>
+  </data>
+  <data name="Alert.Error.InvalidTarget" xml:space="preserve">
+    <value>'{0}' is not a parsable target price.</value>
+  </data>
+  <data name="Alert.Error.InvalidPercent" xml:space="preserve">
+    <value>'{0}' is not a parsable percent threshold.</value>
+  </data>
+  <data name="Alert.Error.InvalidWindow" xml:space="preserve">
+    <value>'{0}' is not a parsable window (minutes).</value>
+  </data>
+  <data name="Alert.Error.OperationFailed" xml:space="preserve">
+    <value>The alerts operation failed: {0}</value>
   </data>
 </root>

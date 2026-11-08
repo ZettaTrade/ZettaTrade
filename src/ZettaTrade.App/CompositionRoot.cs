@@ -300,6 +300,7 @@ internal static class CompositionRoot
         services.AddBulkCancelServices(); // T-076: bulk cancel (per-symbol, confirmed, best-effort).
         services.AddFeeServices(); // T-080: fees (schedule, estimate, columns).
         services.AddBacktestServices(); // T-113: the offline deterministic backtest harness + the run VM.
+        services.AddAlertsServices(); // T-096: the price-alerts engine (roster solo owner) + the manager VM.
         services.AddSingleton<McpJournalingTradingAdapter>(); // T-133: MCP fills enter the journal.
         services.AddPositionSizerServices(); // T-079: position sizer (balance presets, risk-percent).
 

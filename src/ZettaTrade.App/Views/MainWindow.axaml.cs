@@ -51,6 +51,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
         ViewModel?.Menu.ShowTradeStatsRequested.RegisterHandler(OpenTradeStatsAsync);
         ViewModel?.Menu.ShowBacktestRequested.RegisterHandler(OpenBacktestAsync);
+        ViewModel?.Menu.ShowAlertsRequested.RegisterHandler(OpenAlertsAsync);
         ViewModel?.Menu.ShowNotificationsRequested.RegisterHandler(OpenNotificationHistoryAsync);
         ViewModel?.Menu.ShowBalancesRequested.RegisterHandler(OpenBalancesAsync);
         ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
@@ -421,6 +422,36 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         {
             context.SetOutput(RxVoid.Default);
         }
+    }
+
+    private async Task OpenAlertsAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            await ShowAlertsWindowAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the alerts window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    /// <summary>
+    /// The alerts window's core: the view model is transient, so every open
+    /// renders the CURRENT roster over the shared singleton engine — the
+    /// attach pattern owns the subscriptions, the opener only opens.
+    /// </summary>
+    private async Task ShowAlertsWindowAsync()
+    {
+        var window = new AlertsWindow
+        {
+            DataContext = App.Services.GetRequiredService<ViewModels.AlertsViewModel>(),
+        };
+        await window.ShowDialog<object>(this);
     }
 
     /// <summary>

@@ -1,0 +1,582 @@
+namespace ZettaTrade.App.ViewModels;
+
+using System.Collections.ObjectModel;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
+using Livery.Extensions;
+using Livery.Localization;
+using Microsoft.Extensions.Logging;
+using ReactiveUI;
+using ZettaTrade.App.Services;
+using ZettaTrade.Core.ValueObjects;
+
+/// <summary>The status byte the commands exchange (the app standard alias).</summary>
+using RxVoid = ReactiveUI.Primitives.RxVoid;
+
+/// <summary>
+/// The alert manager view model (T-096): renders the engine's roster as the
+/// manager table, composes the editor's drafts (create, edit re-arm, snooze,
+/// delete), and mirrors the engine's events plus the live language — every
+/// row text re-renders on a language switch. The engine stays the roster's
+/// only writer; garbage spellings refuse the operation each with its own
+/// localized line, never a silently defaulted alert.
+/// </summary>
+/// <remarks>
+/// View lifecycle note: the model owns only dynamic state; the window
+/// activation calls <see cref="Attach"/> and disposes the returned handle on
+/// close (the attach pattern), so the singleton engine never retains a dead
+/// window's subscription.
+/// </remarks>
+public sealed class AlertsViewModel : ReactiveObject
+{
+    #region Resx Keys
+
+    private const string InvalidateSymbolKey = "Alert.Error.InvalidSymbol";
+    private const string InvalidateTargetKey = "Alert.Error.InvalidTarget";
+    private const string InvalidatePercentKey = "Alert.Error.InvalidPercent";
+    private const string InvalidateWindowKey = "Alert.Error.InvalidWindow";
+    private const string InvalidateOperationKey = "Alert.Error.OperationFailed";
+    private const string StatusArmedKey = "Alert.Status.Armed";
+    private const string StatusSnoozedFormatKey = "Alert.Status.Snoozed.Format";
+    private const string StatusFiredKey = "Alert.Status.Fired";
+    private const string LastFiredNeverKey = "Alert.Status.Never";
+    private const string StatusLastFiredFormatKey = "Alert.Status.LastFired.Format";
+    private const string ConditionAboveKey = "Alert.Condition.Price.Above";
+    private const string ConditionBelowKey = "Alert.Condition.Price.Below";
+    private const string ConditionAtKey = "Alert.Condition.Price.At";
+    private const string ConditionPercentFormatKey = "Alert.Condition.PercentMove.Format";
+
+    #endregion Resx Keys
+
+    #region Constants
+
+    /// <summary>The percent-move window the editor seeds for a fresh alert (the roster preset).</summary>
+    private const string DefaultWindowText = "15";
+
+    /// <summary>The percent threshold the editor seeds for a fresh alert (the roster preset).</summary>
+    private const string DefaultPercentText = "5";
+
+    #endregion Constants
+
+    #region Private Fields
+
+    private readonly IAlertEngine _engine;
+    private readonly ILocalizationManager _localization;
+    private readonly ILogger<AlertsViewModel> _logger;
+
+    private string _symbolText = string.Empty;
+    private AlertKindOption _selectedKind;
+    private AlertTriggerOption _selectedTrigger;
+    private string _targetText = string.Empty;
+    private string _percentText = DefaultPercentText;
+    private string _windowText = DefaultWindowText;
+    private string _noteText = string.Empty;
+    private AlertsRowViewModel? _selectedRow;
+    private string? _errorMessage;
+
+    #endregion Private Fields
+
+    #region Constructors
+
+    /// <summary>Create a manager view model over the roster's engine.</summary>
+    /// <param name="engine">The alert engine (the roster's sole owner and evaluator).</param>
+    /// <param name="localization">The localized strings resolver (live language switching).</param>
+    /// <param name="logger">The view model's logger.</param>
+    public AlertsViewModel(
+        IAlertEngine engine,
+        ILocalizationManager localization,
+        ILogger<AlertsViewModel> logger)
+    {
+        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        ComposeOptionLabels();
+        _selectedKind = KindOptions[0];
+        _selectedTrigger = TriggerOptions[1];
+
+        CreateCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, cancellationToken) => HandleCreateAsync(cancellationToken));
+        UpdateSelectedCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, cancellationToken) => HandleUpdateSelectedAsync(cancellationToken),
+            canExecute: this.WhenAnyValue(x => x.SelectedRow).Select(static row => row is not null));
+        SnoozeSelectedCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, cancellationToken) => HandleSnoozeSelectedAsync(cancellationToken),
+            canExecute: this.WhenAnyValue(x => x.SelectedRow).Select(static row => row is not null));
+        DeleteSelectedCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, cancellationToken) => HandleDeleteSelectedAsync(cancellationToken),
+            canExecute: this.WhenAnyValue(x => x.SelectedRow).Select(static row => row is not null));
+
+        RebuildRows();
+    }
+
+    #endregion Constructors
+
+    #region Resx Option Keys
+
+    private const string KindPriceKey = "Alert.Kind.Price";
+    private const string KindPercentKey = "Alert.Kind.PercentMove";
+    private const string TriggerAboveKey = "Alert.Trigger.Above";
+    private const string TriggerBelowKey = "Alert.Trigger.Below";
+    private const string TriggerAtKey = "Alert.Trigger.At";
+
+    #endregion Resx Option Keys
+
+    #region Table
+
+    /// <summary>The manager's rows (the engine's roster, rendered).</summary>
+    public ObservableCollection<AlertsRowViewModel> Rows { get; } = [];
+
+    /// <summary>True while at least one alert exists (the honest empty state otherwise).</summary>
+    public bool HasRows => Rows.Count > 0;
+
+    /// <summary>The selected row (the editor loads and the row commands key on it).</summary>
+    public AlertsRowViewModel? SelectedRow
+    {
+        get => _selectedRow;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _selectedRow, value);
+            if (value is { } row)
+            {
+                LoadEditor(row);
+            }
+        }
+    }
+
+    #endregion Table
+
+    #region Editor Form
+
+    /// <summary>The alert kinds the editor offers (localized labels, recomposed on language changes).</summary>
+    public ObservableCollection<AlertKindOption> KindOptions { get; } = [];
+
+    /// <summary>The trigger edges the editor offers (localized labels, recomposed on language changes).</summary>
+    public ObservableCollection<AlertTriggerOption> TriggerOptions { get; } = [];
+
+    /// <summary>The symbol spelling the next draft composes with (normalized on success).</summary>
+    public string SymbolText
+    {
+        get => _symbolText;
+        set => this.RaiseAndSetIfChanged(ref _symbolText, value);
+    }
+
+    /// <summary>The kind the next draft composes with.</summary>
+    public AlertKindOption SelectedKind
+    {
+        get => _selectedKind;
+        set => this.RaiseAndSetIfChanged(ref _selectedKind, value);
+    }
+
+    /// <summary>The trigger edge the next draft composes with (the Price kind's vocabulary).</summary>
+    public AlertTriggerOption SelectedTrigger
+    {
+        get => _selectedTrigger;
+        set => this.RaiseAndSetIfChanged(ref _selectedTrigger, value);
+    }
+
+    /// <summary>The target-price spelling (Price kind; parsed and validated at submit).</summary>
+    public string TargetText
+    {
+        get => _targetText;
+        set => this.RaiseAndSetIfChanged(ref _targetText, value);
+    }
+
+    /// <summary>The percent-threshold spelling (PercentMove kind; parsed and validated at submit).</summary>
+    public string PercentText
+    {
+        get => _percentText;
+        set => this.RaiseAndSetIfChanged(ref _percentText, value);
+    }
+
+    /// <summary>The window spelling, minutes (PercentMove kind; parsed and validated at submit).</summary>
+    public string WindowText
+    {
+        get => _windowText;
+        set => this.RaiseAndSetIfChanged(ref _windowText, value);
+    }
+
+    /// <summary>The user's free-text note (carried as-is).</summary>
+    public string NoteText
+    {
+        get => _noteText;
+        set => this.RaiseAndSetIfChanged(ref _noteText, value);
+    }
+
+    /// <summary>True while the Price kind is selected (its fields visible, the percent fields hidden).</summary>
+    public bool IsPriceKind => SelectedKind.Kind == PriceAlertKind.Price;
+
+    /// <summary>True while the PercentMove kind is selected (its fields visible, the price fields hidden).</summary>
+    public bool IsPercentKind => SelectedKind.Kind == PriceAlertKind.PercentMove;
+
+    #endregion Editor Form
+
+    #region Commands
+
+    /// <summary>Create one alert from the editor (the draft validates before the engine ever sees it).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> CreateCommand { get; }
+
+    /// <summary>Re-arm the selected alert with the editor's fresh facts.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> UpdateSelectedCommand { get; }
+
+    /// <summary>Push the snooze window forward for the selected alert.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> SnoozeSelectedCommand { get; }
+
+    /// <summary>Delete the selected alert (the explicit user forgetting).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> DeleteSelectedCommand { get; }
+
+    #endregion Commands
+
+    #region Error Surface
+
+    /// <summary>The localized refusal or failure line; null while clean.</summary>
+    public string? ErrorMessage
+    {
+        get => _errorMessage;
+        private set
+        {
+            if (_errorMessage == value)
+            {
+                return;
+            }
+
+            _errorMessage = value;
+            this.RaisePropertyChanged(nameof(ErrorMessage));
+            this.RaisePropertyChanged(nameof(HasErrorMessage));
+        }
+    }
+
+    /// <summary>True while <see cref="ErrorMessage"/> holds text.</summary>
+    public bool HasErrorMessage => _errorMessage is not null;
+
+    #endregion Error Surface
+
+    #region Lifecycle
+
+    /// <summary>
+    /// Attach the transient window's listeners: the engine's event stream
+    /// (rows re-render on roster changes and fires) and the language change
+    /// stream (row texts re-resolve live). The caller owns the returned
+    /// handle — the attach pattern.
+    /// </summary>
+    /// <returns>The attach handle; disposing stops both mirrors.</returns>
+    public IDisposable Attach()
+    {
+        var composite = new CompositeDisposable();
+
+        composite.Add(_engine.Events
+            .ObserveOnUiThread()
+            .Subscribe(
+                _ => RebuildRows(),
+                ex => _logger.LogError(ex, "The alert event mirror stopped unexpectedly")));
+
+        composite.Add(_localization.LanguageChanged
+            .ObserveOnUiThread()
+            .Subscribe(
+                _ => RenderOnLanguageChange(),
+                ex => _logger.LogError(ex, "The alert language mirror stopped unexpectedly")));
+
+        return composite;
+    }
+
+    #endregion Lifecycle
+
+    #region Command Handlers
+
+    private async Task<RxVoid> HandleCreateAsync(CancellationToken cancellationToken)
+    {
+        if (!TryComposeDraft(out var draft, out var inputError))
+        {
+            ErrorMessage = inputError;
+            return RxVoid.Default;
+        }
+
+        try
+        {
+            await _engine.CreateAsync(draft, cancellationToken).ConfigureAwait(false);
+            ErrorMessage = null;
+            SymbolText = string.Empty;
+            TargetText = string.Empty;
+            NoteText = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Creating the alert failed");
+            ErrorMessage = _localization.GetString(InvalidateOperationKey, ex.Message);
+        }
+
+        return RxVoid.Default;
+    }
+
+    private async Task<RxVoid> HandleUpdateSelectedAsync(CancellationToken cancellationToken)
+    {
+        // No selection never reaches here through the UI (the command's
+        // canExecute gates it); the honest reply is the no-op.
+        if (SelectedRow is not { } selection)
+        {
+            return RxVoid.Default;
+        }
+
+        if (!TryComposeDraft(out var draft, out var inputError))
+        {
+            ErrorMessage = inputError;
+            return RxVoid.Default;
+        }
+
+        try
+        {
+            await _engine.UpdateAsync(selection.Id, draft, cancellationToken).ConfigureAwait(false);
+            ErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Updating the alert failed");
+            ErrorMessage = _localization.GetString(InvalidateOperationKey, ex.Message);
+        }
+
+        return RxVoid.Default;
+    }
+
+    private async Task<RxVoid> HandleSnoozeSelectedAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedRow is not { } selection)
+        {
+            return RxVoid.Default;
+        }
+
+        try
+        {
+            await _engine.SnoozeAsync(selection.Id, cancellationToken).ConfigureAwait(false);
+            ErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Snoozing the alert failed");
+            ErrorMessage = _localization.GetString(InvalidateOperationKey, ex.Message);
+        }
+
+        return RxVoid.Default;
+    }
+
+    private async Task<RxVoid> HandleDeleteSelectedAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedRow is not { } selection)
+        {
+            return RxVoid.Default;
+        }
+
+        try
+        {
+            await _engine.DeleteAsync(selection.Id, cancellationToken).ConfigureAwait(false);
+            ErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Deleting the alert failed");
+            ErrorMessage = _localization.GetString(InvalidateOperationKey, ex.Message);
+        }
+
+        return RxVoid.Default;
+    }
+
+    #endregion Command Handlers
+
+    #region Draft Composition
+
+    /// <summary>
+    /// Compose the editor's draft: every spelling parses explicitly — an
+    /// unparsable field is a refused operation with its own localized line,
+    /// never a silently substituted value.
+    /// </summary>
+    private bool TryComposeDraft(out AlertDraft draft, out string? inputError)
+    {
+        draft = null!;
+        inputError = null;
+
+        Symbol symbol;
+        try
+        {
+            if (!AlertDraft.IsAParsableSpelling(_symbolText))
+            {
+                inputError = _localization.GetString(InvalidateSymbolKey, _symbolText);
+                return false;
+            }
+
+            symbol = Symbol.Parse(_symbolText);
+        }
+        catch (ArgumentException)
+        {
+            inputError = _localization.GetString(InvalidateSymbolKey, _symbolText);
+            return false;
+        }
+
+        var target = 0m;
+        var percent = 0m;
+        var window = 0;
+
+        if (SelectedKind.Kind == PriceAlertKind.Price)
+        {
+            if (!decimal.TryParse(_targetText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out target))
+            {
+                inputError = _localization.GetString(InvalidateTargetKey, _targetText);
+                return false;
+            }
+        }
+        else
+        {
+            if (!decimal.TryParse(_percentText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out percent))
+            {
+                inputError = _localization.GetString(InvalidatePercentKey, _percentText);
+                return false;
+            }
+
+            if (!int.TryParse(_windowText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out window))
+            {
+                inputError = _localization.GetString(InvalidateWindowKey, _windowText);
+                return false;
+            }
+        }
+
+        draft = new AlertDraft(
+            SymbolName: symbol.Normalized,
+            Kind: SelectedKind.Kind,
+            Trigger: SelectedTrigger.Trigger,
+            TargetPrice: target,
+            ThresholdPercent: percent,
+            WindowMinutes: window,
+            Note: _noteText);
+        return true;
+    }
+
+    #endregion Draft Composition
+
+    #region Rows and Rendering
+
+    /// <summary>Replace the row set with the engine's current roster (small: a wholesale rebuild keeps it honest).</summary>
+    private void RebuildRows()
+    {
+        Rows.Clear();
+        foreach (var definition in _engine.Definitions)
+        {
+            Rows.Add(RenderRow(definition));
+        }
+
+        this.RaisePropertyChanged(nameof(HasRows));
+        if (SelectedRow is not null && Rows.All(row => row.Id != SelectedRow.Id))
+        {
+            // The selection's alert is gone: the editor clears rather than
+            // pointing at a dead id (the row set is the truth).
+            SelectedRow = null;
+        }
+    }
+
+    /// <summary>Compose the picker options' localized labels (the first fill and every language change).</summary>
+    private void ComposeOptionLabels()
+    {
+        KindOptions.Clear();
+        KindOptions.Add(new AlertKindOption(PriceAlertKind.Price, _localization.GetString(KindPriceKey)));
+        KindOptions.Add(new AlertKindOption(PriceAlertKind.PercentMove, _localization.GetString(KindPercentKey)));
+        TriggerOptions.Clear();
+        TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Above, _localization.GetString(TriggerAboveKey)));
+        TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Below, _localization.GetString(TriggerBelowKey)));
+        TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.At, _localization.GetString(TriggerAtKey)));
+    }
+
+    /// <summary>The language mirror's leg: the pickers re-label, the rows re-render, the selection survives.</summary>
+    private void RenderOnLanguageChange()
+    {
+        var kind = SelectedKind.Kind;
+        var trigger = SelectedTrigger.Trigger;
+        var selectedId = SelectedRow?.Id;
+        ComposeOptionLabels();
+        RebuildRows();
+
+        _selectedKind = KindOptions.First(option => option.Kind == kind);
+        this.RaisePropertyChanged(nameof(SelectedKind));
+        _selectedTrigger = TriggerOptions.First(option => option.Trigger == trigger);
+        this.RaisePropertyChanged(nameof(SelectedTrigger));
+
+        if (selectedId is { } id)
+        {
+            SelectedRow = Rows.FirstOrDefault(row => row.Id == id);
+        }
+    }
+
+    private void RenderLocalizedRows()
+    {
+        for (var index = 0; index < Rows.Count; index++)
+        {
+            var definition = _engine.Definitions.FirstOrDefault(item => item.Id == Rows[index].Id);
+            if (definition is not null)
+            {
+                Rows[index] = RenderRow(definition);
+            }
+        }
+    }
+
+    private AlertsRowViewModel RenderRow(AlertDefinition definition)
+    {
+        var row = new AlertsRowViewModel
+        {
+            Id = definition.Id,
+            SymbolText = definition.SymbolName,
+        };
+        ApplyConditionText(row, definition);
+        ApplyStatusText(row, definition);
+        ApplyLastFiredText(row, definition);
+        ApplyNoteText(row, definition);
+        return row;
+    }
+
+    /// <summary>Load the editor's fields from the selected row's definition.</summary>
+    private void LoadEditor(AlertsRowViewModel row)
+    {
+        var definition = _engine.Definitions.FirstOrDefault(item => item.Id == row.Id);
+        if (definition is null)
+        {
+            return;
+        }
+
+        SymbolText = definition.SymbolName;
+        SelectedKind = KindOptions.First(option => option.Kind == definition.Kind);
+        SelectedTrigger = TriggerOptions.First(option => option.Trigger == definition.Trigger);
+        TargetText = definition.TargetPrice.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        PercentText = definition.ThresholdPercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        WindowText = definition.WindowMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        NoteText = definition.Note;
+    }
+
+    private void ApplyConditionText(AlertsRowViewModel row, AlertDefinition definition) => row.ConditionText =
+        definition.Kind switch
+        {
+            PriceAlertKind.Price => definition.Trigger switch
+            {
+                AlertTrigger.Above => _localization.GetString(ConditionAboveKey, definition.TargetPrice),
+                AlertTrigger.Below => _localization.GetString(ConditionBelowKey, definition.TargetPrice),
+                AlertTrigger.At => _localization.GetString(ConditionAtKey, definition.TargetPrice),
+                _ => string.Empty,
+            },
+            PriceAlertKind.PercentMove => _localization.GetString(ConditionPercentFormatKey, definition.ThresholdPercent, definition.WindowMinutes),
+            _ => string.Empty,
+        };
+
+    private void ApplyStatusText(AlertsRowViewModel row, AlertDefinition definition) => row.StatusText =
+        definition.Status switch
+        {
+            AlertStatus.Armed => _localization.GetString(StatusArmedKey),
+            AlertStatus.Snoozed => definition.SnoozedUntilUtc is { } until
+                ? _localization.GetString(StatusSnoozedFormatKey, until)
+                : _localization.GetString(StatusArmedKey),
+            AlertStatus.Fired => _localization.GetString(StatusFiredKey),
+            _ => string.Empty,
+        };
+
+    private void ApplyLastFiredText(AlertsRowViewModel row, AlertDefinition definition) => row.LastFiredText =
+        definition.LastFiredUtc is { } fired
+            ? _localization.GetString(StatusLastFiredFormatKey, fired)
+            : _localization.GetString(LastFiredNeverKey);
+
+    private void ApplyNoteText(AlertsRowViewModel row, AlertDefinition definition) => row.NoteText = definition.Note;
+
+    #endregion Rows and Rendering
+}

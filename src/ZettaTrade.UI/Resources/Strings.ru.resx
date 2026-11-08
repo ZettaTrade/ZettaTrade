@@ -1125,6 +1125,9 @@
   <data name="Menu.Trading.Notifications" xml:space="preserve">
     <value>Центр уведомлений</value>
   </data>
+  <data name="Menu.Trading.Alerts" xml:space="preserve">
+    <value>Ценовые оповещения…</value>
+  </data>
   <data name="Notif.AdapterDown" xml:space="preserve">
     <value>Адаптер {0} недоступен</value>
   </data>
@@ -1334,5 +1337,116 @@
   </data>
   <data name="Backtest.Report.Summary.Format" xml:space="preserve">
     <value>Исполнений {0}, закрытых сделок {1}; доля прибыльных {2}, профит-фактор {3}; макс. просадка {4}; финальный капитал {5} (старт {6}).</value>
+  </data>
+  <data name="Alert.Title" xml:space="preserve">
+    <value>Ценовые оповещения</value>
+  </data>
+  <data name="Alert.Column.Symbol" xml:space="preserve">
+    <value>Символ</value>
+  </data>
+  <data name="Alert.Column.Condition" xml:space="preserve">
+    <value>Условие</value>
+  </data>
+  <data name="Alert.Column.Status" xml:space="preserve">
+    <value>Состояние</value>
+  </data>
+  <data name="Alert.Column.LastFired" xml:space="preserve">
+    <value>Сработал</value>
+  </data>
+  <data name="Alert.Column.Note" xml:space="preserve">
+    <value>Заметка</value>
+  </data>
+  <data name="Alert.Editing.Kind" xml:space="preserve">
+    <value>Тип</value>
+  </data>
+  <data name="Alert.Editing.Trigger" xml:space="preserve">
+    <value>Порог</value>
+  </data>
+  <data name="Alert.Editing.Target" xml:space="preserve">
+    <value>Целевая цена</value>
+  </data>
+  <data name="Alert.Editing.Percent" xml:space="preserve">
+    <value>Процент</value>
+  </data>
+  <data name="Alert.Editing.Window" xml:space="preserve">
+    <value>Окно, мин</value>
+  </data>
+  <data name="Alert.Editing.Symbol" xml:space="preserve">
+    <value>Символ</value>
+  </data>
+  <data name="Alert.Editing.Note" xml:space="preserve">
+    <value>Заметка</value>
+  </data>
+  <data name="Alert.Kind.Price" xml:space="preserve">
+    <value>Ценовой уровень</value>
+  </data>
+  <data name="Alert.Kind.PercentMove" xml:space="preserve">
+    <value>Процентный ход</value>
+  </data>
+  <data name="Alert.Trigger.Above" xml:space="preserve">
+    <value>Поднимается выше</value>
+  </data>
+  <data name="Alert.Trigger.Below" xml:space="preserve">
+    <value>Опускается ниже</value>
+  </data>
+  <data name="Alert.Trigger.At" xml:space="preserve">
+    <value>Достигает точно</value>
+  </data>
+  <data name="Alert.Status.Armed" xml:space="preserve">
+    <value>Активно</value>
+  </data>
+  <data name="Alert.Status.Snoozed.Format" xml:space="preserve">
+    <value>Пауза до {0}</value>
+  </data>
+  <data name="Alert.Status.Fired" xml:space="preserve">
+    <value>Сработало</value>
+  </data>
+  <data name="Alert.Status.Never" xml:space="preserve">
+    <value>-</value>
+  </data>
+  <data name="Alert.Status.LastFired.Format" xml:space="preserve">
+    <value>{0}</value>
+  </data>
+  <data name="Alert.Condition.Price.Above" xml:space="preserve">
+    <value>поднимается выше {0}</value>
+  </data>
+  <data name="Alert.Condition.Price.Below" xml:space="preserve">
+    <value>опускается ниже {0}</value>
+  </data>
+  <data name="Alert.Condition.Price.At" xml:space="preserve">
+    <value>достигает точно {0}</value>
+  </data>
+  <data name="Alert.Condition.PercentMove.Format" xml:space="preserve">
+    <value>ход {0}% в окне {1} мин</value>
+  </data>
+  <data name="Alert.Create" xml:space="preserve">
+    <value>Создать</value>
+  </data>
+  <data name="Alert.UpdateSelected" xml:space="preserve">
+    <value>Применить к выбранному</value>
+  </data>
+  <data name="Alert.SnoozeSelected" xml:space="preserve">
+    <value>Пауза 15 мин</value>
+  </data>
+  <data name="Alert.DeleteSelected" xml:space="preserve">
+    <value>Удалить</value>
+  </data>
+  <data name="Alert.Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="Alert.Error.InvalidSymbol" xml:space="preserve">
+    <value>'{0}' — не разборчивое написание символа.</value>
+  </data>
+  <data name="Alert.Error.InvalidTarget" xml:space="preserve">
+    <value>'{0}' — не разборчивая целевая цена.</value>
+  </data>
+  <data name="Alert.Error.InvalidPercent" xml:space="preserve">
+    <value>'{0}' — не разборчивый процент порога.</value>
+  </data>
+  <data name="Alert.Error.InvalidWindow" xml:space="preserve">
+    <value>'{0}' — не разборчивое окно (минуты).</value>
+  </data>
+  <data name="Alert.Error.OperationFailed" xml:space="preserve">
+    <value>Операция с оповещениями не удалась: {0}</value>
   </data>
 </root>
