@@ -1,4 +1,4 @@
-## [0.1.0-alpha.68] - 2026-11-08
+## [0.1.0-alpha.67] - 2026-11-08
 
 Build of board task T-111 (branch `feat/strategies`).
 
