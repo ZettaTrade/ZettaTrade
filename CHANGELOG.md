@@ -1,3 +1,35 @@
+## [0.1.0-alpha.62] - 2026-11-08
+
+Build of board task T-093 (branch `feat/vol-vwap`).
+
+### Added
+- The session-anchored VWAP overlay (T-093) over the candles: the center is
+  the volume-weighted average of the session's typical prices (H+L+C)/3
+  with the bar volumes as weights, flanked by the ±1σ bands (the
+  volume-weighted standard deviation of the same typical price).
+- The profile overlay with the volume-at-price histogram (T-093) in the
+  chart's right margin: an even bucket ladder over the visible window's
+  price spread, every bar's volume riding the bucket that holds its
+  typical price (the same weighted price the VWAP weights). The bars hug
+  the plot's right edge, translated from the max-volume bucket.
+
+### Changed
+- The VWAP sessions break at every UTC calendar-day boundary
+  (`VwapSessionAnchor`): crypto venues trade around the clock, so the UTC
+  day is the only venue-honest anchor their series carries; the
+  stock-style venues' weekday sessions break on the same rule because
+  their quiet days carry no bars at all, and a series starting
+  mid-session anchors the accumulation at its own first bar.
+- Both overlays carry a config section (`UI.ChartShowVwap` /
+  `UI.ChartShowVolumeProfile`, both default on) and a toolbar toggle next
+  to the time-frame picker with localized tooltips (`Chart.Vwap.Tip` /
+  `Chart.VolumeProfile.Tip`, en+ru); a toggle persists through the
+  reactive settings pipeline and survives a restart.
+- The honest no-volume state: when the loaded candles carry no volume at
+  all the overlays draw nothing and the chart prints the localized
+  `Chart.NoVolumeData` note (en+ru) instead of fabricating zeros or
+  spread shapes.
+
 ## [0.1.0-alpha.61] - 2026-11-08
 
 Build of board task T-095 (branch `feat/symbol-palette`).
