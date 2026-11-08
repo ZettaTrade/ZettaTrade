@@ -15,6 +15,10 @@ high-risk operations ask for explicit human confirmation. The shipped trading en
 **ZettaTrade is educational software, not investment advice** — see the full
 [Disclaimer](#disclaimer) below before using it.
 
+The [user manual](docs/USER-MANUAL.md) walks every shipped surface: installation per
+platform, first-run setup, the workspace concepts (panels, indicators, strategies, MCP,
+themes, secrets posture), the keyboard map and the paper-trading safety notes.
+
 ## Trading safety
 
 ZettaTrade is built so that the shortest path to real money is a long one: the only
