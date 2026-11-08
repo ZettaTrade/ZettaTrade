@@ -129,6 +129,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
 | T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | done | T-082 |
 | T-134 Supervisor-mode skill (OpenCode): the standing directives load only on explicit invocation | feat/supervisor-skill | done | - |
+| T-135 Stabilize the flaky PositionsPanel in-flight test under suite load | feat/flaky-pospanel-timing | queued | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -325,3 +326,12 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the key validation lib + the activation UI (resx en+ru), the packaging docs/templates for the private CI, `docs/LICENSES.md` describing the open-core split (MIT core vs proprietary modules) in a glance-readable form; the private repos themselves appear only per actual module.
 - **Acceptance:** a signed closed fixture activates with a valid key and is refused with an explicit error on invalid/expired/tampered/wrong-product keys; no network is required for validation; no proprietary artifact or wording lands in the public repo.
 - **Tests:** key crypto goldens (valid/expired/tampered/wrong-product/missing), the activation gate in UI, the refused-not-defaulted contract on every failure path, file-only logging for the validator.
+
+## T-135 — Stabilize the flaky PositionsPanel in-flight test under suite load
+
+- **Branch:** queued 2026-11-08 (supervisor idea after the wave-2 landing trail: three gate runs tripped the same pre-existing test as the wave's ~180 new tests grew App.Tests parallel pressure).
+- **Origin:** the sibling shape is T-073/T-116; the family grew a third member that trips at the ~30 s full-suite mark.
+- **What:** de-flake `PositionRowAction_WhileInFlight_DisablesTheRowSurfaceForDoubleClicks` without loosening the assertion (the row must still suspend in flight): give the in-flight completion an explicit seam (a controllable clock/observable for the test instead of a wall-clock budget) or serialize the contested scheduler steps in the test harness; a production defect found while diagnosing is a SEPARATE finding, never folded here.
+- **Scope:** PositionsPanelViewModelTests and the test harness seam only; no production code change.
+- **Acceptance:** the test is green in 10 consecutive full-suite parallel App.Tests runs under local load.
+- **Tests:** the fix IS the test; the assertion semantics stay intact.
