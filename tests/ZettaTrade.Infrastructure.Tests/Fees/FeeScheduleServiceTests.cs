@@ -16,7 +16,7 @@ using ZettaTrade.Infrastructure.Tests.Exchange;
 /// <summary>
 /// Schedule-selection goldens for the per-adapter fee registry (T-080):
 /// without configuration the shipped paper schedule answers the paper
-/// adapter and UNKNOWN adapters stay unknown (null вЂ” the dash surface);
+/// adapter and UNKNOWN adapters stay unknown (null — the dash surface);
 /// a configured entry answers its adapter (an explicit paper entry replaces
 /// the shipped default); invalid entries are never charged; and a
 /// Fees-section settings change re-reads the section and swaps the snapshot

@@ -216,8 +216,8 @@ public class CandlestickChart : Control
             defaultValue: []);
 
     /// <summary>
-    /// Whether the time axis prints the 12-hour clock ("11:45 PM"); false вЂ”
-    /// the default вЂ” prints the 24-hour "23:45". The chart owns no
+    /// Whether the time axis prints the 12-hour clock ("11:45 PM"); false —
+    /// the default — prints the 24-hour "23:45". The chart owns no
     /// persistence: the settings service is the source of truth, rendering
     /// flows the applied value in through this StyledProperty binding.
     /// </summary>
@@ -763,7 +763,7 @@ public class CandlestickChart : Control
     /// <summary>
     /// Immutable per-redraw state the render thread sees: the visible bars,
     /// the theme colors, the label culture + clock format resolved on the
-    /// UI thread (the render thread reads no live chart state вЂ” an ambient
+    /// UI thread (the render thread reads no live chart state — an ambient
     /// CultureInfo there belongs to the process default, not the app), and
     /// the hover position captured from the pointer events on the UI thread
     /// (null when the cursor is outside the control or has left it).
@@ -1045,7 +1045,7 @@ public class CandlestickChart : Control
         /// <summary>
         /// Grid lines AT the tick positions: horizontal lines ride the price
         /// ladder (aligned with the price labels), vertical lines ride the
-        /// time ticks вЂ” mapped onto the SAME bar slots the candles occupy.
+        /// time ticks — mapped onto the SAME bar slots the candles occupy.
         /// Both stay strictly inside the plot, so the gutters and the canvas
         /// edges stay clean.
         /// </summary>
@@ -1720,7 +1720,7 @@ public class CandlestickChart : Control
         /// calendar scales whose labels stay within the measured width, so
         /// one measurement pass suffices. The rung, ticks and texts always
         /// belong to the same final pick. The culture and the clock format
-        /// ride the snapshot (the render thread reads no ambient state) вЂ”
+        /// ride the snapshot (the render thread reads no ambient state) —
         /// every redraw resolves them from the applied UI language.
         /// </summary>
         private static (TimeTickRung Rung, IReadOnlyList<DateTimeOffset> Ticks, string[] Texts) PickTimeLabels(
@@ -1786,7 +1786,7 @@ public class CandlestickChart : Control
                 var maxCenter = (float)plotRect.Right - halfWidth - TimeLabelClampPadPx;
 
                 // When the plot is narrower than one label the two clamp
-                // bounds collapse вЂ” Max(min, max) then keeps the left bound:
+                // bounds collapse — Max(min, max) then keeps the left bound:
                 // the degenerate case clips a label, it never throws.
                 var x = Math.Min(Math.Max(centered, minCenter), Math.Max(minCenter, maxCenter));
                 var baseline = (float)plotRect.Bottom + TimeAxisGutterPadPx - font.Metrics.Ascent;
@@ -1803,7 +1803,7 @@ public class CandlestickChart : Control
         /// snapshot carries: no hover, a cursor outside the plot band (a
         /// rail just does not draw) or a cursor outside every bar's
         /// half-pitch band (no readout) draw less of it instead of throwing
-        /// or substituting вЂ” the dead paths stay silent. The cursor's price
+        /// or substituting — the dead paths stay silent. The cursor's price
         /// maps back onto the padded scale through the SAME
         /// <see cref="ChartPriceScale"/> geometry the candles and axis
         /// labels use, so the pill and the readout always agree with the
@@ -1830,7 +1830,7 @@ public class CandlestickChart : Control
             var y = (float)position.Y;
             var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
 
-            // The rails: 1 px dashed lines riding the plot's inside only вЂ”
+            // The rails: 1 px dashed lines riding the plot's inside only —
             // a cursor in a gutter shows no rail on that axis. SkiaSharp
             // refcounts the native dash effect: the paint holds one
             // reference, this call holds the other, both die here.
@@ -1877,7 +1877,7 @@ public class CandlestickChart : Control
 
             // The hovered candle's compact readout in the plot's top-left:
             // O/H/L/C plus volume of the bar under the cursor x. The numbers
-            // reuse the price-axis formatting (same decimals, same culture вЂ”
+            // reuse the price-axis formatting (same decimals, same culture —
             // numbers need no resx), the letter glyphs are the universal
             // trading notation, unlocalized per the board's scope.
             var barIndex = ChartBarLayout.SlotIndexForX(plotRect.Right, barPitch, bars.Count, position.X);
