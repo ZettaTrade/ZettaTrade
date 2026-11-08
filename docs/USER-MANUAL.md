@@ -175,6 +175,10 @@ chart:
   the loaded window on every pass.
 - **Indicator overlays:** the lines of the toggleable indicator plugins (see
   [3.4](#34-indicators-and-strategies)).
+- **Trading footprint overlays:** the workspace symbol's own trading activity on the
+  candles: the entry line with its direction and the floating PnL tag at the latest
+  price, the working-order lines styled by side (dashed limits) and the fill markers on
+  executions, with a legend listing the shapes the current frame draws.
 - **Export candles CSV:** writes the displayed series to a user-chosen file; a write
   fault lands on the chart's own error line; the deep-history end note shows when the
   feed's series ends.
@@ -425,9 +429,10 @@ manager's standard keys plus the five application bindings above.
   balance of 100,000 USDT, resting limit orders pending until filled or cancelled. No
   code path reaches real funds: no live venue trading exists in this alpha.
 - **The status bar keeps the lane visible.** The exchange readout prints the venue plus
-  the paper tag at all times; no real-money lane exists, so nothing a paper lane would
-  need to be told apart from is on screen. There is no separate trading-mode chip yet -
-  the paper tag in the status bar is the one always-present lane indicator.
+  the paper tag at all times, and the dedicated trading-mode chip beside it shows the
+  workspace's active lane - PAPER here, TESTNET or LIVE elsewhere - with a distinct
+  color per state; switching INTO live requires an explicit confirmation dialog. In this
+  alpha no code path reaches real funds, so the chip reads PAPER from boot.
 - **Every order passes risk validation** (`IRiskManager`); rejected orders do not
   execute. **High-risk operations require explicit human confirmation**
   (`IConfirmationService`) - the confirmation dialog shows the pre-submit summary. This
@@ -464,9 +469,9 @@ The intended shot list for when captures are made (each taken from a real run, i
 current themes, with demo data only - no real credentials ever on screen):
 
 1. First run: the disclaimer dialog, then the wizard's three steps.
-2. The workspace in a dark and a light theme: chart with the VWAP and volume-profile
-   overlays plus an indicator line, order book ladder, depth chart, trade tape,
-   watchlist, assistant column.
+2. The workspace in a dark and a light theme: chart with the VWAP, volume-profile and
+   trading-footprint overlays plus an indicator line, order book ladder, depth chart,
+   trade tape, watchlist, assistant column.
 3. Heikin-Ashi and line series from the series-type selector on the same symbol.
 4. The symbol palette overlay mid-query (row states visible: favorites and recents).
 5. The New Order dialog on a limit ticket with the sizer and fee estimate, then the
