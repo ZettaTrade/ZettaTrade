@@ -129,6 +129,39 @@ public sealed class SettingsPortServiceTests
 
     #endregion Roundtrip golden
 
+    #region Endpoint records' shape
+
+    /// <summary>
+    /// The exchange endpoint records' port shape: the URL pairs (every
+    /// member a string) plus the one optional boolean isTestnet identity
+    /// member the trading lane reads — the member the trading-mode chip's
+    /// resolver carries through the record. Anything else non-string still
+    /// rejects; the shape gate stays narrow.
+    /// </summary>
+    [Fact]
+    public void AnEndpointRecordWithTheTestnetIdentityMember_FitsItsStoredShape()
+    {
+        var key = PortSettingsRegistry.TryGet(
+            ExchangeEndpointRegistry.SettingsSection,
+            ExchangeEndpointRegistry.BinanceKey)!;
+
+        using var identity = JsonDocument.Parse(
+            "{\"restBaseUrl\":\"https://api.example\",\"wsUrl\":\"wss://stream.example\",\"isTestnet\":true}");
+        using var cleanPair = JsonDocument.Parse(
+            "{\"restBaseUrl\":\"https://api.example\",\"wsUrl\":\"wss://stream.example\"}");
+        using var foreign = JsonDocument.Parse(
+            "{\"restBaseUrl\":\"https://api.example\",\"wsUrl\":\"wss://stream.example\",\"shim\":false}");
+
+        PortSettingsRegistry.IsValueValid(key, identity.RootElement)
+            .Should().BeTrue("the identity member is the record's shipped shape (the lane reads it)");
+        PortSettingsRegistry.IsValueValid(key, cleanPair.RootElement)
+            .Should().BeTrue("the pre-lane two-string shape keeps importing (older exports stay valid)");
+        PortSettingsRegistry.IsValueValid(key, foreign.RootElement)
+            .Should().BeFalse("only the isTestnet member may ride a boolean");
+    }
+
+    #endregion Endpoint records' shape
+
     #region The export's secret-freedom
 
     /// <summary>
