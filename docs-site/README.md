@@ -55,6 +55,19 @@ docs-site/
 - **Settings & i18n** - Configuration and localization system
 - **Structure** - Project file organization
 
+## Landing page
+
+A static product landing (en + ru) rides the docs-site deploy: the copy lives
+under `docs-site/public/landing/` (`index.html` - English, `index.ru.html` -
+Russian), and the screenshots and stylesheet under
+`docs-site/public/assets/landing/`. Vite copies `public/` verbatim into
+`dist/`, so the built site serves the page at `landing/` with every asset path
+relative - no build config, no code changes needed. The screenshot shipped is
+a real run capture (the demo workspace in the Dark theme); the
+interactive-surface shots are a pending real-run capture gap and are not faked.
+The download section links the GitHub Releases page: the delivery pipeline
+(T-125) attaches the per-OS archives to every version-tagged release.
+
 ## 📝 Note
 
 This is a documentation-only site. The main application source code is in the `src/` directory at the repository root.
