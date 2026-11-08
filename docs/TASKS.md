@@ -140,6 +140,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | done | T-082 |
 | T-134 Supervisor-mode skill (OpenCode): the standing directives load only on explicit invocation | feat/supervisor-skill | done | - |
 | T-135 Stabilize the flaky PositionsPanel in-flight test under suite load | feat/flaky-pospanel-timing | queued | - |
+| T-136 Repo hygiene: baked mojibake repair, machine-path purge, prevention lints | chore/repo-hygiene | review | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -399,3 +400,12 @@ the end of that file, so no effort is duplicated.
 - **Scope:** PositionsPanelViewModelTests and the test harness seam only; no production code change.
 - **Acceptance:** the test is green in 10 consecutive full-suite parallel App.Tests runs under local load.
 - **Tests:** the fix IS the test; the assertion semantics stay intact.
+
+## T-136 — Repo hygiene: baked mojibake repair, machine-path purge, prevention lints
+
+- **Branch:** `chore/repo-hygiene` (worktree `zt-presentation-backlog`, based on develop@cd62fcb)
+- **Origin:** the user-directed split: the work first rode `feat/presentation-backlog` alongside the presentation-track board claim; the supervisor separated the backlog landing (T-120..T-129 rows only) from the repo fixes, which now stand as this dedicated task.
+- **What:** the whole-repo repair of the double-encoding wave (UTF-8 bytes re-read as Windows-1251, up to three generations deep) - `CHANGELOG.md` (130 sites), `Directory.Build.props` (the version-policy comment rewritten ASCII-safe by design), four chart/test comment sites; plus the ten arrow sites the first inversion pass lost (the Windows-1251 encoder best-fits U+2192 to the byte 0x3E, so the deepest arrow sites inverted to a plain greater-than instead of the arrow). Forward-recovery proof: 144/144 sites reproduce the observed junk byte-for-byte at their corruption depths; 89 of 127 anchorable `CHANGELOG.md` sites also match their clean historical ancestors byte-identically. The machine-local absolute worktree paths on nine archived Branch rows were dropped to the archive's own majority name-only form, keeping branches, worktree names and base hashes.
+- **Prevention:** the gate scans the same 652-file repo text set for both hazards - `[MOJIBAKE]` (the corruption-only marker set of the double-encoding bug, with files read as UTF-8 explicitly so Windows PowerShell 5.1 cannot fabricate false positives out of legit dashes) and `[MACHINE-PATH]` (drive-letter paths rooted in Users/Projects; URL schemes excluded by a lookbehind so https:// and avares:// stay legal). The matching canon line lives on the board header, in `AGENTS.md` rule 5 (the registered skill copy kept in sync) and in the multi-agent sync section of `ZettaTrade_SKILL.md`.
+- **Acceptance (achieved):** both lints scan clean across 652 text files; `GATE PASSED` with `-BaseBranch develop -AllowProtected` (the gate edits are protected-area work). No version bump: repo hygiene only, no app change.
+- **Status:** review.
