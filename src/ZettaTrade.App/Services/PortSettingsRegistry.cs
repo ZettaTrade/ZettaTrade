@@ -40,7 +40,7 @@ public enum PortValueKind
     /// <summary>A JSON string whose payload itself parses as a JSON object (the stored compact-JSON symbol-mark maps).</summary>
     MarkMapText,
 
-    /// <summary>A JSON object whose every property value is a string (the exchange endpoint records, the transport URL pairs).</summary>
+    /// <summary>A JSON object whose every property value is a string — with the one exception the exchange endpoint records ship: the optional boolean isTestnet identity member (the transport URL pairs plus the lane identity the trading-mode chip reads).</summary>
     UrlPairs,
 
     /// <summary>A JSON object whose every property value is an object (the per-exchange fee schedule map).</summary>
@@ -96,6 +96,15 @@ public static class PortSettingsRegistry
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
+
+    /// <summary>
+    /// The camel-case property name the endpoint records' boolean IsTestnet
+    /// member carries in the stored/exported JSON (the serialization policy
+    /// above writes it; the trading-mode chip reads the same member at the
+    /// runtime level). The UrlPairs shape allows exactly this one
+    /// non-string member.
+    /// </summary>
+    private const string IsTestnetPropertyName = "isTestnet";
 
     /// <summary>The port-safe user-adjustable keys, in a fixed, test-stable order.</summary>
     private static readonly PortSettingsKey[] Keys =
@@ -279,7 +288,10 @@ public static class PortSettingsRegistry
                 return IsJsonTextOf(value, JsonValueKind.Object);
             case PortValueKind.UrlPairs:
                 return value.ValueKind == JsonValueKind.Object &&
-                       value.EnumerateObject().All(pair => pair.Value.ValueKind == JsonValueKind.String);
+                       value.EnumerateObject().All(pair =>
+                           pair.Value.ValueKind == JsonValueKind.String ||
+                           (pair.Value.ValueKind is JsonValueKind.True or JsonValueKind.False &&
+                            string.Equals(pair.Name, IsTestnetPropertyName, StringComparison.Ordinal)));
             case PortValueKind.ScheduleMap:
                 return value.ValueKind == JsonValueKind.Object &&
                        value.EnumerateObject().All(pair => pair.Value.ValueKind == JsonValueKind.Object);
