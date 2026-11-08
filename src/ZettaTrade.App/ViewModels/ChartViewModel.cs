@@ -17,6 +17,7 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
+using ZettaTrade.Strategies;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
@@ -86,6 +87,16 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// end of history).
 /// The ViewModel lives as long as the application (singleton), so the
 /// subscriptions mirror it and need no explicit disposal.
+/// <para>
+/// The strategy-signals surface (T-112): every full load publishes its
+/// identity through the series relay (the strategy host's feed address)
+/// and the markers overlay (<see cref="SignalMarkers"/>) re-inks whenever
+/// a delivery, prepend, repair or a new signal lands — one marker per
+/// displayed candle whose stance the host registered, anchored at the
+/// candle's own close. The rail panel rides
+/// <see cref="SignalRail"/>: its coalescing and click routes are the rail
+/// ViewModel's own.
+/// </para>
 /// </remarks>
 public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 {
@@ -521,6 +532,23 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         private set => this.RaiseAndSetIfChanged(ref _vwapOverlay, value);
     }
 
+    private IReadOnlyList<SignalMarker> _signalMarkers = [];
+
+    /// <summary>
+    /// The strategy-signal markers the chart overlays at the candles'
+    /// close levels (T-112): one entry per displayed bar that carries a
+    /// signal, keyed by the bar's own open time and resolved against the
+    /// CURRENT loaded series — a marker whose candle left the series
+    /// disappears instead of shifting. The assignment is the single
+    /// UI-thread hop of its publish; the draw pass anchors each marker on
+    /// its own candle exactly the way candles ride their slots.
+    /// </summary>
+    public IReadOnlyList<SignalMarker> SignalMarkers
+    {
+        get => _signalMarkers;
+        private set => this.RaiseAndSetIfChanged(ref _signalMarkers, value);
+    }
+
     /// <summary>
     /// One delivered full load, with the (symbol, time frame, adapter) triple
     /// that produced it: the private payload the delivered subscriber uses to
@@ -674,6 +702,26 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>The deep-history fetcher the repair passes ride (bounded segments, write-through before emit).</summary>
     private readonly CandleBackfillService _backfill;
 
+    /// <summary>
+    /// The strategy signals service (T-112): the per-series stance lookups
+    /// the marker publish maps over the loaded bars and the signal stream
+    /// re-inking it. Inert output — read only, never routed toward an order.
+    /// </summary>
+    private readonly StrategySignalService _signalService;
+
+    /// <summary>
+    /// The loads relay (T-112): every delivered full load publishes here as
+    /// the strategy host's feed address. The relay owns the chart↔service
+    /// decoupling; the chart pushes only what the chart machine delivered.
+    /// </summary>
+    private readonly SignalSeriesRelay _seriesRelay;
+
+    /// <summary>
+    /// The signal rail panel (T-112): the workspace strip renders it under
+    /// the chart; its coalescing and click routes live there.
+    /// </summary>
+    public SignalRailViewModel SignalRail { get; }
+
     #endregion
 
     #region Indicator Overlay State
@@ -808,6 +856,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <param name="backfill">The deep-history fetcher (T-086): the repair
     /// chain's passes ride it for the holes the calendar detects behind a
     /// delivered window.</param>
+    /// <param name="signals">The strategy signals service (T-112): the
+    /// current series's stances the marker overlay reads and the signal
+    /// stream the markers re-ink on. Consumed as inert output — a signal
+    /// never travels toward an order from here.</param>
+    /// <param name="signalRail">The signal rail panel (T-112): rendered as
+    /// the workspace's signal strip under the chart and wired in
+    /// composition (the rail consumes the service's stream directly).</param>
+    /// <param name="seriesRelay">The loads relay (T-112): every full series
+    /// load publishes here for the strategy host's feed — the relay breaks
+    /// the chart↔service cycle by being the one address both consume.</param>
     public ChartViewModel(
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
@@ -817,6 +875,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         ILocalizationManager localization,
         ICandleCache candleCache,
         CandleBackfillService backfill,
+        StrategySignalService signals,
+        SignalRailViewModel signalRail,
+        SignalSeriesRelay seriesRelay,
         ILogger<ChartViewModel> logger)
     {
         _activeExchanges = activeExchanges;
@@ -828,6 +889,10 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _candleCache = candleCache;
         _backfill = backfill;
         _logger = logger;
+
+        _signalService = signals;
+        SignalRail = signalRail;
+        _seriesRelay = seriesRelay;
 
         ExportCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportCandlesAsync);
         SaveCandlesCsvRequested = new Interaction<string, string?>();
@@ -888,6 +953,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     _loadedTarget = (page.Symbol, page.TimeFrame, page.Adapter.Id);
                     _loadedAdapter = page.Adapter;
 
+                    // The T-112 strategies feed: the full load is the host's
+                    // closed-candle address, published through the relay (the
+                    // composition-owned decoupling — the service never holds
+                    // the chart) with its series identity stamped.
+                    _seriesRelay.Publish(new ChartSeriesPage(page.Symbol, page.TimeFrame, page.Bars));
+
                     Bars = new ObservableCollection<Bar>(page.Bars);
                     _logger.LogInformation("Chart bars delivered: {Count} candles", page.Bars.Count);
 
@@ -897,6 +968,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishIndicatorLines(page.Bars);
                     PublishVwapOverlay(page.Bars);
                     PublishHeikinAshi(page.Bars);
+                    PublishSignalMarkers();
 
                     // The delivered page starts this series' repair chain
                     // (T-086): the passes probe the cache and the feed behind
@@ -930,6 +1002,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishIndicatorLines(Bars);
                     PublishVwapOverlay(Bars);
                     PublishHeikinAshi(Bars);
+                    PublishSignalMarkers();
                 },
                 ex => _logger.LogError(ex, "The chart older-bars stream stopped unexpectedly"));
 
@@ -973,6 +1046,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishIndicatorLines(Bars);
                     PublishVwapOverlay(Bars);
                     PublishHeikinAshi(Bars);
+                    PublishSignalMarkers();
                 },
                 ex => _logger.LogError(ex, "The chart repair stream stopped unexpectedly"));
 
@@ -992,6 +1066,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     HistoryLimitNote = note.Text;
                 },
                 ex => _logger.LogError(ex, "The chart history-limit stream stopped unexpectedly"));
+
+        // The T-112 signal markers re-ink on every strategy signal: the
+        // publish re-resolves the loaded series' stances against the
+        // CURRENT bars (a rebase may have landed in between), so a signal
+        // that raced a series swap anchors nothing stale.
+        _signalService.Signals
+            .ObserveOnUiThread()
+            .Subscribe(
+                _ => PublishSignalMarkers(),
+                ex => _logger.LogError(ex, "The signal markers stream stopped unexpectedly"));
 
         // The time frame persists: every USER change writes the enum name
         // into the UI settings section (the debounced settings service calls
@@ -1517,6 +1601,62 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         }
 
         _vwapPublishes.OnNext(VwapOverlay.Compute(bars));
+    }
+
+    /// <summary>
+    /// The pure signal-marker mapping the publish uses (T-112): the
+    /// service's stance registry maps onto the loaded bars by open time,
+    /// one marker per matching bar — a candle the registry knows and the
+    /// series displays anchors a marker exactly at itself; every other bar
+    /// stays clean. Neutral is an honest non-reading and never markers.
+    /// Internal static so the golden tests pin the mapping without a VM
+    /// instance (the <see cref="ChartViewModel.Preselect"/> precedent).
+    /// </summary>
+    /// <param name="bars">The displayed ascending bar series.</param>
+    /// <param name="stances">The host registry's stances keyed by the candles' open times.</param>
+    /// <returns>The markers, in bar order.</returns>
+    internal static IReadOnlyList<SignalMarker> ComposeSignalMarkers(
+        IReadOnlyList<Bar> bars,
+        IReadOnlyDictionary<DateTimeOffset, StrategyStance> stances)
+    {
+        var markers = new List<SignalMarker>(stances.Count);
+        foreach (var bar in bars)
+        {
+            if (stances.TryGetValue(bar.Time, out var stance) &&
+                stance != StrategyStance.Neutral)
+            {
+                markers.Add(new SignalMarker(
+                    bar,
+                    stance == StrategyStance.Long ? SignalMarkerRole.Long : SignalMarkerRole.Flat));
+            }
+        }
+
+        return markers;
+    }
+
+    /// <summary>
+    /// Resolve the strategy-signal markers (T-112) against the current
+    /// loaded series and publish them: the service's stance registry for
+    /// the loaded (symbol, time frame) series maps onto the loaded bars by
+    /// open time, one marker per matching bar — a candle the registry
+    /// knows and the series displays anchors a marker exactly at itself;
+    /// every other bar stays clean. Called from the same handlers the
+    /// other overlays re-publish from (delivery, prepend, repair) and from
+    /// the signal stream (a new stance re-inks once): the assignment is
+    /// the single UI-thread hop, the same publication discipline the
+    /// indicator and VWAP publishes keep.
+    /// </summary>
+    private void PublishSignalMarkers()
+    {
+        var bars = Bars;
+        if (bars.Count == 0 || _loadedTarget is not { } target)
+        {
+            SignalMarkers = [];
+            return;
+        }
+
+        var stances = _signalService.StancesFor(target.Symbol, target.TimeFrame);
+        SignalMarkers = ComposeSignalMarkers(bars, stances);
     }
 
     /// <summary>

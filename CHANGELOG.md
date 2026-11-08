@@ -1,3 +1,34 @@
+## [0.1.0-alpha.69] - 2026-11-08
+
+Build of board task T-112 (branch `feat/signal-markers`).
+
+### Added
+- Strategy-signal markers on the chart (T-112): every stamped reading of
+  the T-111 seam anchors a small triangle at its own candle's close level
+  (long above, flat below) through the render pass's shared slot and
+  price mapping — placement is exact by construction, a marker whose
+  candle left the series disappears with it, and two readings on one
+  candle stack on the same slot.
+- The signal rail panel under the chart: the newest readings stream live
+  as a bounded, coalesced ring — one rows replacement per coalesce
+  window, newest first, the oldest evicted past the shipped count — and
+  a row press prefills the order ticket (symbol, side, the reading
+  candle's close) through the same transient dialog path the order book
+  level presses share. A signal never sends an order; the human decides.
+- The seam's deterministic hosting leg: the chart's delivered full
+  series loads feed the strategy host through a composition-owned
+  relay (the chart and the service never hold each other), candles
+  enter the pump exactly once per series and only when provably closed
+  (the in-flight candle is never judged), and the per-series stance
+  registry prunes to the delivered window's floor.
+
+### Tests
+- The compose and resolve placement goldens (the exact per-candle anchor,
+  the off-window drop, the same-slot stack), the hosting leg's
+  closed-candle gate, exactly-once re-coverage drop and floor prune facts
+  with the demo strategy, and the rail's coalescing, bounded ring,
+  neutral-absence and prefill facts.
+
 ## [0.1.0-alpha.68] - 2026-11-08
 
 Build of board task T-100 (branch `feat/settings-port`).

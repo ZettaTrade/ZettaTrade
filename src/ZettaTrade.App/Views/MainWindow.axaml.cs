@@ -70,6 +70,16 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             onError: ex => Log.Error(ex, "Book level click stream failed"));
         Closed += (_, _) => _bookClicks.Dispose();
 
+        // The signal rail's (T-112) row presses ride the SAME transient
+        // dialog path the book level clicks share: a pressed row carries
+        // the prefill FACTS (symbol, side, the signal candle's close), the
+        // ticket opens prefilled — and nothing sends. The rail never
+        // touches an order surface itself; the human decides on the ticket.
+        _railPrefills = ViewModel!.Chart.SignalRail.RowPrefillRequested.SubscribeAsync(
+            row => OpenNewOrderDialogAsync(new OrderPrefill(row.Source.Symbol, row.Side, row.Price)),
+            onError: ex => Log.Error(ex, "Signal rail prefill stream failed"));
+        Closed += (_, _) => _railPrefills.Dispose();
+
         // The same route serves the chart's older-history requests: a pan
         // that reaches the loaded series' left edge asks the ViewModel for
         // the previous bars window (SubscribeAsync keeps the route task
@@ -112,6 +122,9 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
 
     /// <summary>Subscription of the book level click stream; disposed with the window.</summary>
     private IDisposable? _bookClicks;
+
+    /// <summary>Subscription of the signal rail's row-press prefill stream; disposed with the window.</summary>
+    private IDisposable? _railPrefills;
 
     /// <summary>Subscription of the chart older-history request stream; disposed with the window.</summary>
     private IDisposable? _olderHistoryRequests;

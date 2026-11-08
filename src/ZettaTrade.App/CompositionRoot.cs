@@ -21,6 +21,7 @@ using ZettaTrade.Infrastructure.Indicators;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Infrastructure.Secrets;
 using ZettaTrade.Infrastructure.Shell;
+using ZettaTrade.Strategies;
 
 /// <summary>
 /// DI composition root. Registers all services and dependencies.
@@ -87,6 +88,12 @@ internal static class CompositionRoot
         // for IIndicator assemblies (SMA ships as the first plugin; the App
         // carries no compile-time reference to any plugin).
         services.AddIndicators();
+
+        // The strategy plugin seam (T-111, hosted by T-112): one catalog
+        // scans the same plugins directory for IStrategy assemblies. The
+        // signals channel stays inert output — consumers prefill the ticket,
+        // the human decides.
+        services.AddStrategies(ConfigPathResolver.PluginsDirectory);
 
         // Active-exchange facade over the concrete adapters: every market
         // data consumer resolves one IMarketDataAdapter that forwards to
@@ -204,6 +211,29 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ThemeManager>().LoadErrorsChanged,
                 sp.GetRequiredService<SettingsPortService>(),
                 sp.GetRequiredService<IConfirmationService>()));
+        // The strategy-seam hosting (T-112): the composition owns the
+        // series-load relay so the chart and the strategy service depend on
+        // the relay, never on each other's construction (the cycle-free
+        // shape the clean-architecture edges keep). The chart's full loads
+        // feed the candle-close host, the pump runs for the application
+        // lifetime and the signals broadcast inert output (the markers and
+        // the rail consume; nothing routes a signal into an order).
+        services.AddSingleton<SignalSeriesRelay>();
+        services.AddSingleton<StrategySignalService>(sp =>
+            new StrategySignalService(
+                sp.GetRequiredService<SignalSeriesRelay>().Pages,
+                sp.GetRequiredService<IStrategyCatalog>(),
+                sp.GetRequiredService<ILoggerFactory>()));
+
+        // The signal rail (T-112): the coalescing streaming panel. The
+        // chart exposes it as SignalRail for the workspace strip, the
+        // window owns the row-press route.
+        services.AddSingleton<SignalRailViewModel>(sp =>
+            new SignalRailViewModel(
+                sp.GetRequiredService<StrategySignalService>().Signals,
+                sp.GetRequiredService<ILocalizationManager>(),
+                sp.GetRequiredService<ILogger<SignalRailViewModel>>()));
+
         services.AddSingleton<ChartViewModel>(sp =>
             new ChartViewModel(
                 sp.GetRequiredService<ActiveExchangeService>(),
@@ -214,6 +244,9 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ICandleCache>(), // T-085: the bootstrap page serves the cache first.
                 sp.GetRequiredService<CandleBackfillService>(), // T-086: the repair chain's fetcher.
+                sp.GetRequiredService<StrategySignalService>(), // T-112: the stances the markers read.
+                sp.GetRequiredService<SignalRailViewModel>(), // T-112: the rail strip's VM.
+                sp.GetRequiredService<SignalSeriesRelay>(), // T-112: the loads the host feeds from.
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(

@@ -1239,4 +1239,19 @@
   <data name="Settings.FirstRunWizard.RunAgain" xml:space="preserve">
     <value>Запустить мастер настройки…</value>
   </data>
+  <data name="Signal.Rail.Title" xml:space="preserve">
+    <value>Рельс сигналов</value>
+  </data>
+  <data name="Signal.Rail.Empty" xml:space="preserve">
+    <value>Оценок стратегий пока нет</value>
+  </data>
+  <data name="Signal.Rail.StanceLong" xml:space="preserve">
+    <value>Лонг</value>
+  </data>
+  <data name="Signal.Rail.StanceFlat" xml:space="preserve">
+    <value>Флэт</value>
+  </data>
+  <data name="Signal.Rail.Row.Tooltip" xml:space="preserve">
+    <value>{0} оценка по {1}, закрытие {2} ({3}) — клик предзаполняет заявку, сама она не отправляется.</value>
+  </data>
 </root>

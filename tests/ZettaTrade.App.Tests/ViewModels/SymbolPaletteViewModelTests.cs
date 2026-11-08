@@ -22,6 +22,7 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
+using ZettaTrade.Strategies;
 
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
@@ -244,16 +245,34 @@ public sealed class SymbolPaletteViewModelTests
     private static async Task<bool> GatedAsync(ReactiveCommand<RxVoid, RxVoid> command) =>
         await command.CanExecute.FirstAsync();
 
-    private static ChartViewModel CreateChart(ActiveExchangeService service, ISettingsService settings) => new(
-        service,
-        new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
-        settings,
-        new EmptyIndicatorCatalog(),
-        Substitute.For<ICsvExportService>(),
-        Substitute.For<ILocalizationManager>(),
-        new EmptyCandleCache(),
-        new CandleBackfillService(new EmptyCandleCache(), NullLogger<CandleBackfillService>.Instance),
-        NullLogger<ChartViewModel>.Instance);
+    private static ChartViewModel CreateChart(ActiveExchangeService service, ISettingsService settings)
+    {
+        // The T-112 seam's inert hosting pair: a quiet signals stream, the
+        // palette facts' chart expectations untouched.
+        var relay = new SignalSeriesRelay();
+        var signals = new StrategySignalService(
+            relay.Pages,
+            Substitute.For<IStrategyCatalog>(),
+            NullLoggerFactory.Instance);
+        var rail = new SignalRailViewModel(
+            signals.Signals,
+            Substitute.For<ILocalizationManager>(),
+            NullLogger<SignalRailViewModel>.Instance);
+
+        return new(
+            service,
+            new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
+            settings,
+            new EmptyIndicatorCatalog(),
+            Substitute.For<ICsvExportService>(),
+            Substitute.For<ILocalizationManager>(),
+            new EmptyCandleCache(),
+            new CandleBackfillService(new EmptyCandleCache(), NullLogger<CandleBackfillService>.Instance),
+            signals,
+            rail,
+            relay,
+            NullLogger<ChartViewModel>.Instance);
+    }
 
     /// <summary>The no-indicator catalog stub: no plugin resolves, the chart pipeline stays bare.</summary>
     private sealed class EmptyIndicatorCatalog : IIndicatorCatalog

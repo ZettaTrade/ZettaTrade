@@ -159,6 +159,17 @@ public class CandlestickChart : Control
     /// </summary>
     private static readonly float[] VwapBandDashPatternPx = [4f, 3f];
 
+    /// <summary>
+    /// Half the base width of a strategy-signal marker (T-112), in pixels:
+    /// the marker's triangle keeps a candle-body-scaled look at every zoom
+    /// without following the pitch (a fixed size reads as the same sign at
+    /// candle and terminal zooms alike).
+    /// </summary>
+    private const float SignalMarkerHalfWidthPx = 5f;
+
+    /// <summary>Height of a strategy-signal marker's triangle, in pixels (see <see cref="SignalMarkerHalfWidthPx"/>).</summary>
+    private const float SignalMarkerHeightPx = 7f;
+
     /// <summary>Resource keys published by ThemeManager; the chart mirrors the current theme live.</summary>
     private const string BackgroundColorKey = "Background";
     private const string CandleUpColorKey = "CandleUp";
@@ -295,6 +306,26 @@ public class CandlestickChart : Control
     {
         get => GetValue(HeikinAshiBarsProperty);
         set => SetValue(HeikinAshiBarsProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the strategy-signal markers (T-112): the marker
+    /// set the ViewModel publishes per loaded series (one entry per bar a
+    /// signal stands on). The draw pass resolves every marker's OWN candle
+    /// inside the visible window by open time and anchors the marker at
+    /// that candle's close — a marker can never slide onto a neighboring
+    /// candle, and a marker whose candle left the window simply draws not.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<SignalMarker>> SignalMarkersProperty =
+        AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<SignalMarker>>(
+            nameof(SignalMarkers),
+            defaultValue: []);
+
+    /// <summary>The strategy-signal markers overlaid at the candles' closes; a change re-inks on the next pass.</summary>
+    public IReadOnlyList<SignalMarker> SignalMarkers
+    {
+        get => GetValue(SignalMarkersProperty);
+        set => SetValue(SignalMarkersProperty, value);
     }
 
     #endregion
@@ -461,6 +492,10 @@ public class CandlestickChart : Control
 
         HeikinAshiBarsProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        // The T-112 signal markers: a new marker publish re-inks the same way.
+        SignalMarkersProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
     }
 
     public CandlestickChart()
@@ -617,7 +652,8 @@ public class CandlestickChart : Control
             _hoverPosition,
             VolumeProfileVisible,
             SeriesType,
-            SliceHeikinAshiBars(bars, spanStart, spanEnd));
+            SliceHeikinAshiBars(bars, spanStart, spanEnd),
+            ChartSignalLayout.Resolve(SignalMarkers, visible));
     }
 
     /// <summary>
@@ -747,7 +783,8 @@ public class CandlestickChart : Control
         Point? Hover,
         bool VolumeProfileVisible,
         ChartSeriesType SeriesType,
-        Bar[]? HeikinAshi);
+        Bar[]? HeikinAshi,
+        IReadOnlyList<SignalMarkerHit> SignalMarkerHits);
 
     /// <summary>
     /// Draws the chart straight onto Avalonia's own SKCanvas (render thread).
@@ -931,6 +968,13 @@ public class CandlestickChart : Control
                     DrawCandles(canvas, plotRect, drawnBars, barPitch, minPrice, priceRange);
                     break;
             }
+
+            // The T-112 signal markers ride right above the drawn series
+            // (under the volume profile, the indicator lines, the VWAP and
+            // the hover layers) and anchor at the RAW chain's close levels
+            // — every drawn variant keeps the raw candle's close inside its
+            // own spread, so the markers never leave the plot.
+            DrawSignalMarkers(canvas, plotRect, barPitch, visibleBars.Length, minPrice, priceRange);
 
             // The right-margin volume-at-price histogram (T-093) rides over
             // the candles translucently; the overlay lines draw over it.
@@ -1420,6 +1464,73 @@ public class CandlestickChart : Control
             canvas.DrawPath(upperBandPath, bandPaint);
             canvas.DrawPath(lowerBandPath, bandPaint);
             canvas.DrawPath(centerPath, centerPaint);
+        }
+
+        /// <summary>
+        /// The strategy-signal markers (T-112): one small triangle per
+        /// resolved hit, anchored at its own candle's close on the shared
+        /// price scale and centered on that candle's bar slot on the shared
+        /// bar layout — placement is exact by construction, not an
+        /// approximation. A long stance points up above the close; a flat
+        /// stance points down below it; both keep the close as the
+        /// triangle's base, so the apex alone crosses away from the level
+        /// the strategy acted at. With no markers resolved for the visible
+        /// window, nothing draws.
+        /// </summary>
+        private void DrawSignalMarkers(
+            SKCanvas canvas,
+            Rect plotRect,
+            double barPitch,
+            int barCount,
+            decimal minPrice,
+            decimal priceRange)
+        {
+            var hits = _snapshot.SignalMarkerHits;
+            if (hits.Count == 0)
+            {
+                return;
+            }
+
+            // The marker rides the candle colors: a long is bullish, a flat
+            // is bearish — the stance's direction read, straight from the
+            // same palette the candles use (no separate theme color).
+            using var longPaint = new SKPaint
+            {
+                Color = _snapshot.Bullish,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true
+            };
+
+            using var flatPaint = new SKPaint
+            {
+                Color = _snapshot.Bearish,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true
+            };
+
+            foreach (var hit in hits)
+            {
+                var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, barCount, hit.Slot);
+                var y = ChartPriceScale.PriceToY(plotRect, hit.Close, minPrice, priceRange);
+
+                // The close is the base; the apex rises above it (long) or
+                // hangs below it (flat) — the shape flips, the anchor never
+                // moves.
+                var apex = hit.Role == SignalMarkerRole.Long
+                    ? y - SignalMarkerHeightPx
+                    : y + SignalMarkerHeightPx;
+
+                using var builder = new SKPathBuilder();
+                builder.MoveTo(new SKPoint(x - SignalMarkerHalfWidthPx, (float)y));
+                builder.LineTo(new SKPoint(x, (float)apex));
+                builder.LineTo(new SKPoint(x + SignalMarkerHalfWidthPx, (float)y));
+                builder.Close();
+
+                // BUG-049's lifetime discipline: the builder detaches to the
+                // path actually drawn and both are disposed explicitly.
+                using var drawn = builder.Detach();
+                canvas.DrawPath(drawn, hit.Role == SignalMarkerRole.Long ? longPaint : flatPaint);
+            }
         }
 
         /// <summary>
