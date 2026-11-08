@@ -100,6 +100,31 @@ public static class UiSettingsKeys
     public const string ChartIndicators = "ChartIndicators";
 
     /// <summary>
+    /// Settings key of the persisted chart VWAP overlay visibility (T-093):
+    /// true shows the session-anchored VWAP line with its ±1σ bands.
+    /// </summary>
+    public const string ChartShowVwap = "ChartShowVwap";
+
+    /// <summary>
+    /// The VWAP overlay visibility applied until a stored setting is loaded:
+    /// shown, so a fresh install presents the standard intraday read the
+    /// task ships (the T-092 default-indicator precedent).
+    /// </summary>
+    public const bool DefaultChartShowVwap = true;
+
+    /// <summary>
+    /// Settings key of the persisted chart volume-profile visibility
+    /// (T-093): true shows the right-margin volume-at-price histogram.
+    /// </summary>
+    public const string ChartShowVolumeProfile = "ChartShowVolumeProfile";
+
+    /// <summary>
+    /// The volume-profile visibility applied until a stored setting is
+    /// loaded: shown, per the T-092 default-indicator precedent.
+    /// </summary>
+    public const bool DefaultChartShowVolumeProfile = true;
+
+    /// <summary>
     /// The indicator overlay configuration applied until a stored setting is
     /// loaded: the classic SMA at period 20 enabled, so a fresh install shows
     /// the seam working over the candles.

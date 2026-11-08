@@ -202,6 +202,34 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         private set => this.RaiseAndSetIfChanged(ref _use12HourClock, value);
     }
 
+    private bool _showVwap = UiSettingsKeys.DefaultChartShowVwap;
+
+    /// <summary>
+    /// Whether the chart draws the session-anchored VWAP overlay with its
+    /// ±1σ bands (T-093). The settings service is the single source of
+    /// truth: the startup walk seeds the persisted value, external changes
+    /// re-apply live and the toolbar toggle persists its flips (the
+    /// cache-leads real-difference discipline the AI-panel visibility
+    /// pipeline keeps).
+    /// </summary>
+    public bool ShowVwap
+    {
+        get => _showVwap;
+        private set => this.RaiseAndSetIfChanged(ref _showVwap, value);
+    }
+
+    private bool _showVolumeProfile = UiSettingsKeys.DefaultChartShowVolumeProfile;
+
+    /// <summary>
+    /// Whether the chart draws the right-margin volume-at-price histogram
+    /// (T-093); the same settings lifecycle as <see cref="ShowVwap"/>.
+    /// </summary>
+    public bool ShowVolumeProfile
+    {
+        get => _showVolumeProfile;
+        private set => this.RaiseAndSetIfChanged(ref _showVolumeProfile, value);
+    }
+
     /// <summary>Every time frame the picker offers, in enum order (M1…MN1).</summary>
     public IReadOnlyList<TimeFrame> TimeFrames { get; } =
     [
@@ -370,6 +398,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     public IObservable<IReadOnlyList<ChartIndicatorLine>> IndicatorLinesUpdates { get; }
 
+    /// <summary>
+    /// The session VWAP overlay computed for the current series (null while
+    /// the overlay is off — see <see cref="VwapOverlay"/>). Raw - not
+    /// UI-marshaled; the property assignment is the marshalled hop, this
+    /// stream lets tests read the semantics off the raw publish path.
+    /// </summary>
+    public IObservable<VwapOverlay?> VwapOverlayUpdates { get; }
+
     private IReadOnlyList<ChartIndicatorLine> _indicatorLines = [];
 
     /// <summary>
@@ -383,6 +419,22 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     {
         get => _indicatorLines;
         private set => this.RaiseAndSetIfChanged(ref _indicatorLines, value);
+    }
+
+    private VwapOverlay? _vwapOverlay;
+
+    /// <summary>
+    /// The session-anchored VWAP overlay the chart draws (T-093): value
+    /// series aligned with <see cref="Bars"/> by index, computed by the pure
+    /// <see cref="VwapOverlay.Compute"/> exactly the way the indicator lines
+    /// are; null while the overlay is switched off. The assignment is the
+    /// single UI-thread hop of its publish, and the draw pass slices it
+    /// with the visible window.
+    /// </summary>
+    public VwapOverlay? VwapOverlay
+    {
+        get => _vwapOverlay;
+        private set => this.RaiseAndSetIfChanged(ref _vwapOverlay, value);
     }
 
     /// <summary>
@@ -450,6 +502,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>Asks the view for the candles CSV destination (a save-file dialog); null cancels.</summary>
     public Interaction<string, string?> SaveCandlesCsvRequested { get; }
+
+    /// <summary>The toolbar toggle: show or hide the session VWAP overlay (T-093).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleVwapCommand { get; }
+
+    /// <summary>The toolbar toggle: show or hide the volume-at-price histogram (T-093).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleVolumeProfileCommand { get; }
 
     #endregion
 
@@ -543,6 +601,26 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// crosses onto the UI thread.
     /// </summary>
     private readonly Subject<IReadOnlyList<ChartIndicatorLine>> _indicatorPublishes = new();
+
+    /// <summary>
+    /// The session VWAP overlay publishes here; the marshalled subscription
+    /// assigns <see cref="VwapOverlay"/>. A null emission is the disabled
+    /// state: the chart draws nothing. The compute itself is pure — the
+    /// publish runs wherever its callers land and only the assignment
+    /// crosses onto the UI thread.
+    /// </summary>
+    private readonly Subject<VwapOverlay?> _vwapPublishes = new();
+
+    /// <summary>
+    /// The persisted VWAP overlay choice: the cache LEADS the toggles'
+    /// persistence pipeline (updated at issue time, in issuance order), so
+    /// a rapid settle burst never drops its second flip and an external
+    /// writer's cached apply never rewrites the key (BUG-053's discipline).
+    /// </summary>
+    private bool _persistedShowVwap = UiSettingsKeys.DefaultChartShowVwap;
+
+    /// <summary>The persisted volume-profile choice: the same leadership cache as <see cref="_persistedShowVwap"/>.</summary>
+    private bool _persistedShowVolumeProfile = UiSettingsKeys.DefaultChartShowVolumeProfile;
 
     /// <summary>The catalog the indicator settings rows resolve through (the plugin seam).</summary>
     private readonly IIndicatorCatalog _indicatorCatalog;
@@ -643,6 +721,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
         ExportCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportCandlesAsync);
         SaveCandlesCsvRequested = new Interaction<string, string?>();
+        ToggleVwapCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVwap = !ShowVwap; });
+        ToggleVolumeProfileCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVolumeProfile = !ShowVolumeProfile; });
 
         SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
             .Where(symbol => symbol is not null)
@@ -673,6 +753,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         BarsUpdates = _barsPages.Select(static page => page.Bars);
         OlderBarsUpdates = _olderPages;
         IndicatorLinesUpdates = _indicatorPublishes;
+        VwapOverlayUpdates = _vwapPublishes;
 
         // The ViewModel lives as long as the application (singleton), so this
         // subscription mirrors it and needs no explicit disposal. The marshal
@@ -703,6 +784,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // delivered list IS the compute input (a 200-bar copy of
                     // the collection's content, marshal-free).
                     PublishIndicatorLines(page.Bars);
+                    PublishVwapOverlay(page.Bars);
 
                     // The delivered page starts this series' repair chain
                     // (T-086): the passes probe the cache and the feed behind
@@ -734,6 +816,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // re-align with the grown series (the compute runs over
                     // the whole collection right here on the UI thread).
                     PublishIndicatorLines(Bars);
+                    PublishVwapOverlay(Bars);
                 },
                 ex => _logger.LogError(ex, "The chart older-bars stream stopped unexpectedly"));
 
@@ -775,6 +858,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // the patched collection (the compute runs right here on
                     // the UI thread — the same discipline as the prepends).
                     PublishIndicatorLines(Bars);
+                    PublishVwapOverlay(Bars);
                 },
                 ex => _logger.LogError(ex, "The chart repair stream stopped unexpectedly"));
 
@@ -881,6 +965,81 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 lines => IndicatorLines = lines,
                 ex => _logger.LogError(ex, "The chart indicator lines stream stopped unexpectedly"));
 
+        // The session VWAP overlay rides the same raw-then-marshal split.
+        _vwapPublishes.ObserveOnUiThread()
+            .Subscribe(
+                overlay => VwapOverlay = overlay,
+                ex => _logger.LogError(ex, "The chart vwap overlay stream stopped unexpectedly"));
+
+        // The two overlay toggles persist like the AI panel's visibility
+        // does (T-093): the cache LEADS the pipeline — it is updated at
+        // ISSUE time, in issuance order — while the writes serialize behind
+        // it, so a rapid settle burst never drops its second flip and a
+        // completion-order race cannot make a stale value pass the filter
+        // (the BUG-053 discipline). The real-difference filter also keeps
+        // the restore's cached seed in charge: reads are never re-written.
+        this.WhenAnyValue(x => x.ShowVwap)
+            .Skip(1)
+            .Where(value => value != _persistedShowVwap)
+            .Do(value => _persistedShowVwap = value)
+            .Select(value => Observable
+                .FromAsync(() => SetOverlayChoiceAsync(UiSettingsKeys.ChartShowVwap, value))
+                .Select(_ => value))
+            .Concat()
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The vwap overlay persistence pipeline stopped unexpectedly"));
+
+        this.WhenAnyValue(x => x.ShowVolumeProfile)
+            .Skip(1)
+            .Where(value => value != _persistedShowVolumeProfile)
+            .Do(value => _persistedShowVolumeProfile = value)
+            .Select(value => Observable
+                .FromAsync(() => SetOverlayChoiceAsync(UiSettingsKeys.ChartShowVolumeProfile, value))
+                .Select(_ => value))
+            .Concat()
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The volume profile persistence pipeline stopped unexpectedly"));
+
+        // Every toggle re-keys the published overlay against the CURRENT
+        // series: a toolbar flip recomputes immediately (the bars are the
+        // series' copy — the pure compute), a restore re-asserts the value.
+        // The subject's publishes stay raw; only the assignment hops.
+        this.WhenAnyValue(x => x.ShowVwap)
+            .Subscribe(
+                _ => PublishVwapOverlay(Bars),
+                ex => _logger.LogError(ex, "The vwap overlay publish stream stopped unexpectedly"));
+
+        // The overlay state follows the settings service live: an external
+        // writer applies with the cache leading (so the persistence pipeline
+        // above sees an equal value and skips the write). Non-bool values
+        // drop — the applied choice stays in charge.
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartShowVwap)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled =>
+                {
+                    _persistedShowVwap = enabled;
+                    ShowVwap = enabled;
+                },
+                ex => _logger.LogError(ex, "The chart vwap overlay stream stopped unexpectedly"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartShowVolumeProfile)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled =>
+                {
+                    _persistedShowVolumeProfile = enabled;
+                    ShowVolumeProfile = enabled;
+                },
+                ex => _logger.LogError(ex, "The chart volume profile stream stopped unexpectedly"));
 
         // The symbol marks follow the settings service live (the same pure
         // -consumer contract the clock format keeps): a change to either
@@ -943,6 +1102,29 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _logger.LogInformation(
             "Restored persisted chart clock format: '{Clock}'",
             Use12HourClock ? "12-hour" : "24-hour");
+
+        // The chart overlays restore with the same every-path-first shape
+        // the clock-format restore carries (BUG-015's class): the reads
+        // seed the persisted caches AND the properties, so the persistence
+        // pipelines see an equal value and never rewrite the keys back.
+        var restoredVwap = await _settings.GetAsync<bool>(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartShowVwap,
+            UiSettingsKeys.DefaultChartShowVwap);
+        _persistedShowVwap = restoredVwap;
+        ShowVwap = restoredVwap;
+
+        var restoredProfile = await _settings.GetAsync<bool>(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartShowVolumeProfile,
+            UiSettingsKeys.DefaultChartShowVolumeProfile);
+        _persistedShowVolumeProfile = restoredProfile;
+        ShowVolumeProfile = restoredProfile;
+
+        _logger.LogInformation(
+            "Restored persisted chart overlays: vwap '{Vwap}', volume profile '{Profile}'",
+            ShowVwap,
+            ShowVolumeProfile);
 
         var persisted = await _settings.GetAsync<string>(
             UiSettingsKeys.Section,
@@ -1037,6 +1219,53 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             _persistedIndicatorConfig,
             _indicatorCatalog,
             _logger));
+    }
+
+    #endregion
+
+    #region Vwap Overlay
+
+    /// <summary>
+    /// Compute the session VWAP overlay (T-093) for the given series and
+    /// publish it; null while the overlay is switched off (the chart draws
+    /// nothing) or the series is empty (the chart's own no-data state owns
+    /// an empty window). The compute is pure and marshal-free — the same
+    /// publication discipline as the indicator publishes.
+    /// </summary>
+    private void PublishVwapOverlay(IReadOnlyList<Bar>? bars)
+    {
+        if (!ShowVwap || bars is not { Count: > 0 })
+        {
+            _vwapPublishes.OnNext(null);
+            return;
+        }
+
+        _vwapPublishes.OnNext(VwapOverlay.Compute(bars));
+    }
+
+    /// <summary>
+    /// One serialized persistence write for a chart overlay choice. A failed
+    /// write is logged and swallowed HERE (not at the stream): the pipeline
+    /// keeps serving later flips instead of dying on the first fault, the
+    /// issued choice stays cached and the file catches up with the property
+    /// on the next real difference (the same degrade the AI panel's
+    /// visibility write keeps).
+    /// </summary>
+    /// <param name="key">The settings key of the overlay choice
+    /// (<see cref="UiSettingsKeys.ChartShowVwap"/>,
+    /// <see cref="UiSettingsKeys.ChartShowVolumeProfile"/>).</param>
+    /// <param name="value">The issued choice to persist.</param>
+    /// <returns>The completed write.</returns>
+    private async Task SetOverlayChoiceAsync(string key, bool value)
+    {
+        try
+        {
+            await _settings.SetAsync(UiSettingsKeys.Section, key, value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist the chart overlay choice '{Key}'", key);
+        }
     }
 
     #endregion

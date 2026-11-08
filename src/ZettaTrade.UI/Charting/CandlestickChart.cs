@@ -46,6 +46,9 @@ public class CandlestickChart : Control
     private const float NoDataFontSize = 16f;
     private const float AxisFontSize = 10f;
 
+    /// <summary>Font size of the localized no-volume overlays note (T-093): smaller than the no-data message — the note talks over rendered candles, not an empty panel.</summary>
+    private const float NoVolumeNoteFontSize = 13f;
+
     /// <summary>
     /// Horizontal padding between the plot and the price-label column, on
     /// both sides of the text: the right gutter is sized to the widest
@@ -95,6 +98,49 @@ public class CandlestickChart : Control
 
     /// <summary>The chart takes a screenshot of these resources on each redraw.</summary>
     private const string NoDataMessageKey = "Chart.NoDataMessage";
+
+    /// <summary>
+    /// The localized no-volume state note (T-093): what the overlays print
+    /// when the visible candles carry no volume at all — never a fabricated
+    /// zero or a spread shape. Same resource-catalog pattern as
+    /// <see cref="NoDataMessageKey"/>.
+    /// </summary>
+    private const string NoVolumeMessageKey = "Chart.NoVolumeData";
+
+    /// <summary>
+    /// The bucket count the volume profile ladder (T-093) cuts the visible
+    /// window's price spread into: plenty of resolution at terminal zooms
+    /// while every bucket stays a wide band on a coarse frame.
+    /// </summary>
+    private const int VolumeProfileBucketCount = 24;
+
+    /// <summary>
+    /// How far across the plot a max-volume histogram bar may reach: a
+    /// quarter of the plot width, the terminal right-margin look that keeps
+    /// the candles readable.
+    /// </summary>
+    private const double VolumeProfileMaxWidthRatio = 0.25d;
+
+    /// <summary>Smallest pixel height a volume bar keeps on screen (presentation only).</summary>
+    private const float VolumeProfileMinBarHeightPx = 1f;
+
+    /// <summary>Alpha (0–255) of the translucent volume profile bars.</summary>
+    private const byte VolumeProfileFillAlpha = 90;
+
+    /// <summary>Smallest pixel width a positive-volume profile bar keeps on screen (presentation only).</summary>
+    private const float VolumeProfileMinBarWidthPx = 1f;
+
+    /// <summary>Alpha (0–255) of the VWAP ±1σ band strokes; the center rides the theme indicator color at full alpha.</summary>
+    private const byte VwapBandAlpha = 150;
+
+    /// <summary>Stroke widths of the VWAP overlay lines (center, bands), in pixels.</summary>
+    private const float VwapCenterStrokePx = 2f;
+    private const float VwapBandStrokePx = 1f;
+
+    /// <summary>
+    /// Dash pattern (on/off pixels) of the VWAP ±1σ band strokes.
+    /// </summary>
+    private static readonly float[] VwapBandDashPatternPx = [4f, 3f];
 
     /// <summary>Resource keys published by ThemeManager; the chart mirrors the current theme live.</summary>
     private const string BackgroundColorKey = "Background";
@@ -158,6 +204,41 @@ public class CandlestickChart : Control
     {
         get => GetValue(IndicatorLinesProperty);
         set => SetValue(IndicatorLinesProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the session VWAP overlay (T-093): the computed
+    /// <see cref="ZettaTrade.Charting.VwapOverlay"/> the ViewModel publishes
+    /// against the loaded series (null while the overlay is off), values
+    /// aligned with <see cref="Bars"/> by index. The draw pass slices it
+    /// with the visible window; a NoVolumeData state draws the localized
+    /// no-volume note instead of lines.
+    /// </summary>
+    public static readonly StyledProperty<VwapOverlay?> VwapOverlayProperty =
+        AvaloniaProperty.Register<CandlestickChart, VwapOverlay?>(
+            nameof(VwapOverlay),
+            defaultValue: null);
+
+    /// <summary>
+    /// StyledProperty for the right-margin volume-at-price histogram
+    /// (T-093): the toggle only — the histogram itself computes over the
+    /// visible window's bars on every pass, exactly what the lens shows.
+    /// </summary>
+    public static readonly StyledProperty<bool> VolumeProfileVisibleProperty =
+        AvaloniaProperty.Register<CandlestickChart, bool>(nameof(VolumeProfileVisible), defaultValue: true);
+
+    /// <summary>The session VWAP overlay the chart draws over the candles; a change re-inks on the next pass.</summary>
+    public VwapOverlay? VwapOverlay
+    {
+        get => GetValue(VwapOverlayProperty);
+        set => SetValue(VwapOverlayProperty, value);
+    }
+
+    /// <summary>Whether the right-margin volume-at-price histogram is drawn; a change re-inks on the next pass.</summary>
+    public bool VolumeProfileVisible
+    {
+        get => GetValue(VolumeProfileVisibleProperty);
+        set => SetValue(VolumeProfileVisibleProperty, value);
     }
 
     #endregion
@@ -308,6 +389,14 @@ public class CandlestickChart : Control
         // snapshots the property per render anyway.
         IndicatorLinesProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        // The T-093 overlays: a new VWAP publish or a volume-profile toggle
+        // re-inks on the next pass the same way.
+        VwapOverlayProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        VolumeProfileVisibleProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
     }
 
     public CandlestickChart()
@@ -452,6 +541,7 @@ public class CandlestickChart : Control
         return new ChartSnapshot(
             visible,
             SliceIndicatorLines(bars, spanStart, spanEnd),
+            SliceVwapOverlay(bars, spanStart, spanEnd),
             _backgroundColor,
             _bullishColor,
             _bearishColor,
@@ -460,7 +550,35 @@ public class CandlestickChart : Control
             _indicatorLineColor,
             ChartTickCulture.Resolve(),
             Use12HourClock,
-            _hoverPosition);
+            _hoverPosition,
+            VolumeProfileVisible);
+    }
+
+    /// <summary>
+    /// Slice the VWAP overlay with the SAME [start, end) window the bars
+    /// slice uses (T-093). An overlay whose values no longer align with the
+    /// current series (a stale publish racing the new Bars instance) is
+    /// skipped wholesale — the alignment rule the indicator lines keep, so
+    /// a length mismatch can never reach the draw pass as a silently
+    /// shifted polyline.
+    /// </summary>
+    private VwapOverlay? SliceVwapOverlay(
+        ObservableCollection<Bar>? bars,
+        int spanStart,
+        int spanEnd)
+    {
+        if (bars is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var overlay = VwapOverlay;
+        if (overlay is null || overlay.Center.Count != bars.Count)
+        {
+            return null;
+        }
+
+        return overlay.Slice(spanStart, spanEnd);
     }
 
     /// <summary>
@@ -517,6 +635,7 @@ public class CandlestickChart : Control
     private sealed record ChartSnapshot(
         Bar[] VisibleBars,
         IReadOnlyList<ChartIndicatorLine> Indicators,
+        VwapOverlay? Vwap,
         SKColor Background,
         SKColor Bullish,
         SKColor Bearish,
@@ -525,7 +644,8 @@ public class CandlestickChart : Control
         SKColor IndicatorLine,
         CultureInfo Culture,
         bool Use12HourClock,
-        Point? Hover);
+        Point? Hover,
+        bool VolumeProfileVisible);
 
     /// <summary>
     /// Draws the chart straight onto Avalonia's own SKCanvas (render thread).
@@ -672,9 +792,20 @@ public class CandlestickChart : Control
                 openTimes);
 
             DrawCandles(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange);
+
+            // The right-margin volume-at-price histogram (T-093) rides over
+            // the candles translucently; the overlay lines draw over it.
+            DrawVolumeProfile(canvas, plotRect, visibleBars, minPrice, priceRange);
+
             DrawIndicatorLines(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange, _snapshot.Indicators);
+            DrawVwapOverlay(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange, _snapshot.Vwap);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minPrice, priceRange, priceTicks, priceTexts);
             DrawTimeAxis(canvas, font, textPaint, plotRect, barPitch, openTimes, timeTicks, timeTexts);
+
+            // The honest no-volume note (T-093): shown when the drawn overlays
+            // carry no volume-backed shape at all — the candles' prices still
+            // render, the overlays just explain their own absence.
+            DrawNoVolumeNote(canvas, textPaint, plotRect, visibleBars);
 
             // The hover layer rides LAST: the crosshair paints over the
             // candles and the axis labels (the terminal look).
@@ -875,6 +1006,305 @@ public class CandlestickChart : Control
                 using var drawnPath = path.Detach();
                 canvas.DrawPath(drawnPath, paint);
             }
+        }
+
+        /// <summary>
+        /// The session-anchored VWAP overlay (T-093) drawn over the candles:
+        /// the session VWAP polyline rides the same bar slots and the same
+        /// price scale as the candles — never its own axis — flanked by its
+        /// dashed ±1σ bands, and every session break in the visible window
+        /// cuts all three polylines (the slice's rebased session starts name
+        /// the window's own breaks). A null value breaks the pen — an
+        /// unweighted bar never fabricates a segment — and a NoVolumeData
+        /// state draws nothing: the localized no-volume note answers the
+        /// toggled-but-empty overlay instead of any fabricated line.
+        /// </summary>
+        private void DrawVwapOverlay(
+            SKCanvas canvas,
+            Rect plotRect,
+            IReadOnlyList<Bar> bars,
+            double barPitch,
+            decimal minPrice,
+            decimal priceRange,
+            VwapOverlay? overlay)
+        {
+            if (overlay is null || overlay.State == VwapOverlayState.NoVolumeData)
+            {
+                return;
+            }
+
+            var count = bars.Count;
+            if (overlay.Center.Count != count || overlay.Upper.Count != count || overlay.Lower.Count != count)
+            {
+                // A stale publish racing a Bars rebase: skip wholesale (the
+                // snapshot slice guards this, the draw pass never trusts).
+                return;
+            }
+
+            using var centerBuilder = new SKPathBuilder();
+            using var upperBandBuilder = new SKPathBuilder();
+            using var lowerBandBuilder = new SKPathBuilder();
+            var sessionStarts = overlay.SessionStarts;
+            var nextSession = 0;
+            var centerPen = false;
+            var upperPen = false;
+            var lowerPen = false;
+
+            for (var i = 0; i < count; i++)
+            {
+                // A session break cuts every polyline: the accumulation
+                // resets at the boundary and the segments must not join.
+                if (nextSession < sessionStarts.Count && sessionStarts[nextSession] == i)
+                {
+                    centerPen = false;
+                    upperPen = false;
+                    lowerPen = false;
+                    nextSession++;
+                }
+
+                var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, count, i);
+
+                if (overlay.Center[i] is { } center)
+                {
+                    var y = ChartPriceScale.PriceToY(plotRect, center, minPrice, priceRange);
+                    if (centerPen)
+                    {
+                        centerBuilder.LineTo(x, y);
+                    }
+                    else
+                    {
+                        centerBuilder.MoveTo(x, y);
+                        centerPen = true;
+                    }
+                }
+                else
+                {
+                    centerPen = false;
+                }
+
+                if (overlay.Upper[i] is { } upper)
+                {
+                    var y = ChartPriceScale.PriceToY(plotRect, upper, minPrice, priceRange);
+                    if (upperPen)
+                    {
+                        upperBandBuilder.LineTo(x, y);
+                    }
+                    else
+                    {
+                        upperBandBuilder.MoveTo(x, y);
+                        upperPen = true;
+                    }
+                }
+                else
+                {
+                    upperPen = false;
+                }
+
+                if (overlay.Lower[i] is { } lower)
+                {
+                    var y = ChartPriceScale.PriceToY(plotRect, lower, minPrice, priceRange);
+                    if (lowerPen)
+                    {
+                        lowerBandBuilder.LineTo(x, y);
+                    }
+                    else
+                    {
+                        lowerBandBuilder.MoveTo(x, y);
+                        lowerPen = true;
+                    }
+                }
+                else
+                {
+                    lowerPen = false;
+                }
+            }
+
+            // The center rides the theme's indicator color solid; the ±1σ
+            // bands ride the same color dashed and translucent — the dash
+            // keeps a band from reading as a second overlay center.
+            using var centerPaint = new SKPaint
+            {
+                Color = _snapshot.IndicatorLine,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = VwapCenterStrokePx,
+                IsAntialias = true
+            };
+
+            // The dash effect clones across the paint: one native effect
+            // serves both bands, disposed with the paint (BUG-049's paint
+            // lifetime discipline).
+            using var bandDashEffect = SKPathEffect.CreateDash(VwapBandDashPatternPx, 0f);
+            using var bandPaint = new SKPaint
+            {
+                Color = _snapshot.IndicatorLine.WithAlpha(VwapBandAlpha),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = VwapBandStrokePx,
+                IsAntialias = true,
+                PathEffect = bandDashEffect
+            };
+
+            using var centerPath = centerBuilder.Detach();
+            using var upperBandPath = upperBandBuilder.Detach();
+            using var lowerBandPath = lowerBandBuilder.Detach();
+
+            // The bands first: the center stays the topmost stroke of the
+            // three (the terminal look: the value over its spread).
+            canvas.DrawPath(upperBandPath, bandPaint);
+            canvas.DrawPath(lowerBandPath, bandPaint);
+            canvas.DrawPath(centerPath, centerPaint);
+        }
+
+        /// <summary>
+        /// The right-margin volume-at-price histogram (T-093), drawn over the
+        /// candles: the visible window's spread cuts into an even bucket
+        /// ladder (the pure <see cref="VolumeProfile"/> compute — exactly
+        /// what the current lens shows), every bucket grows leftward from
+        /// the plot's right edge by its volume's share of the heaviest
+        /// bucket, and a bucket's height is exactly its price span on the
+        /// shared price scale. The histogram never re-scales the axis. A
+        /// window whose total volume is zero draws nothing: the localized
+        /// no-volume note explains the absence instead of a fabricated shape.
+        /// </summary>
+        private void DrawVolumeProfile(
+            SKCanvas canvas,
+            Rect plotRect,
+            IReadOnlyList<Bar> bars,
+            decimal minPrice,
+            decimal priceRange)
+        {
+            if (!_snapshot.VolumeProfileVisible || bars.Count == 0)
+            {
+                return;
+            }
+
+            var profile = VolumeProfile.Compute(bars, VolumeProfileBucketCount);
+            if (profile.TotalVolume <= 0m)
+            {
+                return;
+            }
+
+            decimal maxVolume = 0m;
+            foreach (var bucket in profile.Buckets)
+            {
+                if (bucket.Volume > maxVolume)
+                {
+                    maxVolume = bucket.Volume;
+                }
+            }
+
+            if (maxVolume <= 0m)
+            {
+                return;
+            }
+
+            var reach = plotRect.Width * VolumeProfileMaxWidthRatio;
+
+            // The theme text color under a translucent alpha: a neutral
+            // volume body in BOTH palettes — never a candle color that
+            // would claim a direction the profile does not carry.
+            using var fill = new SKPaint
+            {
+                Color = _snapshot.Text.WithAlpha(VolumeProfileFillAlpha),
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true
+            };
+
+            foreach (var bucket in profile.Buckets)
+            {
+                if (bucket.Volume <= 0m)
+                {
+                    continue;
+                }
+
+                var width = (float)(bucket.Volume / maxVolume) * (float)reach;
+                if (width < VolumeProfileMinBarWidthPx)
+                {
+                    width = VolumeProfileMinBarWidthPx;
+                }
+
+                var top = ChartPriceScale.PriceToY(plotRect, bucket.High, minPrice, priceRange);
+                var bottom = ChartPriceScale.PriceToY(plotRect, bucket.Low, minPrice, priceRange);
+                var height = bottom - top;
+                if (height < VolumeProfileMinBarHeightPx)
+                {
+                    height = VolumeProfileMinBarHeightPx;
+                }
+
+                canvas.DrawRect(
+                    (float)plotRect.Right - width,
+                    top,
+                    width,
+                    height,
+                    fill);
+            }
+        }
+
+        /// <summary>
+        /// The honest no-volume state of the drawn overlays (T-093): the
+        /// localized note prints when nothing volume-backed drew — the
+        /// published VWAP overlay reports the SERIES carries no volume at
+        /// all, or the toggled histogram's visible window holds none — and
+        /// both triggers share this one note (the same absent fact). The
+        /// candles render regardless; a single positive-volume bar calms
+        /// the note, so only the honest zero-volume cases ever show it.
+        /// </summary>
+        private void DrawNoVolumeNote(
+            SKCanvas canvas,
+            SKPaint paint,
+            Rect plotRect,
+            IReadOnlyList<Bar> bars)
+        {
+            if (!ShouldDrawNoVolumeNote(bars))
+            {
+                return;
+            }
+
+            using var noteFont = new SKFont(SKTypeface.Default, NoVolumeNoteFontSize);
+            var text = GetLocalizedNoVolumeText();
+            canvas.DrawText(
+                text,
+                (float)plotRect.Center.X,
+                (float)plotRect.Center.Y,
+                SKTextAlign.Center,
+                noteFont,
+                paint);
+        }
+
+        /// <summary>Whether the drawn frame qualifies for the no-volume note (see <see cref="DrawNoVolumeNote"/>).</summary>
+        private bool ShouldDrawNoVolumeNote(IReadOnlyList<Bar> bars)
+        {
+            if (_snapshot.Vwap is { State: VwapOverlayState.NoVolumeData })
+            {
+                return true;
+            }
+
+            if (!_snapshot.VolumeProfileVisible)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < bars.Count; i++)
+            {
+                if (bars[i].Volume != 0m)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static string GetLocalizedNoVolumeText()
+        {
+            if (LocalizationManager.IsInitialized)
+            {
+                return LocalizationManager.Instance.GetString(NoVolumeMessageKey);
+            }
+
+            // Design mode / manager not wired yet: raw resource lookup instead.
+            return Strings.ResourceManager.GetString(
+                NoVolumeMessageKey,
+                CultureInfo.CurrentUICulture) ?? NoVolumeMessageKey;
         }
 
         /// <summary>

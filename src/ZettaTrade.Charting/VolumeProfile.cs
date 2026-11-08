@@ -77,7 +77,9 @@ public sealed record VolumeProfile(IReadOnlyList<VolumeProfileBucket> Buckets, d
         }
 
         var step = (highest - lowest) / bucketCount;
-        var volumes = new decimal[bucketCount];        foreach (var bar in bars)
+        var volumes = new decimal[bucketCount];
+
+        foreach (var bar in bars)
         {
             if (bar.Volume == 0m)
             {

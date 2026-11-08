@@ -1975,5 +1975,224 @@ public sealed class ChartViewModelTests
 
     #endregion Deep-history Repair (T-086)
 
+    #region Chart Overlays (T-093)
+
+    /// <summary>
+    /// The persisted overlay choices apply at the startup walk and the walk
+    /// never writes them back (the reads seed the persisted caches — the
+    /// BUG-015 restore shape). Both choices restore independently: a stored
+    /// off standing next to a stored on.
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_RestoresThePersistedOverlayChoices_WithoutRewritingThem()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.GetAsync<bool>(Arg.Any<string>(), UiSettingsKeys.ChartShowVwap, Arg.Any<bool>())
+            .Returns(false);
+        settings.GetAsync<bool>(Arg.Any<string>(), UiSettingsKeys.ChartShowVolumeProfile, Arg.Any<bool>())
+            .Returns(true);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.ShowVwap.Should().BeTrue("the default overlay stands until the walk applies the stored choice");
+        chart.ShowVolumeProfile.Should().BeTrue();
+
+        await chart.InitializeAsync();
+
+        chart.ShowVwap.Should().BeFalse("the persisted vwap choice applies at the walk");
+        chart.ShowVolumeProfile.Should().BeTrue("the persisted profile choice applies at the walk");
+        await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>());
+    }
+
+    /// <summary>
+    /// BUG-015's class, the overlay share of the restore matrix: the persisted
+    /// choices apply in EVERY restore path — the time-frame restore's early
+    /// returns (no persisted value, an unparsable one) must not skip them.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("garbage")]
+    public async Task InitializeAsync_AnUnrestoredTimeFrame_StillAppliesThePersistedOverlayChoices(string storedTimeFrame)
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(storedTimeFrame);
+        settings.GetAsync<bool>(Arg.Any<string>(), UiSettingsKeys.ChartShowVwap, Arg.Any<bool>())
+            .Returns(false);
+        settings.GetAsync<bool>(Arg.Any<string>(), UiSettingsKeys.ChartShowVolumeProfile, Arg.Any<bool>())
+            .Returns(false);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        await chart.InitializeAsync();
+
+        chart.SelectedTimeFrame.Should().Be(TimeFrame.H1, "the unparsable time frame keeps the default");
+        chart.ShowVwap.Should().BeFalse("the overlay restore is not gated on the time-frame restore");
+        chart.ShowVolumeProfile.Should().BeFalse("the profile restore is not gated on the time-frame restore");
+        await settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>());
+    }
+
+    /// <summary>
+    /// The toolbar toggle flips the choice and persists it — and a rapid
+    /// settle burst never drops its second flip (the cache leads the
+    /// pipeline at issue time, BUG-053's discipline): both flips' writes
+    /// reach the service in issuance order.
+    /// </summary>
+    [Fact]
+    public async Task ToggleVwapCommand_FlipsTheChoicePersistsIt_AndSurvivesARapidBurst()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        await chart.ToggleVwapCommand.Execute(RxVoid.Default);
+
+        chart.ShowVwap.Should().BeFalse("the toggle flips the standing enabled choice");
+        await settings.Received().SetAsync(UiSettingsKeys.Section, UiSettingsKeys.ChartShowVwap, false);
+
+        await chart.ToggleVwapCommand.Execute(RxVoid.Default);
+
+        chart.ShowVwap.Should().BeTrue("the second flip restores the choice");
+
+        // The burst's second flip persisted too — the cache lead never dropped it.
+        await settings.Received(2).SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartShowVwap,
+            Arg.Any<bool>());
+    }
+
+    /// <summary>The volume-profile toggle: the same flip-and-persist lifecycle, its own key.</summary>
+    [Fact]
+    public async Task ToggleVolumeProfileCommand_FlipsTheChoiceAndPersistsIt()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        await chart.ToggleVolumeProfileCommand.Execute(RxVoid.Default);
+
+        chart.ShowVolumeProfile.Should().BeFalse("the toggle flips the standing enabled choice");
+        await settings.Received().SetAsync(UiSettingsKeys.Section, UiSettingsKeys.ChartShowVolumeProfile, false);
+    }
+
+    /// <summary>
+    /// A settings-service change re-applies the overlay choices WITHOUT a
+    /// restart: matching keys flip the properties (and the allow-cache runs
+    /// ahead), an unrelated setting and a non-bool value are dropped — the
+    /// applied choice stays in charge and no write echoes back.
+    /// </summary>
+    [Fact]
+    public void TheSettingsServiceChange_AppliesTheOverlayChoicesLive_WithoutRewritingThem()
+    {
+        var changes = new Subject<SettingsChange>();
+        var settings = Substitute.For<ISettingsService>();
+        settings.Changes.Returns(changes);
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        changes.OnNext(new SettingsChange(UiSettingsKeys.Section, UiSettingsKeys.ChartShowVwap, true, false));
+
+        chart.ShowVwap.Should().BeFalse("a settings change must reach the chart without a restart");
+
+        changes.OnNext(new SettingsChange(UiSettingsKeys.Section, UiSettingsKeys.ChartShowVolumeProfile, true, false));
+        changes.OnNext(new SettingsChange(UiSettingsKeys.Section, UiSettingsKeys.ChartTimeFrame, "H1", "H4"));
+        changes.OnNext(new SettingsChange(UiSettingsKeys.Section, UiSettingsKeys.ChartShowVwap, false, "true"));
+
+        chart.ShowVolumeProfile.Should().BeFalse("the second matching key applies too");
+        chart.ShowVwap.Should().BeFalse("an unrelated key and a non-bool value both leave the choice alone");
+    }
+
+    /// <summary>
+    /// The delivered series drives the published overlay (the raw stream the
+    /// chart binds through the marshalled assignment): the computed values
+    /// align with the delivered bars by index. The series carries volume, so
+    /// the overlay is the computed state, stamped with the delivered page.
+    /// </summary>
+    [Fact]
+    public async Task TheDeliveredSeries_PublishesTheComputedOverlayAlignedWithIt()
+    {
+        var marketData = new FakeMarketData();
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+        var overlays = new List<VwapOverlay?>();
+
+        using var overlayWatch = chart.VwapOverlayUpdates.Subscribe(overlays.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var delivered = chart.Bars;
+        delivered.Should().NotBeEmpty("the symbol selection delivered the boot page");
+        overlays.Should().Contain(
+            overlay => overlay != null &&
+                       overlay.State == VwapOverlayState.Computed &&
+                       overlay.Center.Count == delivered.Count,
+            "the published values align with the delivered series by index");
+    }
+
+    /// <summary>
+    /// Every toggle re-keys the published overlay against the CURRENT
+    /// series: a flip to OFF publishes null (the chart draws nothing), a
+    /// flip back ON recomputes over the standing series — never a stale
+    /// value carried over from the hidden state.
+    /// </summary>
+    [Fact]
+    public async Task TheVwapToggle_RecomputesThePublishedOverlayAgainstTheCurrentSeries()
+    {
+        var marketData = new FakeMarketData();
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+        var overlays = new List<VwapOverlay?>();
+
+        using var overlayWatch = chart.VwapOverlayUpdates.Subscribe(overlays.Add);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        await chart.ToggleVwapCommand.Execute(RxVoid.Default);
+
+        overlays.Last().Should().BeNull("the overlay off: the chart draws nothing");
+
+        await chart.ToggleVwapCommand.Execute(RxVoid.Default);
+
+        var refreshed = overlays.Last();
+        refreshed.Should().NotBeNull("the flip back on recomputes against the standing series");
+        refreshed!.Center.Should().HaveCount(chart.Bars.Count, "the recompute aligns with the standing series");
+    }
+
+    /// <summary>
+    /// The persisted OFF choice keeps the overlays off at delivery: the
+    /// restore seeded the cache, so the delivered series publishes null and
+    /// the persisted ON choice publishes the computed overlay — each on its
+    /// own read (the seeding is in charge end to end).
+    /// </summary>
+    [Fact]
+    public async Task ThePersistedOffChoice_KeepsTheOverlaysOffAtDelivery()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.GetAsync<bool>(Arg.Any<string>(), UiSettingsKeys.ChartShowVwap, Arg.Any<bool>())
+            .Returns(false);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+        var overlays = new List<VwapOverlay?>();
+
+        using var overlayWatch = chart.VwapOverlayUpdates.Subscribe(overlays.Add);
+
+        await chart.InitializeAsync();
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        overlays.Should().OnlyContain(
+            overlay => overlay == null,
+            "the persisted off choice stands through the delivery");
+    }
+
+    #endregion Chart Overlays (T-093)
+
     #endregion
 }

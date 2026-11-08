@@ -315,6 +315,21 @@
   <data name="Chart.HistoryLimit" xml:space="preserve">
     <value>Глубокая история заканчивается на {0}: более старых свечей биржа не предоставляет.</value>
   </data>
+  <data name="Chart.Vwap" xml:space="preserve">
+    <value>VWAP</value>
+  </data>
+  <data name="Chart.Vwap.Tip" xml:space="preserve">
+    <value>Показать или скрыть сессионную VWAP с полосами ±1σ поверх свечей.</value>
+  </data>
+  <data name="Chart.VolumeProfile" xml:space="preserve">
+    <value>Профиль объёма</value>
+  </data>
+  <data name="Chart.VolumeProfile.Tip" xml:space="preserve">
+    <value>Показать или скрыть гистограмму объёма по цене в правом краю графика.</value>
+  </data>
+  <data name="Chart.NoVolumeData" xml:space="preserve">
+    <value>Нет данных об объёме этих свечей</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>
