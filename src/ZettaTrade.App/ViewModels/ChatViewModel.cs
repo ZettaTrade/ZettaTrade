@@ -24,8 +24,12 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// the user turn is recorded first, the whole session history (sans error
 /// lines) rides the request under a system prompt composed from the current
 /// exchange, symbol, time frame and latest price, and the answer lands as an
-/// assistant turn. Unavailable assistant models surface honestly: an in-chat
-/// error line with the underlying reason, never a silently swallowed send.
+/// assistant turn. When the user consented on the market-context chip, every
+/// send additionally carries the token-bounded market snapshot preamble
+/// (compacted fresh from the workspace moment) — un-consented sends keep the
+/// exact pre-consent wording. Unavailable assistant models surface honestly:
+/// an in-chat error line with the underlying reason, never a silently
+/// swallowed send.
 /// </summary>
 public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
 {
@@ -51,6 +55,16 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     private bool _persistedShowAiPanel = UiSettingsKeys.DefaultShowAiPanel;
 
     private bool _isVisible = UiSettingsKeys.DefaultShowAiPanel;
+
+    /// <summary>
+    /// The applied persisted market-context consent. Mirrors the visibility
+    /// discipline: the cache LEADS the persistence pipeline, so both the
+    /// startup restore and the changes-stream echo are absorbed without a
+    /// settings rewrite.
+    /// </summary>
+    private bool _persistedMarketContext = UiSettingsKeys.DefaultChatMarketContext;
+
+    private bool _isMarketContextEnabled = UiSettingsKeys.DefaultChatMarketContext;
     private string _input = string.Empty;
     private bool _isBusy;
 
@@ -58,6 +72,7 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     private readonly IChatCompletion _completion;
     private readonly ChatContextService _context;
     private readonly WorkspacePromptComposer _composer;
+    private readonly MarketContextPreambleComposer? _momentComposer;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<ChatViewModel> _logger;
 
@@ -77,13 +92,17 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// <param name="localization">The localization manager for dynamic row
     /// labels and the honest error line.</param>
     /// <param name="logger">The class logger.</param>
+    /// <param name="momentComposer">The market-context preamble composer;
+    /// without it the consent path degrades to no preamble (the consent
+    /// chip still stores the preference, the send wording does not change).</param>
     public ChatViewModel(
         ISettingsService settings,
         IChatCompletion completion,
         ChatContextService context,
         WorkspacePromptComposer composer,
         ILocalizationManager localization,
-        ILogger<ChatViewModel> logger)
+        ILogger<ChatViewModel> logger,
+        MarketContextPreambleComposer? momentComposer = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _completion = completion ?? throw new ArgumentNullException(nameof(completion));
@@ -91,6 +110,7 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _momentComposer = momentComposer;
 
         // Persist every user flip immediately (the same real-difference
         // discipline the settings window applies): the cache LEADS the
@@ -130,6 +150,34 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
                 },
                 ex => _logger.LogError(ex, "The AI panel visibility stream stopped unexpectedly"));
 
+        // The market-context consent rides the same issued-order pipeline
+        // (the BUG-053 discipline) on its own key: the chip's flip persists
+        // immediately, external writers re-apply live.
+        this.WhenAnyValue(x => x.IsMarketContextEnabled)
+            .Skip(1)
+            .Where(value => value != _persistedMarketContext)
+            .Do(value => _persistedMarketContext = value)
+            .Select(value => Observable
+                .FromAsync(() => SetMarketContextAsync(value))
+                .Select(_ => value))
+            .Concat()
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The market-context consent pipeline stopped unexpectedly"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChatMarketContext)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                appliedValue =>
+                {
+                    _persistedMarketContext = appliedValue;
+                    IsMarketContextEnabled = appliedValue;
+                },
+                ex => _logger.LogError(ex, "The market-context consent stream stopped unexpectedly"));
+
         // The send button lives while there is text to send and no request is
         // in flight (one assistant request at a time; re-entrancy guard).
         SendTextCommand = ReactiveCommand.CreateFromTask(
@@ -138,6 +186,13 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
                 x => x.AiChatInput,
                 x => x.IsBusy,
                 (input, busy) => !string.IsNullOrWhiteSpace(input) && !busy));
+
+        // The consent chip flips the property; the persistence pipeline above
+        // carries the write.
+        ToggleContextCommand = ReactiveCommand.Create(() =>
+        {
+            IsMarketContextEnabled = !IsMarketContextEnabled;
+        });
     }
 
     #endregion
@@ -167,6 +222,29 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to persist the AI panel visibility");
+        }
+    }
+
+    /// <summary>
+    /// One serialized persistence write for the market-context consent (the
+    /// same failure model as the visibility write): a fault is logged and
+    /// swallowed HERE, the pipeline keeps serving later flips, and the file
+    /// catches up on the next real difference.
+    /// </summary>
+    /// <param name="enabled">The issued consent to persist.</param>
+    /// <returns>The completed write.</returns>
+    private async Task SetMarketContextAsync(bool enabled)
+    {
+        try
+        {
+            await _settings.SetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChatMarketContext,
+                enabled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist the market-context consent");
         }
     }
 
@@ -202,12 +280,28 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         private set => this.RaiseAndSetIfChanged(ref _isVisible, value);
     }
 
+    /// <summary>
+    /// Whether every send carries the token-bounded market snapshot preamble
+    /// (the market-context consent chip): the user's explicit choice, off
+    /// until stored or toggled. The send pipeline reads it at issue time, so
+    /// a flip between two sends changes exactly what it controls.
+    /// </summary>
+    public bool IsMarketContextEnabled
+    {
+        get => _isMarketContextEnabled;
+        private set => this.RaiseAndSetIfChanged(ref _isMarketContextEnabled, value);
+    }
+
     #endregion
 
     #region Commands
 
     /// <summary>Send the typed message to the assistant (send button + Enter).</summary>
     public ReactiveCommand<RxVoid, RxVoid> SendTextCommand { get; }
+
+    /// <summary>Flip the market-context consent chip (persisted pipeline rides
+    /// the property change).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleContextCommand { get; }
 
     #endregion
 
@@ -240,9 +334,19 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         _persistedShowAiPanel = restored;
         IsAiChatVisible = restored;
 
+        var marketContextRestored = await _settings.GetAsync<bool>(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChatMarketContext,
+            UiSettingsKeys.DefaultChatMarketContext);
+        _persistedMarketContext = marketContextRestored;
+        IsMarketContextEnabled = marketContextRestored;
+
         _logger.LogInformation(
             "Restored persisted AI panel visibility: '{Visibility}'",
             restored ? "visible" : "hidden");
+        _logger.LogInformation(
+            "Restored persisted market-context consent: '{Consent}'",
+            marketContextRestored ? "on" : "off");
     }
 
     #endregion
@@ -271,10 +375,14 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
                     : new ChatTurn(ChatTurn.AssistantRole, message.Content))
                 .ToList();
 
-            var reply = await _completion.CompleteAsync(
-                _composer.Compose(_context.Current),
-                turns,
-                ct);
+            var workspace = _context.Current;
+            var systemPrompt = IsMarketContextEnabled && _momentComposer is not null
+                ? _composer.Compose(
+                    workspace,
+                    _momentComposer.Compose(workspace.ToMarketMoment()))
+                : _composer.Compose(workspace);
+
+            var reply = await _completion.CompleteAsync(systemPrompt, turns, ct);
 
             AddTurn(ChatMessageKind.AssistantTurn, reply, RoleAssistantKey);
         }

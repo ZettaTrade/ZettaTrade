@@ -1,3 +1,33 @@
+## [0.1.0-alpha.65] - 2026-11-08
+
+Build of board task T-114 (branch `feat/ai-context`).
+
+### Added
+- Market context injection into the chat (T-114): the assistant sees the
+  now. One localized consent chip above the chat input (`Market snapshot`),
+  persisted per workspace in the `UI.ChatMarketContext` key and restored
+  by the startup walk; with consent off the chat ships exactly the prompt
+  it shipped before, and every enabled send appends the compact market
+  snapshot right behind the workspace head, so the model reads the live
+  facts as instruction context.
+- The snapshot is compaction, not a dump. `MarketMoment` (ZettaTrade.AI)
+  carries the venue's paper/live classification handed over as a decided
+  fact, the latest ticker price and 24h change, the top three book levels
+  per side (best first) and the enabled indicator setup;
+  `MarketContextPreambleComposer` renders the moment deterministically
+  (the same snapshot byte for byte, InvariantCulture spellings) into at
+  most 220 tokens under a fixed priority: the venue tag survives any
+  budget, an over-budget draft is shaved by dropping whole low-priority
+  parts (indicators, then the book sides, then the 24h change) and never
+  by re-wording or inventing a value, and an all-absent workspace renders
+  the honest "no live market data received yet" line.
+- `ChatContextService` follows the workspace as before and now also binds
+  the order book feed on every symbol switch (through the active-exchange
+  facade, so an exchange switch re-attaches it) and tracks the enabled
+  indicator setup from the persisted settings (read once at
+  initialization, re-applied live from the changes stream); a part the
+  streams never carried stays absent instead of being substituted.
+
 ## [0.1.0-alpha.64] - 2026-11-08
 
 Build of board task T-089 (branch `feat/chart-types`).

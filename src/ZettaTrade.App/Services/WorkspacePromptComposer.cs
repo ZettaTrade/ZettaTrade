@@ -69,5 +69,31 @@ public sealed class WorkspacePromptComposer
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Compose the system prompt with the market-context preamble the chat
+    /// injected per message behind the user's explicit consent: the head
+    /// sentence gains a compact market paragraph (the paper/live venue tag,
+    /// then the market facts the moment carries). A preamble the caller did
+    /// not consent to stays out — the overload Compose keeps the exact
+    /// pre-consent wording.
+    /// </summary>
+    /// <param name="context">The workspace snapshot at send time.</param>
+    /// <param name="marketContextPreamble">The token-bounded preamble text
+    /// (empty or null when the user declined: nothing is appended).</param>
+    /// <returns>The full system prompt text.</returns>
+    public string Compose(ChatContext context, string? marketContextPreamble)
+    {
+        var prompt = Compose(context);
+        if (string.IsNullOrWhiteSpace(marketContextPreamble))
+        {
+            return prompt;
+        }
+
+        var builder = new System.Text.StringBuilder(prompt);
+        builder.Insert(0, marketContextPreamble);
+        builder.AppendLine();
+        return builder.ToString();
+    }
+
     #endregion
 }

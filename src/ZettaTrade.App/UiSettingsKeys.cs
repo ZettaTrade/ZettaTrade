@@ -221,4 +221,19 @@ public static class UiSettingsKeys
     /// re-shows the dialog exactly once per wording update.
     /// </summary>
     public const int DisclaimerCurrentVersion = 1;
+
+    /// <summary>
+    /// Settings key of the persisted AI market-context consent: whether the
+    /// chat injects the token-bounded market snapshot preamble into every
+    /// message. Written by the chat panel's toggle chip, restored by the
+    /// startup walk before any window opens.
+    /// </summary>
+    public const string ChatMarketContext = "ChatMarketContext";
+
+    /// <summary>
+    /// The market-context consent applied until a stored setting is loaded:
+    /// off — the knowledge stays at explicit opt-in (the silent crowd's chat
+    /// keeps the exact pre-consent wording).
+    /// </summary>
+    public const bool DefaultChatMarketContext = false;
 }

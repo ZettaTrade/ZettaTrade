@@ -153,12 +153,17 @@ internal static class CompositionRoot
                 AppVersion.Current,
                 sp.GetRequiredService<AdapterHealthService>().HealthStream,
                 logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>()));
+        services.AddSingleton<MarketContextPreambleComposer>();
         services.AddSingleton<ChatContextService>(sp =>
             new ChatContextService(
                 sp.GetRequiredService<IMarketDataAdapter>(),
                 sp.GetRequiredService<ChartViewModel>().SymbolSelections,
                 sp.GetRequiredService<ChartViewModel>().TimeFrameSelections,
-                sp.GetRequiredService<ILogger<ChatContextService>>()));
+                sp.GetRequiredService<ILogger<ChatContextService>>(),
+                // T-114: the venue actually trading (the paper/live tag) and
+                // the settings the enabled indicator setup rides in.
+                sp.GetRequiredService<ITradingAdapter>(),
+                sp.GetRequiredService<ISettingsService>()));
         services.AddSingleton<WorkspacePromptComposer>();
         services.AddSingleton<ChatViewModel>(sp =>
             new ChatViewModel(
@@ -167,7 +172,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ChatContextService>(),
                 sp.GetRequiredService<WorkspacePromptComposer>(),
                 sp.GetRequiredService<ILocalizationManager>(),
-                sp.GetRequiredService<ILogger<ChatViewModel>>()));
+                sp.GetRequiredService<ILogger<ChatViewModel>>(),
+                sp.GetRequiredService<MarketContextPreambleComposer>()));
         // Workspace layout: the persisted column widths of the draggable
         // splitters. Registered AFTER ChatViewModel on purpose — the startup
         // walk runs registrations in order, and the layout restore must

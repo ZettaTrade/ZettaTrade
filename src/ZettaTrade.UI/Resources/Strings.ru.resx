@@ -249,6 +249,12 @@
   <data name="AI.Assistant" xml:space="preserve">
     <value>ИИ Ассистент</value>
   </data>
+  <data name="AI.Chat.ContextToggle" xml:space="preserve">
+    <value>Рыночный снимок</value>
+  </data>
+  <data name="AI.Chat.ContextToggle.Hint" xml:space="preserve">
+    <value>Вставлять компактный снимок рынка (площадка, цена, топ стакана, набор индикаторов) в каждое сообщение</value>
+  </data>
   <data name="AI.Chat.Send" xml:space="preserve">
     <value>Отправить</value>
   </data>
