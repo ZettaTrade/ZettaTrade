@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="ZettaTrade — открытый (MIT) кроссплатформенный десктопный торговый терминал для крипторынка: потоки Binance и Bybit, графики на SkiaSharp, ИИ-ассистент через MCP, paper-трейдинг и локальные данные. Windows, macOS, Linux." />
+  <title>ZettaTrade — десктопный торговый терминал, локальный по умолчанию</title>
+  <link rel="stylesheet" href="../assets/landing/style.css" />
+</head>
+<body>
+  <header class="lp-header">
+    <div class="lp-wrap">
+      <a class="lp-brand" href="./"><b>Zetta</b>Trade</a>
+      <nav class="lp-nav" aria-label="Разделы">
+        <a href="#features">Возможности</a>
+        <a href="#download">Скачать</a>
+        <a href="#security">Безопасность</a>
+        <a href="#roadmap">Планы</a>
+        <a href="#alpha">Альфа</a>
+      </nav>
+      <span class="lp-lang"><a href="./index.html">EN</a>&nbsp;·&nbsp;RU</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="lp-hero lp-wrap">
+      <div class="lp-chips">
+        <span>Статус: альфа</span>
+        <span>Лицензия MIT</span>
+        <span>Торговый канал: только <b>Paper</b></span>
+        <span>Без телеметрии</span>
+      </div>
+      <h1>Торговый терминал, который живёт на вашей машине.</h1>
+      <p class="lp-story">
+        ZettaTrade — кроссплатформенный десктопный терминал для крипторынка:
+        сегодня потоки с Binance и Bybit, свечи и стакан рендерятся на SkiaSharp,
+        платформы — Windows, macOS и Linux. Он построен вокруг ИИ: встроенный
+        <a href="https://modelcontextprotocol.io">Model Context Protocol</a>-сервер
+        и клиент плюс локальная модель отвечают с учётом живого контекста вашего
+        экрана — облако опционально. И он локальный по устройству: журнал — SQLite
+        на вашем диске, логи — файлы, секреты — системный keystore, и ничто
+        не уходит наружу.
+      </p>
+      <div class="lp-cta-row">
+        <a class="lp-btn lp-btn-solid" href="https://github.com/ZettaTrade/ZettaTrade/releases">Скачать</a>
+        <a class="lp-btn lp-btn-ghost" href="https://github.com/ZettaTrade/ZettaTrade/blob/main/docs/USER-MANUAL.md">Руководство пользователя</a>
+      </div>
+      <figure>
+        <img src="../assets/landing/workspace-hero.png"
+             alt="Реальный запуск ZettaTrade: свечной график с оверлеем VWAP, лестница стакана с кумулятивной глубиной, лента сделок, список наблюдения и статус-бар с адаптером Demo, чипом Paper, статусом Connected, тёмной темой, языком en и номером альфа-сборки."
+             width="1920" height="1040" />
+        <figcaption>
+          Реальный снимок живого запуска, не макет: демо-набор панелей в тёмной теме.
+          Статус-бар читает то, что читал бы и любой другой запуск — адаптер, чип
+          Paper-канала, состояние связи и точный номер сборки прямо на экране.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section class="lp-section">
+      <div class="lp-wrap" id="features">
+        <h2>Что уже реализовано</h2>
+        <p>
+          Карточку здесь получает только функция, которая существует на текущем
+          дереве — то же правило, что и в документации: никаких «скоро в хиро»,
+          каждое утверждение ниже прослеживается до готовой строки на доске.
+        </p>
+        <div class="lp-grid">
+          <div class="lp-card">
+            <h3>Графики</h3>
+            <p>Свечной график с зумом, панорамой и перекрестьем с OHLC-сводкой;
+            оверлеи VWAP и профиля объёма; SMA, EMA, WMA, RSI, MACD, Bollinger
+            и ATR идут как встроенные плагины-индикаторы.</p>
+          </div>
+          <div class="lp-card">
+            <h3>Стакан ордеров</h3>
+            <p>Живая лестница из публичного потока площадки рядом с кумулятивной
+            глубиной. Клик по уровню открывает предзаполненный тикет ордера;
+            сделки струятся в ленту.</p>
+          </div>
+          <div class="lp-card">
+            <h3>Портфель</h3>
+            <p>Панели балансов и позиций, журнал ордеров с сохранением (SQLite
+            через EF Core) и PnL-движок: реализованный и нереализованный учёт,
+            винрейт, профит-фактор и кривая капитала — всё считается по локальному
+            журналу.</p>
+          </div>
+          <div class="lp-card">
+            <h3>Алерты</h3>
+            <p>Ценовые и процентные алерты с менеджером: следят за потоком,
+            срабатывают в тосты и оседают в истории уведомлений, которую можно
+            листать.</p>
+          </div>
+          <div class="lp-card">
+            <h3>ИИ-ассистент</h3>
+            <p>Один переключатель согласия передаёт локальной модели Ollama
+            ограниченный по токенам снимок живого рабочего пространства. Встроенный
+            MCP-сервер (Zetta) и MCP-клиент дают инструменты через тот же
+            paper-канал и те же проверяющие ворота.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lp-section">
+      <div class="lp-wrap" id="download">
+        <h2>Скачать</h2>
+        <p>
+          Альфа-сборки распространяются как самодостаточные архивы под каждую ОС,
+          прицепленные к GitHub Releases: <span class="lp-code">win-x64</span>,
+          <span class="lp-code">osx-x64</span> и <span class="lp-code">osx-arm64</span>
+          как zip, <span class="lp-code">linux-x64</span> как tar.gz — рядом лежит
+          файл с суммами SHA-256
+          (<span class="lp-code">zettatrade-&lt;version&gt;-sha256.txt</span>).
+          Процесс поставки собирает и прицепляет эти артефакты автоматически на каждом
+          версионном теге — внутри артефакта только приложение и больше ничего:
+          ни пользовательских данных, ни ключей.
+        </p>
+        <div class="lp-download-box">
+          <div class="lp-cta-row">
+            <a class="lp-btn lp-btn-solid" href="https://github.com/ZettaTrade/ZettaTrade/releases">Открыть GitHub Releases →</a>
+            <a class="lp-btn lp-btn-ghost" href="https://github.com/ZettaTrade/ZettaTrade/blob/main/docs/SECURITY.md">Проверка и страница безопасности</a>
+          </div>
+          <p class="lp-note" style="margin-bottom: 0;">
+            Страница Releases — единственная дверь загрузки, которую этот проект
+            признаёт. Если список пуст, когда вы смотрели, значит первый версионный тег
+            ещё не срезан — следите за репозиторием, и когда он появится, та же ссылка
+            приведёт прямо к архивам. Пока ничего не подписано (подписание появится
+            в бете, по странице безопасности): сверяйте суммы SHA-256.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="lp-section">
+      <div class="lp-wrap" id="security">
+        <h2>Локальный и осторожный по умолчанию</h2>
+        <p>
+          Локальность — это архитектура, а не приватный маркетинг: конфигурация,
+          журнал SQLite, файловые логи и хранилище секретов (DPAPI на Windows,
+          Keychain на macOS, Secret Service на Linux, с резервом в виде
+          создаваемого приложением зашифрованного файла) живут на вашей машине.
+          Телеметрии нет, и единственное, что разрешено на stdout — сам протокол MCP.
+        </p>
+        <p>
+          В поставке идёт только paper-движок: симулятор сделок по
+          живым рыночным ценам, демо-баланс в памяти и никогда — реальные деньги
+          или биржевые ключи. Каждый ордер перед исполнением проходит проверку
+          рисков, а всё, что помечено как высокорисковое, требует явного
+          подтверждения человека — включая ордера, которые ИИ-агент выставляет
+          через инструменты MCP. Реальные площадки доступны в режиме testnet
+          изменением конфигурации, и чип канала в статус-баре (Paper · Testnet ·
+          Live) делает канал очевидным с первого взгляда; сам цикл торговли
+          на тестнете — строка queued на доске, так что ничего подобного на этой
+          странице не заявлено.
+        </p>
+        <ul class="lp-links">
+          <li>Раскрытие уязвимостей и политика безопасности репозитория →
+            <a href="https://github.com/ZettaTrade/ZettaTrade/blob/main/docs/SECURITY.md">docs/SECURITY.md</a></li>
+          <li>Заметки о paper-торговле против «живой» торговли →
+            <a href="https://github.com/ZettaTrade/ZettaTrade/blob/main/docs/USER-MANUAL.md#5-paper-vs-live-safety-notes">руководство, § 5 «Paper vs live: safety notes»</a></li>
+          <li>Непреложные правила торговой безопасности (ключи, сначала testnet, секреты) →
+            <a href="https://github.com/ZettaTrade/ZettaTrade/blob/main/README.md#trading-safety">README, раздел «Trading safety»</a></li>
+          <li>Программное обеспечение в познавательных целях, не инвестсовет →
+            <a href="https://github.com/ZettaTrade/ZettaTrade/blob/main/README.md#disclaimer">полный дисклеймер</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="lp-section">
+      <div class="lp-wrap" id="roadmap">
+        <h2>Дорожная карта — это доска задач</h2>
+        <p>
+          Всё, что вы прочитали на этой странице, отслеживается на открытой доске:
+          внедрённое — строки done, запланированное — строки queued, и queued
+          означает <em>queued</em> — хиро выше не называет ничего, что ещё не
+          реализовано. Смотрите на доску, чтобы знать, что приземлится следующим.
+        </p>
+        <div class="lp-cta-row">
+          <a class="lp-btn lp-btn-ghost" href="https://github.com/ZettaTrade/ZettaTrade/blob/main/docs/TASKS.md">Открыть доску (docs/TASKS.md) →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="lp-section">
+      <div class="lp-wrap" id="alpha">
+        <h2>Попробуйте альфу</h2>
+        <p>
+          Запустите, поломайте, расскажите: скачайте альфа-сборку, воспроизведите
+          неполадку и откройте на GitHub issue с меткой. Формальная
+          тестерская программа — онбординг, триаж обратной связи и публичные
+          метрики только из открытых данных GitHub — уже ждёт в очереди на доске;
+          пока она не приземлится, дверь обратной связи — это GitHub Issues.
+        </p>
+        <div class="lp-cta-row">
+          <a class="lp-btn lp-btn-solid" href="https://github.com/ZettaTrade/ZettaTrade/releases">Скачать альфу</a>
+          <a class="lp-btn lp-btn-ghost" href="https://github.com/ZettaTrade/ZettaTrade/issues">Открыть GitHub Issues</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lp-footer">
+    <div class="lp-wrap">
+      ZettaTrade — проект с открытым кодом под лицензией
+      <a href="https://github.com/ZettaTrade/ZettaTrade/blob/main/LICENSE">MIT</a>
+      · программное обеспечение в познавательных целях, не инвестиционный совет —
+      <a href="https://github.com/ZettaTrade/ZettaTrade/blob/main/README.md#disclaimer">прочитайте дисклеймер</a>.
+      <br />
+      Эта страница — статический раздел документационного сайта; исходники лежат в
+      <span class="lp-code">docs-site/public/landing/</span>.
+      <a href="./index.html">English</a> · Русский
+    </div>
+  </footer>
+</body>
+</html>

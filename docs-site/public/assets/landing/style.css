@@ -1,0 +1,269 @@
+/* ZettaTrade landing page (docs-site static section).
+   Dark to echo the terminal's shipped theme; no frameworks, no JS. */
+
+:root {
+  --bg: #0b0d12;
+  --panel: #12151d;
+  --panel-edge: #232838;
+  --text: #e6e9f0;
+  --muted: #9aa3b2;
+  --accent: #f0a437;
+  --accent-ink: #241304;
+  --green: #3fb950;
+  --link: #7ab3f7;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  line-height: 1.6;
+}
+
+.lp-wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* header */
+.lp-header {
+  border-bottom: 1px solid var(--panel-edge);
+  padding: 14px 0;
+}
+
+.lp-header .lp-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.lp-brand {
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+
+.lp-brand b {
+  color: var(--accent);
+}
+
+.lp-nav {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.lp-nav a,
+.lp-lang a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.lp-nav a:hover,
+.lp-lang a:hover {
+  color: var(--text);
+}
+
+.lp-lang {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lp-lang .lp-here {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* hero */
+.lp-hero {
+  padding: 56px 0 24px;
+}
+
+.lp-chips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+}
+
+.lp-chips span {
+  border: 1px solid var(--panel-edge);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.8rem;
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+
+.lp-chips b {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.lp-hero h1 {
+  font-size: clamp(1.7rem, 4.5vw, 2.6rem);
+  line-height: 1.2;
+  margin: 0 0 16px;
+  max-width: 24ch;
+}
+
+.lp-story {
+  color: var(--muted);
+  font-size: 1.05rem;
+  max-width: 62ch;
+  margin: 0 0 26px;
+}
+
+.lp-story a {
+  color: var(--link);
+}
+
+.lp-cta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.lp-btn {
+  display: inline-block;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.lp-btn-solid {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.lp-btn-ghost {
+  border-color: var(--panel-edge);
+  color: var(--text);
+}
+
+.lp-btn-ghost:hover {
+  border-color: var(--accent);
+}
+
+/* hero figure */
+.lp-hero figure {
+  margin: 34px 0 0;
+}
+
+.lp-hero img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--panel-edge);
+  border-radius: 12px;
+}
+
+.lp-hero figcaption {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 10px;
+}
+
+/* sections */
+.lp-section {
+  padding: 46px 0;
+  border-top: 1px solid var(--panel-edge);
+}
+
+.lp-section h2 {
+  font-size: 1.5rem;
+  margin: 0 0 14px;
+}
+
+.lp-section p {
+  color: var(--muted);
+  max-width: 68ch;
+}
+
+.lp-section p a,
+.lp-links a {
+  color: var(--link);
+}
+
+/* feature grid */
+.lp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.lp-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 10px;
+  padding: 18px;
+}
+
+.lp-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.02rem;
+}
+
+.lp-card p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+/* download */
+.lp-download-box {
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 12px;
+  padding: 26px;
+  margin-top: 20px;
+}
+
+.lp-download-box .lp-code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.85rem;
+  color: var(--green);
+}
+
+.lp-note {
+  font-size: 0.88rem;
+}
+
+/* safety links */
+.lp-links {
+  padding: 0;
+  margin: 18px 0 0;
+  list-style: none;
+}
+
+.lp-links li {
+  color: var(--muted);
+  padding: 5px 0;
+  font-size: 0.95rem;
+}
+
+/* footer */
+.lp-footer {
+  border-top: 1px solid var(--panel-edge);
+  padding: 26px 0 40px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.lp-footer a {
+  color: var(--link);
+}
