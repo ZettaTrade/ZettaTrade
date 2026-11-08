@@ -1,3 +1,24 @@
+## [0.1.0-alpha.73] - 2026-11-08
+
+Build of board task T-137 (branch `fix/startup-di`).
+
+### Fixed
+- The startup crash (T-137): the app died before any window existed
+  since the alpha.68 landing — the T-100 settings port activates the
+  concrete store's batch/snapshot members while the composition root
+  registered the settings store only as the `ISettingsService`
+  interface, so resolving `SettingsPortService` threw
+  `InvalidOperationException` and the process exited with the CLR
+  unhandled-exception exit code before the main window appeared.
+- The store now registers ONCE by its concrete type and forwards the
+  same instance as `ISettingsService` (the new
+  `AddSettingsStoreServices` module extension), so interface consumers
+  (the app walk, chat, workspace layout) and the port's concrete
+  consumers share one store with one state; the registration facts pin
+  the shared identity and the port's activation over the real graph
+  shell, and an app-launch check proves the composition walk completes.
+
+
 ## [0.1.0-alpha.72] - 2026-11-08
 
 Build of board task T-101 (branch `feat/log-viewer`).
