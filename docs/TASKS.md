@@ -101,7 +101,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | queued | - |
 | T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | done | - |
 | T-096 Price and percent-move alerts with a manager | feat/price-alerts | queued | - |
-| T-097 Notification center: toasts, history, DND | feat/notif-center | queued | - |
+| T-097 Notification center: toasts, history, DND | feat/notif-center | in-progress | - |
 | T-098 Adapter health strip in the status bar | feat/health-strip | done | - |
 | T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | queued | - |
 | T-100 Settings import/export + factory reset | feat/settings-port | queued | - |
@@ -200,7 +200,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-097 — Notification center: toasts, history, DND
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** in-progress 2026-11-08 (claimed on `feat/notif-center` at develop tip `c2b1443`; queued 2026-11-06 — supervisor idea at the T-074…T-115 backlog cut).
 - **Origin:** order fills and failures land in logs only (T-056 hardening); users need visible feedback.
 - **What:** an in-app toast host (top-right, chrome-styled per T-066) + a history drawer; sources: fills/cancels/rejections, alerts (T-096 synergy), adapter state flips (T-098 synergy); per-source mute and a DND toggle; clicking routes to the source panel (the T-012 focus-routing precedent).
 - **Scope:** a notification service + toast host, routing, resx en+ru, tests.
