@@ -1,0 +1,214 @@
+# T-125 - delivery pipeline: tagged releases produce self-contained
+# per-OS artifacts on GitHub Releases.
+#
+# Trigger: a version tag (v*). The tag checkout's committed
+# Directory.Build.props is the single version source: it is parsed at
+# workflow level and cross-guarded against the tag name, so a tag that
+# does not match the version commit fails loudly instead of shipping.
+# The release notes are extracted verbatim from the matching
+# '## [0.1.0-alpha.NN]' CHANGELOG.md section of the same tree; a missing
+# section fails the pipeline (a tag must ride the release commit that
+# carries the bump).
+#
+# Artifacts: zettatrade-<version>-<rid>.<ext> - zip for win-x64,
+# osx-x64 and osx-arm64, tar.gz for linux-x64 - plus one
+# zettatrade-<version>-sha256.txt attached next to them.
+#
+# Code signing and notarization are deliberately out of scope until
+# beta; docs/SECURITY.md records the unsigned-artifact posture and what
+# the flip will need. No product code changes and no secrets beyond the
+# automatic GITHUB_TOKEN (the repository build is public).
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: package ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # every leg's verdict stays visible
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64,   ext: ".zip" }
+          - { os: macos-latest,   rid: osx-x64,   ext: ".zip" }
+          - { os: macos-latest,   rid: osx-arm64, ext: ".zip" }
+          - { os: ubuntu-latest,  rid: linux-x64, ext: ".tar.gz" }
+    steps:
+      # The tree at the tag: the version source and the build input in one.
+      - name: Check out the tag
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Pin the SDK from global.json
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Parse the version from Directory.Build.props
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $props = Get-Content -Raw Directory.Build.props
+          $prefix = [regex]::Match($props, '<VersionPrefix>([^<>]+)</VersionPrefix>').Groups[1].Value.Trim()
+          $suffix = [regex]::Match($props, '<VersionSuffix>([^<>]+)</VersionSuffix>').Groups[1].Value.Trim()
+          if (-not $prefix) { throw 'Directory.Build.props carries no <VersionPrefix>.' }
+          $version = $prefix
+          if ($suffix) { $version = "$prefix-$suffix" }
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag '$env:GITHUB_REF_NAME' does not match the tag checkout's props version '$version'. Release tags follow the version commit (v$version)."
+          }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+          Write-Host "Version: $version"
+
+      - name: Publish self-contained
+        run: dotnet publish src/ZettaTrade.App -c Release -r ${{ matrix.rid }} --self-contained true -o publish
+
+      - name: Smoke - the app host is present and carries the props version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $appHost = 'ZettaTrade.App'
+          if ('${{ matrix.rid }}'.StartsWith('win-')) { $appHost = 'ZettaTrade.App.exe' }
+          if (-not (Test-Path (Join-Path 'publish' $appHost))) { throw "$appHost is missing from the publish output." }
+          $dllPath = Join-Path 'publish' 'ZettaTrade.App.dll'
+          if (-not (Test-Path $dllPath)) { throw 'ZettaTrade.App.dll is missing from the publish output.' }
+          # The embedded informational version is the props version, with
+          # the baked source-revision tail ("0.1.0-alpha.77+<commit sha>"):
+          # assert the props-version identity, the ordinal prefix does it.
+          $assembly = [System.Reflection.Assembly]::LoadFrom($dllPath)
+          $informational = [System.Attribute]::GetCustomAttribute($assembly, [System.Reflection.AssemblyInformationalVersionAttribute]).InformationalVersion
+          if (-not $informational.StartsWith($version, [System.StringComparison]::Ordinal)) {
+            throw "Embedded informational version '$informational' does not match the props version '$version'."
+          }
+          Write-Host "Smoke OK: $appHost present, embedded version '$informational' matches '$version'."
+          $files = (Get-ChildItem publish -Recurse -File | Measure-Object).Count
+          Write-Host "Publish output: $files files."
+
+      - name: Archive
+        id: archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $rid = '${{ matrix.rid }}'
+          $ext = '${{ matrix.ext }}'
+          $name = "zettatrade-$version-$rid$ext"
+          if ($ext -eq '.tar.gz') {
+            tar -czf $name -C publish .
+          }
+          else {
+            Compress-Archive -Path 'publish/*' -DestinationPath $name
+          }
+          if (-not (Test-Path $name)) { throw "The archive for $rid was not produced." }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "name=$name"
+          Write-Host "Archive: $name ($([math]::Round((Get-Item $name).Length / 1MB, 2)) MiB)."
+
+      - name: Upload the archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.archive.outputs.name }}
+          path: ${{ steps.archive.outputs.name }}
+
+  release-notes:
+    name: release notes (CHANGELOG excerpt)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Extract the matching CHANGELOG section
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $props = Get-Content -Raw Directory.Build.props
+          $prefix = [regex]::Match($props, '<VersionPrefix>([^<>]+)</VersionPrefix>').Groups[1].Value.Trim()
+          $suffix = [regex]::Match($props, '<VersionSuffix>([^<>]+)</VersionSuffix>').Groups[1].Value.Trim()
+          if (-not $prefix) { throw 'Directory.Build.props carries no <VersionPrefix>.' }
+          $version = $prefix
+          if ($suffix) { $version = "$prefix-$suffix" }
+          $notes = [System.Collections.Generic.List[string]]::new()
+          $inside = $false
+          foreach ($line in (Get-Content CHANGELOG.md)) {
+            if ($line -match '^## \[') {
+              if ($inside) { break }
+              if ($line.Contains("[$version]")) { $inside = $true }
+            }
+            if ($inside) { $notes.Add($line) }
+          }
+          if ($notes.Count -eq 0) {
+            throw "CHANGELOG.md carries no '## [$version]' section on this tag - tags ride the version commit that adds the matching section."
+          }
+          $notes | Set-Content -Path release-notes.md
+          Write-Host "Release notes: $($notes.Count) lines extracted for $version."
+
+      - name: Upload the release notes artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+
+  release:
+    name: GitHub release
+    needs: [package, release-notes]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and attach the archives
+    steps:
+      - name: Download every artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: '*'
+          merge-multiple: true
+
+      - name: Smoke - every archive is present and non-empty
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $notes = Get-Content -Raw dist/release-notes.md
+          $match = [regex]::Match($notes, '^## \[([^\]]+)\]', 'Multiline')
+          if (-not $match.Success) { throw 'release-notes.md carries no CHANGELOG section header.' }
+          $version = $match.Groups[1].Value
+          $expected = @()
+          foreach ($rid in @('win-x64', 'osx-x64', 'osx-arm64')) {
+            $expected += "zettatrade-$version-$rid.zip"
+          }
+          $expected += "zettatrade-$version-linux-x64.tar.gz"
+          foreach ($name in $expected) {
+            $file = Get-Item -LiteralPath (Join-Path 'dist' $name) -ErrorAction SilentlyContinue
+            if (-not $file) { throw "Missing release artifact: $name" }
+            if ($file.Length -le 0) { throw "Empty release artifact: $name" }
+          }
+          Write-Host "All $($expected.Count) archives present for $version."
+
+      - name: SHA-256 sums next to the archives
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $notes = Get-Content -Raw dist/release-notes.md
+          $version = [regex]::Match($notes, '^## \[([^\]]+)\]', 'Multiline').Groups[1].Value
+          $lines = @(Get-ChildItem dist -File |
+            Where-Object { $_.Name -like 'zettatrade-*' -and $_.Name -notlike '*-sha256.txt' } |
+            Sort-Object Name |
+            ForEach-Object { "$(Get-FileHash -Algorithm SHA256 $_.FullName | Select-Object -ExpandProperty Hash)  $($_.Name)" })
+          if ($lines.Count -eq 0) { throw 'No archives in dist/ to hash.' }
+          $sums = "dist/zettatrade-$version-sha256.txt"
+          $lines | Set-Content -Path $sums
+          Get-Content $sums | Write-Host
+
+      - name: Create the GitHub release and attach the artifacts
+        run: gh release create "${GITHUB_REF_NAME}" dist/zettatrade-* --title "ZettaTrade ${GITHUB_REF_NAME#v}" --notes-file dist/release-notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
