@@ -312,9 +312,6 @@
   <data name="Status.ExchangePicker" xml:space="preserve">
     <value>Active exchange</value>
   </data>
-  <data name="Status.PaperMode" xml:space="preserve">
-    <value>Paper</value>
-  </data>
   <data name="Status.ExchangeFallback" xml:space="preserve">
     <value>Saved exchange unavailable — continuing on the default one</value>
   </data>
@@ -449,6 +446,27 @@
   </data>
   <data name="Trading.Cancel" xml:space="preserve">
     <value>Cancel</value>
+  </data>
+  <data name="Trading.Lane.Paper" xml:space="preserve">
+    <value>Paper</value>
+  </data>
+  <data name="Trading.Lane.Testnet" xml:space="preserve">
+    <value>Testnet</value>
+  </data>
+  <data name="Trading.Lane.Live" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="Trading.Lane.TooltipPaper" xml:space="preserve">
+    <value>Paper trading: simulated fills against live market prices — no real funds, no exchange keys.</value>
+  </data>
+  <data name="Trading.Lane.TooltipTestnet" xml:space="preserve">
+    <value>Testnet: the venue endpoints carry a testnet identity — orders never touch real funds.</value>
+  </data>
+  <data name="Trading.Lane.TooltipLive" xml:space="preserve">
+    <value>Live trading lane: real orders on a real venue; every order is real money.</value>
+  </data>
+  <data name="Trading.ConfirmGoLive" xml:space="preserve">
+    <value>Switch the trading lane to LIVE? Real orders follow.</value>
   </data>
   <data name="Order.StopMarket" xml:space="preserve">
     <value>Stop-Market</value>

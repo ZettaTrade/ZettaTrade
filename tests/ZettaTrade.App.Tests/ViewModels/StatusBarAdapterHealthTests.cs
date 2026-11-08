@@ -16,6 +16,7 @@ using Xunit;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
 /// The adapter health strip's status bar contract (T-098): the fold's
@@ -278,9 +279,28 @@ public sealed class StatusBarAdapterHealthTests
                 [_first, _second],
                 _settings,
                 NullLogger<ActiveExchangeService>.Instance),
+            CreateTradingModeService(),
             "0.1.0-test",
             _health,
             logger: NullLogger<StatusBarViewModel>.Instance);
+
+    /// <summary>
+    /// A minimal real trading-mode service so the constructor resolution
+    /// runs for real: the paper identity keeps the lane on the safe
+    /// simulation values (these facts never exercise the chip itself).
+    /// </summary>
+    private TradingModeService CreateTradingModeService()
+    {
+        var traded = Substitute.For<ITradingAdapter>();
+        traded.Id.Returns(PaperTradingAdapter.ExchangeId);
+        return new TradingModeService(
+            traded,
+            new ExchangeEndpointRegistry(
+                _settings,
+                NullLogger<ExchangeEndpointRegistry>.Instance),
+            Substitute.For<IConfirmationService>(),
+            NullLogger<TradingModeService>.Instance);
+    }
 
     /// <summary>
     /// The resx-shaped localization double: canned per-language catalogs,

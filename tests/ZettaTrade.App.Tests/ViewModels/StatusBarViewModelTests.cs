@@ -14,6 +14,7 @@ using ZettaTrade.App;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
 /// Tests for the status bar: the theme and language chips must show the
@@ -48,6 +49,8 @@ public sealed class StatusBarViewModelTests
     private readonly ISettingsService _settings = Substitute.For<ISettingsService>();
     private readonly IMarketDataAdapter _first = Substitute.For<IMarketDataAdapter>();
     private readonly IMarketDataAdapter _second = Substitute.For<IMarketDataAdapter>();
+    private readonly ITradingAdapter _traded = Substitute.For<ITradingAdapter>();
+    private readonly IConfirmationService _confirmation = Substitute.For<IConfirmationService>();
     private readonly Subject<IReadOnlyList<AdapterHealth>> _health = new();
 
     public StatusBarViewModelTests()
@@ -55,6 +58,16 @@ public sealed class StatusBarViewModelTests
         _themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
         _themeManager.AvailableThemes.Returns(Themes);
         _localizationManager.LanguageChanged.Returns(new BehaviorSubject<string>("en"));
+
+        // The chip facts' captions resolve in a predictable, test-visible
+        // form (the key itself); fact-level setups below pin exact values
+        // where they care, and those land AFTER this broad one.
+        _localizationManager.GetString(Arg.Any<string>()).Returns(call => $"[{call.ArgAt<string>(0)}]");
+        _localizationManager.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call => $"[{call.ArgAt<string>(0)}]");
+
+        // The shipped trading surface: the paper simulator parks the chip
+        // on the paper lane unless a fact swaps the identity.
+        _traded.Id.Returns(PaperTradingAdapter.ExchangeId);
 
         _first.Id.Returns("first");
         _first.Name.Returns("First");
@@ -76,13 +89,24 @@ public sealed class StatusBarViewModelTests
             NullLogger<ActiveExchangeService>.Instance);
     }
 
+    private TradingModeService CreateTradingModeService() =>
+        new(
+            _traded,
+            new ExchangeEndpointRegistry(
+                _settings,
+                NullLogger<ExchangeEndpointRegistry>.Instance),
+            _confirmation,
+            NullLogger<TradingModeService>.Instance);
+
     private StatusBarViewModel CreateViewModel(
         ActiveExchangeService? exchanges = null,
-        TimeSpan? fallbackNoticeDuration = null) =>
+        TimeSpan? fallbackNoticeDuration = null,
+        TradingModeService? tradingMode = null) =>
         new(
             _themeManager,
             _localizationManager,
             exchanges ?? CreateService(),
+            tradingMode ?? CreateTradingModeService(),
             "0.1.0-test",
             _health,
             fallbackNoticeDuration,
@@ -327,5 +351,116 @@ public sealed class StatusBarViewModelTests
 
         viewModel.ConnectionStatus.Should().Be("Connected", "after expiry the regular chip text re-derives");
     }
+
+    #region Tests: the trading lane chip (T-123)
+
+    /// <summary>
+    /// The shipped paper surface parks the chip on the paper lane: the
+    /// standing facts arrive within one posted beat (the chip's writes ride
+    /// the shared marshal, so a pre-drain read sees the frozen world).
+    /// </summary>
+    [Fact]
+    public async Task TheStandingPaperSurface_RendersThePaperChip()
+    {
+        var viewModel = CreateViewModel();
+
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.TradingLaneLabel.Should().Be("[Trading.Lane.Paper]");
+        viewModel.TradingLaneTooltip.Should().Be("[Trading.Lane.TooltipPaper]");
+        viewModel.IsPaperLane.Should().BeTrue("the paper surface is the only safe lane");
+        viewModel.IsTestnetLane.Should().BeFalse();
+        viewModel.IsLiveLane.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// A venue surface whose configured endpoint record carries the testnet
+    /// identity renders the testnet chip — the lane is the record's
+    /// identity, never a URL guess.
+    /// </summary>
+    [Fact]
+    public async Task ATestnetEndpointIdentity_RendersTheTestnetChip()
+    {
+        _traded.Id.Returns(ExchangeEndpointRegistry.BybitKey);
+        _settings
+            .GetAsync<BybitEndpoints?>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<BybitEndpoints?>())
+            .Returns(new BybitEndpoints("https://api.example/testnet", "wss://stream.example/testnet", true));
+        var registry = new ExchangeEndpointRegistry(
+            _settings,
+            NullLogger<ExchangeEndpointRegistry>.Instance);
+        await registry.InitializeAsync(CancellationToken.None);
+
+        var viewModel = CreateViewModel(
+            tradingMode: new TradingModeService(
+                _traded,
+                registry,
+                _confirmation,
+                NullLogger<TradingModeService>.Instance));
+
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.TradingLaneLabel.Should().Be("[Trading.Lane.Testnet]");
+        viewModel.IsTestnetLane.Should().BeTrue();
+        viewModel.IsPaperLane.Should().BeFalse();
+        viewModel.IsLiveLane.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// A venue surface on the shipped production record renders the live
+    /// chip: the lane is honest the moment the surface exists, before any
+    /// order could ride it.
+    /// </summary>
+    [Fact]
+    public async Task AProductionVenueSurface_RendersTheLiveChip()
+    {
+        _traded.Id.Returns(ExchangeEndpointRegistry.BinanceKey);
+
+        var viewModel = CreateViewModel(
+            tradingMode: new TradingModeService(
+                _traded,
+                new ExchangeEndpointRegistry(
+                    _settings,
+                    NullLogger<ExchangeEndpointRegistry>.Instance),
+                _confirmation,
+                NullLogger<TradingModeService>.Instance));
+
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.TradingLaneLabel.Should().Be("[Trading.Lane.Live]");
+        viewModel.IsLiveLane.Should().BeTrue();
+        viewModel.IsPaperLane.Should().BeFalse();
+        viewModel.IsTestnetLane.Should().BeFalse();
+    }
+
+    /// <summary>A language switch re-composes the chip from the standing lane: the caption and tooltip never go stale.</summary>
+    /// <remarks>
+    /// The call counts: the constructor posts TWO chip renders (the lane
+    /// stream's standing delivery and the language BehaviorSubject's own
+    /// replay), and the drain runs both. The language switch itself posts
+    /// exactly ONE more render — the re-derivation; the second drain lands
+    /// it.
+    /// </remarks>
+    [Fact]
+    public async Task ALanguageSwitch_ReComposesTheLaneChipWithinOnePostedBeat()
+    {
+        var languageChanged = new BehaviorSubject<string>("en");
+        _localizationManager.LanguageChanged.Returns(languageChanged);
+        var viewModel = CreateViewModel();
+
+        _localizationManager.DidNotReceiveWithAnyArgs().GetString("Trading.Lane.Paper");
+        _localizationManager.DidNotReceiveWithAnyArgs().GetString("Trading.Lane.TooltipPaper");
+        await AvaloniaDispatcherPump.DrainAsync();
+        _localizationManager.Received(2).GetString("Trading.Lane.Paper");
+        _localizationManager.Received(2).GetString("Trading.Lane.TooltipPaper");
+
+        languageChanged.OnNext("ru");
+        viewModel.TradingLaneLabel.Should().Be("[Trading.Lane.Paper]", "the re-composition is posted — the chip keeps its caption until the drain");
+
+        await AvaloniaDispatcherPump.DrainAsync();
+        _localizationManager.Received(3).GetString("Trading.Lane.Paper");
+        _localizationManager.Received(3).GetString("Trading.Lane.TooltipPaper");
+    }
+
+    #endregion Tests: the trading lane chip (T-123)
 }
 

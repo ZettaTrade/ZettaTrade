@@ -8,7 +8,8 @@ namespace ZettaTrade.Infrastructure.Exchange;
 /// </summary>
 /// <param name="RestBaseUrl">HTTPS base of the REST API, no trailing slash.</param>
 /// <param name="WsUrl">WebSocket URL of the combined stream endpoint (the {"stream","data"} envelope adapter's message handler expects — a raw /ws frame host would drop depth frames silently).</param>
-public sealed record BinanceEndpoints(string RestBaseUrl, string WsUrl)
+/// <param name="IsTestnet">Venue lane identity: true when this record's endpoints serve a testnet venue (the trading-mode chip's mapping reads it; production endpoints stay false).</param>
+public sealed record BinanceEndpoints(string RestBaseUrl, string WsUrl, bool IsTestnet = false)
 {
     /// <summary>Production host pair used when nothing else is configured.</summary>
     public static readonly BinanceEndpoints Production = new(
