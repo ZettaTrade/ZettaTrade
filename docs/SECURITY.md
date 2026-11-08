@@ -158,6 +158,42 @@ Revoke-and-rotate by default; history rewrite only by an explicit supervisor dec
 5. **Scanner discipline afterwards.** After rotation-and-removal, the scans (push/PR range,
    nightly full history, local guard) must pass before the branch can land again.
 
+## Release artifacts (T-125)
+
+`.github/workflows/release.yml` publishes a tagged release: on a `v*` tag the tag's own tree is
+built self-contained per OS and attached to a GitHub Release as `zettatrade-<version>-<rid>`
+archives — zip for win-x64, osx-x64 and osx-arm64, tar.gz for linux-x64. The version string
+comes only from the `Directory.Build.props` committed at the tag and is cross-checked against
+the tag name: a tag that does not match the version commit fails the pipeline instead of
+shipping, and the release notes are the verbatim `## [0.1.0-alpha.NN]` CHANGELOG.md section of
+the same tree (a missing section fails the workflow — tags ride the release commit that adds
+the bump).
+
+What the artifacts contain — and nothing else:
+
+- the application itself with the .NET runtime bundled in (self-contained publish), plus the
+  four built-in theme JSON files that ship next to the executable;
+- no user data, no configuration, no credentials: user secrets live only in `ISecretStore` on
+  the user's machine and never enter any artifact; the release is built in CI straight from
+  the tag's tree, never from a local worktree, and the T-117 layers above keep the sources honest.
+
+Integrity is by hash, not by signature, until beta: every Release carries
+`zettatrade-<version>-sha256.txt` in the `<SHA-256>  <archive-name>` two-space convention
+`sha256sum -c` accepts. Verify after download:
+
+- Linux: `sha256sum -c zettatrade-<version>-sha256.txt`
+- macOS: `shasum -a 256 -c zettatrade-<version>-sha256.txt`
+- Windows (PowerShell): compare `(Get-FileHash <archive> -Algorithm SHA256).Hash` against the
+  sums line for that archive.
+
+Nothing in the pipeline is code-signed or notarized yet — a deliberate alpha posture, pairing
+with the T-119 first-run disclaimer: macOS Gatekeeper and Windows SmartScreen can warn about
+the unsigned archives, and a cautious user verifies the sums and runs first from the paper
+lane. The beta flip is a board decision and brings, in one change: Authenticode signing for
+the Windows archive, a hardened-runtime + notarization flow for the macOS ones, signing
+credentials held in machine/CI secret storage of the `ISecretStore` class (never plaintext,
+never in the repository) and this note updated to the signed reality.
+
 ## Audit log
 
 - 2026-11-06 — T-117 one-shot full-history audit: gitleaks 8.24.3 and 8.30.1, committed
