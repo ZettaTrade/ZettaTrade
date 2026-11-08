@@ -100,7 +100,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-093 VWAP + volume profile overlay | feat/vol-vwap | done | - |
 | T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | queued | - |
 | T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | done | - |
-| T-096 Price and percent-move alerts with a manager | feat/price-alerts | in-progress | - |
+| T-096 Price and percent-move alerts with a manager | feat/price-alerts | done | - |
 | T-097 Notification center: toasts, history, DND | feat/notif-center | done | - |
 | T-098 Adapter health strip in the status bar | feat/health-strip | done | - |
 | T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | done | - |
@@ -180,15 +180,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** Charting + a menu item, resx en+ru, tests.
 - **Acceptance:** the export matches the on-screen frame (same lens, same annotations state).
 - **Tests:** pixel-diff smoke on a seeded chart, watermark presence, path/error handling.
-
-## T-096 — Price and percent-move alerts with a manager
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** alerts are a terminal baseline; nothing exists (T-041's Telegram sink is a different layer — delivery).
-- **What:** local evaluations on the existing candle/book streams (no extra polls): crossing a price, % move within a window; a manager table (create/edit/snooze/delete), persistence, cross-session reload; a firing alert beeps + toasts (to T-097 when it lands); triggering an order from a signal is explicitly out of scope — no auto-trading without `IConfirmationService`.
-- **Scope:** alert engine (a service), manager UI, `Settings.*` keys, resx en+ru, tests.
-- **Acceptance:** edge semantics exact (above/at/below), no alert lost across restart if persisted.
-- **Tests:** trigger edge matrix, persistence reload, sound-failure degrade.
 
 ## T-101 — Log viewer window + global crash guard
 
