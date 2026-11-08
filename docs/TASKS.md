@@ -97,7 +97,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-090 Y-axis scale modes: log and percent | feat/chart-scales | queued | - |
 | T-091 Drawing tools: trend line, horizontal level, fib retracement | feat/draw-tools | queued | - |
 | T-092 Standard indicator pack (EMA, RSI, MACD, Bollinger… as bundled plugins) | feat/indicator-pack | done | - |
-| T-093 VWAP + volume profile overlay | feat/vol-vwap | in-progress | - |
+| T-093 VWAP + volume profile overlay | feat/vol-vwap | done | - |
 | T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | queued | - |
 | T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | done | - |
 | T-096 Price and percent-move alerts with a manager | feat/price-alerts | queued | - |
@@ -179,15 +179,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** Charting overlay + tool palette UI, persistence, resx en+ru, tests.
 - **Acceptance:** drawings stay anchored across pan/zoom and reloads (T-033/T-036 lessons respected).
 - **Tests:** coordinate anchoring roundtrip, hit-test/drag golden, persistence reload.
-
-## T-093 — VWAP + volume profile overlay
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** the intraday VWAP and volume-at-price histogram are standard reads; both absent.
-- **What:** session-anchored VWAP (optional ±1σ bands) and a right-margin volume-at-price histogram over the visible window; active only when candles carry volume — an explicit "no volume data" state otherwise (never zero-fabricated).
-- **Scope:** Charting overlays + the indicator seam reuse, tests.
-- **Acceptance:** session anchors handle day boundaries of the T-037 calendar correctly.
-- **Tests:** VWAP boundary math golden, histogram bucket alignment, the no-volume state.
 
 ## T-094 — Chart export: PNG snapshot + CSV candles
 
