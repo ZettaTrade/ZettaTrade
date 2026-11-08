@@ -28,7 +28,8 @@ $ModulePrefixes = @(
     'Fees.',
     'OrderBook.',
     'Tape.',
-    'Palette.'
+    'Palette.',
+    'Notif.'
 )
 
 function Get-ResxKeys([string]$Path) {
