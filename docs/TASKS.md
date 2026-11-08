@@ -117,7 +117,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-110 Accessibility pass (keyboard, automation peers, contrast) | feat/a11y | queued | - |
 | T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | done | - |
 | T-112 Signal markers on the chart + signal rail | feat/signal-markers | done | - |
-| T-113 Backtest harness over stored candles | feat/backtest | queued | T-111 + T-085 |
+| T-113 Backtest harness over stored candles | feat/backtest | in-progress | T-111 + T-085 |
 | T-114 AI market-context injection into the chat | feat/ai-context | done | - |
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
 | T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | feat/ws-e2e-budget | done | - |
@@ -256,6 +256,7 @@ the end of that file, so no effort is duplicated.
 ## T-113 — Backtest harness over stored candles
 
 - **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut). **Blocker:** T-111 + T-085.
+- **Status:** in-progress on `feat/backtest` (developed 2026-11-08).
 - **Origin:** strategies need an offline replay to earn trust; live data is the wrong place to discover bad math.
 - **What:** a deterministic simulator replaying cached candles through the strategy contract with the paper ledger's fills (T-051-corrected path), an equity summary report (feeds T-083 later), reproducible seeds; entirely offline (no adapters, no limiter).
 - **Scope:** a backtest service + report + a run/progress VM, resx en+ru, tests.
