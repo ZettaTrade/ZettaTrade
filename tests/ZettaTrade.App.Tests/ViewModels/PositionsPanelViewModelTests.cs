@@ -41,6 +41,19 @@ using ZettaTrade.Infrastructure.Persistence;
 /// working orders on the workspace symbol get commands, and a row whose
 /// per-row cancel is already in flight is skipped and reported, never
 /// double-commanded.
+/// <para>
+/// In-flight stability (T-135): the gated facts settle without wall clock.
+/// An in-flight flow parks on an explicit <see cref="TaskCompletionSource"/>
+/// seam (the amend dialog handoff, the row cancel inside the adapter, the
+/// action's sizing read), and every wait completes from the delivery that
+/// recorded the state it vouches for — a saturated parallel suite can
+/// stretch continuation hops but never invert them, and no Timeout budget,
+/// sleep or cross-observer race decides when the facts settle. Nothing in
+/// this class rides <c>ObserveOnUiThread</c>, so no dispatcher drain
+/// belongs to these facts: the shared AvaloniaDispatcherPump world
+/// (T-073/T-116 lineage, the pump's own DrainAsync casualty) is load noise
+/// they deliberately do not depend on.
+/// </para>
 /// </summary>
 public sealed class PositionsPanelViewModelTests
 {
@@ -1066,7 +1079,12 @@ public sealed class PositionsPanelViewModelTests
     /// disabled — the in-flight gate and the double-click case: a second
     /// invocation on a disabled command resolves into the disabled state
     /// and the pipeline runs exactly once ("the action is idempotent
-    /// through a disabled/queued state").
+    /// through a disabled/queued state"). The busy arc parks on the gated
+    /// sizing read, and its phases and completions travel one delivery:
+    /// the recorder records the canExecute phase and completes the wait
+    /// from the same OnNext, so a settled wait always vouches for the
+    /// recorded surface — settled by ordering, never by a wall-clock
+    /// budget that a saturated parallel suite can outrun or shoot early.
     /// </summary>
     [Fact]
     public async Task PositionRowAction_WhileInFlight_DisablesTheRowSurfaceForDoubleClicks()
@@ -1095,59 +1113,83 @@ public sealed class PositionsPanelViewModelTests
         await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
         var row = viewModel.Positions.Single();
 
-        // The gate emits its standing value at subscribe, so watching it
-        // here reads the whole arc: busy while the attempt runs, idle at the
-        // end of it.
+        // One observer owns the whole gate arc: every canExecute phase is
+        // recorded into the list, and both parks complete from INSIDE the
+        // same OnNext delivery that recorded the phase they vouch for.
+        // Awaiters resume strictly after their premise is on the list —
+        // the disabled phase read below and the final reopen read below
+        // are settled states of this very recording, not reads racing a
+        // second subscription's trail-one-hop-behind delivery.
         var canExecutePhases = new List<bool>();
-        using var gateWatch = row.CloseCommand.CanExecute.Subscribe(canExecutePhases.Add);
+        var gateClosed = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var gateReopened = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var gateWatch = row.CloseCommand.CanExecute.Subscribe(can =>
+        {
+            // The standing (idle) true opens no arc: only a true recorded
+            // after a shut phase is the reopen the busy wait rides.
+            var reopensTheArc = can && canExecutePhases.Contains(false);
+            canExecutePhases.Add(can);
+            if (can)
+            {
+                if (reopensTheArc)
+                {
+                    gateReopened.TrySetResult();
+                }
+            }
+            else
+            {
+                gateClosed.TrySetResult();
+            }
+        });
 
-        var parked = viewModel
-            .WhenAnyValue(x => x.IsBusy)
-            .Where(busy => busy)
-            .FirstAsync()
-            .Timeout(TimeSpan.FromSeconds(5))
-            .ToTask();
+        // Park the in-flight attempt inside the gated sizing read. A
+        // pre-park fault completes the gate wait with the real exception;
+        // a click that resolves without ever shutting the gate fails the
+        // wait with a stated reason instead of hanging.
         var firstDone = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
         using var firstWatcher = row.CloseCommand.Execute(ReactiveUI.Primitives.RxVoid.Default).Subscribe(
-            value => firstDone.TrySetResult(),
-            exception => firstDone.TrySetException(exception),
-            () => firstDone.TrySetResult());
-        await parked;
+            value => { },
+            exception =>
+            {
+                gateClosed.TrySetException(exception);
+                firstDone.TrySetException(exception);
+            },
+            () =>
+            {
+                gateClosed.TrySetException(
+                    new InvalidOperationException(
+                        "the close attempt resolved without the in-flight gate closing"));
+                firstDone.TrySetResult();
+            });
+        await gateClosed.Task;
 
-        // An in-flight attempt holds the gate shut.
+        // An in-flight attempt holds the gate shut — the disabled phase is
+        // the very recording this wait resumed from.
         viewModel.IsBusy.Should().BeTrue();
         canExecutePhases.Should().NotBeEmpty();
         canExecutePhases.Should().Contain(false, "the action surface is disabled while the attempt runs");
 
         // The second (double) click resolves into the disabled state — no
-        // second pipeline, no second order.
+        // second pipeline, no second order. Its error surfaces through the
+        // reopen wait rather than being swallowed.
         using var secondWatcher = row.CloseCommand.Execute(ReactiveUI.Primitives.RxVoid.Default).Subscribe(
             _ => { },
-            exception => firstDone.TrySetException(exception),
+            exception => gateReopened.TrySetException(exception),
             () => { });
 
-        // Park the reopen watcher while the gate is still shut: the standing
-        // value is false, so its first true emission is the reopen itself —
-        // subscribed before the release, it cannot miss it. Bounded so a
-        // broken gate surfaces as a clean failure, not a hang.
-        var reopened = row.CloseCommand.CanExecute
-            .Where(can => can)
-            .FirstAsync()
-            .Timeout(TimeSpan.FromSeconds(30))
-            .ToTask();
-
+        // Release the attempt; await the actual in-flight task end, then
+        // the reopen recording it produces. Both are awaited, nothing is
+        // inferred from a straight-line read of a list another delivery
+        // path may still be writing.
         sizingGate.SetResult([position]);
         await firstDone.Task;
+        await gateReopened.Task;
 
-        // The gate's reopen emission walks ReactiveUI's canExecute pipeline —
-        // one continuation hop after the command's task completes, and under
-        // a saturated parallel test run that hop is visible. The reopen was
-        // watched BEFORE the gate released, so await it instead of racing
-        // one straight-line read of the phases list.
-        await reopened;
-
-        // Assert: one attempt, one order; the gate reopens at the end.
+        // Assert: one attempt, one order; the gate reopens once the attempt
+        // resolves.
         await _trading.Received(1).PlaceOrderAsync(Arg.Any<OrderRequest>(), Arg.Any<CancellationToken>());
         requests.Should().HaveCount(1);
         viewModel.IsBusy.Should().BeFalse();
