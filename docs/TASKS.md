@@ -127,7 +127,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-120 Streaming watchlist panel: live quotes, 24h change, sparklines | feat/watchlist | done | - |
 | T-121 Market heatmap: top pairs as change-colored tiles | feat/market-heatmap | queued | - |
 | T-122 My footprint on the chart: position lines + working-order markers | feat/chart-mine | queued | - |
-| T-123 Trading-mode chip: paper/testnet/live always visible | feat/trading-mode-chip | queued | - |
+| T-123 Trading-mode chip: paper/testnet/live always visible | feat/trading-mode-chip | in-progress | - |
 | T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | queued | - |
 | T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | queued | - |
 | T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | queued | T-125 |
@@ -392,3 +392,13 @@ the end of that file, so no effort is duplicated.
 - **Scope:** PositionsPanelViewModelTests and the test harness seam only; no production code change.
 - **Acceptance:** the test is green in 10 consecutive full-suite parallel App.Tests runs under local load.
 - **Tests:** the fix IS the test; the assertion semantics stay intact.
+
+## T-123 — Trading-mode chip: paper/testnet/live always visible
+
+- **Branch:** feat/trading-mode-chip (worktree `zt-trading-mode-chip`, based on develop@e06b198).
+- **Origin:** the credibility instant: paper/testnet/live must read at one glance from anywhere. The state currently lives in dialogs and the T-127's per-panel badge plan; the safety posture the docs promise (T-117/T-119) deserves a visible seat.
+- **What:** a prominent chip in the shell showing the ACTIVE trading lane of the workspace's traded adapter: PAPER (demo/paper), TESTNET (via the T-015 endpoint identity), LIVE (anything else) with per-state colors (calm/prompt/danger). Level flips ride the reactive settings stream; switching INTO live requires a `IConfirmationService` prompt on the flip itself. When detachable windows arrive (T-103), the chip propagates to every window.
+- **Scope:** a `TradingModeService` + `TradingLaneResolver` in App (lane by endpoint identity over the T-015 registry snapshot; unparsable identity is an error, never a default), the chip view in the shell's status bar + the gated switch surface (flip-to-live prompts via `IConfirmationService` on the flip itself; decline aborts cleanly), the runtime flip call sites ride the gate, `Trading.*` resx keys in BOTH languages (+ the resx-gate prefix registration, house precedent) and tests. The alpha.76 bump + the CHANGELOG section ride the feat commit; no `Core/Interfaces` changes; detachable windows stay out (T-103, YAGNI) — the service exposes a reusable `IObservable` stream so a per-window chip attaches later.
+- **Acceptance:** there is no state where a real-money lane is indistinguishable from paper; the flip-to-live is always a confirmed event; the chip is present in every window context (today the single shell).
+- **Tests:** the mode-mapping matrix (demo/testnet/live by endpoint identity, minus the rejection path), the flip confirmation gate, multi-window propagation.
+- **Status:** in-progress.
