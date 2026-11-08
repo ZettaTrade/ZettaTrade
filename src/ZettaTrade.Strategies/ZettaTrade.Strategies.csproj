@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- ZettaTrade.Strategies owns the strategy plugin seam (T-111): the
+       contracts, the tolerant plugin loader and the candle-close host.
+       It is a leaf module like Charting - Core is its only project
+       reference, the plugin assemblies never reference it back. The
+       app hosting is the next task's (T-112) business: nothing here
+       touches orders, risk or any trading adapter. -->
+  <ItemGroup>
+    <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+  </ItemGroup>
+
+</Project>
