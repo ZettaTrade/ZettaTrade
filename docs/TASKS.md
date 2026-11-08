@@ -115,7 +115,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-108 Performance HUD overlay (fps, memory, WS latency) | feat/perf-hud | queued | - |
 | T-109 Soak harness and budget gates (cold start < 3 s, memory < 500 MB) | feat/soak | queued | - |
 | T-110 Accessibility pass (keyboard, automation peers, contrast) | feat/a11y | queued | - |
-| T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | review | - |
+| T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | done | - |
 | T-112 Signal markers on the chart + signal rail | feat/signal-markers | queued | T-111 |
 | T-113 Backtest harness over stored candles | feat/backtest | queued | T-111 + T-085 |
 | T-114 AI market-context injection into the chat | feat/ai-context | done | - |
@@ -260,15 +260,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** UI across views, chart/book peer shims, docs checklist, tests.
 - **Acceptance:** every advertised control is reachable and named without a mouse.
 - **Tests:** name/role assertions, focus-order golden.
-
-## T-111 — Strategy contracts MVP: candle-close signals (no auto-trading)
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** plugin-first declares strategies as separate assemblies (AGENTS); nothing exists — no host, no contracts, no `ZettaTrade.Strategies` project yet.
-- **What:** a minimal signal contract (evaluate on candle close, emit neutral/long/flat events per symbol+interval), the host+loader in Strategies reusing the indicator scanner's canon (T-054's fix included), a demo strategy; the output is a signals channel only — no order placement, no risk bypass; the human decides.
-- **Scope:** the new Strategies project, contracts + host, the demo plugin, tests.
-- **Acceptance:** a broken/unloadable plugin degrades the scan, never the app (T-054 regression pinned).
-- **Tests:** strategy-kit conformance, the demo golden on seeded candles, scan tolerance.
 
 ## T-112 — Signal markers on the chart + signal rail
 
