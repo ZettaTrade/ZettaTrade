@@ -1552,6 +1552,62 @@ the board and its section below.
 - **Tests:** the mode-mapping matrix (demo/testnet/live by endpoint identity, minus the rejection path), the flip confirmation gate, multi-window propagation.
 - **Status:** done. Canon: the branch carries `96701d2` (the board claim), `6a2b4ab` (the feat: `TradingLane` + `TradingModeService` — the resolver maps the paper identity to the paper lane and classifies venue surfaces by their configured record's `IsTestnet`; an identity outside the registry snapshot throws, never resolves by default; the standing `BehaviorSubject` stream bootstraps late subscribers; `ConfirmLaneFlipAsync` gates the live target behind the `Trading.ConfirmGoLive` prompt and passes paper/testnet through), `eca19c6` (the settings-port fix the feat surfaced: the `UrlPairs` shape allowed only string members and rejected the records' own exported `isTestnet` — every store holding an endpoint record refused its own re-import; the gate keeps the one optional camel-case identity member, two-string exports stay valid, functions pin all three sides) and `c6ae166` (the launch-smoke process-hygiene rule the user dutied after night-long leftover exes). The chip rides the status bar between the active exchange name and the language field with clean-theme tint bindings over the candle palette keys; 40 new facts (the mapping matrix + flip gate + the posted-beat chip renders) green. Gate history is thick: the first run tripped on the load-sensitive pump family across a box carrying two stuck verify-loop runs (killed, the box swept empty); the second run surfaced the REAL settings-port regression above and was resolved by the fix; the third run printed `GATE PASSED` with `-AllowProtected` (the bump). The pre-merge launch smoke stayed clean: the walk completed in its run segment with zero ERR/FTL/exception entries (`ProductVersion=0.1.0-alpha.76+eca19c62`, six demo watchlist WRN ticks are the ambient stream fallbacks, not failures), and the process hygiene rule ran both sweeps clean. Supervisor-solo: the original T-123 worker died at the quota wall after its claim; the slot took over in the wave-4 stretch.
 
+## T-126 — Product landing page: screenshots, story, download CTA
+
+- **Branch:** feat/landing-page, worktree zt-landing-page, based on develop@6753662 (claimed 2026-11-09; queued 2026-11-06 — presentation-track gap, supervisor idea at the monetization review, not urgent).
+- **Origin:** the README today documents the documentation site (npm/GitHub Pages); a visitor — user, partner, investor — has no „what is this / why do I care / download" surface.
+- **What:** a static product page riding the existing docs-site deploy: a hero screenshot, a three-sentence story (multi-exchange desktop terminal, AI-native via MCP, local-first/security), a feature grid (charts, order book, portfolio, alerts, AI assistant), a download section linking the GitHub Release artifacts (T-125), a short security/local-first paragraph (+ links to `docs/SECURITY.md`, the paper/testnet safety notes), a roadmap pointer (the board) and the alpha-program CTA (feeds T-129). Wording discipline: only shipped features are named — no vaporware on the hero.
+- **Scope:** docs-site (or a `site/` static section), copy, screenshots reused from the T-115 manual captures where possible; no product code.
+- **Acceptance:** download reachable in ≤2 clicks from the landing; every claim traceable to a shipped or explicitly-marked queued feature; en and ru variants.
+- **Tests:** none (static), link checks in the docs-site CI if present.
+- **Status:** done. Canon: the branch carries `19628ea` (the board claim) and
+  `cb93730` (the feat: `docs-site/public/landing/index.html` (en) +
+  `index.ru.html` (ru) + the shared `docs-site/public/assets/landing/style.css`
+  — hero with the three-sentence story (multi-exchange desktop terminal,
+  AI-native over MCP with the local model first, local-first/security), the
+  five-card feature grid (charts / order book / portfolio / alerts / AI
+  assistant — every card traceable to done board rows), the download section
+  linking `https://github.com/ZettaTrade/ZettaTrade/releases` (one click from
+  the hero CTA — the ≤2-clicks acceptance), the local-first/safety paragraph
+  linking `docs/SECURITY.md`, the manual's § 5 paper-vs-live notes, the README's
+  Trading safety and Disclaimer, a roadmap pointer to the board and the
+  alpha-CTA section (GitHub Issues as the interim feedback door, the formal
+  program named queued on the board); no release version number invented
+  anywhere — the copy reads true both before and after the first tag cut).
+  - The screenshot canon: `assets/landing/workspace-hero.png` (1920×1040,
+    157 KB PNG) is a REAL capture from a worktree Debug run on this branch's
+    base (`6753662`): the demo lane boots with BTC/USDT candles + a VWAP
+    overlay, the book ladder with the cumulative-depth chart, the trade tape,
+    the watchlist and the status bar carrying Demo · Paper · Connected ·
+    Dark · en · `0.1.0-alpha.77`; taken with a PowerShell
+    DwmGetWindowAttribute + CopyFromScreen capture script; the process
+    hygiene rule ran clean on both ends (fresh pre-run sweep, then
+    Stop-Process with an empty fresh `Get-Process ZettaTrade*` sweep after).
+  - The capture gap, plainly: the interactive-surface shots (the `Ctrl+K`
+    symbol palette, the `Ctrl+N` order ticket) were attempted and FAILED —
+    the keystroke injection never reached the Avalonia window in that session
+    (both candidate frames captured the base workspace unchanged), so the
+    landing ships exactly the one real workspace shot and nothing is faked;
+    the broader manual shot list stays the T-115 pending-capture gap.
+  - The shape decision, backed by recon: the React docs-site skeleton never
+    built (`src/main.tsx` imports an `App.tsx` that was never committed —
+    `docs-site/` is a single `add documentation` commit), and
+    `.github/workflows/` carries no Pages deploy (only `release.yml` +
+    `security.yml`; the root README's Deploy sections are instructions, not
+    shipped CI). The landing therefore rides the deploy SURFACE, not a missing
+    app: a static section under `docs-site/public/landing/` that Vite copies
+    verbatim into `dist/` on the documented deploy path, with relative asset
+    links so it opens directly today; `docs-site/README.md` gained a
+    "Landing page" section documenting the shape.
+  - Hazards: not yet wired to a live URL (`.github` is a protected surface —
+    reported, not fixed from here; a future deploy workflow owner adds
+    nothing for this page: `public/` already travels); the site README's
+    pre-existing "Features" tab list describes a site that never existed
+    (pre-existing drift, left untouched); the demo-video link slot opens with
+    the T-128 recording (none linked — the recording does not exist);
+    inter-sibling docs links (the landing ↔ `docs/ALPHA-PROGRAM.md`) arrive
+    with T-129. Docs-only: no alpha bump, no CHANGELOG section.
+
 ## T-128 — Demo video: storyboard + shot list (docs/ops)
 
 - **Branch:** feat/demo-script, worktree `zt-demo-script`, based on develop@0823719 (claimed 2026-11-09).

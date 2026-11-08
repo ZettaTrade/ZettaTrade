@@ -130,7 +130,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-123 Trading-mode chip: paper/testnet/live always visible | feat/trading-mode-chip | done | - |
 | T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | queued | - |
 | T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | done | - |
-| T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | in-progress | T-125 |
+| T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | done | T-125 |
 | T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | queued | - |
 | T-128 Demo video: storyboard + shot list (docs/ops) | feat/demo-script | done | - |
 | T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | queued | T-126 |
@@ -284,16 +284,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the multi-series renderer in Charting, chart VM wiring, resx en+ru, tests.
 - **Acceptance:** the overlay holds under churn; removal restores the single-series rendering bit-exact; axis invariants (T-035/T-037 canon) never break with two series.
 - **Tests:** multi-series render golden, percent-rebasing goldens, the removal-restore identity, the axis invariants.
-
-## T-126 — Product landing page: screenshots, story, download CTA
-
-- **Branch:** feat/landing-page, worktree zt-landing-page, based on develop@6753662 (claimed 2026-11-09; queued 2026-11-06 — presentation-track gap, supervisor idea at the monetization review, not urgent).
-- **Origin:** the README today documents the documentation site (npm/GitHub Pages); a visitor — user, partner, investor — has no „what is this / why do I care / download" surface.
-- **What:** a static product page riding the existing docs-site deploy: a hero screenshot, a three-sentence story (multi-exchange desktop terminal, AI-native via MCP, local-first/security), a feature grid (charts, order book, portfolio, alerts, AI assistant), a download section linking the GitHub Release artifacts (T-125), a short security/local-first paragraph (+ links to `docs/SECURITY.md`, the paper/testnet safety notes), a roadmap pointer (the board) and the alpha-program CTA (feeds T-129). Wording discipline: only shipped features are named — no vaporware on the hero.
-- **Scope:** docs-site (or a `site/` static section), copy, screenshots reused from the T-115 manual captures where possible; no product code.
-- **Acceptance:** download reachable in ≤2 clicks from the landing; every claim traceable to a shipped or explicitly-marked queued feature; en and ru variants.
-- **Tests:** none (static), link checks in the docs-site CI if present.
-- **Status:** in-progress. Blocker T-125 landed (the delivery pipeline is done), so this task runs unblocked.
 
 ## T-127 — Live testnet trading loop: a real limit order end-to-end (Bybit testnet)
 
