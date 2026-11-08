@@ -129,7 +129,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-122 My footprint on the chart: position lines + working-order markers | feat/chart-mine | done | - |
 | T-123 Trading-mode chip: paper/testnet/live always visible | feat/trading-mode-chip | done | - |
 | T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | queued | - |
-| T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | queued | - |
+| T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | in-progress | - |
 | T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | queued | T-125 |
 | T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | queued | - |
 | T-128 Demo video: storyboard + shot list (docs/ops) | docs/demo-video | queued | - |
@@ -296,7 +296,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-125 — Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux)
 
-- **Branch:** queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review; not urgent).
+- **Branch:** feat/release-pipeline, worktree zt-release-pipeline, based on develop@0823719 (claimed 2026-11-09; queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review; not urgent)).
 - **Origin:** the repo has no CI at all (no `.github`); binaries exist only inside the builds; public users and partners need a real download door — the alpha program (T-129), the landing (T-126) and every demo link all stand on Releases.
 - **What:** `.github/workflows/release.yml` — on a version tag (`v*`), publishes self-contained per-OS artifacts (win-x64 zip, osx-x64/osx-arm64 zip, linux-x64 tar.gz) built straight from the tag's `Directory.Build.props` version, with the release notes taken straight from the matching CHANGELOG section; artifact naming `zettatrade-<version>-<rid>.<ext>`. Code signing and notarization are deliberately out of scope until beta (the docs say when that flips). No product code changes.
 - **Scope:** `.github/workflows/release.yml` + a small packaging helper in `scripts/` (a local dry-run publish), docs note in `docs/SECURITY.md` (what the artifacts contain, hash handling).
