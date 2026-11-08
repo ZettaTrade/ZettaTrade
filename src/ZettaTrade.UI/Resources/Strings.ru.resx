@@ -330,6 +330,27 @@
   <data name="Chart.NoVolumeData" xml:space="preserve">
     <value>Нет данных об объёме этих свечей</value>
   </data>
+  <data name="Chart.Type" xml:space="preserve">
+    <value>Тип</value>
+  </data>
+  <data name="Chart.Type.Tip" xml:space="preserve">
+    <value>Выбрать вариант отрисовки ценового графика — выбор сохраняется для каждого инструмента.</value>
+  </data>
+  <data name="Chart.Type.Candles" xml:space="preserve">
+    <value>Свечи</value>
+  </data>
+  <data name="Chart.Type.Line" xml:space="preserve">
+    <value>Линия</value>
+  </data>
+  <data name="Chart.Type.Area" xml:space="preserve">
+    <value>Область</value>
+  </data>
+  <data name="Chart.Type.Bars" xml:space="preserve">
+    <value>Бары OHLC</value>
+  </data>
+  <data name="Chart.Type.HeikinAshi" xml:space="preserve">
+    <value>Хейкен-Аши</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>

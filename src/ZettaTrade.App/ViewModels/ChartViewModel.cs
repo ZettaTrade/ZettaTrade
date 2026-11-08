@@ -63,6 +63,15 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// takes the chart — when a save hides the shown pair the chart switches to
 /// the first visible one (persisted, so a restart does not re-open it
 /// either).
+/// The chart rendering type (T-089) persists per workspace symbol in the
+/// <c>UI.ChartSymbolTypes</c> JSON map
+/// (see <see cref="Services.SymbolChartTypeMap"/>): one async read seeds the
+/// map at construction and the changes stream keeps it current, every
+/// selection change resolves the new symbol's stored choice (a symbol
+/// without an entry keeps the standing type — a preference map substitutes
+/// nothing), every selector change serializes the whole updated map under
+/// the current symbol, and the Heikin-Ashi series publishes through the
+/// same raw-then-marshal discipline the overlays keep.
 /// The delivered series also runs the deep-history repair (T-086): every
 /// delivered page (the cached one and the fetched one behind it) kicks a
 /// bounded pass chain that probes the cache behind the window's head,
@@ -228,6 +237,73 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     {
         get => _showVolumeProfile;
         private set => this.RaiseAndSetIfChanged(ref _showVolumeProfile, value);
+    }
+
+    private ChartSeriesType _chartType = ChartSeriesType.Candlesticks;
+
+    /// <summary>
+    /// The price-chart rendering type (T-089): candlesticks (the standing
+    /// default), line, area, OHLC bars or Heikin-Ashi. Every user change
+    /// persists into the per-symbol map
+    /// <see cref="UiSettingsKeys.ChartSymbolTypes"/> under the workspace
+    /// symbol; an addressed restore (a symbol switch to a pair with a
+    /// stored choice, or the startup map seed) applies under the
+    /// <see cref="_isApplyingPersistedChartType"/> gate — a restore is a
+    /// read, never a rewrite. A symbol without a stored entry keeps the
+    /// standing type: a preference map substitutes nothing silently.
+    /// </summary>
+    public ChartSeriesType ChartType
+    {
+        get => _chartType;
+        set
+        {
+            if (_chartType == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _chartType, value);
+
+            // The selector shim follows the canonical type (the same shim
+            // discipline the symbol combo keeps): the combo's index must
+            // track any applied or restored type without its own writer.
+            this.RaisePropertyChanged(nameof(SelectedChartTypeIndex));
+        }
+    }
+
+    /// <summary>
+    /// The type selector's two-way shim: the combo's selected index over the
+    /// five static localized items (the <c>SelectedThemeIndex</c> settings
+    /// precedent — static labels never live on ViewModel properties).
+    /// Reading returns the canonical type as an index; writing an in-range
+    /// index forwards it into <see cref="ChartType"/> (the source of
+    /// truth), an out-of-range write is dropped.
+    /// </summary>
+    public int SelectedChartTypeIndex
+    {
+        get => (int)ChartType;
+        set
+        {
+            if (value >= 0 && value <= (int)ChartSeriesType.HeikinAshi)
+            {
+                ChartType = (ChartSeriesType)value;
+            }
+        }
+    }
+
+    private IReadOnlyList<Bar>? _heikinAshiBars;
+
+    /// <summary>
+    /// The Heikin-Ashi series the chart draws while <see cref="ChartType"/>
+    /// is Heikin-Ashi (T-089): the client-side <see cref="ZettaTrade.Charting.HeikinAshi"/>
+    /// transform over the loaded series, aligned with <see cref="Bars"/> by
+    /// index. Null in every other type — the chart renders its own variant
+    /// from the raw bars.
+    /// </summary>
+    public IReadOnlyList<Bar>? HeikinAshiBars
+    {
+        get => _heikinAshiBars;
+        private set => this.RaiseAndSetIfChanged(ref _heikinAshiBars, value);
     }
 
     /// <summary>Every time frame the picker offers, in enum order (M1…MN1).</summary>
@@ -405,6 +481,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// stream lets tests read the semantics off the raw publish path.
     /// </summary>
     public IObservable<VwapOverlay?> VwapOverlayUpdates { get; }
+
+    /// <summary>
+    /// The Heikin-Ashi series computed for the current series (null while
+    /// the type is not Heikin-Ashi — see <see cref="HeikinAshiBars"/>). Raw -
+    /// not UI-marshaled; the property assignment is the marshalled hop, this
+    /// stream lets tests read the semantics off the raw publish path.
+    /// </summary>
+    public IObservable<IReadOnlyList<Bar>?> HeikinAshiBarsUpdates { get; }
 
     private IReadOnlyList<ChartIndicatorLine> _indicatorLines = [];
 
@@ -612,6 +696,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private readonly Subject<VwapOverlay?> _vwapPublishes = new();
 
     /// <summary>
+    /// The Heikin-Ashi series publishes here (T-089); the marshalled
+    /// subscription assigns <see cref="HeikinAshiBars"/>. A null emission is
+    /// the non-Heikin-Ashi (or empty-series) state. The transform is pure —
+    /// the publish runs wherever its callers land and only the assignment
+    /// crosses onto the UI thread.
+    /// </summary>
+    private readonly Subject<IReadOnlyList<Bar>?> _heikinAshiPublishes = new();
+
+    /// <summary>
     /// The persisted VWAP overlay choice: the cache LEADS the toggles'
     /// persistence pipeline (updated at issue time, in issuance order), so
     /// a rapid settle burst never drops its second flip and an external
@@ -621,6 +714,23 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>The persisted volume-profile choice: the same leadership cache as <see cref="_persistedShowVwap"/>.</summary>
     private bool _persistedShowVolumeProfile = UiSettingsKeys.DefaultChartShowVolumeProfile;
+
+    /// <summary>
+    /// Whether the repository restore is addressing the chart type: the
+    /// per-symbol application suppresses exactly that assignment — the
+    /// persistence pipeline must never rewrite a stored choice it merely
+    /// applied (the same restore-not-edit discipline the time frame keeps).
+    /// </summary>
+    private bool _isApplyingPersistedChartType;
+
+    /// <summary>
+    /// The persisted per-symbol chart types (T-089): seeded from the
+    /// settings service and kept current by the changes stream, so every
+    /// symbol switch resolves its stored choice from the cache (the same
+    /// pure-consumer shape the symbol marks keep).
+    /// </summary>
+    private IReadOnlyDictionary<string, ChartSeriesType> _persistedChartTypes =
+        new Dictionary<string, ChartSeriesType>(StringComparer.Ordinal);
 
     /// <summary>The catalog the indicator settings rows resolve through (the plugin seam).</summary>
     private readonly IIndicatorCatalog _indicatorCatalog;
@@ -754,6 +864,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         OlderBarsUpdates = _olderPages;
         IndicatorLinesUpdates = _indicatorPublishes;
         VwapOverlayUpdates = _vwapPublishes;
+        HeikinAshiBarsUpdates = _heikinAshiPublishes;
 
         // The ViewModel lives as long as the application (singleton), so this
         // subscription mirrors it and needs no explicit disposal. The marshal
@@ -785,6 +896,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // the collection's content, marshal-free).
                     PublishIndicatorLines(page.Bars);
                     PublishVwapOverlay(page.Bars);
+                    PublishHeikinAshi(page.Bars);
 
                     // The delivered page starts this series' repair chain
                     // (T-086): the passes probe the cache and the feed behind
@@ -817,6 +929,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // the whole collection right here on the UI thread).
                     PublishIndicatorLines(Bars);
                     PublishVwapOverlay(Bars);
+                    PublishHeikinAshi(Bars);
                 },
                 ex => _logger.LogError(ex, "The chart older-bars stream stopped unexpectedly"));
 
@@ -859,6 +972,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // the UI thread — the same discipline as the prepends).
                     PublishIndicatorLines(Bars);
                     PublishVwapOverlay(Bars);
+                    PublishHeikinAshi(Bars);
                 },
                 ex => _logger.LogError(ex, "The chart repair stream stopped unexpectedly"));
 
@@ -971,6 +1085,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 overlay => VwapOverlay = overlay,
                 ex => _logger.LogError(ex, "The chart vwap overlay stream stopped unexpectedly"));
 
+        // The Heikin-Ashi series rides the same raw-then-marshal split (T-089).
+        _heikinAshiPublishes.ObserveOnUiThread()
+            .Subscribe(
+                bars => HeikinAshiBars = bars,
+                ex => _logger.LogError(ex, "The chart heikin-ashi stream stopped unexpectedly"));
+
         // The two overlay toggles persist like the AI panel's visibility
         // does (T-093): the cache LEADS the pipeline — it is updated at
         // ISSUE time, in issuance order — while the writes serialize behind
@@ -1041,6 +1161,74 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 },
                 ex => _logger.LogError(ex, "The chart volume profile stream stopped unexpectedly"));
 
+        // The chart type selector (T-089): the choice persists PER SYMBOL, in
+        // the same document shape the symbol marks keep — the whole map
+        // re-serializes on every flip under the workspace symbol. The cache
+        // LEADS the pipeline (updated at issue time, in issuance order), so
+        // a rapid flip burst never drops its second write; the gate keeps
+        // the addressed restores (a symbol switch resolving its stored
+        // choice) out of the persistence path — a restore is a read, not an
+        // edit. A flip while no symbol stands cannot address the map and
+        // stays transient (a pick without a workspace context is no one's
+        // preference).
+        this.WhenAnyValue(x => x.ChartType)
+            .Skip(1)
+            .Where(_ => !_isApplyingPersistedChartType && SelectedSymbol is not null)
+            .Do(type =>
+            {
+                var addressedSymbol = SelectedSymbol!.Normalized;
+                _persistedChartTypes = SymbolChartTypeMap.WithEntry(
+                    _persistedChartTypes,
+                    addressedSymbol,
+                    type);
+            })
+            .SelectMany(_ => Observable.FromAsync(PersistChartTypesAsync))
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The chart type persistence pipeline stopped unexpectedly"));
+
+        // Every type flip re-keys the drawn Heikin-Ashi series against the
+        // CURRENT series: a selector change recomputes immediately (the bars
+        // are the series' copy — the pure transform), a restore re-asserts
+        // the value. The subject's publishes stay raw; only the assignment
+        // hops.
+        this.WhenAnyValue(x => x.ChartType)
+            .Subscribe(
+                _ => PublishHeikinAshi(Bars),
+                ex => _logger.LogError(ex, "The chart type publish stream stopped unexpectedly"));
+
+        // The persisted per-symbol types follow the settings service live
+        // (the same pure-consumer contract the marks keep): one async read
+        // seeds the map at construction and every changes-stream emission
+        // re-parses it. The standing selection re-addresses on every fresh
+        // document, so a seed racing the symbols bootstrap still delivers
+        // regardless of which side lands first.
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartSymbolTypes,
+                UiSettingsKeys.DefaultChartSymbolTypes))
+            .Subscribe(
+                ApplyPersistedChartTypesDocument,
+                ex => _logger.LogError(ex, "Failed to read the chart type map"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartSymbolTypes)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                ApplyPersistedChartTypesDocument,
+                ex => _logger.LogError(ex, "The chart type map stream stopped unexpectedly"));
+
+        // The chart type is PER SYMBOL: every selection change resolves the
+        // new workspace symbol's stored choice from the cache and applies it
+        // under the gate — no entry keeps the standing type (a preference
+        // map substitutes nothing, the persisted-value deferral rule).
+        this.WhenAnyValue(x => x.SelectedSymbol)
+            .Subscribe(
+                symbol => ApplyPersistedChartType(symbol),
+                ex => _logger.LogError(ex, "The chart type restore stream stopped unexpectedly"));
+
         // The symbol marks follow the settings service live (the same pure
         // -consumer contract the clock format keeps): a change to either
         // marks key re-parses the map, re-applies it against the current
@@ -1070,6 +1258,94 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 adapter => BootstrapSymbols(adapter),
                 ex => _logger.LogError(ex, "The chart symbols stream stopped unexpectedly"));
+    }
+
+    #endregion
+
+    #region Heikin-Ashi Series
+
+    /// <summary>
+    /// Compute the Heikin-Ashi series (T-089) for the given series and
+    /// publish it; null while the selector stands on any other type or the
+    /// series is empty (the chart's own no-data state owns an empty window).
+    /// The transform is pure and marshal-free — the same publication
+    /// discipline as the VWAP publishes — and runs once per delivered
+    /// series, never per draw pass: every HA open depends on the previous
+    /// HA bar, so the chain always starts at the series' head.
+    /// </summary>
+    private void PublishHeikinAshi(IReadOnlyList<Bar>? bars)
+    {
+        if (ChartType != ChartSeriesType.HeikinAshi || bars is not { Count: > 0 })
+        {
+            _heikinAshiPublishes.OnNext(null);
+            return;
+        }
+
+        _heikinAshiPublishes.OnNext(HeikinAshi.Compute(bars));
+    }
+
+    #endregion
+
+    #region Chart Type Persistence
+
+    /// <summary>
+    /// Re-key the chart types to a settings value (the seed read and every
+    /// changes-stream emission route here): the document parses into the
+    /// persisted cache and the standing selection re-addresses its choice.
+    /// </summary>
+    private void ApplyPersistedChartTypesDocument(string chartTypesJson)
+    {
+        _persistedChartTypes = SymbolChartTypeMap.Parse(chartTypesJson);
+        ApplyPersistedChartType(SelectedSymbol);
+    }
+
+    /// <summary>
+    /// Apply the workspace symbol's stored chart type, under the restore
+    /// gate: a stored entry re-asserts the type (the persistence pipeline
+    /// sees an equal address and skips the write — the same suppress shape
+    /// the time frame restore keeps), a symbol without a stored entry keeps
+    /// the standing type (a preference map substitutes nothing silently).
+    /// </summary>
+    private void ApplyPersistedChartType(Symbol? symbol)
+    {
+        if (symbol is null || !_persistedChartTypes.TryGetValue(symbol.Normalized, out var restored))
+        {
+            return;
+        }
+
+        _isApplyingPersistedChartType = true;
+        try
+        {
+            ChartType = restored;
+        }
+        finally
+        {
+            _isApplyingPersistedChartType = false;
+        }
+    }
+
+    /// <summary>
+    /// One serialized write of the whole per-symbol chart-type map (the
+    /// cache already leads it — the issue-time update ran before this
+    /// serialize). A failed write is logged and swallowed HERE (not at the
+    /// stream): the pipeline keeps serving later flips instead of dying on
+    /// the first fault, the issued choice stays cached and the file catches
+    /// up on the next real difference (the degrade the overlay choices
+    /// keep).
+    /// </summary>
+    private async Task PersistChartTypesAsync()
+    {
+        try
+        {
+            await _settings.SetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartSymbolTypes,
+                SymbolChartTypeMap.Serialize(_persistedChartTypes));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist the chart type map");
+        }
     }
 
     #endregion

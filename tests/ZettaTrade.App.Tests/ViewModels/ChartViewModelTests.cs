@@ -2194,5 +2194,246 @@ public sealed class ChartViewModelTests
 
     #endregion Chart Overlays (T-093)
 
+    #region Chart Type Selector (T-089)
+
+    /// <summary>The open the chart-type facts' windows anchor at: a clean H1
+    /// edge in March 2026, far away from every other fact's synthetic base
+    /// time.</summary>
+    private static readonly DateTimeOffset ChartTypeBaseTime = new(2026, 3, 1, 9, 0, 0, TimeSpan.Zero);
+
+    /// <summary>
+    /// One synthetic H1 bar at <see cref="ChartTypeBaseTime"/> plus the given
+    /// hour offset: OHLC values spread apart (100/110/90/104 family), so the
+    /// Heikin-Ashi pooled values never coincide with the raw bar's — every
+    /// transform value is assertable against the delivered series by value.
+    /// </summary>
+    private static Bar TypeBar(int index) => new(
+        ChartTypeBaseTime.AddHours(index),
+        100m + 2 * index,
+        110m + 2 * index,
+        90m + 2 * index,
+        104m + 2 * index,
+        5m);
+
+    /// <summary>
+    /// The type selector flips persist the WHOLE per-symbol map under the
+    /// workspace symbol (the cache leads the pipeline, the map re-serializes
+    /// on every flip): the composite shim forwards into the canonical type,
+    /// a second addressed symbol lands its own entry next to the first one's,
+    /// and every document is the exact map shape.
+    /// </summary>
+    [Fact]
+    public async Task TheTypeSelectorFlip_PersistsTheWholeMapUnderTheWorkspaceSymbol()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        chart.ChartType.Should().Be(ChartSeriesType.Candlesticks, "the candles default stands until the selector moves");
+        chart.SelectedChartTypeIndex.Should().Be(
+            (int)ChartSeriesType.Candlesticks,
+            "the selector shim follows the canonical type");
+
+        // The shim write: the combo's selected index forwards into ChartType.
+        chart.SelectedChartTypeIndex = (int)ChartSeriesType.HeikinAshi;
+
+        chart.ChartType.Should().Be(ChartSeriesType.HeikinAshi, "the shim forwards into the canonical type");
+        chart.SelectedChartTypeIndex.Should().Be(
+            (int)ChartSeriesType.HeikinAshi,
+            "the shim's read follows the applied type");
+        await settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolTypes,
+            """{"BTC/USDT":"HeikinAshi"}""");
+
+        // The canonical property write: the same pipeline, the entry replaced.
+        chart.ChartType = ChartSeriesType.Area;
+
+        await settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolTypes,
+            """{"BTC/USDT":"Area"}""");
+
+        chart.SelectedSymbol = Symbol.Parse("ETH/BTC");
+        chart.ChartType = ChartSeriesType.Line;
+
+        await settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolTypes,
+            """{"BTC/USDT":"Area","ETH/BTC":"Line"}""");
+    }
+
+    /// <summary>
+    /// The persisted choice applies at the symbol switch and the restore
+    /// never rewrites the stored document (a restore is a read, not an edit
+    /// — the BUG-015 shape the overlay choices keep): a symbol without an
+    /// entry keeps the standing type — a preference map substitutes nothing
+    /// — and the return to the stored symbol re-asserts the same choice.
+    /// </summary>
+    [Fact]
+    public async Task ThePersistedType_RestoresOnTheSymbolSwitch_RewritesNothing()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.GetAsync<string>(Arg.Any<string>(), UiSettingsKeys.ChartSymbolTypes, Arg.Any<string>())
+            .Returns("""{"BTC/USDT":"HeikinAshi"}""");
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.ChartType.Should().Be(ChartSeriesType.Candlesticks, "nothing is addressed at construction");
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        chart.ChartType.Should().Be(ChartSeriesType.HeikinAshi, "the stored choice applies with the address");
+        chart.SelectedChartTypeIndex.Should().Be(
+            (int)ChartSeriesType.HeikinAshi,
+            "the shim follows the restored type");
+
+        chart.SelectedSymbol = Symbol.Parse("ETH/BTC");
+
+        chart.ChartType.Should().Be(
+            ChartSeriesType.HeikinAshi,
+            "a symbol without an entry keeps the standing type — the map substitutes nothing");
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        chart.ChartType.Should().Be(ChartSeriesType.HeikinAshi, "the return re-asserts the stored choice");
+        await settings.DidNotReceive().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolTypes,
+            Arg.Any<string>());
+    }
+
+    /// <summary>
+    /// A flip with no workspace symbol addressed stays transient: no map
+    /// document can be attached to a context, so nothing persists — and the
+    /// standing pick carries over to the first addressed symbol until that
+    /// symbol's own entry exists (the persist begins where the context does).
+    /// </summary>
+    [Fact]
+    public async Task TheFlipWithoutAWorkspaceSymbol_PersistsNothing_UntilAContextIsAddressed()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.SelectedSymbol.Should().BeNull("the posted bootstrap apply never pumps in a fact");
+
+        chart.ChartType = ChartSeriesType.Bars;
+
+        chart.ChartType.Should().Be(ChartSeriesType.Bars, "the pick applies to the standing type");
+        await settings.DidNotReceive().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolTypes,
+            Arg.Any<string>());
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        chart.ChartType.Should().Be(
+            ChartSeriesType.Bars,
+            "the standing pick carries over — the empty stored map substitutes nothing");
+
+        chart.ChartType = ChartSeriesType.Line;
+
+        await settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolTypes,
+            """{"BTC/USDT":"Line"}""");
+    }
+
+    /// <summary>
+    /// The Heikin-Ashi type publishes the computed series against the CURRENT
+    /// series (raw, marshal-invariant — the overlay publishes' discipline):
+    /// aligned with the delivered bars by index and carrying the transform's
+    /// pooled values, while every other type owns the null publish (the chart
+    /// draws its own variant from the raw bars).
+    /// </summary>
+    [Fact]
+    public async Task TheHeikinAshiType_PublishesTheSeriesAlignedWithTheDelivery_AndOthersPublishNull()
+    {
+        var marketData = new FakeMarketData(
+            barsPagePlan: [[TypeBar(0), TypeBar(1), TypeBar(2)]]);
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+        var publishes = new List<IReadOnlyList<Bar>?>();
+
+        using var publishWatch = chart.HeikinAshiBarsUpdates.Subscribe(publishes.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var delivered = chart.Bars;
+        delivered.Select(static bar => bar.Time).Should().Equal(
+            [TypeBar(0).Time, TypeBar(1).Time, TypeBar(2).Time],
+            "the delivered page is the planned series");
+        publishes.Should().OnlyContain(
+            publish => publish == null,
+            "the chart draws its own candlesticks until the series type moves");
+
+        chart.ChartType = ChartSeriesType.HeikinAshi;
+
+        var published = publishes.Last();
+        published.Should().NotBeNull("the flip publishes the transform immediately against the standing series");
+        var aligned = published!;
+        aligned.Select(static bar => bar.Time).Should().Equal(
+            delivered.Select(static bar => bar.Time),
+            "the HA series aligns with the loaded series by index — the chart slices it with the same window");
+        aligned[0].Open.Should().Be(102m, "the seed pools the first open with the close — not the raw open");
+        aligned[0].Close.Should().Be(101m, "the four-price mean of the first bar");
+        aligned[1].Open.Should().Be(101.5m, "the chain pools with the previous HA open and close");
+
+        chart.ChartType = ChartSeriesType.Bars;
+
+        publishes.Last().Should().BeNull("a non-Heikin-Ashi type owns the null publish again");
+    }
+
+    /// <summary>
+    /// A settings-service change to the types map re-addresses the shown
+    /// symbol live (no restart): the matching entry applies under the restore
+    /// gate, and a document that addresses only other symbols leaves the
+    /// standing choice alone — the applied choice stays in charge.
+    /// </summary>
+    [Fact]
+    public void TheSettingsServiceChange_ReAddressesTheShownSymbolLive()
+    {
+        var changes = new Subject<SettingsChange>();
+        var settings = Substitute.For<ISettingsService>();
+        settings.Changes.Returns(changes);
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        chart.ChartType.Should().Be(ChartSeriesType.Candlesticks);
+
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolTypes,
+            UiSettingsKeys.DefaultChartSymbolTypes,
+            """{"BTC/USDT":"HeikinAshi"}"""));
+
+        chart.ChartType.Should().Be(ChartSeriesType.HeikinAshi, "a settings change must reach the chart without a restart");
+
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolTypes,
+            """{"BTC/USDT":"HeikinAshi"}""",
+            """{"ETH/BTC":"Line"}"""));
+
+        chart.ChartType.Should().Be(
+            ChartSeriesType.HeikinAshi,
+            "a document that addresses only other symbols leaves the standing choice alone");
+    }
+
+    #endregion Chart Type Selector (T-089)
+
     #endregion
 }

@@ -330,6 +330,27 @@
   <data name="Chart.NoVolumeData" xml:space="preserve">
     <value>No volume data for these candles</value>
   </data>
+  <data name="Chart.Type" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="Chart.Type.Tip" xml:space="preserve">
+    <value>Pick the price chart rendering type — the choice persists per symbol.</value>
+  </data>
+  <data name="Chart.Type.Candles" xml:space="preserve">
+    <value>Candles</value>
+  </data>
+  <data name="Chart.Type.Line" xml:space="preserve">
+    <value>Line</value>
+  </data>
+  <data name="Chart.Type.Area" xml:space="preserve">
+    <value>Area</value>
+  </data>
+  <data name="Chart.Type.Bars" xml:space="preserve">
+    <value>OHLC bars</value>
+  </data>
+  <data name="Chart.Type.HeikinAshi" xml:space="preserve">
+    <value>Heikin-Ashi</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>

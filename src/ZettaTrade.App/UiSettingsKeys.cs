@@ -125,6 +125,24 @@ public static class UiSettingsKeys
     public const bool DefaultChartShowVolumeProfile = true;
 
     /// <summary>
+    /// Settings key of the persisted per-symbol chart rendering type
+    /// (T-089): a JSON object (see <c>SymbolChartTypeMap</c>) mapping a
+    /// normalized symbol to its chosen <see cref="ZettaTrade.Charting.ChartSeriesType"/>
+    /// enum name, e.g. <c>{"BTC/USDT":"HeikinAshi"}</c>. Written on every
+    /// selector change, read at every startup walk and re-read live on
+    /// external writes; the workspace symbol heads the per-choice restore
+    /// (the T-029/T-055 discipline).
+    /// </summary>
+    public const string ChartSymbolTypes = "ChartSymbolTypes";
+
+    /// <summary>
+    /// The chart-type map applied until a stored one is loaded: empty — no
+    /// symbol carries a preference, so every symbol starts on the
+    /// candlesticks default.
+    /// </summary>
+    public const string DefaultChartSymbolTypes = "{}";
+
+    /// <summary>
     /// The indicator overlay configuration applied until a stored setting is
     /// loaded: the classic SMA at period 20 enabled, so a fresh install shows
     /// the seam working over the candles.
