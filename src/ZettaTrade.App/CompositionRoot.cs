@@ -229,11 +229,13 @@ internal static class CompositionRoot
                 sp.GetRequiredService<TradeTapeViewModel>(),
                 sp.GetRequiredService<WorkspaceLayoutViewModel>(),
                 sp.GetRequiredService<SymbolPaletteViewModel>(),
+                sp.GetRequiredService<NotificationToastHostViewModel>(),
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();
         services.AddOrderAmendServices();
         services.AddOrderHistory();
+        services.AddNotificationServices(); // T-097: the notification center (toasts, history, DND) over the journal + health taps above.
 
         // The PnL accounting core + its app-side feed (T-082): after the
         // order history registration, so the walk initializes the ledger

@@ -50,9 +50,15 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
         ViewModel?.Menu.ShowTradeStatsRequested.RegisterHandler(OpenTradeStatsAsync);
+        ViewModel?.Menu.ShowNotificationsRequested.RegisterHandler(OpenNotificationHistoryAsync);
         ViewModel?.Menu.ShowBalancesRequested.RegisterHandler(OpenBalancesAsync);
         ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
         ViewModel?.Menu.ShowDisclaimerRequested.RegisterHandler(OpenDisclaimerAsync);
+
+        // The toast host lives for the whole window's stay like the other
+        // singletons: its clicked rows pose their routes through this
+        // window's single handler (the host dismisses; the route lands here).
+        ViewModel?.ToastHost.OpenPanelRequested.RegisterHandler(OpenNotificationRouteAsync);
 
         // The book panel lives for the whole window lifetime too: its level
         // presses feed a click stream that channels the prefill into the
@@ -360,13 +366,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     {
         try
         {
-            // The view model is transient: every open re-reads the persisted
-            // order journal, so a restarted app never shows stale rows.
-            var window = new OrderHistoryWindow
-            {
-                DataContext = App.Services.GetRequiredService<ViewModels.OrderHistoryViewModel>(),
-            };
-            await window.ShowDialog<object>(this);
+            await ShowOrderHistoryWindowAsync();
         }
         catch (Exception ex)
         {
@@ -378,21 +378,119 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         }
     }
 
+    /// <summary>
+    /// The order history window's core: the view model is transient, so
+    /// every open re-reads the persisted order journal — a restarted app
+    /// never shows stale rows. Shared by the menu route and the journal
+    /// toasts' own route.
+    /// </summary>
+    private async Task ShowOrderHistoryWindowAsync()
+    {
+        var window = new OrderHistoryWindow
+        {
+            DataContext = App.Services.GetRequiredService<ViewModels.OrderHistoryViewModel>(),
+        };
+        await window.ShowDialog<object>(this);
+    }
+
     private async Task OpenTradeStatsAsync(IInteractionContext<RxVoid, RxVoid> context)
     {
         try
         {
-            // The view model is transient: every open starts a fresh scan of
-            // the persisted order journal, so the tiles never show stale runs.
-            var window = new TradeStatsWindow
-            {
-                DataContext = App.Services.GetRequiredService<ViewModels.TradeStatsViewModel>(),
-            };
-            await window.ShowDialog<object>(this);
+            await ShowTradeStatsWindowAsync();
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the trade statistics window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    /// <summary>
+    /// The trade statistics window's core: the view model is transient, so
+    /// every open starts a fresh scan of the persisted order journal — the
+    /// tiles never show stale runs. Shared by the menu route and the fill
+    /// toasts' own route.
+    /// </summary>
+    private async Task ShowTradeStatsWindowAsync()
+    {
+        var window = new TradeStatsWindow
+        {
+            DataContext = App.Services.GetRequiredService<ViewModels.TradeStatsViewModel>(),
+        };
+        await window.ShowDialog<object>(this);
+    }
+
+    private async Task OpenNotificationHistoryAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            await ShowNotificationHistoryWindowAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the notification history window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    /// <summary>
+    /// The notification history window's core: the view model is transient,
+    /// so every open attaches the live lane and seeds the session snapshot
+    /// fresh (the window's activation drives the pair). Shared by the menu
+    /// route and the summary toast's own route.
+    /// </summary>
+    private async Task ShowNotificationHistoryWindowAsync()
+    {
+        var window = new NotificationHistoryWindow
+        {
+            DataContext = App.Services.GetRequiredService<ViewModels.NotificationHistoryViewModel>(),
+        };
+        await window.ShowDialog<object>(this);
+    }
+
+    /// <summary>
+    /// Land one clicked toast's route: the switch carries the tested
+    /// <see cref="NotificationRouteMap"/> through the window plumbing —
+    /// every mapped route opens its panel, and
+    /// <see cref="NotificationRoute.None"/> is the plain dismissal the host
+    /// already performed. An unnamed route value faults through the log,
+    /// never a silently swallowed click.
+    /// </summary>
+    private async Task OpenNotificationRouteAsync(IInteractionContext<NotificationRoute, RxVoid> context)
+    {
+        try
+        {
+            switch (context.Input)
+            {
+                case NotificationRoute.TradeStatistics:
+                    await ShowTradeStatsWindowAsync();
+                    break;
+                case NotificationRoute.OrderHistory:
+                    await ShowOrderHistoryWindowAsync();
+                    break;
+                case NotificationRoute.HistoryDrawer:
+                    await ShowNotificationHistoryWindowAsync();
+                    break;
+                case NotificationRoute.None:
+                    // The dismissal is the whole action; no panel exists.
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(context),
+                        context.Input,
+                        "The notification route has no window.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to land the notification route {Route}", context.Input);
         }
         finally
         {

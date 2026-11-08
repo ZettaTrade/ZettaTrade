@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.App.Services;
+using ZettaTrade.App.ViewModels;
 using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
@@ -38,5 +39,11 @@ public static class NotificationDependencyInjection
             sp.GetRequiredService<NotificationCenter>(),
             sp.GetRequiredService<ILogger<NotifyingOrderHistoryStore>>()))
         // The adapter state tap (the T-098 fold source): starts with the walk.
-        .AddSingleton<AdapterStateNotificationSource>();
+        .AddSingleton<AdapterStateNotificationSource>()
+        // The window surfaces: the toast host is an application-lifetime
+        // singleton (its lane runs for the whole app like the status bar's
+        // streams), the history view model is transient (every open seeds
+        // the session snapshot and attaches the live lane fresh).
+        .AddSingleton<NotificationToastHostViewModel>()
+        .AddTransient<NotificationHistoryViewModel>();
 }

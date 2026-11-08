@@ -23,6 +23,9 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to show the trade statistics window.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowTradeStatsCommand { get; }
 
+    /// <summary>Command to show the notification center window.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ShowNotificationsCommand { get; }
+
     /// <summary>Command to toggle the AI chat panel column.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleAiChatCommand { get; }
 
@@ -66,6 +69,13 @@ public sealed class MenuViewModel : ReactiveObject
     /// <see cref="ShowOrderHistoryRequested"/>).
     /// </summary>
     public Interaction<RxVoid, RxVoid> ShowTradeStatsRequested { get; }
+
+    /// <summary>
+    /// Interaction that routes the show-notification-center request to the
+    /// View, which hosts the modal window (same pattern as
+    /// <see cref="ShowTradeStatsRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowNotificationsRequested { get; }
 
     /// <summary>
     /// Interaction that routes the show-balances request to the View, which
@@ -113,6 +123,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
         ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
         ShowTradeStatsRequested = new Interaction<RxVoid, RxVoid>();
+        ShowNotificationsRequested = new Interaction<RxVoid, RxVoid>();
         ShowBalancesRequested = new Interaction<RxVoid, RxVoid>();
         FocusAiChatRequested = new Interaction<RxVoid, RxVoid>();
         ShowDisclaimerRequested = new Interaction<RxVoid, RxVoid>();
@@ -120,6 +131,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
         ShowTradeStatsCommand = ReactiveCommand.CreateFromTask(HandleShowTradeStatsAsync);
+        ShowNotificationsCommand = ReactiveCommand.CreateFromTask(HandleShowNotificationsAsync);
         ShowBalancesCommand = ReactiveCommand.CreateFromTask(HandleShowBalancesAsync);
         ToggleAiChatCommand = ReactiveCommand.CreateFromTask(HandleToggleAiChatAsync);
         ManageMcpServersCommand = ReactiveCommand.CreateFromTask(HandleManageMcpServersAsync);
@@ -178,6 +190,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// stays out of the ViewModel, same as the order history window).
     /// </summary>
     private Task HandleShowTradeStatsAsync() => ShowTradeStatsRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the show-notification-center request to the View (window
+    /// plumbing stays out of the ViewModel, same as the stats window).
+    /// </summary>
+    private Task HandleShowNotificationsAsync() => ShowNotificationsRequested.Handle(RxVoid.Default);
 
     /// <summary>
     /// Route the show-balances request to the View (window plumbing stays

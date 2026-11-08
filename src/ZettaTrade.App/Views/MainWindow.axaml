@@ -55,6 +55,7 @@
                 <MenuItem Header="{loc:Localized Menu.Trading.Balances}" Command="{Binding ShowBalancesCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Stats}" Command="{Binding ShowTradeStatsCommand}" />
+                <MenuItem Header="{loc:Localized Menu.Trading.Notifications}" Command="{Binding ShowNotificationsCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Localized Menu.AI}">
                 <MenuItem Header="{loc:Localized Menu.AI.Chat}"
@@ -412,6 +413,59 @@
             </Border>
         </Grid>
         </DockPanel>
+
+        <!-- T-097: the notification toast stack, a sibling above the
+             workspace (below the palette overlay). The center's display lane
+             feeds the host's rows: newest on top, at most five visible,
+             every row leaves on its own after its lifetime or on a click —
+             a routed click opens its panel (the host poses the route, this
+             window's code-behind owns the plumbing). The card rides the
+             chrome canon (Surface fill + Border stroke); the badge carries a
+             digest's count; a no-route row's click only dismisses it. -->
+        <ItemsControl HorizontalAlignment="Right"
+                      VerticalAlignment="Top"
+                      Margin="0,44,10,0"
+                      IsVisible="{Binding ToastHost.HasToasts}"
+                      ItemsSource="{Binding ToastHost.Toasts}"
+                      MaxHeight="400">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:NotificationRow">
+                    <Button Margin="0,0,0,6"
+                            Command="{Binding OpenCommand}"
+                            ToolTip.Tip="{loc:Localized Notif.ToastHint}"
+                            HorizontalContentAlignment="Stretch">
+                        <Border Background="{DynamicResource Surface}"
+                                BorderBrush="{DynamicResource Border}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="10,6">
+                            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding Moment}"
+                                           Foreground="{DynamicResource TextSecondary}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                                <Border Grid.Column="1"
+                                        CornerRadius="6"
+                                        Background="{DynamicResource Highlight}"
+                                        Padding="5,1"
+                                        IsVisible="{Binding HasCountBadge}"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Count}"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource Background}" />
+                                </Border>
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding Summary}"
+                                           TextWrapping="Wrap"
+                                           MaxWidth="360"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
         <!-- T-095: the global symbol palette overlay, a sibling above the
              workspace. Keyboard-first: Ctrl+K toggles (the window binding
