@@ -39,6 +39,9 @@ public sealed class MainViewModel : ReactiveObject
     /// <summary>Trade tape ViewModel for the time and sales panel.</summary>
     public TradeTapeViewModel TradeTape { get; }
 
+    /// <summary>Watchlist panel ViewModel for the majors' live quotes row set (T-120).</summary>
+    public WatchlistViewModel Watchlist { get; }
+
     /// <summary>Workspace layout ViewModel owning the persisted splitter column widths.</summary>
     public WorkspaceLayoutViewModel Layout { get; }
 
@@ -59,6 +62,7 @@ public sealed class MainViewModel : ReactiveObject
         ChartViewModel chart,
         OrderBookViewModel orderBook,
         TradeTapeViewModel tradeTape,
+        WatchlistViewModel watchlist,
         WorkspaceLayoutViewModel layout,
         SymbolPaletteViewModel palette,
         NotificationToastHostViewModel toastHost,
@@ -72,6 +76,7 @@ public sealed class MainViewModel : ReactiveObject
         Chart = chart;
         OrderBook = orderBook;
         TradeTape = tradeTape;
+        Watchlist = watchlist;
         Layout = layout;
         Palette = palette;
         ToastHost = toastHost;

@@ -10,7 +10,8 @@ using ZettaTrade.Core.Interfaces;
 
 /// <summary>
 /// ViewModel owning the persisted column geometry of the main window's
-/// draggable splitters (the chart/book pair and the book/assistant pair).
+/// draggable splitters (the chart/book, book/tape, tape/watchlist and
+/// book/assistant pairs).
 /// The column widths are persisted state, mirroring the
 /// <see cref="ChatViewModel"/> visibility discipline: the startup walk
 /// restores <c>UI.BookPanelWidth</c> / <c>UI.AiPanelWidth</c> before any
@@ -65,6 +66,9 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     /// <summary>See <see cref="_persistedBookWidth"/>; the tape column's own cache.</summary>
     private double _persistedTapeWidth = UiSettingsKeys.DefaultTapePanelWidth;
 
+    /// <summary>See <see cref="_persistedBookWidth"/>; the watchlist column's own cache.</summary>
+    private double _persistedWatchlistWidth = UiSettingsKeys.DefaultWatchlistPanelWidth;
+
     /// <summary>
     /// The book width the user saw before a hide (drags may outpace the
     /// debounced persistence, so the capture — not the persisted value — is
@@ -85,6 +89,7 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
 
     private GridLength _bookColumnWidth = new(UiSettingsKeys.DefaultBookPanelWidth);
     private GridLength _tapeColumnWidth = new(UiSettingsKeys.DefaultTapePanelWidth);
+    private GridLength _watchlistColumnWidth = new(UiSettingsKeys.DefaultWatchlistPanelWidth);
     private GridLength _aiColumnWidth = new(UiSettingsKeys.DefaultAiPanelWidth);
     private double _aiColumnMinWidth = UiSettingsKeys.MinAiPanelWidth;
     private GridLength _aiSplitterColumnWidth = SplitterTrack;
@@ -179,6 +184,25 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
                 },
                 ex => _logger.LogError(ex, "The tape width stream stopped unexpectedly"));
 
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.WatchlistPanelWidth)
+            .Select(change => change.NewValue)
+            .OfType<double>()
+            .Subscribe(
+                width =>
+                {
+                    // The same external-writer discipline as the book side:
+                    // the value becomes the watchlist width truth, the cache
+                    // leads the property change, everything is applied live.
+                    _persistedWatchlistWidth = ClampStoredWidth(
+                        width,
+                        UiSettingsKeys.MinWatchlistPanelWidth,
+                        UiSettingsKeys.DefaultWatchlistPanelWidth);
+                    WatchlistColumnWidth = new GridLength(_persistedWatchlistWidth);
+                },
+                ex => _logger.LogError(ex, "The watchlist width stream stopped unexpectedly"));
+
         // Persist every settled drag (the debounce keeps a drag burst from
         // writing the settings file per pixel; Concat serializes the
         // writes). The BookColumnWidth property is the binding writeback
@@ -214,6 +238,26 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
             .Subscribe(
                 issuedWidth => _persistedTapeWidth = issuedWidth.Value,
                 ex => _logger.LogError(ex, "Failed to persist the tape panel width"));
+
+        // The watchlist rides the tape's shape: one bound column, one
+        // debounced persistence pipeline, the same difference guard.
+        this.WhenAnyValue(x => x.WatchlistColumnWidth)
+            .Skip(1)
+            .Where(width => !IsSameWidth(width, _persistedWatchlistWidth))
+            .Throttle(DragQuietTime)
+            .Select(width => Observable
+                .FromAsync(() => _settings.SetAsync(
+                    UiSettingsKeys.Section,
+                    UiSettingsKeys.WatchlistPanelWidth,
+                    ClampStoredWidth(
+                        width.Value,
+                        UiSettingsKeys.MinWatchlistPanelWidth,
+                        UiSettingsKeys.DefaultWatchlistPanelWidth)))
+                .Select(_ => width))
+            .Concat()
+            .Subscribe(
+                issuedWidth => _persistedWatchlistWidth = issuedWidth.Value,
+                ex => _logger.LogError(ex, "Failed to persist the watchlist panel width"));
 
         this.WhenAnyValue(x => x.AiColumnWidth)
             .Skip(1)
@@ -255,6 +299,17 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     {
         get => _tapeColumnWidth;
         set => this.RaiseAndSetIfChanged(ref _tapeColumnWidth, value);
+    }
+
+    /// <summary>
+    /// Width of the watchlist column (logical pixels). The grid's watchlist
+    /// column binds it TwoWay: the splitter's dragged widths flow in and
+    /// persist through the pipeline once the drag settles.
+    /// </summary>
+    public GridLength WatchlistColumnWidth
+    {
+        get => _watchlistColumnWidth;
+        set => this.RaiseAndSetIfChanged(ref _watchlistColumnWidth, value);
     }
 
     /// <summary>
@@ -311,6 +366,13 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
                 UiSettingsKeys.DefaultTapePanelWidth),
             UiSettingsKeys.MinTapePanelWidth,
             UiSettingsKeys.DefaultTapePanelWidth);
+        var watchlist = ClampStoredWidth(
+            await _settings.GetAsync<double>(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.WatchlistPanelWidth,
+                UiSettingsKeys.DefaultWatchlistPanelWidth),
+            UiSettingsKeys.MinWatchlistPanelWidth,
+            UiSettingsKeys.DefaultWatchlistPanelWidth);
         var ai = ClampStoredWidth(
             await _settings.GetAsync<double>(
                 UiSettingsKeys.Section,
@@ -326,6 +388,8 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
         BookColumnWidth = new GridLength(book);
         _persistedTapeWidth = tape;
         TapeColumnWidth = new GridLength(tape);
+        _persistedWatchlistWidth = watchlist;
+        WatchlistColumnWidth = new GridLength(watchlist);
         _aiWidthAtHide = new GridLength(ai);
         if (_aiColumnShown)
         {
@@ -339,9 +403,10 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
         }
 
         _logger.LogInformation(
-            "Restored persisted workspace widths: book {BookWidth:F0}px, tape {TapeWidth:F0}px, assistant {AiWidth:F0}px ({AiState})",
+            "Restored persisted workspace widths: book {BookWidth:F0}px, tape {TapeWidth:F0}px, watchlist {WatchlistWidth:F0}px, assistant {AiWidth:F0}px ({AiState})",
             book,
             tape,
+            watchlist,
             ai,
             _aiColumnShown ? "visible" : "hidden");
     }

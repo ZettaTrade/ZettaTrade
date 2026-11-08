@@ -67,6 +67,13 @@ public static class UiSettingsKeys
     public const string TapePanelWidth = "TapePanelWidth";
 
     /// <summary>
+    /// Settings key of the persisted watchlist panel width (logical pixels):
+    /// the same splitter-drag persistence discipline as the book and tape
+    /// columns, for the tape/watchlist splitter.
+    /// </summary>
+    public const string WatchlistPanelWidth = "WatchlistPanelWidth";
+
+    /// <summary>
     /// The panel width applied until a stored width is loaded: the 300 px
     /// both adjustable columns always had before the splitters existed.
     /// </summary>
@@ -78,6 +85,12 @@ public static class UiSettingsKeys
     /// <summary>See <see cref="DefaultBookPanelWidth"/>; the tape column ships with a narrower
     /// default — a time and sales strip wants less space than the depth panel.</summary>
     public const double DefaultTapePanelWidth = 240;
+
+    /// <summary>
+    /// See <see cref="DefaultBookPanelWidth"/>; the watchlist column ships
+    /// wide enough for the sparkline block to sit beside the symbol cell.
+    /// </summary>
+    public const double DefaultWatchlistPanelWidth = 260;
 
     /// <summary>
     /// Usable-minimum clamp of the order book column (logical pixels): bound
@@ -92,6 +105,12 @@ public static class UiSettingsKeys
     /// <summary>See <see cref="MinBookPanelWidth"/>; the tape column clamp — at least one
     /// headered time/price/size row set stays readable.</summary>
     public const double MinTapePanelWidth = 160;
+
+    /// <summary>
+    /// See <see cref="MinBookPanelWidth"/>; the watchlist column clamp — the
+    /// sparkline block and the change cell stay side by side readable.
+    /// </summary>
+    public const double MinWatchlistPanelWidth = 200;
 
     /// <summary>
     /// Settings key of the persisted chart indicator overlay configuration:
