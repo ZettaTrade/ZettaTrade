@@ -159,6 +159,16 @@ CHANGELOG's house voice, the board row, and the archive canon.
    so the proof binds to the merge content. A suite-green build may
    still be unbootable: the alpha.68..72 stretch shipped exactly that
    and two landing waves passed before anyone launched the app.
+   Process hygiene (user 2026-11-09, after a night-long leftover exe):
+   BEFORE a smoke, also `Get-Process ZettaTrade*` — a leftover
+   `ZettaTrade.App` from an earlier smoke is a stale gate; kill it
+   first. AFTER every smoke (and generally after any run of the app for
+   tests), close the process in the same breath — `Stop-Process` on the
+   recorded PID, then require the empty result of a fresh
+   `Get-Process ZettaTrade*`. A smoke that forgets to close the exe
+   leaves a running trading terminal holding the settings file and its
+   sockets unattended; that is a landing-protocol violation, treat it
+   like a skipped smoke.
 6. Main repo: `git merge --ff-only <branch>`, then
    `git worktree remove <worktree>` (it refuses on uncommitted files — resolve
    those first) and `git branch -d <branch>`. No stale task folders, no stale
