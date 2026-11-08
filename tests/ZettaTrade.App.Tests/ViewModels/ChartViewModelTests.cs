@@ -373,6 +373,9 @@ public sealed class ChartViewModelTests
             signals,
             rail,
             relay,
+            // The T-122 seam rides silent in the pre-existing facts: an
+            // empty-footprint stream keeps the overlay publishes inert.
+            Observable.Empty<ChartFootprintSnapshot>(),
             NullLogger<ChartViewModel>.Instance);
     }
 

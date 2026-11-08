@@ -474,7 +474,11 @@
                                                        IndicatorLines="{Binding IndicatorLines}"
                                                        SeriesType="{Binding ChartType}"
                                                        HeikinAshiBars="{Binding HeikinAshiBars}"
-                                                       SignalMarkers="{Binding SignalMarkers}" />
+                                                       SignalMarkers="{Binding SignalMarkers}"
+                                                       TradingPosition="{Binding TradingPosition}"
+                                                       TradingOrders="{Binding TradingOrders}"
+                                                       TradingFills="{Binding TradingFills}" />
+                                                        <!-- T-122: the trading footprint — my own position entry, working orders and fills, overlay-only (nothing routes back toward an order). -->
 
                             <!-- Signal rail (T-112): the latest strategy readings
                                  streaming under the chart — one coalesced rows

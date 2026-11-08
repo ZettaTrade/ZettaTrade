@@ -1,3 +1,36 @@
+## [0.1.0-alpha.77] - 2026-11-09
+
+Build of board task T-122 (branch `feat/chart-mine`).
+
+### Added
+- The chart's trading footprint (T-122): my own trading activity draws ON
+  the candles - the position's average-entry line with its direction
+  arrow (the stance the signed quantity carries), the floating unrealized
+  PnL tag snapped to the latest observed price (absent until a price has
+  been observed - never invented), the working limit orders as
+  side-colored dashed price lines (a stop or trailing leg carries no
+  standing level and owns no line - an honest absence) and one diamond
+  per executed fill anchored at the candle the fill time fell into
+  ([open, next open) containment, the time axis' own conventions;
+  behind the last displayed interval nothing anchors - the candle is
+  forming). Every placement rides the candles' own shared price scale
+  and bar-slot mapping - an overlay never re-scales the axis and never
+  paints outside the plot (a level that left the window resolves to no
+  line).
+- The `ChartFootprintService` feed: the trading lane's ONE keyed
+  snapshot of its own activity - the entries, the dashed working lines
+  and the journal-of-record fills - published whole on every change so
+  the chart's workspace symbol picks its own shapes; read-only
+  bookkeeping end to end (nothing routes back toward an order); the
+  refresh economy: a price-only update recomposes from the caches, a
+  shaped change or a ledger/placement trigger pulls the adapter once
+  through the one drain loop.
+- The chart legend's footprint rows: exactly the shapes the current
+  frame drew (a hidden level explains nothing), the entry row naming
+  the direction it drew, the five `Chart.Footprint.Legend.*` keys in
+  BOTH languages.
+
+
 ## [0.1.0-alpha.76] - 2026-11-09
 
 Build of board task T-123 (branch `feat/trading-mode-chip`).
