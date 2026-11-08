@@ -130,6 +130,23 @@ public class CandlestickChart : Control
     /// <summary>Smallest pixel width a positive-volume profile bar keeps on screen (presentation only).</summary>
     private const float VolumeProfileMinBarWidthPx = 1f;
 
+    /// <summary>
+    /// Stroke width of the line/area price polyline (T-089), in pixels: the
+    /// same overlay-line weight the indicator polylines keep, so the price
+    /// line reads as chart content next to them.
+    /// </summary>
+    private const float PriceLineStrokePx = 2f;
+
+    /// <summary>Alpha (0–255) of the area chart's translucent fill under the close polyline.</summary>
+    private const byte AreaFillAlpha = 64;
+
+    /// <summary>
+    /// Half the length of the open/close ticks an OHLC bars drawing keeps
+    /// around its vertical stem: half the candle body width on each side,
+    /// so the bars type and the candlesticks type read as the same family.
+    /// </summary>
+    private const double OhlcTickHalfRatio = CandleBodyWidthRatio / 2d;
+
     /// <summary>Alpha (0–255) of the VWAP ±1σ band strokes; the center rides the theme indicator color at full alpha.</summary>
     private const byte VwapBandAlpha = 150;
 
@@ -239,6 +256,45 @@ public class CandlestickChart : Control
     {
         get => GetValue(VolumeProfileVisibleProperty);
         set => SetValue(VolumeProfileVisibleProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the price-chart rendering type (T-089): the
+    /// selector state the ViewModel publishes (candlesticks, line, area,
+    /// OHLC bars or Heikin-Ashi). The chart draws every variant off the same
+    /// candle source; only the renderer differs — never the data path.
+    /// </summary>
+    public static readonly StyledProperty<ChartSeriesType> SeriesTypeProperty =
+        AvaloniaProperty.Register<CandlestickChart, ChartSeriesType>(
+            nameof(SeriesType),
+            defaultValue: ChartSeriesType.Candlesticks);
+
+    /// <summary>
+    /// StyledProperty for the Heikin-Ashi series (T-089): the computed
+    /// HA bars the ViewModel publishes against the loaded series (null
+    /// unless the series type is <see cref="ChartSeriesType.HeikinAshi"/>),
+    /// aligned with <see cref="Bars"/> by index — the same publish
+    /// discipline the VWAP overlay keeps. The draw pass slices it with the
+    /// visible window; a stale publish races into null and the frame falls
+    /// back to raw candlesticks instead of ever drawing a shifted series.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<Bar>?> HeikinAshiBarsProperty =
+        AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<Bar>?>(
+            nameof(HeikinAshiBars),
+            defaultValue: null);
+
+    /// <summary>The price-chart rendering type; a change re-inks on the next pass.</summary>
+    public ChartSeriesType SeriesType
+    {
+        get => GetValue(SeriesTypeProperty);
+        set => SetValue(SeriesTypeProperty, value);
+    }
+
+    /// <summary>The Heikin-Ashi series the chart draws while the series type is Heikin-Ashi; a change re-inks on the next pass.</summary>
+    public IReadOnlyList<Bar>? HeikinAshiBars
+    {
+        get => GetValue(HeikinAshiBarsProperty);
+        set => SetValue(HeikinAshiBarsProperty, value);
     }
 
     #endregion
@@ -397,6 +453,14 @@ public class CandlestickChart : Control
 
         VolumeProfileVisibleProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        // The T-089 series type: a selector flip or a new Heikin-Ashi
+        // publish re-inks on the next pass the same way.
+        SeriesTypeProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        HeikinAshiBarsProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
     }
 
     public CandlestickChart()
@@ -551,7 +615,9 @@ public class CandlestickChart : Control
             ChartTickCulture.Resolve(),
             Use12HourClock,
             _hoverPosition,
-            VolumeProfileVisible);
+            VolumeProfileVisible,
+            SeriesType,
+            SliceHeikinAshiBars(bars, spanStart, spanEnd));
     }
 
     /// <summary>
@@ -579,6 +645,40 @@ public class CandlestickChart : Control
         }
 
         return overlay.Slice(spanStart, spanEnd);
+    }
+
+    /// <summary>
+    /// Slice the Heikin-Ashi series (T-089) with the SAME [start, end)
+    /// window the bars slice uses, while the series type asks for it. A
+    /// series whose values no longer align with the current <see cref="Bars"/>
+    /// instance (a stale publish racing the new Bars instance) or a
+    /// non-Heikin-Ashi frame yields null: the draw pass then falls back to
+    /// raw candlesticks for that one frame instead of ever drawing a
+    /// silently shifted series (the alignment rule the overlays keep).
+    /// </summary>
+    private Bar[]? SliceHeikinAshiBars(
+        ObservableCollection<Bar>? bars,
+        int spanStart,
+        int spanEnd)
+    {
+        if (bars is not { Count: > 0 } || SeriesType != ChartSeriesType.HeikinAshi)
+        {
+            return null;
+        }
+
+        var series = HeikinAshiBars;
+        if (series is null || series.Count != bars.Count)
+        {
+            return null;
+        }
+
+        var slice = new Bar[spanEnd - spanStart];
+        for (var i = 0; i < slice.Length; i++)
+        {
+            slice[i] = series[spanStart + i];
+        }
+
+        return slice;
     }
 
     /// <summary>
@@ -645,7 +745,9 @@ public class CandlestickChart : Control
         CultureInfo Culture,
         bool Use12HourClock,
         Point? Hover,
-        bool VolumeProfileVisible);
+        bool VolumeProfileVisible,
+        ChartSeriesType SeriesType,
+        Bar[]? HeikinAshi);
 
     /// <summary>
     /// Draws the chart straight onto Avalonia's own SKCanvas (render thread).
@@ -720,8 +822,26 @@ public class CandlestickChart : Control
                 return;
             }
 
-            var lowest = visibleBars.Min(b => b.Low);
-            var highest = visibleBars.Max(b => b.High);
+            // The drawn series (T-089): Heikin-Ashi draws the aligned HA
+            // slice; every other type draws the raw window slice. A stale
+            // HA publish races into the raw fallback for that one frame.
+            // The overlays (VWAP, volume-at-price, indicator lines) keep
+            // consuming the RAW window — they never follow the renderer
+            // variant, so their alignment and semantics stay untouched.
+            IReadOnlyList<Bar> drawnBars =
+                _snapshot.SeriesType == ChartSeriesType.HeikinAshi && _snapshot.HeikinAshi is { Length: > 0 }
+                    ? _snapshot.HeikinAshi
+                    : visibleBars;
+
+            // The price spread follows the DRAWN series so nothing the frame
+            // paints can clip the plot: candles, OHLC bars and Heikin-Ashi
+            // span the full low–high range of their bars, while the line and
+            // area variants only touch closes (the terminal close-line
+            // scale — the wicks are not part of the drawn geometry).
+            var (lowest, highest) = ChartSeriesSpread.Of(
+                drawnBars,
+                closesOnly: _snapshot.SeriesType is ChartSeriesType.Line or ChartSeriesType.Area);
+
             var (minPrice, maxPrice, priceRange) = ChartPriceScale.PaddedSpread(lowest, highest);
 
             // The labels decide the geometry FIRST: gutters size themselves
@@ -791,7 +911,26 @@ public class CandlestickChart : Control
                 barPitch,
                 openTimes);
 
-            DrawCandles(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange);
+            switch (_snapshot.SeriesType)
+            {
+                case ChartSeriesType.Bars:
+                    DrawOhlcBars(canvas, plotRect, drawnBars, barPitch, minPrice, priceRange);
+                    break;
+
+                case ChartSeriesType.Line:
+                    DrawCloseLine(canvas, plotRect, drawnBars, barPitch, minPrice, priceRange, filled: false);
+                    break;
+
+                case ChartSeriesType.Area:
+                    DrawCloseLine(canvas, plotRect, drawnBars, barPitch, minPrice, priceRange, filled: true);
+                    break;
+
+                default:
+                    // Candlesticks, and Heikin-Ashi once its series slice is
+                    // aligned (the raw-slice fallback draws candlesticks).
+                    DrawCandles(canvas, plotRect, drawnBars, barPitch, minPrice, priceRange);
+                    break;
+            }
 
             // The right-margin volume-at-price histogram (T-093) rides over
             // the candles translucently; the overlay lines draw over it.
@@ -804,17 +943,21 @@ public class CandlestickChart : Control
 
             // The honest no-volume note (T-093): shown when the drawn overlays
             // carry no volume-backed shape at all — the candles' prices still
-            // render, the overlays just explain their own absence.
-            DrawNoVolumeNote(canvas, textPaint, plotRect, visibleBars);
+            // render, the overlays just explain their own absence. It reads
+            // the DRAWN series: the Heikin-Ashi transform preserves volumes,
+            // so the note's semantics are type-invariant.
+            DrawNoVolumeNote(canvas, textPaint, plotRect, drawnBars);
 
             // The hover layer rides LAST: the crosshair paints over the
-            // candles and the axis labels (the terminal look).
+            // candles and the axis labels (the terminal look). The hovered
+            // readout keys off the DRAWN series — a Heikin-Ashi frame reads
+            // its smoothed OHLC, every other type reads the raw bar.
             DrawHover(
                 canvas,
                 font,
                 textPaint,
                 plotRect,
-                visibleBars,
+                drawnBars,
                 barPitch,
                 minPrice,
                 priceRange,
@@ -936,6 +1079,131 @@ public class CandlestickChart : Control
                     bodyHeight,
                     paint);
             }
+        }
+
+        /// <summary>
+        /// Classic OHLC bars (T-089): one vertical stem from the low to the
+        /// high per bar slot, a left-hand tick at the open and a right-hand
+        /// tick at the close, colored by the bar's own direction exactly the
+        /// candle paints are. The ticks keep half the candle body width per
+        /// side, so the bars family reads next to the candlesticks family.
+        /// </summary>
+        private void DrawOhlcBars(
+            SKCanvas canvas,
+            Rect plotRect,
+            IReadOnlyList<Bar> bars,
+            double barPitch,
+            decimal minPrice,
+            decimal priceRange)
+        {
+            var tickHalf = (float)(barPitch * OhlcTickHalfRatio);
+
+            using var bullishPaint = new SKPaint
+            {
+                Color = _snapshot.Bullish,
+                IsAntialias = true
+            };
+
+            using var bearishPaint = new SKPaint
+            {
+                Color = _snapshot.Bearish,
+                IsAntialias = true
+            };
+
+            for (var i = 0; i < bars.Count; i++)
+            {
+                var bar = bars[i];
+                var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, bars.Count, i);
+                var paint = bar.Close >= bar.Open ? bullishPaint : bearishPaint;
+
+                var highY = ChartPriceScale.PriceToY(plotRect, bar.High, minPrice, priceRange);
+                var lowY = ChartPriceScale.PriceToY(plotRect, bar.Low, minPrice, priceRange);
+                canvas.DrawLine(x, highY, x, lowY, paint);
+
+                var openY = ChartPriceScale.PriceToY(plotRect, bar.Open, minPrice, priceRange);
+                var closeY = ChartPriceScale.PriceToY(plotRect, bar.Close, minPrice, priceRange);
+                canvas.DrawLine(x - tickHalf, openY, x, openY, paint);
+                canvas.DrawLine(x, closeY, x + tickHalf, closeY, paint);
+            }
+        }
+
+        /// <summary>
+        /// The close-price rendering variants (T-089): a polyline through the
+        /// bars' closes over the same bar slots and price scale the candles
+        /// ride (the intraday line chart); the area variant fills the region
+        /// under the polyline down to the plot's bottom edge translucently
+        /// and strokes the line over it. The line's neutral color is the
+        /// theme text color — the indicator-accent color stays the overlays'
+        /// own, so the price line and the VWAP/SMA lines never blend into
+        /// one shape.
+        /// </summary>
+        private void DrawCloseLine(
+            SKCanvas canvas,
+            Rect plotRect,
+            IReadOnlyList<Bar> bars,
+            double barPitch,
+            decimal minPrice,
+            decimal priceRange,
+            bool filled)
+        {
+            // The mapped polyline points serve both the stroked line and the
+            // area fill (a frame-local copy the snapshot discipline already
+            // pays; the builder walks consume it twice, never the bars).
+            var points = new SKPoint[bars.Count];
+            for (var i = 0; i < points.Length; i++)
+            {
+                points[i] = new SKPoint(
+                    (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, bars.Count, i),
+                    ChartPriceScale.PriceToY(plotRect, bars[i].Close, minPrice, priceRange));
+            }
+
+            if (filled)
+            {
+                using var fillBuilder = new SKPathBuilder();
+                fillBuilder.MoveTo(points[0]);
+                for (var i = 1; i < points.Length; i++)
+                {
+                    fillBuilder.LineTo(points[i]);
+                }
+
+                // The area closes down to the plot's bottom edge across the
+                // two extreme slots: last center, bottom, first center.
+                var lastSlotX = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, bars.Count, bars.Count - 1);
+                var firstSlotX = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, bars.Count, 0);
+                fillBuilder.LineTo(lastSlotX, (float)plotRect.Bottom);
+                fillBuilder.LineTo(firstSlotX, (float)plotRect.Bottom);
+                fillBuilder.Close();
+
+                using var fillPaint = new SKPaint
+                {
+                    Color = _snapshot.Text.WithAlpha(AreaFillAlpha),
+                    Style = SKPaintStyle.Fill,
+                    IsAntialias = true
+                };
+
+                // The fill first: the stroked line stays the shape's topmost
+                // stroke (the same order the VWAP overlay keeps).
+                using var filledPath = fillBuilder.Detach();
+                canvas.DrawPath(filledPath, fillPaint);
+            }
+
+            using var lineBuilder = new SKPathBuilder();
+            lineBuilder.MoveTo(points[0]);
+            for (var i = 1; i < points.Length; i++)
+            {
+                lineBuilder.LineTo(points[i]);
+            }
+
+            using var linePath = lineBuilder.Detach();
+            using var linePaint = new SKPaint
+            {
+                Color = _snapshot.Text,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = PriceLineStrokePx,
+                IsAntialias = true
+            };
+
+            canvas.DrawPath(linePath, linePaint);
         }
 
         /// <summary>

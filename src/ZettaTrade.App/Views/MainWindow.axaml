@@ -256,7 +256,7 @@
                                  the candles export writes the loaded series to a
                                  user-chosen CSV file. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
@@ -287,7 +287,25 @@
                                           MinWidth="72"
                                           ItemsSource="{Binding TimeFrames}"
                                           SelectedItem="{Binding SelectedTimeFrame}" />
-                                <Button Grid.Column="3"
+                                <!-- Chart type selector (T-089): five static localized
+                                     items bound by index (the SelectedThemeIndex shim
+                                     precedent) — the localized strings never touch the
+                                     ViewModel, and the language switch re-inks them live. -->
+                                <TextBlock Grid.Column="3"
+                                           Text="{loc:Localized Chart.Type}"
+                                           VerticalAlignment="Center"
+                                           Margin="12,0,6,0" />
+                                <ComboBox Grid.Column="4"
+                                          MinWidth="92"
+                                          SelectedIndex="{Binding SelectedChartTypeIndex}"
+                                          ToolTip.Tip="{loc:Localized Chart.Type.Tip}">
+                                    <TextBlock Text="{loc:Localized Chart.Type.Candles}" />
+                                    <TextBlock Text="{loc:Localized Chart.Type.Line}" />
+                                    <TextBlock Text="{loc:Localized Chart.Type.Area}" />
+                                    <TextBlock Text="{loc:Localized Chart.Type.Bars}" />
+                                    <TextBlock Text="{loc:Localized Chart.Type.HeikinAshi}" />
+                                </ComboBox>
+                                <Button Grid.Column="5"
                                         Content="{loc:Localized Chart.Vwap}"
                                         Command="{Binding ToggleVwapCommand}"
                                         ToolTip.Tip="{loc:Localized Chart.Vwap.Tip}"
@@ -303,7 +321,7 @@
                                         </Style>
                                     </Button.Styles>
                                 </Button>
-                                <Button Grid.Column="4"
+                                <Button Grid.Column="6"
                                         Content="{loc:Localized Chart.VolumeProfile}"
                                         Command="{Binding ToggleVolumeProfileCommand}"
                                         ToolTip.Tip="{loc:Localized Chart.VolumeProfile.Tip}"
@@ -319,7 +337,7 @@
                                         </Style>
                                     </Button.Styles>
                                 </Button>
-                                <Button Grid.Column="5"
+                                <Button Grid.Column="7"
                                         Content="{loc:Localized Chart.ExportCandlesCsv}"
                                         Command="{Binding ExportCandlesCommand}"
                                         MinWidth="110"
@@ -348,13 +366,18 @@
                                  publish path the indicator lines do (the
                                  VWAP computed against the loaded series;
                                  the toggled profile recomputes with the
-                                 visible window on every pass). -->
+                                 visible window on every pass). The T-089
+                                 selector switches the renderer variant;
+                                 the Heikin-Ashi series publishes smoothed
+                                 HA bars aligned with the loaded series. -->
                             <charting:CandlestickChart x:Name="CandlesChart" Grid.Row="3"
                                                        Bars="{Binding Bars}"
                                                        Use12HourClock="{Binding Use12HourClock}"
                                                        VwapOverlay="{Binding VwapOverlay}"
                                                        VolumeProfileVisible="{Binding ShowVolumeProfile}"
-                                                       IndicatorLines="{Binding IndicatorLines}" />
+                                                       IndicatorLines="{Binding IndicatorLines}"
+                                                       SeriesType="{Binding ChartType}"
+                                                       HeikinAshiBars="{Binding HeikinAshiBars}" />
                         </Grid>
                     </Border>
                 </Grid>

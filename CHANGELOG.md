@@ -1,3 +1,31 @@
+## [0.1.0-alpha.64] - 2026-11-08
+
+Build of board task T-089 (branch `feat/chart-types`).
+
+### Added
+- The chart type selector (T-089) on the chart toolbar: five localized
+  choices (Candles, Line, Area, OHLC bars, Heikin-Ashi) all riding the same
+  candle pipeline — renderer variants off the existing candle source, never
+  a second data path. The line and area variants draw the close polyline
+  (the area fills translucently under it), the OHLC bars draw the high–low
+  stem with the open/close ticks, and Heikin-Ashi renders the client-side
+  smoothed series computed once per delivered series (never per draw
+  pass), aligned with the loaded series by index: the bar slots, the
+  volume-at-price histogram, the indicator and VWAP overlays and the hover
+  readout keep their semantics, and the overlays always consume the raw
+  window, never the renderer variant.
+- The price scale follows the drawn series per type (the line and area
+  variants spread over closes only — the wicks are not drawn geometry), so
+  nothing a frame paints can clip the plot; the axis-bucket, pan and
+  paging invariants stand across every variant.
+- The choice persists per workspace symbol in the `UI.ChartSymbolTypes`
+  map: every flip serializes the whole map under the addressed symbol,
+  every symbol switch and the startup walk restore the stored choice
+  without rewriting it (a restore is a read, never an edit), a symbol
+  without an entry keeps the standing type, a flip with no symbol
+  addressed stays transient until a context exists, and external
+  settings-file writes apply live without a restart.
+
 ## [0.1.0-alpha.63] - 2026-11-08
 
 Build of board task T-097 (branch `feat/notif-center`).
