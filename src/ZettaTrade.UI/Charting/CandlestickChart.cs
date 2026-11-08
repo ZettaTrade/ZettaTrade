@@ -21,6 +21,7 @@ using Livery.Themes;
 using SkiaSharp;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.UI.Resources;
 
 /// <summary>
@@ -169,6 +170,47 @@ public class CandlestickChart : Control
 
     /// <summary>Height of a strategy-signal marker's triangle, in pixels (see <see cref="SignalMarkerHalfWidthPx"/>).</summary>
     private const float SignalMarkerHeightPx = 7f;
+
+    /// <summary>
+    /// Stroke widths of the footprint overlays (T-122): the position entry
+    /// line strokes heavier than the working-order dashes so the entry
+    /// reads as the YOUR-position boundary, the order lines stay light —
+    /// the same family weights the VWAP center and bands keep.
+    /// </summary>
+    private const float FootprintEntryStrokePx = 2f;
+    private const float FootprintOrderStrokePx = 1.5f;
+
+    /// <summary>Dash pattern (on/off pixels) of the working-order price lines (T-122).</summary>
+    private static readonly float[] FootprintOrderDashPatternPx = [6f, 4f];
+
+    /// <summary>Dimensions of the entry line's direction arrow (T-122), in pixels: the signal-marker family's triangle size.</summary>
+    private const float FootprintArrowHalfWidthPx = 5f;
+    private const float FootprintArrowHeightPx = 7f;
+
+    /// <summary>Horizontal inset of the direction arrow from the plot's left edge, in pixels.</summary>
+    private const float FootprintArrowInsetPx = 10f;
+
+    /// <summary>Half width and half height of a fill marker's diamond, in pixels.</summary>
+    private const float FillMarkerHalfSizePx = 5f;
+
+    /// <summary>Padding between the PnL tag's text and its background edges, in pixels (the hover pill's own pad).</summary>
+    private const float PnlTagPadPx = 3f;
+
+    /// <summary>Inset of the PnL tag's right edge from the plot's right edge, in pixels.</summary>
+    private const float PnlTagInsetPx = 4f;
+
+    /// <summary>Decimal places the PnL tag prints its amount with.</summary>
+    private const int PnlTagDecimalPlaces = 2;
+
+    /// <summary>Dimensions of the legend's rows (T-122), in pixels.</summary>
+    private const float LegendSwatchWidthPx = 16f;
+    private const float LegendRowGapPx = 3f;
+    private const float LegendPadPx = 8f;
+    private const float LegendHalfSwatchHeightPx = 2f;
+    private const float LegendTextGapPx = 8f;
+
+    /// <summary>Height of the legend's PnL-tag swatch (the tag's mini silhouette), in pixels.</summary>
+    private const float LegendTagSwatchHeightPx = 6f;
 
     /// <summary>Resource keys published by ThemeManager; the chart mirrors the current theme live.</summary>
     private const string BackgroundColorKey = "Background";
@@ -326,6 +368,59 @@ public class CandlestickChart : Control
     {
         get => GetValue(SignalMarkersProperty);
         set => SetValue(SignalMarkersProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the trading position's footprint (T-122): the
+    /// entry line, direction arrow and floating PnL tag the chart draws
+    /// for the workspace symbol's own position (null while none stands).
+    /// The draw pass anchors the line at the mapped entry price through
+    /// the shared price scale — never a re-scale of the axis.
+    /// </summary>
+    public static readonly StyledProperty<PositionOverlay?> TradingPositionProperty =
+        AvaloniaProperty.Register<CandlestickChart, PositionOverlay?>(
+            nameof(TradingPosition),
+            defaultValue: null);
+
+    /// <summary>The workspace symbol's position footprint; a change re-inks on the next pass.</summary>
+    public PositionOverlay? TradingPosition
+    {
+        get => GetValue(TradingPositionProperty);
+        set => SetValue(TradingPositionProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the workspace symbol's working-order lines
+    /// (T-122): one dashed price line per order, styled by side.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<WorkingOrderLine>> TradingOrdersProperty =
+        AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<WorkingOrderLine>>(
+            nameof(TradingOrders),
+            defaultValue: []);
+
+    /// <summary>The working-order lines overlaid as dashed price levels; a change re-inks on the next pass.</summary>
+    public IReadOnlyList<WorkingOrderLine> TradingOrders
+    {
+        get => GetValue(TradingOrdersProperty);
+        set => SetValue(TradingOrdersProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the workspace symbol's executed fills (T-122):
+    /// one diamond per execution anchored at the candle the fill time
+    /// fell into, resolved against the visible window per pass — the
+    /// signal markers' own placement discipline.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<FillMarker>> TradingFillsProperty =
+        AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<FillMarker>>(
+            nameof(TradingFills),
+            defaultValue: []);
+
+    /// <summary>The fill markers overlaid at their candles; a change re-inks on the next pass.</summary>
+    public IReadOnlyList<FillMarker> TradingFills
+    {
+        get => GetValue(TradingFillsProperty);
+        set => SetValue(TradingFillsProperty, value);
     }
 
     #endregion
@@ -496,6 +591,15 @@ public class CandlestickChart : Control
         // The T-112 signal markers: a new marker publish re-inks the same way.
         SignalMarkersProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        // The T-122 footprint: a new position, a new order set or a new
+        // fill set re-inks the same way.
+        TradingPositionProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+        TradingOrdersProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+        TradingFillsProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
     }
 
     public CandlestickChart()
@@ -653,7 +757,10 @@ public class CandlestickChart : Control
             VolumeProfileVisible,
             SeriesType,
             SliceHeikinAshiBars(bars, spanStart, spanEnd),
-            ChartSignalLayout.Resolve(SignalMarkers, visible));
+            ChartSignalLayout.Resolve(SignalMarkers, visible),
+            TradingPosition,
+            TradingOrders,
+            ChartFootprintLayout.Resolve(TradingFills, visible));
     }
 
     /// <summary>
@@ -784,7 +891,10 @@ public class CandlestickChart : Control
         bool VolumeProfileVisible,
         ChartSeriesType SeriesType,
         Bar[]? HeikinAshi,
-        IReadOnlyList<SignalMarkerHit> SignalMarkerHits);
+        IReadOnlyList<SignalMarkerHit> SignalMarkerHits,
+        PositionOverlay? TradingPosition,
+        IReadOnlyList<WorkingOrderLine> TradingOrders,
+        IReadOnlyList<FillMarkerHit> FillHits);
 
     /// <summary>
     /// Draws the chart straight onto Avalonia's own SKCanvas (render thread).
@@ -975,6 +1085,23 @@ public class CandlestickChart : Control
             // — every drawn variant keeps the raw candle's close inside its
             // own spread, so the markers never leave the plot.
             DrawSignalMarkers(canvas, plotRect, barPitch, visibleBars.Length, minPrice, priceRange);
+
+            // The T-122 footprint rides the same band (my own activity,
+            // nothing leaves the process): the execution diamonds, then
+            // the dashed order lines, then the entry line with its PnL tag
+            // — every level mapped through the shared price scale, and the
+            // legend lists exactly the shapes this frame actually drew.
+            DrawFillMarkers(canvas, plotRect, barPitch, visibleBars.Length, minPrice, priceRange);
+            var orderLineCount = DrawWorkingOrders(canvas, plotRect, minPrice, priceRange);
+            var (entryLineDrawn, pnlTagDrawn) = DrawTradingPosition(canvas, plotRect, minPrice, priceRange, priceDecimals);
+            DrawFootprintLegend(
+                canvas,
+                font,
+                plotRect,
+                entryLineDrawn ? _snapshot.TradingPosition!.Direction : null,
+                pnlTagDrawn,
+                orderLineCount > 0,
+                _snapshot.FillHits.Count > 0);
 
             // The right-margin volume-at-price histogram (T-093) rides over
             // the candles translucently; the overlay lines draw over it.
@@ -1531,6 +1658,395 @@ public class CandlestickChart : Control
                 using var drawn = builder.Detach();
                 canvas.DrawPath(drawn, hit.Role == SignalMarkerRole.Long ? longPaint : flatPaint);
             }
+        }
+
+        /// <summary>
+        /// The execution fill markers (T-122): one small diamond per
+        /// resolved hit, anchored at ITS OWN candle's slot center and at
+        /// the fill's own price on the shared scales — the containment the
+        /// resolve pass pinned. A diamond whose price left the plotted
+        /// range draws not (an absence); a buy rides the bullish palette,
+        /// a sell the bearish one, right from the candles' own colors.
+        /// </summary>
+        private void DrawFillMarkers(
+            SKCanvas canvas,
+            Rect plotRect,
+            double barPitch,
+            int barCount,
+            decimal minPrice,
+            decimal priceRange)
+        {
+            var hits = _snapshot.FillHits;
+            if (hits.Count == 0)
+            {
+                return;
+            }
+
+            using var buyPaint = new SKPaint
+            {
+                Color = _snapshot.Bullish,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true
+            };
+
+            using var sellPaint = new SKPaint
+            {
+                Color = _snapshot.Bearish,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true
+            };
+
+            foreach (var hit in hits)
+            {
+                var y = ChartFootprintLayout.LevelY(plotRect, hit.Price, minPrice, priceRange);
+                if (y is not { } markerY)
+                {
+                    continue;
+                }
+
+                var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, barCount, hit.Slot);
+
+                using var builder = new SKPathBuilder();
+                builder.MoveTo(new SKPoint(x, (float)markerY - FillMarkerHalfSizePx));
+                builder.LineTo(new SKPoint(x + FillMarkerHalfSizePx, (float)markerY));
+                builder.LineTo(new SKPoint(x, (float)markerY + FillMarkerHalfSizePx));
+                builder.LineTo(new SKPoint(x - FillMarkerHalfSizePx, (float)markerY));
+                builder.Close();
+
+                using var drawn = builder.Detach();
+                canvas.DrawPath(drawn, hit.Side == OrderSide.Buy ? buyPaint : sellPaint);
+            }
+        }
+
+        /// <summary>
+        /// The working-order price lines (T-122): one full-width dashed
+        /// level per price-bearing order, styled by side (buy rides the
+        /// bullish palette, sell the bearish one) at EXACTLY the mapped
+        /// order price. A level outside the plotted range draws not; the
+        /// returned count feeds the legend (only drawn shapes explained).
+        /// </summary>
+        private int DrawWorkingOrders(
+            SKCanvas canvas,
+            Rect plotRect,
+            decimal minPrice,
+            decimal priceRange)
+        {
+            var orders = _snapshot.TradingOrders;
+            if (orders.Count == 0)
+            {
+                return 0;
+            }
+
+            using var dashEffect = SKPathEffect.CreateDash(FootprintOrderDashPatternPx, 0f);
+            using var buyPaint = new SKPaint
+            {
+                Color = _snapshot.Bullish,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = FootprintOrderStrokePx,
+                IsAntialias = true,
+                PathEffect = dashEffect
+            };
+
+            using var sellPaint = new SKPaint
+            {
+                Color = _snapshot.Bearish,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = FootprintOrderStrokePx,
+                IsAntialias = true,
+                PathEffect = dashEffect
+            };
+
+            var drawnLines = 0;
+            foreach (var order in orders)
+            {
+                var y = ChartFootprintLayout.LevelY(plotRect, order.Price, minPrice, priceRange);
+                if (y is not { } lineY)
+                {
+                    continue;
+                }
+
+                canvas.DrawLine((float)plotRect.Left, (float)lineY, (float)plotRect.Right, (float)lineY, order.Side == OrderSide.Buy ? buyPaint : sellPaint);
+                drawnLines++;
+            }
+
+            return drawnLines;
+        }
+
+        /// <summary>
+        /// The position's own footprint (T-122): the full-width entry line
+        /// at the mapped average entry with a direction arrow at the line's
+        /// left end (an up-triangle for a long, a down-triangle for a
+        /// short), plus the floating PnL tag — a rounded price pill at the
+        /// plot's right edge, snapped to the latest observed price and
+        /// clamped into the visible band by the layout (a fast move pins
+        /// the tag at the edge instead of painting into the gutters). The
+        /// pair reports what this frame actually drew, for the legend.
+        /// </summary>
+        private (bool EntryLineDrawn, bool PnlTagDrawn) DrawTradingPosition(
+            SKCanvas canvas,
+            Rect plotRect,
+            decimal minPrice,
+            decimal priceRange,
+            int priceDecimals)
+        {
+            var position = _snapshot.TradingPosition;
+            if (position is null)
+            {
+                return (false, false);
+            }
+
+            var entryColor = position.Direction == PositionDirection.Long ? _snapshot.Bullish : _snapshot.Bearish;
+
+            // The entry line: drawn only while its level sits inside the
+            // plotted range (an honest absence otherwise).
+            var entryDrawn = false;
+            if (ChartFootprintLayout.LevelY(plotRect, position.EntryPrice, minPrice, priceRange) is { } entryY)
+            {
+                using var entryPaint = new SKPaint
+                {
+                    Color = entryColor,
+                    Style = SKPaintStyle.Stroke,
+                    StrokeWidth = FootprintEntryStrokePx,
+                    IsAntialias = true
+                };
+
+                canvas.DrawLine((float)plotRect.Left, (float)entryY, (float)plotRect.Right, (float)entryY, entryPaint);
+
+                // The direction arrow rides the line's left end: the base
+                // sits ON the line so the apex alone crosses away from the
+                // entry level (the signal markers' own base discipline).
+                var arrowX = (float)(plotRect.Left + FootprintArrowInsetPx);
+                var apexY = position.Direction == PositionDirection.Long
+                    ? entryY - FootprintArrowHeightPx
+                    : entryY + FootprintArrowHeightPx;
+
+                using var arrowBuilder = new SKPathBuilder();
+                arrowBuilder.MoveTo(new SKPoint(arrowX - FootprintArrowHalfWidthPx, (float)entryY));
+                arrowBuilder.LineTo(new SKPoint(arrowX, (float)apexY));
+                arrowBuilder.LineTo(new SKPoint(arrowX + FootprintArrowHalfWidthPx, (float)entryY));
+                arrowBuilder.Close();
+
+                using var arrowPaint = new SKPaint
+                {
+                    Color = entryColor,
+                    Style = SKPaintStyle.Fill,
+                    IsAntialias = true
+                };
+
+                using var arrow = arrowBuilder.Detach();
+                canvas.DrawPath(arrow, arrowPaint);
+                entryDrawn = true;
+            }
+
+            // The floating PnL tag: only when the feed has observed a
+            // price (the engine never invents one, so the tag never does
+            // either); the layout clamps it into the visible band.
+            var tagDrawn = false;
+            if (position.LatestPrice is { } latest)
+            {
+                var tagText = position.UnrealizedPnl.Amount.ToString(
+                    "F" + PnlTagDecimalPlaces.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    _snapshot.Culture);
+
+                using var tagFont = new SKFont(SKTypeface.Default, AxisFontSize);
+                var textWidth = tagFont.MeasureText(tagText);
+                var textHeight = -tagFont.Metrics.Ascent + tagFont.Metrics.Descent;
+                var tagWidth = textWidth + (2f * PnlTagPadPx);
+                var tagHeight = textHeight + (2f * PnlTagPadPx);
+                var tagY = (float)ChartFootprintLayout.TagY(plotRect, latest, minPrice, priceRange);
+
+                using var tagPaint = new SKPaint
+                {
+                    Color = entryColor,
+                    Style = SKPaintStyle.Fill,
+                    IsAntialias = true
+                };
+
+                var tagRect = new SKRect(
+                    (float)plotRect.Right - PnlTagInsetPx - tagWidth,
+                    tagY - (tagHeight / 2f),
+                    (float)plotRect.Right - PnlTagInsetPx,
+                    tagY + (tagHeight / 2f));
+                var tagRadius = CornerRadiusFor(tagHeight);
+                canvas.DrawRoundRect(tagRect, tagRadius, tagRadius, tagPaint);
+
+                using var tagTextPaint = new SKPaint
+                {
+                    Color = _snapshot.Background,
+                    IsAntialias = true
+                };
+
+                canvas.DrawText(
+                    tagText,
+                    (float)plotRect.Right - PnlTagInsetPx - PnlTagPadPx,
+                    tagY - ((tagFont.Metrics.Ascent + tagFont.Metrics.Descent) / 2f),
+                    SKTextAlign.Right,
+                    tagFont,
+                    tagTextPaint);
+                tagDrawn = true;
+            }
+
+            return (entryDrawn, tagDrawn);
+        }
+
+        /// <summary>The tag's corner radius: a half-height rounded pill cap.</summary>
+        private static float CornerRadiusFor(float tagHeight) => tagHeight / 2f;
+
+        /// <summary>
+        /// The footprint legend (T-122): the top-left rows exactly the
+        /// shapes this frame DREW (every drawn shape explained, nothing
+        /// else listed — the pure
+        /// <see cref="ChartFootprintLegend.Rows"/> compose decides), one
+        /// swatch per shape side by side with its localized explanation.
+        /// No drawn shape keeps the corner clean.
+        /// </summary>
+        private void DrawFootprintLegend(
+            SKCanvas canvas,
+            SKFont font,
+            Rect plotRect,
+            PositionDirection? entryDirection,
+            bool pnlTagDrawn,
+            bool orderLinesDrawn,
+            bool fillMarkersDrawn)
+        {
+            var rows = ChartFootprintLegend.Rows(entryDirection, pnlTagDrawn, orderLinesDrawn, fillMarkersDrawn);
+            if (rows.Count == 0)
+            {
+                return;
+            }
+
+            var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
+            var x = (float)(plotRect.Left + LegendPadPx);
+            var y = (float)(plotRect.Top + LegendPadPx) - font.Metrics.Ascent;
+
+            foreach (var row in rows)
+            {
+                // The swatch sits vertically centered on the row.
+                var swatchY = y + ((font.Metrics.Ascent + font.Metrics.Descent) / 2f);
+                DrawLegendSwatch(canvas, row.Shape, x, swatchY);
+                canvas.DrawText(
+                    GetFootprintLegendText(row.Key),
+                    x + LegendSwatchWidthPx + LegendTextGapPx,
+                    y,
+                    SKTextAlign.Left,
+                    font,
+                    new SKPaint { Color = _snapshot.Text, IsAntialias = true });
+
+                y += textHeight + LegendRowGapPx;
+            }
+        }
+
+        /// <summary>Paint one legend swatch (the mini shape the row explains).</summary>
+        private void DrawLegendSwatch(SKCanvas canvas, FootprintLegendShape shape, float x, float centerY)
+        {
+            switch (shape)
+            {
+                case FootprintLegendShape.EntryLine:
+                    using (var paint = new SKPaint
+                    {
+                        Color = _snapshot.IndicatorLine,
+                        Style = SKPaintStyle.Stroke,
+                        StrokeWidth = FootprintEntryStrokePx,
+                        IsAntialias = true
+                    })
+                    {
+                        canvas.DrawLine(x, centerY, x + LegendSwatchWidthPx, centerY, paint);
+                    }
+
+                    using (var arrow = new SKPathBuilder())
+                    {
+                        arrow.MoveTo(new SKPoint(x + (LegendSwatchWidthPx / 2f), centerY - LegendHalfSwatchHeightPx - FootprintArrowHeightPx));
+                        arrow.LineTo(new SKPoint(x + (LegendSwatchWidthPx / 2f) - LegendHalfSwatchHeightPx, centerY - LegendHalfSwatchHeightPx));
+                        arrow.LineTo(new SKPoint(x + (LegendSwatchWidthPx / 2f) + LegendHalfSwatchHeightPx, centerY - LegendHalfSwatchHeightPx));
+                        arrow.Close();
+
+                        using var arrowPath = arrow.Detach();
+                        using var arrowPaint = new SKPaint
+                        {
+                            Color = _snapshot.IndicatorLine,
+                            Style = SKPaintStyle.Fill,
+                            IsAntialias = true
+                        };
+                        canvas.DrawPath(arrowPath, arrowPaint);
+                    }
+
+                    break;
+
+                case FootprintLegendShape.PnlTag:
+                    using (var paint = new SKPaint
+                    {
+                        Color = _snapshot.IndicatorLine,
+                        Style = SKPaintStyle.Fill,
+                        IsAntialias = true
+                    })
+                    {
+                        var swatchTop = centerY - LegendHalfSwatchHeightPx;
+                        var swatchRect = new SKRect(
+                            x,
+                            swatchTop,
+                            x + LegendSwatchWidthPx,
+                            swatchTop + LegendTagSwatchHeightPx);
+                        var swatchRadius = CornerRadiusFor(LegendTagSwatchHeightPx);
+                        canvas.DrawRoundRect(swatchRect, swatchRadius, swatchRadius, paint);
+                    }
+
+                    break;
+
+                case FootprintLegendShape.OrderLine:
+                    using (var dashEffect = SKPathEffect.CreateDash(FootprintOrderDashPatternPx, 0f))
+                    using (var paint = new SKPaint
+                    {
+                        Color = _snapshot.Text,
+                        Style = SKPaintStyle.Stroke,
+                        StrokeWidth = FootprintOrderStrokePx,
+                        IsAntialias = true,
+                        PathEffect = dashEffect
+                    })
+                    {
+                        canvas.DrawLine(x, centerY, x + LegendSwatchWidthPx, centerY, paint);
+                    }
+
+                    break;
+
+                case FootprintLegendShape.FillMarker:
+                    using (var builder = new SKPathBuilder())
+                    {
+                        var cx = x + (LegendSwatchWidthPx / 2f);
+                        builder.MoveTo(new SKPoint(cx, centerY - (LegendHalfSwatchHeightPx * 2f)));
+                        builder.LineTo(new SKPoint(cx + (LegendHalfSwatchHeightPx * 2f), centerY));
+                        builder.LineTo(new SKPoint(cx, centerY + (LegendHalfSwatchHeightPx * 2f)));
+                        builder.LineTo(new SKPoint(cx - (LegendHalfSwatchHeightPx * 2f), centerY));
+                        builder.Close();
+
+                        using var diamond = builder.Detach();
+                        using var paint = new SKPaint
+                        {
+                            Color = _snapshot.Text,
+                            Style = SKPaintStyle.Fill,
+                            IsAntialias = true
+                        };
+                        canvas.DrawPath(diamond, paint);
+                    }
+
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// One legend row's explanation resolved through the chart's own
+        /// resource lookups (the no-data states' pattern).
+        /// </summary>
+        private static string GetFootprintLegendText(string key)
+        {
+            if (LocalizationManager.IsInitialized)
+            {
+                return LocalizationManager.Instance.GetString(key);
+            }
+
+            // Design mode / manager not wired yet: raw resource lookup instead.
+            return Strings.ResourceManager.GetString(
+                key,
+                System.Globalization.CultureInfo.CurrentUICulture) ?? key;
         }
 
         /// <summary>

@@ -11,6 +11,9 @@ using ZettaTrade.Core.Entities;
 /// </summary>
 public interface IOrderJournal
 {
+    /// <summary>The placement stream: every <see cref="RecordPlaced"/> announce lands here.</summary>
+    IObservable<Order> Placements { get; }
+
     /// <summary>Record an order that the trading adapter accepted.</summary>
     void RecordPlaced(Order order);
 

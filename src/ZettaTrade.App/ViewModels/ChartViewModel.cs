@@ -828,6 +828,129 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     #endregion
 
+    #region Trading Footprint Overlay (T-122)
+
+    /// <summary>
+    /// The trading footprint's feed stream (T-122): the lane's keyed
+    /// overlays the pick pass resolves against the workspace symbol.
+    /// Consumed as inert drawing data — nothing routes back toward an
+    /// order from here.
+    /// </summary>
+    private readonly IObservable<ChartFootprintSnapshot> _tradingFootprint;
+
+    /// <summary>The latest footprint snapshot the feed published (UI-thread-owned, marshalled on assignment).</summary>
+    private ChartFootprintSnapshot _latestFootprint = ChartFootprintSnapshot.Empty;
+
+    private PositionOverlay? _tradingPosition;
+
+    /// <summary>
+    /// The workspace symbol's position the chart draws (T-122): the entry
+    /// line with its direction arrow and the floating PnL tag snapped to
+    /// the latest observed price; null while the workspace symbol has no
+    /// position on the trading lane.
+    /// </summary>
+    public PositionOverlay? TradingPosition
+    {
+        get => _tradingPosition;
+        private set => this.RaiseAndSetIfChanged(ref _tradingPosition, value);
+    }
+
+    private IReadOnlyList<WorkingOrderLine> _tradingOrders = [];
+
+    /// <summary>
+    /// The workspace symbol's working price-bearing orders (T-122): one
+    /// dashed line per order. Empty while none stand.
+    /// </summary>
+    public IReadOnlyList<WorkingOrderLine> TradingOrders
+    {
+        get => _tradingOrders;
+        private set => this.RaiseAndSetIfChanged(ref _tradingOrders, value);
+    }
+
+    private IReadOnlyList<FillMarker> _tradingFills = [];
+
+    /// <summary>
+    /// The workspace symbol's executed fills from the journal of record
+    /// (T-122): one diamond per execution, anchored at its own candle.
+    /// Empty while the series shows none.
+    /// </summary>
+    public IReadOnlyList<FillMarker> TradingFills
+    {
+        get => _tradingFills;
+        private set => this.RaiseAndSetIfChanged(ref _tradingFills, value);
+    }
+
+    /// <summary>
+    /// Resolve the footprint overlays for the CURRENT workspace symbol:
+    /// a pure pick over the feed's latest snapshot (a re-publish rides the
+    /// feed's pushes and every symbol change; the overlays ride the UI
+    /// thread by the same marshal discipline the other publishes keep).
+    /// </summary>
+    private void PublishTradingFootprint()
+    {
+        var symbol = SelectedSymbol?.Normalized;
+        TradingPosition = SelectTradingPosition(symbol, _latestFootprint.Positions);
+        TradingOrders = SelectTradingOrders(symbol, _latestFootprint.Orders);
+        TradingFills = SelectTradingFills(symbol, _latestFootprint.Fills);
+    }
+
+    /// <summary>
+    /// The pure position pick the publish uses (internal static so the
+    /// goldens pin it without a VM instance — the
+    /// <see cref="ComposeSignalMarkers"/> precedent): exactly the one
+    /// account of the matching normalized symbol; a lane holds one account
+    /// pair, null when the symbol shows none.
+    /// </summary>
+    internal static PositionOverlay? SelectTradingPosition(
+        string? symbolNormalized,
+        IReadOnlyList<FootprintPosition> positions)
+    {
+        if (symbolNormalized is null)
+        {
+            return null;
+        }
+
+        return positions
+            .FirstOrDefault(p => string.Equals(p.Symbol, symbolNormalized, StringComparison.Ordinal))
+            is { } match
+                ? match.Overlay
+                : null;
+    }
+
+    /// <summary>The pure working-order pick: every order of the matching symbol, feed order kept.</summary>
+    internal static IReadOnlyList<WorkingOrderLine> SelectTradingOrders(
+        string? symbolNormalized,
+        IReadOnlyList<FootprintOrder> orders)
+    {
+        if (symbolNormalized is null)
+        {
+            return [];
+        }
+
+        return orders
+            .Where(o => string.Equals(o.Symbol, symbolNormalized, StringComparison.Ordinal))
+            .Select(static o => o.Line)
+            .ToArray();
+    }
+
+    /// <summary>The pure fill pick: every executed fill of the matching symbol, ascending order kept.</summary>
+    internal static IReadOnlyList<FillMarker> SelectTradingFills(
+        string? symbolNormalized,
+        IReadOnlyList<FootprintFill> fills)
+    {
+        if (symbolNormalized is null)
+        {
+            return [];
+        }
+
+        return fills
+            .Where(f => string.Equals(f.Symbol, symbolNormalized, StringComparison.Ordinal))
+            .Select(static f => f.Marker)
+            .ToArray();
+    }
+
+    #endregion
+
     #region Constructors
 
     /// <summary>
@@ -866,6 +989,10 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <param name="seriesRelay">The loads relay (T-112): every full series
     /// load publishes here for the strategy host's feed — the relay breaks
     /// the chart↔service cycle by being the one address both consume.</param>
+    /// <param name="tradingFootprint">The footprint feed's stream (T-122):
+    /// the trading lane's keyed position/order/fill overlays this panel
+    /// picks from — the workspace symbol leads every pick, and a re-publish
+    /// rides both the feed's pushes and the symbol changes.</param>
     public ChartViewModel(
         ActiveExchangeService activeExchanges,
         SymbolListProvider symbolList,
@@ -878,6 +1005,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         StrategySignalService signals,
         SignalRailViewModel signalRail,
         SignalSeriesRelay seriesRelay,
+        IObservable<ChartFootprintSnapshot> tradingFootprint,
         ILogger<ChartViewModel> logger)
     {
         _activeExchanges = activeExchanges;
@@ -893,6 +1021,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _signalService = signals;
         SignalRail = signalRail;
         _seriesRelay = seriesRelay;
+        _tradingFootprint = tradingFootprint;
 
         ExportCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportCandlesAsync);
         SaveCandlesCsvRequested = new Interaction<string, string?>();
@@ -1076,6 +1205,23 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 _ => PublishSignalMarkers(),
                 ex => _logger.LogError(ex, "The signal markers stream stopped unexpectedly"));
+
+        // #region T-122: the trading footprint. Two live inputs: the feed's
+        // pushes (the lane's whole keyed inventory) and the workspace
+        // symbol changes — both re-run the same pure pick pass.
+        tradingFootprint.ObserveOnUiThread()
+            .Subscribe(
+                snapshot =>
+                {
+                    _latestFootprint = snapshot;
+                    PublishTradingFootprint();
+                },
+                ex => _logger.LogError(ex, "The trading footprint stream stopped unexpectedly"));
+        this.WhenAnyValue(x => x.SelectedSymbol)
+            .Subscribe(
+                _ => PublishTradingFootprint(),
+                ex => _logger.LogError(ex, "The footprint symbol pick stream stopped unexpectedly"));
+        // #endregion T-122
 
         // The time frame persists: every USER change writes the enum name
         // into the UI settings section (the debounced settings service calls

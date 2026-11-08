@@ -417,6 +417,21 @@
   <data name="Chart.NoVolumeData" xml:space="preserve">
     <value>Нет данных об объёме этих свечей</value>
   </data>
+  <data name="Chart.Footprint.Legend.EntryLineLong" xml:space="preserve">
+    <value>Моя открытая позиция — лонг</value>
+  </data>
+  <data name="Chart.Footprint.Legend.EntryLineShort" xml:space="preserve">
+    <value>Моя открытая позиция — шорт</value>
+  </data>
+  <data name="Chart.Footprint.Legend.PnlTag" xml:space="preserve">
+    <value>Моя нереализованная прибыль</value>
+  </data>
+  <data name="Chart.Footprint.Legend.OrderLine" xml:space="preserve">
+    <value>Мой активный ордер</value>
+  </data>
+  <data name="Chart.Footprint.Legend.FillMarker" xml:space="preserve">
+    <value>Мои исполнения</value>
+  </data>
   <data name="Chart.Type" xml:space="preserve">
     <value>Тип</value>
   </data>

@@ -258,6 +258,9 @@ internal static class CompositionRoot
                 sp.GetRequiredService<StrategySignalService>(), // T-112: the stances the markers read.
                 sp.GetRequiredService<SignalRailViewModel>(), // T-112: the rail strip's VM.
                 sp.GetRequiredService<SignalSeriesRelay>(), // T-112: the loads the host feeds from.
+                                                            // #region T-122: the footprint feed's stream (my-activity overlays).
+                sp.GetRequiredService<ChartFootprintService>().Updates,
+                // #endregion T-122
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
@@ -300,6 +303,10 @@ internal static class CompositionRoot
         // order history registration, so the walk initializes the ledger
         // store before the engine's boot replay reads it.
         services.AddPnlServices();
+
+        #region T-122: the chart footprint feed (my-activity overlays on the chart)
+        services.AddChartFootprintServices(); // after the journals + PnL feed: the boot read wants them initialized first.
+        #endregion
 
         // The local candle cache (T-085): after the settings registration
         // it rides, so the walk loads the Caching policy before the chart's

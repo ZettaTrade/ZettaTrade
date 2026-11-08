@@ -271,6 +271,8 @@ public sealed class SymbolPaletteViewModelTests
             signals,
             rail,
             relay,
+            // The T-122 seam rides silent in the palette facts likewise.
+            Observable.Empty<ChartFootprintSnapshot>(),
             NullLogger<ChartViewModel>.Instance);
     }
 

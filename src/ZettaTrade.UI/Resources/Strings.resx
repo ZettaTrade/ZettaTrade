@@ -417,6 +417,21 @@
   <data name="Chart.NoVolumeData" xml:space="preserve">
     <value>No volume data for these candles</value>
   </data>
+  <data name="Chart.Footprint.Legend.EntryLineLong" xml:space="preserve">
+    <value>My open position — long</value>
+  </data>
+  <data name="Chart.Footprint.Legend.EntryLineShort" xml:space="preserve">
+    <value>My open position — short</value>
+  </data>
+  <data name="Chart.Footprint.Legend.PnlTag" xml:space="preserve">
+    <value>My unrealized PnL</value>
+  </data>
+  <data name="Chart.Footprint.Legend.OrderLine" xml:space="preserve">
+    <value>My working order</value>
+  </data>
+  <data name="Chart.Footprint.Legend.FillMarker" xml:space="preserve">
+    <value>My executed fills</value>
+  </data>
   <data name="Chart.Type" xml:space="preserve">
     <value>Type</value>
   </data>
