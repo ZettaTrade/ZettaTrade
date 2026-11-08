@@ -116,7 +116,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-109 Soak harness and budget gates (cold start < 3 s, memory < 500 MB) | feat/soak | queued | - |
 | T-110 Accessibility pass (keyboard, automation peers, contrast) | feat/a11y | queued | - |
 | T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | done | - |
-| T-112 Signal markers on the chart + signal rail | feat/signal-markers | review | T-111 |
+| T-112 Signal markers on the chart + signal rail | feat/signal-markers | done | - |
 | T-113 Backtest harness over stored candles | feat/backtest | queued | T-111 + T-085 |
 | T-114 AI market-context injection into the chat | feat/ai-context | done | - |
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
@@ -252,15 +252,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** UI across views, chart/book peer shims, docs checklist, tests.
 - **Acceptance:** every advertised control is reachable and named without a mouse.
 - **Tests:** name/role assertions, focus-order golden.
-
-## T-112 — Signal markers on the chart + signal rail
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut). **Blocker:** T-111.
-- **Origin:** signals without a surface are invisible; markers + a rail personalize the workspace read.
-- **What:** markers at candle closes (▲/▼ with tooltips) via the chart overlay layer, plus an N-item signal rail panel streaming live; a click prefills the ticket (T-025's prefill-not-submit lesson), never sends.
-- **Scope:** Charting overlay + the rail panel, the T-111 contracts (consumed, unchanged), resx en+ru, tests.
-- **Acceptance:** marker placement matches the signal's candle exactly; bursts do not flood the rail (coalesced).
-- **Tests:** placement golden, the rail stream, prefill routing.
 
 ## T-113 — Backtest harness over stored candles
 
