@@ -104,7 +104,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-097 Notification center: toasts, history, DND | feat/notif-center | done | - |
 | T-098 Adapter health strip in the status bar | feat/health-strip | done | - |
 | T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | done | - |
-| T-100 Settings import/export + factory reset | feat/settings-port | in-progress | - |
+| T-100 Settings import/export + factory reset | feat/settings-port | review | - |
 | T-101 Log viewer window + global crash guard | feat/log-viewer | queued | - |
 | T-102 Hotkey manager + cheat sheet overlay | feat/hotkey-manager | queued | - |
 | T-103 Detachable panels: multi-window workspaces | feat/multi-window | queued | - |
@@ -192,7 +192,7 @@ the end of that file, so no effort is duplicated.
 ## T-100 — Settings import/export + factory reset
 
 - **Branch:** feat/settings-port (base `develop` at `1b9fcf4`; queued 2026-11-06 at the T-074…T-115 backlog cut, developed 2026-11-08).
-- **Status:** in-progress.
+- **Status:** review.
 - **Origin:** no portability of a tuned setup; settings live only in the local store.
 - **What:** export the user-facing settings subset (themes are files already; secrets are NEVER exported) as a versioned JSON; import with schema validation and a dry-run diff preview; factory reset behind a typed confirmation; changes re-apply live through the reactive settings change stream (T-053 canon).
 - **Scope:** a settings port service, settings-window tab wiring, resx en+ru, tests.
