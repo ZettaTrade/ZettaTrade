@@ -24,7 +24,7 @@ using ZettaTrade.Infrastructure.Persistence;
 /// <summary>
 /// Tests for the bulk cancel service: a mixed working/cancelled set cancels
 /// ONLY the working orders on the workspace's active symbol (every command
-/// carrying its own symbol and id вЂ” the Symbol-first contract), one adapter
+/// carrying its own symbol and id — the Symbol-first contract), one adapter
 /// fault turns into that item's report and never stops the others, one
 /// confirmation gates the whole pass (a refusal leaves everything
 /// untouched), rows already in flight are skipped and reported rather than
@@ -79,7 +79,7 @@ public sealed class BulkCancelServiceTests
     [Fact]
     public async Task MixedSet_CancelsOnlyTheWorkingOrdersOnTheSymbol()
     {
-        // Arrange: a deliberately mixed set вЂ” two working on BTC/USDT, two
+        // Arrange: a deliberately mixed set — two working on BTC/USDT, two
         // terminal on BTC/USDT, one working on another symbol.
         _openOrders.Add(BuildOrder("paper-1", OrderStatus.Pending));
         _openOrders.Add(BuildOrder("paper-2", OrderStatus.PartiallyFilled, filled: 0.004m));
@@ -92,7 +92,7 @@ public sealed class BulkCancelServiceTests
         var result = await service.CancelWorkingOrdersAsync([]);
 
         // Assert: DONE, and exactly the two working BTC/USDT orders were
-        // commanded вЂ” each with its own symbol and id.
+        // commanded — each with its own symbol and id.
         result.Outcome.Should().Be(BulkCancelOutcome.Done);
         result.Reports.Should().HaveCount(2);
         result.Reports.Select(r => r.Outcome).Should().OnlyContain(o => o == BulkCancelReportOutcome.Cancelled);
