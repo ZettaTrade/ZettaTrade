@@ -43,6 +43,12 @@ policy until the user retracts it:
    resume the wave — including re-spawning the dead subagents — without any
    re-prompting; see Recovery below.
 
+5. Before every merge into `develop` (user, 2026-11-08): run the launch
+   smoke — the build that is about to merge must prove it actually starts
+   (the exact procedure is Landing protocol step 5). A green gate proves
+   the suite; it does not prove the app boots. Skippable only for
+   docs/tests-only landings.
+
 While reasoning internally, in all outage-sensitive scratch files and in
 reports back to the user, think in English but reply to the user in Russian
 (token economy per AGENTS.md). Everything shipped to the repo stays English —
@@ -138,15 +144,30 @@ CHANGELOG's house voice, the board row, and the archive canon.
    (the bump itself, `Core/Interfaces`, `scripts/*`, `.github/*`, `AGENTS.md`,
    solutions). It must print `GATE PASSED`. Known flake families retry inside
    the gate; record which suite retried, never widen scope to "fix" them.
-5. Main repo: `git merge --ff-only <branch>`, then
+5. Launch smoke (standing directive 5, user 2026-11-08): app-changing work
+   merges ONLY after the freshly built exe launches and stays alive.
+   Procedure: start the built exe
+   (`src\ZettaTrade.App\bin\Debug\net10.0\ZettaTrade.App.exe`), wait about
+   15 seconds, require `HasExited=False`, then `Stop-Process`. Evidence
+   lives in the Serilog day file
+   (`%LOCALAPPDATA%\ZettaTrade\logs\zettatrade-YYYYMMDD.log`); the day
+   file accumulates earlier runs INCLUDING their stale crash records, so
+   slice it by this run's start timestamp and require ZERO
+   startup-failure or exception entries in the slice — a whole-file grep
+   counts stale crashes and lies. Check the exe's `ProductVersion`
+   carries the version + tip sha about to land (`0.1.0-alpha.NN+<sha>`)
+   so the proof binds to the merge content. A suite-green build may
+   still be unbootable: the alpha.68..72 stretch shipped exactly that
+   and two landing waves passed before anyone launched the app.
+6. Main repo: `git merge --ff-only <branch>`, then
    `git worktree remove <worktree>` (it refuses on uncommitted files — resolve
    those first) and `git branch -d <branch>`. No stale task folders, no stale
    branches.
-6. Landing order across a wave: land branches one at a time, rebasing each
+7. Landing order across a wave: land branches one at a time, rebasing each
    remaining branch of the wave onto the fresh develop tip right before its
    own landing. `docs/*` commits write land-friendly, uniquely-tailed board
    edits (per AGENTS.md multi-agent sync) so landings interleave cleanly.
-7. Update the handoff state file (Recovery) after every landing.
+8. Update the handoff state file (Recovery) after every landing.
 
 ## Board truthfulness
 
