@@ -1,3 +1,36 @@
+## [0.1.0-alpha.71] - 2026-11-08
+
+Build of board task T-096 (branch `feat/price-alerts`).
+
+### Added
+- The price-alerts engine (T-096): a session-singleton roster owner over
+  the reactive settings service — create, edit re-arm, snooze and delete
+  are the roster's only writes, serialized behind one single-flight gate;
+  the evaluation is purely stream-driven (one ticker subscription per
+  evaluatable symbol, per-observation serialization through a channel);
+  Price edges are exact (strictly-above/below, exact-at, no epsilon), the
+  percent move compares the window's oldest in-window reference by
+  exact-or-greater, the fire is persistent with the tick's own stamp, the
+  snooze re-arms on the next arriving tick (no wake timers), a failed beep
+  degrades into a logged warning, and a reloaded fired roster never fires
+  again. Edits are validated drafts (a garbage spelling, an unparsable
+  price or an unseen kind refuse each with their own error, never a
+  silently coerced alert).
+- The alerts manager window (T-096): the modal over the menu route (the
+  interaction pattern like the stats window), a transient per-open view
+  model rendering the engine's roster (symbol, condition, status, last
+  fired, note), the editor (kind/edge/target or percent/window/note), the
+  refusal line, and live re-renders for engine events and language
+  switches (the attach handle dies with the window).
+- Localized `Alert.*` strings en+ru (33 keys + the `Menu.Trading.Alerts`
+  item), validated by the resx invariant gate.
+- Tests: the edge matrix (strict above/below, exact-at, the percent
+  boundary), the codec's round-trip and exact-or-skip persistence facts,
+  the engine's end-to-end stream facts (no-fire then fire pairs, snooze
+  re-arms stream-side, reload never re-fires, the sound degrade, refused
+  garbage), and the manager view model (refusals, valid drafts, selection,
+  the language re-render, the attach handle's dispose).
+
 ## [0.1.0-alpha.70] - 2026-11-08
 
 Build of board task T-113 (branch `feat/backtest`).
