@@ -124,6 +124,16 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
 | T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | done | - |
+| T-120 Streaming watchlist panel: live quotes, 24h change, sparklines | feat/watchlist | queued | - |
+| T-121 Market heatmap: top pairs as change-colored tiles | feat/market-heatmap | queued | - |
+| T-122 My footprint on the chart: position lines + working-order markers | feat/chart-mine | queued | - |
+| T-123 Trading-mode chip: paper/testnet/live always visible | feat/trading-mode-chip | queued | - |
+| T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | queued | - |
+| T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | queued | - |
+| T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | queued | T-125 |
+| T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | queued | - |
+| T-128 Demo video: storyboard + shot list (docs/ops) | docs/demo-video | queued | - |
+| T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | queued | T-126 |
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
 | T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | queued | - |
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
@@ -263,6 +273,96 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** every claim matches shipped features only (no promises beyond testnet/documentable paths).
 - **Tests:** none (docs), a words-only review.
 - **Status:** done. Docs-only (no version bump, no CHANGELOG section). Canon: the branch carries `577fd42` — the rewritten top-level README with the trading-safety guidance front and center: explicit alpha status, user-scoped key hygiene (read-only for market data, trade-only for trading, withdrawal/transfer off, IP allowlist where offered), testnet-first instructions tied to the configurable `Exchange` endpoint section and the paper-trading/risk/confirmation surfaces, the per-machine `ISecretStore` storage path, and the investment-disclaimer block; the docs-site instructions stay subordinated under a dedicated heading; `docs/SECURITY.md` is referenced as a link only (created by the sibling task T-117). Gate passed; this board-flip commit closes the section.
+
+## T-120 — Streaming watchlist panel: live quotes, 24h change, sparklines
+
+- **Branch:** queued 2026-11-06 (functional presentation gap).
+- **Origin:** a terminal demo opens on a wall of live quotes; the workspace shows one symbol's chart/book and nothing about the rest of the market. The pairs tab favorites (T-039) know the symbols — there is no dedicated streaming grid.
+- **What:** a dockable watchlist of user-chosen symbols (read-only reuse of the existing favorites/pairs store — the parked task A area is not touched): last price, 24h change, 24h volume, spread, a mini Skia sparkline of the session; rows ride the existing ticker streams through the data channels; a click applies the workspace symbol context (T-017 discipline); per-column sorting; visible-rows-only update budget under the 60 fps rule.
+- **Scope:** Charting widget + panel VM, `Settings.*` keys for the symbol set and columns, resx en+ru, tests.
+- **Acceptance:** 50+ symbols stream without UI-thread stalls (only visible rows served); restart restores the set; a click routes the whole workspace.
+- **Tests:** visible-row update budget under load, sort goldens, persistence roundtrip, selection routing.
+
+## T-121 — Market heatmap: top pairs as change-colored tiles
+
+- **Branch:** queued 2026-11-06 (functional presentation gap).
+- **Origin:** the whole-market view at a glance — the instant-credibility visual of every retail terminal; there is nothing like it here.
+- **What:** a heatmap panel of the adapter's top pairs (ranked by quote volume): a Skia treemap where tile size maps to the rank metric and tile color maps to the 24h change via the buy/sell palette keys; live recolor on ticker deltas; a click routes the workspace symbol; the metric switch (volume vs anything else the venue provides) appears only when the data exists — nothing fabricated for missing feeds.
+- **Scope:** treemap renderer in Charting, a ticker aggregation service, panel composition, resx en+ru, tests.
+- **Acceptance:** 30+ tiles hold 60 fps; color scale endpoints are pinned; a click routes the workspace symbol.
+- **Tests:** treemap layout golden under rapid updates, color-mapping goldens, perf budget, empty-feed state.
+
+## T-122 — My footprint on the chart: position lines + working-order markers
+
+- **Branch:** queued 2026-11-06 (functional presentation gap).
+- **Origin:** when the demo trades (paper now, T-127's testnet later), the eye needs boundaries ON the chart — the entry and the working orders; today all trading state lives in the side panels.
+- **What:** chart overlays driven ONLY by the existing positions/orders streams (no new data): the position entry line with the direction arrow and a floating PnL tag snapped to the latest price, working-order lines styled by side (dashed limit lines), fill markers on executions. The lines respect the pan/zoom anchoring discipline (T-033/T-035/T-036 canon) and never violate the axis-bucket invariants. Renders my own activity only — nothing leaves the process.
+- **Scope:** Charting overlay + an App-side feed, resx en+ru for the legend, tests.
+- **Acceptance:** an amend (T-075) moves the line live; the entry line survives interval switches and stays anchored across candles; the legend explains every drawn shape.
+- **Tests:** anchoring goldens across pan/zoom/interval churn, the live-move golden, edge clamping at the visible window, multi-order styling.
+
+## T-123 — Trading-mode chip: paper/testnet/live always visible
+
+- **Branch:** queued 2026-11-06 (functional presentation gap).
+- **Origin:** the credibility instant: paper/testnet/live must read at one glance from anywhere. The state currently lives in dialogs and the T-127's per-panel badge plan; the safety posture the docs promise (T-117/T-119) deserves a visible seat.
+- **What:** a prominent chip in the shell showing the ACTIVE trading lane of the workspace's traded adapter: PAPER (demo/paper), TESTNET (via the T-015 endpoint identity), LIVE (anything else) with per-state colors (calm/prompt/danger). Level flips ride the reactive settings stream; switching INTO live requires a `IConfirmationService` prompt on the flip itself. When detachable windows arrive (T-103), the chip propagates to every window.
+- **Scope:** a mode service in App + the chip view in the shells, resx en+ru, tests.
+- **Acceptance:** there is no state where a real-money lane is indistinguishable from paper; the flip-to-live is always a confirmed event; the chip is present in every window context.
+- **Tests:** the mode-mapping matrix (demo/testnet/live by endpoint identity), the flip confirmation gate, multi-window propagation.
+
+## T-124 — Symbol compare: a second series overlaid on the chart
+
+- **Branch:** queued 2026-11-06 (functional presentation gap).
+- **Origin:** compare is a demo-standard flex — today's chart is strictly single-symbol and the workspace context is one symbol (T-017); a relative overlay is the missing depth-of-analysis moment.
+- **What:** a compare action adding a second series of the same interval from another symbol on the same adapter, rebased to percent-change over the visible window (the T-090 percent mode semantics), with removable legend chips per series and distinct colors; the input flows via the global symbol palette (T-095 synergy, not a hard dependency); pan/zoom/interval switches keep both series coherent.
+- **Scope:** the multi-series renderer in Charting, chart VM wiring, resx en+ru, tests.
+- **Acceptance:** the overlay holds under churn; removal restores the single-series rendering bit-exact; axis invariants (T-035/T-037 canon) never break with two series.
+- **Tests:** multi-series render golden, percent-rebasing goldens, the removal-restore identity, the axis invariants.
+
+## T-125 — Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux)
+
+- **Branch:** queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review; not urgent).
+- **Origin:** the repo has no CI at all (no `.github`); binaries exist only inside the builds; public users and partners need a real download door — the alpha program (T-129), the landing (T-126) and every demo link all stand on Releases.
+- **What:** `.github/workflows/release.yml` — on a version tag (`v*`), publishes self-contained per-OS artifacts (win-x64 zip, osx-x64/osx-arm64 zip, linux-x64 tar.gz) built straight from the tag's `Directory.Build.props` version, with the release notes taken straight from the matching CHANGELOG section; artifact naming `zettatrade-<version>-<rid>.<ext>`. Code signing and notarization are deliberately out of scope until beta (the docs say when that flips). No product code changes.
+- **Scope:** `.github/workflows/release.yml` + a small packaging helper in `scripts/` (a local dry-run publish), docs note in `docs/SECURITY.md` (what the artifacts contain, hash handling).
+- **Acceptance:** a tagged release candidate produces three OS artifacts on GitHub Releases with the correct version strings and the CHANGELOG excerpt attached; a broken build fails the workflow loudly.
+- **Tests:** workflow lint; a smoke script asserting artifact presence + embedded version match (CI-side); the local dry-run publish command is verifiable by the acceptance agent.
+
+## T-126 — Product landing page: screenshots, story, download CTA
+
+- **Branch:** queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review; not urgent). **Blocker:** T-125.
+- **Origin:** the README today documents the documentation site (npm/GitHub Pages); a visitor — user, partner, investor — has no „what is this / why do I care / download" surface.
+- **What:** a static product page riding the existing docs-site deploy: a hero screenshot, a three-sentence story (multi-exchange desktop terminal, AI-native via MCP, local-first/security), a feature grid (charts, order book, portfolio, alerts, AI assistant), a download section linking the GitHub Release artifacts (T-125), a short security/local-first paragraph (+ links to `docs/SECURITY.md`, the paper/testnet safety notes), a roadmap pointer (the board) and the alpha-program CTA (feeds T-129). Wording discipline: only shipped features are named — no vaporware on the hero.
+- **Scope:** docs-site (or a `site/` static section), copy, screenshots reused from the T-115 manual captures where possible; no product code.
+- **Acceptance:** download reachable in ≤2 clicks from the landing; every claim traceable to a shipped or explicitly-marked queued feature; en and ru variants.
+- **Tests:** none (static), link checks in the docs-site CI if present.
+
+## T-127 — Live testnet trading loop: a real limit order end-to-end (Bybit testnet)
+
+- **Branch:** queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review). 
+- **Origin:** the demo credibility wall: orders/positions today live in the paper/demo lane only; the "this is a real terminal" moment requires the full order lifecycle over a real venue in testnet mode. Bybit market data already streams (T-023); the trading path does not exist beyond paper.
+- **What:** the trading seam over Bybit testnet: the endpoint from the T-015 registry (testnet), credentials from `ISecretStore` (stdin path — never argv, never in CI), LIMIT orders with the full lifecycle mapping (submit → working → fill/partial → cancel), rejects surfaced as errors under the rejected-not-default contract, `IRiskManager` + `IConfirmationService` wired identically to the paper lane — no separate testnet shortcuts. The UI carries an unmistakable TESTNET badge on the ticket, positions and history whenever a testnet endpoint is active. `Core` changes only if the mapping demands an additive surface — supervisor-gated at review.
+- **Scope:** Infrastructure (Bybit trading client over the testnet REST/WS shapes), ticket flow + status mapping, `Exchange.*` settings keys, resx en+ru for the badge/labels, tests.
+- **Acceptance:** on a testnet account, a limit order rides place → accepted → (partial) fill → cancel with correct statuses in history; invalid symbol/side/testnet-auth failures return errors; the badge shows on every surfaced order state; the demo lane (paper) behaves bit-identically.
+- **Tests:** loopback mock-server tests for the testnet HTTP/WS shapes (the T-020/T-052 transport canon), risk/confirmation wiring tests, negative paths (auth, invalid symbol/side, malformed response), plus one manual live confirmation on the operator's testnet account (never real keys in CI or captures).
+
+## T-128 — Demo video: storyboard + shot list (docs/ops)
+
+- **Branch:** queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review; not urgent).
+- **Origin:** a 2-3 minute video is the artifact that sells to partners and investors without a live walk; the board lacks it — and the recording needs a script to be honest with real keys never involved.
+- **What:** `docs/DEMO-SCRIPT.md` — a shot-by-shot storyboard (90-180 s): the problem hook, the workspace tour, the AI chat answering with the live market context (T-114), a testnet limit order placed and filled (T-127), the portfolio/stats view (T-081–T-083), an alert firing with a toast (T-096/T-097), an outro with the download CTA; recording instructions (theme set, demo/paper data, screen 1080p, no real keys on screen ever — the standing security rule), a narration draft in en and ru. The recording itself is a human task; the deliverable here is the script + the final tracked file/hosting link referenced from the landing (T-126).
+- **Scope:** docs + a hosted/linked video artifact; statics may reuse the T-115 manual screenshots.
+- **Acceptance:** an agent or the supervisor can produce the video from the script inside a session's work window; no frame carries real credentials; the video is linked from the landing.
+- **Tests:** none.
+
+## T-129 — Alpha program: testers onboarding, feedback triage, public metrics
+
+- **Branch:** queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review; not urgent). **Blocker:** T-126.
+- **Origin:** the traction gap: features ship, but there is no channel between them and real humans, and any investor conversation needs honest, verifiable numbers — not private telemetry.
+- **What:** a lightweight program over the public surface: a call-for-testers section on the landing (T-126), feedback intake via GitHub (issue templates + a label set), a triage pipeline feeding findings into the board (TASKS.md rows in the usual lifecycle), and a public metrics page built ONLY from public GitHub data (Release download counts, contributor/star counts, issues resolved) with sources cited — the local-first/no-telemetry promise of the product stays absolute (nothing in the app phones home). The gate: numbers must be re-derivable by anyone clicking the cited links.
+- **Scope:** docs-site section(s), `.github/ISSUE_TEMPLATE/*` + labels, `docs/ALPHA-PROGRAM.md`, the metrics page generator (static, CI-able); no product code.
+- **Acceptance:** a tester route reads download → report via template → labeled issue → a board row; the metrics page shows only public-source numbers with their links visible.
+- **Tests:** none (docs/ops); the template routing verified by a dry-run issue.
 
 ## T-130 — Extract Livery into a standalone private repo (MIT kept), consume as a package
 
