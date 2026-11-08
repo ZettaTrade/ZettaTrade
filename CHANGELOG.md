@@ -1,3 +1,29 @@
+## [0.1.0-alpha.74] - 2026-11-08
+
+Build of board task T-120 (branch `feat/watchlist`).
+
+### Added
+- The streaming watchlist panel (T-120): a tape-neighbor column listing
+  the majors of the active exchange with each row's adaptive-precision
+  last price, the signed 24h change and the compact 24h volume, plus a
+  sparkline mapped from the row's own 32-price ring. The workspace
+  selection's symbol joins the row set live and the previous
+  selection-only row retires; rows keep stable identities, so each pulse
+  snapshot churns fields in place and never rebuilds the collection for
+  data.
+- The `WatchlistFeedService`: an `IObservable` wrapper over the
+  active-exchange facade's ticker streams — the per-row price pumps stay
+  inside the service while ONE coalesced snapshot ships at the panel
+  cadence over the 500 ms pulse, so a wire quote storm cannot storm the
+  UI. An exchange switch re-arms the pumps (the facade's switch), the
+  first pulse ships the row set before any tick with unpriced rows
+  binding empty texts, and the persisted column width rides the
+  book/tape splitter discipline (`UI.WatchlistPanelWidth`; the debounced
+  drag persistence, live external writers, `Watch.Title` in both
+  languages). The pulse seam keeps the feed facts deterministic; the
+  panel activation itself rides the pre-merge launch smoke.
+
+
 ## [0.1.0-alpha.73] - 2026-11-08
 
 Build of board task T-137 (branch `fix/startup-di`).

@@ -35,7 +35,8 @@ $ModulePrefixes = @(
     'Signal.',
     'Backtest.',
     'Alert.',
-    'Log.'
+    'Log.',
+    'Watch.'
 )
 
 function Get-ResxKeys([string]$Path) {
