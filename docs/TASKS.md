@@ -141,7 +141,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-134 Supervisor-mode skill (OpenCode): the standing directives load only on explicit invocation | feat/supervisor-skill | done | - |
 | T-135 Stabilize the flaky PositionsPanel in-flight test under suite load | feat/flaky-pospanel-timing | queued | - |
 | T-136 Repo hygiene: baked mojibake repair, machine-path purge, prevention lints | chore/repo-hygiene | done | - |
-| T-137 Fix the app startup crash: the concrete settings store resolves in DI | fix/startup-di | in-progress | - |
+| T-137 Fix the app startup crash: the concrete settings store resolves in DI | fix/startup-di | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -401,13 +401,3 @@ the end of that file, so no effort is duplicated.
 - **Scope:** PositionsPanelViewModelTests and the test harness seam only; no production code change.
 - **Acceptance:** the test is green in 10 consecutive full-suite parallel App.Tests runs under local load.
 - **Tests:** the fix IS the test; the assertion semantics stay intact.
-
-## T-137 — Fix the app startup crash: the concrete settings store resolves in DI
-
-- **Branch:** fix/startup-di (worktree `zt-startup-di`, based on develop@986a728; reported 2026-11-08 — the first app launch since the alpha.68…72 stretch landed with no smoke run between waves).
-- **Origin:** the app builds but dies at launch with the CLR unhandled-exception exit (0xE0434352) before the main window exists: `InvalidOperationException: Unable to resolve service for type 'ZettaTrade.Infrastructure.Configuration.SettingsService' while attempting to activate 'ZettaTrade.App.Services.SettingsPortService'`. T-100 registered the port singleton while its design (the doc comment: the batch/snapshot primitives are the concrete store's members) requires the CONCRETE `SettingsService` resolution — and `AddSingleton<SettingsService>` never existed in any commit, so startup has been broken since T-100 and the log gap (the last successful run 2026-11-06) hid it through two landing waves.
-- **What:** extract the settings-store registrations into their own module extension per the house root rule (`AddSettingsStoreServices`): one singleton instance registered by the concrete type and forwarded as `ISettingsService`, so interface consumers (chat, layout, the app walk) and concrete consumers (the settings port) share the one store. The settings ViewModel's `SettingsPortService` dependency then activates and the startup walk completes.
-- **Scope:** `CompositionRoot.cs`'s settings-store block (hunk-local), a new `SettingsStoreDependencyInjection.cs`, the registration regression facts, the alpha bump + CHANGELOG; no Core interface change, no port or store logic change.
-- **Acceptance:** the built app launches and stays alive through the composition walk (the Serilog walk shows no startup-failure entry), and the targeted registration facts pin the shared instance.
-- **Tests:** the registration matrix (the concrete-first shape, the singleton identity across the concrete and the interface, the port activation over the real graph shell).
-- **Status:** in-progress.
