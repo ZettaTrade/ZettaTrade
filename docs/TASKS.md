@@ -97,7 +97,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-090 Y-axis scale modes: log and percent | feat/chart-scales | queued | - |
 | T-091 Drawing tools: trend line, horizontal level, fib retracement | feat/draw-tools | queued | - |
 | T-092 Standard indicator pack (EMA, RSI, MACD, Bollinger… as bundled plugins) | feat/indicator-pack | done | - |
-| T-093 VWAP + volume profile overlay | feat/vol-vwap | queued | - |
+| T-093 VWAP + volume profile overlay | feat/vol-vwap | in-progress | - |
 | T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | queued | - |
 | T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | done | - |
 | T-096 Price and percent-move alerts with a manager | feat/price-alerts | queued | - |
