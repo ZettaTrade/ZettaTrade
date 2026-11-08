@@ -116,7 +116,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-109 Soak harness and budget gates (cold start < 3 s, memory < 500 MB) | feat/soak | queued | - |
 | T-110 Accessibility pass (keyboard, automation peers, contrast) | feat/a11y | queued | - |
 | T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | done | - |
-| T-112 Signal markers on the chart + signal rail | feat/signal-markers | in-progress | T-111 |
+| T-112 Signal markers on the chart + signal rail | feat/signal-markers | review | T-111 |
 | T-113 Backtest harness over stored candles | feat/backtest | queued | T-111 + T-085 |
 | T-114 AI market-context injection into the chat | feat/ai-context | done | - |
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
