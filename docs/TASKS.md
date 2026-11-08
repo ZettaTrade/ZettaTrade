@@ -105,7 +105,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-098 Adapter health strip in the status bar | feat/health-strip | done | - |
 | T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | done | - |
 | T-100 Settings import/export + factory reset | feat/settings-port | done | - |
-| T-101 Log viewer window + global crash guard | feat/log-viewer | in-progress | - |
+| T-101 Log viewer window + global crash guard | feat/log-viewer | done | - |
 | T-102 Hotkey manager + cheat sheet overlay | feat/hotkey-manager | queued | - |
 | T-103 Detachable panels: multi-window workspaces | feat/multi-window | queued | - |
 | T-104 Single instance hand-off + CLI symbol open | feat/single-instance | queued | - |
@@ -180,15 +180,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** Charting + a menu item, resx en+ru, tests.
 - **Acceptance:** the export matches the on-screen frame (same lens, same annotations state).
 - **Tests:** pixel-diff smoke on a seeded chart, watermark presence, path/error handling.
-
-## T-101 — Log viewer window + global crash guard
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** Serilog writes files only (the stdout rule); users cannot inspect without an editor, and T-056 flagged silent death paths.
-- **What:** an in-app viewer (live tail, level/source filter, export a bounded excerpt) with secrets-shaped strings redacted; a global unhandled exception handler that shows a crash dialog with the log path instead of dying silently.
-- **Scope:** a log viewer VM/window (virtualized tail), a crash guard host hook, resx en+ru, tests.
-- **Acceptance:** tens of thousands of lines tail smoothly; the redaction never leaks shaped patterns.
-- **Tests:** virtualization perf, redaction golden, the unhandled-handler path.
 
 ## T-102 — Hotkey manager + cheat sheet overlay
 
