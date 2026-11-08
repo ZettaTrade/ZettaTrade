@@ -118,7 +118,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | queued | - |
 | T-112 Signal markers on the chart + signal rail | feat/signal-markers | queued | T-111 |
 | T-113 Backtest harness over stored candles | feat/backtest | queued | T-111 + T-085 |
-| T-114 AI market-context injection into the chat | feat/ai-context | in-progress | - |
+| T-114 AI market-context injection into the chat | feat/ai-context | done | - |
 | T-115 User manual + screenshots (docs-only) | docs/user-manual | queued | - |
 | T-116 Adapter WS E2E tests flake under solution-parallel load: the 10 s EventWait trips on scheduler starvation (queued from the T-073 verification) | feat/ws-e2e-budget | done | - |
 | T-117 Secret scanner: gitleaks in CI + one-shot full-history audit | feat/secret-scanner | done | - |
@@ -296,15 +296,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a backtest service + report + a run/progress VM, resx en+ru, tests.
 - **Acceptance:** the same seed reproduces the same curve byte-for-byte; cancel mid-run is clean.
 - **Tests:** determinism golden, ledger integration, the cancel path.
-
-## T-114 — AI market-context injection into the chat
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** the assistant is wired (T-032) but blind to the now; MCP tools fetch on demand, yet a compact snapshot as context is the tier everyone reads first.
-- **What:** a context provider that compacts the workspace moment (last price, session change, book top N, active indicator values, alert states, paper/live tag) into a token-bounded preamble, injected per message behind an explicit user toggle chip; local models get the same treatment first; the MCP protocol-purity rule stays absolute (nothing writes to stdout but the protocol).
-- **Scope:** an MCP tool/context provider in AI, the chat VM toggle, resx en+ru, tests.
-- **Acceptance:** the preamble fits a tight token budget and reads deterministically for the same snapshot.
-- **Tests:** compaction golden, the consent toggle matrix, the paper/live tag correctness.
 
 ## T-115 — User manual + screenshots (docs-only)
 
