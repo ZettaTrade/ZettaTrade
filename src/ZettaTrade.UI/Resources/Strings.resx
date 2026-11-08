@@ -1113,4 +1113,46 @@ Estimated fee: {7}</value>
   <data name="Notif.ToastHint" xml:space="preserve">
     <value>Click to dismiss; a routed toast also opens its panel.</value>
   </data>
+  <data name="Wizard.Title" xml:space="preserve">
+    <value>Welcome to ZettaTrade</value>
+  </data>
+  <data name="Wizard.Theme.Header" xml:space="preserve">
+    <value>Pick a look</value>
+  </data>
+  <data name="Wizard.Theme.Caption" xml:space="preserve">
+    <value>Choose the color theme for the workspace; you can change it any time in Settings.</value>
+  </data>
+  <data name="Wizard.Adapter.Header" xml:space="preserve">
+    <value>Pick an exchange</value>
+  </data>
+  <data name="Wizard.Adapter.Caption" xml:space="preserve">
+    <value>The demo lane ships by default — a paper-trading simulator that never touches real funds. A venue's real adapter can be selected here as well.</value>
+  </data>
+  <data name="Wizard.Adapter.Secrets" xml:space="preserve">
+    <value>API keys never travel through this wizard: they reach the adapters only through the app's per-machine secret store.</value>
+  </data>
+  <data name="Wizard.Symbol.Header" xml:space="preserve">
+    <value>Pick a first symbol</value>
+  </data>
+  <data name="Wizard.Symbol.Caption" xml:space="preserve">
+    <value>The chart opens on this symbol of the picked exchange at the next launch.</value>
+  </data>
+  <data name="Wizard.Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Wizard.Next" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="Wizard.Finish" xml:space="preserve">
+    <value>Finish</value>
+  </data>
+  <data name="Wizard.Skip" xml:space="preserve">
+    <value>Skip</value>
+  </data>
+  <data name="Settings.FirstRunWizard.Hint" xml:space="preserve">
+    <value>The setup wizard ran on the very first launch — theme, exchange and first symbol. It can be re-run at any time.</value>
+  </data>
+  <data name="Settings.FirstRunWizard.RunAgain" xml:space="preserve">
+    <value>Run setup wizard…</value>
+  </data>
 </root>

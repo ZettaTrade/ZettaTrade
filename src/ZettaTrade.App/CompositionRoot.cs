@@ -144,6 +144,10 @@ internal static class CompositionRoot
         // dialog view model is transient per open.
         services.AddDisclaimerServices();
 
+        // First-run wizard (T-099): the once-flag rides the settings store
+        // the same way; the wizard view model is transient per open.
+        services.AddFirstRunWizardServices();
+
         services.AddSingleton<MenuViewModel>();
         services.AddSingleton<StatusBarViewModel>(sp =>
             new StatusBarViewModel(

@@ -1,3 +1,45 @@
+## [0.1.0-alpha.66] - 2026-11-08
+
+Build of board task T-099 (branch `feat/first-run-wizard`).
+
+### Added
+- The first-run wizard (T-099): a one-announcement, three-step onboarding
+  over the same reactive settings lanes the app already applies — the theme
+  pick, the exchange adapter pick and the first workspace symbol pick. The
+  launch shows it once per install: a start whose announcement flag is
+  unset (a fresh install, or an externally reset settings file) opens the
+  wizard after the first-run disclaimer wording, and ANY exit — finishing,
+  skipping or a plain window close — marks the persisted flag, so the next
+  launch lands on the configured workspace without a repeat announcement. A
+  failure to show the wizard is logged and non-fatal: the flag stays unset
+  and the next launch shows it instead (never a half-configured boot).
+- The step walk: one body area, the visible step swaps and the
+  back/next/finish row stays in place, clamped at both ends. Every pick is
+  a draft — the drafts seed from the applied state (the applied theme, the
+  active adapter; an unresolvable seed stays null rather than substituting
+  a fabricated default) and survive walking back and forth. Nothing applies
+  before the finish button's task lands, and the finish validates ALL
+  three picks BEFORE the first write, so an invalid pick is a refusal with
+  the pre-wizard state untouched — a failed finish keeps the wizard open
+  with the drafts intact (a retry or the skip affordance stays honest), and
+  the window closes only on a successful finish.
+- The demo lane as the shipped default: the active-exchange facade's
+  registration now leads with the canned-data demo adapter, so a fresh
+  install (the wizard's exact audience) works on a simulator that never
+  touches real funds, and existing installs restore their own persisted
+  exchange regardless of the order. Skipping (the button and the system
+  close share one path) is a plain window close — no write at all, so the
+  skipped wizard leaves that demo lane standing and a fully working
+  workspace; the announcement flag still marks (the wizard announced
+  itself exactly once).
+- The re-run entry in the settings window's appearance tab ("Run setup
+  wizard…"): the settings window closes itself and the wizard shows
+  modally over the main window, a re-run never touching the announcement
+  flag. Secrets never ride the wizard — it collects no keys at all, the
+  adapters reach theirs exclusively through the per-machine secret store
+  (never a command-line argument), and the adapter step's note says as
+  much in the wizard itself. Wizard strings ship in en and ru.
+
 ## [0.1.0-alpha.65] - 2026-11-08
 
 Build of board task T-114 (branch `feat/ai-context`).
@@ -55,7 +97,6 @@ Build of board task T-089 (branch `feat/chart-types`).
   without an entry keeps the standing type, a flip with no symbol
   addressed stays transient until a context exists, and external
   settings-file writes apply live without a restart.
-
 ## [0.1.0-alpha.63] - 2026-11-08
 
 Build of board task T-097 (branch `feat/notif-center`).

@@ -37,6 +37,7 @@ public sealed class WindowChromeTests
         { "OrderHistoryWindow", "chrome" },
         { "NewOrderDialogWindow", "chrome-compact" },
         { "ConfirmationDialogWindow", "chrome-compact" },
+        { "FirstRunWizardWindow", "chrome-compact" },
         { "SettingsWindow", "chrome-compact" },
     };
 

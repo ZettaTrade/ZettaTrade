@@ -1,5 +1,9 @@
 using System;
+using System.Reactive.Linq;
+using System.Threading.Tasks;
+using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI.Avalonia;
 using Serilog;
 using ZettaTrade.App.ViewModels;
@@ -42,4 +46,33 @@ public partial class SettingsWindow : ReactiveWindow<SettingsViewModel>
     }
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
+    /// The first-run wizard's re-run entry (T-099): the board names the
+    /// settings window as the only way back into the wizard. View behavior —
+    /// the window closes itself and the wizard shows modally over the owner
+    /// (this window was the owner's dialog, so the owner stays the modal
+    /// parent). The route is task-based with errors surfaced through the
+    /// log: never an async void, never a fire-and-forget.
+    /// </summary>
+    private void OnFirstRunWizardClick(object? sender, RoutedEventArgs e) =>
+        Observable
+            .FromAsync(RunFirstRunWizardRouteAsync)
+            .Subscribe(
+                _ => { },
+                ex => Log.Error(ex, "Failed to open the first-run wizard from the settings"));
+
+    private async Task RunFirstRunWizardRouteAsync()
+    {
+        var owner = Owner as Window;
+        Close();
+
+        // The wizard never writes the once-flag here: it exists already on
+        // this entry (the wizard announced once on the first launch).
+        var dialog = new FirstRunWizardWindow
+        {
+            DataContext = App.Services.GetRequiredService<FirstRunWizardViewModel>(),
+        };
+        await dialog.ShowDialog(owner!);
+    }
 }

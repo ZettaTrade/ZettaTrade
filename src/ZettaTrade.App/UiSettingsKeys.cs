@@ -236,4 +236,21 @@ public static class UiSettingsKeys
     /// keeps the exact pre-consent wording).
     /// </summary>
     public const bool DefaultChatMarketContext = false;
+
+    /// <summary>
+    /// Settings key of the persisted first-run wizard announcement flag:
+    /// written once — on the wizard's first launch — by ANY exit (finish,
+    /// skip or a plain window close), read fresh at every launch with no
+    /// cached copy so the settings hot-reload never fights the check. Once
+    /// the flag exists, the wizard never re-announces; showing it again is
+    /// the settings window's explicit job.
+    /// </summary>
+    public const string FirstRunWizardShown = "FirstRunWizardShown";
+
+    /// <summary>
+    /// The wizard announcement applied until a stored value is loaded: not
+    /// shown — a fresh install has seen no wizard yet, which is exactly the
+    /// first-run state.
+    /// </summary>
+    public const bool DefaultFirstRunWizardShown = false;
 }

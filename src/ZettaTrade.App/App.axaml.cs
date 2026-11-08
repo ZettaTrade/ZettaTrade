@@ -65,6 +65,12 @@ public partial class App : Application
                 // re-shows the wording (the risk and confirmation flows stay
                 // untouched).
                 await ShowFirstRunDisclaimerAsync(mainWindow);
+
+                // The first-run wizard (T-099): after the disclaimer wording
+                // showed (both first-run surfaces ride one launch path), the
+                // wizard shows ONCE — the persisted flag decides, any exit
+                // marks it, and the re-run entry lives in the settings window.
+                await ShowFirstRunWizardAsync(mainWindow);
             }
 
             base.OnFrameworkInitializationCompleted();
@@ -216,6 +222,47 @@ public partial class App : Application
             Services.GetRequiredService<ILogger<App>>().LogError(
                 ex,
                 "Failed to show the first-run disclaimer dialog; the wording shows again on the next launch");
+        }
+    }
+
+    /// <summary>
+    /// Show the first-run wizard when the persisted once-flag does not
+    /// exist: a fresh install officially announces the setup. Every exit —
+    /// finish, skip or a plain window close — marks the flag, because the
+    /// wizard announced itself exactly once and must never re-announce
+    /// afterwards (skipping leaves the demo-lane defaults standing).
+    /// A failure here is logged and non-fatal: a launch that failed to show
+    /// the wizard never marks the flag, so the next launch shows it instead.
+    /// </summary>
+    private static async Task ShowFirstRunWizardAsync(MainWindow owner)
+    {
+        try
+        {
+            var settings = Services.GetRequiredService<ISettingsService>();
+            if (!await FirstRunWizardState.ShouldBeShownAsync(settings))
+            {
+                return;
+            }
+
+            // The window shows after the startup walk and the disclaimer:
+            // the main window is already up, nothing service construction
+            // pends behind the dialog.
+            var dialog = new FirstRunWizardWindow
+            {
+                DataContext = Services.GetRequiredService<FirstRunWizardViewModel>(),
+            };
+            await dialog.ShowDialog(owner);
+
+            // ANY exit lands the once-flag exactly here: the wizard showed
+            // and every path out of it (the finish, the skip affordance and
+            // the system close included) is an announcement consumed.
+            await FirstRunWizardState.MarkShownAsync(settings);
+        }
+        catch (Exception ex)
+        {
+            Services.GetRequiredService<ILogger<App>>().LogError(
+                ex,
+                "Failed to show the first-run wizard; it shows again on the next launch");
         }
     }
 }
