@@ -702,7 +702,7 @@ Build of board task T-078 (branch `feat/order-confirm`).
   else on the ticket price; the captured reference close substitutes
   only where no price exists across the OCO pair. Double-Enter
   protection moved under the whole pipeline: the submit handler
-  (build > risk > confirmation > placement) rides one `SemaphoreSlim`
+  (build → risk → confirmation → placement) rides one `SemaphoreSlim`
   gate acquired at the top and released in `finally`, so an Enter
   while the dialog stands open can neither re-confirm nor re-place
   (the parked-confirmation harness pins it). Fully localized en+ru
@@ -870,7 +870,7 @@ Build of board task T-077 (branch `feat/position-actions`).
 Build of board task T-083 (branch `feat/trade-stats`).
 
 ### Added
-- Trade statistics dashboard (Trading > «Trade Statistics...»). A
+- Trade statistics dashboard (Trading → «Trade Statistics...»). A
   read-only scan of the persisted order journal builds the stats from raw
   fills only: every closing fill counts as its own trade against the
   average-entry bookkeeping — win rate, profit factor («∞» when no
@@ -947,7 +947,7 @@ Build of board task T-084 (branch `feat/csv-export`).
 Build of board task T-119 (branch `feat/first-run-disclaimer`).
 
 ### Added
-- The first-run disclaimer: the first launch shows a modal over the main window holding the shipped wording — «educational software, not investment advice» plus the explicit alpha posture (alpha software, paper-first trading, the own-testing-first real-funds statement, user-scoped key hygiene) — and an «Acknowledge» button persists a versioned acknowledgment flag through the existing settings store, so a future wording update re-shows the dialog exactly once per install. A plain dismissal leaves the flag unset (the next launch re-shows), the flag itself never gates any trading action, and the wording stays discoverable later from Help > About / Disclaimer. Fully localized en+ru (all wording in resx).
+- The first-run disclaimer: the first launch shows a modal over the main window holding the shipped wording — «educational software, not investment advice» plus the explicit alpha posture (alpha software, paper-first trading, the own-testing-first real-funds statement, user-scoped key hygiene) — and an «Acknowledge» button persists a versioned acknowledgment flag through the existing settings store, so a future wording update re-shows the dialog exactly once per install. A plain dismissal leaves the flag unset (the next launch re-shows), the flag itself never gates any trading action, and the wording stays discoverable later from Help → About / Disclaimer. Fully localized en+ru (all wording in resx).
 
 ## [0.1.0-alpha.39] - 2026-11-06
 
@@ -1431,7 +1431,7 @@ Build of task T-016 (exchange selector in the toolbar + the Demo adapter).
   so trading follows the exchange automatically. The exact-one-`exchangeInfo`
   path per run is preserved (the chart bootstrap joins the startup warm-up
   through the provider's single-flight gate).
-- Test suite 176 > 207 (Demo adapter determinism + rejection rules, facade
+- Test suite 176 → 207 (Demo adapter determinism + rejection rules, facade
   restore/switch/stream semantics, picker visibility + fallback UX, chart
   switch-and-cancel, provider flush).
 
@@ -1449,12 +1449,12 @@ Build of task T-015 (configurable exchange endpoints + registry seam).
   the shipped `Production` default; `ExchangeEndpointRegistry` (app-lifetime
   singleton) reads the section ONCE during the composition root's startup
   walk and serves the pair synchronously to the adapter factory.
-- `BinanceAdapter` constructor accepts the endpoints pair: omitted >
+- `BinanceAdapter` constructor accepts the endpoints pair: omitted →
   shipped defaults; a provided pair with blank members fails fast
   (`ArgumentException`) — the tolerant missing-entry case belongs to the
   registry, not the adapter.
-- Tolerance rules: missing section > shipped production endpoints silently;
-  present-but-blank members > warning in the log + production endpoints.
+- Tolerance rules: missing section → shipped production endpoints silently;
+  present-but-blank members → warning in the log + production endpoints.
 
 ### Changed (T-015 — startup walk ordering)
 - The composition root's startup walk now initializes TYPED registrations
@@ -1468,7 +1468,7 @@ Build of task T-015 (configurable exchange endpoints + registry seam).
   reads its endpoints from the registry at construction time — the walk must
   have loaded the settings file first, or every adapter silently ran on the
   shipped production hosts.
-- Test suite 159 > 169 (10 new `ExchangeEndpointRegistryTests`: walk
+- Test suite 159 → 169 (10 new `ExchangeEndpointRegistryTests`: walk
   semantics, ctor validation, a startup replica wiring the configured host
   into the resolved adapter, a real-file end-to-end read).
 
