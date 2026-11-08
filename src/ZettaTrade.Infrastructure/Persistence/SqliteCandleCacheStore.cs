@@ -39,11 +39,11 @@ public sealed class SqliteCandleCacheStore(
     public const string MaxBarsPerSeriesSettingsKey = "MaxBarsPerSeries";
 
     /// <summary>The shipped posture: the cache is on out of the box.</summary>
-    private const bool DefaultEnabled = true;
+    public const bool DefaultEnabled = true;
 
     /// <summary>The shipped eviction cap per series; the 100k-candle chart
     /// target needs a series that deep at minimum. Settings may size more.</summary>
-    private const int DefaultMaxBarsPerSeries = 100_000;
+    public const int DefaultMaxBarsPerSeries = 100_000;
 
     /// <summary>The eviction cap's floor: a cap below one bar means nothing.</summary>
     private const int MinMaxBarsPerSeries = 1;

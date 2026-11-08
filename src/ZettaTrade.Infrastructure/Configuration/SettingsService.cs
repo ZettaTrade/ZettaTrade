@@ -10,6 +10,32 @@ using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
+/// One stored settings entry: its section, its key and the exact stored JSON
+/// value. The settings port's (T-100) <see cref="SettingsService.SnapshotAsync"/>
+/// payload.
+/// </summary>
+/// <param name="Section">The entry's settings section.</param>
+/// <param name="Key">The entry's key inside the section.</param>
+/// <param name="Value">The stored value as JSON (a detached clone the caller may keep).</param>
+public sealed record SettingsSnapshotEntry(string Section, string Key, JsonElement Value)
+{
+    /// <summary>The composite key the memory store addresses the entry by.</summary>
+    public string CompositeKey => $"{Section}\0{Key}";
+}
+
+/// <summary>
+/// One keyed settings mutation of a batch apply (T-100, the settings port):
+/// a present value upserts the entry, an absent value removes it. The batch
+/// is the port's transport — imported settings and the factory-reset stamp
+/// apply as one locked, single-write mutation, and every real difference
+/// publishes exactly one reactive change (the T-053 canon).
+/// </summary>
+/// <param name="Section">The mutation's settings section.</param>
+/// <param name="Key">The mutation's key inside the section.</param>
+/// <param name="Value">The value to upsert, or null to remove the stored entry (already-absent keys ride as no-ops).</param>
+public sealed record SettingsMutation(string Section, string Key, JsonElement? Value);
+
+/// <summary>
 /// JSON-file-backed settings service with reactive change notifications.
 /// Supports hot-reload via file system watcher.
 /// Thread-safe with SemaphoreSlim for async operations.
@@ -289,6 +315,98 @@ public sealed class SettingsService : ISettingsService, IAsyncInitializable, IDi
         {
             _saveLock.Release();
         }
+    }
+
+    /// <summary>
+    /// The in-memory store as raw keyed entries: the settings port's export
+    /// source and the apply diff's base. Every value is a detached clone that
+    /// survives any later save or reload.
+    /// </summary>
+    public async Task<IReadOnlyList<SettingsSnapshotEntry>> SnapshotAsync(CancellationToken ct = default)
+    {
+        await _saveLock.WaitAsync(ct);
+        try
+        {
+            var entries = new List<SettingsSnapshotEntry>(_settings.Count);
+
+            foreach (var (fullKey, element) in _settings)
+            {
+                var separator = fullKey.IndexOf('\0');
+                if (separator < 0)
+                {
+                    continue;
+                }
+
+                entries.Add(new SettingsSnapshotEntry(
+                    fullKey[..separator],
+                    fullKey[(separator + 1)..],
+                    element.Clone()));
+            }
+
+            return entries;
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Apply a batch of mutations as ONE locked unit: every value lands, the
+    /// file is written once and the differences publish — but only after the
+    /// save lock is released: a subscriber re-entering the service (to react
+    /// with its own reads or writes) must never face a held lock. A save failure
+    /// throws to the caller with the memory already mutated — the same
+    /// single-set failure surface. Nothing here validates the payload shapes:
+    /// the port layer does that before any mutation is drafted.
+    /// </summary>
+    public async Task<IReadOnlyList<SettingsChange>> ApplyBatchAsync(
+        IReadOnlyList<SettingsMutation> mutations,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+
+        List<SettingsChange> changes;
+
+        await _saveLock.WaitAsync(ct);
+        try
+        {
+            var newSettings = new Dictionary<string, JsonElement>();
+            foreach (var (fullKey, element) in _settings)
+            {
+                newSettings[fullKey] = element;
+            }
+
+            foreach (var mutation in mutations)
+            {
+                ArgumentNullException.ThrowIfNull(mutation);
+
+                var compositeKey = $"{mutation.Section}\0{mutation.Key}";
+                if (mutation.Value is { } value)
+                {
+                    newSettings[compositeKey] = value.Clone();
+                }
+                else
+                {
+                    newSettings.Remove(compositeKey);
+                }
+            }
+
+            changes = ApplyAndCollect(newSettings);
+
+            await SaveCoreAsync(ct);
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+
+        foreach (var change in changes)
+        {
+            _changes.OnNext(change);
+        }
+
+        return changes;
     }
 
     /// <summary>

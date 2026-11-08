@@ -62,6 +62,7 @@ internal static class CompositionRoot
             new SettingsService(
                 ConfigPathResolver.MainSettingsFile,
                 sp.GetRequiredService<ILogger<SettingsService>>()));
+        services.AddSettingsPortServices(); // T-100: settings import/export + factory reset over the store above.
 
         // ThemeManager is registered both by its concrete type (the read-only
         // diagnostics surface — LoadErrors/LoadErrorsChanged — lives there,
@@ -200,7 +201,9 @@ internal static class CompositionRoot
                 sp.GetRequiredService<IIndicatorCatalog>(),
                 sp.GetRequiredService<IMcpClientManager>(),
                 sp.GetRequiredService<ILogger<SettingsViewModel>>(),
-                sp.GetRequiredService<ThemeManager>().LoadErrorsChanged));
+                sp.GetRequiredService<ThemeManager>().LoadErrorsChanged,
+                sp.GetRequiredService<SettingsPortService>(),
+                sp.GetRequiredService<IConfirmationService>()));
         services.AddSingleton<ChartViewModel>(sp =>
             new ChartViewModel(
                 sp.GetRequiredService<ActiveExchangeService>(),

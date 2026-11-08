@@ -71,6 +71,26 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>The period sentinel the pack rows share: "no row cached yet" (the selection shows empty).</summary>
     private const int NoRowPeriod = 0;
 
+    /// <summary>The localization keys the settings port's outcomes render through (values composed at event time).</summary>
+    private const string PortExportedToKey = "Port.ExportedTo";
+    private const string PortImportAppliedKey = "Port.ImportApplied";
+    private const string PortResetDoneKey = "Port.ResetDone";
+    private const string PortResetDeclinedKey = "Port.ResetDeclined";
+
+    /// <summary>The per-action failure lines (each names its own action; nothing else composes).</summary>
+    private const string PortExportFailedKey = "Port.Error.ExportFailed";
+    private const string PortImportRejectedKey = "Port.Error.ImportRejected";
+    private const string PortApplyFailedKey = "Port.Error.ApplyFailed";
+    private const string PortResetFailedKey = "Port.Error.ResetFailed";
+
+    /// <summary>The per-reason rejection lines the import's validation surfaces.</summary>
+    private const string PortErrorMalformedJsonKey = "Port.Error.MalformedJson";
+    private const string PortErrorSchemaKey = "Port.Error.Schema";
+    private const string PortErrorVersionKey = "Port.Error.Version";
+    private const string PortErrorUnknownEntryKey = "Port.Error.UnknownEntry";
+    private const string PortErrorWrongTypeKey = "Port.Error.WrongType";
+    private const string PortImportNoChangeKey = "Port.ImportNoChange";
+
     #endregion Constants
 
     #region Properties
@@ -372,6 +392,59 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>True while at least one theme file failed to load; drives the warning list visibility.</summary>
     public bool HasThemeFileErrors => _themeFileErrors.Count > 0;
 
+    /// <summary>Whether the settings port surface (T-100) is wired at all: the DI composition always passes it; the tests may omit it.</summary>
+    public bool IsPortAvailable => _settingsPort is not null && _confirmations is not null;
+
+    /// <summary>The dry-run diff preview rows of the last validated import (added + changed entries only).</summary>
+    public ObservableCollection<PortImportRow> ImportPreview { get; } = [];
+
+    /// <summary>Whether the import preview is on screen (a validated plan is pending the user's apply).</summary>
+    public bool IsImportPreviewVisible
+    {
+        get => _isImportPreviewVisible;
+        set => this.RaiseAndSetIfChanged(ref _isImportPreviewVisible, value);
+    }
+
+    /// <summary>The import's rejection line (localized at event time); null while the last draft was accepted.</summary>
+    public string? ImportErrorText
+    {
+        get => _importErrorText;
+        private set
+        {
+            if (string.Equals(_importErrorText, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _importErrorText = value;
+            this.RaisePropertyChanged(nameof(ImportErrorText));
+            this.RaisePropertyChanged(nameof(HasImportError));
+        }
+    }
+
+    /// <summary>True while the last import draft was rejected; drives the error row's visibility.</summary>
+    public bool HasImportError => _importErrorText is not null;
+
+    /// <summary>The port's outcome line (export, apply, reset); null while nothing happened this open.</summary>
+    public string? PortStatusText
+    {
+        get => _portStatusText;
+        private set
+        {
+            if (string.Equals(_portStatusText, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _portStatusText = value;
+            this.RaisePropertyChanged(nameof(PortStatusText));
+            this.RaisePropertyChanged(nameof(HasPortStatusText));
+        }
+    }
+
+    /// <summary>True while a port outcome line shows; drives the status row's visibility.</summary>
+    public bool HasPortStatusText => _portStatusText is not null;
+
     #endregion Properties
 
     #region Commands
@@ -411,6 +484,13 @@ public sealed class SettingsViewModel : ReactiveObject
 
     /// <summary>Remove one external-server draft row: local until Save (the persisted list and its connections apply on Save only).</summary>
     public ReactiveCommand<McpServerRow, RxVoid> RemoveMcpServerCommand { get; }
+
+    /// <summary>
+    /// Apply the pending (already-validated) import plan: enabled while the
+    /// preview is on screen; the apply is the one locked batch and every
+    /// subscriber re-applies live (the T-053 canon).
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> ApplyImportCommand { get; }
 
     #endregion Commands
 
@@ -534,6 +614,24 @@ public sealed class SettingsViewModel : ReactiveObject
     /// </summary>
     private string _persistedServerJson = McpClientManager.DefaultServersJson;
 
+    /// <summary>The settings port service (T-100): export, import, factory reset; null in tests without the surface.</summary>
+    private readonly SettingsPortService? _settingsPort;
+
+    /// <summary>The typed confirmation the factory reset gates itself behind; null in the same tests.</summary>
+    private readonly IConfirmationService? _confirmations;
+
+    /// <summary>The validated import plan pending the user's apply (null until a draft is accepted).</summary>
+    private SettingsPortImportPlan? _pendingImportPlan;
+
+    /// <summary>The import preview visibility (the apply command rides it).</summary>
+    private bool _isImportPreviewVisible;
+
+    /// <summary>The import's rejection line as last composed.</summary>
+    private string? _importErrorText;
+
+    /// <summary>The port's outcome line as last composed.</summary>
+    private string? _portStatusText;
+
     #endregion Private Fields
 
     #region Constructor
@@ -559,6 +657,15 @@ public sealed class SettingsViewModel : ReactiveObject
     /// Stream of theme file load errors; when omitted (tests without the
     /// diagnostics stream), the warning list simply stays empty.
     /// </param>
+    /// <param name="settingsPort">
+    /// The settings port service (T-100): export, import and factory reset.
+    /// When omitted (tests without the port surface), the port commands stay
+    /// inert — <see cref="IsPortAvailable"/> renders the tab's honest posture.
+    /// </param>
+    /// <param name="confirmations">
+    /// The typed confirmation service the factory reset gates itself behind.
+    /// Paired with <paramref name="settingsPort"/>; omitted together with it.
+    /// </param>
     public SettingsViewModel(
         ISettingsService settings,
         IThemeManager themeManager,
@@ -570,7 +677,9 @@ public sealed class SettingsViewModel : ReactiveObject
         IIndicatorCatalog indicatorCatalog,
         IMcpClientManager mcpClients,
         ILogger<SettingsViewModel> logger,
-        IObservable<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null)
+        IObservable<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null,
+        SettingsPortService? settingsPort = null,
+        IConfirmationService? confirmations = null)
     {
         _settings = settings;
         _themeManager = themeManager;
@@ -582,6 +691,8 @@ public sealed class SettingsViewModel : ReactiveObject
         _indicatorCatalog = indicatorCatalog;
         _mcpClients = mcpClients;
         _logger = logger;
+        _settingsPort = settingsPort;
+        _confirmations = confirmations;
 
         // The plugin surface is settled at construction (the scan runs at
         // startup only): the SMA row renders only when the catalog holds
@@ -766,6 +877,13 @@ public sealed class SettingsViewModel : ReactiveObject
         _mcpClients.StatesChanged.Subscribe(
             ApplyMcpClientStates,
             ex => _logger.LogError(ex, "The MCP client state stream stopped unexpectedly"));
+
+        // The settings port's apply gate (T-100): the validated preview's own
+        // confirmation control — it enables only while a plan is pending, and
+        // the apply is the one locked batch every subscriber re-applies from.
+        ApplyImportCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, cancellationToken) => ApplyImportCoreAsync(cancellationToken),
+            this.WhenAnyValue(vm => vm.IsImportPreviewVisible));
 
         ResetAppearanceSelections();
     }
@@ -1015,6 +1133,176 @@ public sealed class SettingsViewModel : ReactiveObject
             }
         }
     }
+
+    #region Settings port (T-100)
+
+    /// <summary>
+    /// Export the user-adjustable settings subset to the user-picked local
+    /// path (the write itself is the port service's work): the file carries
+    /// the registry-owned stored keys only — secrets can never ride it. An
+    /// outcome line renders the destination or the failure; the file system
+    /// failure spears the status, the store stays untouched.
+    /// </summary>
+    public async Task ExportToFileAsync(string filePath, CancellationToken ct = default)
+    {
+        if (_settingsPort is null)
+        {
+            return;
+        }
+
+        ClearImport();
+        try
+        {
+            await _settingsPort.ExportToFileAsync(filePath, ct);
+            PortStatusText = _localization.GetString(PortExportedToKey, filePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to export the settings to {Path}", filePath);
+            PortStatusText = _localization.GetString(PortExportFailedKey);
+        }
+    }
+
+    /// <summary>
+    /// Draft the import from the file text the view picked: the validation
+    /// pass (schema, version, allowlist, value kinds — no defaults ever
+    /// substituted) fills the dry-run preview when it passes and becomes the
+    /// localized rejection line when it does not. Nothing applies here.
+    /// </summary>
+    public async Task DraftImportAsync(string jsonText, CancellationToken ct = default)
+    {
+        if (_settingsPort is null)
+        {
+            return;
+        }
+
+        // A fresh draft starts every outcome surface over: the previous
+        // preview (and its pending plan) dies at once.
+        ClearImport();
+        try
+        {
+            var plan = await _settingsPort.DraftImportAsync(jsonText, ct);
+            _pendingImportPlan = plan;
+
+            foreach (var row in plan.Rows)
+            {
+                ImportPreview.Add(row);
+            }
+
+            // An import that validates but carries nothing new says that out
+            // loud: the preview stays hidden and the one status line reports
+            // the empty diff (nothing to confirm is not silence).
+            IsImportPreviewVisible = plan.Rows.Count > 0;
+            if (plan.Rows.Count == 0)
+            {
+                PortStatusText = _localization.GetString(PortImportNoChangeKey);
+            }
+        }
+        catch (SettingsPortImportException exception)
+        {
+            _logger.LogWarning(exception, "The settings import was rejected");
+            ImportErrorText = _localization.GetString(ErrorTextKeyOf(exception.Reason));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            // Everything typed above is a validation reject; anything here is
+            // a real failure (a storage error under the draft) — the generic
+            // honesty line speaks, never a specific claim the failure does
+            // not support.
+            _logger.LogError(exception, "Failed to draft the settings import");
+            ImportErrorText = _localization.GetString(PortImportRejectedKey);
+        }
+    }
+
+    /// <summary>
+    /// Apply the pending import plan (the preview has already shown it): the
+    /// one locked batch — the file lands once and every subscriber re-applies
+    /// live (no restart). The plan dies after applying (a second application
+    /// is a fresh preview's business).
+    /// </summary>
+    private async Task<RxVoid> ApplyImportCoreAsync(CancellationToken ct)
+    {
+        if (_settingsPort is null)
+        {
+            return RxVoid.Default;
+        }
+
+        var plan = _pendingImportPlan;
+        if (plan is null)
+        {
+            return RxVoid.Default;
+        }
+
+        ClearImport();
+        try
+        {
+            await _settingsPort.ApplyImportAsync(plan, ct);
+            PortStatusText = _localization.GetString(PortImportAppliedKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply the settings import");
+            PortStatusText = _localization.GetString(PortApplyFailedKey);
+        }
+
+        return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// The factory reset: behind the typed human confirmation (a decline
+    /// renders the honest declined line and writes nothing), every
+    /// registry-owned key returns to its default and the secrets store is
+    /// never touched (the port has no secret-store dependency).
+    /// </summary>
+    public async Task ResetToDefaultsAsync(CancellationToken ct = default)
+    {
+        if (_settingsPort is null || _confirmations is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var ran = await _settingsPort.ResetToDefaultsAsync(_confirmations, ct);
+            PortStatusText = _localization.GetString(ran ? PortResetDoneKey : PortResetDeclinedKey);
+            ClearImport();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reset the settings to the factory defaults");
+            PortStatusText = _localization.GetString(PortResetFailedKey);
+        }
+    }
+
+    /// <summary>The typed rejection reason → its localized line (every key lives in both cultures).</summary>
+    private static string ErrorTextKeyOf(SettingsPortErrorReason reason) => reason switch
+    {
+        SettingsPortErrorReason.MalformedJson => PortErrorMalformedJsonKey,
+        SettingsPortErrorReason.UnknownSchema => PortErrorSchemaKey,
+        SettingsPortErrorReason.UnsupportedVersion => PortErrorVersionKey,
+        SettingsPortErrorReason.UnknownEntry => PortErrorUnknownEntryKey,
+        SettingsPortErrorReason.WrongPayloadKind => PortErrorWrongTypeKey,
+        _ => PortImportRejectedKey,
+    };
+
+    /// <summary>Hide + empty the pending draft (the preview, the plan and the error line).</summary>
+    private void ClearImport()
+    {
+        _pendingImportPlan = null;
+        ImportPreview.Clear();
+        IsImportPreviewVisible = false;
+        ImportErrorText = null;
+    }
+
+    #endregion Settings port (T-100)
 
     #endregion Public Methods
 

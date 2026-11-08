@@ -39,7 +39,7 @@ public sealed class ActiveExchangeService : IMarketDataAdapter, IAsyncInitializa
     private const string SettingsSection = "Workspace";
 
     /// <summary>Settings key holding the persisted active exchange id.</summary>
-    private const string ExchangeIdSettingKey = "ExchangeId";
+    public const string ExchangeIdSettingKey = "ExchangeId";
 
     #endregion Constants
 

@@ -1,3 +1,28 @@
+## [0.1.0-alpha.68] - 2026-11-08
+
+Build of board task T-100 (branch `feat/settings-port`).
+
+### Added
+- The settings port (T-100): export of the user-adjustable settings subset
+  as a versioned JSON file — registry-owned keys only, both levels sorted
+  and a fixed root shape, so two exports of one state are byte-identical
+  and a restore round-trips byte-stable. Secrets are structurally absent:
+  the port takes no secret-store dependency, so no credential can ever
+  reach an exported file.
+- The import lane: schema validation (the port's own marker, the exactly-
+  shipped version, an allowlist of known settings keys and a stored-shape
+  kind per key) rejects a foreign file whole — nothing coerced, nothing
+  defaulted — and a passed draft becomes the dry-run diff preview the user
+  looks at before the apply unlocks.
+- The apply rides one locked, single-write batch on the settings service:
+  snapshot plus keyed mutations publish exactly one reactive change per
+  real difference, and every subscriber that already reacts to settings
+  changes re-applies live — no restart needed after an import.
+- The factory reset stamps every registry-owned key back to its shipped
+  fresh-install default (or removes the absence-natural ones) behind the
+  typed human confirmation; a decline writes nothing, and the secrets lane
+  plus foreign tuning keys always survive.
+
 ## [0.1.0-alpha.67] - 2026-11-08
 
 Build of board task T-111 (branch `feat/strategies`).
@@ -124,6 +149,7 @@ Build of board task T-089 (branch `feat/chart-types`).
   without an entry keeps the standing type, a flip with no symbol
   addressed stays transient until a context exists, and external
   settings-file writes apply live without a restart.
+
 ## [0.1.0-alpha.63] - 2026-11-08
 
 Build of board task T-097 (branch `feat/notif-center`).
