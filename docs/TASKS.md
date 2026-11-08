@@ -132,7 +132,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | done | - |
 | T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | queued | T-125 |
 | T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | queued | - |
-| T-128 Demo video: storyboard + shot list (docs/ops) | docs/demo-video | queued | - |
+| T-128 Demo video: storyboard + shot list (docs/ops) | feat/demo-script | in-progress | - |
 | T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | queued | T-126 |
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
 | T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | queued | - |
@@ -314,7 +314,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-128 — Demo video: storyboard + shot list (docs/ops)
 
-- **Branch:** queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review; not urgent).
+- **Branch:** feat/demo-script, worktree `zt-demo-script`, based on develop@0823719 (claimed 2026-11-09).
 - **Origin:** a 2-3 minute video is the artifact that sells to partners and investors without a live walk; the board lacks it — and the recording needs a script to be honest with real keys never involved.
 - **What:** `docs/DEMO-SCRIPT.md` — a shot-by-shot storyboard (90-180 s): the problem hook, the workspace tour, the AI chat answering with the live market context (T-114), a testnet limit order placed and filled (T-127), the portfolio/stats view (T-081–T-083), an alert firing with a toast (T-096/T-097), an outro with the download CTA; recording instructions (theme set, demo/paper data, screen 1080p, no real keys on screen ever — the standing security rule), a narration draft in en and ru. The recording itself is a human task; the deliverable here is the script + the final tracked file/hosting link referenced from the landing (T-126).
 - **Scope:** docs + a hosted/linked video artifact; statics may reuse the T-115 manual screenshots.
