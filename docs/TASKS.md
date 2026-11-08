@@ -103,7 +103,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-096 Price and percent-move alerts with a manager | feat/price-alerts | queued | - |
 | T-097 Notification center: toasts, history, DND | feat/notif-center | done | - |
 | T-098 Adapter health strip in the status bar | feat/health-strip | done | - |
-| T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | review | - |
+| T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | done | - |
 | T-100 Settings import/export + factory reset | feat/settings-port | queued | - |
 | T-101 Log viewer window + global crash guard | feat/log-viewer | queued | - |
 | T-102 Hotkey manager + cheat sheet overlay | feat/hotkey-manager | queued | - |
@@ -188,15 +188,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** alert engine (a service), manager UI, `Settings.*` keys, resx en+ru, tests.
 - **Acceptance:** edge semantics exact (above/at/below), no alert lost across restart if persisted.
 - **Tests:** trigger edge matrix, persistence reload, sound-failure degrade.
-
-## T-099 — First-run wizard (theme, adapter, symbol)
-
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
-- **Origin:** a cold start lands on a bare workspace; onboarding is nothing.
-- **What:** an opt-in three-step wizard — theme picker, adapter pick (testnet/demo defaults, keys stay in `ISecretStore` via the stdin path, never argv), first symbol pick; stored through the reactive settings service; skippable and re-runnable from settings; demo is the default lane so nothing real is touched without explicit choice.
-- **Scope:** wizard VM/views, settings keys, resx en+ru, tests.
-- **Acceptance:** skipping leaves a working demo configured app.
-- **Tests:** step navigation golden, settings-write integration, the skip path.
 
 ## T-100 — Settings import/export + factory reset
 
