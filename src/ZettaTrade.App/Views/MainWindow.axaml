@@ -249,10 +249,13 @@
                                  marks the favorites; both marks are managed in the
                                  settings window's pairs tab); the time frame picker
                                  rides the same load key, so a flip reloads the
-                                 chart live; the candles export writes the loaded
-                                 series to a user-chosen CSV file. -->
+                                 chart live; the overlay toggles (T-093) sit right
+                                 next to it, the persisted choices mirroring their
+                                 on/off state through the toggles' own class, and
+                                 the candles export writes the loaded series to a
+                                 user-chosen CSV file. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
@@ -284,6 +287,38 @@
                                           ItemsSource="{Binding TimeFrames}"
                                           SelectedItem="{Binding SelectedTimeFrame}" />
                                 <Button Grid.Column="3"
+                                        Content="{loc:Localized Chart.Vwap}"
+                                        Command="{Binding ToggleVwapCommand}"
+                                        ToolTip.Tip="{loc:Localized Chart.Vwap.Tip}"
+                                        Classes.on="{Binding ShowVwap}"
+                                        MinWidth="72"
+                                        Margin="8,0,0,0"
+                                        Opacity="0.65">
+                                    <Button.Styles>
+                                        <Style Selector="Button.on">
+                                            <Setter Property="Opacity" Value="1" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                                        </Style>
+                                    </Button.Styles>
+                                </Button>
+                                <Button Grid.Column="4"
+                                        Content="{loc:Localized Chart.VolumeProfile}"
+                                        Command="{Binding ToggleVolumeProfileCommand}"
+                                        ToolTip.Tip="{loc:Localized Chart.VolumeProfile.Tip}"
+                                        Classes.on="{Binding ShowVolumeProfile}"
+                                        MinWidth="92"
+                                        Margin="8,0,0,0"
+                                        Opacity="0.65">
+                                    <Button.Styles>
+                                        <Style Selector="Button.on">
+                                            <Setter Property="Opacity" Value="1" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                                        </Style>
+                                    </Button.Styles>
+                                </Button>
+                                <Button Grid.Column="5"
                                         Content="{loc:Localized Chart.ExportCandlesCsv}"
                                         Command="{Binding ExportCandlesCommand}"
                                         MinWidth="110"
@@ -308,10 +343,16 @@
                                        IsVisible="{Binding HasHistoryLimitNote}"
                                        Margin="0,0,0,8" />
 
-                            <!-- Chart -->
+                            <!-- Chart: the T-093 overlays ride the same
+                                 publish path the indicator lines do (the
+                                 VWAP computed against the loaded series;
+                                 the toggled profile recomputes with the
+                                 visible window on every pass). -->
                             <charting:CandlestickChart x:Name="CandlesChart" Grid.Row="3"
                                                        Bars="{Binding Bars}"
                                                        Use12HourClock="{Binding Use12HourClock}"
+                                                       VwapOverlay="{Binding VwapOverlay}"
+                                                       VolumeProfileVisible="{Binding ShowVolumeProfile}"
                                                        IndicatorLines="{Binding IndicatorLines}" />
                         </Grid>
                     </Border>

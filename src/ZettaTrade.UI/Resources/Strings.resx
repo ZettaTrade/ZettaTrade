@@ -315,6 +315,21 @@
   <data name="Chart.HistoryLimit" xml:space="preserve">
     <value>Deep history ends at {0}: the feed serves no older candles.</value>
   </data>
+  <data name="Chart.Vwap" xml:space="preserve">
+    <value>VWAP</value>
+  </data>
+  <data name="Chart.Vwap.Tip" xml:space="preserve">
+    <value>Toggle the session VWAP overlay with its ±1σ bands over the candles.</value>
+  </data>
+  <data name="Chart.VolumeProfile" xml:space="preserve">
+    <value>Volume profile</value>
+  </data>
+  <data name="Chart.VolumeProfile.Tip" xml:space="preserve">
+    <value>Toggle the volume-at-price histogram in the chart's right margin.</value>
+  </data>
+  <data name="Chart.NoVolumeData" xml:space="preserve">
+    <value>No volume data for these candles</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>
