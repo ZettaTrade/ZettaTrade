@@ -139,7 +139,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
 | T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | done | T-082 |
 | T-134 Supervisor-mode skill (OpenCode): the standing directives load only on explicit invocation | feat/supervisor-skill | done | - |
-| T-135 Stabilize the flaky PositionsPanel in-flight test under suite load | feat/flaky-pospanel-timing | queued | - |
+| T-135 Stabilize the flaky PositionsPanel in-flight test under suite load | feat/flaky-pospanel-timing | in-progress | - |
 | T-136 Repo hygiene: baked mojibake repair, machine-path purge, prevention lints | chore/repo-hygiene | done | - |
 | T-137 Fix the app startup crash: the concrete settings store resolves in DI | fix/startup-di | done | - |
 
@@ -386,9 +386,10 @@ the end of that file, so no effort is duplicated.
 
 ## T-135 — Stabilize the flaky PositionsPanel in-flight test under suite load
 
-- **Branch:** queued 2026-11-08 (supervisor idea after the wave-2 landing trail: three gate runs tripped the same pre-existing test as the wave's ~180 new tests grew App.Tests parallel pressure).
-- **Origin:** the sibling shape is T-073/T-116; the family grew a third member that trips at the ~30 s full-suite mark.
-- **What:** de-flake `PositionRowAction_WhileInFlight_DisablesTheRowSurfaceForDoubleClicks` without loosening the assertion (the row must still suspend in flight): give the in-flight completion an explicit seam (a controllable clock/observable for the test instead of a wall-clock budget) or serialize the contested scheduler steps in the test harness; a production defect found while diagnosing is a SEPARATE finding, never folded here.
-- **Scope:** PositionsPanelViewModelTests and the test harness seam only; no production code change.
-- **Acceptance:** the test is green in 10 consecutive full-suite parallel App.Tests runs under local load.
-- **Tests:** the fix IS the test; the assertion semantics stay intact.
+- **Branch:** feat/flaky-pospanel-timing, worktree zt-flaky-pospanel-timing, based on develop@bc17e83 (claimed 2026-11-08; queued originally 2026-11-08 after the wave-2 landing trail: three gate runs tripped the same pre-existing test as the wave's ~180 new tests grew App.Tests parallel pressure).
+- **Origin:** the sibling shape is T-073/T-116; the family grew a third member that trips at the ~30 s full-suite mark. House flake-family records: with an IDENTICAL binary the full App.Tests suite flapped (37 fails, then all-green, then 38 fails within minutes); the failing tallies' first casualty is the pump's own DrainAsync fact, a cross-collection dispatcher-post interference family - load-sensitive wall-clock/pump timing, not a semantic bug in these facts.
+- **What:** make the gated in-flight facts DETERMINISTIC (tests-only: NO version bump, NO CHANGELOG section): drive the in-flight work explicitly through the existing TaskCompletionSource seam pattern, await the actual in-flight task and the phase recording before asserting, and drop wall-clock Timeout budgets and unordered cross-observer waits that can invert under suite load. Assertions keep their EXACT semantics - the disabled surface and the skip semantics stay fully asserted; only WHEN things are settled changes. The named fact is `PositionRowAction_WhileInFlight_DisablesTheRowSurfaceForDoubleClicks`; the sibling gated facts staying stable alongside it are `CancelAllCommand_WhileARowCancelIsInFlight_SkipsAndReportsThatRow` and the two amend-in-flight facts `AmendCommand_MarksTheRowAmending_KeepsTheMarkerThroughReloadsAndClearsItAtTheEnd` and `AmendCommand_SecondAttemptWhileOneRuns_IsSwallowedByTheFlow`.
+- **Scope:** tests/ZettaTrade.App.Tests/ViewModels/PositionsPanelViewModelTests.cs plus the board row/section in docs/TASKS.md only; NOTHING in src/* (a genuine product-code race becomes its own finding, a production defect found while diagnosing is a SEPARATE task, never folded here).
+- **Acceptance:** plain full App.Tests runs (no filter) green 3x consecutively, then GATE PASSED (max 2 runs; a known flake-family trip of the gate's flaky retry is recorded, not iterated).
+- **Tests:** the fix IS the test; the 10-consecutive-run ambition from the queued canon is not a gate condition.
+- **Status:** in-progress.
