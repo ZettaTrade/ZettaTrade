@@ -1449,4 +1449,88 @@ Estimated fee: {7}</value>
   <data name="Alert.Error.OperationFailed" xml:space="preserve">
     <value>The alerts operation failed: {0}</value>
   </data>
+  <data name="Log.Window.Title" xml:space="preserve">
+    <value>Log viewer</value>
+  </data>
+  <data name="Log.Filter.Level" xml:space="preserve">
+    <value>Level</value>
+  </data>
+  <data name="Log.Filter.Level.All" xml:space="preserve">
+    <value>All levels</value>
+  </data>
+  <data name="Log.Filter.Level.InfoPlus" xml:space="preserve">
+    <value>Information and above</value>
+  </data>
+  <data name="Log.Filter.Level.WarnPlus" xml:space="preserve">
+    <value>Warnings and above</value>
+  </data>
+  <data name="Log.Filter.Level.ErrorPlus" xml:space="preserve">
+    <value>Errors and above</value>
+  </data>
+  <data name="Log.Filter.Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Log.Filter.SourceWatermark" xml:space="preserve">
+    <value>Source contains… (empty = all)</value>
+  </data>
+  <data name="Log.Empty" xml:space="preserve">
+    <value>The tail is empty — nothing logged yet</value>
+  </data>
+  <data name="Log.Export" xml:space="preserve">
+    <value>Export…</value>
+  </data>
+  <data name="Log.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Log.Lines" xml:space="preserve">
+    <value>{0} lines</value>
+  </data>
+  <data name="Log.Tail.File" xml:space="preserve">
+    <value>Tailing {0}</value>
+  </data>
+  <data name="Log.Tail.NoFile" xml:space="preserve">
+    <value>No log file yet — the tail starts with the first write</value>
+  </data>
+  <data name="Log.Excerpt.Saved" xml:space="preserve">
+    <value>Exported {0} lines to {1}</value>
+  </data>
+  <data name="Log.Excerpt.Failed" xml:space="preserve">
+    <value>The export failed: {0}</value>
+  </data>
+  <data name="Log.Level.Trace" xml:space="preserve">
+    <value>Trace</value>
+  </data>
+  <data name="Log.Level.Debug" xml:space="preserve">
+    <value>Debug</value>
+  </data>
+  <data name="Log.Level.Information" xml:space="preserve">
+    <value>Info</value>
+  </data>
+  <data name="Log.Level.Warning" xml:space="preserve">
+    <value>Warn</value>
+  </data>
+  <data name="Log.Level.Error" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="Log.Level.Critical" xml:space="preserve">
+    <value>Fatal</value>
+  </data>
+  <data name="Log.Crash.Title" xml:space="preserve">
+    <value>Unexpected failure</value>
+  </data>
+  <data name="Log.Crash.Summary" xml:space="preserve">
+    <value>An unexpected failure occurred: {0}: {1}.</value>
+  </data>
+  <data name="Log.Crash.SummaryEmpty" xml:space="preserve">
+    <value>An unexpected failure occurred without a diagnosed exception.</value>
+  </data>
+  <data name="Log.Crash.LogPath" xml:space="preserve">
+    <value>Details were written to the log at: {0}</value>
+  </data>
+  <data name="Log.Crash.Dismiss" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Menu.Help.LogViewer" xml:space="preserve">
+    <value>Open log viewer…</value>
+  </data>
 </root>

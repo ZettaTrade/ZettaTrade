@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:log="using:ZettaTrade.App.Services"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.CrashDialogWindow"
+        Classes="chrome-compact"
+        x:DataType="log:CrashReport"
+        Title="{loc:Localized Log.Crash.Title}"
+        Width="520" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Topmost="True"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <StackPanel Margin="20" Spacing="14">
+
+        <TextBlock Text="{loc:Localized Log.Crash.Title}"
+                   FontWeight="Bold"
+                   FontSize="16" />
+
+        <!-- The composed summary: the exception type + its message (the
+             crash guard composes it during the teardown; nothing updates
+             here — the dialog is read-only, the process exits after it). -->
+        <TextBlock Text="{Binding Summary}"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextPrimary}" />
+
+        <!-- The point of the dialog: where the log lives. The path is
+             selectable text — a user can copy it before the process exits
+             and read the file after the app is gone. -->
+        <SelectableTextBlock Text="{Binding LogPathLine}"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondary}" />
+
+        <Button Content="{loc:Localized Log.Crash.Dismiss}"
+                HorizontalAlignment="Right"
+                MinWidth="100"
+                Click="OnDismissClick" />
+    </StackPanel>
+</Window>
