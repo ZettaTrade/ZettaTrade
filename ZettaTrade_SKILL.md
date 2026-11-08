@@ -355,3 +355,6 @@ Loc.GetObservable("Status.Ready")
 - Chart with 100k candles: smooth pan/zoom
 - Cold start to interactive: < 3 seconds
 - Memory footprint: < 500MB typical usage
+
+## Typography and Encoding (mandatory)
+- **Enter non-ASCII characters through the file editor tools only** (em dashes, arrows, guillemets like «...») — never through console or shell paste paths. A UTF-8 file re-read as Windows-1251 bakes double-encoded mojibake into the bytes (the 2026-11-03..07 wave across CHANGELOG.md, chart and test comments, and the version-policy comment), and the gate lint `[MOJIBAKE]` fails the branch on it. Shell command strings themselves stay ASCII for the same reason non-glyph characters must never travel through terminal pipelines.
