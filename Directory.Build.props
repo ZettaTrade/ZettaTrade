@@ -29,12 +29,15 @@
     <RepositoryUrl>https://github.com/zettatrade/zettatrade</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
 
-    <!-- App version: 0.1.0 while in alpha; one alpha release per merged board
-         task Р Р†Р вЂљРІР‚Сњ bump the suffix number with the task that changes the app
-         (T-039 -> alpha.20; alpha.21 -> the ui-colors refactor) and document
-         the change in CHANGELOG.md. Info about the version shows in the exe
-         file properties (Product version), in NuGet metadata and in the
-         status bar version chip. -->
+    <!-- App version: 0.1.0 while in alpha. One alpha release per board task
+         that changes the app; docs-only tasks do not bump the version. Rule:
+         VersionSuffix moves alpha.N -> alpha.N+1 and the release commit
+         (its title follows the "chore: ship T-0NN as 0.1.0-alpha.NN" shape)
+         carries the bump, the matching CHANGELOG.md section and the board
+         flip. The beta flip happens by a board decision and is traced in
+         the docs when it does. The version shows in the exe file
+         properties (Product version), in NuGet metadata and in the status
+         bar version chip. -->
     <VersionPrefix>0.1.0</VersionPrefix>
 
 
