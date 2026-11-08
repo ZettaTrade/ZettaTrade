@@ -17,7 +17,7 @@ the board and its section below.
 
 ## T-002 — Wire advertised menu hotkeys
 
-- **Branch:** `feat/hotkeys` (worktree `Q:\Projects\__My\zt-hotkeys`, based on develop@342ef7f)
+- **Branch:** `feat/hotkeys` (worktree `zt-hotkeys`, based on develop@342ef7f)
 - **Scope:** `src/ZettaTrade.App/Views/*.axaml` (KeyBindings only), `tests/ZettaTrade.App.Tests`. Do not touch Core or ThemeManager.
 - **Outcome (in review):** Menu gesture audit found that `NewOrderCommand`, `OpenAiChatCommand`, `ShowPositionsCommand`, `ShowOrderHistoryCommand`, `ManageMcpServersCommand` are `Task.CompletedTask` placeholders (dead items even on click); only `OpenSettingsCommand` (via Interaction) and `ExitCommand` (shutdown) are real. So: `Ctrl+,` was already bound for real; `Alt+F4` is the OS close gesture (kept as-is, no binding — double handling); gestures for placeholder commands (`Ctrl+N`, `Ctrl+Shift+A`) were removed with an explanatory XAML comment. Acceptance criteria adjusted accordingly.
 - **Also in the branch (user-approved scope add, separate chore commit):** `.gitattributes` now pins `* text=auto eol=lf` (+ explicit binary for ico/png/jpg). Fresh worktrees/clones with the global `core.autocrlf=true` were turning every file into CRLF and failing the format gate; the checked-out files were converted to LF once in this worktree.
@@ -34,7 +34,7 @@ the board and its section below.
 
 ## T-003 — Hot-reload of theme files
 
-- **Branch:** `feat/theme-reload` (worktree `Q:\Projects\__My\zt-theme-reload`, based on develop with the merged T-002)
+- **Branch:** `feat/theme-reload` (worktree `zt-theme-reload`, based on develop with the merged T-002)
 - **Scope:** `src/ZettaTrade.UI/Themes`, `tests/ZettaTrade.UI.Tests`. No App/Core/UI-view changes.
 - **Outcome (in review):** New `ThemeFileWatcher` (one `FileSystemWatcher` per directory, debounced 150 ms via Rx `Throttle`; renames publish the new path, deletions are never published). `ThemeManager` subscribes with `FromAsync`+`Concat` (serialized processing, one bad file cannot kill the pipeline); a hot change to the file of the **active** theme re-applies it live — on the UI thread when an Avalonia app exists, directly in unit tests. Constructor gained optional directory overrides (tests never touch real app/user folders). `InitializeAsync` starts watching after both loads; `Dispose` tears down subscription, watchers, subject and lock.
 - **Acceptance (achieved):**
@@ -46,7 +46,7 @@ the board and its section below.
 
 ## T-004 — Settings: themes folder + file validation
 
-- **Branch:** `feat/theme-settings-ui` (worktree `Q:\Projects\__My\zt-settings-ui`, stacked on `feat/theme-reload` — merge order T-003 → T-004, the warning clearing leans on the hot reload)
+- **Branch:** `feat/theme-settings-ui` (worktree `zt-settings-ui`, stacked on `feat/theme-reload` — merge order T-003 → T-004, the warning clearing leans on the hot reload)
 - **Scope:** Settings window views/ViewModels in `src/ZettaTrade.App`, read-only diagnostics surface on the concrete `ThemeManager` (`IThemeManager` contract untouched), `IShellUtils`/`ShellUtils` in `src/ZettaTrade.Infrastructure/Shell` (platform code stays in Infrastructure), resx keys `Settings.*` for **both en and ru**.
 - **Outcome (in review):**
   - `ThemeManager.LoadErrors` — per-file snapshot of load failures with technical reasons (`InvalidJson` from `JsonException`, `MissingName` for a parsed-but-nameless schema, `ReadFailed` for missing/locked files); `LoadErrorsChanged` is a `BehaviorSubject` snapshot stream (replays on subscribe), published on the UI thread when Avalonia runs (same dispatching contract as the hot-reload reapply, so ViewModels subscribe plainly). A successful reload of the same path clears exactly its entry.
@@ -61,7 +61,7 @@ the board and its section below.
 
 ## T-005 — Canonical theme identity
 
-- **Branch:** `fix/theme-identity` (worktree `Q:\Projects\__My\zt-theme-identity`, stacked on `feat/theme-settings-ui` @eb5e836 — merge order T-003 → T-004 → T-005; it edits the same `ThemeManager.cs` as T-003/T-004)
+- **Branch:** `fix/theme-identity` (worktree `zt-theme-identity`, stacked on `feat/theme-settings-ui` @eb5e836 — merge order T-003 → T-004 → T-005; it edits the same `ThemeManager.cs` as T-003/T-004)
 - **Scope:** `src/ZettaTrade.UI/Themes`, the one status-bar chip ViewModel in `src/ZettaTrade.App`, `tests/ZettaTrade.UI.Tests`, `tests/ZettaTrade.App.Tests`.
 - **What:** `CurrentTheme` currently returns `DisplayName` ("Light") while settings store `Name` ("light"); lookups match both, so two themes with equal display names would collide ambiguously. Make `Name` the single identifier: manager state and snapshot keys use Names; UI chips render `DisplayName`.
 - **Outcome (in review):**
@@ -77,7 +77,7 @@ the board and its section below.
 
 ## T-006 — Theme preview swatches in the picker
 
-- **Branch:** `feat/theme-preview` (worktree `Q:\Projects\__My\zt-theme-preview`, based on develop @ e3b7a7a — the stack T-003/T-004/T-005 is merged, so it starts on fresh files)
+- **Branch:** `feat/theme-preview` (worktree `zt-theme-preview`, based on develop @ e3b7a7a — the stack T-003/T-004/T-005 is merged, so it starts on fresh files)
 - **Scope:** settings window view only in `src/ZettaTrade.App`, small shared converter in `src/ZettaTrade.UI/Themes`. No ViewModel changes.
 - **What:** Each entry in the theme combo shows the motif from its `previewColors` (a strip of 3–4 colored squares) — the data is already in every JSON but shown nowhere.
 - **Outcome (in review):**
@@ -91,7 +91,7 @@ the board and its section below.
 
 ## T-007 — resx en/ru sync gate
 
-- **Branch:** `chore/resx-gate` (worktree `Q:\Projects\__My\zt-resx-gate`, based on develop @ fa0dffd)
+- **Branch:** `chore/resx-gate` (worktree `zt-resx-gate`, based on develop @ fa0dffd)
 - **Scope:** new `scripts/check-resx.ps1` (or an addition to `scripts/gate.ps1`); optional xUnit test pinning the invariant.
 - **What:** The rules require every key to exist in both `.resx` cultures. Today a missing ru key is caught only by eye at runtime.
 - **Outcome (in review):**
@@ -106,7 +106,7 @@ the board and its section below.
 
 ## T-008 — New Order dialog
 
-- **Branch:** `feat/order-dialog` (worktree `Q:\Projects\__My\zt-order-dialog`, based on develop @ ceffc8c)
+- **Branch:** `feat/order-dialog` (worktree `zt-order-dialog`, based on develop @ ceffc8c)
 - **Scope:** New Order window/ViewModel in `src/ZettaTrade.App`, `MenuViewModel` wiring (`NewOrderCommand` is a placeholder since the T-002 audit), returning the `Ctrl+N` gesture in `MainWindow.axaml`, resx keys `NewOrder.*` en+ru, tests in `tests/ZettaTrade.App.Tests`. Core contracts untouched — the trading-safety path (`IRiskManager` → `IConfirmationService` → `ITradingAdapter`) already exists.
 - **What:** The first real trader action on the paper adapter: dialog collects symbol (typed, resolved against `GetSymbolsAsync`), side, type (Market/Limit), quantity and limit price; an `OrderRequest` is built and must pass `IRiskManager` before any confirmation; rejection shows the risk error and never opens the confirmation dialog; the confirmation dialog then gates `PlaceOrderAsync`; cancel on either step places nothing.
 - **Acceptance:**
@@ -1029,7 +1029,7 @@ the board and its section below.
 
 ## T-071 — Window chrome follow-ups: fix the black content pane + caption strip polish (user-reported)
 
-- **Branch:** `feat/window-chrome-black` (worktree `Q:\Projects\__My\zt-window-chrome-black`, base `develop` @ `2674f03`; reported 2026-11-06, developed the same day).
+- **Branch:** `feat/window-chrome-black` (worktree `zt-window-chrome-black`, base `develop` @ `2674f03`; reported 2026-11-06, developed the same day).
 - **Origin:** with T-066 shipped the main window rendered as a black void — no charts, no menu; the user pinned the new chrome style as the culprit and was right.
 - **What:**
   - The black pane: Avalonia 12 presents a template `ContentControl`'s content only through explicit bindings, and the fresh `Window.chrome`/`Window.chrome-compact` templates' `PART_ContentPresenter` carried none. `Content`, `ContentTemplate`, the `Padding` margin and both alignment bindings now complete both templates in `src/Livery/Themes/Controls.axaml` (`0d81f7d`), pinned by the `EveryChromeTemplate_PresentsTheWindowContent` regression in `WindowChromeTests`.
@@ -1041,7 +1041,7 @@ the board and its section below.
 
 ## T-072 — Order book empty under Bybit: the facade resolves the displayed depth against the served one (user-reported)
 
-- **Branch:** `feat/order-book-depth` (worktree `Q:\Projects\__My\zt-order-book-depth`, base `develop` @ `2674f03`; reported 2026-11-06, developed the same day).
+- **Branch:** `feat/order-book-depth` (worktree `zt-order-book-depth`, base `develop` @ `2674f03`; reported 2026-11-06, developed the same day).
 - **Origin:** since the BUG-032 depth guard (`7ce1e0a`) the Bybit order book widget silently showed nothing: the widget rides the interface default of 20 levels while Bybit serves only `orderbook.1`/`orderbook.50` — the adapter rejects the request (an error by contract, never a silent default) and the guarded stream error emptied the widget (the rejection has been in the daily logs since 2026-10-18).
 - **What:** the resolution moves to the request side while the adapter guard keeps rejecting: `ExchangeAdapterBase` gains the public `ServedBookDepths` face over its wire declaration and the pure `ResolveBookDepth(served, requested)` — the smallest served depth at least as deep as the request wins, else the deepest served one; a null/empty declaration (serve-anything adapters, the demo) passes the request through for the adapter to own. The `ActiveExchangeService` facade pre-resolves every book subscription against the ACTIVE adapter inside its switch (Bybit: 20 → 50, logged at Debug; Binance's stepped set unaffected).
 - **Scope:** `ExchangeAdapterBase.cs` (the HIGH-RISK shared base — human-reviewed at the merge), `ActiveExchangeService.cs`, the resolution contract tests (`ExchangeAdapterBaseResolveBookDepthTests`) and the facade wiring tests (`ActiveExchangeServiceTests` gains a base-derived depthed stub adapter).
