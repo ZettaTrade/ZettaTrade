@@ -93,7 +93,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-086 Deep-history backfill and gap repair | feat/backfill | done | T-085 |
 | T-087 Trade tape (time & sales) panel | feat/trade-tape | done | - |
 | T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | done | - |
-| T-089 Chart types: line, area, bars, Heikin-Ashi | feat/chart-types | in-progress | - |
+| T-089 Chart types: line, area, bars, Heikin-Ashi | feat/chart-types | review | - |
 | T-090 Y-axis scale modes: log and percent | feat/chart-scales | queued | - |
 | T-091 Drawing tools: trend line, horizontal level, fib retracement | feat/draw-tools | queued | - |
 | T-092 Standard indicator pack (EMA, RSI, MACD, Bollinger… as bundled plugins) | feat/indicator-pack | done | - |
@@ -155,7 +155,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-089 — Chart types: line, area, bars, Heikin-Ashi
 
-- **Branch:** feat/chart-types, in-progress 2026-11-08 (worker session).
+- **Branch:** feat/chart-types, review 2026-11-08 (worker session).
 - **Origin:** candles only; line/area are the intraday standard, HA smooths the noise.
 - **What:** renderer variants off the existing candle source; Heikin-Ashi computed client-side from OHLC; per-symbol persistence of the choice alongside the workspace symbol (the T-029/T-055 restore discipline).
 - **Scope:** Charting renderers + the chart VM switcher, tests.
