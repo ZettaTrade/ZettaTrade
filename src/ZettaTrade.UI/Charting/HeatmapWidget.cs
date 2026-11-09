@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
@@ -147,6 +148,35 @@ public class HeatmapWidget : Control
         VisualChildren.Add(hitSurface);
 
         ClipToBounds = true;
+    }
+
+    #endregion
+
+    #region Accessibility
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new HeatmapAutomationPeer(this);
+
+    /// <summary>
+    /// The heatmap's accessibility peer (T-110): the widget is a Skia canvas
+    /// whose drawing the base Control's default peer hides from the
+    /// assistive tree, so this one restores visibility and names the widget
+    /// with its localized title (the tile field itself is a treemap — the
+    /// metric facts stay in the drawn ink and the clicks, named title and
+    /// the tab context carry the meaning).
+    /// </summary>
+    private sealed class HeatmapAutomationPeer(HeatmapWidget owner) : ControlAutomationPeer(owner)
+    {
+        protected override string? GetNameCore()
+        {
+            var attached = base.GetNameCore();
+            if (!string.IsNullOrWhiteSpace(attached))
+            {
+                return attached;
+            }
+
+            return WidgetAccessibilityNames.HeatmapTitle();
+        }
     }
 
     #endregion

@@ -10,6 +10,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -826,6 +827,48 @@ public class CandlestickChart : Control
     {
         Focusable = true;
         ClipToBounds = true;
+    }
+
+    #endregion
+
+    #region Accessibility
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new CandlestickChartAutomationPeer(this);
+
+    /// <summary>
+    /// The chart's accessibility peer (T-110): the widget is a Skia canvas
+    /// with no natural peers (the base Control serves an automation-none
+    /// peer, which removes the drawn series from the assistive tree), so
+    /// this one restores visibility and names the chart for its current
+    /// state — the loaded symbol, working as the compare series' honest
+    /// disclosure when one rides.
+    /// </summary>
+    private sealed class CandlestickChartAutomationPeer(CandlestickChart owner) : ControlAutomationPeer(owner)
+    {
+        protected override string? GetNameCore()
+        {
+            var attached = base.GetNameCore();
+            if (!string.IsNullOrWhiteSpace(attached))
+            {
+                return attached;
+            }
+
+            var (noSeries, series, withCompare) = WidgetAccessibilityNames.ChartTemplates();
+            var bars = owner.Bars;
+            var layers = owner.CompareLayers;
+            var compareLabels = layers is { Count: > 0 }
+                ? string.Join(", ", layers.Select(layer => layer.Label))
+                : null;
+
+            return WidgetAccessibilityNames.ChartName(
+                noSeries,
+                series,
+                withCompare,
+                bars is { Count: > 0 },
+                owner.MainSeriesLabel,
+                compareLabels);
+        }
     }
 
     #endregion

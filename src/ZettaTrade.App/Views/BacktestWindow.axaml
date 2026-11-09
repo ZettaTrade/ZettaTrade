@@ -91,6 +91,7 @@
                        TextWrapping="Wrap"
                        IsVisible="{Binding HasReport}" />
             <charting:EquityCurveChart Grid.Row="2"
+                                       AutomationProperties.Name="{loc:Localized Backtest.A11yEquity}"
                                        Points="{Binding EquityPoints}"
                                        IsVisible="{Binding HasEquity}" />
         </Grid>

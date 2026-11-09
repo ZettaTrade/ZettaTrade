@@ -6,7 +6,7 @@
     "Background": "#0a0e17",
     "Surface": "#111827",
     "Border": "#1f2937",
-    "Accent": "#10b981",
+    "Accent": "#047857",
     "TitleBar": "#0d1420",
     "TitleBarText": "#f9fafb",
     "TextPrimary": "#f9fafb",
@@ -20,5 +20,5 @@
     "Highlight": "#ffd700",
     "Error": "#ef4444"
   },
-  "previewColors": ["#0a0e17", "#111827", "#1f2937", "#10b981"]
+  "previewColors": ["#0a0e17", "#111827", "#1f2937", "#047857"]
 }

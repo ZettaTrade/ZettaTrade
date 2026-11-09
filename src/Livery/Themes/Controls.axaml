@@ -33,6 +33,18 @@
         <Setter Property="Background" Value="{DynamicResource Border}" />
     </Style>
 
+    <!-- Keyboard focus indicators (T-110): every focusable control shows a
+         visible marker the moment keyboard focus lands on it — the button
+         family borrows the palette's on-state accent for its border, the
+         tab/menu family tints the text with it. TextBox/ComboBox already
+         retint their borders on focus. -->
+    <Style Selector="Button:focus">
+        <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+    </Style>
+    <Style Selector="ToggleButton:focus">
+        <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+    </Style>
+
     <Style Selector="TextBox">
         <Setter Property="Background" Value="{DynamicResource Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
@@ -62,6 +74,9 @@
         <Setter Property="Background" Value="{DynamicResource Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     </Style>
+    <Style Selector="TabItem:focus">
+        <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+    </Style>
 
     <Style Selector="Menu">
         <Setter Property="Background" Value="{DynamicResource Surface}" />
@@ -71,6 +86,9 @@
     </Style>
     <Style Selector="MenuItem:pointerover">
         <Setter Property="Background" Value="{DynamicResource Accent}" />
+    </Style>
+    <Style Selector="MenuItem:focus">
+        <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
     </Style>
 
     <!-- ============================================================ -->
@@ -161,6 +179,7 @@
                                 Grid.Column="1"
                                 Classes="strip-icon"
                                 Width="44" Height="32"
+                                AutomationProperties.Name="{loc:Localized Chrome.Minimize}"
                                 ToolTip.Tip="{loc:Localized Chrome.Minimize}">
                             <Path Data="M 0 5.5 H 10"
                                   HorizontalAlignment="Center"
@@ -173,6 +192,7 @@
                                 Grid.Column="2"
                                 Classes="strip-icon"
                                 Width="44" Height="32"
+                                AutomationProperties.Name="{loc:Localized Chrome.Maximize}"
                                 ToolTip.Tip="{loc:Localized Chrome.Maximize}">
                             <Path Data="M 0.75 6.25 V 0.75 H 9.75 V 9.75 H 0.75 Z"
                                   HorizontalAlignment="Center"
@@ -188,6 +208,7 @@
                                 Classes="strip-icon"
                                 Width="44" Height="32"
                                 IsVisible="False"
+                                AutomationProperties.Name="{loc:Localized Chrome.Restore}"
                                 ToolTip.Tip="{loc:Localized Chrome.Restore}">
                             <Path Data="M 3 5.4 H 10.2 V 12.6 H 3 Z M 5.4 5.4 V 3 H 12.6 V 10.2 H 10.2"
                                   HorizontalAlignment="Center"
@@ -200,6 +221,7 @@
                                 Grid.Column="3"
                                 Classes="strip-icon strip-close"
                                 Width="44" Height="32"
+                                AutomationProperties.Name="{loc:Localized Chrome.Close}"
                                 ToolTip.Tip="{loc:Localized Chrome.Close}">
                             <Path Data="M 0 0 L 10 10 M 10 0 L 0 10"
                                   HorizontalAlignment="Center"
@@ -243,6 +265,9 @@
     </Style>
     <Style Selector="livery|TitleBar Button.strip-icon:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="livery|TitleBar Button.strip-icon:focus">
+        <Setter Property="Opacity" Value="1" />
     </Style>
 
     <!-- The close icon carries its stroke through the styles (not a template

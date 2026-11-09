@@ -688,6 +688,7 @@
                     <Grid DockPanel.Dock="Bottom" Margin="8" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <TextBox x:Name="ChatInput"
                                  Grid.Column="0"
+                                 AutomationProperties.Name="{loc:Localized AI.Chat.InputName}"
                                  Text="{Binding AiChatInput}"
                                  PlaceholderText="{loc:Localized AI.Chat.Placeholder}"
                                  AcceptsReturn="False">
@@ -809,6 +810,7 @@
                                    FontSize="14" />
                         <TextBox x:Name="PaletteQuery"
                                  Grid.Row="1"
+                                 AutomationProperties.Name="{loc:Localized Chart.A11ySymbolPicker}"
                                  Text="{Binding Palette.Query}"
                                  PlaceholderText="{loc:Localized Palette.Placeholder}" />
                         <!-- The compare-pick hint (T-124): while the palette

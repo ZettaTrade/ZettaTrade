@@ -351,6 +351,9 @@
   <data name="AI.Chat.RoleAssistant" xml:space="preserve">
     <value>Ассистент</value>
   </data>
+  <data name="AI.Chat.InputName" xml:space="preserve">
+    <value>Ввод сообщения ассистенту</value>
+  </data>
   <data name="Chart.NoDataMessage" xml:space="preserve">
     <value>Нет данных</value>
   </data>
@@ -464,6 +467,18 @@
   </data>
   <data name="Chart.ScaleMode.Percent" xml:space="preserve">
     <value>Проценты</value>
+  </data>
+  <data name="Chart.A11ySymbolPicker" xml:space="preserve">
+    <value>Выбор символа</value>
+  </data>
+  <data name="Chart.A11yNoSeries" xml:space="preserve">
+    <value>График (символ не загружен)</value>
+  </data>
+  <data name="Chart.A11ySeries" xml:space="preserve">
+    <value>График {0}</value>
+  </data>
+  <data name="Chart.A11yWithCompare" xml:space="preserve">
+    <value>График {0}, сравнение с {1}</value>
   </data>
   <data name="Chart.Type.Candles" xml:space="preserve">
     <value>Свечи</value>
@@ -1020,8 +1035,17 @@
   <data name="OrderBook.DepthTitle" xml:space="preserve">
     <value>Кумулятивный стакан</value>
   </data>
+  <data name="OrderBook.A11yWithSymbol" xml:space="preserve">
+    <value>Стакан ордеров: {0}</value>
+  </data>
+  <data name="OrderBook.A11yDepthWithSymbol" xml:space="preserve">
+    <value>Кумулятивный стакан: {0}</value>
+  </data>
   <data name="Tape.Title" xml:space="preserve">
     <value>Лента сделок</value>
+  </data>
+  <data name="Tape.A11yWithSymbol" xml:space="preserve">
+    <value>Лента сделок: {0}</value>
   </data>
   <data name="Watch.Title" xml:space="preserve">
     <value>Список наблюдения</value>
@@ -1160,6 +1184,9 @@
   </data>
   <data name="Stats.Close" xml:space="preserve">
     <value>Close</value>
+  </data>
+  <data name="Stats.A11yEquity" xml:space="preserve">
+    <value>Кривая доходности (накопленный реализованный PnL)</value>
   </data>
   <data name="Menu.Trading.Balances" xml:space="preserve">
     <value>Балансы</value>
@@ -1373,6 +1400,9 @@
   </data>
   <data name="Backtest.Title" xml:space="preserve">
     <value>Бэктест</value>
+  </data>
+  <data name="Backtest.A11yEquity" xml:space="preserve">
+    <value>Кривая доходности бэктеста</value>
   </data>
   <data name="Backtest.Strategy" xml:space="preserve">
     <value>Стратегия</value>
