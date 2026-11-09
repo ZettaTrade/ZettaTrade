@@ -27,9 +27,9 @@ the operating mode to the user in one sentence, then continue.
 
 ## The standing directives (user, 2026-11-07)
 
-The user issued this policy in Russian in the supervising session; the repo
-carries no Russian content, so the shipped text is the English statement
-below. Quotations of the user's wording stay in session context or in the
+The user issued this policy in the supervising session; the shipped text
+is the English statement below. Quotations of the user's wording stay in
+session context or in the
 supervisor-local handoff files — never in tracked files. Binding as standing
 policy until the user retracts it:
 

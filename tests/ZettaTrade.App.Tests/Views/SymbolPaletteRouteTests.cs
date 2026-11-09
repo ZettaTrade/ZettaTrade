@@ -144,7 +144,7 @@ public sealed class SymbolPaletteRouteTests
             Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)
                 .Should().NotBeNullOrEmpty("'{0}' is a user-facing palette string", key);
             Strings.ResourceManager.GetString(key, CultureInfo.GetCultureInfo("ru-RU"))
-                .Should().NotBeNullOrEmpty("'{0}' must localize into Russian", key);
+                .Should().NotBeNullOrEmpty("'{0}' must localize into the ru catalog", key);
         }
 
         // The keys write the module prefix the resx gate teaches.

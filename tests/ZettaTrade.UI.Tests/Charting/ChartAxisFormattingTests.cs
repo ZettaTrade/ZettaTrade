@@ -461,7 +461,7 @@ public sealed class ChartAxisFormattingTests
     }
 
     /// <summary>
-    /// The half-day clock in a non-English language (the Russian one): the
+    /// The half-day clock in a non-English language (the ru one): the
     /// hour and minute glyphs stay the culture's own and the designators come
     /// from its culture data — Latin "AM"/"PM" on .NET 10's ICU (verified
     /// empirically: every installed culture carries designators there, even

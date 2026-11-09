@@ -52,8 +52,8 @@ public static class ChartAxisFormatting
     /// format, culture-mapped. No designator fallback: ICU's date data ships
     /// the AM/PM designators for every installed culture on .NET 10 (verified
     /// empirically — zero designatorless cultures; the Latin "AM"/"PM" comes
-    /// even for the languages whose legacy NLS data had none, Russian
-    /// included), so the glyphs below always read the half-day convention.
+    /// even for the languages whose legacy NLS data had none), so the glyphs
+    /// below always read the half-day convention.
     /// </summary>
     private const string TwelveHourLabelFormat = "h:mm tt";
 
