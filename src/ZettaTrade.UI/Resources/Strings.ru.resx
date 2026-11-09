@@ -1635,4 +1635,43 @@
   <data name="Diagnostics.Hud.Latency" xml:space="preserve">
     <value>WS: {0}</value>
   </data>
+  <data name="Settings.Tab.Hotkeys" xml:space="preserve">
+    <value>Горячие клавиши</value>
+  </data>
+  <data name="Menu.Help.Hotkeys" xml:space="preserve">
+    <value>Шпаргалка горячих клавиш</value>
+  </data>
+  <data name="Hotkeys.Sheet.Title" xml:space="preserve">
+    <value>Активные горячие клавиши</value>
+  </data>
+  <data name="Hotkeys.Action.OpenSettings" xml:space="preserve">
+    <value>Открыть настройки</value>
+  </data>
+  <data name="Hotkeys.Action.NewOrder" xml:space="preserve">
+    <value>Новый ордер</value>
+  </data>
+  <data name="Hotkeys.Action.ToggleAiChat" xml:space="preserve">
+    <value>Панель ассистента</value>
+  </data>
+  <data name="Hotkeys.Action.TogglePalette" xml:space="preserve">
+    <value>Палитра символов</value>
+  </data>
+  <data name="Hotkeys.Editor.Hint" xml:space="preserve">
+    <value>Одно действие — одна комбинация. Изменение применяется сразу: введите жест вида Ctrl+Shift+A; конфликт или неверная форма отклоняются, а не подменяются. Сброс вернёт значение по умолчанию.</value>
+  </data>
+  <data name="Hotkeys.Editor.Invalid" xml:space="preserve">
+    <value>Не похоже на комбинацию клавиш</value>
+  </data>
+  <data name="Hotkeys.Editor.Plain" xml:space="preserve">
+    <value>Нужен хотя бы один модификатор (Ctrl, Alt или Shift)</value>
+  </data>
+  <data name="Hotkeys.Editor.Conflict" xml:space="preserve">
+    <value>Уже занято действием {0}</value>
+  </data>
+  <data name="Hotkeys.Editor.Default" xml:space="preserve">
+    <value>по умолчанию</value>
+  </data>
+  <data name="Hotkeys.Editor.Reset" xml:space="preserve">
+    <value>Сброс</value>
+  </data>
 </root>

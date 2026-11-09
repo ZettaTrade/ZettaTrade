@@ -21,6 +21,7 @@ $ModulePrefixes = @(
     'Chart.',
     'Chrome.',
     'Diagnostics.',
+    'Hotkeys.',
     'Trading.',
     'NewOrder.',
     'Exchange.',

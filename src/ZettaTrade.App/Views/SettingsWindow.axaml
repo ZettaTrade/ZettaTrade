@@ -3,6 +3,7 @@
         xmlns:media="using:Avalonia.Media"
         xmlns:services="using:ZettaTrade.App.Services"
         xmlns:themes="using:Livery.Themes"
+        xmlns:views="using:ZettaTrade.App.Views"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.SettingsWindow"
@@ -706,6 +707,62 @@
                                TextWrapping="Wrap"
                                FontSize="12" />
                 </Grid>
+            </TabItem>
+
+            <!-- ==================== Hotkeys (T-102) ====================
+                 The hotkey manager's editor: one row per registry action,
+                 the names and verdicts localized by the shared hotkey
+                 manager's VM (injected through the window's Hotkeys
+                 property — the settings ViewModel stays untouched by the
+                 seam). Every edit diagnoses at edit time (invalid, plain
+                 and conflicting verdicts) and a valid text commits at
+                 once — the service's live map rebinds every consumer (the
+                 window's key route, the menu's advertised gestures, the
+                 cheat sheet) without a restart. Per-row commit, per-row
+                 reset; the sheet's read-only mirror lives on the main
+                 window's Help-menu "?" overlay. -->
+            <TabItem Header="{loc:Localized Settings.Tab.Hotkeys}"
+                     DataContext="{Binding Hotkeys, RelativeSource={RelativeSource AncestorType={x:Type views:SettingsWindow}}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="10" Margin="0,12,0,0">
+                        <TextBlock Text="{loc:Localized Hotkeys.Editor.Hint}"
+                                   Foreground="{DynamicResource TextSecondary}"
+                                   TextWrapping="Wrap"
+                                   FontSize="12" />
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:HotkeyRowViewModel">
+                                    <StackPanel Spacing="2" Margin="0,3">
+                                        <Grid ColumnDefinitions="*,Auto,150,Auto"
+                                              ColumnSpacing="8">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding Name}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{loc:Localized Hotkeys.Editor.Default}"
+                                                       IsVisible="{Binding !IsOverridden}"
+                                                       FontStyle="Italic"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="2"
+                                                     Text="{Binding GestureText, Mode=TwoWay}" />
+                                            <Button Grid.Column="3"
+                                                    Content="{loc:Localized Hotkeys.Editor.Reset}"
+                                                    IsVisible="{Binding IsOverridden}"
+                                                    Command="{Binding $parent[ItemsControl].((vm:HotkeyViewModel)DataContext).ResetRowCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
+                                        <TextBlock IsVisible="{Binding HasMessage}"
+                                                   Text="{Binding Message}"
+                                                   Foreground="{DynamicResource Error}"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="12" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- ==================== Import / Export + factory reset (T-100) ====================

@@ -1635,4 +1635,43 @@ Estimated fee: {7}</value>
   <data name="Diagnostics.Hud.Latency" xml:space="preserve">
     <value>WS: {0}</value>
   </data>
+  <data name="Settings.Tab.Hotkeys" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Menu.Help.Hotkeys" xml:space="preserve">
+    <value>Hotkey cheat sheet</value>
+  </data>
+  <data name="Hotkeys.Sheet.Title" xml:space="preserve">
+    <value>Active hotkeys</value>
+  </data>
+  <data name="Hotkeys.Action.OpenSettings" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
+  <data name="Hotkeys.Action.NewOrder" xml:space="preserve">
+    <value>New order</value>
+  </data>
+  <data name="Hotkeys.Action.ToggleAiChat" xml:space="preserve">
+    <value>Toggle assistant</value>
+  </data>
+  <data name="Hotkeys.Action.TogglePalette" xml:space="preserve">
+    <value>Symbol palette</value>
+  </data>
+  <data name="Hotkeys.Editor.Hint" xml:space="preserve">
+    <value>One hotkey per action. Edits apply at once — type a gesture like Ctrl+Shift+O; a conflict or an invalid form is refused, not substituted. Clear a row and press Reset to return to the default.</value>
+  </data>
+  <data name="Hotkeys.Editor.Invalid" xml:space="preserve">
+    <value>Not a key gesture</value>
+  </data>
+  <data name="Hotkeys.Editor.Plain" xml:space="preserve">
+    <value>Needs at least one modifier (Ctrl, Alt or Shift)</value>
+  </data>
+  <data name="Hotkeys.Editor.Conflict" xml:space="preserve">
+    <value>Already used by {0}</value>
+  </data>
+  <data name="Hotkeys.Editor.Default" xml:space="preserve">
+    <value>default</value>
+  </data>
+  <data name="Hotkeys.Editor.Reset" xml:space="preserve">
+    <value>Default</value>
+  </data>
 </root>

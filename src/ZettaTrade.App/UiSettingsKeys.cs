@@ -312,4 +312,23 @@ public static class UiSettingsKeys
     /// traces (no subscriptions, no timers, no counters moving).
     /// </summary>
     public const bool DefaultHudEnabled = false;
+
+    /// <summary>
+    /// Settings section holding the user's hotkey overrides (T-102): the
+    /// rebinding of the registry's actions lives apart from the daily-use
+    /// UI section, so a hotkey edit never touches unrelated keys.
+    /// </summary>
+    public const string HotkeySection = "Hotkeys";
+
+    /// <summary>
+    /// Settings key of the persisted hotkey overrides (T-102): a JSON map
+    /// of registry action id to the canonical gesture string.
+    /// </summary>
+    public const string HotkeyOverrides = "Overrides";
+
+    /// <summary>
+    /// The overrides map applied until a stored value is loaded: empty —
+    /// every action rides its registry default on a fresh install.
+    /// </summary>
+    public const string DefaultHotkeyOverrides = "{}";
 }

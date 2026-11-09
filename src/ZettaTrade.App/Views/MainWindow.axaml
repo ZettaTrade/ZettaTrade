@@ -13,28 +13,13 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Background}">
 
-    <Window.KeyBindings>
-        <!-- Gesture audit of the menu labels: all InputGesture strings here are
-             backed or explained below.
-             - Ctrl+OemComma -> OpenSettingsCommand: bound, real behavior.
-             - Ctrl+N        -> NewOrderCommand: bound, real behavior (the T-008
-                                order dialog replaced the placeholder).
-             - Alt+F4        -> the chrome window has no system menu, so the
-                                gesture rides the title bar's window-wide key
-                                hook; on the main window it equals File > Exit.
-             - Ctrl+Shift+A  -> ToggleAiChatCommand: bound, real behavior —
-                                toggles the assistant panel (shows + focuses the
-                                input, or hides it); the AI menu item is a
-                                checkable one-way mirror of the visibility.
-             - Ctrl+K        -> Palette.ToggleCommand: the T-095 global symbol
-                                palette's own route — a closed palette opens, an
-                                open one closes; the arrow/enter/escape layer
-                                lives inside the palette overlay below. -->
-        <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding Menu.OpenSettingsCommand}" />
-        <KeyBinding Gesture="Ctrl+N" Command="{Binding Menu.NewOrderCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+A" Command="{Binding Menu.ToggleAiChatCommand}" />
-        <KeyBinding Gesture="Ctrl+K" Command="{Binding Palette.ToggleCommand}" />
-    </Window.KeyBindings>
+    <!-- The global hotkeys (T-102): no static KeyBindings remain — the
+         window's only key route is the code-behind handler in
+         OnOpened (OnGlobalKeyDown), which translates every pressed
+         combination through the live registry map (TryMatch) into
+         MainViewModel.RouteHotkey. The menu items below print their
+         advertised gestures from the SAME live map, so the advertised
+         and the real binding never diverge. -->
 
     <!-- The window content root is a grid so the T-095 palette overlay can
          ride ON TOP of the workspace as a sibling: the overlay only receives
@@ -45,12 +30,12 @@
         <!-- Top menu bar -->
         <Menu DockPanel.Dock="Top" DataContext="{Binding Menu}">
             <MenuItem Header="{loc:Localized Menu.File}">
-                <MenuItem Header="{loc:Localized Menu.File.Settings}" Command="{Binding OpenSettingsCommand}" InputGesture="Ctrl+," />
+                <MenuItem Header="{loc:Localized Menu.File.Settings}" Command="{Binding OpenSettingsCommand}" InputGesture="{Binding Hotkeys.SettingsGesture}" />
                 <Separator />
                 <MenuItem Header="{loc:Localized Menu.File.Exit}" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
             </MenuItem>
             <MenuItem Header="{loc:Localized Menu.Trading}">
-                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="Ctrl+N" />
+                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="{Binding Hotkeys.NewOrderGesture}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Balances}" Command="{Binding ShowBalancesCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
@@ -64,7 +49,7 @@
                           Command="{Binding ToggleAiChatCommand}"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsAiChatVisible, Mode=OneWay}"
-                          InputGesture="Ctrl+Shift+A" />
+                          InputGesture="{Binding Hotkeys.AiChatGesture}" />
                 <MenuItem Header="{loc:Localized Menu.AI.Servers}" Command="{Binding ManageMcpServersCommand}" />
             </MenuItem>
             <!-- Help: the log viewer (T-101) — the file-only Serilog sinks are
@@ -82,6 +67,14 @@
                           Command="{Binding ToggleHudCommand}"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsHudVisible, Mode=OneWay}" />
+                <!-- The hotkey cheat sheet (T-102): the checkable "?" that
+                     lists the live gesture map — the overlay is a palette
+                     sibling below, and the press routes the sheet's own
+                     toggle command (the checkbox mirrors OneWay). -->
+                <MenuItem Header="{loc:Localized Menu.Help.Hotkeys}"
+                          Command="{Binding Hotkeys.ToggleSheetCommand}"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding Hotkeys.IsSheetVisible, Mode=OneWay}" />
                 <Separator />
                 <MenuItem Header="{loc:Localized Menu.Help.AboutDisclaimer}" Command="{Binding ShowDisclaimerCommand}" />
             </MenuItem>
@@ -907,5 +900,54 @@
                 </ItemsControl>
             </Border>
         </Panel>
+
+        <!-- The hotkey cheat sheet (T-102): the live gesture map's "?"
+             overlay, a palette sibling so it rides on top of every panel
+             too. Opened from the Help menu's checkbox (or Esc'd shut), it
+             is strictly read-only: the rows are the sheet VM's localized
+             mirrors of the SAME map the window's key route matches, so
+             the listed gestures and the routing truth can never drift.
+             The backdrop veils the workspace like the palette's scrim
+             and a press on it closes the sheet too. -->
+        <Grid x:Name="HotkeysSheetOverlay"
+              IsVisible="{Binding Hotkeys.IsSheetVisible}">
+            <Border Background="{DynamicResource Background}"
+                    Opacity="0.75"
+                    PointerPressed="OnHotkeysSheetScrimPressed" />
+            <Panel HorizontalAlignment="Center"
+                   VerticalAlignment="Top"
+                   Margin="0,72,0,0">
+                <Border Width="520"
+                        Background="{DynamicResource Surface}"
+                        BorderBrush="{DynamicResource Border}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        ClipToBounds="True"
+                        Padding="16,12">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="{loc:Localized Hotkeys.Sheet.Title}"
+                                   FontWeight="Bold"
+                                   FontSize="14" />
+                        <ItemsControl ItemsSource="{Binding Hotkeys.Sheet}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:HotkeySheetRow">
+                                    <Grid ColumnDefinitions="*,Auto"
+                                          Margin="0,2">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Name}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Gesture}"
+                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   HorizontalAlignment="Right"
+                                                   FontSize="12" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Panel>
+        </Grid>
     </Grid>
 </Window>
