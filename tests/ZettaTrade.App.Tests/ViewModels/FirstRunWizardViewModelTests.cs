@@ -30,6 +30,14 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// fetch orientation per draft-adapter pick is pinned, the marshalled
 /// deliveries are covered by the real dispatcher in the acceptance probe.
 /// </summary>
+/// <remarks>
+/// Rides <see cref="AvaloniaDispatcherSerialCollection"/> (T-138): the
+/// wizard's refill posts through <c>ObserveOnUiThread</c> - its callbacks
+/// must never execute inside another class's drain window (a poisoned
+/// foreign job fails every subsequent drain of the shared dispatcher), so
+/// every dispatcher-contact class lives in the one serial collection.
+/// </remarks>
+[Collection("AvaloniaDispatcherSerial")]
 public sealed class FirstRunWizardViewModelTests
 {
     private readonly IThemeManager _themeManager = Substitute.For<IThemeManager>();

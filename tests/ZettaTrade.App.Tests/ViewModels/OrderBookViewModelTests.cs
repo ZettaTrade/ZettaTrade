@@ -24,6 +24,14 @@ using ZettaTrade.Core.ValueObjects;
 /// guessing, and a stream failure ends one symbol's data without killing the
 /// pipeline for later symbols.
 /// </summary>
+/// <remarks>
+/// Rides <see cref="AvaloniaDispatcherSerialCollection"/> (T-138): the class
+/// drains through <see cref="AvaloniaDispatcherPump"/> - a drain running
+/// concurrently with any other dispatcher user's window poisons the shared
+/// queue for everyone, so every dispatcher-contact class lives in the one
+/// serial collection.
+/// </remarks>
+[Collection("AvaloniaDispatcherSerial")]
 public sealed class OrderBookViewModelTests
 {
     /// <summary>The marshal path posts to the shared dispatcher; install the deterministic pump world once.</summary>

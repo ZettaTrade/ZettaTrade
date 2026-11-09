@@ -55,6 +55,14 @@ using ZettaTrade.Infrastructure.Persistence;
 /// they deliberately do not depend on.
 /// </para>
 /// </summary>
+/// <remarks>
+/// Rides <see cref="AvaloniaDispatcherSerialCollection"/> (T-138): the
+/// facts stay drain-free, but the panel's services may still post
+/// VM-internal callbacks on UI-bound streams - such a callback executing
+/// inside another class's dispatcher drain window is the recorded poison
+/// shape, so the class joins the one serialized dispatcher world.
+/// </remarks>
+[Collection("AvaloniaDispatcherSerial")]
 public sealed class PositionsPanelViewModelTests
 {
     private readonly ITradingAdapter _trading = Substitute.For<ITradingAdapter>();
