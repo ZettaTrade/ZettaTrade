@@ -12,6 +12,7 @@ using ZettaTrade.App.ViewModels;
 using ZettaTrade.App.Views;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Configuration;
+using ZettaTrade.Infrastructure.SingleInstance;
 
 namespace ZettaTrade.App;
 
@@ -53,6 +54,15 @@ public partial class App : Application
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
+                // The single-instance handoff (T-104): the dispatch pipe
+                // opens only now — after the composition walk — so a
+                // forwarded selection can never touch a half-initialized
+                // dependency, and the app's own launch arguments ride the
+                // same validated route a forwarded start does (the grammar
+                // refusal, the semantic refusal and the applied shapes all
+                // settle into file-log receipts before the first frame).
+                await RunSingleInstanceHandoffAsync(desktop);
+
                 var mainVm = Services.GetRequiredService<MainViewModel>();
                 var mainWindow = new MainWindow
                 {
@@ -199,6 +209,22 @@ public partial class App : Application
 
         // The theme manager matches canonical Names only.
         await themeManager.ApplyThemeAsync(match.Name);
+    }
+
+    /// <summary>
+    /// The single-instance handoff step: the dispatch host starts serving
+    /// its pipe (after the composition walk, so a forwarded selection can
+    /// never touch a half-built dependency) and the app's own launch
+    /// arguments ride the same validated route a forwarded start does —
+    /// the grammar refusal, the semantic refusal and the applied shapes all
+    /// settle into file-log receipts before the window opens.
+    /// </summary>
+    private static async Task RunSingleInstanceHandoffAsync(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var host = Services.GetRequiredService<SingleInstanceHost>();
+        host.Start();
+        await host.ProcessAsync(desktop.Args ?? [], CancellationToken.None);
     }
 
     /// <summary>

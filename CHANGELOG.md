@@ -1,3 +1,40 @@
+## [0.1.0-alpha.80] - 2026-11-09
+
+Build of board task T-104 (branch `feat/single-instance`).
+
+### Added
+- The single-instance hand-off (T-104): the process start rides a decision
+  layer before anything boots. An OS-enforced exclusive open on one
+  well-known lock file decides ownership - crash-safe and portable by the
+  framework's own semantics: a killed instance never wedges the next
+  launch, and the lock file is never deleted (the claim lives in the
+  exclusive open, not in the file's existence).
+- A second start never touches Avalonia. Its argument vector walks the
+  allowlist grammar first - the two flags in both value forms plus the
+  `zetta://open` protocol strings - and every position outside the
+  allowlist (every order-shaped token included) is a hard rejection with
+  its own reason, never a defaulted substitute. A well-shaped vector
+  forwards through the bounded hand-off pipe (a framed 64 KB JSON
+  exchange on one wire naming policy, one connected peer at a time, a
+  bounded framing read) and the process exits promptly with the mapped
+  code: 0 forwarded, 1 rejected, 2 the hand-off never served within the
+  bounded window. The dispatch pipe's first server instance is created
+  synchronously in `Start` - the moment it returns, the pipe exists, so a
+  second start's first connect attempt never loses a race with the
+  pump's warm-up.
+- The running instance re-validates the whole vector on the receiver
+  side: the exchange id resolves against the live adapter catalog and the
+  symbol text parses through the real symbol parsers (the exchange's
+  format when an exchange rides along, the normalized format otherwise) -
+  a malformed value is a refusal receipt, never a substituted symbol. The
+  application routes through the palette precedent: a same-exchange
+  selection writes the chart's workspace symbol, a cross-exchange one
+  writes the workspace symbol preference first and only then switches
+  the active exchange, so the pending bootstrap preselects the pair. All
+  applies serialize behind one gate.
+- The dispatch receipts live in a dedicated rolling file log
+  (`zettatrade-handoff-*.log`); nothing in the lane writes to stdout. The
+  task ships zero user-facing strings, so no resx keys exist by design.
 ## [0.1.0-alpha.79] - 2026-11-09
 
 Build of board task T-127 (branch `feat/testnet-trading`).

@@ -334,6 +334,7 @@ internal static class CompositionRoot
         services.AddAlertsServices(); // T-096: the price-alerts engine (roster solo owner) + the manager VM.
         services.AddSingleton<McpJournalingTradingAdapter>(); // T-133: MCP fills enter the journal.
         services.AddPositionSizerServices(); // T-079: position sizer (balance presets, risk-percent).
+        services.AddSingleInstanceServices(); // T-104: the single-instance handoff host + the workspace-symbol apply worker.
 
         var provider = services.BuildServiceProvider();
 
