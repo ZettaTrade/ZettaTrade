@@ -94,6 +94,17 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
                 onError: ex => Log.Error(ex, "Chart older history request stream failed"));
         Closed += (_, _) => _olderHistoryRequests.Dispose();
 
+        // The heatmap tab's (T-121) pressed tiles ride the workspace symbol
+        // route: the widget publishes just the tile's own text, the panel
+        // ViewModel resolves it against the active exchange's parser and
+        // writes the workspace context (or refuses it honestly). SubscribeAsync
+        // keeps the whole route task-based (zero async void) and stream
+        // failures land in the log via the error callback.
+        _heatmapClicks = HeatmapWidget.TileClicked.SubscribeAsync(
+            click => ViewModel!.Heatmap.RouteTileAsync(click),
+            onError: ex => Log.Error(ex, "Heatmap tile click stream failed"));
+        Closed += (_, _) => _heatmapClicks.Dispose();
+
         // The chart view model is an application-lifetime singleton living
         // for the whole window's stay, so — like the menu handlers above —
         // its save-dialog registration is registered here without disposal:
@@ -128,6 +139,9 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
 
     /// <summary>Subscription of the signal rail's row-press prefill stream; disposed with the window.</summary>
     private IDisposable? _railPrefills;
+
+    /// <summary>Subscription of the heatmap tab's tile-press stream (T-121); disposed with the window.</summary>
+    private IDisposable? _heatmapClicks;
 
     /// <summary>Subscription of the chart older-history request stream; disposed with the window.</summary>
     private IDisposable? _olderHistoryRequests;
