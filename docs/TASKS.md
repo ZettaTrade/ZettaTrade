@@ -128,7 +128,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-121 Market heatmap: top pairs as change-colored tiles | feat/heatmap | done | - |
 | T-122 My footprint on the chart: position lines + working-order markers | feat/chart-mine | done | - |
 | T-123 Trading-mode chip: paper/testnet/live always visible | feat/trading-mode-chip | done | - |
-| T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | in-progress | - |
+| T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | done | - |
 | T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | done | - |
 | T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | done | T-125 |
 | T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | done | - |
@@ -204,15 +204,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** UI across views, chart/book peer shims, docs checklist, tests.
 - **Acceptance:** every advertised control is reachable and named without a mouse.
 - **Tests:** name/role assertions, focus-order golden.
-
-## T-124 — Symbol compare: a second series overlaid on the chart
-
-- **Branch:** feat/chart-compare, worktree zt-chart-compare, based on develop@391d7af (claimed 2026-11-09; queued 2026-11-06 at the T-074…T-115 backlog cut).
-- **Origin:** compare is a demo-standard flex — today's chart is strictly single-symbol and the workspace context is one symbol (T-017); a relative overlay is the missing depth-of-analysis moment.
-- **What:** a compare action adding a second series of the same interval from another symbol on the same adapter, rebased to percent-change over the visible window (the T-090 percent mode semantics), with removable legend chips per series and distinct colors; the input flows via the global symbol palette (T-095 synergy, not a hard dependency); pan/zoom/interval switches keep both series coherent.
-- **Scope:** the multi-series renderer in Charting, chart VM wiring, resx en+ru, tests.
-- **Acceptance:** the overlay holds under churn; removal restores the single-series rendering bit-exact; axis invariants (T-035/T-037 canon) never break with two series.
-- **Tests:** multi-series render golden, percent-rebasing goldens, the removal-restore identity, the axis invariants.
 
 ## T-129 — Alpha program: testers onboarding, feedback triage, public metrics
 
