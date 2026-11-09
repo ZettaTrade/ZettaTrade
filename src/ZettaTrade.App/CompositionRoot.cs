@@ -281,6 +281,20 @@ internal static class CompositionRoot
                 sp.GetRequiredService<IMarketDataAdapter>(),
                 sp.GetRequiredService<ChartViewModel>().SymbolSelections,
                 sp.GetRequiredService<ILogger<TradeTapeViewModel>>()));
+        // T-108: the performance HUD — the sampler + its overlay ViewModel.
+        // The service taps the book ViewModel's own stream (the rate and the
+        // WS-latency stamps), the log tail's bounded channel (the
+        // backpressure gauge) and — via the view glue at the window's open —
+        // the chart's frame tap. Registered as singletons AFTER the book
+        // ViewModel they read; the sampler builds no subscription and no
+        // timer until its ViewModel's visibility asks for it.
+        services.AddSingleton<PerformanceHudService>(sp =>
+            new PerformanceHudService(
+                sp.GetRequiredService<OrderBookViewModel>().Updates,
+                () => sp.GetRequiredService<LogTailService>().BackpressureBacklog,
+                LogTailService.BackpressureChannelCapacity,
+                sp.GetRequiredService<ILogger<PerformanceHudService>>()));
+        services.AddSingleton<PerformanceHudViewModel>();
         services.AddWatchlistServices(); // T-120: the watchlist panel (feed + rows) over the same facade/selection pair above.
         services.AddHeatmapServices(); // T-121: the heatmap panel (candidate pumps + ranked tile page) beside the watchlist rail above.
         // T-095: the global symbol palette — the Ctrl+K instrument picker
@@ -303,6 +317,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<WorkspaceLayoutViewModel>(),
                 sp.GetRequiredService<SymbolPaletteViewModel>(),
                 sp.GetRequiredService<NotificationToastHostViewModel>(),
+                sp.GetRequiredService<PerformanceHudViewModel>(), // T-108: the Help menu's checkable dev-mode readout.
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();

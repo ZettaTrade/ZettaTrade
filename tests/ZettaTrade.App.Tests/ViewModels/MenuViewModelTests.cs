@@ -19,7 +19,7 @@ public sealed class MenuViewModelTests
     public async Task ShowPositionsCommand_Executed_RoutesThroughShowPositionsInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
         var handled = 0;
         menu.ShowPositionsRequested.RegisterHandler(context =>
         {
@@ -39,7 +39,7 @@ public sealed class MenuViewModelTests
     public async Task OpenSettingsCommand_Executed_RoutesThroughOpenSettingsInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
         var handled = 0;
         menu.OpenSettingsRequested.RegisterHandler(context =>
         {
@@ -63,7 +63,7 @@ public sealed class MenuViewModelTests
     public async Task ShowDisclaimerCommand_Executed_RoutesThroughShowDisclaimerInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
         var handled = 0;
         menu.ShowDisclaimerRequested.RegisterHandler(context =>
         {
@@ -87,7 +87,7 @@ public sealed class MenuViewModelTests
     public async Task ShowLogViewerCommand_Executed_RoutesThroughShowLogViewerInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
         var handled = 0;
         menu.ShowLogViewerRequested.RegisterHandler(context =>
         {
@@ -107,7 +107,7 @@ public sealed class MenuViewModelTests
     public async Task ShowOrderHistoryCommand_Executed_RoutesThroughShowOrderHistoryInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
         var handled = 0;
         menu.ShowOrderHistoryRequested.RegisterHandler(context =>
         {
@@ -127,7 +127,7 @@ public sealed class MenuViewModelTests
     public async Task ShowBalancesCommand_Executed_RoutesThroughShowBalancesInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
         var handled = 0;
         menu.ShowBalancesRequested.RegisterHandler(context =>
         {
@@ -151,7 +151,7 @@ public sealed class MenuViewModelTests
     public async Task ToggleAiChatCommand_Executed_AsksFocusOnlyWhenThePanelShows()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
         var handled = 0;
         menu.FocusAiChatRequested.RegisterHandler(context =>
         {
@@ -200,13 +200,32 @@ public sealed class MenuViewModelTests
     public async Task TheStartupRestoreArrivesAfterTheMenuLanded_MirrorsTheRestoredState()
     {
         var chat = ChatTests.CreateAnonymousChat(false);
-        var menu = new MenuViewModel(chat);
+        var menu = new MenuViewModel(chat, HudTests.CreateAnonymousHud());
 
         menu.IsAiChatVisible.Should().BeTrue("the restore has not applied yet");
 
         await chat.InitializeAsync();
 
         menu.IsAiChatVisible.Should().BeFalse("the mirror follows the restored persisted state");
+    }
+
+    /// <summary>
+    /// The performance HUD's menu item (T-108): the toggle command is the
+    /// HUD ViewModel's own — a press flips the persisted overlay visibility
+    /// and the checkable mirror follows.
+    /// </summary>
+    [Fact]
+    public async Task ToggleHudCommand_Executed_FlipsTheOverlayVisibility_AndTheMirrorFollows()
+    {
+        var hud = HudTests.CreateAnonymousHud();
+        var menu = new MenuViewModel(CreateChat(), hud);
+
+        menu.IsHudVisible.Should().BeFalse("the HUD ships off");
+
+        await menu.ToggleHudCommand.Execute(RxVoid.Default);
+
+        menu.IsHudVisible.Should().BeTrue("the mirror follows the flipped state");
+        hud.IsVisible.Should().BeTrue("the command toggles the HUD ViewModel's own visibility");
     }
 
     private static ChatViewModel CreateChat() =>
@@ -216,6 +235,6 @@ public sealed class MenuViewModelTests
     {
         var chat = CreateChat();
 
-        return (new MenuViewModel(chat), chat);
+        return (new MenuViewModel(chat, HudTests.CreateAnonymousHud()), chat);
     }
 }

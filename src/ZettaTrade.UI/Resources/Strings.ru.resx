@@ -1617,4 +1617,22 @@
   <data name="Menu.Help.LogViewer" xml:space="preserve">
     <value>Открыть журнал…</value>
   </data>
+  <data name="Menu.Help.PerformanceHud" xml:space="preserve">
+    <value>Производительность (HUD)</value>
+  </data>
+  <data name="Diagnostics.Hud.Chart" xml:space="preserve">
+    <value>График: {0} кадр/с</value>
+  </data>
+  <data name="Diagnostics.Hud.Book" xml:space="preserve">
+    <value>Стакан: {0} обновл./с</value>
+  </data>
+  <data name="Diagnostics.Hud.Memory" xml:space="preserve">
+    <value>Память: {0} МБ</value>
+  </data>
+  <data name="Diagnostics.Hud.Queue" xml:space="preserve">
+    <value>Очередь: {0}/{1} {2}</value>
+  </data>
+  <data name="Diagnostics.Hud.Latency" xml:space="preserve">
+    <value>WS: {0}</value>
+  </data>
 </root>

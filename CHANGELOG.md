@@ -1,3 +1,22 @@
+## [0.1.0-alpha.84] - 2026-11-09
+
+Build of board task T-108 (branch `feat/perf-hud`).
+
+### Added
+- The performance HUD overlay (T-108): a Help-menu checkbox toggles a
+  top-right dev-mode readout of the AGENTS performance targets — the
+  chart's frame rate from a zero-cost frame tap in the chart's render
+  pass, the order-book stream's delivery rate with its WS-latency
+  histogram (snapshot age at the consumer edge, five bounded buckets
+  plus overflow), the working memory figure and the market-data
+  channel's backpressure as bird gauges. The overlay ships off, the
+  choice persists through the `Diagnostics.*` settings keys, and the
+  off state costs nothing: no subscriptions, no timers, one property
+  read in the render pass. The gauge math (fps, histogram bucketing,
+  gauge bars, memory formatting) is pure and golden-tested; the
+  off-state zero-cost, the sampler lifecycle, the persistence walk and
+  the localized readouts carry their own facts (en + ru labels).
+
 ## [0.1.0-alpha.83] - 2026-11-09
 
 Build of board task T-140 (branch `feat/review-hygiene`).

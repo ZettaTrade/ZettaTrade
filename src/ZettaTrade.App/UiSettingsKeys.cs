@@ -290,4 +290,26 @@ public static class UiSettingsKeys
     /// first-run state.
     /// </summary>
     public const bool DefaultFirstRunWizardShown = false;
+
+    /// <summary>
+    /// Settings section holding the diagnostics preferences (T-108): the
+    /// dev-facing instruments (the performance HUD overlay) keep their knobs
+    /// apart from the daily-use UI section.
+    /// </summary>
+    public const string DiagnosticsSection = "Diagnostics";
+
+    /// <summary>
+    /// Settings key of the persisted performance HUD overlay visibility
+    /// (T-108): true shows the dev-mode overlay sampling the chart's frame
+    /// rate, the book stream's rate and latency, the working memory and the
+    /// log tail's backpressure gauge.
+    /// </summary>
+    public const string HudEnabled = "HudEnabled";
+
+    /// <summary>
+    /// The HUD visibility applied until a stored value is loaded: off — the
+    /// overlay is a developer instrument, and the off state must leave zero
+    /// traces (no subscriptions, no timers, no counters moving).
+    /// </summary>
+    public const bool DefaultHudEnabled = false;
 }
