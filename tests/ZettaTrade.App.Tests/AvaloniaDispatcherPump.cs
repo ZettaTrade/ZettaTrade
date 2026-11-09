@@ -8,8 +8,10 @@ using Avalonia.Threading;
 
 /// <summary>
 /// The audit-proof Avalonia dispatcher world for App.Tests:
-/// <see cref="EnsureInstalled"/> (called once, idempotent, from the static
-/// constructors of every dispatcher-touching test class) touches
+/// <see cref="EnsureInstalled"/> (called once, idempotent — first from the
+/// xUnit test-framework hook <see cref="DispatcherFirstTestFramework"/>
+/// before any discovery reflection, then from the static constructors of
+/// every dispatcher-touching test class) touches
 /// <c>Dispatcher.UIThread</c> from a dedicated background thread, so that
 /// thread owns the process-wide dispatcher forever. The ownership has two
 /// consequences the facts rely on:
