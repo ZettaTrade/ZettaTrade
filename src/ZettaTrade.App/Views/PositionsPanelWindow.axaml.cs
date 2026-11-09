@@ -3,6 +3,7 @@ namespace ZettaTrade.App.Views;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Livery.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
@@ -39,6 +40,23 @@ public partial class PositionsPanelWindow : ReactiveWindow<PositionsPanelViewMod
         // long as the interaction takes.
         this.WhenActivated(disposables =>
         {
+            // The TESTNET lane badge (T-127): the panel mirrors the
+            // status-bar chip — the badge appears only while the workspace's
+            // traded surface rides the testnet lane. The lane stream
+            // bootstraps with the standing value and re-resolves on surface
+            // flips; the wiring dies with the window's disposal scope.
+            var panelViewModel = ViewModel;
+            if (panelViewModel is not null)
+            {
+                App.Services.GetRequiredService<TradingModeService>()
+                    .Lane
+                    .ObserveOnUiThread()
+                    .Subscribe(
+                        lane => panelViewModel.IsTestnetLane = lane == TradingLane.Testnet,
+                        error => Log.Error(error, "Positions panel: the trading lane badge stream stopped unexpectedly"))
+                    .DisposeWith(disposables);
+            }
+
             ViewModel?.LoadCommand
                 .Execute(RxVoid.Default)
                 .Subscribe(

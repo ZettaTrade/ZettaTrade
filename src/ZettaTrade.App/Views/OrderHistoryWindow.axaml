@@ -17,6 +17,25 @@
         <ScrollViewer Grid.Row="0">
             <StackPanel Spacing="6">
 
+                <!-- Testnet lane badge (T-127): top-right, mirrors the
+                     status-bar chip; visible only while the traded surface
+                     rides the testnet lane. -->
+                <Border CornerRadius="9"
+                        Padding="8,2"
+                        HorizontalAlignment="Right"
+                        IsVisible="{Binding IsTestnetLane}"
+                        ToolTip.Tip="{loc:Localized Exchange.TestnetBadge.Tooltip}"
+                        Classes.testnet="{Binding IsTestnetLane}">
+                    <Border.Styles>
+                        <Style Selector="Border.testnet">
+                            <Setter Property="Background" Value="{DynamicResource Highlight}" />
+                        </Style>
+                    </Border.Styles>
+                    <TextBlock Text="{loc:Localized Exchange.TestnetBadge}"
+                               FontSize="11"
+                               FontWeight="SemiBold" />
+                </Border>
+
                 <!-- Column headers -->
                 <Grid ColumnDefinitions="150,90,125,55,75,75,150,125,110"
                       IsVisible="{Binding HasRows}">

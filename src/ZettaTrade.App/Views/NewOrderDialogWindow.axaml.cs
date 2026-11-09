@@ -4,10 +4,12 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Livery.Extensions;
+using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
 using ReactiveUI.Primitives;
 using Serilog;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 
 /// <summary>
@@ -26,6 +28,23 @@ public partial class NewOrderDialogWindow : ReactiveWindow<NewOrderDialogViewMod
         InitializeComponent();
         this.WhenActivated(disposables =>
         {
+            // The TESTNET lane badge (T-127): the ticket mirrors the
+            // status-bar chip — the badge appears only while the workspace's
+            // traded surface rides the testnet lane. The lane stream
+            // bootstraps with the standing value and re-resolves on surface
+            // flips; the wiring dies with the window's disposal scope.
+            var dialogViewModel = ViewModel;
+            if (dialogViewModel is not null)
+            {
+                App.Services.GetRequiredService<TradingModeService>()
+                    .Lane
+                    .ObserveOnUiThread()
+                    .Subscribe(
+                        lane => dialogViewModel.IsTestnetLane = lane == TradingLane.Testnet,
+                        ex => Log.Error(ex, "Order dialog: the trading lane badge stream stopped unexpectedly"))
+                    .DisposeWith(disposables);
+            }
+
             // The autocandidate list loads on activation and dies with the
             // window: the transient view model and its only window live
             // exactly as long as this disposal scope.

@@ -86,6 +86,9 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     /// <summary>Serializes the action pipeline; re-entrancy is an error state.</summary>
     private bool _isBusy;
 
+    /// <summary>Whether the traded surface currently rides the TESTNET lane (T-127; set by the owning window).</summary>
+    private bool _isTestnetLane;
+
     /// <summary>The shared action-surface gate: values false while any idle action runs.</summary>
     private readonly IObservable<bool> _actionsIdle;
 
@@ -209,6 +212,19 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     {
         get => _isBusy;
         private set => this.RaiseAndSetIfChanged(ref _isBusy, value);
+    }
+
+    /// <summary>
+    /// Whether the workspace's traded surface currently rides the TESTNET
+    /// lane (T-127): the panel's badge mirrors the status-bar chip so the
+    /// operator sees the venue surface the position and order actions ride.
+    /// Set by the owning window from the trading-mode lane stream — the view
+    /// model holds no lane service of its own.
+    /// </summary>
+    public bool IsTestnetLane
+    {
+        get => _isTestnetLane;
+        set => this.RaiseAndSetIfChanged(ref _isTestnetLane, value);
     }
 
     /// <summary>Reloads every section from the adapter and the journal.</summary>

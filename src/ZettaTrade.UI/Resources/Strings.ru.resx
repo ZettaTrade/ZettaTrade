@@ -483,6 +483,12 @@
   <data name="Trading.ConfirmGoLive" xml:space="preserve">
     <value>Переключить торговый режим на РЕАЛЬНЫЙ? Далее идут настоящие заявки.</value>
   </data>
+  <data name="Exchange.TestnetBadge" xml:space="preserve">
+    <value>TESTNET</value>
+  </data>
+  <data name="Exchange.TestnetBadge.Tooltip" xml:space="preserve">
+    <value>Тестнет-площадка: заявки исполняются на тестнете Bybit — только учебные средства, никаких реальных денег.</value>
+  </data>
   <data name="Order.StopMarket" xml:space="preserve">
     <value>Стоп-маркет</value>
   </data>
