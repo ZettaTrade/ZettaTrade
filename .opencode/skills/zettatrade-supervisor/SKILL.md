@@ -231,6 +231,29 @@ When starting (or resuming) in supervisor mode:
    instance owns the branch; the stale one ends its turn for good.
 5. Never restart work that already reached a green gate — review and land it
    instead.
+6. Supervisor restart hygiene (a restarted harness, a mid-run cancelled
+   shell): a cancelled background shell is a DEAD verdict — its child
+   processes may outlive it, its output is never delivered and no
+   notification will ever arrive from it. Any own verification whose shell
+   was cancelled or whose server restarted is relaunched fresh; its orphaned
+   `dotnet`/`testhost`/app processes are killed first, BY EXPLICIT PID from
+   the command-line audit of the next item. The same for the resumed
+   session: before treating a busy box as "someone else's work", audit the
+   processes by COMMAND LINE
+   (`Get-CimInstance Win32_Process -Filter "Name='dotnet.exe' Or Name='testhost.exe'"`
+   — the worktree path + the tool + the filter string in the CommandLine
+   positively pin the owner: own cancelled children carry the supervisor's
+   own paths and phrases). Only a POSITIVELY identified non-owner occupant
+   justifies a pause; anything ambiguous is treated as own zombie — kill it
+   by PID list, never by a keyword match (the sweep must not match its own
+   agent process), then continue own work.
+7. Autonomy under outside signals: a pending worker report is never a
+   reason to idle a turn. If the only remaining action is blocked on
+   another worker's report, announce that honestly AND still take the next
+   own-lane step (the landing queue's next candidate review, the pre-review
+   of any fully-committed chain on disk — read-only `git show`/`diff` on a
+   chain costs nothing). End the turn only when every own-lane task really
+   is in flight and nothing cheap remains.
 
 ## Work in progress bounds
 
@@ -257,11 +280,15 @@ only.
 1. `git fetch origin`, rev-list sync check (main repo).
 2. Read the newest handoff state file; verify + reconcile the boards'
    in-flight facts (worktrees, branches, sessionIDs, bumps).
-3. Land anything whose gate already passed; resume dead workers; fill the
+3. Supervisor restart hygiene — after ANY session (re)start: audit leftover
+   `dotnet`/`testhost`/app processes by command line
+   (Recovery item 6); own cancelled children are killed by PID and their
+   dead verification runs are relaunched fresh; a worker's own gate run is
+   left alone.
+4. Land anything whose gate already passed; resume dead workers; fill the
    wave's empty slots from the synced board's queued list per Wave planning.
-4. Report to the user (Russian): the wave table (task, worktree, status,
+5. Report to the user (Russian): the wave table (task, worktree, status,
    version) and then work; when each worker lands, report the landing.
-
 Then continue indefinitely: waves, reviews, landings, state-file updates —
 until the user stops you. Never wait for approval; the standing directive
 says the merges are yours.
