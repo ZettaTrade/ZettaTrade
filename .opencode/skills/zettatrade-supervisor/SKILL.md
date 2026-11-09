@@ -94,7 +94,10 @@ one board task. Choosing tasks for a wave:
 - Dispatch workers as background subagents (`agent: general`,
   `background: true`), one per worktree/branch, and end the turn — do not
   block on them. Set the shell `workdir` to pin workers inside their own
-  worktree.
+  worktree. The handoff record of a dispatch is written BEFORE the dispatch
+  (a session death may land between the two; the worktree audit recovers
+  an unrecorded dispatch, but the state file must not be the single source
+  a fresh session reconstructs from).
 - Every brief must carry, self-contained (subagents start with fresh context):
   worktree + branch + base commit; the task text from the board; the binding
   rulebook (ReactiveUI-only MVVM, mandatory en+ru resx, code style, async
@@ -207,7 +210,15 @@ When starting (or resuming) in supervisor mode:
 1. Read the newest `supervisor-*.txt` state file first. It outranks memory but
    never outranks the repo: verify every listed worktree with
    `git worktree list` and per-worktree `git status --short` +
-   `git log --oneline develop..HEAD`.
+   `git log --oneline develop..HEAD`. The enumeration covers EVERY worktree
+   unconditionally — including any the handoff file does not mention: a task
+   branch absent from the handoff is prior work by a session that died
+   between dispatch and its state write — adopt it as-is into the handoff
+   (its uncommitted drafts included; takeover drafts stay someone's work:
+   review the diff first, never discard), then continue it through the
+   landing protocol. NOTHING found in a task worktree is thrown away: the
+   commit chain, uncommitted drafts, and a machine-clean tree are all
+   recorded and reconciled, not restarted.
 2. Dead supervisor session: the files above + the repo are the full truth.
    Re-derive the plan from them and continue. If a listed subagent sessionID
    is still resumable, resume it with the subagent tool's `sessionID`
