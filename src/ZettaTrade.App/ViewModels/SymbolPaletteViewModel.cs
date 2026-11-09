@@ -11,7 +11,9 @@ using Livery.Extensions;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
+using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Core.ValueObjects;
 
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
@@ -183,6 +185,42 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     public bool IsSourceWaiting =>
         !HasRows && !_snapshot.Settled && _snapshot.Instruments.Count == 0;
 
+    private bool _isPickingCompare;
+
+    /// <summary>
+    /// Whether the palette rides the chart's compare pick (T-124): the
+    /// rows rank the CURRENT exchange only (the compare fetch reads the
+    /// standing adapter — a foreign-exchange row could never serve a
+    /// fetchable series), Enter completes the pending pick with the
+    /// highlighted row's symbol, and any close completes it with null.
+    /// </summary>
+    public bool IsPickingCompare
+    {
+        get => _isPickingCompare;
+        private set => this.RaiseAndSetIfChanged(ref _isPickingCompare, value);
+    }
+
+    /// <summary>The pending compare pick's resolution sink (see <see cref="BeginComparePickAsync"/>); null while no pick stands.</summary>
+    private TaskCompletionSource<Symbol?>? _comparePickTcs;
+
+    /// <summary>
+    /// Begin the chart's compare pick (T-124): the palette opens in
+    /// compare mode and the returned task completes with the picked
+    /// symbol, null on a close without a pick. A second pick while one
+    /// stands resolves the first with null — at most one pending pick,
+    /// the newer wins.
+    /// </summary>
+    public async Task<Symbol?> BeginComparePickAsync(CancellationToken ct = default)
+    {
+        _comparePickTcs?.TrySetResult(null);
+        _comparePickTcs = new TaskCompletionSource<Symbol?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        IsPickingCompare = true;
+
+        await OpenCoreAsync(ct);
+
+        return await _comparePickTcs.Task;
+    }
+
     #endregion Properties
 
     #region Constructor
@@ -351,6 +389,8 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     /// Close the palette and return the focus: the window decides what
     /// "return the focus" means (its stashed pre-open element), so a
     /// palette opened from the chart drops the user back on the chart.
+    /// A close also resolves the pending compare pick (T-124) with null —
+    /// the ride never leaves a dangling task.
     /// </summary>
     private async Task<RxVoid> CloseCoreAsync(CancellationToken ct)
     {
@@ -360,8 +400,21 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
         }
 
         IsOpen = false;
+        EndComparePick(null);
         await FocusReturnRequested.Handle(RxVoid.Default);
         return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// Resolve the pending compare pick (T-124): the apply answers with
+    /// the picked symbol, every close answers with null, and both clear
+    /// the ride mode — no pick survives its own resolution.
+    /// </summary>
+    private void EndComparePick(Symbol? picked)
+    {
+        IsPickingCompare = false;
+        _comparePickTcs?.TrySetResult(picked);
+        _comparePickTcs = null;
     }
 
     /// <summary>
@@ -383,6 +436,17 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
         }
 
         var row = Rows[SelectedIndex];
+
+        // The compare pick rides FIRST (T-124): the pending pick resolves
+        // with the row's own symbol and the palette closes — no workspace
+        // write, no exchange switch, no recents (the pick is chart-layer
+        // state, never a workspace preference).
+        if (_isPickingCompare)
+        {
+            EndComparePick(row.Symbol);
+            await CloseCoreAsync(ct);
+            return RxVoid.Default;
+        }
 
         if (string.Equals(
                 _activeExchanges.Current.Id,
@@ -497,14 +561,27 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     /// <summary>The current state's ranked page (pure over the snapshot, the query, the recents and the marks).</summary>
     private IReadOnlyList<SymbolPaletteRow> RankCurrent()
     {
+        // The compare mode (T-124) ranks the CURRENT exchange only: the
+        // compare fetch reads the workspace's standing adapter, so a
+        // foreign-exchange row could never serve a fetchable series. The
+        // standing mode keeps the cross-exchange palette whole.
+        var instruments = _isPickingCompare
+            ? _snapshot.Instruments
+                .Where(instrument => string.Equals(
+                    instrument.ExchangeId,
+                    _activeExchanges.Current.Id,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList()
+            : _snapshot.Instruments;
+
         var query = Query;
         if (string.IsNullOrWhiteSpace(query))
         {
-            return PageEmptyQuery(_snapshot.Instruments);
+            return PageEmptyQuery(instruments);
         }
 
         return FuzzySymbolMatcher
-            .Match(_snapshot.Instruments, query, MaxResults)
+            .Match(instruments, query, MaxResults)
             .Select(instrument => MarkRow(instrument, isRecent: false))
             .ToList();
     }

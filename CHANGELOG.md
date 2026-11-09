@@ -1,3 +1,28 @@
+## [0.1.0-alpha.86] - 2026-11-09
+
+Build of board task T-124 (branch `feat/chart-compare`).
+
+### Added
+- The symbol-compare overlay (T-124): a toolbar action adds a second series
+  of the standing interval from another symbol on the same adapter, drawn
+  over the volume profile and under the indicator/VWAP overlays — one
+  polyline per layer, each percent-rebased to ITS OWN first aligned close
+  (the (100→110) ≡ (1000→1100) = +10% equivalence), with 4 theme-resolved
+  legend colors (`Compare1`..`Compare4` slots, fixed distinct fallbacks).
+  The pick rides the T-095 global palette's new compare mode — the rows
+  rank the current exchange only, Enter completes the pick, Esc closes it
+  null — and the chart's legend chip strip pinned top-right names the
+  main series first plus one swatch-and-detach chip per layer, whose ×
+  press zones route the removals. Layers are chart-level transient state:
+  an interval or an exchange change drops the lot, a same-interval symbol
+  switch keeps them, a stale fetch (the interval/adapter stamped at its
+  start) drops its own result, and a workspace symbol switch never
+  persists the layers. Removing every layer restores the single-series
+  rendering bit-exact (any empty layer list short-circuits the pipeline);
+  removals land nothing outside the chart panel, and every refusal (no
+  loaded series, the chart's own symbol, a duplicate, the fifth pick, an
+  empty fetch) surfaces on the error line, en + ru.
+
 ## [0.1.0-alpha.85] - 2026-11-09
 
 Build of board task T-102 (branch `feat/hotkey-manager`).

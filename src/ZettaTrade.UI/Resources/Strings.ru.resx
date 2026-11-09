@@ -480,6 +480,30 @@
   <data name="Chart.Type.HeikinAshi" xml:space="preserve">
     <value>Хейкен-Аши</value>
   </data>
+  <data name="Chart.Compare" xml:space="preserve">
+    <value>Сравнить</value>
+  </data>
+  <data name="Chart.Compare.Tip" xml:space="preserve">
+    <value>Наложить второй ряд того же интервала, каждый приведён к своему процентному изменению</value>
+  </data>
+  <data name="Chart.CompareNoSeries" xml:space="preserve">
+    <value>Для сравнения сначала загрузите ряд.</value>
+  </data>
+  <data name="Chart.CompareSelf" xml:space="preserve">
+    <value>Этот символ уже является собственным рядом графика.</value>
+  </data>
+  <data name="Chart.CompareDuplicate" xml:space="preserve">
+    <value>Этот символ уже есть в списке сравнения.</value>
+  </data>
+  <data name="Chart.CompareCap" xml:space="preserve">
+    <value>В списке сравнения не более {0} символов.</value>
+  </data>
+  <data name="Chart.CompareFetchEmpty" xml:space="preserve">
+    <value>Фид не отдал свечей для этого символа и интервала.</value>
+  </data>
+  <data name="Chart.CompareFetchFailed" xml:space="preserve">
+    <value>Не удалось загрузить сравнение: {0}</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>
@@ -1202,6 +1226,9 @@
   </data>
   <data name="Palette.NoMatches" xml:space="preserve">
     <value>Ни один символ не отвечает запросу.</value>
+  </data>
+  <data name="Palette.CompareHint" xml:space="preserve">
+    <value>Выбор для сравнения: строки текущей биржи, Enter добавит ряд, Esc отменит</value>
   </data>
   <data name="Palette.Hint" xml:space="preserve">
     <value>Up/Down выбрать — Enter применить — Esc закрыть</value>

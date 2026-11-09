@@ -214,6 +214,41 @@ public class CandlestickChart : Control
     /// <summary>Height of the legend's PnL-tag swatch (the tag's mini silhouette), in pixels.</summary>
     private const float LegendTagSwatchHeightPx = 6f;
 
+    /// <summary>
+    /// Stroke width of one compare layer's polyline (T-124): the indicator
+    /// overlay family's weight — a neighbor rides the same line family the
+    /// workspace's own overlays keep.
+    /// </summary>
+    private const float CompareLineStrokePx = 2f;
+
+    /// <summary>Alpha (0–255) of the compare chips' translucent backing pill.</summary>
+    private const byte CompareChipBackgroundAlpha = 170;
+
+    /// <summary>
+    /// The compare chip strip's inset from the plot's top-right corner, in
+    /// pixels: the strip lives inside the plot space (it must never cover
+    /// the price labels' gutter or the hovered price pill's right rail),
+    /// clear of the footprint legend's top-left corner and the OHLC
+    /// readout the hover layers print there.
+    /// </summary>
+    private const float CompareStripInsetPx = 10f;
+
+    /// <summary>
+    /// Dimensions and gaps of one compare chip (T-124), in pixels: the
+    /// padding around the chip's own content, the inline swatch that
+    /// names the layer's color, the gap before the layer's detach square
+    /// and that square's cross size — the × press zone is the cross plus
+    /// its own padding on every side.
+    /// </summary>
+    private const float CompareChipPadPx = 5f;
+    private const float CompareChipSwatchWidthPx = 12f;
+    private const float CompareChipSwatchHeightPx = 3f;
+    private const float CompareChipSwatchTextGapPx = 6f;
+    private const float CompareChipCrossGapPx = 8f;
+    private const float CompareChipCrossHalfPx = 3.5f;
+    private const float CompareChipCrossPadPx = 4f;
+    private const float CompareChipGapPx = 10f;
+
     /// <summary>Resource keys published by ThemeManager; the chart mirrors the current theme live.</summary>
     private const string BackgroundColorKey = "Background";
     private const string CandleUpColorKey = "CandleUp";
@@ -495,6 +530,42 @@ public class CandlestickChart : Control
         set => SetValue(TradingFillsProperty, value);
     }
 
+    /// <summary>
+    /// StyledProperty for the symbol-compare layers (T-124): the extra
+    /// series the ViewModel publishes, each with its own chip label and
+    /// fetched series. Empty — the default — leaves the single-series
+    /// pipeline untouched; the draw pass aligns every layer against the
+    /// visible window on each pass (never a mutation of the layers).
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<ChartCompareLayer>> CompareLayersProperty =
+        AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<ChartCompareLayer>>(
+            nameof(CompareLayers),
+            defaultValue: []);
+
+    /// <summary>
+    /// StyledProperty for the main series' workspace label (T-124): the
+    /// legend chip strip names the workspace series first; empty while no
+    /// symbol stands (the strip only paints with compare content anyway).
+    /// </summary>
+    public static readonly StyledProperty<string> MainSeriesLabelProperty =
+        AvaloniaProperty.Register<CandlestickChart, string>(
+            nameof(MainSeriesLabel),
+            defaultValue: string.Empty);
+
+    /// <summary>The symbol-compare layers drawn against the main series; a change re-inks on the next pass.</summary>
+    public IReadOnlyList<ChartCompareLayer> CompareLayers
+    {
+        get => GetValue(CompareLayersProperty);
+        set => SetValue(CompareLayersProperty, value);
+    }
+
+    /// <summary>The main series' workspace label the legend chip strip prints.</summary>
+    public string MainSeriesLabel
+    {
+        get => GetValue(MainSeriesLabelProperty);
+        set => SetValue(MainSeriesLabelProperty, value);
+    }
+
     #endregion
 
     #region Fields & Properties
@@ -558,6 +629,36 @@ public class CandlestickChart : Control
     /// no drag is active (no pointer captured / released). UI-thread state only.
     /// </summary>
     private double? _panAnchorX;
+
+    /// <summary>
+    /// The compare chips' detach press zones (T-124) as the render thread
+    /// cached them for the latest frame: one labeled rect per removable
+    /// layer, empty whenever the frame carried none (a single-series frame
+    /// arms no chip). The write happens on the render thread, the read on
+    /// the UI thread (the pointer press) — the same cross-thread
+    /// discipline as <see cref="_paintedBarPitch"/>: the worst the press
+    /// ever sees is the previous frame's zones, never a torn read.
+    /// </summary>
+    private CompareChipHit[] _compareChipRects = [];
+
+    /// <summary>
+    /// The compare chips' removal requests stream sink (hot; see
+    /// <see cref="CompareRemovals"/>).
+    /// </summary>
+    private readonly Subject<string> _compareRemovals = new();
+
+    /// <summary>
+    /// The compare chips' removal requests stream (T-124), hot and raised
+    /// on the UI thread: a press inside a chip's cached detach zone emits
+    /// the chip's own label (the compared symbol's normalized name). The
+    /// layer list lives in the chart ViewModel — the chart only reports
+    /// which chip was pressed, the removal and the re-ink route back
+    /// through the property the subscriber re-publishes.
+    /// </summary>
+    public IObservable<string> CompareRemovals => _compareRemovals;
+
+    /// <summary>One compare chip's detach press zone: whom it removes and where it sits in control space.</summary>
+    private readonly record struct CompareChipHit(string Label, SKRect Bounds);
 
     /// <summary>
     /// The older-history requests stream sink (hot; see <see cref="OlderHistoryRequested"/>).
@@ -712,6 +813,13 @@ public class CandlestickChart : Control
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
         TradingFillsProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        // The T-124 compare overlays: a new layer list or a main-label
+        // update re-inks the same way (the chips ride the label).
+        CompareLayersProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+        MainSeriesLabelProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
     }
 
     public CandlestickChart()
@@ -849,6 +957,19 @@ public class CandlestickChart : Control
         var heikinAshi = SliceHeikinAshiBars(bars, spanStart, spanEnd);
         var closesOnly = SeriesType is ChartSeriesType.Line or ChartSeriesType.Area;
         var drawnBars = DrawnSeries(visible, heikinAshi, SeriesType);
+        var compares = ResolveCompareFrames(visible);
+
+        var floorCandidates = SpreadCandidates(drawnBars, closesOnly);
+        foreach (var frame in compares)
+        {
+            foreach (var value in frame.Aligned)
+            {
+                if (value is { } close)
+                {
+                    floorCandidates.Add(close);
+                }
+            }
+        }
 
         return new ChartSnapshot(
             visible,
@@ -872,8 +993,53 @@ public class CandlestickChart : Control
             ChartFootprintLayout.Resolve(TradingFills, visible),
             ScaleMode,
             visible.Length > 0 ? visible[0].Close : 0m,
-            ChartPriceTransform.PositiveFloor(SpreadCandidates(drawnBars, closesOnly)));
+            ChartPriceTransform.PositiveFloor(floorCandidates),
+            MainSeriesLabel,
+            compares);
     }
+
+    /// <summary>
+    /// Resolve the compare layers (T-124) against the visible window:
+    /// every layer aligns by open time, a layer whose alignment shares no
+    /// slot with the window draws nothing at all (an honest nothing, never
+    /// a fabricated line), and the legend colors resolve per layer index —
+    /// the theme's compare slots first, the fixed fallbacks behind them.
+    /// An over-cap layer list is sliced (the ViewModel refuses the fifth
+    /// pick; the resolve never trusts it).
+    /// </summary>
+    private IReadOnlyList<CompareFrame> ResolveCompareFrames(Bar[] visible)
+    {
+        var layers = CompareLayers;
+        if (layers.Count == 0 || visible.Length == 0)
+        {
+            return [];
+        }
+
+        var count = Math.Min(layers.Count, ChartCompareSeries.MaxCompareLayers);
+        var frames = new List<CompareFrame>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var layer = layers[i];
+            var aligned = ChartCompareSeries.Align(layer.Bars, visible);
+            if (aligned.All(static value => value is null))
+            {
+                continue;
+            }
+
+            frames.Add(new CompareFrame(
+                layer.Label,
+                ChartCompareColor(i),
+                ChartCompareSeries.AxisAnchor(aligned),
+                aligned));
+        }
+
+        return frames;
+    }
+
+    /// <summary>One compare layer's legend color: the theme slot the layer index addresses, the fallback set behind a theme that carries none.</summary>
+    private SKColor ChartCompareColor(int layerIndex) => ResourceColor(
+        ChartCompareSeries.ColorKeys[layerIndex % ChartCompareSeries.ColorKeys.Length],
+        ChartCompareSeries.FallbackColors[layerIndex % ChartCompareSeries.FallbackColors.Length]);
 
     /// <summary>
     /// The drawn series of one frame (T-089's rule, shared with the draw
@@ -1049,7 +1215,26 @@ public class CandlestickChart : Control
         IReadOnlyList<FillMarkerHit> FillHits,
         PriceScaleMode ScaleMode,
         decimal AxisAnchor,
-        decimal AxisFloor);
+        decimal AxisFloor,
+        string MainSeriesLabel,
+        IReadOnlyList<CompareFrame> Compares);
+
+    /// <summary>
+    /// One aligned compare layer the draw pass consumes (T-124): the
+    /// visible window's closes aligned by open time (null where the
+    /// layer's own fetch does not span the slot), the layer's own percent
+    /// anchor, and the legend color + chip label. Pure frame-local state —
+    /// the render thread reads none of the live layer list.
+    /// </summary>
+    /// <param name="Label">The compared symbol's normalized name (the chip's label and its removal identity).</param>
+    /// <param name="Color">The layer's legend color (the polyline and the chip swatch keep one).</param>
+    /// <param name="Anchor">The layer's own percent anchor: its first aligned close.</param>
+    /// <param name="Aligned">One slot per visible bar; the slot carries the layer's close or null.</param>
+    private sealed record CompareFrame(
+        string Label,
+        SKColor Color,
+        decimal Anchor,
+        decimal?[] Aligned);
 
     /// <summary>
     /// Draws the chart straight onto Avalonia's own SKCanvas (render thread).
@@ -1089,6 +1274,18 @@ public class CandlestickChart : Control
         /// </summary>
         private decimal AxisOf(decimal price) =>
             ChartPriceTransform.ToAxisValue(price, _snapshot.ScaleMode, _snapshot.AxisAnchor, _snapshot.AxisFloor);
+
+        /// <summary>
+        /// The axis-domain value of one compare layer's raw close (T-124):
+        /// every series maps in the one domain the draw pass paints — the
+        /// percent layers through their own anchors (each series rebases to
+        /// its own zero), the linear and log layers through the shared
+        /// identity/log transform (the anchor is meaningless there). Never
+        /// a parallel mapping path: the same <see cref="ChartPriceTransform"/>
+        /// wrap every other mapping site consumes.
+        /// </summary>
+        private decimal AxisOfLayer(decimal price, decimal anchor) =>
+            ChartPriceTransform.ToAxisValue(price, _snapshot.ScaleMode, anchor, _snapshot.AxisFloor);
 
         /// <summary>
         /// The axis tick's label (T-090): the linear mode prints the tick
@@ -1184,17 +1381,39 @@ public class CandlestickChart : Control
             // readout). A value outside the mode's domain clamps VISIBLY
             // onto the drawn geometry's positive floor — never NaN, never a
             // dropped candle, never a silent mode fallback.
-            var (minAxis, maxAxis, axisRange) = ChartPriceScale.PaddedSpread(
-                ChartPriceTransform.ToAxisValue(
-                    lowest,
-                    _snapshot.ScaleMode,
-                    _snapshot.AxisAnchor,
-                    _snapshot.AxisFloor),
-                ChartPriceTransform.ToAxisValue(
-                    highest,
-                    _snapshot.ScaleMode,
-                    _snapshot.AxisAnchor,
-                    _snapshot.AxisFloor));
+            //
+            // The union (T-124): the compare layers' own axis candidates
+            // extend the same domain the main series' bounds start — the
+            // percent layers map through their OWN anchors (each series
+            // rebases to its own zero), the log layers share the floor. A
+            // far-priced neighbor stretches the one padded scale instead of
+            // clipping off it. An empty layer list never enters the loop:
+            // the union IS the historical two-bound call, bit for bit.
+            var mainLowAxis = AxisOf(lowest);
+            var mainHighAxis = AxisOf(highest);
+            var unionMin = Math.Min(mainLowAxis, mainHighAxis);
+            var unionMax = Math.Max(mainLowAxis, mainHighAxis);
+            foreach (var frame in _snapshot.Compares)
+            {
+                foreach (var candidate in ChartCompareSeries.LayerAxisCandidates(
+                             frame.Aligned,
+                             _snapshot.ScaleMode,
+                             frame.Anchor,
+                             _snapshot.AxisFloor))
+                {
+                    if (candidate < unionMin)
+                    {
+                        unionMin = candidate;
+                    }
+
+                    if (candidate > unionMax)
+                    {
+                        unionMax = candidate;
+                    }
+                }
+            }
+
+            var (minAxis, maxAxis, axisRange) = ChartPriceScale.PaddedSpread(unionMin, unionMax);
 
             // The labels decide the geometry FIRST: gutters size themselves
             // to the measured texts so no label can clip, and the plot
@@ -1317,6 +1536,15 @@ public class CandlestickChart : Control
             // The right-margin volume-at-price histogram (T-093) rides over
             // the candles translucently; the overlay lines draw over it.
             DrawVolumeProfile(canvas, plotRect, visibleBars, minAxis, axisRange);
+
+            // The T-124 compare layers: one percent-rebased polyline per
+            // compared symbol over the volume profile, under the indicator
+            // and VWAP overlays (a neighbor never outweighs a workspace
+            // panel), plus the legend chip strip pinned top-right — the
+            // strips' detach squares are the removal route. A single-series
+            // frame is byte-exact without the strip: the resolve produced
+            // nothing and strip + lines short-circuit.
+            DrawCompareLayers(canvas, font, textPaint, plotRect, barPitch, visibleBars.Length, minAxis, axisRange);
 
             DrawIndicatorLines(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Indicators);
             DrawVwapOverlay(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Vwap);
@@ -2347,6 +2575,199 @@ public class CandlestickChart : Control
         }
 
         /// <summary>
+        /// The symbol-compare draw block (T-124): one polyline per compare
+        /// layer riding the bar slots and the shared price scale (each
+        /// percent layer maps through its OWN anchor — that series' own
+        /// zero), then the legend chip strip pinned top-right inside the
+        /// plot: one label-only chip for the main series, one
+        /// swatch-and-detach chip per layer, whose × press zones (cached
+        /// into the control field the pointer press reads) route the
+        /// removals. An aligned gap draws nothing and never bridges to a
+        /// neighbor. A no-layer frame never enters — the empty zone-cache
+        /// write keeps the pointer route quiet while the identity holds.
+        /// </summary>
+        private void DrawCompareLayers(
+            SKCanvas canvas,
+            SKFont font,
+            SKPaint labelPaint,
+            Rect plotRect,
+            double barPitch,
+            int barCount,
+            decimal minAxis,
+            decimal axisRange)
+        {
+            var frames = _snapshot.Compares;
+
+            if (frames.Count == 0)
+            {
+                _owner._compareChipRects = [];
+                return;
+            }
+
+            using var linePaint = new SKPaint
+            {
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = CompareLineStrokePx,
+                IsAntialias = true
+            };
+
+            foreach (var frame in frames)
+            {
+                using var builder = new SKPathBuilder();
+                var penDown = false;
+                for (var i = 0; i < barCount; i++)
+                {
+                    if (frame.Aligned[i] is not { } close)
+                    {
+                        penDown = false;
+                        continue;
+                    }
+
+                    var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, barCount, i);
+                    var y = ChartPriceScale.PriceToY(plotRect, AxisOfLayer(close, frame.Anchor), minAxis, axisRange);
+
+                    if (!penDown)
+                    {
+                        builder.MoveTo(x, y);
+                        penDown = true;
+                    }
+                    else
+                    {
+                        builder.LineTo(x, y);
+                    }
+                }
+
+                // The same dispose discipline the indicator lines keep:
+                // the detached path is dead right after the draw call
+                // (BUG-049 — the native wrapper must not outlive it).
+                using var path = builder.Detach();
+                linePaint.Color = frame.Color;
+                canvas.DrawPath(path, linePaint);
+            }
+
+            // The chip strip: the run's full budget measures first (the
+            // two-pass idea the time-label pick keeps, at its smallest
+            // scale), so the strip hangs right-anchored whole. A strip
+            // wider than the plot pins to the plot's left inset and lets
+            // the far end clip — a degenerate sliver frame never claims
+            // mid-gutter space.
+            var crossSquare = (2f * CompareChipCrossHalfPx) + (2f * CompareChipCrossPadPx);
+            var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
+            var chipHeight = textHeight + (2f * CompareChipPadPx);
+            var chipRadius = CornerRadiusFor(chipHeight);
+            var hasMainChip = !string.IsNullOrEmpty(_snapshot.MainSeriesLabel);
+
+            var widths = new List<float>(frames.Count + 1);
+            var layerWidthOffset = hasMainChip ? 1 : 0;
+            var mainLabel = _snapshot.MainSeriesLabel;
+            if (hasMainChip)
+            {
+                widths.Add((2f * CompareChipPadPx) + font.MeasureText(mainLabel));
+            }
+
+            for (var i = 0; i < frames.Count; i++)
+            {
+                widths.Add((2f * CompareChipPadPx)
+                    + CompareChipSwatchWidthPx
+                    + CompareChipSwatchTextGapPx
+                    + font.MeasureText(frames[i].Label)
+                    + CompareChipCrossGapPx
+                    + crossSquare);
+            }
+
+            var totalWidth = widths.Sum() + ((widths.Count - 1) * CompareChipGapPx);
+            var stripRight = (float)plotRect.Right - CompareStripInsetPx;
+            var stripTop = (float)plotRect.Top + CompareStripInsetPx;
+            var cursorX = Math.Max(stripRight - totalWidth, (float)plotRect.Left + CompareStripInsetPx);
+            var baseline = stripTop + CompareChipPadPx - font.Metrics.Ascent;
+
+            using var chipBackgroundPaint = new SKPaint
+            {
+                Color = _snapshot.Background.WithAlpha(CompareChipBackgroundAlpha),
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true
+            };
+            using var swatchPaint = new SKPaint
+            {
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true
+            };
+            using var crossPaint = new SKPaint
+            {
+                Color = _snapshot.Text,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1f,
+                IsAntialias = true
+            };
+
+            var chips = new List<CompareChipHit>(frames.Count);
+
+            // The main series' chip comes first: label only, no detach —
+            // the workspace series never removes itself from its own strip.
+            if (hasMainChip)
+            {
+                var chipWidth = widths[0];
+                canvas.DrawRoundRect(
+                    new SKRect(cursorX, stripTop, cursorX + chipWidth, stripTop + chipHeight),
+                    chipRadius,
+                    chipRadius,
+                    chipBackgroundPaint);
+                canvas.DrawText(mainLabel, cursorX + CompareChipPadPx, baseline, SKTextAlign.Left, font, labelPaint);
+                cursorX += chipWidth + CompareChipGapPx;
+            }
+
+            for (var i = 0; i < frames.Count; i++)
+            {
+                var chipWidth = widths[i + layerWidthOffset];
+                canvas.DrawRoundRect(
+                    new SKRect(cursorX, stripTop, cursorX + chipWidth, stripTop + chipHeight),
+                    chipRadius,
+                    chipRadius,
+                    chipBackgroundPaint);
+
+                // The layer's own color rides the inline swatch; the chip's
+                // text and detach cross stay neutral so the labels read.
+                swatchPaint.Color = frames[i].Color;
+                var swatchCenterY = stripTop + (chipHeight / 2f);
+                var swatchRadius = CornerRadiusFor(CompareChipSwatchHeightPx);
+                canvas.DrawRoundRect(
+                    new SKRect(
+                        cursorX + CompareChipPadPx,
+                        swatchCenterY - (CompareChipSwatchHeightPx / 2f),
+                        cursorX + CompareChipPadPx + CompareChipSwatchWidthPx,
+                        swatchCenterY + (CompareChipSwatchHeightPx / 2f)),
+                    swatchRadius,
+                    swatchRadius,
+                    swatchPaint);
+
+                var textX = cursorX + CompareChipPadPx + CompareChipSwatchWidthPx + CompareChipSwatchTextGapPx;
+                canvas.DrawText(frames[i].Label, textX, baseline, SKTextAlign.Left, font, labelPaint);
+
+                var squareLeft = cursorX + chipWidth - CompareChipPadPx - crossSquare;
+                var squareRect = new SKRect(squareLeft, stripTop, cursorX + chipWidth, stripTop + chipHeight);
+                var centerX = squareLeft + (squareRect.Width / 2f);
+                var centerY = stripTop + (chipHeight / 2f);
+                canvas.DrawLine(
+                    centerX - CompareChipCrossHalfPx,
+                    centerY - CompareChipCrossHalfPx,
+                    centerX + CompareChipCrossHalfPx,
+                    centerY + CompareChipCrossHalfPx,
+                    crossPaint);
+                canvas.DrawLine(
+                    centerX - CompareChipCrossHalfPx,
+                    centerY + CompareChipCrossHalfPx,
+                    centerX + CompareChipCrossHalfPx,
+                    centerY - CompareChipCrossHalfPx,
+                    crossPaint);
+
+                chips.Add(new CompareChipHit(frames[i].Label, squareRect));
+                cursorX += chipWidth + CompareChipGapPx;
+            }
+
+            _owner._compareChipRects = [.. chips];
+        }
+
+        /// <summary>
         /// The honest no-volume state of the drawn overlays (T-093): the
         /// localized note prints when nothing volume-backed drew — the
         /// published VWAP overlay reports the SERIES carries no volume at
@@ -2821,6 +3242,9 @@ public class CandlestickChart : Control
     /// A left-button press arms a pan drag and captures the pointer: the
     /// press itself pans nothing, so the chart is never dragged by an
     /// accidental click (and the click keeps its <see cref="Focus"/> job).
+    /// A press inside a compare chip's cached detach zone (T-124) routes
+    /// the removal instead and stops there — the handled event never arms
+    /// a pan drag for what was a chip press.
     /// </summary>
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -2829,7 +3253,25 @@ public class CandlestickChart : Control
         var props = e.GetCurrentPoint(this).Properties;
         if (props.IsLeftButtonPressed)
         {
-            _panAnchorX = e.GetPosition(this).X;
+            var position = e.GetPosition(this);
+
+            // The compare chips' detach squares (T-124): the render thread
+            // owns the cache; the worst this read sees is the previous
+            // frame's zones (the painted-bar-pitch discipline). The hit
+            // emits the chip's own label and marks itself handled — the
+            // pan capture below stays out of the route entirely.
+            foreach (var chip in _compareChipRects)
+            {
+                if (chip.Bounds.Contains((float)position.X, (float)position.Y))
+                {
+                    _compareRemovals.OnNext(chip.Label);
+                    e.Handled = true;
+                    Focus();
+                    return;
+                }
+            }
+
+            _panAnchorX = position.X;
             e.Pointer.Capture(this);
         }
 

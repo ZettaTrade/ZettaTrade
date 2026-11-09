@@ -385,7 +385,7 @@
                                  the candles export writes the loaded series to a
                                  user-chosen CSV file. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
@@ -505,6 +505,18 @@
                                         ToolTip.Tip="{loc:Localized Chart.ExportVisibleCsv.Tip}"
                                         MinWidth="110"
                                         Margin="8,0,0,0" />
+                                <!-- The compare action (T-124): a second series of
+                                     the standing interval alongside the workspace
+                                     one, each percent-rebased to its own zero. The
+                                     pick rides the global palette's compare mode;
+                                     the chart's legend chips carry their own detach
+                                     press zones. -->
+                                <Button Grid.Column="12"
+                                        Content="{loc:Localized Chart.Compare}"
+                                        Command="{Binding CompareCommand}"
+                                        ToolTip.Tip="{loc:Localized Chart.Compare.Tip}"
+                                        MinWidth="92"
+                                        Margin="8,0,0,0" />
                             </Grid>
 
                             <!-- Export failure -->
@@ -546,8 +558,11 @@
                                                        TradingPosition="{Binding TradingPosition}"
                                                        TradingOrders="{Binding TradingOrders}"
                                                        TradingFills="{Binding TradingFills}"
+                                                       MainSeriesLabel="{Binding MainSeriesLabel}"
+                                                       CompareLayers="{Binding CompareLayers}"
                                                        FrameTapEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).Hud.IsVisible}" />
                                                         <!-- T-122: the trading footprint — my own position entry, working orders and fills, overlay-only (nothing routes back toward an order). -->
+                                                        <!-- T-124: the compare overlays — the chip strip's main label follows the workspace symbol; the layers are transient chart-level state. -->
 
                             <!-- Signal rail (T-112): the latest strategy readings
                                  streaming under the chart — one coalesced rows
@@ -785,7 +800,7 @@
                         BorderThickness="1"
                         CornerRadius="10"
                         ClipToBounds="True">
-                    <Grid RowDefinitions="Auto,Auto,*,Auto"
+                    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto"
                           RowSpacing="10"
                           Margin="14,12,14,10">
                         <TextBlock Grid.Row="0"
@@ -796,7 +811,16 @@
                                  Grid.Row="1"
                                  Text="{Binding Palette.Query}"
                                  PlaceholderText="{loc:Localized Palette.Placeholder}" />
-                        <Grid Grid.Row="2">
+                        <!-- The compare-pick hint (T-124): while the palette
+                             rides the chart's compare action, the rows rank
+                             the current exchange only and Enter picks a
+                             series instead of switching the workspace. -->
+                        <TextBlock Grid.Row="2"
+                                   Text="{loc:Localized Palette.CompareHint}"
+                                   Foreground="{DynamicResource Highlight}"
+                                   FontSize="11"
+                                   IsVisible="{Binding Palette.IsPickingCompare}" />
+                        <Grid Grid.Row="3">
                             <ListBox x:Name="PaletteRows"
                                      IsVisible="{Binding Palette.HasRows}"
                                      ItemsSource="{Binding Palette.Rows}"
@@ -858,7 +882,7 @@
                                        Foreground="{DynamicResource TextSecondary}"
                                        Margin="4,8" />
                         </Grid>
-                        <TextBlock Grid.Row="3"
+                        <TextBlock Grid.Row="4"
                                    Text="{loc:Localized Palette.Hint}"
                                    Foreground="{DynamicResource TextSecondary}"
                                    FontSize="11" />

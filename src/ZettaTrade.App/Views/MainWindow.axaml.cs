@@ -111,6 +111,21 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             onError: ex => Log.Error(ex, "Heatmap tile click stream failed"));
         Closed += (_, _) => _heatmapClicks.Dispose();
 
+        // The compare chips' detach presses (T-124) ride the removal route:
+        // the chart control reports which chip's × zone was pressed, the
+        // chart ViewModel owns the layer list (a removed label drops its
+        // layer and the next pass republishes the strip cache). SubscribeAsync
+        // keeps the route task-based (zero async void); stream failures land
+        // in the log via the error callback.
+        _compareRemovals = CandlesChart.CompareRemovals.SubscribeAsync(
+            label =>
+            {
+                ViewModel!.Chart.RemoveCompare(label);
+                return Task.CompletedTask;
+            },
+            onError: ex => Log.Error(ex, "Chart compare removal stream failed"));
+        Closed += (_, _) => _compareRemovals.Dispose();
+
         // The chart view model is an application-lifetime singleton living
         // for the whole window's stay, so — like the menu handlers above —
         // its save-dialog registration is registered here without disposal:
@@ -162,6 +177,16 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // removed with the window (AddHandler/RemoveHandler pair below).
         ViewModel?.Palette.FocusQueryRequested.RegisterHandler(FocusPaletteQueryAsync);
         ViewModel?.Palette.FocusReturnRequested.RegisterHandler(FocusReturnAsync);
+
+        // The compare pick's route (T-124): the chart's CompareCommand asks
+        // this window to open the palette in compare mode — the ride
+        // completes the interaction with the picked symbol (a null output
+        // is the user closing without a pick, never an error).
+        ViewModel?.Chart.PickCompareRequested.RegisterHandler(async context =>
+        {
+            var symbol = await ViewModel!.Palette.BeginComparePickAsync();
+            context.SetOutput(symbol);
+        });
         // handledEventsToo is the point of the route: the query text box's
         // own caret handling marks Up/Down/PageUp/PageDown handled before
         // the event bubbles here, and the route must outrank it — inside the
@@ -201,6 +226,9 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
 
     /// <summary>Subscription of the chart older-history request stream; disposed with the window.</summary>
     private IDisposable? _olderHistoryRequests;
+
+    /// <summary>Subscription of the compare chips' removal stream (T-124); disposed with the window.</summary>
+    private IDisposable? _compareRemovals;
 
     /// <summary>
     /// The tape's clear button: the buffered tape lives entirely in the
