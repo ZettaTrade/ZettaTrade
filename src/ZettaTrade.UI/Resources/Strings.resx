@@ -480,6 +480,30 @@
   <data name="Chart.Type.HeikinAshi" xml:space="preserve">
     <value>Heikin-Ashi</value>
   </data>
+  <data name="Chart.Compare" xml:space="preserve">
+    <value>Compare</value>
+  </data>
+  <data name="Chart.Compare.Tip" xml:space="preserve">
+    <value>Overlay a second series of the same interval, each rebased to its own percent change</value>
+  </data>
+  <data name="Chart.CompareNoSeries" xml:space="preserve">
+    <value>Compare needs a loaded series first.</value>
+  </data>
+  <data name="Chart.CompareSelf" xml:space="preserve">
+    <value>That symbol is already the chart's own series.</value>
+  </data>
+  <data name="Chart.CompareDuplicate" xml:space="preserve">
+    <value>That symbol is already on the compare list.</value>
+  </data>
+  <data name="Chart.CompareCap" xml:space="preserve">
+    <value>The compare list holds at most {0} symbols.</value>
+  </data>
+  <data name="Chart.CompareFetchEmpty" xml:space="preserve">
+    <value>The feed served no candles for that symbol and interval.</value>
+  </data>
+  <data name="Chart.CompareFetchFailed" xml:space="preserve">
+    <value>The compare fetch failed: {0}</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>
@@ -1202,6 +1226,9 @@ Estimated fee: {7}</value>
   </data>
   <data name="Palette.NoMatches" xml:space="preserve">
     <value>No symbol matches that query.</value>
+  </data>
+  <data name="Palette.CompareHint" xml:space="preserve">
+    <value>Compare pick: the rows rank the current exchange; Enter picks a series, Esc drops the pick</value>
   </data>
   <data name="Palette.Hint" xml:space="preserve">
     <value>Up/Down navigate — Enter apply — Esc close</value>

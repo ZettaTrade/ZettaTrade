@@ -2823,5 +2823,289 @@ public sealed class ChartViewModelTests
 
     #endregion Scale Mode Selector (T-090)
 
+    #region Symbol Compare (T-124)
+
+    /// <summary>The fake compiler: no-arg refusals print <c>[key]</c>, arg-carrying faults print <c>[key:v1|v2]</c>.</summary>
+    private static ILocalizationManager LocalizationThatPrints()
+    {
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.GetString(Arg.Any<string>()).Returns(call => $"[{call.ArgAt<string>(0)}]");
+        localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
+            $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
+        return localization;
+    }
+
+    /// <summary>
+    /// A handler that answers the chart's compare pick with one symbol —
+    /// the palette ride's stand-in (the window's real ride is pinned by
+    /// the palette facts).
+    /// </summary>
+    private static IDisposable PickHandler(ChartViewModel chart, string symbol) =>
+        chart.PickCompareRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(Symbol.Parse(symbol));
+            return Task.CompletedTask;
+        });
+
+    /// <summary>
+    /// The compare flow with nothing loaded refuses BEFORE any fetch: no
+    /// bars window request happens and the localized refusal surfaces on
+    /// the error line — never a silent substitution.
+    /// </summary>
+    [Fact]
+    public async Task CompareCommand_WithoutALoadedSeries_RefusesLocalized()
+    {
+        var localization = LocalizationThatPrints();
+        var marketData = new FakeMarketData();
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            localization: localization);
+
+        using var pick = PickHandler(chart, "ETH/BTC");
+        await chart.CompareCommand.Execute(RxVoid.Default);
+
+        chart.ErrorMessage.Should().Be("[Chart.CompareNoSeries]");
+        chart.HasErrorMessage.Should().BeTrue();
+        chart.CompareLayers.Should().BeEmpty("the refusal adds no layer");
+        marketData.BarsRequested.Should().NotContain(Symbol.Parse("ETH/BTC"), "the refusal fetches nothing");
+    }
+
+    /// <summary>A closed palette is not an error: the pick ends null, nothing happens, the error line stays clean.</summary>
+    [Fact]
+    public async Task CompareCommand_WithAClosedPalette_EndsQuietly()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+
+        using var pick = chart.PickCompareRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+        await chart.CompareCommand.Execute(RxVoid.Default);
+
+        chart.ErrorMessage.Should().BeNull("a closed palette is the user's choice, not a fault");
+        chart.CompareLayers.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The picked symbol lands the second series: the fetch reads the SAME
+    /// standing interval over the standing series' span (plus the pad),
+    /// and the layer rides the chart with the picked symbol's normalized
+    /// name — the chip label and the removal identity at once.
+    /// </summary>
+    [Fact]
+    public async Task ComparePick_LandsASecondSeries_OnTheStandingSpan()
+    {
+        var bootPage = new[]
+        {
+            new Bar(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 99m, 105m, 97m, 104m, 5m),
+            new Bar(new DateTimeOffset(2026, 11, 9, 1, 0, 0, TimeSpan.Zero), 104m, 112m, 102m, 111m, 7m),
+            new Bar(new DateTimeOffset(2026, 11, 9, 2, 0, 0, TimeSpan.Zero), 111m, 120m, 109m, 118m, 9m),
+        };
+        var comparePage = new[]
+        {
+            new Bar(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 199m, 206m, 197m, 200m, 3m),
+            new Bar(new DateTimeOffset(2026, 11, 9, 1, 0, 0, TimeSpan.Zero), 200m, 210m, 198m, 202m, 3m),
+            new Bar(new DateTimeOffset(2026, 11, 9, 2, 0, 0, TimeSpan.Zero), 202m, 214m, 200m, 204m, 3m),
+        };
+        var marketData = new FakeMarketData(barsPagePlan: [bootPage, comparePage]);
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        using var pick = PickHandler(chart, "ETH/BTC");
+        await chart.CompareCommand.Execute(RxVoid.Default);
+
+        marketData.BarsRequested[^1].Should().Be(Symbol.Parse("ETH/BTC"));
+        marketData.BarsTimeFrames[^1].Should().Be(TimeFrame.H1, "the compare fetch reads the standing interval");
+        var window = marketData.BarsWindowRequests[^1];
+        window.Limit.Should().Be(chart.Bars.Count + 2, "the standing span with the one pad-slot headroom");
+        window.From.Should().Be(chart.Bars[0].Time, "the fetch anchors on the visible window's head");
+        chart.CompareLayers.Should().ContainSingle().Which.Label.Should().Be("ETH/BTC");
+        chart.CompareLayers.Should().ContainSingle().Which.Bars.Should()
+            .BeEquivalentTo(comparePage, "the layer keeps its own fetched series");
+    }
+
+    /// <summary>The chart's own symbol cannot compare against itself — the refusal diagnoses at the pick.</summary>
+    [Fact]
+    public async Task AddCompareAsync_TheChartOwnSymbol_RefusesLocalized()
+    {
+        var localization = LocalizationThatPrints();
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            localization: localization);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        await chart.AddCompareAsync(Symbol.Parse("BTC/USDT"));
+
+        chart.ErrorMessage.Should().Be("[Chart.CompareSelf]");
+        chart.CompareLayers.Should().BeEmpty();
+    }
+
+    /// <summary>A duplicate pick refuses and keeps the standing single layer — the chip strip stays one-chip-per-symbol.</summary>
+    [Fact]
+    public async Task AddCompareAsync_ADuplicateSymbol_RefusesLocalized()
+    {
+        var localization = LocalizationThatPrints();
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            localization: localization);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+        await chart.AddCompareAsync(Symbol.Parse("ETH/BTC"));
+        chart.CompareLayers.Should().ContainSingle();
+
+        await chart.AddCompareAsync(Symbol.Parse("ETH/BTC"));
+
+        chart.ErrorMessage.Should().Be("[Chart.CompareDuplicate]");
+        chart.CompareLayers.Should().ContainSingle("the duplicate never appended twice");
+    }
+
+    /// <summary>The layer cap refuses the fifth pick with the carried limit — the strip's whole row budget.</summary>
+    [Fact]
+    public async Task AddCompareAsync_AtTheCap_RefusesLocalized()
+    {
+        var localization = LocalizationThatPrints();
+        var marketData = new FakeMarketData(
+            symbolNames: ["BTC/USDT", "ETH/BTC", "SOL/USDC", "XRP/USDT", "ADA/USDT", "DOGE/USDT"]);
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            localization: localization);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        string[] picks = ["ETH/BTC", "SOL/USDC", "XRP/USDT", "ADA/USDT"];
+        foreach (var pick in picks)
+        {
+            await chart.AddCompareAsync(Symbol.Parse(pick));
+        }
+
+        chart.CompareLayers.Should().HaveCount(
+            ChartCompareSeries.MaxCompareLayers,
+            "the standing layers fill the strip");
+
+        var overflowPick = Symbol.Parse("DOGE/USDT");
+        await chart.AddCompareAsync(overflowPick);
+
+        chart.ErrorMessage.Should().Be("[Chart.CompareCap:4]");
+        chart.CompareLayers.Should().HaveCount(4, "the refusal leaves the standing set");
+    }
+
+    /// <summary>A fetch fault surfaces the localized message with the carried detail — never a silent drop of the user's intent.</summary>
+    [Fact]
+    public async Task AddCompareAsync_WhenTheFetchFaults_RefusesLocalized()
+    {
+        var localization = LocalizationThatPrints();
+        var marketData = new FakeMarketData(failingSymbols: ["ETH/BTC"]);
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            localization: localization);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        await chart.AddCompareAsync(Symbol.Parse("ETH/BTC"));
+
+        chart.ErrorMessage.Should().Be("[Chart.CompareFetchFailed:no bars for this symbol]");
+        chart.CompareLayers.Should().BeEmpty();
+    }
+
+    /// <summary>An empty fetch (the feed served nothing for the picked symbol) refuses on the error line too.</summary>
+    [Fact]
+    public async Task AddCompareAsync_WithAnEmptyFetch_RefusesLocalized()
+    {
+        var bootPage = new[]
+        {
+            new Bar(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 99m, 105m, 97m, 104m, 5m),
+            new Bar(new DateTimeOffset(2026, 11, 9, 1, 0, 0, TimeSpan.Zero), 104m, 112m, 102m, 111m, 7m),
+        };
+        var marketData = new FakeMarketData(barsPagePlan: [bootPage, []]);
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            localization: LocalizationThatPrints());
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        await chart.AddCompareAsync(Symbol.Parse("ETH/BTC"));
+
+        chart.ErrorMessage.Should().Be("[Chart.CompareFetchEmpty]");
+        chart.CompareLayers.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The removal drops only the named layer and restores the standing
+    /// series records untouched — the removal-restore identity's
+    /// ViewModel leg: the kept list is the ORIGINAL layer records minus
+    /// the named one, re-published; an unknown label removes nothing.
+    /// </summary>
+    [Fact]
+    public async Task RemoveCompare_DropsOnlyTheNamedLayer_AndUnknownLabelIsANoOp()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+        await chart.AddCompareAsync(Symbol.Parse("ETH/BTC"));
+        await chart.AddCompareAsync(Symbol.Parse("SOL/USDC"));
+        var ethLayer = chart.CompareLayers[0];
+        var solLayer = chart.CompareLayers[1];
+
+        chart.RemoveCompare("ETH/BTC");
+        chart.CompareLayers.Should().HaveCount(1);
+        chart.CompareLayers[0].Should().BeSameAs(solLayer, "the removal drops the named layer only");
+
+        chart.RemoveCompare("DOGE/USDT");
+        chart.CompareLayers.Should().HaveCount(1, "an unknown label removes nothing");
+        chart.CompareLayers[0].Should().BeSameAs(solLayer);
+    }
+
+    /// <summary>
+    /// The compare layers are chart-level state keyed to the triple: an
+    /// INTERVAL change (a different open-time grid) drops the lot, but a
+    /// same-interval symbol switch keeps them — the layers re-align
+    /// against the new series' window on the next pass.
+    /// </summary>
+    [Fact]
+    public async Task AnIntervalChange_DropsTheLayers_AndASameIntervalSymbolSwitch_KeepsThem()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+        await chart.AddCompareAsync(Symbol.Parse("ETH/BTC"));
+        chart.CompareLayers.Should().ContainSingle();
+
+        chart.SelectedTimeFrame = TimeFrame.M5;
+        await AvaloniaDispatcherPump.DrainAsync();
+        chart.CompareLayers.Should().BeEmpty("a new open-time grid takes no riders");
+
+        await chart.AddCompareAsync(Symbol.Parse("SOL/USDC"));
+        chart.CompareLayers.Should().ContainSingle().Which.Label.Should().Be("SOL/USDC");
+
+        chart.SelectedSymbol = Symbol.Parse("SOL/USDC");
+        await AvaloniaDispatcherPump.DrainAsync();
+        chart.CompareLayers.Should().ContainSingle().Which.Label.Should().Be(
+            "SOL/USDC",
+            "a same-interval symbol switch keeps the layers");
+    }
+
+    /// <summary>The chip strip's main label mirrors the workspace selection live (empty while none stands).</summary>
+    [Fact]
+    public async Task MainSeriesLabel_MirrorsTheWorkspaceSelection()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+        chart.MainSeriesLabel.Should().BeEmpty("no selection stands yet");
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.MainSeriesLabel.Should().Be("BTC/USDT");
+    }
+
+    #endregion Symbol Compare (T-124)
+
     #endregion
 }
+

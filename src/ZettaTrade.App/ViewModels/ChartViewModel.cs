@@ -128,6 +128,22 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>The resx key of the deep-history end note (T-086).</summary>
     private const string HistoryLimitKey = "Chart.HistoryLimit";
 
+    /// <summary>
+    /// Extra open slots one compare fetch requests over the standing
+    /// series' own span (T-124): the feed may pad the window around
+    /// <c>from</c>, and the layer's aligned head should not clip the
+    /// window because the request carried exactly the visible count.
+    /// </summary>
+    private const int CompareFetchBarPad = 2;
+
+    /// <summary>The resx keys of the symbol-compare refusals (T-124): each reason stands alone on the error line.</summary>
+    private const string CompareNoSeriesKey = "Chart.CompareNoSeries";
+    private const string CompareSelfKey = "Chart.CompareSelf";
+    private const string CompareDuplicateKey = "Chart.CompareDuplicate";
+    private const string CompareCapKey = "Chart.CompareCap";
+    private const string CompareFetchEmptyKey = "Chart.CompareFetchEmpty";
+    private const string CompareFetchFailedKey = "Chart.CompareFetchFailed";
+
     /// <summary>How many cached bars older than the series' head one repair
     /// probe reads (the same clamp the batched cache reads keep).</summary>
     private const int RepairOlderProbeBars = 1_000;
@@ -703,6 +719,48 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>The toolbar toggle: show or hide the volume-at-price histogram (T-093).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleVolumeProfileCommand { get; }
 
+    private IReadOnlyList<ChartCompareLayer> _compareLayers = [];
+
+    /// <summary>
+    /// The symbol-compare layers (T-124): every extra series the user
+    /// added over the loaded one. Chart-level, transient state — never
+    /// persisted and never part of the workspace symbol preference; the
+    /// renderer aligns each layer against the visible window per pass.
+    /// A layer survives a workspace symbol switch on the same adapter and
+    /// interval, an interval or an exchange change drops the lot, and the
+    /// layer list empties long before the fetched series could read
+    /// against a foreign open-time grid.
+    /// </summary>
+    public IReadOnlyList<ChartCompareLayer> CompareLayers
+    {
+        get => _compareLayers;
+        private set => this.RaiseAndSetIfChanged(ref _compareLayers, value);
+    }
+
+    private string _mainSeriesLabel = string.Empty;
+
+    /// <summary>
+    /// The main series' label the legend chip strip prints (T-124): the
+    /// standing workspace symbol's normalized name, empty while none
+    /// stands. A derived view of <see cref="SelectedSymbol"/> — the raise
+    /// subscription mirrors the selection.
+    /// </summary>
+    public string MainSeriesLabel
+    {
+        get => _mainSeriesLabel;
+        private set => this.RaiseAndSetIfChanged(ref _mainSeriesLabel, value);
+    }
+
+    /// <summary>The toolbar action: asks the view for the compare symbol (T-124), via the palette's compare-mode ride (T-095).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> CompareCommand { get; }
+
+    /// <summary>
+    /// Asks the view to surface the global symbol palette in compare mode
+    /// (T-095 synergy): the picked symbol enters the compare fetch flow,
+    /// a null output is the user closing without a pick (not an error).
+    /// </summary>
+    public Interaction<RxVoid, Symbol?> PickCompareRequested { get; }
+
     #endregion
 
     #region Older History State
@@ -1130,6 +1188,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         ExportVisibleCsvRequested = new Interaction<string, VisibleCsvHandoff?>();
         ToggleVwapCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVwap = !ShowVwap; });
         ToggleVolumeProfileCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVolumeProfile = !ShowVolumeProfile; });
+        CompareCommand = ReactiveCommand.CreateFromTask(HandleCompareAsync);
+        PickCompareRequested = new Interaction<RxVoid, Symbol?>();
 
         SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
             .Where(symbol => symbol is not null)
@@ -1182,6 +1242,20 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     _olderAppendsPending = 0;
                     _olderHistoryExhausted = false;
                     HistoryLimitNote = null;
+
+                    // The T-124 compare layers are chart-level state keyed
+                    // to the triple: an INTERVAL or an EXCHANGE change
+                    // drops the lot — a layer's open times read against the
+                    // standing grid only, so riding into a different one
+                    // would align nonsense. A same-interval symbol switch
+                    // keeps them, and a bootstrap (no previous target) has
+                    // nothing to drop.
+                    if (_loadedTarget is { } previous &&
+                        (previous.TimeFrame != page.TimeFrame || previous.ExchangeId != page.Adapter.Id))
+                    {
+                        CompareLayers = [];
+                    }
+
                     _loadedTarget = (page.Symbol, page.TimeFrame, page.Adapter.Id);
                     _loadedAdapter = page.Adapter;
 
@@ -1649,6 +1723,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 adapter => BootstrapSymbols(adapter),
                 ex => _logger.LogError(ex, "The chart symbols stream stopped unexpectedly"));
+
+        // The compare chip strip's main label (T-124): the derived view
+        // mirrors the workspace selection (empty while none stands).
+        this.WhenAnyValue(x => x.SelectedSymbol)
+            .Subscribe(
+                symbol => MainSeriesLabel = symbol?.Normalized ?? string.Empty,
+                ex => _logger.LogError(ex, "The chart main series label stream stopped unexpectedly"));
     }
 
     #endregion
@@ -1921,6 +2002,149 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     #endregion Public Methods
+
+    #region Symbol Compare (T-124)
+
+    /// <summary>
+    /// One compare flow: the view hands a picked symbol back through the
+    /// palette interaction (a null is a closed palette — no pick, not an
+    /// error), and the non-null flow fetches the same interval from the
+    /// standing adapter and appends the layer. The fetch reads the
+    /// standing series' open span (plus a two-slot pad), so an aligned
+    /// layer covers the loaded window it is drawn against.
+    /// </summary>
+    private async Task HandleCompareAsync(CancellationToken cancellationToken)
+    {
+        ErrorMessage = null;
+
+        var picked = await PickCompareRequested.Handle(RxVoid.Default);
+        if (picked is null)
+        {
+            _logger.LogInformation(
+                "Chart panel: the compare pick ended on a closed palette");
+            return;
+        }
+
+        await AddCompareAsync(picked);
+    }
+
+    /// <summary>
+    /// Add one compare layer for the symbol (T-124): the fetch reads the
+    /// SAME interval from the workspace's standing adapter over the
+    /// standing series' span, the layer keys by the normalized name, and
+    /// every refusal surfaces on the chart panel's own error line,
+    /// localized — never a silent substitution and never a barred pick
+    /// that pretends to succeed. A fetch racing an interval or an
+    /// exchange change drops its result (the stale-fetch guard — the
+    /// result no longer reads against the standing grid).
+    /// </summary>
+    /// <param name="symbol">The picked compare symbol.</param>
+    public async Task AddCompareAsync(Symbol symbol)
+    {
+        ErrorMessage = null;
+
+        if (_loadedAdapter is null || _loadedTarget is not { } target || Bars.Count == 0)
+        {
+            ErrorMessage = _localization.GetString(CompareNoSeriesKey);
+            return;
+        }
+
+        var label = symbol.Normalized;
+        if (string.Equals(label, target.Symbol.Normalized, StringComparison.Ordinal))
+        {
+            ErrorMessage = _localization.GetString(CompareSelfKey);
+            return;
+        }
+
+        if (_compareLayers.Any(layer => string.Equals(layer.Label, label, StringComparison.Ordinal)))
+        {
+            ErrorMessage = _localization.GetString(CompareDuplicateKey);
+            return;
+        }
+
+        if (_compareLayers.Count >= ChartCompareSeries.MaxCompareLayers)
+        {
+            ErrorMessage = _localization.GetString(CompareCapKey, ChartCompareSeries.MaxCompareLayers);
+            return;
+        }
+
+        // The fetch stamps its own frame at its start: an interval or an
+        // adapter change during the fetch invalidates the result (the
+        // re-check below), the same stale-drop shape the repair chain
+        // keeps. The window's head anchors the span; the limit carries a
+        // small pad — the feed may deliver bars before the boundary, and
+        // the alignment tolerates extra elders.
+        var adapter = _loadedAdapter;
+        var timeFrame = target.TimeFrame;
+        var from = Bars[0].Time;
+        var limit = Bars.Count + CompareFetchBarPad;
+
+        IReadOnlyList<Bar> fetched;
+        try
+        {
+            fetched = await adapter.GetBarsAsync(symbol, timeFrame, from, limit: limit);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(
+                ex,
+                "Chart compare fetch failed for {Symbol} {TimeFrame} on {Exchange}",
+                label,
+                timeFrame,
+                adapter.Id);
+            ErrorMessage = _localization.GetString(CompareFetchFailedKey, ex.Message);
+            return;
+        }
+
+        if (!ReferenceEquals(adapter, _loadedAdapter) ||
+            timeFrame != target.TimeFrame ||
+            Bars.Count == 0)
+        {
+            _logger.LogInformation(
+                "Chart compare fetch dropped: the series rebased during the fetch ({Symbol})",
+                label);
+            return;
+        }
+
+        if (fetched.Count == 0)
+        {
+            ErrorMessage = _localization.GetString(CompareFetchEmptyKey);
+            return;
+        }
+
+        CompareLayers = [.. _compareLayers, new ChartCompareLayer(label, fetched)];
+        _logger.LogInformation(
+            "Chart compare added: {Symbol} {TimeFrame} on {Exchange} ({Count} candles)",
+            label,
+            timeFrame,
+            adapter.Id,
+            fetched.Count);
+    }
+
+    /// <summary>
+    /// Remove one compare layer by its chip label (the normalized name,
+    /// T-124): the currency of the chart's chip-press removal stream the
+    /// view routes here. An unknown label removes nothing (the strip and
+    /// the cache re-publish per frame anyway).
+    /// </summary>
+    public void RemoveCompare(string label)
+    {
+        var kept = _compareLayers
+            .Where(layer => !string.Equals(layer.Label, label, StringComparison.Ordinal))
+            .ToArray();
+        if (kept.Length == _compareLayers.Count)
+        {
+            _logger.LogInformation(
+                "Chart compare removal ignored: the label holds no standing layer ({Symbol})",
+                label);
+            return;
+        }
+
+        CompareLayers = kept;
+        _logger.LogInformation("Chart compare removed: {Symbol}", label);
+    }
+
+    #endregion
 
     #region Indicator Overlay
 

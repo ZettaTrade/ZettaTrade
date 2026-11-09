@@ -41,7 +41,7 @@
     <VersionPrefix>0.1.0</VersionPrefix>
 
 
-    <VersionSuffix>alpha.85</VersionSuffix>
+    <VersionSuffix>alpha.86</VersionSuffix>
 
   </PropertyGroup>
 </Project>
