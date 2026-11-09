@@ -162,6 +162,24 @@ public static class UiSettingsKeys
     public const string DefaultChartSymbolTypes = "{}";
 
     /// <summary>
+    /// Settings key of the persisted per-symbol Y-axis scale mode (T-090):
+    /// a JSON object (see <c>SymbolScaleModeMap</c>) mapping a normalized
+    /// symbol to its chosen <see cref="ZettaTrade.UI.Charting.PriceScaleMode"/>
+    /// enum name, e.g. <c>{"BTC/USDT":"Logarithmic"}</c>. Written on every
+    /// mode change, read at every startup walk and re-read live on external
+    /// writes; the workspace symbol heads the per-choice restore (the
+    /// T-029/T-055/T-089 discipline).
+    /// </summary>
+    public const string ChartSymbolScales = "ChartSymbolScales";
+
+    /// <summary>
+    /// The scale-mode map applied until a stored one is loaded: empty — no
+    /// symbol carries a preference, so every symbol starts on the linear
+    /// default.
+    /// </summary>
+    public const string DefaultChartSymbolScales = "{}";
+
+    /// <summary>
     /// The indicator overlay configuration applied until a stored setting is
     /// loaded: the classic SMA at period 20 enabled, so a fresh install shows
     /// the seam working over the candles.

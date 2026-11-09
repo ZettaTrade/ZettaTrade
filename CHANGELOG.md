@@ -1,3 +1,34 @@
+## [0.1.0-alpha.81] - 2026-11-09
+
+Build of board task T-090 (branch `feat/chart-scales`).
+
+### Added
+- The Y-axis scale modes (T-090): the price chart's vertical axis now reads
+  linear prices (the standing default), their base-10 logarithm, or the
+  percent change over the window's first visible close. The pixel pipeline
+  stays linear and maps transformed axis values - the mode is one decision
+  at the spread and a wrap at every mapping site (`ChartPriceTransform`),
+  never a parallel rendering path: candles, wicks, OHLC bars, the close
+  line, indicator lines, the VWAP bands, signal and fill markers, the
+  trading position and orders, the volume-at-price histogram, the grid and
+  the axis labels all re-map in place, and the wheel-zoom window survives
+  every mode switch untouched (the transforms are stateless functions of
+  the window's data).
+- The strict positive-domain guard: a price outside the mode's domain (a
+  zero or negative candle in log mode, a corrupt anchor close in percent
+  mode) clamps VISIBLY onto the drawn geometry's positive floor - the
+  candle keeps drawing at the clamped position, the mode never silently
+  falls back to linear, nothing throws and nothing drops.
+- Mode-aware axis labels: the log mode prints prices (the log-domain tick
+  unwinds to its price, with the raw-price decimals - log-unit digits would
+  be nonsense on a price axis); the percent mode prints the signed relative
+  read (`+3.42%`); the hover pill follows the axis semantics and the OHLC
+  readout keeps quoting raw prices with raw-price decimals.
+- The mode selector rides the chart toolbar next to the rendering type
+  (three static localized items bound by index - the chart-type shim
+  precedent), and the choice persists PER SYMBOL (`UI.ChartSymbolScales`,
+  the `SymbolScaleModeMap` document - the fail-safe parse, the strict
+  enum-name restore and the whole-map writes the chart types keep).
 ## [0.1.0-alpha.80] - 2026-11-09
 
 Build of board task T-104 (branch `feat/single-instance`).
