@@ -106,7 +106,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-099 First-run wizard (theme, adapter, symbol) | feat/first-run-wizard | done | - |
 | T-100 Settings import/export + factory reset | feat/settings-port | done | - |
 | T-101 Log viewer window + global crash guard | feat/log-viewer | done | - |
-| T-102 Hotkey manager + cheat sheet overlay | feat/hotkey-manager | in-progress | - |
+| T-102 Hotkey manager + cheat sheet overlay | feat/hotkey-manager | done | - |
 | T-103 Detachable panels: multi-window workspaces | feat/multi-window | queued | - |
 | T-104 Single instance hand-off + CLI symbol open | feat/single-instance | done | - |
 | T-105 Reconnect policy hardening: backoff, jitter, watchdog | feat/reconnect-policy | done | - |
@@ -177,15 +177,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** Charting overlay + tool palette UI, persistence, resx en+ru, tests.
 - **Acceptance:** drawings stay anchored across pan/zoom and reloads (T-033/T-036 lessons respected).
 - **Tests:** coordinate anchoring roundtrip, hit-test/drag golden, persistence reload.
-
-## T-102 — Hotkey manager + cheat sheet overlay
-
-- **Branch:** feat/hotkey-manager, worktree zt-hotkey-manager, based on develop@0b3a5b7 (claimed 2026-11-09; queued 2026-11-06 at the T-074…T-115 backlog cut; taken autonomously by the supervisor session right after the T-108 landing, per the user's standing "take the next tasks" directive).
-- **Origin:** hotkeys are wired (T-002) but undiscoverable and unchangeable.
-- **What:** a settings tab mapping actions to keys with conflict detection, persisted user overrides, and a "?" overlay listing the live map; the binding registrar stays the single seam so advertised vs real never diverges.
-- **Scope:** hotkey service extension, settings tab, overlay view, resx en+ru, tests.
-- **Acceptance:** overrides apply without restart; conflicts diagnose at edit time.
-- **Tests:** conflict golden, rebind live-reload, the overlay mirror.
 
 ## T-103 — Detachable panels: multi-window workspaces
 
