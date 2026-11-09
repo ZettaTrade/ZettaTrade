@@ -438,6 +438,21 @@
   <data name="Chart.Type.Tip" xml:space="preserve">
     <value>Выбрать вариант отрисовки ценового графика — выбор сохраняется для каждого инструмента.</value>
   </data>
+  <data name="Chart.ScaleMode" xml:space="preserve">
+    <value>Шкала</value>
+  </data>
+  <data name="Chart.ScaleMode.Tip" xml:space="preserve">
+    <value>Выбрать шкалу оси Y: линейные цены, их логарифм или процентное изменение от первого закрытия в окне — выбор сохраняется для каждого инструмента.</value>
+  </data>
+  <data name="Chart.ScaleMode.Linear" xml:space="preserve">
+    <value>Линейная</value>
+  </data>
+  <data name="Chart.ScaleMode.Log" xml:space="preserve">
+    <value>Лог</value>
+  </data>
+  <data name="Chart.ScaleMode.Percent" xml:space="preserve">
+    <value>Проценты</value>
+  </data>
   <data name="Chart.Type.Candles" xml:space="preserve">
     <value>Свечи</value>
   </data>

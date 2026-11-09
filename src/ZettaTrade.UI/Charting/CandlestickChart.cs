@@ -343,6 +343,27 @@ public class CandlestickChart : Control
         set => SetValue(SeriesTypeProperty, value);
     }
 
+    /// <summary>
+    /// StyledProperty for the Y-axis scale mode (T-090): the domain the
+    /// price axis maps — the plain price (the standing default), its base-10
+    /// logarithm, or the percent change over the window's first visible
+    /// close. The pixel pipeline stays linear and maps AXIS values (the
+    /// mode's transform of the raw prices, <see cref="ChartPriceTransform"/>);
+    /// only the spread, the mapping leaves and the label edges know the
+    /// mode — never a parallel rendering path.
+    /// </summary>
+    public static readonly StyledProperty<PriceScaleMode> ScaleModeProperty =
+        AvaloniaProperty.Register<CandlestickChart, PriceScaleMode>(
+            nameof(ScaleMode),
+            defaultValue: PriceScaleMode.Linear);
+
+    /// <summary>The Y-axis scale mode; a change re-inks on the next pass.</summary>
+    public PriceScaleMode ScaleMode
+    {
+        get => GetValue(ScaleModeProperty);
+        set => SetValue(ScaleModeProperty, value);
+    }
+
     /// <summary>The Heikin-Ashi series the chart draws while the series type is Heikin-Ashi; a change re-inks on the next pass.</summary>
     public IReadOnlyList<Bar>? HeikinAshiBars
     {
@@ -741,6 +762,10 @@ public class CandlestickChart : Control
             }
         }
 
+        var heikinAshi = SliceHeikinAshiBars(bars, spanStart, spanEnd);
+        var closesOnly = SeriesType is ChartSeriesType.Line or ChartSeriesType.Area;
+        var drawnBars = DrawnSeries(visible, heikinAshi, SeriesType);
+
         return new ChartSnapshot(
             visible,
             SliceIndicatorLines(bars, spanStart, spanEnd),
@@ -756,11 +781,54 @@ public class CandlestickChart : Control
             _hoverPosition,
             VolumeProfileVisible,
             SeriesType,
-            SliceHeikinAshiBars(bars, spanStart, spanEnd),
+            heikinAshi,
             ChartSignalLayout.Resolve(SignalMarkers, visible),
             TradingPosition,
             TradingOrders,
-            ChartFootprintLayout.Resolve(TradingFills, visible));
+            ChartFootprintLayout.Resolve(TradingFills, visible),
+            ScaleMode,
+            visible.Length > 0 ? visible[0].Close : 0m,
+            ChartPriceTransform.PositiveFloor(SpreadCandidates(drawnBars, closesOnly)));
+    }
+
+    /// <summary>
+    /// The drawn series of one frame (T-089's rule, shared with the draw
+    /// pass so the scale-mode floor guards the SAME geometry the frame
+    /// paints): Heikin-Ashi draws the aligned HA slice; every other type
+    /// draws the raw window slice. A stale HA publish races into the raw
+    /// fallback for that one frame.
+    /// </summary>
+    private static IReadOnlyList<Bar> DrawnSeries(
+        IReadOnlyList<Bar> visibleBars,
+        Bar[]? heikinAshi,
+        ChartSeriesType seriesType) =>
+        seriesType == ChartSeriesType.HeikinAshi && heikinAshi is { Length: > 0 }
+            ? heikinAshi
+            : visibleBars;
+
+    /// <summary>
+    /// The drawn window's price candidates the scale-mode floor guards
+    /// (T-090): the same geometry <see cref="ChartSeriesSpread.Of"/> scans —
+    /// the lows and highs, or the closes for the close-line variants (the
+    /// wicks are not part of the drawn geometry there).
+    /// </summary>
+    private static List<decimal> SpreadCandidates(IReadOnlyList<Bar> bars, bool closesOnly)
+    {
+        var candidates = new List<decimal>(bars.Count * 2);
+        foreach (var bar in bars)
+        {
+            if (closesOnly)
+            {
+                candidates.Add(bar.Close);
+            }
+            else
+            {
+                candidates.Add(bar.Low);
+                candidates.Add(bar.High);
+            }
+        }
+
+        return candidates;
     }
 
     /// <summary>
@@ -894,7 +962,10 @@ public class CandlestickChart : Control
         IReadOnlyList<SignalMarkerHit> SignalMarkerHits,
         PositionOverlay? TradingPosition,
         IReadOnlyList<WorkingOrderLine> TradingOrders,
-        IReadOnlyList<FillMarkerHit> FillHits);
+        IReadOnlyList<FillMarkerHit> FillHits,
+        PriceScaleMode ScaleMode,
+        decimal AxisAnchor,
+        decimal AxisFloor);
 
     /// <summary>
     /// Draws the chart straight onto Avalonia's own SKCanvas (render thread).
@@ -925,6 +996,36 @@ public class CandlestickChart : Control
         public bool Equals(ICustomDrawOperation? other) => false;
 
         public bool HitTest(Point p) => _bounds.Contains(p);
+
+        /// <summary>
+        /// The axis-domain value of one raw price (T-090): every pixel
+        /// mapping of the draw pass consumes axis values, so each raw price
+        /// crosses the mode's transform exactly at its mapping site. The
+        /// linear mode keeps the identity — the historical pipeline.
+        /// </summary>
+        private decimal AxisOf(decimal price) =>
+            ChartPriceTransform.ToAxisValue(price, _snapshot.ScaleMode, _snapshot.AxisAnchor, _snapshot.AxisFloor);
+
+        /// <summary>
+        /// The axis tick's label (T-090): the linear mode prints the tick
+        /// itself (the historical price label); the log mode prints the
+        /// PRICE the log-domain tick unwinds to, with the raw-price decimals
+        /// (log-unit digits would be nonsense on a price axis); the percent
+        /// mode prints the signed relative read. All culture-aware.
+        /// </summary>
+        private string FormatAxisTick(decimal tick, int axisDecimals, int rawDecimals) => _snapshot.ScaleMode switch
+        {
+            PriceScaleMode.Logarithmic => ChartAxisFormatting.FormatPriceTick(
+                ChartPriceTransform.ToPrice(
+                    tick,
+                    PriceScaleMode.Logarithmic,
+                    _snapshot.AxisAnchor,
+                    _snapshot.AxisFloor),
+                rawDecimals,
+                _snapshot.Culture),
+            PriceScaleMode.Percent => ChartAxisFormatting.FormatPercentTick(tick, axisDecimals, _snapshot.Culture),
+            _ => ChartAxisFormatting.FormatPriceTick(tick, axisDecimals, _snapshot.Culture),
+        };
 
         public void Render(ImmediateDrawingContext context)
         {
@@ -975,21 +1076,35 @@ public class CandlestickChart : Control
             // The overlays (VWAP, volume-at-price, indicator lines) keep
             // consuming the RAW window — they never follow the renderer
             // variant, so their alignment and semantics stay untouched.
-            IReadOnlyList<Bar> drawnBars =
-                _snapshot.SeriesType == ChartSeriesType.HeikinAshi && _snapshot.HeikinAshi is { Length: > 0 }
-                    ? _snapshot.HeikinAshi
-                    : visibleBars;
+            IReadOnlyList<Bar> drawnBars = DrawnSeries(visibleBars, _snapshot.HeikinAshi, _snapshot.SeriesType);
 
             // The price spread follows the DRAWN series so nothing the frame
             // paints can clip the plot: candles, OHLC bars and Heikin-Ashi
             // span the full low–high range of their bars, while the line and
             // area variants only touch closes (the terminal close-line
             // scale — the wicks are not part of the drawn geometry).
-            var (lowest, highest) = ChartSeriesSpread.Of(
-                drawnBars,
-                closesOnly: _snapshot.SeriesType is ChartSeriesType.Line or ChartSeriesType.Area);
+            var closesOnly = _snapshot.SeriesType is ChartSeriesType.Line or ChartSeriesType.Area;
+            var (lowest, highest) = ChartSeriesSpread.Of(drawnBars, closesOnly);
 
-            var (minPrice, maxPrice, priceRange) = ChartPriceScale.PaddedSpread(lowest, highest);
+            // The scale-mode domain (T-090): the pixel pipeline stays linear
+            // and maps AXIS values — the mode's transform of the raw prices
+            // (the log's base-10 logarithm, the percent change over the
+            // window's first visible close). The raw read returns only at
+            // the label edges (the axis labels, the hover pill, the OHLC
+            // readout). A value outside the mode's domain clamps VISIBLY
+            // onto the drawn geometry's positive floor — never NaN, never a
+            // dropped candle, never a silent mode fallback.
+            var (minAxis, maxAxis, axisRange) = ChartPriceScale.PaddedSpread(
+                ChartPriceTransform.ToAxisValue(
+                    lowest,
+                    _snapshot.ScaleMode,
+                    _snapshot.AxisAnchor,
+                    _snapshot.AxisFloor),
+                ChartPriceTransform.ToAxisValue(
+                    highest,
+                    _snapshot.ScaleMode,
+                    _snapshot.AxisAnchor,
+                    _snapshot.AxisFloor));
 
             // The labels decide the geometry FIRST: gutters size themselves
             // to the measured texts so no label can clip, and the plot
@@ -1010,10 +1125,16 @@ public class CandlestickChart : Control
                 IsAntialias = true
             };
 
-            var priceTicks = ChartAxisFormatting.PickPriceTicks(minPrice, maxPrice, PriceAxisLabelCount);
-            var priceDecimals = ChartAxisFormatting.PickPriceDecimals(priceRange / PriceAxisLabelCount);
-            var priceTexts = priceTicks
-                .Select(tick => ChartAxisFormatting.FormatPriceTick(tick, priceDecimals, _snapshot.Culture))
+            var axisTicks = ChartAxisFormatting.PickPriceTicks(minAxis, maxAxis, PriceAxisLabelCount);
+            var axisDecimals = ChartAxisFormatting.PickPriceDecimals(axisRange / PriceAxisLabelCount);
+
+            // The RAW-price decimals (the OHLC readout, the trading-position
+            // tags, the log-mode axis labels): the log axis's own digits are
+            // log-unit digits, not price digits, and the raw readout must
+            // keep the precision of the values it prints.
+            var rawDecimals = ChartAxisFormatting.PickPriceDecimals((highest - lowest) / PriceAxisLabelCount);
+            var priceTexts = axisTicks
+                .Select(tick => FormatAxisTick(tick, axisDecimals, rawDecimals))
                 .ToArray();
             var priceGutter = priceTexts.Max(text => font.MeasureText(text)) + (2f * PriceAxisGutterPadPx);
 
@@ -1051,9 +1172,9 @@ public class CandlestickChart : Control
                 canvas,
                 gridPaint,
                 plotRect,
-                minPrice,
-                priceRange,
-                priceTicks,
+                minAxis,
+                axisRange,
+                axisTicks,
                 timeTicks,
                 barPitch,
                 openTimes);
@@ -1061,21 +1182,21 @@ public class CandlestickChart : Control
             switch (_snapshot.SeriesType)
             {
                 case ChartSeriesType.Bars:
-                    DrawOhlcBars(canvas, plotRect, drawnBars, barPitch, minPrice, priceRange);
+                    DrawOhlcBars(canvas, plotRect, drawnBars, barPitch, minAxis, axisRange);
                     break;
 
                 case ChartSeriesType.Line:
-                    DrawCloseLine(canvas, plotRect, drawnBars, barPitch, minPrice, priceRange, filled: false);
+                    DrawCloseLine(canvas, plotRect, drawnBars, barPitch, minAxis, axisRange, filled: false);
                     break;
 
                 case ChartSeriesType.Area:
-                    DrawCloseLine(canvas, plotRect, drawnBars, barPitch, minPrice, priceRange, filled: true);
+                    DrawCloseLine(canvas, plotRect, drawnBars, barPitch, minAxis, axisRange, filled: true);
                     break;
 
                 default:
                     // Candlesticks, and Heikin-Ashi once its series slice is
                     // aligned (the raw-slice fallback draws candlesticks).
-                    DrawCandles(canvas, plotRect, drawnBars, barPitch, minPrice, priceRange);
+                    DrawCandles(canvas, plotRect, drawnBars, barPitch, minAxis, axisRange);
                     break;
             }
 
@@ -1084,16 +1205,16 @@ public class CandlestickChart : Control
             // the hover layers) and anchor at the RAW chain's close levels
             // — every drawn variant keeps the raw candle's close inside its
             // own spread, so the markers never leave the plot.
-            DrawSignalMarkers(canvas, plotRect, barPitch, visibleBars.Length, minPrice, priceRange);
+            DrawSignalMarkers(canvas, plotRect, barPitch, visibleBars.Length, minAxis, axisRange);
 
             // The T-122 footprint rides the same band (my own activity,
             // nothing leaves the process): the execution diamonds, then
             // the dashed order lines, then the entry line with its PnL tag
             // — every level mapped through the shared price scale, and the
             // legend lists exactly the shapes this frame actually drew.
-            DrawFillMarkers(canvas, plotRect, barPitch, visibleBars.Length, minPrice, priceRange);
-            var orderLineCount = DrawWorkingOrders(canvas, plotRect, minPrice, priceRange);
-            var (entryLineDrawn, pnlTagDrawn) = DrawTradingPosition(canvas, plotRect, minPrice, priceRange, priceDecimals);
+            DrawFillMarkers(canvas, plotRect, barPitch, visibleBars.Length, minAxis, axisRange);
+            var orderLineCount = DrawWorkingOrders(canvas, plotRect, minAxis, axisRange);
+            var (entryLineDrawn, pnlTagDrawn) = DrawTradingPosition(canvas, plotRect, minAxis, axisRange, rawDecimals);
             DrawFootprintLegend(
                 canvas,
                 font,
@@ -1105,11 +1226,11 @@ public class CandlestickChart : Control
 
             // The right-margin volume-at-price histogram (T-093) rides over
             // the candles translucently; the overlay lines draw over it.
-            DrawVolumeProfile(canvas, plotRect, visibleBars, minPrice, priceRange);
+            DrawVolumeProfile(canvas, plotRect, visibleBars, minAxis, axisRange);
 
-            DrawIndicatorLines(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange, _snapshot.Indicators);
-            DrawVwapOverlay(canvas, plotRect, visibleBars, barPitch, minPrice, priceRange, _snapshot.Vwap);
-            DrawPriceAxis(canvas, font, textPaint, plotRect, minPrice, priceRange, priceTicks, priceTexts);
+            DrawIndicatorLines(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Indicators);
+            DrawVwapOverlay(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Vwap);
+            DrawPriceAxis(canvas, font, textPaint, plotRect, minAxis, axisRange, axisTicks, priceTexts);
             DrawTimeAxis(canvas, font, textPaint, plotRect, barPitch, openTimes, timeTicks, timeTexts);
 
             // The honest no-volume note (T-093): shown when the drawn overlays
@@ -1130,9 +1251,10 @@ public class CandlestickChart : Control
                 plotRect,
                 drawnBars,
                 barPitch,
-                minPrice,
-                priceRange,
-                priceDecimals,
+                minAxis,
+                axisRange,
+                axisDecimals,
+                rawDecimals,
                 _snapshot.Hover);
         }
 
@@ -1180,16 +1302,16 @@ public class CandlestickChart : Control
             SKCanvas canvas,
             SKPaint paint,
             Rect plotRect,
-            decimal minPrice,
-            decimal priceRange,
-            IReadOnlyList<decimal> priceTicks,
+            decimal minAxis,
+            decimal axisRange,
+            IReadOnlyList<decimal> axisTicks,
             IReadOnlyList<DateTimeOffset> timeTicks,
             double barPitch,
             IReadOnlyList<DateTimeOffset> openTimes)
         {
-            foreach (var tick in priceTicks)
+            foreach (var tick in axisTicks)
             {
-                var y = ChartPriceScale.PriceToY(plotRect, tick, minPrice, priceRange);
+                var y = ChartPriceScale.PriceToY(plotRect, tick, minAxis, axisRange);
                 canvas.DrawLine((float)plotRect.Left, y, (float)plotRect.Right, y, paint);
             }
 
@@ -1205,8 +1327,8 @@ public class CandlestickChart : Control
             Rect plotRect,
             IReadOnlyList<Bar> bars,
             double barPitch,
-            decimal minPrice,
-            decimal priceRange)
+            decimal minAxis,
+            decimal axisRange)
         {
             var bodyWidth = (float)(barPitch * CandleBodyWidthRatio);
 
@@ -1230,10 +1352,10 @@ public class CandlestickChart : Control
                 var isBullish = bar.Close >= bar.Open;
                 var paint = isBullish ? bullishPaint : bearishPaint;
 
-                var openY = ChartPriceScale.PriceToY(plotRect, bar.Open, minPrice, priceRange);
-                var closeY = ChartPriceScale.PriceToY(plotRect, bar.Close, minPrice, priceRange);
-                var highY = ChartPriceScale.PriceToY(plotRect, bar.High, minPrice, priceRange);
-                var lowY = ChartPriceScale.PriceToY(plotRect, bar.Low, minPrice, priceRange);
+                var openY = ChartPriceScale.PriceToY(plotRect, AxisOf(bar.Open), minAxis, axisRange);
+                var closeY = ChartPriceScale.PriceToY(plotRect, AxisOf(bar.Close), minAxis, axisRange);
+                var highY = ChartPriceScale.PriceToY(plotRect, AxisOf(bar.High), minAxis, axisRange);
+                var lowY = ChartPriceScale.PriceToY(plotRect, AxisOf(bar.Low), minAxis, axisRange);
 
                 canvas.DrawLine(x, highY, x, lowY, paint);
 
@@ -1264,8 +1386,8 @@ public class CandlestickChart : Control
             Rect plotRect,
             IReadOnlyList<Bar> bars,
             double barPitch,
-            decimal minPrice,
-            decimal priceRange)
+            decimal minAxis,
+            decimal axisRange)
         {
             var tickHalf = (float)(barPitch * OhlcTickHalfRatio);
 
@@ -1287,12 +1409,12 @@ public class CandlestickChart : Control
                 var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, bars.Count, i);
                 var paint = bar.Close >= bar.Open ? bullishPaint : bearishPaint;
 
-                var highY = ChartPriceScale.PriceToY(plotRect, bar.High, minPrice, priceRange);
-                var lowY = ChartPriceScale.PriceToY(plotRect, bar.Low, minPrice, priceRange);
+                var highY = ChartPriceScale.PriceToY(plotRect, AxisOf(bar.High), minAxis, axisRange);
+                var lowY = ChartPriceScale.PriceToY(plotRect, AxisOf(bar.Low), minAxis, axisRange);
                 canvas.DrawLine(x, highY, x, lowY, paint);
 
-                var openY = ChartPriceScale.PriceToY(plotRect, bar.Open, minPrice, priceRange);
-                var closeY = ChartPriceScale.PriceToY(plotRect, bar.Close, minPrice, priceRange);
+                var openY = ChartPriceScale.PriceToY(plotRect, AxisOf(bar.Open), minAxis, axisRange);
+                var closeY = ChartPriceScale.PriceToY(plotRect, AxisOf(bar.Close), minAxis, axisRange);
                 canvas.DrawLine(x - tickHalf, openY, x, openY, paint);
                 canvas.DrawLine(x, closeY, x + tickHalf, closeY, paint);
             }
@@ -1313,8 +1435,8 @@ public class CandlestickChart : Control
             Rect plotRect,
             IReadOnlyList<Bar> bars,
             double barPitch,
-            decimal minPrice,
-            decimal priceRange,
+            decimal minAxis,
+            decimal axisRange,
             bool filled)
         {
             // The mapped polyline points serve both the stroked line and the
@@ -1325,7 +1447,7 @@ public class CandlestickChart : Control
             {
                 points[i] = new SKPoint(
                     (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, bars.Count, i),
-                    ChartPriceScale.PriceToY(plotRect, bars[i].Close, minPrice, priceRange));
+                    ChartPriceScale.PriceToY(plotRect, AxisOf(bars[i].Close), minAxis, axisRange));
             }
 
             if (filled)
@@ -1389,8 +1511,8 @@ public class CandlestickChart : Control
             Rect plotRect,
             IReadOnlyList<Bar> bars,
             double barPitch,
-            decimal minPrice,
-            decimal priceRange,
+            decimal minAxis,
+            decimal axisRange,
             IReadOnlyList<ChartIndicatorLine> indicators)
         {
             if (indicators.Count == 0)
@@ -1425,7 +1547,7 @@ public class CandlestickChart : Control
                     }
 
                     var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, bars.Count, i);
-                    var y = ChartPriceScale.PriceToY(plotRect, value, minPrice, priceRange);
+                    var y = ChartPriceScale.PriceToY(plotRect, AxisOf(value), minAxis, axisRange);
 
                     if (!penDown)
                     {
@@ -1463,8 +1585,8 @@ public class CandlestickChart : Control
             Rect plotRect,
             IReadOnlyList<Bar> bars,
             double barPitch,
-            decimal minPrice,
-            decimal priceRange,
+            decimal minAxis,
+            decimal axisRange,
             VwapOverlay? overlay)
         {
             if (overlay is null || overlay.State == VwapOverlayState.NoVolumeData)
@@ -1505,7 +1627,7 @@ public class CandlestickChart : Control
 
                 if (overlay.Center[i] is { } center)
                 {
-                    var y = ChartPriceScale.PriceToY(plotRect, center, minPrice, priceRange);
+                    var y = ChartPriceScale.PriceToY(plotRect, AxisOf(center), minAxis, axisRange);
                     if (centerPen)
                     {
                         centerBuilder.LineTo(x, y);
@@ -1523,7 +1645,7 @@ public class CandlestickChart : Control
 
                 if (overlay.Upper[i] is { } upper)
                 {
-                    var y = ChartPriceScale.PriceToY(plotRect, upper, minPrice, priceRange);
+                    var y = ChartPriceScale.PriceToY(plotRect, AxisOf(upper), minAxis, axisRange);
                     if (upperPen)
                     {
                         upperBandBuilder.LineTo(x, y);
@@ -1541,7 +1663,7 @@ public class CandlestickChart : Control
 
                 if (overlay.Lower[i] is { } lower)
                 {
-                    var y = ChartPriceScale.PriceToY(plotRect, lower, minPrice, priceRange);
+                    var y = ChartPriceScale.PriceToY(plotRect, AxisOf(lower), minAxis, axisRange);
                     if (lowerPen)
                     {
                         lowerBandBuilder.LineTo(x, y);
@@ -1609,8 +1731,8 @@ public class CandlestickChart : Control
             Rect plotRect,
             double barPitch,
             int barCount,
-            decimal minPrice,
-            decimal priceRange)
+            decimal minAxis,
+            decimal axisRange)
         {
             var hits = _snapshot.SignalMarkerHits;
             if (hits.Count == 0)
@@ -1638,7 +1760,7 @@ public class CandlestickChart : Control
             foreach (var hit in hits)
             {
                 var x = (float)ChartBarLayout.BarCenterX(plotRect.Right, barPitch, barCount, hit.Slot);
-                var y = ChartPriceScale.PriceToY(plotRect, hit.Close, minPrice, priceRange);
+                var y = ChartPriceScale.PriceToY(plotRect, AxisOf(hit.Close), minAxis, axisRange);
 
                 // The close is the base; the apex rises above it (long) or
                 // hangs below it (flat) — the shape flips, the anchor never
@@ -1673,8 +1795,8 @@ public class CandlestickChart : Control
             Rect plotRect,
             double barPitch,
             int barCount,
-            decimal minPrice,
-            decimal priceRange)
+            decimal minAxis,
+            decimal axisRange)
         {
             var hits = _snapshot.FillHits;
             if (hits.Count == 0)
@@ -1698,7 +1820,7 @@ public class CandlestickChart : Control
 
             foreach (var hit in hits)
             {
-                var y = ChartFootprintLayout.LevelY(plotRect, hit.Price, minPrice, priceRange);
+                var y = ChartFootprintLayout.LevelY(plotRect, AxisOf(hit.Price), minAxis, axisRange);
                 if (y is not { } markerY)
                 {
                     continue;
@@ -1728,8 +1850,8 @@ public class CandlestickChart : Control
         private int DrawWorkingOrders(
             SKCanvas canvas,
             Rect plotRect,
-            decimal minPrice,
-            decimal priceRange)
+            decimal minAxis,
+            decimal axisRange)
         {
             var orders = _snapshot.TradingOrders;
             if (orders.Count == 0)
@@ -1759,7 +1881,7 @@ public class CandlestickChart : Control
             var drawnLines = 0;
             foreach (var order in orders)
             {
-                var y = ChartFootprintLayout.LevelY(plotRect, order.Price, minPrice, priceRange);
+                var y = ChartFootprintLayout.LevelY(plotRect, AxisOf(order.Price), minAxis, axisRange);
                 if (y is not { } lineY)
                 {
                     continue;
@@ -1785,9 +1907,9 @@ public class CandlestickChart : Control
         private (bool EntryLineDrawn, bool PnlTagDrawn) DrawTradingPosition(
             SKCanvas canvas,
             Rect plotRect,
-            decimal minPrice,
-            decimal priceRange,
-            int priceDecimals)
+            decimal minAxis,
+            decimal axisRange,
+            int rawDecimals)
         {
             var position = _snapshot.TradingPosition;
             if (position is null)
@@ -1800,7 +1922,7 @@ public class CandlestickChart : Control
             // The entry line: drawn only while its level sits inside the
             // plotted range (an honest absence otherwise).
             var entryDrawn = false;
-            if (ChartFootprintLayout.LevelY(plotRect, position.EntryPrice, minPrice, priceRange) is { } entryY)
+            if (ChartFootprintLayout.LevelY(plotRect, AxisOf(position.EntryPrice), minAxis, axisRange) is { } entryY)
             {
                 using var entryPaint = new SKPaint
                 {
@@ -1853,7 +1975,7 @@ public class CandlestickChart : Control
                 var textHeight = -tagFont.Metrics.Ascent + tagFont.Metrics.Descent;
                 var tagWidth = textWidth + (2f * PnlTagPadPx);
                 var tagHeight = textHeight + (2f * PnlTagPadPx);
-                var tagY = (float)ChartFootprintLayout.TagY(plotRect, latest, minPrice, priceRange);
+                var tagY = (float)ChartFootprintLayout.TagY(plotRect, AxisOf(latest), minAxis, axisRange);
 
                 using var tagPaint = new SKPaint
                 {
@@ -2064,8 +2186,8 @@ public class CandlestickChart : Control
             SKCanvas canvas,
             Rect plotRect,
             IReadOnlyList<Bar> bars,
-            decimal minPrice,
-            decimal priceRange)
+            decimal minAxis,
+            decimal axisRange)
         {
             if (!_snapshot.VolumeProfileVisible || bars.Count == 0)
             {
@@ -2117,8 +2239,8 @@ public class CandlestickChart : Control
                     width = VolumeProfileMinBarWidthPx;
                 }
 
-                var top = ChartPriceScale.PriceToY(plotRect, bucket.High, minPrice, priceRange);
-                var bottom = ChartPriceScale.PriceToY(plotRect, bucket.Low, minPrice, priceRange);
+                var top = ChartPriceScale.PriceToY(plotRect, AxisOf(bucket.High), minAxis, axisRange);
+                var bottom = ChartPriceScale.PriceToY(plotRect, AxisOf(bucket.Low), minAxis, axisRange);
                 var height = bottom - top;
                 if (height < VolumeProfileMinBarHeightPx)
                 {
@@ -2213,14 +2335,14 @@ public class CandlestickChart : Control
             SKFont font,
             SKPaint paint,
             Rect plotRect,
-            decimal minPrice,
-            decimal priceRange,
+            decimal minAxis,
+            decimal axisRange,
             IReadOnlyList<decimal> ticks,
             IReadOnlyList<string> texts)
         {
             for (var i = 0; i < texts.Count; i++)
             {
-                var y = ChartPriceScale.PriceToY(plotRect, ticks[i], minPrice, priceRange);
+                var y = ChartPriceScale.PriceToY(plotRect, ticks[i], minAxis, axisRange);
                 var centerY = y - ((font.Metrics.Ascent + font.Metrics.Descent) / 2f);
 
                 canvas.DrawText(texts[i], (float)plotRect.Right + PriceAxisGutterPadPx, centerY, SKTextAlign.Left, font, paint);
@@ -2332,9 +2454,10 @@ public class CandlestickChart : Control
             Rect plotRect,
             IReadOnlyList<Bar> bars,
             double barPitch,
-            decimal minPrice,
-            decimal priceRange,
-            int priceDecimals,
+            decimal minAxis,
+            decimal axisRange,
+            int axisDecimals,
+            int rawDecimals,
             Point? hover)
         {
             if (hover is not { } position)
@@ -2371,12 +2494,26 @@ public class CandlestickChart : Control
             }
 
             // The hovered price pill: the cursor's y mapped back onto the
-            // padded scale, printed in the right gutter at the cursor's row
-            // (backgrounded, so it stays readable over the tick labels).
-            var pillText = ChartAxisFormatting.FormatPriceTick(
-                ChartPriceScale.YToPrice(position.Y, plotRect, minPrice, priceRange),
-                priceDecimals,
-                _snapshot.Culture);
+            // padded scale — an AXIS value — then printed per the scale
+            // mode (T-090), so the pill always agrees with the axis labels
+            // and the pixels under the cursor: the linear tick IS the price;
+            // the log tick unwinds to its price (10^t) with the raw-price
+            // decimals; the percent mode reads the relative change with its
+            // own signed label.
+            var axisValue = ChartPriceScale.YToPrice(position.Y, plotRect, minAxis, axisRange);
+            var pillText = _snapshot.ScaleMode switch
+            {
+                PriceScaleMode.Logarithmic => ChartAxisFormatting.FormatPriceTick(
+                    ChartPriceTransform.ToPrice(
+                        axisValue,
+                        PriceScaleMode.Logarithmic,
+                        _snapshot.AxisAnchor,
+                        _snapshot.AxisFloor),
+                    rawDecimals,
+                    _snapshot.Culture),
+                PriceScaleMode.Percent => ChartAxisFormatting.FormatPercentTick(axisValue, axisDecimals, _snapshot.Culture),
+                _ => ChartAxisFormatting.FormatPriceTick(axisValue, axisDecimals, _snapshot.Culture),
+            };
             var pillWidth = font.MeasureText(pillText) + (2f * CrosshairPillPadPx);
             var pillHeight = textHeight + (2f * CrosshairPillPadPx);
             var pillBaseline = y - ((font.Metrics.Ascent + font.Metrics.Descent) / 2f);
@@ -2393,9 +2530,10 @@ public class CandlestickChart : Control
 
             // The hovered candle's compact readout in the plot's top-left:
             // O/H/L/C plus volume of the bar under the cursor x. The numbers
-            // reuse the price-axis formatting (same decimals, same culture —
-            // numbers need no resx), the letter glyphs are the universal
-            // trading notation, unlocalized per the board's scope.
+            // print RAW values (the readout is a quote, not an axis tick —
+            // T-090 keeps it mode-foreign), with the raw-price decimals and
+            // the axis' culture; the letter glyphs are the universal trading
+            // notation, unlocalized per the board's scope.
             var barIndex = ChartBarLayout.SlotIndexForX(plotRect.Right, barPitch, bars.Count, position.X);
 
             if (barIndex < 0)
@@ -2404,11 +2542,11 @@ public class CandlestickChart : Control
             }
 
             var bar = bars[barIndex];
-            var openText = ChartAxisFormatting.FormatPriceTick(bar.Open, priceDecimals, _snapshot.Culture);
-            var highText = ChartAxisFormatting.FormatPriceTick(bar.High, priceDecimals, _snapshot.Culture);
-            var lowText = ChartAxisFormatting.FormatPriceTick(bar.Low, priceDecimals, _snapshot.Culture);
-            var closeText = ChartAxisFormatting.FormatPriceTick(bar.Close, priceDecimals, _snapshot.Culture);
-            var volumeText = ChartAxisFormatting.FormatPriceTick(bar.Volume, priceDecimals, _snapshot.Culture);
+            var openText = ChartAxisFormatting.FormatPriceTick(bar.Open, rawDecimals, _snapshot.Culture);
+            var highText = ChartAxisFormatting.FormatPriceTick(bar.High, rawDecimals, _snapshot.Culture);
+            var lowText = ChartAxisFormatting.FormatPriceTick(bar.Low, rawDecimals, _snapshot.Culture);
+            var closeText = ChartAxisFormatting.FormatPriceTick(bar.Close, rawDecimals, _snapshot.Culture);
+            var volumeText = ChartAxisFormatting.FormatPriceTick(bar.Volume, rawDecimals, _snapshot.Culture);
             var readout = $"O {openText}  H {highText}  L {lowText}  C {closeText}  V {volumeText}";
             var readoutBaseline = (float)plotRect.Top + CrosshairReadoutPadPx - font.Metrics.Ascent;
 

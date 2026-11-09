@@ -18,6 +18,7 @@ using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Strategies;
+using ZettaTrade.UI.Charting;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
@@ -298,6 +299,58 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             if (value >= 0 && value <= (int)ChartSeriesType.HeikinAshi)
             {
                 ChartType = (ChartSeriesType)value;
+            }
+        }
+    }
+
+    private PriceScaleMode _scaleMode = PriceScaleMode.Linear;
+
+    /// <summary>
+    /// The Y-axis scale mode (T-090): linear (the standing default),
+    /// logarithmic or percent change over the window's first visible close.
+    /// Every user change persists into the per-symbol map
+    /// <see cref="UiSettingsKeys.ChartSymbolScales"/> under the workspace
+    /// symbol; an addressed restore (a symbol switch to a pair with a stored
+    /// mode, or the startup map seed) applies under the
+    /// <see cref="_isApplyingPersistedScaleMode"/> gate — a restore is a
+    /// read, never a rewrite. A symbol without a stored entry keeps the
+    /// standing mode: a preference map substitutes nothing silently.
+    /// </summary>
+    public PriceScaleMode ScaleMode
+    {
+        get => _scaleMode;
+        set
+        {
+            if (_scaleMode == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _scaleMode, value);
+
+            // The selector shim follows the canonical mode (the same shim
+            // discipline the chart-type combo keeps): the combo's index must
+            // track any applied or restored mode without its own writer.
+            this.RaisePropertyChanged(nameof(SelectedScaleModeIndex));
+        }
+    }
+
+    /// <summary>
+    /// The mode selector's two-way shim: the combo's selected index over the
+    /// three static localized items (the <c>SelectedChartTypeIndex</c> shim
+    /// precedent — static labels never live on ViewModel properties).
+    /// Reading returns the canonical mode as an index; writing an in-range
+    /// index forwards it into <see cref="ScaleMode"/> (the source of truth),
+    /// an out-of-range write is dropped.
+    /// </summary>
+    public int SelectedScaleModeIndex
+    {
+        get => (int)ScaleMode;
+        set
+        {
+            if (value >= 0 && value <= (int)PriceScaleMode.Percent)
+            {
+                ScaleMode = (PriceScaleMode)value;
             }
         }
     }
@@ -779,6 +832,23 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     private IReadOnlyDictionary<string, ChartSeriesType> _persistedChartTypes =
         new Dictionary<string, ChartSeriesType>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Whether the repository restore is addressing the Y-axis scale mode:
+    /// the per-symbol application suppresses exactly that assignment —
+    /// the persistence pipeline must never rewrite a stored mode it merely
+    /// applied (the same restore-not-edit discipline the chart type keeps).
+    /// </summary>
+    private bool _isApplyingPersistedScaleMode;
+
+    /// <summary>
+    /// The persisted per-symbol Y-axis scale modes (T-090): seeded from the
+    /// settings service and kept current by the changes stream, so every
+    /// symbol switch resolves its stored mode from the cache (the same
+    /// pure-consumer shape the chart types keep).
+    /// </summary>
+    private IReadOnlyDictionary<string, PriceScaleMode> _persistedScaleModes =
+        new Dictionary<string, PriceScaleMode>(StringComparer.Ordinal);
 
     /// <summary>The catalog the indicator settings rows resolve through (the plugin seam).</summary>
     private readonly IIndicatorCatalog _indicatorCatalog;
@@ -1459,6 +1529,64 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 symbol => ApplyPersistedChartType(symbol),
                 ex => _logger.LogError(ex, "The chart type restore stream stopped unexpectedly"));
 
+        // The Y-axis scale mode selector (T-090): the choice persists PER
+        // SYMBOL, in the same document shape the chart types keep — the
+        // whole map re-serializes on every flip under the workspace symbol.
+        // The cache LEADS the pipeline (updated at issue time, in issuance
+        // order), so a rapid flip burst never drops its second write; the
+        // gate keeps the addressed restores (a symbol switch resolving its
+        // stored mode) out of the persistence path — a restore is a read,
+        // not an edit. A flip while no symbol stands cannot address the map
+        // and stays transient (a pick without a workspace context is no
+        // one's preference).
+        this.WhenAnyValue(x => x.ScaleMode)
+            .Skip(1)
+            .Where(_ => !_isApplyingPersistedScaleMode && SelectedSymbol is not null)
+            .Do(mode =>
+            {
+                var addressedSymbol = SelectedSymbol!.Normalized;
+                _persistedScaleModes = SymbolScaleModeMap.WithEntry(
+                    _persistedScaleModes,
+                    addressedSymbol,
+                    mode);
+            })
+            .SelectMany(_ => Observable.FromAsync(PersistScaleModesAsync))
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The chart scale mode persistence pipeline stopped unexpectedly"));
+
+        // The persisted per-symbol scale modes follow the settings service
+        // live (the same pure-consumer contract the chart types keep): one
+        // async read seeds the map at construction and every changes-stream
+        // emission re-parses it. The standing selection re-addresses on
+        // every fresh document, so a seed racing the symbols bootstrap
+        // still delivers regardless of which side lands first.
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartSymbolScales,
+                UiSettingsKeys.DefaultChartSymbolScales))
+            .Subscribe(
+                ApplyPersistedScaleModesDocument,
+                ex => _logger.LogError(ex, "Failed to read the chart scale mode map"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartSymbolScales)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                ApplyPersistedScaleModesDocument,
+                ex => _logger.LogError(ex, "The chart scale mode map stream stopped unexpectedly"));
+
+        // The scale mode is PER SYMBOL: every selection change resolves the
+        // new workspace symbol's stored mode from the cache and applies it
+        // under the gate — no entry keeps the standing mode (a preference
+        // map substitutes nothing, the persisted-value deferral rule).
+        this.WhenAnyValue(x => x.SelectedSymbol)
+            .Subscribe(
+                symbol => ApplyPersistedScaleMode(symbol),
+                ex => _logger.LogError(ex, "The chart scale mode restore stream stopped unexpectedly"));
+
         // The symbol marks follow the settings service live (the same pure
         // -consumer contract the clock format keeps): a change to either
         // marks key re-parses the map, re-applies it against the current
@@ -1575,6 +1703,69 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to persist the chart type map");
+        }
+    }
+
+    #endregion
+
+    #region Scale Mode Persistence
+
+    /// <summary>
+    /// Re-key the scale modes to a settings value (the seed read and every
+    /// changes-stream emission route here): the document parses into the
+    /// persisted cache and the standing selection re-addresses its mode.
+    /// </summary>
+    private void ApplyPersistedScaleModesDocument(string scaleModesJson)
+    {
+        _persistedScaleModes = SymbolScaleModeMap.Parse(scaleModesJson);
+        ApplyPersistedScaleMode(SelectedSymbol);
+    }
+
+    /// <summary>
+    /// Apply the workspace symbol's stored scale mode, under the restore
+    /// gate: a stored entry re-asserts the mode (the persistence pipeline
+    /// sees an equal address and skips the write — the same suppress shape
+    /// the chart type restore keeps), a symbol without a stored entry keeps
+    /// the standing mode (a preference map substitutes nothing silently).
+    /// </summary>
+    private void ApplyPersistedScaleMode(Symbol? symbol)
+    {
+        if (symbol is null || !_persistedScaleModes.TryGetValue(symbol.Normalized, out var restored))
+        {
+            return;
+        }
+
+        _isApplyingPersistedScaleMode = true;
+        try
+        {
+            ScaleMode = restored;
+        }
+        finally
+        {
+            _isApplyingPersistedScaleMode = false;
+        }
+    }
+
+    /// <summary>
+    /// One serialized write of the whole per-symbol scale-mode map (the
+    /// cache already leads it — the issue-time update ran before this
+    /// serialize). A failed write is logged and swallowed HERE (not at the
+    /// stream): the pipeline keeps serving later flips instead of dying on
+    /// the first fault, the issued mode stays cached and the file catches
+    /// up on the next real difference (the degrade the chart types keep).
+    /// </summary>
+    private async Task PersistScaleModesAsync()
+    {
+        try
+        {
+            await _settings.SetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartSymbolScales,
+                SymbolScaleModeMap.Serialize(_persistedScaleModes));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist the chart scale mode map");
         }
     }
 

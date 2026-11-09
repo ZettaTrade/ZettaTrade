@@ -436,7 +436,22 @@
     <value>Type</value>
   </data>
   <data name="Chart.Type.Tip" xml:space="preserve">
-    <value>Pick the price chart rendering type — the choice persists per symbol.</value>
+    <value>Pick the price chart rendering type - the choice persists per symbol.</value>
+  </data>
+  <data name="Chart.ScaleMode" xml:space="preserve">
+    <value>Scale</value>
+  </data>
+  <data name="Chart.ScaleMode.Tip" xml:space="preserve">
+    <value>Pick the Y-axis scale: linear prices, their logarithm, or percent change over the window's first close - the choice persists per symbol.</value>
+  </data>
+  <data name="Chart.ScaleMode.Linear" xml:space="preserve">
+    <value>Linear</value>
+  </data>
+  <data name="Chart.ScaleMode.Log" xml:space="preserve">
+    <value>Log</value>
+  </data>
+  <data name="Chart.ScaleMode.Percent" xml:space="preserve">
+    <value>Percent</value>
   </data>
   <data name="Chart.Type.Candles" xml:space="preserve">
     <value>Candles</value>

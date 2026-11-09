@@ -410,5 +410,21 @@ public static class ChartAxisFormatting
         return price.ToString(format, culture);
     }
 
+    /// <summary>
+    /// The label text for one percent-mode price tick (T-090): the signed
+    /// relative read — a leading "+" on positive values (the minus on
+    /// negative ones comes from the number itself), a percent sign at the
+    /// tail, the same culture-aware decimals the price labels keep.
+    /// </summary>
+    public static string FormatPercentTick(
+        decimal percent,
+        int decimals,
+        IFormatProvider culture)
+    {
+        var format = FormattableString.Invariant($"F{decimals}");
+        var text = percent.ToString(format, culture);
+        return (percent > 0 ? "+" : string.Empty) + text + "%";
+    }
+
     #endregion
 }

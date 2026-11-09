@@ -384,7 +384,7 @@
                                  the candles export writes the loaded series to a
                                  user-chosen CSV file. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
@@ -433,7 +433,24 @@
                                     <TextBlock Text="{loc:Localized Chart.Type.Bars}" />
                                     <TextBlock Text="{loc:Localized Chart.Type.HeikinAshi}" />
                                 </ComboBox>
-                                <Button Grid.Column="5"
+                                <!-- Y-axis scale mode selector (T-090): three static
+                                     localized items bound by index (the chart-type
+                                     shim precedent) — the localized strings never
+                                     touch the ViewModel, and the language switch
+                                     re-inks them live. -->
+                                <TextBlock Grid.Column="5"
+                                           Text="{loc:Localized Chart.ScaleMode}"
+                                           VerticalAlignment="Center"
+                                           Margin="12,0,6,0" />
+                                <ComboBox Grid.Column="6"
+                                          MinWidth="92"
+                                          SelectedIndex="{Binding SelectedScaleModeIndex}"
+                                          ToolTip.Tip="{loc:Localized Chart.ScaleMode.Tip}">
+                                    <TextBlock Text="{loc:Localized Chart.ScaleMode.Linear}" />
+                                    <TextBlock Text="{loc:Localized Chart.ScaleMode.Log}" />
+                                    <TextBlock Text="{loc:Localized Chart.ScaleMode.Percent}" />
+                                </ComboBox>
+                                <Button Grid.Column="7"
                                         Content="{loc:Localized Chart.Vwap}"
                                         Command="{Binding ToggleVwapCommand}"
                                         ToolTip.Tip="{loc:Localized Chart.Vwap.Tip}"
@@ -449,7 +466,7 @@
                                         </Style>
                                     </Button.Styles>
                                 </Button>
-                                <Button Grid.Column="6"
+                                <Button Grid.Column="8"
                                         Content="{loc:Localized Chart.VolumeProfile}"
                                         Command="{Binding ToggleVolumeProfileCommand}"
                                         ToolTip.Tip="{loc:Localized Chart.VolumeProfile.Tip}"
@@ -465,7 +482,7 @@
                                         </Style>
                                     </Button.Styles>
                                 </Button>
-                                <Button Grid.Column="7"
+                                <Button Grid.Column="9"
                                         Content="{loc:Localized Chart.ExportCandlesCsv}"
                                         Command="{Binding ExportCandlesCommand}"
                                         MinWidth="110"
@@ -505,6 +522,7 @@
                                                        VolumeProfileVisible="{Binding ShowVolumeProfile}"
                                                        IndicatorLines="{Binding IndicatorLines}"
                                                        SeriesType="{Binding ChartType}"
+                                                       ScaleMode="{Binding ScaleMode}"
                                                        HeikinAshiBars="{Binding HeikinAshiBars}"
                                                        SignalMarkers="{Binding SignalMarkers}"
                                                        TradingPosition="{Binding TradingPosition}"

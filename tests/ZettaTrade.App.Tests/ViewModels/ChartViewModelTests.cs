@@ -22,6 +22,7 @@ using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Strategies;
+using ZettaTrade.UI.Charting;
 
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
@@ -2454,6 +2455,145 @@ public sealed class ChartViewModelTests
     }
 
     #endregion Chart Type Selector (T-089)
+
+    #region Scale Mode Selector (T-090)
+
+    /// <summary>
+    /// The scale-mode flips persist the WHOLE per-symbol map under the
+    /// workspace symbol (the same cache-leads pipeline the chart types
+    /// keep): the composite shim forwards into the canonical mode, a second
+    /// addressed symbol lands its own entry next to the first one's, and
+    /// every document is the exact map shape.
+    /// </summary>
+    [Fact]
+    public async Task TheScaleModeFlip_PersistsTheWholeMapUnderTheWorkspaceSymbol()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        chart.ScaleMode.Should().Be(PriceScaleMode.Linear, "the linear default stands until the selector moves");
+        chart.SelectedScaleModeIndex.Should().Be(
+            (int)PriceScaleMode.Linear,
+            "the selector shim follows the canonical mode");
+
+        // The shim write: the combo's selected index forwards into ScaleMode.
+        chart.SelectedScaleModeIndex = (int)PriceScaleMode.Logarithmic;
+
+        chart.ScaleMode.Should().Be(PriceScaleMode.Logarithmic, "the shim forwards into the canonical mode");
+        chart.SelectedScaleModeIndex.Should().Be(
+            (int)PriceScaleMode.Logarithmic,
+            "the shim's read follows the applied mode");
+        await settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolScales,
+            """{"BTC/USDT":"Logarithmic"}""");
+
+        // The canonical property write: the same pipeline, the entry replaced.
+        chart.ScaleMode = PriceScaleMode.Percent;
+
+        await settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolScales,
+            """{"BTC/USDT":"Percent"}""");
+
+        chart.SelectedSymbol = Symbol.Parse("ETH/BTC");
+        chart.ScaleMode = PriceScaleMode.Linear;
+
+        await settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolScales,
+            """{"BTC/USDT":"Percent","ETH/BTC":"Linear"}""");
+    }
+
+    /// <summary>
+    /// The persisted mode applies at the symbol switch and the restore never
+    /// rewrites the stored document (a restore is a read, not an edit — the
+    /// discipline the chart types keep): a symbol without an entry keeps the
+    /// standing mode — a preference map substitutes nothing — and the return
+    /// to the stored symbol re-asserts the same mode. The mode switch itself
+    /// is mode-foreign to the load machine: the visible window's bars stay
+    /// addressed, only the axis re-maps.
+    /// </summary>
+    [Fact]
+    public async Task ThePersistedMode_RestoresOnTheSymbolSwitch_RewritesNothing()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        settings.GetAsync<string>(Arg.Any<string>(), UiSettingsKeys.ChartSymbolScales, Arg.Any<string>())
+            .Returns("""{"BTC/USDT":"Logarithmic"}""");
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.ScaleMode.Should().Be(PriceScaleMode.Linear, "nothing is addressed at construction");
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        chart.ScaleMode.Should().Be(PriceScaleMode.Logarithmic, "the stored mode applies with the address");
+        chart.SelectedScaleModeIndex.Should().Be(
+            (int)PriceScaleMode.Logarithmic,
+            "the shim follows the restored mode");
+
+        chart.SelectedSymbol = Symbol.Parse("ETH/BTC");
+
+        chart.ScaleMode.Should().Be(
+            PriceScaleMode.Logarithmic,
+            "a symbol without an entry keeps the standing mode — the map substitutes nothing");
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+
+        chart.ScaleMode.Should().Be(PriceScaleMode.Logarithmic, "the return re-asserts the stored mode");
+        await settings.DidNotReceive().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolScales,
+            Arg.Any<string>());
+    }
+
+    /// <summary>
+    /// A settings-service change to the scale-modes map re-addresses the
+    /// shown symbol live (no restart): the matching entry applies under the
+    /// restore gate, and a document that addresses only other symbols leaves
+    /// the standing mode alone — the applied mode stays in charge.
+    /// </summary>
+    [Fact]
+    public void TheSettingsServiceChange_ReAddressesTheShownModeLive()
+    {
+        var changes = new Subject<SettingsChange>();
+        var settings = Substitute.For<ISettingsService>();
+        settings.Changes.Returns(changes);
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(string.Empty);
+        var chart = CreateChart(CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")), settings);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        chart.ScaleMode.Should().Be(PriceScaleMode.Linear);
+
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolScales,
+            UiSettingsKeys.DefaultChartSymbolScales,
+            """{"BTC/USDT":"Percent"}"""));
+
+        chart.ScaleMode.Should().Be(PriceScaleMode.Percent, "a settings change must reach the chart without a restart");
+
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartSymbolScales,
+            """{"BTC/USDT":"Percent"}""",
+            """{"ETH/BTC":"Logarithmic"}"""));
+
+        chart.ScaleMode.Should().Be(
+            PriceScaleMode.Percent,
+            "a document that addresses only other symbols leaves the standing mode alone");
+    }
+
+    #endregion Scale Mode Selector (T-090)
 
     #endregion
 }
