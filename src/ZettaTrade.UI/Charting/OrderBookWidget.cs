@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
@@ -147,6 +148,40 @@ public class OrderBookWidget : Control
         VisualChildren.Add(hitSurface);
 
         ClipToBounds = true;
+    }
+
+    #endregion
+
+    #region Accessibility
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new OrderBookAutomationPeer(this);
+
+    /// <summary>
+    /// The book's accessibility peer (T-110): the widget is a Skia canvas
+    /// whose drawing the base Control's default peer hides from the
+    /// assistive tree, so this one restores visibility and names the book
+    /// for its current symbol.
+    /// </summary>
+    private sealed class OrderBookAutomationPeer(OrderBookWidget owner) : ControlAutomationPeer(owner)
+    {
+        protected override string? GetNameCore()
+        {
+            var attached = base.GetNameCore();
+            if (!string.IsNullOrWhiteSpace(attached))
+            {
+                return attached;
+            }
+
+            var (empty, withSymbol) = WidgetAccessibilityNames.OrderBookTemplates();
+            var book = owner.Book;
+
+            return WidgetAccessibilityNames.SymbolRoleName(
+                empty,
+                withSymbol,
+                book is not null,
+                book?.Symbol.Normalized);
+        }
     }
 
     #endregion

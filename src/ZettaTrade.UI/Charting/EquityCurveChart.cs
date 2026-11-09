@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform;
@@ -135,6 +136,25 @@ public class EquityCurveChart : Control
     public EquityCurveChart()
     {
         ClipToBounds = true;
+    }
+
+    #endregion
+
+    #region Accessibility
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new EquityCurveAutomationPeer(this);
+
+    /// <summary>
+    /// The equity curve's accessibility peer (T-110): a plain visible
+    /// control peer where the base Control serves the automation-none peer
+    /// (which removes the drawn curve from the assistive tree). The name
+    /// rides the windows' attached properties — each host names its own
+    /// curve (the backtest equity, the trade-stats equity) — so the peer
+    /// keeps the default naming behavior untouched.
+    /// </summary>
+    private sealed class EquityCurveAutomationPeer(EquityCurveChart owner) : ControlAutomationPeer(owner)
+    {
     }
 
     #endregion

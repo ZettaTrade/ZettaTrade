@@ -351,6 +351,9 @@
   <data name="AI.Chat.RoleAssistant" xml:space="preserve">
     <value>Assistant</value>
   </data>
+  <data name="AI.Chat.InputName" xml:space="preserve">
+    <value>Assistant message input</value>
+  </data>
   <data name="Chart.NoDataMessage" xml:space="preserve">
     <value>No data available</value>
   </data>
@@ -464,6 +467,18 @@
   </data>
   <data name="Chart.ScaleMode.Percent" xml:space="preserve">
     <value>Percent</value>
+  </data>
+  <data name="Chart.A11ySymbolPicker" xml:space="preserve">
+    <value>Symbol picker</value>
+  </data>
+  <data name="Chart.A11yNoSeries" xml:space="preserve">
+    <value>Chart (symbol not loaded)</value>
+  </data>
+  <data name="Chart.A11ySeries" xml:space="preserve">
+    <value>{0} chart</value>
+  </data>
+  <data name="Chart.A11yWithCompare" xml:space="preserve">
+    <value>{0} chart, compared with {1}</value>
   </data>
   <data name="Chart.Type.Candles" xml:space="preserve">
     <value>Candles</value>
@@ -1020,8 +1035,17 @@ Estimated fee: {7}</value>
   <data name="OrderBook.DepthTitle" xml:space="preserve">
     <value>Cumulative Depth</value>
   </data>
+  <data name="OrderBook.A11yWithSymbol" xml:space="preserve">
+    <value>Order book: {0}</value>
+  </data>
+  <data name="OrderBook.A11yDepthWithSymbol" xml:space="preserve">
+    <value>Depth chart: {0}</value>
+  </data>
   <data name="Tape.Title" xml:space="preserve">
     <value>Trade Tape</value>
+  </data>
+  <data name="Tape.A11yWithSymbol" xml:space="preserve">
+    <value>Trade tape: {0}</value>
   </data>
   <data name="Watch.Title" xml:space="preserve">
     <value>Watchlist</value>
@@ -1160,6 +1184,9 @@ Estimated fee: {7}</value>
   </data>
   <data name="Stats.Close" xml:space="preserve">
     <value>Close</value>
+  </data>
+  <data name="Stats.A11yEquity" xml:space="preserve">
+    <value>Equity curve (cumulative realized PnL)</value>
   </data>
   <data name="Menu.Trading.Balances" xml:space="preserve">
     <value>Balances</value>
@@ -1373,6 +1400,9 @@ Estimated fee: {7}</value>
   </data>
   <data name="Backtest.Title" xml:space="preserve">
     <value>Backtest</value>
+  </data>
+  <data name="Backtest.A11yEquity" xml:space="preserve">
+    <value>Backtest equity curve</value>
   </data>
   <data name="Backtest.Strategy" xml:space="preserve">
     <value>Strategy</value>

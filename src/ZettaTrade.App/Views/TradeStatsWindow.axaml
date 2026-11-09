@@ -101,6 +101,7 @@
 
             <!-- The equity curve: the Skia area over the cumulative realized PnL -->
             <charting:EquityCurveChart Grid.Row="1"
+                                       AutomationProperties.Name="{loc:Localized Stats.A11yEquity}"
                                        Points="{Binding EquityPoints}"
                                        IsVisible="{Binding HasTrades}" />
 

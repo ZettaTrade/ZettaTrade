@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Reactive.Linq;
 using System.Threading;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
@@ -211,6 +212,40 @@ public class TradeTapeWidget : Control
     {
         _pending.Enqueue(trade);
         ScheduleInvalidation();
+    }
+
+    #endregion
+
+    #region Accessibility
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new TradeTapeAutomationPeer(this);
+
+    /// <summary>
+    /// The tape's accessibility peer (T-110): the widget is a Skia canvas
+    /// whose drawing the base Control's default peer hides from the
+    /// assistive tree, so this one restores visibility and names the tape
+    /// for the symbol the buffered rows belong to.
+    /// </summary>
+    private sealed class TradeTapeAutomationPeer(TradeTapeWidget owner) : ControlAutomationPeer(owner)
+    {
+        protected override string? GetNameCore()
+        {
+            var attached = base.GetNameCore();
+            if (!string.IsNullOrWhiteSpace(attached))
+            {
+                return attached;
+            }
+
+            var (empty, withSymbol) = WidgetAccessibilityNames.TapeTemplates();
+            var symbol = owner._bufferedSymbol;
+
+            return WidgetAccessibilityNames.SymbolRoleName(
+                empty,
+                withSymbol,
+                !string.IsNullOrWhiteSpace(symbol),
+                symbol);
+        }
     }
 
     #endregion

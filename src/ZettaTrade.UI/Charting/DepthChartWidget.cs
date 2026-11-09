@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Rendering.SceneGraph;
@@ -113,6 +114,41 @@ public class DepthChartWidget : Control
     public DepthChartWidget()
     {
         ClipToBounds = true;
+    }
+
+    #endregion
+
+    #region Accessibility
+
+    /// <inheritdoc />
+    protected override AutomationPeer OnCreateAutomationPeer() => new DepthChartAutomationPeer(this);
+
+    /// <summary>
+    /// The depth chart's accessibility peer (T-110): the widget is a Skia
+    /// canvas whose drawing the base Control's default peer hides from the
+    /// assistive tree, so this one restores visibility and names the depth
+    /// curve for its current symbol (the book panel serves two widget
+    /// panes; the peer keeps them distinguishable).
+    /// </summary>
+    private sealed class DepthChartAutomationPeer(DepthChartWidget owner) : ControlAutomationPeer(owner)
+    {
+        protected override string? GetNameCore()
+        {
+            var attached = base.GetNameCore();
+            if (!string.IsNullOrWhiteSpace(attached))
+            {
+                return attached;
+            }
+
+            var (empty, withSymbol) = WidgetAccessibilityNames.DepthTemplates();
+            var book = owner.Book;
+
+            return WidgetAccessibilityNames.SymbolRoleName(
+                empty,
+                withSymbol,
+                book is not null,
+                book?.Symbol.Normalized);
+        }
     }
 
     #endregion

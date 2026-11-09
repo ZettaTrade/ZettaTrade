@@ -1,3 +1,37 @@
+## [0.1.0-alpha.87] - 2026-11-10
+
+Build of board task T-110 (branch `feat/a11y`).
+
+### Added
+- The canvas widgets' accessibility pass (T-110): every Skia-drawn surface
+  (candles, order book, depth, tape, heatmap, equity curve) now serves a
+  real automation peer deriving from `ControlAutomationPeer` instead of the
+  automation-none default, named from the same state the drawing reads —
+  empty panes keep their localized titles, a loaded chart composes its
+  symbol and compare layers, a fed book or tape composes its symbol, and
+  the equity curves ride the window-attached name (`Backtest.A11yEquity`,
+  `Stats.A11yEquity`). Name composition lives in the pure
+  `WidgetAccessibilityNames` compositors; all peers serve the Custom role.
+
+### Changed
+- Icon-only controls are now announced: the title-bar's minimize/maximize/
+  restore/close buttons, the T-095 palette's query box and the AI chat
+  input carry automation names from the localization catalog; the equity
+  windows attach curve names in the views.
+- Shared Livery themes carry visible keyboard-focus styles for Button,
+  ToggleButton, TabItem, MenuItem and the title-bar strip icons, borrowed
+  from the palette's on-state accent.
+- Theme contrast conformance (pins walk the real theme files): light
+  `TextSecondary` → `#5f6672`, light `Buy`/`CandleUp` → `#15803d`, light
+  `Highlight` → `#8a6100`, trading-pro `Accent` → `#047857`; the WCAG AA
+  text pairs read at 4.5:1 and the signal family at 3.0:1 across every
+  shipped theme. The audit record lives in `docs/A11Y-AUDIT.md`.
+
+### Infrastructure
+- 10 new `A11y` resx keys in en + ru; live peer facts (7), source pins (5),
+  pure name-composition facts (8) and WCAG conformance facts (4) certify
+  the acceptance — every advertised control is named without a mouse.
+
 ## [0.1.0-alpha.86] - 2026-11-09
 
 Build of board task T-124 (branch `feat/chart-compare`).

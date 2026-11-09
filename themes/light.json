@@ -10,12 +10,12 @@
     "TitleBar": "#f1f3f5",
     "TitleBarText": "#212529",
     "TextPrimary": "#000000",
-    "TextSecondary": "#6c757d",
-    "Buy": "#22c55e",
+    "TextSecondary": "#5f6672",
+    "Buy": "#15803d",
     "Sell": "#ef4444",
-    "CandleUp": "#22c55e",
+    "CandleUp": "#15803d",
     "CandleDown": "#ef4444",
-    "Highlight": "#b8860b",
+    "Highlight": "#8a6100",
     "Error": "#dc2626"
   },
   "previewColors": ["#ffffff", "#f8f9fa", "#e9ecef", "#dee2e6"]
