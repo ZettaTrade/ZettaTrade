@@ -1420,6 +1420,69 @@ the board and its section below.
 - **Tests:** the pacing/dedupe facts, the row math (change, monotonic ring), the sparkline geometry builder, and the DI registration facts over the real graph shell.
 - **Status:** done. Canon: the branch carries `5bfd55c` (the board claim) and `2352416` — the feat commit: the `WatchlistFeedService` over the facade's ticker streams coalesces the wire ticks into ONE snapshot per 500 ms pulse (the first beat always ships the starter row set before any tick; unpriced rows bind empty texts; a beat without fresh data re-ships nothing — the Rx sample's clearing semantics), stable row identities in `WatchlistViewModel` (per-pulse field churn in place, no collection events for data), the tape-neighbor column in `MainWindow.axaml` whose `Polyline` binds `IList<Point>` (Avalonia 12's shape — `PointCollection` no longer exists there), the persisted `UI.WatchlistPanelWidth` riding the book/tape drag discipline, `Watch.Title` en+ru + the `Watch.` resx-gate prefix, all with the alpha.74 bump + the CHANGELOG section in the same commit. The facts run over a controllable pulse seam (no new test packages): row maths, formatting/sparkline geometry over the invariant culture, and the registration shape facts (factory registrations stay conservative walk candidates; the walk's instance guard sorts the rows ViewModel at runtime — the full graph activation rides the launch smoke, canonized). 23 new watchlist facts green over the full 1148-run App suite; one intermediate full-suite red (50 Dispatcher-pump-family failures) was environmental — stale pre-restart testhost processes, the same suite passed 1148/1148 after their cleanup. The launch smoke stayed clean: 58 log lines in its own run segment with zero failure-like entries, the workspace walk restored the watchlist column (book 300px, tape 240px, watchlist 260px), and `ProductVersion=0.1.0-alpha.74+2352416` bound the binary. Gate passed with `-AllowProtected` (first run tripped only `dotnet format`'s import-order lint on four new files, fixed by `dotnet format` itself). This board-flip commit closes the section.
 
+## T-121 — Market heatmap: top pairs as change-colored tiles
+
+- **Branch:** feat/heatmap, worktree zt-heatmap, based on develop@0823719 (claimed 2026-11-09; queued 2026-11-06 (functional presentation gap)).
+- **Origin:** the whole-market view at a glance — the instant-credibility visual of every retail terminal; there is nothing like it here.
+- **What:** a heatmap panel of the adapter's top pairs (ranked by quote volume): a Skia treemap where tile size maps to the rank metric and tile color maps to the 24h change via the buy/sell palette keys; live recolor on ticker deltas; a click routes the workspace symbol; the metric switch (volume vs anything else the venue provides) appears only when the data exists — nothing fabricated for missing feeds.
+- **Scope:** treemap renderer in Charting, a ticker aggregation service, panel composition, resx en+ru, tests.
+- **Acceptance:** 30+ tiles hold 60 fps; color scale endpoints are pinned; a click routes the workspace symbol.
+- **Tests:** treemap layout golden under rapid updates, color-mapping goldens, perf budget, empty-feed state.
+- **Status:** done. Canon: the branch carries `a0b41e1` (the board claim,
+  rebased onto the skill-docs tip before landing) and `8a2d968` (the feat,
+  which rides the alpha.78 bump + the CHANGELOG 78 section: the
+  `HeatmapFeedService` aggregates the active-exchange facade's universe into
+  a bounded candidate window — 48 one-ticker pumps, a big venue's catalog
+  never blows the subscription count — and coalesces the candidates' latest
+  tick state into ONE ranked snapshot per 500 ms pulse, so a wire ticker
+  storm stays inside the service; an exchange switch re-fetches under the
+  epoch guard and drops a superseded in-flight composition at its finish —
+  a stale-epoch composition publishes nothing; the empty page still ships so
+  the panel renders the honest empty state; the pure squarified
+  `HeatmapTileLayout` maps rank weight to area deterministically (Avalonia's
+  Rect carries no Empty member — the last-strip sentinel is `default`), the
+  `HeatmapChangePalette` blends the neutral toward the 5 % saturation
+  endpoint and never flips a sign, the `HeatmapWidget` draws straight onto
+  the Skia canvas (the order-book widget's pattern), hit-tests a press
+  against the last frame's laid rects and publishes the tile's own text —
+  an unparsable one is refused at the route, never substituted; the right
+  rail gains the tab beside the watchlist with the `Heatmap.*` resx keys in
+  BOTH languages (+ the resx-gate prefix registration), the metric switch
+  exists only when ranked data exists (the combo's index shim over static
+  localized items, the chart-type selector's precedent), `CompositionRoot`
+  carries the one-line `AddHeatmapServices` call plus the panel into the
+  rail's constructor). 31 new facts: the 8 feed facts (the budget cap, the
+  tick surfacing at the metric weight, the ordinal tie-breaks, the metric
+  flip re-plan, the unpriced honest empty page, the faulting fetch's empty
+  page, the refresh swap's full state drop and the stale-epoch drop), the
+  5 ViewModel facts, the 3 registration facts and the 15 UI.Charting
+  goldens (rapid-update layout determinism + palette endpoints).
+  - The stale-epoch settle earned one real find of its own: the fake's
+    publish could slip inside the gap between the facade's mapper arming
+    and the pump's inner subject connection (a method-call counter rises
+    before the delivery edge forms), so the tick died silently and the
+    pulse honestly built the empty page. The settle now keys on the
+    wrapper's first-connection hook that fires only after
+    `_inner.Subscribe` completes — a publish after the settle lands in a
+    live handler; every diagnostic probe paid for the find is stripped in
+    the feat commit (zero PROBE sites remain).
+  - Gate history: run 1 = `GATE PASSED` with `-AllowProtected` (the task
+    touches `scripts/check-resx.ps1` — the protected resx-gate family), run
+    2 = `GATE PASSED` after the docs-only rebase with the standing
+    warnings (no agent-scope.txt, gitleaks optional, and the three
+    `Task.FromResult` lint notices over the interface-mandated fake
+    returns — the TestCandleCache's accepted shape).
+  - Launch smoke PASSED on the feat-built binary:
+    `ProductVersion=0.1.0-alpha.78+3e7457d4a249bac6c132c2681abbfe09a6f27b1c`
+    (the pre-rebase feat sha; the docs-only rebase carries identical code
+    bytes), 15 s alive, the 84-line walk segment with zero ERR/FTL
+    entries; the six ambient demo watchlist WRN majors (the T-123 smoke's
+    exact set) and one Binance quote-asset WRN stay ambient — none is a
+    failure; both process sweeps clean (pre empty, post empty).
+  - Supervisor-solo takeover: the original T-121 workers died at the quota
+    wall twice and the wave-5/6 stretch carried the branch the rest of
+    the way.
+
 ## T-122 — My footprint on the chart: position lines + working-order markers
 
 - **Branch:** feat/chart-mine, worktree zt-chart-mine, based on develop@e06b198 (claimed 2026-11-09; queued 2026-11-06 (functional presentation gap)).
