@@ -131,7 +131,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | queued | - |
 | T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | done | - |
 | T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | done | T-125 |
-| T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | queued | - |
+| T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | in-progress | - |
 | T-128 Demo video: storyboard + shot list (docs/ops) | feat/demo-script | done | - |
 | T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | queued | T-126 |
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
@@ -278,7 +278,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-127 — Live testnet trading loop: a real limit order end-to-end (Bybit testnet)
 
-- **Branch:** queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review). 
+- **Branch:** feat/testnet-trading, worktree `zt-testnet-trading`, based on develop@80fe7af (claimed 2026-11-09; queued 2026-11-06 — presentation-track gap, supervisor idea at the monetization review).
 - **Origin:** the demo credibility wall: orders/positions today live in the paper/demo lane only; the "this is a real terminal" moment requires the full order lifecycle over a real venue in testnet mode. Bybit market data already streams (T-023); the trading path does not exist beyond paper.
 - **What:** the trading seam over Bybit testnet: the endpoint from the T-015 registry (testnet), credentials from `ISecretStore` (stdin path — never argv, never in CI), LIMIT orders with the full lifecycle mapping (submit → working → fill/partial → cancel), rejects surfaced as errors under the rejected-not-default contract, `IRiskManager` + `IConfirmationService` wired identically to the paper lane — no separate testnet shortcuts. The UI carries an unmistakable TESTNET badge on the ticket, positions and history whenever a testnet endpoint is active. `Core` changes only if the mapping demands an additive surface — supervisor-gated at review.
 - **Scope:** Infrastructure (Bybit trading client over the testnet REST/WS shapes), ticket flow + status mapping, `Exchange.*` settings keys, resx en+ru for the badge/labels, tests.
