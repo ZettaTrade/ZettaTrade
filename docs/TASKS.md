@@ -94,7 +94,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-087 Trade tape (time & sales) panel | feat/trade-tape | done | - |
 | T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | done | - |
 | T-089 Chart types: line, area, bars, Heikin-Ashi | feat/chart-types | done | - |
-| T-090 Y-axis scale modes: log and percent | feat/chart-scales | queued | - |
+| T-090 Y-axis scale modes: log and percent | feat/chart-scales | in-progress | - |
 | T-091 Drawing tools: trend line, horizontal level, fib retracement | feat/draw-tools | queued | - |
 | T-092 Standard indicator pack (EMA, RSI, MACD, Bollinger… as bundled plugins) | feat/indicator-pack | done | - |
 | T-093 VWAP + volume profile overlay | feat/vol-vwap | done | - |
@@ -170,12 +170,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-090 — Y-axis scale modes: log and percent
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/chart-scales, worktree zt-chart-scales, based on develop@9fc27da (claimed 2026-11-09; queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut); taken autonomously by the supervisor session after the T-138/T-104 double landing, per the user's standing "take the next tasks" directive).
 - **Origin:** log is mandatory for long ranges; % change is the relative read; both absent.
 - **What:** a log price mode with a strict positive-domain guard (invalid candles clamp visibly, never default), and a percent-change mode anchored to the first visible close; axis labels/formatting follow the T-037 time-grid counterpart on the price side; per-symbol persistence.
 - **Scope:** Charting scale transforms within the existing axis pipeline, tests.
 - **Acceptance:** wheel zoom stays stable across modes; switching never loses the visible window.
 - **Tests:** transform goldens, domain edge cases, the mode-switch window guarantee.
+- **Status:** in-progress.
 
 ## T-091 — Drawing tools: trend line, horizontal level, fib retracement
 
