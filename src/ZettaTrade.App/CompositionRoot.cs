@@ -100,6 +100,15 @@ internal static class CompositionRoot
         // consumer VM is constructed.
         services.AddActiveExchange();
 
+        // Venue trading surface (T-127): the Bybit testnet transport + the
+        // delegating ITradingAdapter + the venue order ledger. Registered
+        // AFTER the facade (its adapters resolve behind the surface) and
+        // BEFORE the trading-mode service (the walk initializes the surface,
+        // then the lane resolver reads its standing value). The toggle
+        // (Exchange/TestnetTradingEnabled, default off) is the only arming
+        // seam — nothing trades a real venue without it.
+        services.AddTestnetTradingServices();
+
         // Adapter health fold (T-098): the status bar's dot strip folds the
         // facade's adapter catalog (populated by the construction above,
         // which binds the adapters' reconnect policies to the supervisor)

@@ -483,6 +483,12 @@
   <data name="Trading.ConfirmGoLive" xml:space="preserve">
     <value>Switch the trading lane to LIVE? Real orders follow.</value>
   </data>
+  <data name="Exchange.TestnetBadge" xml:space="preserve">
+    <value>TESTNET</value>
+  </data>
+  <data name="Exchange.TestnetBadge.Tooltip" xml:space="preserve">
+    <value>Testnet venue: orders execute against the Bybit testnet — simulated funds only, never real money.</value>
+  </data>
   <data name="Order.StopMarket" xml:space="preserve">
     <value>Stop-Market</value>
   </data>

@@ -49,6 +49,9 @@ public sealed class OrderHistoryViewModel : ReactiveObject
     /// <summary>The raw journal rows behind the loaded display rows: the export set.</summary>
     private IReadOnlyList<Order> _loadedOrders = [];
 
+    /// <summary>Whether the traded surface currently rides the TESTNET lane (T-127; set by the owning window).</summary>
+    private bool _isTestnetLane;
+
     #endregion Private Fields
 
     #region Properties
@@ -95,6 +98,19 @@ public sealed class OrderHistoryViewModel : ReactiveObject
 
     /// <summary>True while <see cref="ErrorMessage"/> holds text; drives the error line visibility.</summary>
     public bool HasErrorMessage => _errorMessage is not null;
+
+    /// <summary>
+    /// Whether the workspace's traded surface currently rides the TESTNET
+    /// lane (T-127): the history's badge mirrors the status-bar chip so the
+    /// operator sees the venue surface the journal rows persist. Set by the
+    /// owning window from the trading-mode lane stream — the view model
+    /// holds no lane service of its own.
+    /// </summary>
+    public bool IsTestnetLane
+    {
+        get => _isTestnetLane;
+        set => this.RaiseAndSetIfChanged(ref _isTestnetLane, value);
+    }
 
     /// <summary>Reloads the persisted rows from the database.</summary>
     public ReactiveCommand<RxVoid, RxVoid> LoadCommand { get; }

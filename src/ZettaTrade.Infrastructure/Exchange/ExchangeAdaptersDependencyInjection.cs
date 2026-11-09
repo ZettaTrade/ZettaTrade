@@ -135,12 +135,15 @@ public static class ExchangeAdaptersDependencyInjection
 
     /// <summary>
     /// Register the paper trading adapter over the active-exchange facade
-    /// (mock surface; real keys are never involved). This registration
-    /// belongs to the App-side active-exchange composition: infrastructure
-    /// wiring alone carries no <c>IMarketDataAdapter</c> to wrap.
+    /// (mock surface; real keys are never involved), BY CONCRETE TYPE: the
+    /// App-side trading-surface composition owns the single
+    /// <c>ITradingAdapter</c> entry point (the delegating
+    /// <c>TradingSurfaceService</c>, T-127), the same rule the market-data
+    /// adapters already follow. Infrastructure wiring alone carries no
+    /// <c>IMarketDataAdapter</c> to wrap — the facade composition applies it.
     /// </summary>
     public static IServiceCollection AddPaperTrading(this IServiceCollection services) =>
-        services.AddSingleton<ITradingAdapter>(sp => new PaperTradingAdapter(
+        services.AddSingleton<PaperTradingAdapter>(sp => new PaperTradingAdapter(
             sp.GetRequiredService<IMarketDataAdapter>(),
             sp.GetRequiredService<IFeeScheduleProvider>(),
             sp.GetRequiredService<ILogger<PaperTradingAdapter>>()));

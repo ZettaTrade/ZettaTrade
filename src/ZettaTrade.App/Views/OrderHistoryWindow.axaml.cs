@@ -2,10 +2,13 @@ namespace ZettaTrade.App.Views;
 
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Livery.Extensions;
+using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
 using ReactiveUI.Primitives;
 using Serilog;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 
 /// <summary>
@@ -27,6 +30,23 @@ public partial class OrderHistoryWindow : ReactiveWindow<OrderHistoryViewModel>
 
         this.WhenActivated(disposables =>
         {
+            // The TESTNET lane badge (T-127): the history mirrors the
+            // status-bar chip — the badge appears only while the workspace's
+            // traded surface rides the testnet lane. The lane stream
+            // bootstraps with the standing value and re-resolves on surface
+            // flips; the wiring dies with the window's disposal scope.
+            var historyViewModel = ViewModel;
+            if (historyViewModel is not null)
+            {
+                App.Services.GetRequiredService<TradingModeService>()
+                    .Lane
+                    .ObserveOnUiThread()
+                    .Subscribe(
+                        lane => historyViewModel.IsTestnetLane = lane == TradingLane.Testnet,
+                        error => Log.Error(error, "Order history: the trading lane badge stream stopped unexpectedly"))
+                    .DisposeWith(disposables);
+            }
+
             // The load pipeline runs once per activation and self-terminates,
             // with errors caught in the Subscribe call. The per-activation
             // save-dialog handler registrations die with the same disposal

@@ -188,6 +188,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private string? _resultMessage;
     private string _activeExchangeName = string.Empty;
     private IReadOnlyList<string> _feeEstimates = [];
+    private bool _isTestnetLane;
 
     private IReadOnlyList<string> _allSymbols = [];
     private IReadOnlyList<string> _symbolSuggestions = [];
@@ -360,6 +361,19 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     {
         get => _activeExchangeName;
         private set => this.RaiseAndSetIfChanged(ref _activeExchangeName, value);
+    }
+
+    /// <summary>
+    /// Whether the workspace's traded surface currently rides the TESTNET
+    /// lane (T-127): the ticket's badge mirrors the status-bar chip so the
+    /// operator sees the venue surface the placement pipeline feeds. Set by
+    /// the owning window from the trading-mode lane stream — the view model
+    /// holds no lane service of its own.
+    /// </summary>
+    public bool IsTestnetLane
+    {
+        get => _isTestnetLane;
+        set => this.RaiseAndSetIfChanged(ref _isTestnetLane, value);
     }
 
     /// <summary>

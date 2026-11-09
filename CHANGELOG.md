@@ -1,3 +1,38 @@
+## [0.1.0-alpha.79] - 2026-11-09
+
+Build of board task T-127 (branch `feat/testnet-trading`).
+
+### Added
+- The venue trading surface (T-127): the workspace's one `ITradingAdapter`
+  delegates between the paper simulator and the Bybit testnet venue. The
+  shipped default stays the paper lane bit-identical to before; the venue
+  lane requires all three of the operator's deliberate choices TOGETHER —
+  the toolbar's Bybit pick, the endpoint record's testnet flag and the
+  `Exchange/TestnetTradingEnabled` toggle (default off) — so nothing ever
+  trades a real venue without all three gates arming at once. A lane flip
+  re-resolves live (the status-bar chip, the ticket and the panels follow
+  without a restart).
+- The Bybit v5 testnet trading adapter: signed REST (the v5 HMAC-SHA256
+  header set) and the private order stream with the lazy connect (an idle
+  surface holds no sockets), the 20 s heartbeat, and the auth+subscribe
+  session flow re-run after every reconnect. LIMIT-GTC spot orders only —
+  market, OCO, reduce-only and non-GTC families are refused BEFORE the
+  venue (an error, never a degraded execution); a venue reject surfaces as
+  an error under the rejected-not-default contract, and an unmappable row
+  or status is refused with a logged reason, never defaulted.
+- The full lifecycle on the journal: the strict v5 status map (submit →
+  working → partial → fill/cancel/reject) and the venue order ledger —
+  every private-stream transition upserts into the persistent order
+  history in order, so the venue lifecycle lands in the history panel
+  next to the paper rows. Credentials come ONLY from the secret store,
+  fetched per operation — never a command line, never a config file,
+  never a log.
+- The TESTNET badge on the order ticket, the order history and the
+  positions panel: it appears exactly while the traded surface rides the
+  testnet lane (mirroring the status-bar chip), with the `Exchange.*`
+  label + tooltip keys in BOTH languages.
+
+
 ## [0.1.0-alpha.78] - 2026-11-09
 
 Build of board task T-121 (branch `feat/heatmap`).

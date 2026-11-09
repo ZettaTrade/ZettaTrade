@@ -22,6 +22,7 @@ $ModulePrefixes = @(
     'Chrome.',
     'Trading.',
     'NewOrder.',
+    'Exchange.',
     'Positions.',
     'History.',
     'Stats.',
