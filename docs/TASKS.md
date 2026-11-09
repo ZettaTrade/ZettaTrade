@@ -142,6 +142,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-135 Stabilize the flaky PositionsPanel in-flight test under suite load | feat/flaky-pospanel-timing | done | - |
 | T-136 Repo hygiene: baked mojibake repair, machine-path purge, prevention lints | chore/repo-hygiene | done | - |
 | T-137 Fix the app startup crash: the concrete settings store resolves in DI | fix/startup-di | done | - |
+| T-138 Stabilize the App.Tests dispatcher tally flake: one serialized dispatcher world | feat/flaky-pump-tally | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -311,3 +312,13 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the key validation lib + the activation UI (resx en+ru), the packaging docs/templates for the private CI, `docs/LICENSES.md` describing the open-core split (MIT core vs proprietary modules) in a glance-readable form; the private repos themselves appear only per actual module.
 - **Acceptance:** a signed closed fixture activates with a valid key and is refused with an explicit error on invalid/expired/tampered/wrong-product keys; no network is required for validation; no proprietary artifact or wording lands in the public repo.
 - **Tests:** key crypto goldens (valid/expired/tampered/wrong-product/missing), the activation gate in UI, the refused-not-defaulted contract on every failure path, file-only logging for the validator.
+
+## T-138 — Stabilize the App.Tests dispatcher tally flake: one serialized dispatcher world
+
+- **Branch:** feat/flaky-pump-tally, worktree zt-flaky-pump-tally, based on develop@db66924 (claimed 2026-11-09; the T-104 gate run 2 cascade — 53 fails, every one in the documented dispatcher-VM family — made the standing flake family the T-104 landing blocker, and the user picked the stabilization-first route).
+- **Origin:** the T-135 sibling shape: T-101 recorded the tally flake (37 fails, then all-green, then 38 fails within minutes on an identical binary), T-127's gate run 1 and T-104's gate run 2 both cascaded (54/53 fails; the pump's own `DrainAsync` fact the recorded casualty). The TRX evidence pins the mechanism: a dispatcher job failing `AvaloniaSynchronizationContext.Ensure` thread-ownership inside `RunJobs` surfaces through the pump's drain path and poisons every subsequent drain of the shared `Dispatcher.UIThread` — a cross-collection interference, not a semantic bug in these facts.
+- **What:** close the interference channel BY CONSTRUCTION, tests-only (NO version bump, NO CHANGELOG section): App.Tests runs with `parallelizeTestCollections: false` (an `xunit.runner.json` — every collection sequential inside the one testhost, so no foreign poster or drainer ever overlaps a serial fact's dispatcher window), and every dispatcher-contact class joins `AvaloniaDispatcherSerial` explicitly (`OrderBookViewModelTests` drains; `FirstRunWizardViewModelTests` and the T-135-fixed `PositionsPanelViewModelTests` post through UI-bound VM streams and still rode the parallel default).
+- **Scope:** `tests/ZettaTrade.App.Tests` only (the runner.json, its csproj copy, the three `[Collection]` attributes, the collection's contract doc); NOTHING in src/*.
+- **Acceptance:** three consecutive plain full App.Tests runs green on the quiet box, then GATE PASSED (max 2 runs; a known flake-family trip of the gate's flaky retry is recorded, not iterated).
+- **Tests:** the fix IS the test; the certification is the 3x-green streak.
+- **Status:** in-progress.
