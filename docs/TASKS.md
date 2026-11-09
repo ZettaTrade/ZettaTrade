@@ -144,6 +144,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-137 Fix the app startup crash: the concrete settings store resolves in DI | fix/startup-di | done | - |
 | T-138 Stabilize the App.Tests dispatcher tally flake: one serialized dispatcher world | feat/flaky-pump-tally | done | - |
 | T-139 Board truthfulness: archive the lingering T-117/T-118 sections, restore the canonical archive order | feat/board-truth | done | - |
+| T-140 Review hygiene pass: async-void routes, MCP registry locking, non-English prose cleanup | feat/review-hygiene | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -266,4 +267,14 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the key validation lib + the activation UI (resx en+ru), the packaging docs/templates for the private CI, `docs/LICENSES.md` describing the open-core split (MIT core vs proprietary modules) in a glance-readable form; the private repos themselves appear only per actual module.
 - **Acceptance:** a signed closed fixture activates with a valid key and is refused with an explicit error on invalid/expired/tampered/wrong-product keys; no network is required for validation; no proprietary artifact or wording lands in the public repo.
 - **Tests:** key crypto goldens (valid/expired/tampered/wrong-product/missing), the activation gate in UI, the refused-not-defaulted contract on every failure path, file-only logging for the validator.
+
+## T-140 — Review hygiene pass: async-void routes, MCP registry locking, non-English prose cleanup
+
+- **Branch:** feat/review-hygiene, worktree zt-review-hygiene, based on develop@32d9457 (claimed 2026-11-09; the user-directed QA/reviewer pass built earlier the same day and parked until the partner session's launcher window opened — the async-void find from the code review plus the two additions the user folded into it: the MCP registrar locking and the quote/language-mention cleanup).
+- **Origin:** the retrospective sweep and the live reviews left four `async void` handlers in the settings window (the "zero async void" canon's own counterexample), a synchronous `Wait()` at the MCP registrars that can stall behind `StopAsync`'s semaphore hold, and non-English prose (user-voice quotes plus language mentions) beyond the sanctioned localization surface.
+- **What:** (1) the settings window's four click handlers (save/export/import/factory reset) re-route through `Observable.FromAsync` with the errors landing in the Subscribe's onError logging — zero `async void` outside the documented BUG-019 App startup leg; (2) the MCP host's tool/resource/prompt registries become concurrent-collection upserts — the registrars neither take the semaphore nor wait on it, so a registration can no longer queue behind the stop window's bounded wait (the register-before-start contract and every request-handler read keep their shapes); (3) the eight user-idea/report quotes on the board and in the archive render as English marked "translated from the original"; the probe-verbatim strings (status chips, dialog headers, the ru month outputs) stay as product-surface evidence, and the remaining language mentions in the docs/skill prose reword into the neutral shape while the sanctioned surface (the language catalog's display names, the en/Russian feature rows, rule 9 and its byte-identical twins, the locale codes) keeps its facts. Behavior-preserving: no resx, no ViewModel strings, no new abstractions.
+- **Scope:** `src/ZettaTrade.App/Views/SettingsWindow.axaml.cs`, `src/ZettaTrade.AI/Mcp/McpServerHost.cs`, docs (TASKS, TASKS-ARCHIVE, DEMO-SCRIPT), `.opencode/skills/zettatrade-supervisor/SKILL.md`, the `ChartAxisFormatting` doc comment and four test files' assertion texts; the alpha bump + the CHANGELOG section ride the release commit.
+- **Acceptance:** the behavior holds — the save route keeps its close-despite-failure semantics, the other three keep their quiet-failure semantics, the MCP DI contract is untouched; the board truthfulness holds — TASKS.md is fully English and the archive carries the quote prose in the neutral shape; the gate prints `GATE PASSED` on the tip (clean build, the full test matrix, both hygiene lints).
+- **Tests:** no new tests (behavior-preserving hygiene pass; the whole existing suite is the regression net).
+- **Status:** in-progress.
 
