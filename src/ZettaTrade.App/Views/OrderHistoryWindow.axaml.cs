@@ -60,14 +60,14 @@ public partial class OrderHistoryWindow : ReactiveWindow<OrderHistoryViewModel>
 
             ViewModel?.SaveOrdersCsvRequested.RegisterHandler(async context =>
                 {
-                    var path = await CsvSaveFilePicker.PickAsync(this, context.Input);
+                    var path = await SaveFilePicker.PickAsync(this, context.Input, "csv", "CSV");
                     context.SetOutput(path);
                 })
                 .DisposeWith(disposables);
 
             ViewModel?.SaveFillsCsvRequested.RegisterHandler(async context =>
                 {
-                    var path = await CsvSaveFilePicker.PickAsync(this, context.Input);
+                    var path = await SaveFilePicker.PickAsync(this, context.Input, "csv", "CSV");
                     context.SetOutput(path);
                 })
                 .DisposeWith(disposables);

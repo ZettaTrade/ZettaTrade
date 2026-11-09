@@ -396,6 +396,18 @@
   <data name="Chart.ExportCandlesCsv" xml:space="preserve">
     <value>Экспорт свечей в CSV</value>
   </data>
+  <data name="Chart.ExportPng" xml:space="preserve">
+    <value>PNG</value>
+  </data>
+  <data name="Chart.ExportPng.Tip" xml:space="preserve">
+    <value>Сохранить текущий кадр графика как PNG-изображение — ровно то, что на экране, с инструментом и таймфреймом в углу.</value>
+  </data>
+  <data name="Chart.ExportVisibleCsv" xml:space="preserve">
+    <value>Экспорт видимого в CSV</value>
+  </data>
+  <data name="Chart.ExportVisibleCsv.Tip" xml:space="preserve">
+    <value>Экспортировать ровно видимые свечи — только видимую область — в CSV-файл.</value>
+  </data>
   <data name="Chart.ExportFailed" xml:space="preserve">
     <value>Не удалось экспортировать CSV-файл: {0}</value>
   </data>

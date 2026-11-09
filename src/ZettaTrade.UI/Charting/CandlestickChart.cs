@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -219,6 +220,21 @@ public class CandlestickChart : Control
     private const string GridColorKey = "Border";
     private const string TextColorKey = "TextPrimary";
     private const string IndicatorLineColorKey = "IndicatorLine";
+
+    /// <summary>Supersampling factor of the PNG snapshot export (T-094): the frame renders at this multiple of its logical size, so the shared image stays readable when scaled down or zoomed into.</summary>
+    private const int ExportScale = 2;
+
+    /// <summary>Font size of the export watermark, in logical pixels.</summary>
+    private const float WatermarkFontSize = 14f;
+
+    /// <summary>Inset of the watermark's bottom-right anchor from the frame's edges, in logical pixels.</summary>
+    private const float WatermarkInsetPx = 10f;
+
+    /// <summary>Alpha of the watermark text: translucent, so it never buries the frame's own content.</summary>
+    private const byte WatermarkAlpha = 140;
+
+    /// <summary>PNG encode quality for the snapshot export (the format's documented lossless top).</summary>
+    private const int PngEncodeQuality = 100;
 
     #endregion
 
@@ -521,6 +537,46 @@ public class CandlestickChart : Control
     /// </summary>
     public IObservable<ChartOlderHistoryRequestedEventArgs> OlderHistoryRequested => _olderHistoryRequested;
 
+    /// <summary>
+    /// The bars the frame currently paints (T-094): the visible window
+    /// resolved from the pan offset and the zoom width over the loaded
+    /// series — the same slice <see cref="CreateSnapshot"/> copies for the
+    /// draw pass. The visible-range CSV export hands exactly this slice to
+    /// the writer, so the file never carries a bar the chart did not show.
+    /// </summary>
+    public IReadOnlyList<Bar> VisibleBarsSlice
+    {
+        get
+        {
+            var (visible, _, _) = CopyVisibleWindow(Bars);
+            return visible;
+        }
+    }
+
+    /// <summary>
+    /// Copy the visible window of a series (the slice the render pass
+    /// consumes): the span resolved from the pan state, oldest first. An
+    /// empty series yields an empty window.
+    /// </summary>
+    private (Bar[] Visible, int SpanStart, int SpanEnd) CopyVisibleWindow(
+        ObservableCollection<Bar>? bars)
+    {
+        if (bars is not { Count: > 0 })
+        {
+            return ([], 0, 0);
+        }
+
+        var (spanStart, spanEnd) = ChartPanWindow.VisibleSpan(bars.Count, _panOffset, _visibleBars);
+
+        var visible = new Bar[spanEnd - spanStart];
+        for (var i = 0; i < visible.Length; i++)
+        {
+            visible[i] = bars[spanStart + i];
+        }
+
+        return (visible, spanStart, spanEnd);
+    }
+
     /// <summary>Chart background color. Redraws the chart on change.</summary>
     public SKColor BackgroundColor
     {
@@ -746,21 +802,8 @@ public class CandlestickChart : Control
     {
         RefreshThemeColors();
 
-        Bar[] visible = [];
         var bars = Bars;
-        var spanStart = 0;
-        var spanEnd = 0;
-
-        if (bars is { Count: > 0 })
-        {
-            (spanStart, spanEnd) = ChartPanWindow.VisibleSpan(bars.Count, _panOffset, _visibleBars);
-
-            visible = new Bar[spanEnd - spanStart];
-            for (var i = 0; i < visible.Length; i++)
-            {
-                visible[i] = bars[spanStart + i];
-            }
-        }
+        var (visible, spanStart, spanEnd) = CopyVisibleWindow(bars);
 
         var heikinAshi = SliceHeikinAshiBars(bars, spanStart, spanEnd);
         var closesOnly = SeriesType is ChartSeriesType.Line or ChartSeriesType.Area;
@@ -1048,7 +1091,13 @@ public class CandlestickChart : Control
             }
         }
 
-        private void Draw(SKCanvas canvas)
+        /// <summary>
+        /// The frame's full render pass (the export rides the SAME pass the
+        /// screen paints — the acceptance holds by construction). Assembly-
+        /// internal only because the containing class's export calls it
+        /// directly; Avalonia itself enters through <see cref="Render"/>.
+        /// </summary>
+        internal void Draw(SKCanvas canvas)
         {
             var width = (float)_bounds.Width;
             var height = (float)_bounds.Height;
@@ -2555,6 +2604,116 @@ public class CandlestickChart : Control
     }
 
     #endregion
+
+    #region Snapshot Export (T-094)
+
+    /// <summary>
+    /// Render the current frame — the exact snapshot the screen paints, same
+    /// lens and annotations state (the acceptance) — into a PNG file: the
+    /// frame draws at a fixed supersampling scale through the SAME
+    /// <see cref="CandlestickDrawOperation"/> the on-screen render runs, and
+    /// a translucent watermark stamps the context (symbol, time frame) over
+    /// the bottom-right corner. The caller supplies the destination (the
+    /// save dialog is view behavior); a render or write fault throws — the
+    /// chart panel's export flow surfaces it on its error line.
+    /// </summary>
+    /// <param name="path">Destination file path (overwritten if present).</param>
+    /// <param name="watermark">The context line stamped over the frame, or
+    /// null to skip it (the seeded export facts' differ probe).</param>
+    /// <param name="cancellationToken">Cancels the file write; the render
+    /// itself is synchronous and brief.</param>
+    public async Task ExportSnapshotPngAsync(
+        string path,
+        string? watermark,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("The snapshot export needs a destination path.", nameof(path));
+        }
+
+        var payload = RenderSnapshotPngBytes(watermark);
+        await File.WriteAllBytesAsync(path, payload, cancellationToken);
+    }
+
+    /// <summary>
+    /// Render the current frame into PNG bytes — the snapshot export's
+    /// payload (the file write stays in the public method): the frame draws
+    /// at a fixed supersampling scale through the SAME
+    /// <see cref="CandlestickDrawOperation"/> the on-screen render runs, and
+    /// a translucent watermark stamps the context (symbol, time frame) over
+    /// the bottom-right corner. Runs on the UI thread (the control's state
+    /// is affinity-bound); a render fault throws to the caller.
+    /// </summary>
+    /// <param name="watermark">The context line stamped over the frame, or
+    /// null to skip it (the seeded export facts' differ probe).</param>
+    /// <returns>The PNG-encoded frame.</returns>
+    internal byte[] RenderSnapshotPngBytes(string? watermark)
+    {
+        // The frame must have a size: an export before any layout pass would
+        // render an empty rect (the real window always has one by the time
+        // the toolbar is clickable; the seeded facts arrange the control).
+        var width = Math.Max(1, (int)Math.Ceiling(Bounds.Width));
+        var height = Math.Max(1, (int)Math.Ceiling(Bounds.Height));
+
+        // The raster surface (no GPU): the frame renders off the SAME draw
+        // operation the screen uses, so "the export matches the on-screen
+        // frame" holds by construction — one renderer, one snapshot.
+        using var surface = SKSurface.Create(
+            new SKImageInfo(width * ExportScale, height * ExportScale, SKColorType.Bgra8888, SKAlphaType.Premul));
+        if (surface is null)
+        {
+            throw new InvalidOperationException("The chart snapshot export could not create its raster surface.");
+        }
+
+        using var operation = new CandlestickDrawOperation(new Rect(0, 0, width, height), CreateSnapshot(), this);
+        var canvas = surface.Canvas;
+        canvas.Save();
+        canvas.Scale(ExportScale);
+        try
+        {
+            operation.Draw(canvas);
+            if (watermark is not null)
+            {
+                DrawWatermark(canvas, width, height, watermark);
+            }
+        }
+        finally
+        {
+            canvas.Restore();
+        }
+
+        using var image = surface.Snapshot();
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, PngEncodeQuality);
+
+        return encoded.ToArray();
+    }
+
+    /// <summary>The watermark: the context line over the frame's bottom-right corner, translucent so it never buries the content.</summary>
+    private void DrawWatermark(
+        SKCanvas canvas,
+        double width,
+        double height,
+        string watermark)
+    {
+        using var font = new SKFont(SKTypeface.Default, WatermarkFontSize);
+        using var paint = new SKPaint
+        {
+            Color = _textColor.WithAlpha(WatermarkAlpha),
+            IsAntialias = true,
+        };
+
+        var textWidth = font.MeasureText(watermark);
+        canvas.DrawText(
+            watermark,
+            (float)width - textWidth - WatermarkInsetPx,
+            (float)height - WatermarkInsetPx,
+            SKTextAlign.Left,
+            font,
+            paint);
+    }
+
+    #endregion Snapshot Export (T-094)
 
     #region Interaction
 

@@ -396,6 +396,18 @@
   <data name="Chart.ExportCandlesCsv" xml:space="preserve">
     <value>Export Candles CSV</value>
   </data>
+  <data name="Chart.ExportPng" xml:space="preserve">
+    <value>PNG</value>
+  </data>
+  <data name="Chart.ExportPng.Tip" xml:space="preserve">
+    <value>Save the current chart frame as a PNG image - the same view you see, with the symbol and time frame stamped in the corner.</value>
+  </data>
+  <data name="Chart.ExportVisibleCsv" xml:space="preserve">
+    <value>Export View CSV</value>
+  </data>
+  <data name="Chart.ExportVisibleCsv.Tip" xml:space="preserve">
+    <value>Export exactly the candles you see - the visible range only - to a CSV file.</value>
+  </data>
   <data name="Chart.ExportFailed" xml:space="preserve">
     <value>Could not export the CSV file: {0}</value>
   </data>

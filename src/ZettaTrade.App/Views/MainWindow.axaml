@@ -384,7 +384,7 @@
                                  the candles export writes the loaded series to a
                                  user-chosen CSV file. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
@@ -485,6 +485,23 @@
                                 <Button Grid.Column="9"
                                         Content="{loc:Localized Chart.ExportCandlesCsv}"
                                         Command="{Binding ExportCandlesCommand}"
+                                        MinWidth="110"
+                                        Margin="8,0,0,0" />
+                                <!-- The export pair (T-094): the PNG snapshot
+                                     renders the current frame (same lens, same
+                                     annotations) at a fixed scale with the
+                                     symbol/timeframe watermark; the second CSV
+                                     button exports exactly the visible range. -->
+                                <Button Grid.Column="10"
+                                        Content="{loc:Localized Chart.ExportPng}"
+                                        Command="{Binding ExportPngCommand}"
+                                        ToolTip.Tip="{loc:Localized Chart.ExportPng.Tip}"
+                                        MinWidth="72"
+                                        Margin="8,0,0,0" />
+                                <Button Grid.Column="11"
+                                        Content="{loc:Localized Chart.ExportVisibleCsv}"
+                                        Command="{Binding ExportVisibleCandlesCommand}"
+                                        ToolTip.Tip="{loc:Localized Chart.ExportVisibleCsv.Tip}"
                                         MinWidth="110"
                                         Margin="8,0,0,0" />
                             </Grid>

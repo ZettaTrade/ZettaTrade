@@ -112,8 +112,42 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // file is view behavior).
         ViewModel?.Chart.SaveCandlesCsvRequested.RegisterHandler(async context =>
         {
-            var path = await CsvSaveFilePicker.PickAsync(this, context.Input);
+            var path = await SaveFilePicker.PickAsync(this, context.Input, "csv", "CSV");
             context.SetOutput(path);
+        });
+
+        // The chart's snapshot export (T-094): the destination rides the
+        // same dialog discipline, and the render+write is VIEW behavior —
+        // the chart control owns its frame, so the handler drives it after
+        // the pick (a render or write fault propagates through the
+        // interaction into the ViewModel's error-line catch).
+        ViewModel?.Chart.ExportPngRequested.RegisterHandler(async context =>
+        {
+            var path = await SaveFilePicker.PickAsync(this, context.Input.SuggestedFileName, "png", "PNG");
+            if (path is null)
+            {
+                context.SetOutput(null);
+                return;
+            }
+
+            await CandlesChart.ExportSnapshotPngAsync(path, context.Input.Watermark);
+            context.SetOutput(path);
+        });
+
+        // The visible-range candles export (T-094): the destination plus the
+        // chart's own visible slice travel together (the slice is the
+        // control's state) — the ViewModel streams the handoff through the
+        // shared CSV writer.
+        ViewModel?.Chart.ExportVisibleCsvRequested.RegisterHandler(async context =>
+        {
+            var path = await SaveFilePicker.PickAsync(this, context.Input, "csv", "CSV");
+            if (path is null)
+            {
+                context.SetOutput(null);
+                return;
+            }
+
+            context.SetOutput(new VisibleCsvHandoff(path, CandlesChart.VisibleBarsSlice));
         });
 
         // The T-095 palette's own route: its both interactions live for the

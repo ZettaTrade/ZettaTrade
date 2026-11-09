@@ -1782,6 +1782,234 @@ public sealed class ChartViewModelTests
 
     #endregion Candle Export
 
+    #region Snapshot & Visible-Range Export (T-094)
+
+    /// <summary>
+    /// The PNG flow builds the request off the workspace context and hands
+    /// the render to the view: the suggested file name carries the file-safe
+    /// symbol, the time frame and the timestamp, the watermark reads
+    /// "symbol · timeframe", and the picked destination passes through
+    /// untouched (the render itself is the view's job — the window test
+    /// pins it; here the outcome is what the ViewModel owns).
+    /// </summary>
+    [Fact]
+    public async Task ExportPngCommand_BuildsTheRequest_AndEndsWithThePick()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        PngExportRequest? request = null;
+
+        using var handler = chart.ExportPngRequested.RegisterHandler(context =>
+        {
+            request = context.Input;
+            context.SetOutput(@"C:\exports\BTC_USDT_H1.png");
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportPngCommand.Execute(RxVoid.Default);
+
+        request.Should().NotBeNull("the view needs the file name and the watermark to run the flow");
+        request!.SuggestedFileName.Should()
+            .MatchRegex(@"^BTC_USDT_H1_\d{8}_\d{6}\.png$", "the symbol's separator is file-safe and the timestamp stamps the second");
+        request.Watermark.Should().Be("BTC/USDT · H1", "the watermark reads the symbol and the time frame");
+        chart.ErrorMessage.Should().BeNull();
+        chart.HasErrorMessage.Should().BeFalse();
+    }
+
+    /// <summary>A cancelled save dialog renders nothing: quiet outcome, no error line.</summary>
+    [Fact]
+    public async Task ExportPngCommand_WithACancelledDialog_EndsQuietly()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        using var handler = chart.ExportPngRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportPngCommand.Execute(RxVoid.Default);
+
+        chart.ErrorMessage.Should().BeNull();
+        chart.HasErrorMessage.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// A render or write fault propagates through the interaction (the
+    /// window's export throws) and surfaces the localized export message —
+    /// the same error-line contract the candles CSV keeps.
+    /// </summary>
+    [Fact]
+    public async Task ExportPngCommand_WhenTheRenderThrows_ShowsTheLocalizedFault()
+    {
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
+            $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            localization: localization);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        using var handler = chart.ExportPngRequested.RegisterHandler(async context =>
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("render is gone");
+        });
+
+        await chart.ExportPngCommand.Execute(RxVoid.Default);
+
+        chart.ErrorMessage.Should().Be("[Chart.ExportFailed:render is gone]");
+        chart.HasErrorMessage.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// No workspace symbol — no context to stamp: the flow ends before the
+    /// interaction fires (a pick without an address exports nothing, and
+    /// stays quiet).
+    /// </summary>
+    [Fact]
+    public async Task ExportPngCommand_WithoutASymbol_EndsBeforeTheView()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+
+        var fired = false;
+
+        using var handler = chart.ExportPngRequested.RegisterHandler(context =>
+        {
+            fired = true;
+            context.SetOutput(@"C:\exports\never.png");
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportPngCommand.Execute(RxVoid.Default);
+
+        fired.Should().BeFalse("a pick without a workspace symbol has no watermark context");
+        chart.ErrorMessage.Should().BeNull();
+        chart.HasErrorMessage.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// The visible-range flow streams EXACTLY the handoff's slice through
+    /// the shared CSV writer: the view slices the chart's own visible
+    /// window, the ViewModel never substitutes the loaded series for it —
+    /// the file carries precisely what the frame paints.
+    /// </summary>
+    [Fact]
+    public async Task ExportVisibleCandlesCommand_StreamsExactlyTheHandedSlice()
+    {
+        var export = Substitute.For<ICsvExportService>();
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            export: export);
+        IReadOnlyList<Bar> exportedBars = null!;
+        string? exportedPath = null;
+
+        export.ExportCandlesAsync(
+                Arg.Do<string>(path => exportedPath = path),
+                Arg.Do<IReadOnlyList<Bar>>(bars => exportedBars = bars),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var visibleSlice = new[] { TypeBar(0), TypeBar(1) };
+
+        using var handler = chart.ExportVisibleCsvRequested.RegisterHandler(context =>
+        {
+            context.Input.Should().Be("candles-visible.csv", "the dialog carries the suggested name");
+            context.SetOutput(new VisibleCsvHandoff(@"C:\exports\visible.csv", visibleSlice));
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportVisibleCandlesCommand.Execute(RxVoid.Default);
+
+        exportedPath.Should().Be(@"C:\exports\visible.csv");
+        exportedBars.Should().BeSameAs(visibleSlice, "the writer receives exactly the handed slice, never a copy or the loaded series");
+        chart.ErrorMessage.Should().BeNull();
+        chart.HasErrorMessage.Should().BeFalse();
+    }
+
+    /// <summary>A cancelled save dialog exports nothing: quiet outcome, the writer never runs.</summary>
+    [Fact]
+    public async Task ExportVisibleCandlesCommand_WithACancelledDialog_EndsQuietly()
+    {
+        var export = Substitute.For<ICsvExportService>();
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            export: export);
+
+        using var handler = chart.ExportVisibleCsvRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportVisibleCandlesCommand.Execute(RxVoid.Default);
+
+        await export.DidNotReceive().ExportCandlesAsync(
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<Bar>>(),
+            Arg.Any<CancellationToken>());
+        chart.ErrorMessage.Should().BeNull();
+        chart.HasErrorMessage.Should().BeFalse();
+    }
+
+    /// <summary>A write fault surfaces the localized export message — the candles CSV contract.</summary>
+    [Fact]
+    public async Task ExportVisibleCandlesCommand_WhenTheWriterThrows_ShowsTheLocalizedFault()
+    {
+        var export = Substitute.For<ICsvExportService>();
+        export.ExportCandlesAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<Bar>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(
+                new InvalidOperationException("directory is gone")));
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
+            $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            export: export,
+            localization: localization);
+
+        using var handler = chart.ExportVisibleCsvRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(new VisibleCsvHandoff(@"C:\exports\visible.csv", [TypeBar(0)]));
+            return Task.CompletedTask;
+        });
+
+        await chart.ExportVisibleCandlesCommand.Execute(RxVoid.Default);
+
+        chart.ErrorMessage.Should().Be("[Chart.ExportFailed:directory is gone]");
+        chart.HasErrorMessage.Should().BeTrue();
+    }
+
+    /// <summary>The file name builder's golden: file-safe symbol, time frame, UTC timestamp to the second.</summary>
+    [Fact]
+    public void PngFileName_IsFileSafe_AndTimestampedToTheSecond()
+    {
+        var timestamp = new DateTimeOffset(2026, 11, 9, 21, 4, 7, TimeSpan.FromHours(5));
+
+        ChartViewModel.PngFileName("BTC/USDT", TimeFrame.H1, timestamp)
+            .Should().Be("BTC_USDT_H1_20261109_160407.png", "the slash is not file-safe, the stamp reads UTC");
+    }
+
+    /// <summary>The watermark builder's golden: the symbol, a middot, the time frame.</summary>
+    [Fact]
+    public void PngWatermark_ReadsTheSymbolAndTheTimeFrame()
+    {
+        ChartViewModel.PngWatermark("BTC/USDT", TimeFrame.H1).Should().Be("BTC/USDT · H1");
+    }
+
+    #endregion Snapshot & Visible-Range Export (T-094)
+
     #endregion
 
     #region Deep-history Repair (T-086)
