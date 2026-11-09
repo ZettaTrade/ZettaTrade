@@ -273,6 +273,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ChartViewModel>().SymbolSelections,
                 sp.GetRequiredService<ILogger<TradeTapeViewModel>>()));
         services.AddWatchlistServices(); // T-120: the watchlist panel (feed + rows) over the same facade/selection pair above.
+        services.AddHeatmapServices(); // T-121: the heatmap panel (candidate pumps + ranked tile page) beside the watchlist rail above.
         // T-095: the global symbol palette — the Ctrl+K instrument picker
         // over ALL registered adapters. Both singletons, registered after
         // the chart ViewModel it applies into and before MainViewModel;
@@ -289,6 +290,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<OrderBookViewModel>(),
                 sp.GetRequiredService<TradeTapeViewModel>(),
                 sp.GetRequiredService<WatchlistViewModel>(),
+                sp.GetRequiredService<HeatmapViewModel>(), // T-121: the right rail's heatmap tab.
                 sp.GetRequiredService<WorkspaceLayoutViewModel>(),
                 sp.GetRequiredService<SymbolPaletteViewModel>(),
                 sp.GetRequiredService<NotificationToastHostViewModel>(),

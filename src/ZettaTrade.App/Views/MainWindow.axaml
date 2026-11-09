@@ -291,53 +291,85 @@
                          watchlist column; the tape column keeps its width. -->
                     <GridSplitter Grid.Column="5" Focusable="True" />
 
-                    <!-- Watchlist panel: the feed-paced majors rows plus the
-                         workspace selection's row; each row keeps a stable
-                         identity (only its fields churn per pulse), the
-                         sparkline rides the row's own price ring. -->
-                    <Border Grid.Column="6"
-                            Margin="8,0,0,0"
-                            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                            BorderThickness="1,0,0,0"
-                            DataContext="{Binding Watchlist}">
-                        <Grid RowDefinitions="Auto,*">
-                            <TextBlock Grid.Row="0"
-                                       Text="{loc:Localized Watch.Title}"
-                                       FontWeight="Bold"
-                                       FontSize="14"
-                                       Margin="8,0,0,4" />
-                            <ListBox Grid.Row="1"
-                                     ItemsSource="{Binding Rows}">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:WatchlistRowViewModel">
-                                        <Grid ColumnDefinitions="*,Auto" Margin="8,3,4,3">
-                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding SymbolText}"
-                                                           FontWeight="Bold" />
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <TextBlock Text="{Binding LastPriceText}" />
-                                                    <TextBlock Text="{Binding Change24hText}" />
-                                                    <TextBlock Text="{Binding Volume24hText}"
-                                                               Opacity="0.65" />
+                    <!-- Right rail: the watchlist (T-120) and the market
+                         heatmap (T-121) share the persisted column as tabs —
+                         neighbors by composition; the strip's splitter
+                         geometry above stays untouched. The heat tab's
+                         metric switch appears only when ranked data exists
+                         (nothing fabricated for a missing feed); the field
+                         re-inks on every feed page, the tile presses route
+                         into the workspace symbol. -->
+                    <TabControl Grid.Column="6"
+                                Margin="8,0,0,0">
+                        <TabItem Header="{loc:Localized Watch.Title}"
+                                 DataContext="{Binding Watchlist}">
+                            <!-- Watchlist panel: the feed-paced majors rows plus the
+                                 workspace selection's row; each row keeps a stable
+                                 identity (only its fields churn per pulse), the
+                                 sparkline rides the row's own price ring. -->
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                                    BorderThickness="1,0,0,0">
+                                <ListBox ItemsSource="{Binding Rows}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:WatchlistRowViewModel">
+                                            <Grid ColumnDefinitions="*,Auto" Margin="8,3,4,3">
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding SymbolText}"
+                                                               FontWeight="Bold" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <TextBlock Text="{Binding LastPriceText}" />
+                                                        <TextBlock Text="{Binding Change24hText}" />
+                                                        <TextBlock Text="{Binding Volume24hText}"
+                                                                   Opacity="0.65" />
+                                                    </StackPanel>
                                                 </StackPanel>
-                                            </StackPanel>
-                                            <!-- The sparkline: the viewport's one
-                                                 synthetic shape, the row's price
-                                                 ring mapped onto the canvas (the
-                                                 ring itself lives in the feed). -->
-                                            <Polyline Grid.Column="1"
-                                                      Width="96"
-                                                      Height="28"
-                                                      VerticalAlignment="Center"
-                                                      Points="{Binding SparklinePoints}"
-                                                      Stroke="{DynamicResource Highlight}"
-                                                      StrokeThickness="1.5" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Grid>
-                    </Border>
+                                                <!-- The sparkline: the viewport's one
+                                                     synthetic shape, the row's price
+                                                     ring mapped onto the canvas (the
+                                                     ring itself lives in the feed). -->
+                                                <Polyline Grid.Column="1"
+                                                          Width="96"
+                                                          Height="28"
+                                                          VerticalAlignment="Center"
+                                                          Points="{Binding SparklinePoints}"
+                                                          Stroke="{DynamicResource Highlight}"
+                                                          StrokeThickness="1.5" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+                        </TabItem>
+                        <TabItem DataContext="{Binding Heatmap}"
+                                 Header="{loc:Localized Heatmap.Title}">
+                            <Grid RowDefinitions="Auto,*">
+                                <!-- The metric switch: static localized items bound
+                                     by index (the chart type selector's shim), and
+                                     the whole row only exists when the feed carries
+                                     ranked pairs — an empty venue owns no switch. -->
+                                <StackPanel Grid.Row="0"
+                                            Orientation="Horizontal"
+                                            Spacing="6"
+                                            Margin="8,4,0,4"
+                                            IsVisible="{Binding HasData}">
+                                    <TextBlock Text="{loc:Localized Heatmap.Metric}"
+                                               VerticalAlignment="Center" />
+                                    <ComboBox MinWidth="92"
+                                              SelectedIndex="{Binding SelectedMetricIndex}">
+                                        <TextBlock Text="{loc:Localized Heatmap.Metric.QuoteVolume}" />
+                                        <TextBlock Text="{loc:Localized Heatmap.Metric.Change}" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <!-- The tile field: the feed's ranked page drawn as
+                                      the squarified treemap, colored by the 24h
+                                      change palette, pressed tiles routed through
+                                      the window to the workspace symbol. -->
+                                <charting:HeatmapWidget x:Name="HeatmapWidget"
+                                                        Grid.Row="1"
+                                                        Tiles="{Binding Tiles}" />
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
 
                     <!-- Chart workspace -->
                     <Border Grid.Column="0" DataContext="{Binding Chart}">

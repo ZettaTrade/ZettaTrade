@@ -969,6 +969,21 @@
   <data name="Watch.Title" xml:space="preserve">
     <value>Список наблюдения</value>
   </data>
+  <data name="Heatmap.Title" xml:space="preserve">
+    <value>Карта рынка</value>
+  </data>
+  <data name="Heatmap.NoDataMessage" xml:space="preserve">
+    <value>Ожидание данных тикеров</value>
+  </data>
+  <data name="Heatmap.Metric" xml:space="preserve">
+    <value>Метрика</value>
+  </data>
+  <data name="Heatmap.Metric.QuoteVolume" xml:space="preserve">
+    <value>Объём</value>
+  </data>
+  <data name="Heatmap.Metric.Change" xml:space="preserve">
+    <value>Изменение за 24 ч</value>
+  </data>
   <data name="Tape.NoDataMessage" xml:space="preserve">
     <value>Сделок пока нет</value>
   </data>

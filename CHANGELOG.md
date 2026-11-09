@@ -1,3 +1,34 @@
+## [0.1.0-alpha.78] - 2026-11-09
+
+Build of board task T-121 (branch `feat/heatmap`).
+
+### Added
+- The market heatmap panel (T-121): the whole-venue view as a second right-rail
+  tab. The panel's feed fetches the adapter's tradable universe once through
+  the active-exchange facade, caps it to a bounded candidate window (48
+  one-ticker pumps — a large venue's catalog never blows the subscription
+  count), and coalesces the candidates' latest tick state into ONE ranked
+  snapshot per panel pulse: a wire ticker storm stays inside the service
+  while the panel sees one settled page.
+- The squarified treemap drawn straight onto the Skia canvas (the
+  order-book widget's pattern — no intermediate bitmaps, no per-tile
+  controls): tile area maps to the rank weight (the quote volume default:
+  the last price times the 24h quote turnover), tile color maps to the 24h
+  change through the buy/sell palette — a small gain shades barely toward
+  growth, the saturation ends at five percent so the palette never invents
+  a swing the number does not carry, and it never flips a sign. The same
+  (tiles, plot) input returns the same output on every call, so a re-plan
+  behind every storm stays deterministic. Unpriced pairs own no area — an
+  empty page renders the honest empty state, nothing fabricated for missing
+  data.
+- The metric switch: the `Heatmap.*` localized labels (title, empty-state
+  message, the two metric items) in BOTH languages; the switch appears only
+  when ranked data exists (a switch over nothing is fabricated chrome).
+- A tile press routes its pair into the workspace symbol — the same write
+  the palette's same-exchange apply maintains; an unparsable tile text is
+  refused without a substitute.
+
+
 ## [0.1.0-alpha.77] - 2026-11-09
 
 Build of board task T-122 (branch `feat/chart-mine`).
