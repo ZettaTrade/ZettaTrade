@@ -171,7 +171,7 @@ public sealed class WindowChromeTests
             Strings.ResourceManager.GetString(key, System.Globalization.CultureInfo.InvariantCulture)
                 .Should().NotBeNullOrEmpty("'{0}' is a user-facing chrome string", key);
             Strings.ResourceManager.GetString(key, System.Globalization.CultureInfo.GetCultureInfo("ru-RU"))
-                .Should().NotBeNullOrEmpty("'{0}' must localize into Russian", key);
+                .Should().NotBeNullOrEmpty("'{0}' must localize into the ru catalog", key);
         }
     }
 

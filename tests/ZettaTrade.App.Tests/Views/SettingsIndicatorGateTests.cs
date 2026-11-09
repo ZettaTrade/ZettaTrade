@@ -87,7 +87,7 @@ public sealed class SettingsIndicatorGateTests
         Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)
             .Should().NotBeNullOrEmpty("'{0}' is a user-facing gate string", key);
         Strings.ResourceManager.GetString(key, CultureInfo.GetCultureInfo("ru-RU"))
-            .Should().NotBeNullOrEmpty("'{0}' must localize into Russian", key);
+            .Should().NotBeNullOrEmpty("'{0}' must localize into the ru catalog", key);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class SettingsIndicatorGateTests
         Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)
             .Should().NotBeNullOrEmpty("'{0}' is a user-facing gate string", key);
         Strings.ResourceManager.GetString(key, CultureInfo.GetCultureInfo("ru-RU"))
-            .Should().NotBeNullOrEmpty("'{0}' must localize into Russian", key);
+            .Should().NotBeNullOrEmpty("'{0}' must localize into the ru catalog", key);
     }
 
     /// <summary>

@@ -5,7 +5,7 @@ The tracked deliverable of T-128: a shot-by-shot storyboard for the demo video (
 Two standing rules the script inherits:
 
 - Every feature named on camera exists on the current develop tree (develop@0823719). No vaporware: the beats the board asked for that are not shipped yet stay explicitly marked placeholders - never filmed, never implied (the sibling T-126 canon).
-- In-repo text is English (the house localization canon): the narration draft here is English, and the Russian narration is translated from it by the human at recording time as a recording artifact - the ru draft does not enter the repository.
+- In-repo text is English (the house localization canon): the narration draft here is English, and the ru narration is rendered from it by the human at recording time as a recording artifact - the ru draft does not enter the repository.
 
 ## The standing security rule (the one absolute)
 
@@ -48,14 +48,14 @@ The moments the board named but the current tree does not have:
 - AI backend: S4 and S5 need a working local backend (Ollama + a pulled model). If the box cannot run one, drop S4 and S5 rather than film a broken or cloud-backed chat.
 - Alerts: the Demo walk is seeded, so tune a trigger the stream crosses inside the take - test the threshold before rolling.
 - Quiet set: dismiss or block every other app's notifications; the app's own do-not-disturb stays OFF for S8 (it would hide the toast).
-- Narration: read this file's English draft as-is, or translate it to Russian at recording time; the ru narration is a recording artifact and is not tracked in the repository.
+- Narration: read this file's English draft as-is, or render the ru narration from it at recording time; the ru narration is a recording artifact and is not tracked in the repository.
 - Take discipline: one beat per take, cut on the still frame. The first-run disclaimer (T-119) is already acknowledged on the recording install; S10 re-shows it from Help -> About / Disclaimer deliberately.
 
 ## The honesty ledger (beats kept, placeholder, dropped)
 
 - Kept as live beats (all shipped on develop@0823719): shell chrome and the status bar (T-065/T-066/T-098/T-123), charting (T-026/T-028/T-033/T-035/T-036/T-037/T-089/T-092/T-093), book and depth (T-011/T-072/T-088), tape (T-087), watchlist (T-120), palette and favorites (T-095/T-039), AI chat with the live context (T-027/T-032/T-114), MCP-driven paper fills (T-040/T-068/T-133), the paper-lane order walk (T-008/T-025/T-051/T-057/T-078/T-079/T-080/T-122), portfolio and statistics (T-010/T-081/T-082/T-083), alerts and toasts (T-096/T-097), themes and the live language switch (T-001 through T-006), the disclaimer (T-119).
 - Kept as explicitly marked placeholders (doors noted, never filmed): the testnet limit-order lifecycle insert under S6 (T-127, queued) and the download CTA pointing at the Releases page in S10 (T-125, queued; the landing reference is T-126's, also queued).
-- Dropped: the Russian narration as in-repo text (the localization canon outranks the board's "en and ru" detail - the ru draft is the human recording artifact); the perf HUD on camera (T-108, queued); multi-window workspaces (T-103, queued). The board text hedged the alerts beat as possibly unshipped - on the current tree both T-096 and T-097 are done, so the alert beat is live, not a placeholder.
+- Dropped: the ru narration as in-repo text (the localization canon outranks the board's "en and ru" detail - the ru draft is the human recording artifact); the perf HUD on camera (T-108, queued); multi-window workspaces (T-103, queued). The board text hedged the alerts beat as possibly unshipped - on the current tree both T-096 and T-097 are done, so the alert beat is live, not a placeholder.
 
 ## What stays out of this task's scope
 
