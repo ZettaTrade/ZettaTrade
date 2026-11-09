@@ -1,5 +1,6 @@
 namespace ZettaTrade.AI.Mcp;
 
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
@@ -7,7 +8,9 @@ using ZettaTrade.Core.Interfaces;
 /// <summary>
 /// MCP Server host that exposes ZettaTrade functionality to AI models via stdio.
 /// Presents itself as "Zetta" for a more personal interaction.
-/// Uses SemaphoreSlim for thread-safe operations.
+/// The registries are concurrent collections (an upsert never blocks the
+/// stop window); the semaphore still serializes the start/stop lifecycle and
+/// every request-handler read of the registries.
 /// </summary>
 public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
 {
@@ -61,9 +64,9 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     #endregion
 
     private readonly ILogger<McpServerHost> _logger;
-    private readonly Dictionary<string, McpToolDefinition> _tools = new();
-    private readonly Dictionary<string, McpResourceDefinition> _resources = new();
-    private readonly Dictionary<string, McpPromptDefinition> _prompts = new();
+    private readonly ConcurrentDictionary<string, McpToolDefinition> _tools = new();
+    private readonly ConcurrentDictionary<string, McpResourceDefinition> _resources = new();
+    private readonly ConcurrentDictionary<string, McpPromptDefinition> _prompts = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
     private CancellationTokenSource? _cts;
     private Task? _runLoopTask;
@@ -160,44 +163,24 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
 
     public void RegisterTool(McpToolDefinition tool)
     {
-        _lock.Wait();
-        try
-        {
-            _tools[tool.Name] = tool;
-            _logger.LogDebug("Registered MCP tool: {Name}", tool.Name);
-        }
-        finally
-        {
-            _lock.Release();
-        }
+        // Lockless registration: the registries are concurrent collections, so
+        // an upsert never awaits the host's semaphore — nothing blocks even in
+        // the StopAsync window where the semaphore is held across its bounded
+        // run-loop wait. (The register-before-start contract still stands.)
+        _tools[tool.Name] = tool;
+        _logger.LogDebug("Registered MCP tool: {Name}", tool.Name);
     }
 
     public void RegisterResource(McpResourceDefinition resource)
     {
-        _lock.Wait();
-        try
-        {
-            _resources[resource.Uri] = resource;
-            _logger.LogDebug("Registered MCP resource: {Uri}", resource.Uri);
-        }
-        finally
-        {
-            _lock.Release();
-        }
+        _resources[resource.Uri] = resource;
+        _logger.LogDebug("Registered MCP resource: {Uri}", resource.Uri);
     }
 
     public void RegisterPrompt(McpPromptDefinition prompt)
     {
-        _lock.Wait();
-        try
-        {
-            _prompts[prompt.Name] = prompt;
-            _logger.LogDebug("Registered MCP prompt: {Name}", prompt.Name);
-        }
-        finally
-        {
-            _lock.Release();
-        }
+        _prompts[prompt.Name] = prompt;
+        _logger.LogDebug("Registered MCP prompt: {Name}", prompt.Name);
     }
 
     private async Task RunLoopAsync(CancellationToken ct)
