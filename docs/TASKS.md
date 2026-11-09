@@ -108,7 +108,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-101 Log viewer window + global crash guard | feat/log-viewer | done | - |
 | T-102 Hotkey manager + cheat sheet overlay | feat/hotkey-manager | queued | - |
 | T-103 Detachable panels: multi-window workspaces | feat/multi-window | queued | - |
-| T-104 Single instance hand-off + CLI symbol open | feat/single-instance | in-progress | - |
+| T-104 Single instance hand-off + CLI symbol open | feat/single-instance | done | - |
 | T-105 Reconnect policy hardening: backoff, jitter, watchdog | feat/reconnect-policy | done | - |
 | T-106 Exchange rate limiter with per-endpoint budgets | feat/rate-limiter | done | - |
 | T-107 Adapter conformance test kit (shared battery) | feat/adapter-kit | done | - |
@@ -211,16 +211,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** layout service + window shells, symbol context broadcast, resx en+ru, tests.
 - **Acceptance:** detach/attach is lossless; restore across DPI shifts stays sane.
 - **Tests:** detach/attach roundtrip golden, context broadcast, geometry restore.
-
-## T-104 — Single instance hand-off + CLI symbol open
-
-- **Branch:** feat/single-instance, worktree zt-single-instance, based on develop@80fe7af (claimed 2026-11-09; queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut)).
-- **Origin:** a second launch spawns a second app; integrations (shortcuts, scripts) want arg-driven opens.
-- **What:** second launches forward arguments (`--symbol`, `--exchange`, optional protocol strings) to the running instance and exit; the running instance applies the workspace symbol. Args are validated allowlist-style — nothing can inject orders; nothing writes to stdout outside the MCP protocol rule.
-- **Scope:** app bootstrapping, a handoff service, resx en+ru, tests.
-- **Acceptance:** a second start on any platform redirects cleanly and exits promptly.
-- **Tests:** handoff golden, malformed-arg rejection, exit-parity cases.
-- **Status:** in-progress.
 
 ## T-108 — Performance HUD overlay (fps, memory, WS latency)
 
