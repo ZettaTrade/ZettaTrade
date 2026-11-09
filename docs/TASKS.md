@@ -143,7 +143,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-136 Repo hygiene: baked mojibake repair, machine-path purge, prevention lints | chore/repo-hygiene | done | - |
 | T-137 Fix the app startup crash: the concrete settings store resolves in DI | fix/startup-di | done | - |
 | T-138 Stabilize the App.Tests dispatcher tally flake: one serialized dispatcher world | feat/flaky-pump-tally | done | - |
-| T-139 Board truthfulness: archive the lingering T-117/T-118 sections, restore the canonical archive order | feat/board-truth | review | - |
+| T-139 Board truthfulness: archive the lingering T-117/T-118 sections, restore the canonical archive order | feat/board-truth | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -284,13 +284,4 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the key validation lib + the activation UI (resx en+ru), the packaging docs/templates for the private CI, `docs/LICENSES.md` describing the open-core split (MIT core vs proprietary modules) in a glance-readable form; the private repos themselves appear only per actual module.
 - **Acceptance:** a signed closed fixture activates with a valid key and is refused with an explicit error on invalid/expired/tampered/wrong-product keys; no network is required for validation; no proprietary artifact or wording lands in the public repo.
 - **Tests:** key crypto goldens (valid/expired/tampered/wrong-product/missing), the activation gate in UI, the refused-not-defaulted contract on every failure path, file-only logging for the validator.
-
-## T-139 — Board truthfulness: archive the lingering T-117/T-118 sections, restore the canonical archive order
-
-- **Branch:** feat/board-truth (worktree zt-board-truth, based on develop@9fc27da)
-- **Origin:** the retrospective QA sweep of everything closed after the T-075 boundary (2026-11-09): the mechanical stamp (clean-tree build + the full test matrix + both hygiene lints) passed, and the board-truthness audit found exactly two canon deviations, both bookkeeping rather than substance.
-- **What:** (1) the T-117 (secret scanner) and T-118 (README trading-safety) detail sections flipped done on 2026-11-06 but never left the board — both move verbatim (5,567 chars) into docs/TASKS-ARCHIVE.md's canonical slot (after T-116, before T-119); (2) the 2026-11-09 close race archived T-125's section before T-123's, dropping T-123 below it — the blocks swap back into the canonical T order (T-122 < T-123 < T-125 < T-126). Rows untouched in both cases; no code, no resx, no changelog.
-- **Scope:** docs/TASKS.md + docs/TASKS-ARCHIVE.md only.
-- **Acceptance:** the board-truth audit re-run on the tip prints zero done rows missing from the archive, zero done tasks carrying a live board section, zero archive canonical-order violations (archive at 125 sections); GATE PASSED.
-- **Status:** review. Canon: the branch carries 3de180b (the repairs) — this claim records the task.
 
