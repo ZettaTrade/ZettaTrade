@@ -13,6 +13,7 @@
   <Project Path="src/ZettaTrade.Plugins.Rsi/ZettaTrade.Plugins.Rsi.csproj" />
   <Project Path="src/ZettaTrade.Plugins.Sma/ZettaTrade.Plugins.Sma.csproj" />
   <Project Path="src/ZettaTrade.Plugins.Wma/ZettaTrade.Plugins.Wma.csproj" />
+  <Project Path="src/ZettaTrade.Soak/ZettaTrade.Soak.csproj" />
   <Project Path="src/ZettaTrade.Strategies/ZettaTrade.Strategies.csproj" />
   <Project Path="src/ZettaTrade.UI/ZettaTrade.UI.csproj" />
   <Folder Name="/tests/">
@@ -24,6 +25,7 @@
     <Project Path="tests/ZettaTrade.Plugins.Broken/ZettaTrade.Plugins.Broken.csproj" />
     <Project Path="tests/ZettaTrade.Plugins.BrokenBase/ZettaTrade.Plugins.BrokenBase.csproj" />
     <Project Path="tests/ZettaTrade.Plugins.SampleStrategy/ZettaTrade.Plugins.SampleStrategy.csproj" />
+    <Project Path="tests/ZettaTrade.Soak.Tests/ZettaTrade.Soak.Tests.csproj" />
     <Project Path="tests/ZettaTrade.Strategies.Tests/ZettaTrade.Strategies.Tests.csproj" />
     <Project Path="tests/ZettaTrade.UI.Tests/ZettaTrade.UI.Tests.csproj" />
   </Folder>

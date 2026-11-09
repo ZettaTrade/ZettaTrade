@@ -1,0 +1,41 @@
+name: soak
+
+# T-109: the multi-hour stability lane. Weekly scheduled 4-hour soak plus a
+# one-shot dispatch for a manual full-length run. The CI lane asserts the
+# MEMORY budgets only (soak-ci-budgets.json keeps the cold start advisory:
+# a runner's cold start is runner-noise, the memory budget is the run's
+# acceptance). The reports land as artifacts; the docs page (docs/SOAK.md)
+# explains how to read them.
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  soak:
+    runs-on: windows-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: dotnet build ZettaTrade.slnx -nodeReuse:false -warnaserror --nologo -v q -clp:NoSummary
+
+      - name: Soak (4 hours on the demo fixtures)
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/soak.ps1 -Minutes 240 -SampleSeconds 30 -OutDir .soak/ci -BudgetsFile scripts/soak-ci-budgets.json
+
+      - name: Upload the soak artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-report
+          path: .soak/ci/
+          if-no-files-found: error

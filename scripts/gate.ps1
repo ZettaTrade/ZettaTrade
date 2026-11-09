@@ -11,6 +11,9 @@
     3. .resx check via scripts/check-resx.ps1 (en/ru key sets in sync + module prefix rule)
     4. Commit message check
     5. dotnet build (warnings as errors), dotnet test, dotnet format --verify-no-changes
+    6. Opt-in budgets (T-109): -Budgets runs scripts/soak.ps1 for
+       -BudgetsSoakMinutes against scripts/soak-budgets.json and fails the
+       gate on any breach (cold start included: the budgets carry targets).
     Prints GATE PASSED only when everything is green, otherwise GATE FAILED.
     Output is deliberately short: it is meant to be read by an LLM (saves tokens).
 
@@ -23,7 +26,9 @@
 param(
     [string]$BaseBranch = 'main',
     [switch]$SkipTests,
-    [switch]$AllowProtected
+    [switch]$AllowProtected,
+    [switch]$Budgets,
+    [int]$BudgetsSoakMinutes = 5
 )
 
 Set-StrictMode -Version Latest
@@ -402,6 +407,34 @@ try {
                     $probs = @(Select-Problems $format.Output ': error ')
                     if ($probs.Count -eq 0) { $probs = @($format.Output | Select-Object -Last 15) }
                     $errors.Add("[FORMAT] dotnet format found issues, run 'dotnet format' (full log: $logFile):`n    " + ($probs -join "`n    "))
+                }
+
+                # ---------------------------------------------------------------- budget gate (T-109, on demand)
+                # Opt-in: -Budgets runs the soak driver for $BudgetsSoakMinutes
+                # against the FULL budgets (cold start enforced per the AGENTS
+                # targets) and fails the gate on any breach. The app was just
+                # built by this gate, so the soak reuses it (SkipBuild).
+                if ($Budgets) {
+                    $psName = $((Get-Process -Id $PID).ProcessName)
+                    Say "[BUDGETS] soak run: $BudgetsSoakMinutes minute(s), full budgets ..."
+                    $soak = Invoke-Tool $psName @(
+                        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $root 'scripts/soak.ps1'),
+                        '-Minutes', "$BudgetsSoakMinutes",
+                        '-SampleSeconds', '10',
+                        '-SkipBuild')
+                    if ($soak.Code -eq 0) {
+                        Say "[BUDGETS] verdict: every budget holds (sample report: $(Join-Path $gitDir 'gate-last.log'))"
+                    }
+                    elseif ($soak.Code -eq 3) {
+                        $probs = @(Select-Problems $soak.Output 'BREACH|BUDGET|COLD START|GC TALLY' 10)
+                        if ($probs.Count -eq 0) { $probs = @($soak.Output | Select-Object -Last 10) }
+                        $errors.Add("[BUDGETS] the budgets are breached (detail in .soak/):`n    " + ($probs -join "`n    "))
+                    }
+                    else {
+                        $probs = @(Select-Problems $soak.Output '\S' 10)
+                        if ($probs.Count -eq 0) { $probs = @($soak.Output | Select-Object -Last 10) }
+                        $errors.Add("[BUDGETS] the soak run itself failed (exit $($soak.Code)):`n    " + ($probs -join "`n    "))
+                    }
                 }
             }
         }
