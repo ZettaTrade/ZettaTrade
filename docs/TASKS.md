@@ -98,7 +98,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-091 Drawing tools: trend line, horizontal level, fib retracement | feat/draw-tools | queued | - |
 | T-092 Standard indicator pack (EMA, RSI, MACD, Bollinger… as bundled plugins) | feat/indicator-pack | done | - |
 | T-093 VWAP + volume profile overlay | feat/vol-vwap | done | - |
-| T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | in-progress | - |
+| T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | done | - |
 | T-095 Global symbol palette (Ctrl+K) across adapters | feat/symbol-palette | done | - |
 | T-096 Price and percent-move alerts with a manager | feat/price-alerts | done | - |
 | T-097 Notification center: toasts, history, DND | feat/notif-center | done | - |
@@ -176,16 +176,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** Charting overlay + tool palette UI, persistence, resx en+ru, tests.
 - **Acceptance:** drawings stay anchored across pan/zoom and reloads (T-033/T-036 lessons respected).
 - **Tests:** coordinate anchoring roundtrip, hit-test/drag golden, persistence reload.
-
-## T-094 — Chart export: PNG snapshot + CSV candles
-
-- **Branch:** feat/chart-export, worktree zt-chart-export, based on develop@67dfbdf (claimed 2026-11-09; queued 2026-11-06 at the T-074…T-115 backlog cut; taken autonomously by the supervisor session right after the T-090 landing, per the user's standing "take the next tasks" directive).
-- **Origin:** sharing charts (reports, chat with T-041's future posts) needs images; exports of a chart are nothing.
-- **What:** a chart menu action rendering the current frame via Skia at a fixed scale with a symbol/timeframe watermark, saving to the user-picked path; the visible-range CSV rides T-084's writer contract.
-- **Scope:** Charting + a menu item, resx en+ru, tests.
-- **Acceptance:** the export matches the on-screen frame (same lens, same annotations state).
-- **Tests:** pixel-diff smoke on a seeded chart, watermark presence, path/error handling.
-- **Status:** in-progress.
 
 ## T-102 — Hotkey manager + cheat sheet overlay
 
