@@ -1,3 +1,30 @@
+## [0.1.0-alpha.83] - 2026-11-09
+
+Build of board task T-140 (branch `feat/review-hygiene`).
+
+### Changed
+- The settings window's four click handlers (save/export/import/factory
+  reset) ride task-based routes subscribed through `Observable.FromAsync`
+  with the errors landing in the Subscribe's onError logging - zero
+  `async void` outside the documented BUG-019 app startup leg. The save
+  route keeps its close-despite-failure semantics, the other three keep
+  their quiet-failure semantics - behavior-preserving by construction.
+- The board/archive prose names no language outside the sanctioned
+  localization surface: the eight user-voice quotes render in English
+  marked "translated from the original", residual mentions in docs,
+  skills and test assertion texts reword into the neutral shape, and the
+  sanctioned facts stay untouched (the language catalog's display names,
+  the en/Russian feature rows, rule 9 and its byte-identical twins, the
+  locale codes).
+
+### Fixed
+- The MCP server host's three registrar methods no longer take the
+  semaphore's synchronous `Wait()`: the tool/resource/prompt registries
+  are concurrent-collection upserts, so a registration can no longer
+  stall behind `StopAsync` while it holds the semaphore across its
+  bounded run-loop wait. The register-before-start contract and every
+  request-handler read keep riding the semaphore exactly as before.
+
 ## [0.1.0-alpha.82] - 2026-11-09
 
 Build of board task T-094 (branch `feat/chart-export`).
