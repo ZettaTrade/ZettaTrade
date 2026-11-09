@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -236,6 +237,9 @@ public class CandlestickChart : Control
     /// <summary>PNG encode quality for the snapshot export (the format's documented lossless top).</summary>
     private const int PngEncodeQuality = 100;
 
+    /// <summary>The reset-and-read counter of render passes (the T-108 HUD's frame tap). Volatile-read/Interlocked discipline: the render thread writes, the HUD's poller reads.</summary>
+    private int _frameTapCount;
+
     #endregion
 
     #region Styled Properties
@@ -247,6 +251,16 @@ public class CandlestickChart : Control
         AvaloniaProperty.Register<CandlestickChart, ObservableCollection<Bar>?>(nameof(Bars));
 
     /// <summary>
+    /// StyledProperty for the performance HUD's frame tap (T-108): true makes
+    /// every render pass count itself, so an attached poller can read the
+    /// chart's frames-per-second. The default false keeps the render pass's
+    /// whole overhead at one property read — no counters, no events, nothing
+    /// to see for a HUD that is off.
+    /// </summary>
+    public static readonly StyledProperty<bool> FrameTapEnabledProperty =
+        AvaloniaProperty.Register<CandlestickChart, bool>(nameof(FrameTapEnabled));
+
+    /// <summary>
     /// Gets or sets the collection of bars to render.
     /// </summary>
     public ObservableCollection<Bar>? Bars
@@ -254,6 +268,27 @@ public class CandlestickChart : Control
         get => GetValue(BarsProperty);
         set => SetValue(BarsProperty, value);
     }
+
+    /// <summary>
+    /// Gets or sets the performance HUD's frame tap (T-108): true counts every
+    /// render pass into a reset-and-read counter (<see cref="TakeFrameTapCount"/>).
+    /// Off (the default) the pass carries no HUD cost at all — the counter
+    /// never moves because the branch never opens.
+    /// </summary>
+    public bool FrameTapEnabled
+    {
+        get => GetValue(FrameTapEnabledProperty);
+        set => SetValue(FrameTapEnabledProperty, value);
+    }
+
+    /// <summary>
+    /// Read and clear the frame-tap counter (the HUD poller's 1 Hz drain):
+    /// the render passes the HUD saw since the previous drain. Off-HUD runs
+    /// never call this, and an on-HUD drain of a quiet chart returns zero —
+    /// both are honest reads.
+    /// </summary>
+    /// <returns>The counted render passes since the last drain.</returns>
+    public int TakeFrameTapCount() => Interlocked.Exchange(ref _frameTapCount, 0);
 
     /// <summary>
     /// StyledProperty for the half-day clock of the time axis.
@@ -784,6 +819,12 @@ public class CandlestickChart : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
+
+        // The T-108 HUD's frame tap: the off-HUD cost of the whole feature is
+        // this one property read (the styled-property cache) — nothing else
+        // in the pass knows the HUD exists.
+        if (FrameTapEnabled)
+            Interlocked.Increment(ref _frameTapCount);
 
         var size = Bounds.Size;
         if (size.Width < 1 || size.Height < 1)

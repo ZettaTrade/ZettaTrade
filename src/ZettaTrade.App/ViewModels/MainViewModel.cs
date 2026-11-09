@@ -54,6 +54,9 @@ public sealed class MainViewModel : ReactiveObject
     /// <summary>The notification toast host (T-097): the top-right stack the center's display lane feeds.</summary>
     public NotificationToastHostViewModel ToastHost { get; }
 
+    /// <summary>The performance HUD overlay (T-108): the dev-mode readout the Help menu's checkbox toggles.</summary>
+    public PerformanceHudViewModel Hud { get; }
+
     /// <summary>
     /// Create a new MainViewModel instance.
     /// </summary>
@@ -70,6 +73,7 @@ public sealed class MainViewModel : ReactiveObject
         WorkspaceLayoutViewModel layout,
         SymbolPaletteViewModel palette,
         NotificationToastHostViewModel toastHost,
+        PerformanceHudViewModel hud,
         ActiveExchangeService activeExchanges,
         ILogger<MainViewModel> logger)
     {
@@ -85,6 +89,7 @@ public sealed class MainViewModel : ReactiveObject
         Layout = layout;
         Palette = palette;
         ToastHost = toastHost;
+        Hud = hud;
         _logger = logger;
 
         // The status chip mirrors the adapter connection state. The Core

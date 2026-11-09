@@ -1617,4 +1617,22 @@ Estimated fee: {7}</value>
   <data name="Menu.Help.LogViewer" xml:space="preserve">
     <value>Open log viewer…</value>
   </data>
+  <data name="Menu.Help.PerformanceHud" xml:space="preserve">
+    <value>Performance HUD</value>
+  </data>
+  <data name="Diagnostics.Hud.Chart" xml:space="preserve">
+    <value>Chart: {0} fps</value>
+  </data>
+  <data name="Diagnostics.Hud.Book" xml:space="preserve">
+    <value>Book: {0} updates/s</value>
+  </data>
+  <data name="Diagnostics.Hud.Memory" xml:space="preserve">
+    <value>Memory: {0} MB</value>
+  </data>
+  <data name="Diagnostics.Hud.Queue" xml:space="preserve">
+    <value>Queue: {0}/{1} {2}</value>
+  </data>
+  <data name="Diagnostics.Hud.Latency" xml:space="preserve">
+    <value>WS: {0}</value>
+  </data>
 </root>

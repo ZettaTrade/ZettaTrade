@@ -144,9 +144,13 @@ public sealed class MenuViewModel : ReactiveObject
     /// <param name="chat">The AI chat ViewModel: the toggle flips its
     /// persisted visibility and the checkable menu item mirrors the applied
     /// state live (the panel state lives where the column binds it).</param>
-    public MenuViewModel(ChatViewModel chat)
+    /// <param name="hud">The performance HUD ViewModel (T-108): the menu's
+    /// checkable item toggles the persisted overlay visibility and mirrors
+    /// the applied state live (the same pattern the chat item keeps).</param>
+    public MenuViewModel(ChatViewModel chat, PerformanceHudViewModel hud)
     {
         _chat = chat;
+        _hud = hud;
 
         OpenSettingsRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
@@ -182,9 +186,17 @@ public sealed class MenuViewModel : ReactiveObject
         // property stream never errors, so a plain Subscribe suffices.
         chat.WhenAnyValue(x => x.IsAiChatVisible)
             .Subscribe(visible => IsAiChatVisible = visible);
+
+        // The HUD item mirrors the overlay state the same way: the command
+        // is the HUD ViewModel's own toggle (the menu only routes the
+        // press), the checkbox reads the applied visibility OneWay.
+        hud.WhenAnyValue(x => x.IsVisible)
+            .Subscribe(visible => IsHudVisible = visible);
     }
 
     private readonly ChatViewModel _chat;
+
+    private readonly PerformanceHudViewModel _hud;
 
     private bool _isAiChatVisible = UiSettingsKeys.DefaultShowAiPanel;
 
@@ -198,6 +210,25 @@ public sealed class MenuViewModel : ReactiveObject
         get => _isAiChatVisible;
         private set => this.RaiseAndSetIfChanged(ref _isAiChatVisible, value);
     }
+
+    private bool _isHudVisible = UiSettingsKeys.DefaultHudEnabled;
+
+    /// <summary>
+    /// Checkable mirror of the performance HUD overlay visibility (T-108)
+    /// for the menu item; driven by the HUD ViewModel the same OneWay way.
+    /// </summary>
+    public bool IsHudVisible
+    {
+        get => _isHudVisible;
+        private set => this.RaiseAndSetIfChanged(ref _isHudVisible, value);
+    }
+
+    /// <summary>
+    /// Toggle the performance HUD overlay (T-108): the command is the HUD
+    /// ViewModel's own toggle — the menu item only routes the press to it,
+    /// the persistence lives where the visibility does.
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleHudCommand => _hud.ToggleCommand;
 
     #endregion Constructor
 

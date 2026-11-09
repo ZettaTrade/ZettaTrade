@@ -43,6 +43,12 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     {
         base.OnOpened(e);
 
+        // The performance HUD's chart tap (T-108): the window owns the named
+        // control, so the drain rides here — one assignment at the open. The
+        // tap counts nothing until the HUD's visibility opens the chart's
+        // FrameTapEnabled branch (the styled binding to Hud.IsVisible).
+        ViewModel?.Hud.AttachChartFrames(() => CandlesChart.TakeFrameTapCount());
+
         // The main window opens once per application lifetime, so the handler
         // registration lives for the rest of it — no subscription disposal here.
         ViewModel?.Menu.OpenSettingsRequested.RegisterHandler(OpenSettingsAsync);

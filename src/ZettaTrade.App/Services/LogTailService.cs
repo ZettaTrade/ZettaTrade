@@ -174,6 +174,13 @@ public sealed partial class LogTailService : IAsyncInitializable, IDisposable
             SingleReader = true,
         });
 
+    /// <summary>
+    /// The backpressure leg's queued depth right now (T-108's HUD gauge):
+    /// the bounded channel's own count. A steadily growing backlog means the
+    /// log producer outruns the tail reader.
+    /// </summary>
+    public int BackpressureBacklog => _channel.Reader.Count;
+
     /// <summary>The guard around history reads (no bare lock in async code).</summary>
     private readonly SemaphoreSlim _historyGuard = new(1, 1);
 

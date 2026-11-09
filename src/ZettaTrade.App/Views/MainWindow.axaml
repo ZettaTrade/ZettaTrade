@@ -74,6 +74,14 @@
                  discoverable after the acknowledgment lives in the settings. -->
             <MenuItem Header="{loc:Localized Menu.Help}">
                 <MenuItem Header="{loc:Localized Menu.Help.LogViewer}" Command="{Binding ShowLogViewerCommand}" />
+                <!-- The performance HUD (T-108): the checkable dev-mode
+                     readout (chart fps, book rate and latency, memory,
+                     backpressure gauge) — off by default, the flip
+                     persists into Diagnostics.HudEnabled. -->
+                <MenuItem Header="{loc:Localized Menu.Help.PerformanceHud}"
+                          Command="{Binding ToggleHudCommand}"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding IsHudVisible, Mode=OneWay}" />
                 <Separator />
                 <MenuItem Header="{loc:Localized Menu.Help.AboutDisclaimer}" Command="{Binding ShowDisclaimerCommand}" />
             </MenuItem>
@@ -544,7 +552,8 @@
                                                        SignalMarkers="{Binding SignalMarkers}"
                                                        TradingPosition="{Binding TradingPosition}"
                                                        TradingOrders="{Binding TradingOrders}"
-                                                       TradingFills="{Binding TradingFills}" />
+                                                       TradingFills="{Binding TradingFills}"
+                                                       FrameTapEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).Hud.IsVisible}" />
                                                         <!-- T-122: the trading footprint — my own position entry, working orders and fills, overlay-only (nothing routes back toward an order). -->
 
                             <!-- Signal rail (T-112): the latest strategy readings
@@ -864,5 +873,39 @@
                 </Border>
             </Panel>
         </Grid>
+
+        <!-- The performance HUD (T-108): a dev-mode readout floating over
+             the workspace's top-right corner, a sibling of the palette
+             overlay so it rides on top of every panel too. Off by default
+             (Diagnostics.HudEnabled); the Help menu's checkbox owns the
+             flip, the sampler runs only while the overlay shows, and the
+             off state leaves the frame pass its one property read — no
+             subscriptions, no timers, nothing to see. The lines re-format
+             at the sampler's own 1 Hz cadence; the readout digits ride a
+             monospaced stack so the numbers hold their columns. -->
+        <Panel x:Name="HudOverlay"
+               IsVisible="{Binding Hud.IsVisible}"
+               HorizontalAlignment="Right"
+               VerticalAlignment="Top"
+               Margin="0,52,12,0">
+            <Border Background="{DynamicResource Surface}"
+                    BorderBrush="{DynamicResource Border}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12,9"
+                    ClipToBounds="True"
+                    BoxShadow="0 4 16 0 #40000000">
+                <ItemsControl ItemsSource="{Binding Hud.Lines}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+                                       FontSize="11.5"
+                                       Foreground="{DynamicResource TextPrimary}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+        </Panel>
     </Grid>
 </Window>
