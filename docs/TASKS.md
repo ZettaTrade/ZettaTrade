@@ -247,7 +247,7 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** every advertised control is reachable and named without a mouse.
 - **Tests:** name/role assertions, focus-order golden.
 
-## T-1117 — Secret scanner: gitleaks in CI + one-shot full-history audit
+## T-117 — Secret scanner: gitleaks in CI + one-shot full-history audit
 
 - **Branch:** feat/secret-scanner (base `develop` at `e2d1ac5`; developed 2026-11-06).
 - **Origin:** an open-source terminal makes the repo the trust surface: the repo carries an `origin` remote and ships harder, but there is no CI or scanning at all (no `.github`). A quick regex probe of HEAD (sk-/AKIA/ghp_/AIza/PEM markers) is clean, though the 260-commit history has never been machine-audited.
@@ -266,15 +266,6 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** every claim matches shipped features only (no promises beyond testnet/documentable paths).
 - **Tests:** none (docs), a words-only review.
 - **Status:** done. Docs-only (no version bump, no CHANGELOG section). Canon: the branch carries `577fd42` — the rewritten top-level README with the trading-safety guidance front and center: explicit alpha status, user-scoped key hygiene (read-only for market data, trade-only for trading, withdrawal/transfer off, IP allowlist where offered), testnet-first instructions tied to the configurable `Exchange` endpoint section and the paper-trading/risk/confirmation surfaces, the per-machine `ISecretStore` storage path, and the investment-disclaimer block; the docs-site instructions stay subordinated under a dedicated heading; `docs/SECURITY.md` is referenced as a link only (created by the sibling task T-117). Gate passed; this board-flip commit closes the section.
-
-## T-123 - Trading-mode chip: paper/testnet/live always visible
-
-- **Branch:** queued 2026-11-06 (functional presentation gap).
-- **Origin:** the credibility instant: paper/testnet/live must read at one glance from anywhere. The state currently lives in dialogs and the T-127's per-panel badge plan; the safety posture the docs promise (T-117/T-119) deserves a visible seat.
-- **What:** a prominent chip in the shell showing the ACTIVE trading lane of the workspace's traded adapter: PAPER (demo/paper), TESTNET (via the T-015 endpoint identity), LIVE (anything else) with per-state colors (calm/prompt/danger). Level flips ride the reactive settings stream; switching INTO live requires a `IConfirmationService` prompt on the flip itself. When detachable windows arrive (T-103), the chip propagates to every window.
-- **Scope:** a mode service in App + the chip view in the shells, resx en+ru, tests.
-- **Acceptance:** there is no state where a real-money lane is indistinguishable from paper; the flip-to-live is always a confirmed event; the chip is present in every window context.
-- **Tests:** the mode-mapping matrix (demo/testnet/live by endpoint identity), the flip confirmation gate, multi-window propagation.
 
 ## T-124 — Symbol compare: a second series overlaid on the chart
 
