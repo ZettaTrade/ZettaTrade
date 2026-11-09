@@ -125,7 +125,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-118 Trading-safety guidance in the README: read-only keys, IP restriction, no-withdrawal, testnet-first | feat/safety-readme | done | - |
 | T-119 First-run disclaimer in the UI («not investment advice») + the explicit alpha posture | feat/first-run-disclaimer | done | - |
 | T-120 Streaming watchlist panel: live quotes, 24h change, sparklines | feat/watchlist | done | - |
-| T-121 Market heatmap: top pairs as change-colored tiles | feat/heatmap | in-progress | - |
+| T-121 Market heatmap: top pairs as change-colored tiles | feat/heatmap | done | - |
 | T-122 My footprint on the chart: position lines + working-order markers | feat/chart-mine | done | - |
 | T-123 Trading-mode chip: paper/testnet/live always visible | feat/trading-mode-chip | done | - |
 | T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | queued | - |
@@ -266,16 +266,6 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** every claim matches shipped features only (no promises beyond testnet/documentable paths).
 - **Tests:** none (docs), a words-only review.
 - **Status:** done. Docs-only (no version bump, no CHANGELOG section). Canon: the branch carries `577fd42` — the rewritten top-level README with the trading-safety guidance front and center: explicit alpha status, user-scoped key hygiene (read-only for market data, trade-only for trading, withdrawal/transfer off, IP allowlist where offered), testnet-first instructions tied to the configurable `Exchange` endpoint section and the paper-trading/risk/confirmation surfaces, the per-machine `ISecretStore` storage path, and the investment-disclaimer block; the docs-site instructions stay subordinated under a dedicated heading; `docs/SECURITY.md` is referenced as a link only (created by the sibling task T-117). Gate passed; this board-flip commit closes the section.
-
-## T-121 — Market heatmap: top pairs as change-colored tiles
-
-- **Branch:** feat/heatmap, worktree zt-heatmap, based on develop@0823719 (claimed 2026-11-09; queued 2026-11-06 (functional presentation gap)).
-- **Origin:** the whole-market view at a glance — the instant-credibility visual of every retail terminal; there is nothing like it here.
-- **What:** a heatmap panel of the adapter's top pairs (ranked by quote volume): a Skia treemap where tile size maps to the rank metric and tile color maps to the 24h change via the buy/sell palette keys; live recolor on ticker deltas; a click routes the workspace symbol; the metric switch (volume vs anything else the venue provides) appears only when the data exists — nothing fabricated for missing feeds.
-- **Scope:** treemap renderer in Charting, a ticker aggregation service, panel composition, resx en+ru, tests.
-- **Acceptance:** 30+ tiles hold 60 fps; color scale endpoints are pinned; a click routes the workspace symbol.
-- **Tests:** treemap layout golden under rapid updates, color-mapping goldens, perf budget, empty-feed state.
-- **Status:** in-progress.
 
 ## T-123 - Trading-mode chip: paper/testnet/live always visible
 
