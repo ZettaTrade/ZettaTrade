@@ -33,18 +33,18 @@ public partial class SettingsWindow : ReactiveWindow<SettingsViewModel>
         InitializeComponent();
     }
 
-    private async void OnSaveClick(object? sender, RoutedEventArgs e)
+    private void OnSaveClick(object? sender, RoutedEventArgs e) =>
+        Observable
+            .FromAsync(SaveRouteAsync)
+            .Subscribe(
+                _ => { },
+                ex => Log.Error(ex, "Failed to save settings"));
+
+    private async Task SaveRouteAsync()
     {
-        try
+        if (ViewModel is not null)
         {
-            if (ViewModel is not null)
-            {
-                await ViewModel.SaveAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Failed to save settings");
+            await ViewModel.SaveAsync();
         }
 
         // Saved (or failed-and-logged): the user's intent was to leave the dialog.
@@ -82,65 +82,65 @@ public partial class SettingsWindow : ReactiveWindow<SettingsViewModel>
         await dialog.ShowDialog(owner!);
     }
 
-    private async void OnExportClick(object? sender, RoutedEventArgs e)
+    private void OnExportClick(object? sender, RoutedEventArgs e) =>
+        Observable
+            .FromAsync(ExportRouteAsync)
+            .Subscribe(
+                _ => { },
+                ex => Log.Error(ex, "Failed to export the settings"));
+
+    private async Task ExportRouteAsync()
     {
         if (ViewModel?.IsPortAvailable != true)
         {
             return;
         }
 
-        try
+        var destination = await SettingsPortFilePicker.PickSaveAsync(this, ExportSuggestedFileName);
+        if (destination is not null)
         {
-            var destination = await SettingsPortFilePicker.PickSaveAsync(this, ExportSuggestedFileName);
-            if (destination is not null)
-            {
-                await ViewModel.ExportToFileAsync(destination);
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Failed to export the settings");
+            await ViewModel.ExportToFileAsync(destination);
         }
     }
 
-    private async void OnImportClick(object? sender, RoutedEventArgs e)
+    private void OnImportClick(object? sender, RoutedEventArgs e) =>
+        Observable
+            .FromAsync(ImportRouteAsync)
+            .Subscribe(
+                _ => { },
+                ex => Log.Error(ex, "Failed to read the file the import picked"));
+
+    private async Task ImportRouteAsync()
     {
         if (ViewModel?.IsPortAvailable != true)
         {
             return;
         }
 
-        try
+        var source = await SettingsPortFilePicker.PickOpenAsync(this);
+        if (source is null)
         {
-            var source = await SettingsPortFilePicker.PickOpenAsync(this);
-            if (source is null)
-            {
-                return;
-            }
+            return;
+        }
 
-            var jsonText = await File.ReadAllTextAsync(source);
-            await ViewModel.DraftImportAsync(jsonText);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Failed to read the file the import picked");
-        }
+        var jsonText = await File.ReadAllTextAsync(source);
+        await ViewModel.DraftImportAsync(jsonText);
     }
 
-    private async void OnResetClick(object? sender, RoutedEventArgs e)
+    private void OnResetClick(object? sender, RoutedEventArgs e) =>
+        Observable
+            .FromAsync(ResetRouteAsync)
+            .Subscribe(
+                _ => { },
+                ex => Log.Error(ex, "Failed to run the factory reset"));
+
+    private async Task ResetRouteAsync()
     {
         if (ViewModel?.IsPortAvailable != true)
         {
             return;
         }
 
-        try
-        {
-            await ViewModel.ResetToDefaultsAsync();
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Failed to run the factory reset");
-        }
+        await ViewModel.ResetToDefaultsAsync();
     }
 }
