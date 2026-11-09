@@ -112,7 +112,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-105 Reconnect policy hardening: backoff, jitter, watchdog | feat/reconnect-policy | done | - |
 | T-106 Exchange rate limiter with per-endpoint budgets | feat/rate-limiter | done | - |
 | T-107 Adapter conformance test kit (shared battery) | feat/adapter-kit | done | - |
-| T-108 Performance HUD overlay (fps, memory, WS latency) | feat/perf-hud | queued | - |
+| T-108 Performance HUD overlay (fps, memory, WS latency) | feat/perf-hud | in-progress | - |
 | T-109 Soak harness and budget gates (cold start < 3 s, memory < 500 MB) | feat/soak | queued | - |
 | T-110 Accessibility pass (keyboard, automation peers, contrast) | feat/a11y | queued | - |
 | T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | done | - |
@@ -198,12 +198,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-108 — Performance HUD overlay (fps, memory, WS latency)
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/perf-hud, worktree zt-perf-hud, based on develop@32d9457 (claimed 2026-11-09; queued 2026-11-06 at the T-074…T-115 backlog cut; taken autonomously by the supervisor session right after the T-094 landing, per the user's standing "take the next tasks" directive).
 - **Origin:** the AGENTS targets (60 fps book, <1 ms WS, <500 MB) have no visible instrument; nothing guards them day-to-day.
 - **What:** a dev-mode overlay showing chart/book fps, working memory, WS latency histogram and channel backpressure bírd gauges; off by default, settings-driven, zero allocation when off (no subscriptions, no timers).
 - **Scope:** a HUD service + overlay, `Diagnostics.*` settings keys, resx en+ru, tests.
 - **Acceptance:** the HUD's own cost is in the noise when running; off-state leaves zero traces.
 - **Tests:** the gauge math golden, the off-state zero-cost assertion.
+- **Status:** in-progress.
 
 ## T-109 — Soak harness and budget gates (cold start < 3 s, memory < 500 MB)
 
