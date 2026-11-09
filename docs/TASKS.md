@@ -114,7 +114,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-107 Adapter conformance test kit (shared battery) | feat/adapter-kit | done | - |
 | T-108 Performance HUD overlay (fps, memory, WS latency) | feat/perf-hud | done | - |
 | T-109 Soak harness and budget gates (cold start < 3 s, memory < 500 MB) | feat/soak | queued | - |
-| T-110 Accessibility pass (keyboard, automation peers, contrast) | feat/a11y | queued | - |
+| T-110 Accessibility pass (keyboard, automation peers, contrast) | feat/a11y | in-progress | - |
 | T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | done | - |
 | T-112 Signal markers on the chart + signal rail | feat/signal-markers | done | - |
 | T-113 Backtest harness over stored candles | feat/backtest | done | T-111 + T-085 |
@@ -196,9 +196,9 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** a 4-hour soak on the fixtures finishes within memory budget; budget gates run in gate on demand.
 - **Tests:** the harness itself plus the budget assertions' goldens.
 
-## T-110 — Accessibility pass (keyboard, automation peers, contrast)
+## T-110 - Accessibility pass (keyboard, automation peers, contrast)
 
-- **Branch:** queued 2026-11-06 (supervisor idea at the T-074…T-115 backlog cut).
+- **Branch:** feat/a11y, worktree zt-a11y, based on develop@33ebd26 (claimed 2026-11-10 per standing directive 6; queued 2026-11-06 at the T-074…T-115 backlog cut).
 - **Origin:** canvas-heavy UI (Skia charts, book) is opaque to assistive tech by default; keyboard reachability is un-audited.
 - **What:** full keyboard reachability for tabs/panels/controls, automation peers (name/role) for canvas widgets, contrast fixes against both palettes, visible focus indicators; an audit checklist recorded in docs.
 - **Scope:** UI across views, chart/book peer shims, docs checklist, tests.
