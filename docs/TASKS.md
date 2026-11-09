@@ -131,7 +131,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-124 Symbol compare: a second series overlaid on the chart | feat/chart-compare | queued | - |
 | T-125 Delivery pipeline: CI builds + GitHub Releases (Win/macOS/Linux) | feat/release-pipeline | done | - |
 | T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | done | T-125 |
-| T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | in-progress | - |
+| T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | done | - |
 | T-128 Demo video: storyboard + shot list (docs/ops) | feat/demo-script | done | - |
 | T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | queued | T-126 |
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
@@ -275,15 +275,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the multi-series renderer in Charting, chart VM wiring, resx en+ru, tests.
 - **Acceptance:** the overlay holds under churn; removal restores the single-series rendering bit-exact; axis invariants (T-035/T-037 canon) never break with two series.
 - **Tests:** multi-series render golden, percent-rebasing goldens, the removal-restore identity, the axis invariants.
-
-## T-127 — Live testnet trading loop: a real limit order end-to-end (Bybit testnet)
-
-- **Branch:** feat/testnet-trading, worktree `zt-testnet-trading`, based on develop@80fe7af (claimed 2026-11-09; queued 2026-11-06 — presentation-track gap, supervisor idea at the monetization review).
-- **Origin:** the demo credibility wall: orders/positions today live in the paper/demo lane only; the "this is a real terminal" moment requires the full order lifecycle over a real venue in testnet mode. Bybit market data already streams (T-023); the trading path does not exist beyond paper.
-- **What:** the trading seam over Bybit testnet: the endpoint from the T-015 registry (testnet), credentials from `ISecretStore` (stdin path — never argv, never in CI), LIMIT orders with the full lifecycle mapping (submit → working → fill/partial → cancel), rejects surfaced as errors under the rejected-not-default contract, `IRiskManager` + `IConfirmationService` wired identically to the paper lane — no separate testnet shortcuts. The UI carries an unmistakable TESTNET badge on the ticket, positions and history whenever a testnet endpoint is active. `Core` changes only if the mapping demands an additive surface — supervisor-gated at review.
-- **Scope:** Infrastructure (Bybit trading client over the testnet REST/WS shapes), ticket flow + status mapping, `Exchange.*` settings keys, resx en+ru for the badge/labels, tests.
-- **Acceptance:** on a testnet account, a limit order rides place → accepted → (partial) fill → cancel with correct statuses in history; invalid symbol/side/testnet-auth failures return errors; the badge shows on every surfaced order state; the demo lane (paper) behaves bit-identically.
-- **Tests:** loopback mock-server tests for the testnet HTTP/WS shapes (the T-020/T-052 transport canon), risk/confirmation wiring tests, negative paths (auth, invalid symbol/side, malformed response), plus one manual live confirmation on the operator's testnet account (never real keys in CI or captures).
 
 ## T-129 — Alpha program: testers onboarding, feedback triage, public metrics
 

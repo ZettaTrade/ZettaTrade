@@ -1608,6 +1608,46 @@ the board and its section below.
     inter-sibling docs links (the landing ↔ `docs/ALPHA-PROGRAM.md`) arrive
     with T-129. Docs-only: no alpha bump, no CHANGELOG section.
 
+## T-127 — Live testnet trading loop: a real limit order end-to-end (Bybit testnet)
+
+- **Branch:** feat/testnet-trading, worktree `zt-testnet-trading`, based on develop@80fe7af (claimed 2026-11-09; queued 2026-11-06 — presentation-track gap, supervisor idea at the monetization review).
+- **Origin:** the demo credibility wall: orders/positions today live in the paper/demo lane only; the "this is a real terminal" moment requires the full order lifecycle over a real venue in testnet mode. Bybit market data already streams (T-023); the trading path does not exist beyond paper.
+- **What:** the trading seam over Bybit testnet: the endpoint from the T-015 registry (testnet), credentials from `ISecretStore` (stdin path — never argv, never in CI), LIMIT orders with the full lifecycle mapping (submit → working → fill/partial → cancel), rejects surfaced as errors under the rejected-not-default contract, `IRiskManager` + `IConfirmationService` wired identically to the paper lane — no separate testnet shortcuts. The UI carries an unmistakable TESTNET badge on the ticket, positions and history whenever a testnet endpoint is active. `Core` changes only if the mapping demands an additive surface — supervisor-gated at review.
+- **Scope:** Infrastructure (Bybit trading client over the testnet REST/WS shapes), ticket flow + status mapping, `Exchange.*` settings keys, resx en+ru for the badge/labels, tests.
+- **Acceptance:** on a testnet account, a limit order rides place → accepted → (partial) fill → cancel with correct statuses in history; invalid symbol/side/testnet-auth failures return errors; the badge shows on every surfaced order state; the demo lane (paper) behaves bit-identically.
+- **Tests:** loopback mock-server tests for the testnet HTTP/WS shapes (the T-020/T-052 transport canon), risk/confirmation wiring tests, negative paths (auth, invalid symbol/side, malformed response), plus one manual live confirmation on the operator's testnet account (never real keys in CI or captures).
+- **Status:** done. Canon: the branch carries `994945f` (the board claim) and
+  `93e9994` (the feat: the delegating traded surface — the shipped default
+  stays the paper lane bit-identical, the Bybit testnet venue arms only when
+  the toolbar pick, the endpoint record's testnet flag and the
+  `Exchange/TestnetTradingEnabled` toggle arm TOGETHER (default off); the v5
+  signed REST + private-stream adapter — LIMIT-GTC spot only, the strict
+  lifecycle map, venue rejects and unmappable rows surfaced as errors, never
+  defaults, credentials only from `ISecretStore` per operation; the venue
+  order ledger upserting every transition into the persistent journal; the
+  TESTNET badge on the ticket, history and positions panels, the
+  `Exchange.*` keys in en+ru); shipped as `0.1.0-alpha.79`. The suite: 44
+  new tests, all green (13 App: the three-gate matrix, the live
+  toggle/picker flips, the unparsable-toggle failsafe, the ledger's ordered
+  upsert + fault tolerance, the mode-service flip re-resolution; 31
+  Infrastructure: the status-map matrix, the signed-request shape, the
+  family gates, the negative paths (auth, invalid symbol/side, malformed
+  response), the loopback private-stream e2e with the reconnect re-auth).
+  - Operator-pending, on purpose: the MANUAL live confirmation on the
+    operator's own testnet account (a real limit order place → accepted →
+    (partial) fill → cancel with the statuses visible in history) is NOT
+    assumed done — it rides the operator's next testnet session. The
+    loopback e2e covers the wire shapes; it never stands in for the live
+    venue.
+  - Core untouched: the mapping needed no additive surface (the strict
+    mapper lives in Infrastructure); `IRiskManager`/`IConfirmationService`
+    stayed the unchanged upstream pipeline for every placement.
+  - Accepted supervisor verdict: `scripts/check-resx.ps1` carries ONE
+    additive line — `'Exchange.'` joined to the module-prefix list — the
+    localization linter list lacked the module prefix AGENTS.md's own
+    localization rules sanction (`Exchange.*`); the acceptance rode the
+    feat commit.
+
 ## T-128 — Demo video: storyboard + shot list (docs/ops)
 
 - **Branch:** feat/demo-script, worktree `zt-demo-script`, based on develop@0823719 (claimed 2026-11-09).
