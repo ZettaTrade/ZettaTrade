@@ -2,6 +2,7 @@ namespace ZettaTrade.App.ViewModels;
 
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Livery.Contracts;
@@ -117,6 +118,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>The file name the save dialog pre-fills for the candles export.</summary>
     private const string CandlesCsvFileName = "candles.csv";
+
+    /// <summary>The file name the save dialog pre-fills for the visible-range candles export (T-094).</summary>
+    private const string VisibleCandlesCsvFileName = "candles-visible.csv";
 
     /// <summary>The resx key of the candles export fault line.</summary>
     private const string ExportFailedKey = "Chart.ExportFailed";
@@ -668,6 +672,31 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>Asks the view for the candles CSV destination (a save-file dialog); null cancels.</summary>
     public Interaction<string, string?> SaveCandlesCsvRequested { get; }
 
+    /// <summary>
+    /// Exports the current chart frame as a PNG snapshot (T-094): the view
+    /// renders the frame through the chart control at a fixed scale with the
+    /// symbol/timeframe watermark, to the user-picked path.
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> ExportPngCommand { get; }
+
+    /// <summary>
+    /// Asks the view for the PNG destination AND the render itself (the
+    /// chart control is view state): the request carries the suggested file
+    /// name and the watermark, a null output is the user cancelling, a
+    /// render or write fault propagates to the flow's catch.
+    /// </summary>
+    public Interaction<PngExportRequest, string?> ExportPngRequested { get; }
+
+    /// <summary>Exports exactly the visible candle range as a CSV file (T-094).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ExportVisibleCandlesCommand { get; }
+
+    /// <summary>
+    /// Asks the view for the visible-range CSV destination and the chart's
+    /// visible slice (both view state): the output is the handoff, null
+    /// cancels.
+    /// </summary>
+    public Interaction<string, VisibleCsvHandoff?> ExportVisibleCsvRequested { get; }
+
     /// <summary>The toolbar toggle: show or hide the session VWAP overlay (T-093).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleVwapCommand { get; }
 
@@ -1095,6 +1124,10 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
         ExportCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportCandlesAsync);
         SaveCandlesCsvRequested = new Interaction<string, string?>();
+        ExportPngCommand = ReactiveCommand.CreateFromTask(HandleExportPngAsync);
+        ExportPngRequested = new Interaction<PngExportRequest, string?>();
+        ExportVisibleCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportVisibleCandlesAsync);
+        ExportVisibleCsvRequested = new Interaction<string, VisibleCsvHandoff?>();
         ToggleVwapCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVwap = !ShowVwap; });
         ToggleVolumeProfileCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVolumeProfile = !ShowVolumeProfile; });
 
@@ -2745,6 +2778,122 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     #endregion Candle Export
+
+    #region Snapshot & Visible-Range Export (T-094)
+
+    /// <summary>
+    /// One PNG-snapshot flow: clear the previous error line first, build the
+    /// request (the suggested file name and the watermark off the workspace
+    /// symbol and the standing time frame), then hand the view the render —
+    /// the window picks the destination and writes the file through the
+    /// chart control (picking and rendering are view behavior), a null
+    /// destination is the user cancelling the dialog (not an error, nothing
+    /// is written), and a render or write fault surfaces on the chart
+    /// panel's own error line, localized.
+    /// </summary>
+    private async Task HandleExportPngAsync(CancellationToken cancellationToken)
+    {
+        ErrorMessage = null;
+
+        // No workspace symbol — no context to stamp: a pick without an
+        // address exports nothing (the transient-pick rule the persistence
+        // keeps), and stays quiet.
+        if (SelectedSymbol is not { } symbol)
+        {
+            _logger.LogInformation(
+                "Chart panel: PNG snapshot export skipped — no workspace symbol stands");
+            return;
+        }
+
+        try
+        {
+            var request = new PngExportRequest(
+                PngFileName(symbol.Normalized, SelectedTimeFrame, DateTimeOffset.Now),
+                PngWatermark(symbol.Normalized, SelectedTimeFrame));
+
+            var path = await ExportPngRequested.Handle(request);
+            if (path is null)
+            {
+                _logger.LogInformation(
+                    "Chart panel: PNG snapshot export ended on a cancelled save dialog");
+                return;
+            }
+
+            _logger.LogInformation(
+                "Chart panel: exported the PNG snapshot to {Path}",
+                path);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Chart panel: PNG snapshot export failed");
+            ErrorMessage = _localization.GetString(ExportFailedKey, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// One visible-range candles flow: clear the previous error line first,
+    /// ask the view for the destination and the chart's own visible slice
+    /// (the handoff), then stream that slice through the shared CSV writer —
+    /// the file carries exactly the bars the frame paints, never the whole
+    /// loaded series. A null handoff is the user cancelling the dialog (not
+    /// an error, nothing is written), a write fault surfaces on the chart
+    /// panel's own error line, localized.
+    /// </summary>
+    private async Task HandleExportVisibleCandlesAsync(CancellationToken cancellationToken)
+    {
+        ErrorMessage = null;
+
+        try
+        {
+            var handoff = await ExportVisibleCsvRequested.Handle(VisibleCandlesCsvFileName);
+            if (handoff is null)
+            {
+                _logger.LogInformation(
+                    "Chart panel: the visible-range candles export ended on a cancelled save dialog");
+                return;
+            }
+
+            await _export.ExportCandlesAsync(handoff.Path, handoff.Bars, cancellationToken);
+            _logger.LogInformation(
+                "Chart panel: exported {Count} visible candles to {Path}",
+                handoff.Bars.Count,
+                handoff.Path);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Chart panel: the visible-range candles export failed");
+            ErrorMessage = _localization.GetString(ExportFailedKey, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// The suggested PNG file name: the symbol's name made file-safe (the
+    /// workspace symbols' slash separator becomes an underscore, any other
+    /// filename-hostile character too), the time frame's name, a UTC
+    /// timestamp to the second, the extension. Culture-invariant — the file
+    /// name is data, never a localized string.
+    /// </summary>
+    internal static string PngFileName(
+        string symbol,
+        TimeFrame timeFrame,
+        DateTimeOffset timestamp)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var safeSymbol = string.Concat(symbol.Select(ch => invalidChars.Contains(ch) ? '_' : ch));
+
+        return $"{safeSymbol}_{timeFrame}_{timestamp.ToUniversalTime():yyyyMMdd_HHmmss}.png";
+    }
+
+    /// <summary>
+    /// The snapshot watermark: the symbol and the time frame read together.
+    /// The middot is a typographic glyph joining two data values (the same
+    /// composition discipline the axis ticks keep — the watermark is data,
+    /// not prose, so it carries no resx entry).
+    /// </summary>
+    internal static string PngWatermark(string symbol, TimeFrame timeFrame) =>
+        $"{symbol} · {timeFrame}";
+
+    #endregion Snapshot & Visible-Range Export (T-094)
 
     #region Older History Paging
 

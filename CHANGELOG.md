@@ -1,3 +1,26 @@
+## [0.1.0-alpha.82] - 2026-11-09
+
+Build of board task T-094 (branch `feat/chart-export`).
+
+### Added
+- The chart's PNG snapshot export (T-094): the toolbar's PNG button renders
+  the CURRENT frame - the exact snapshot the screen paints, same lens and
+  annotations state - at a fixed 2x supersampling scale through the SAME
+  Skia draw operation the on-screen render runs (one renderer, one
+  snapshot: the acceptance holds by construction), stamps a translucent
+  watermark (symbol, time frame) over the bottom-right corner and saves to
+  the user-picked path. The suggested file name carries the file-safe
+  symbol, the time frame and a UTC timestamp; the render fault or write
+  fault surfaces on the chart panel's own error line, and a cancelled
+  dialog exports nothing.
+- The visible-range candles CSV: the second CSV button exports EXACTLY the
+  bars the chart's frame paints - the control's new `VisibleBarsSlice`
+  (the pan window resolved over the loaded series), handed to the
+  ViewModel through the view and streamed through the shared
+  `ICsvExportService` writer contract - never the whole loaded series by
+  accident.
+- The view-side save dialog generalized to one `SaveFilePicker` (the CSV
+  flows keep their shape; the PNG flow rides the same discipline).
 ## [0.1.0-alpha.81] - 2026-11-09
 
 Build of board task T-090 (branch `feat/chart-scales`).

@@ -24,6 +24,13 @@
     <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
   </ItemGroup>
 
+  <!-- The test project pins the chart control's internal render seam (the
+       snapshot export's payload): the App test project exercises it
+       marshaled through the dispatcher. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ZettaTrade.App.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Update="Resources\Strings.Designer.cs">
       <DesignTime>True</DesignTime>
