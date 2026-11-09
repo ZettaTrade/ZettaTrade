@@ -33,3 +33,6 @@ secrets.enc.salt
 
 ## Test artifacts
 TestResults/
+
+## Soak reports (T-109): the harness output is evidence, not repo content
+.soak/

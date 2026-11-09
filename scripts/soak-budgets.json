@@ -1,0 +1,5 @@
+{
+  "ColdStartMs": 3000,
+  "MemoryMeanMb": 400,
+  "MemoryPeakMb": 500
+}
