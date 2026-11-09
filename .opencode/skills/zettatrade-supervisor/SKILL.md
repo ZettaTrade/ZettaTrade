@@ -286,40 +286,31 @@ When starting (or resuming) in supervisor mode:
 
 ## Turn hygiene and wedge watching (user, 2026-11-10)
 
-The user issued both rules after one night's proof points: a 48-minute idle
-wait trusting a completion notification that masked a wedged testhost, and a
-session that ended mid-task with nothing in flight and slept until poked.
-Binding as standing policy until retracted:
+Issued after two proof points: 48 idle minutes trusting a completion
+notification that masked a wedged testhost, and a session that ended
+mid-task with nothing in flight. Binding until retracted:
 
 - Long background jobs (test suites, gates, certification loops): ONE run
-  per shell invocation, and check on the running shell at least once every
-  ~5 minutes that it has not wedged (read its output, check the processes)
-  — a hung process never completes, and trusting the completion
-  notification alone once cost 48 idle minutes (a wedged testhost).
-  Checking is witnessing, not killing: act on evidence, never on a
-  schedule. Make each run self-diagnosing: the authoritative record in a
-  TRX file, `--blame-hang` with a timeout so a wedge produces a dump and
-  names the hung test instead of silently eating the budget. NEVER rely on
-  the completion notification as the liveness proof: when a background job
-  is the only thing in flight, arm a foreground witness timer (sleep the
-  deadline plus a margin, then inspect) — the timer returns even when the
-  job wedged, so a wedge costs minutes, never an idle gap. A HUNG verdict
-  is an infra verdict, not a content verdict: kill the wedged process
-  tree, read the blame dump, retry ONCE; two consecutive hangs on the same
-  harness = change the harness shape (logger verbosity, redirection mode,
-  one run per shell) before continuing.
-- Turn hygiene for autonomous work: end a turn ONLY at a real checkpoint —
-  the work is complete, a decision needs the human, or a resumable
-  background job is in flight (its completion resumes the session). Never
-  end mid-task with nothing in flight: the session stays asleep until
-  poked, and that cost a user nudge. For solo waits prefer a FOREGROUND
-  call with an explicit timeout just above the expected duration — a
-  timeout converts a wedge into a verdict; keep the background lane for
-  work that proceeds while you edit. To keep a long implementation moving,
-  keep exactly one verifiable step in flight whose completion resumes the
-  session (a build, a test run), and edit the next chunk while it runs.
-  Before the first invocation of any script, read its parameters — a
-  missed flag burns a run (the `-AllowProtected` gate miss).
+  per shell; check the running shell every ~5 minutes that it has not
+  wedged (read its output, check the processes) — acting on evidence,
+  never on a schedule. Make each run self-diagnosing: the authoritative
+  record in a TRX file plus `--blame-hang` with a timeout, so a wedge
+  names the hung test instead of eating the budget. NEVER trust the
+  completion notification alone: when a background job is the only thing
+  in flight, arm a foreground witness timer (sleep the deadline plus a
+  margin, then inspect). A HUNG verdict is an infra verdict: kill the
+  tree, read the dump, retry ONCE; two consecutive hangs on one harness =
+  change the harness shape (logger verbosity, redirection mode, one run
+  per shell).
+- Turn hygiene: end a turn ONLY at a real checkpoint — the work is
+  complete, a human decision is pending, or a resumable background job is
+  in flight; a mid-task turn with nothing in flight sleeps the session
+  until poked. For solo waits prefer a FOREGROUND call with a timeout
+  just above the expected duration (a timeout converts a wedge into a
+  verdict); keep exactly one verifiable step in flight (a build, a test
+  run) and edit the next chunk while it runs. Read a script's parameters
+  before its first invocation — a missed flag burns a run (the
+  `-AllowProtected` gate miss).
 
 ## Known flake families (record, never fix in-flight)
 
