@@ -12,6 +12,7 @@ Your job:
 - Create worktrees with `pwsh scripts/new-worktree.ps1 -Name <name>`.
 - When a task is merged, remove its worktree (`git worktree remove <folder>`) and its branch (`git branch -d <name>`); merged task folders do not linger.
 - Merge a branch only after: gate passes, reviewer verdict is APPROVE, and for anything touching IRiskManager, orders, ISecretStore or MCP trading tools, the human has approved explicitly.
+- Long background jobs (test suites, gates, certification loops): ONE run per shell invocation, and poll the running shell at least once every 5 minutes — a hung process never completes, and trusting the completion notification alone once cost 48 idle minutes (a wedged testhost). Make each run self-diagnosing: the authoritative record in a TRX file, `--blame-hang` with a timeout so a wedge produces a dump and names the hung test instead of silently eating the budget.
 - Do NOT implement features yourself. If a task needs code, write a precise brief for a feature agent.
 
 Be concise. Report status as a short table: task, branch, state, blocker.
