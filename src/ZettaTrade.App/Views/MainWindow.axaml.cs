@@ -172,6 +172,22 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             RoutingStrategies.Bubble,
             handledEventsToo: true);
         Closed += (_, _) => PaletteOverlay.RemoveHandler(InputElement.KeyDownEvent, OnPaletteKeyDown);
+
+        // The global hotkey route (T-102): the window translates every
+        // pressed combination through the live registry map (the VM's
+        // TryMatch pass-through) into RouteHotkey. Bubble +
+        // handledEventsToo is the point of the route: a bound gesture must
+        // outrank the focused text box's own key eats (the select-all and
+        // friends), the same outrank shape the palette query box keeps.
+        // The dialogs carry their own windows, so the route never fires
+        // over a settings surface; while the palette is open the route
+        // stands down for everything but its own toggle key (below).
+        this.AddHandler(
+            InputElement.KeyDownEvent,
+            OnGlobalKeyDown,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        Closed += (_, _) => this.RemoveHandler(InputElement.KeyDownEvent, OnGlobalKeyDown);
     }
 
     /// <summary>Subscription of the book level click stream; disposed with the window.</summary>
@@ -253,7 +269,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         var palette = ViewModel?.Palette;
         if (palette is { } owner)
         {
-            DispatchPaletteCommand(owner.CloseCommand);
+            DispatchOverlayCommand(owner.CloseCommand);
         }
     }
 
@@ -278,23 +294,23 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         {
             case Key.Up when palette.SelectedIndex > 0:
                 e.Handled = true;
-                DispatchPaletteCommand(palette.MoveSelectionUpCommand);
+                DispatchOverlayCommand(palette.MoveSelectionUpCommand);
                 break;
             case Key.Down when palette.HasRowAfter(palette.SelectedIndex):
                 e.Handled = true;
-                DispatchPaletteCommand(palette.MoveSelectionDownCommand);
+                DispatchOverlayCommand(palette.MoveSelectionDownCommand);
                 break;
             case Key.PageUp when palette.SelectedIndex > 0:
                 e.Handled = true;
-                DispatchPaletteCommand(palette.MoveSelectionPageUpCommand);
+                DispatchOverlayCommand(palette.MoveSelectionPageUpCommand);
                 break;
             case Key.PageDown when palette.HasRowAfter(palette.SelectedIndex):
                 e.Handled = true;
-                DispatchPaletteCommand(palette.MoveSelectionPageDownCommand);
+                DispatchOverlayCommand(palette.MoveSelectionPageDownCommand);
                 break;
             case Key.Enter when palette.HasRowAt(palette.SelectedIndex):
                 e.Handled = true;
-                DispatchPaletteCommand(palette.ApplySelectionCommand);
+                DispatchOverlayCommand(palette.ApplySelectionCommand);
                 break;
             case Key.Enter:
                 // No row stands to apply: swallow the key so nothing below
@@ -303,21 +319,91 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
                 break;
             case Key.Escape:
                 e.Handled = true;
-                DispatchPaletteCommand(palette.CloseCommand);
+                DispatchOverlayCommand(palette.CloseCommand);
                 break;
         }
     }
 
     /// <summary>
-    /// Execute a palette command with its error handled — the view's only
-    /// command dispatch, so a keyboard event never goes fire-and-forget.
+    /// Execute an overlay command with its error handled — the view's only
+    /// command dispatch (the palette's and the hotkey sheet's keyboard
+    /// routes share it), so a keyboard event never goes fire-and-forget.
     /// </summary>
-    private static void DispatchPaletteCommand(ReactiveCommand<RxVoid, RxVoid> command) =>
+    private static void DispatchOverlayCommand(ReactiveCommand<RxVoid, RxVoid> command) =>
         command.Execute(RxVoid.Default).Subscribe(
             _ => { },
-            error => Log.Error(error, "A palette command failed"));
+            error => Log.Error(error, "An overlay command failed"));
 
     #endregion Palette overlay (T-095)
+
+    #region Hotkey route (T-102)
+
+    /// <summary>
+    /// The global hotkey route: the window translates every pressed
+    /// combination through the registry's live map and dispatches the
+    /// bound action. Bound gestures outrank the focused controls' own key
+    /// eats (handledEventsToo), the open palette owns its busy keys (only
+    /// its own toggle still routes — pressing the palette's gesture again
+    /// is the toggle's close side, the old KeyBinding behavior kept), and
+    /// Esc closes the cheat sheet first when it shows. The registry is
+    /// the single seam: the menu's advertised gestures print from the
+    /// same map this route matches.
+    /// </summary>
+    private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
+    {
+        var main = ViewModel;
+        var hotkeys = main?.Hotkeys;
+        if (main is null || hotkeys is null)
+        {
+            return;
+        }
+
+        // The sheet's way back out: Esc while it shows (and the palette
+        // is not the one owning the key) closes it, riding the same
+        // toggle command the menu checkbox routes.
+        if (hotkeys.IsSheetVisible && !main.Palette.IsOpen && e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            DispatchOverlayCommand(hotkeys.ToggleSheetCommand);
+            return;
+        }
+
+        if (!hotkeys.TryMatch(e.Key, e.KeyModifiers, out var actionId))
+        {
+            return;
+        }
+
+        if (main.Palette.IsOpen && actionId != HotkeyRegistry.TogglePalette)
+        {
+            // The palette is the keyboard's owner until it closes: its
+            // navigation keys never reach here (the overlay marks them
+            // handled and the palette's rows are its own business), and
+            // the other global gestures stand down — the palette route
+            // itself stays live so its gesture toggles the palette shut.
+            return;
+        }
+
+        e.Handled = true;
+        main.RouteHotkey(actionId);
+    }
+
+    /// <summary>
+    /// A press on the cheat sheet's backdrop closes it — the same way
+    /// back out the palette's scrim keeps; the close rides the same
+    /// toggle command the menu checkbox routes, so the Help menu's stick
+    /// state stays the one source of truth.
+    /// </summary>
+    private void OnHotkeysSheetScrimPressed(object? sender, PointerPressedEventArgs e)
+    {
+        e.Handled = true;
+        var hotkeys = ViewModel?.Hotkeys;
+        if (hotkeys is { } owner)
+        {
+            DispatchOverlayCommand(owner.ToggleSheetCommand);
+        }
+    }
+
+    #endregion Hotkey route (T-102)
 
     /// <summary>
     /// The frames (queued below the render priority) the chat focus is
@@ -701,6 +787,12 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             var dialog = new SettingsWindow
             {
                 DataContext = ViewModel!.Settings,
+                // The hotkey manager (T-102) is a shared app-lifetime
+                // singleton: the settings window's tab binds it through
+                // the window's own Hotkeys property (an Avalonia styled
+                // property, not the ViewModel — the settings ViewModel
+                // stays untouched by the hotkey seam).
+                Hotkeys = ViewModel!.Hotkeys,
             };
             await dialog.ShowDialog(this);
         }

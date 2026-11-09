@@ -1,11 +1,13 @@
 using System;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI.Avalonia;
 using Serilog;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 
 namespace ZettaTrade.App.Views;
@@ -22,8 +24,25 @@ namespace ZettaTrade.App.Views;
 /// </summary>
 public partial class SettingsWindow : ReactiveWindow<SettingsViewModel>
 {
+    /// <summary>Identifies the <see cref="Hotkeys"/> property.</summary>
+    public static readonly StyledProperty<HotkeyViewModel?> HotkeysProperty =
+        AvaloniaProperty.Register<SettingsWindow, HotkeyViewModel?>(
+            nameof(Hotkeys));
+
     /// <summary>The export file's suggested name: the app name (the picker appends its extension).</summary>
     private const string ExportSuggestedFileName = "zettatrade-settings";
+
+    /// <summary>
+    /// The shared hotkey manager (T-102) the Hotkeys tab binds: an Avalonia
+    /// styled property set by the opener (the app-lifetime singleton behind
+    /// it lives in DI), so the settings ViewModel stays untouched by the
+    /// hotkey seam.
+    /// </summary>
+    public HotkeyViewModel? Hotkeys
+    {
+        get => GetValue(HotkeysProperty);
+        set => SetValue(HotkeysProperty, value);
+    }
 
     /// <summary>
     /// Create a new SettingsWindow instance.

@@ -303,6 +303,7 @@ internal static class CompositionRoot
         // the source rides IAsyncInitializable, so the startup walk warms
         // the instrument snapshot before any window opens.
         services.AddPaletteServices();
+        services.AddHotkeyServices(); // T-102: the live hotkey map + the shared editor/cheat-sheet ViewModel (before MainViewModel resolves below).
         services.AddTransient<MainViewModel>(sp =>
             new MainViewModel(
                 sp.GetRequiredService<MenuViewModel>(),
@@ -318,6 +319,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<SymbolPaletteViewModel>(),
                 sp.GetRequiredService<NotificationToastHostViewModel>(),
                 sp.GetRequiredService<PerformanceHudViewModel>(), // T-108: the Help menu's checkable dev-mode readout.
+                sp.GetRequiredService<HotkeyViewModel>(), // T-102: the live hotkey map the key route, the menu gestures, the cheat sheet and the settings tab read.
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<ILogger<MainViewModel>>()));
         services.AddTradingUiServices();

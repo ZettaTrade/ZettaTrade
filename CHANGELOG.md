@@ -1,3 +1,26 @@
+## [0.1.0-alpha.85] - 2026-11-09
+
+Build of board task T-102 (branch `feat/hotkey-manager`).
+
+### Added
+- The hotkey manager (T-102): the four registry actions (open settings, new
+  order, toggle assistant, symbol palette) ride one live map — the shipped
+  gestures carried by persisted user overrides. The old static
+  `Window.KeyBindings` are gone: the main window translates every pressed
+  combination through the registry's single seam (`TryMatch` → `RouteHotkey`),
+  so a binding and its advertisement can never diverge. The settings window
+  gains a Hotkeys tab: one editable row per action, conflicts/invalid
+  forms/plain gestures diagnosed at edit time and refused (never
+  substituted), a valid edit commits at once and rebinds EVERY consumer —
+  the window route, the menu's advertised gestures, the Help-menu "hotkey
+  cheat sheet" overlay — without a restart. Per-row reset returns to the
+  shipped default. The editor refuses modifier-less gestures (a bare key
+  would fire while typing); a hand-edited settings file that holds one
+  keeps it in the editor but out of the key routes. Registry defaults,
+  stored-document restore, live reload, persist, route matching, conflict
+  goldens, the editor's rows/commit/reset/sheet mirror and the DI
+  registration shape carry their own facts; en + ru strings.
+
 ## [0.1.0-alpha.84] - 2026-11-09
 
 Build of board task T-108 (branch `feat/perf-hud`).

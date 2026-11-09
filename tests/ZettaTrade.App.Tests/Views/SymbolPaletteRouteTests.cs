@@ -10,8 +10,10 @@ using ZettaTrade.UI.Resources;
 /// <summary>
 /// The symbol palette's route pins (T-095): the views have no headless render
 /// harness, so the wiring rides the source-of-truth files, exactly like the
-/// chrome pins. The window carries Ctrl+K bound to the palette's toggle
-/// command, the overlay is a sibling host bound to
+/// chrome pins. The window carries NO static palette gesture anymore (T-102
+/// replaced the window-level KeyBindings with the registry's live map — the
+/// Ctrl+K reliably-registered default is pinned by the hotkey service
+/// facts), the overlay is a sibling host bound to
 /// <c>SymbolPaletteViewModel.IsOpen</c> above the workspace, and the
 /// code-behind carries the only key route: focus in and focus out through the
 /// palette's interactions, the row-key route inside the palette subtree only,
@@ -30,18 +32,21 @@ public sealed class SymbolPaletteRouteTests
         File.ReadAllText(Path.Combine(ViewsDirectory, "MainWindow.axaml.cs"));
 
     [Fact]
-    public void TheWindow_CarriesTheCtrlKBindingToThePalette()
+    public void TheWindow_RoutesThePaletteToggleThroughTheLiveRegistryMap()
     {
         var source = MainWindowXaml;
 
-        source.Should().Contain(
-            @"<KeyBinding Gesture=""Ctrl+K"" Command=""{Binding Palette.ToggleCommand}"" />",
-            "Ctrl+K is the palette's toggle route on the window");
-        // The gesture audit comment explains what the barrel binding is for:
-        // every window key binding stays documented on its own terms.
-        source.Should().Contain(
-            "Ctrl+K        -> Palette.ToggleCommand",
-            "the gesture audit keeps the palette route documented");
+        // T-102 replaced the window's static KeyBindings with the registry's
+        // live map: the palette toggle rides HotkeyRegistry.TogglePalette
+        // (pinned by the hotkey service facts), the shipped gesture lives in
+        // the registry (a promoted change can rebind it live), and the
+        // window itself carries no static gesture anymore.
+        source.Should().NotContain(
+            "<Window.KeyBindings>",
+            "T-102 replaced the static window bindings with the live registry map");
+        source.Should().NotContain(
+            @"Command=""{Binding Palette.ToggleCommand}""",
+            "the palette's toggle is a registry-routed action, never a static binding");
     }
 
     [Fact]
@@ -117,10 +122,10 @@ public sealed class SymbolPaletteRouteTests
         }
 
         source.Should().Contain(
-            "DispatchPaletteCommand(palette.ApplySelectionCommand)",
+            "DispatchOverlayCommand(palette.ApplySelectionCommand)",
             "Enter's apply rides the command, gated, never a bare task");
         source.Should().Contain(
-            "DispatchPaletteCommand(palette.CloseCommand)",
+            "DispatchOverlayCommand(palette.CloseCommand)",
             "Esc and the scrim close ride the same command");
         // The route answers only while the palette stands open.
         source.Should().Contain(

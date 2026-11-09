@@ -6,6 +6,9 @@ using Livery.Extensions;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
+// RxVoid rides an alias (not a plain ReactiveUI.Primitives import): plain both
+// imports would make every RxVoid usage ambiguous against System's one.
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
 /// Main window view model. Coordinates sub-ViewModels for menu, status bar, chat, and settings.
@@ -58,6 +61,14 @@ public sealed class MainViewModel : ReactiveObject
     public PerformanceHudViewModel Hud { get; }
 
     /// <summary>
+    /// The hotkey manager (T-102): the live gesture map the main window's
+    /// key route dispatches through, the menu's advertised gestures print
+    /// and the cheat-sheet overlay mirrors — one seam, so advertised and
+    /// real never diverge.
+    /// </summary>
+    public HotkeyViewModel Hotkeys { get; }
+
+    /// <summary>
     /// Create a new MainViewModel instance.
     /// </summary>
     public MainViewModel(
@@ -74,6 +85,7 @@ public sealed class MainViewModel : ReactiveObject
         SymbolPaletteViewModel palette,
         NotificationToastHostViewModel toastHost,
         PerformanceHudViewModel hud,
+        HotkeyViewModel hotkeys,
         ActiveExchangeService activeExchanges,
         ILogger<MainViewModel> logger)
     {
@@ -90,6 +102,7 @@ public sealed class MainViewModel : ReactiveObject
         Palette = palette;
         ToastHost = toastHost;
         Hud = hud;
+        Hotkeys = hotkeys;
         _logger = logger;
 
         // The status chip mirrors the adapter connection state. The Core
@@ -118,4 +131,48 @@ public sealed class MainViewModel : ReactiveObject
 
         _logger.LogInformation("MainViewModel initialized with sub-ViewModels");
     }
+
+    /// <summary>
+    /// Route one hotkey action id (T-102); the main window's key handler is
+    /// the only caller. The switch carries the registry's exact ids — an
+    /// unknown id (a retired binding whose stored override survived) is an
+    /// honestly refused route: it faults through the log and dispatches
+    /// nothing, never a substitute action.
+    /// </summary>
+    /// <param name="actionId">The pressed gesture's bound action id.</param>
+    public void RouteHotkey(string actionId)
+    {
+        switch (actionId)
+        {
+            case HotkeyRegistry.OpenSettings:
+                DispatchHotkey(Menu.OpenSettingsCommand, actionId);
+                break;
+            case HotkeyRegistry.NewOrder:
+                DispatchHotkey(Menu.NewOrderCommand, actionId);
+                break;
+            case HotkeyRegistry.ToggleAiChat:
+                DispatchHotkey(Menu.ToggleAiChatCommand, actionId);
+                break;
+            case HotkeyRegistry.TogglePalette:
+                DispatchHotkey(Palette.ToggleCommand, actionId);
+                break;
+            default:
+                _logger.LogError(
+                    "Unknown hotkey action {ActionId}: the route refuses and dispatches nothing",
+                    actionId);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Execute one hotkey's target command with its error handled — the
+    /// keyboard route never goes fire-and-forget (the overlay command
+    /// dispatch discipline, lifted into the coordinating ViewModel).
+    /// </summary>
+    /// <param name="command">The action's target command.</param>
+    /// <param name="actionId">The action id (the failure log's context).</param>
+    private void DispatchHotkey(ReactiveCommand<RxVoid, RxVoid> command, string actionId) =>
+        command.Execute(RxVoid.Default).Subscribe(
+            _ => { },
+            ex => _logger.LogError(ex, "The hotkey action {ActionId} failed", actionId));
 }

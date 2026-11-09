@@ -147,10 +147,15 @@ public sealed class MenuViewModel : ReactiveObject
     /// <param name="hud">The performance HUD ViewModel (T-108): the menu's
     /// checkable item toggles the persisted overlay visibility and mirrors
     /// the applied state live (the same pattern the chat item keeps).</param>
-    public MenuViewModel(ChatViewModel chat, PerformanceHudViewModel hud)
+    /// <param name="hotkeys">The hotkey manager ViewModel (T-102): the Help
+    /// menu's checkable cheat-sheet item drives its own toggle command and
+    /// mirrors the sheet's visibility; the advertised gestures the menu
+    /// items print come from the same live map the window routes.</param>
+    public MenuViewModel(ChatViewModel chat, PerformanceHudViewModel hud, HotkeyViewModel hotkeys)
     {
         _chat = chat;
         _hud = hud;
+        Hotkeys = hotkeys;
 
         OpenSettingsRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
@@ -229,6 +234,15 @@ public sealed class MenuViewModel : ReactiveObject
     /// the persistence lives where the visibility does.
     /// </summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleHudCommand => _hud.ToggleCommand;
+
+    /// <summary>
+    /// The hotkey manager (T-102) the Help menu's cheat-sheet item reads:
+    /// the checkable item's press routes the sheet toggle's own command and
+    /// the checkbox mirrors the sheet's visibility OneWay — the same shape
+    /// the HUD item keeps. The editor's gesture strings ride the same live
+    /// map this instance serves.
+    /// </summary>
+    public HotkeyViewModel Hotkeys { get; }
 
     #endregion Constructor
 

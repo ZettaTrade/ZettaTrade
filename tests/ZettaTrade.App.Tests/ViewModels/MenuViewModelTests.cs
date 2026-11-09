@@ -19,7 +19,7 @@ public sealed class MenuViewModelTests
     public async Task ShowPositionsCommand_Executed_RoutesThroughShowPositionsInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
         var handled = 0;
         menu.ShowPositionsRequested.RegisterHandler(context =>
         {
@@ -39,7 +39,7 @@ public sealed class MenuViewModelTests
     public async Task OpenSettingsCommand_Executed_RoutesThroughOpenSettingsInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
         var handled = 0;
         menu.OpenSettingsRequested.RegisterHandler(context =>
         {
@@ -63,7 +63,7 @@ public sealed class MenuViewModelTests
     public async Task ShowDisclaimerCommand_Executed_RoutesThroughShowDisclaimerInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
         var handled = 0;
         menu.ShowDisclaimerRequested.RegisterHandler(context =>
         {
@@ -87,7 +87,7 @@ public sealed class MenuViewModelTests
     public async Task ShowLogViewerCommand_Executed_RoutesThroughShowLogViewerInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
         var handled = 0;
         menu.ShowLogViewerRequested.RegisterHandler(context =>
         {
@@ -107,7 +107,7 @@ public sealed class MenuViewModelTests
     public async Task ShowOrderHistoryCommand_Executed_RoutesThroughShowOrderHistoryInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
         var handled = 0;
         menu.ShowOrderHistoryRequested.RegisterHandler(context =>
         {
@@ -127,7 +127,7 @@ public sealed class MenuViewModelTests
     public async Task ShowBalancesCommand_Executed_RoutesThroughShowBalancesInteraction()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
         var handled = 0;
         menu.ShowBalancesRequested.RegisterHandler(context =>
         {
@@ -151,7 +151,7 @@ public sealed class MenuViewModelTests
     public async Task ToggleAiChatCommand_Executed_AsksFocusOnlyWhenThePanelShows()
     {
         // Arrange
-        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud());
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
         var handled = 0;
         menu.FocusAiChatRequested.RegisterHandler(context =>
         {
@@ -200,7 +200,7 @@ public sealed class MenuViewModelTests
     public async Task TheStartupRestoreArrivesAfterTheMenuLanded_MirrorsTheRestoredState()
     {
         var chat = ChatTests.CreateAnonymousChat(false);
-        var menu = new MenuViewModel(chat, HudTests.CreateAnonymousHud());
+        var menu = new MenuViewModel(chat, HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
 
         menu.IsAiChatVisible.Should().BeTrue("the restore has not applied yet");
 
@@ -218,7 +218,7 @@ public sealed class MenuViewModelTests
     public async Task ToggleHudCommand_Executed_FlipsTheOverlayVisibility_AndTheMirrorFollows()
     {
         var hud = HudTests.CreateAnonymousHud();
-        var menu = new MenuViewModel(CreateChat(), hud);
+        var menu = new MenuViewModel(CreateChat(), hud, HotkeyKits.CreateAnonymousHotkeys());
 
         menu.IsHudVisible.Should().BeFalse("the HUD ships off");
 
@@ -235,6 +235,25 @@ public sealed class MenuViewModelTests
     {
         var chat = CreateChat();
 
-        return (new MenuViewModel(chat, HudTests.CreateAnonymousHud()), chat);
+        return (new MenuViewModel(chat, HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys()), chat);
+    }
+
+    /// <summary>
+    /// The hotkey cheat-sheet menu item (T-102): the toggle command is the
+    /// shared hotkey manager's own — a press flips the sheet's visibility,
+    /// and the menu hands the injected manager through, so the advertised
+    /// gestures and the overlay ride one seam.
+    /// </summary>
+    [Fact]
+    public async Task ToggleCheatSheetCommand_Executed_FlipsTheSheetVisibility()
+    {
+        var hotkeys = HotkeyKits.CreateAnonymousHotkeys();
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), hotkeys);
+
+        menu.Hotkeys.Should().BeSameAs(hotkeys, "the menu routes the manager the composition injected");
+
+        await menu.Hotkeys.ToggleSheetCommand.Execute(RxVoid.Default);
+
+        menu.Hotkeys.IsSheetVisible.Should().BeTrue("the Help menu's '?' opened the cheat-sheet overlay");
     }
 }
