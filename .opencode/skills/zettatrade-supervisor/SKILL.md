@@ -49,6 +49,14 @@ policy until the user retracts it:
    the suite; it does not prove the app boots. Skippable only for
    docs/tests-only landings.
 
+6. Take the next tasks yourself (user, 2026-11-10): after EVERY landing —
+   and at any idle moment — the supervisor autonomously claims the next
+   task off the synced `docs/TASKS.md` per Wave planning and starts it.
+   Never wait for the user to pick or confirm the next task; a report
+   that ends by asking "which task next?" is a protocol violation. A
+   dead subagent lane only changes WHO executes (worker dispatch vs
+   supervisor-solo takeover), never WHETHER the next task starts.
+
 While reasoning internally, in all outage-sensitive scratch files and in
 reports back to the user, think in English but reply to the user in Russian
 (token economy per AGENTS.md). Everything shipped to the repo stays English —
@@ -299,7 +307,8 @@ only.
 4. Land anything whose gate already passed; resume dead workers; fill the
    wave's empty slots from the synced board's queued list per Wave planning.
 5. Report to the user (Russian): the wave table (task, worktree, status,
-   version) and then work; when each worker lands, report the landing.
+   version) and then work; when each worker lands, report the landing and
+   immediately claim the next queued task yourself (standing directive 6).
 Then continue indefinitely: waves, reviews, landings, state-file updates —
 until the user stops you. Never wait for approval; the standing directive
 says the merges are yours.
