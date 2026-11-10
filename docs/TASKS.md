@@ -159,7 +159,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | done | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | done | - |
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | done | - |
-| T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | queued | - |
+| T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | in-progress | - |
 | T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | queued | T-154 (soft) |
 | T-157 Table grammar for positions and order history | feat/table-grammar | queued | T-154 (soft) |
 | T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | queued | - |
@@ -245,7 +245,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-155 — Type ramp + tabular numerals + the spacing scale, as tokens
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Branch:** feat/type-scale, worktree zt-type-scale, based on develop@6cce2ea (claimed 2026-11-11 as the sixth of the T-150…T-162 design-review batch — the tokens publish as Livery resources, so the satellite release 0.1.6 rides the same task).
 - **Origin:** font sizes grow ad hoc (10, 11, 11.5, 12, 13, 14, 16 across the windows) and the
   paddings wander (4/6/8/10/12/14/16/20); the numeric surfaces (order tables, stats tiles, the
   HUD handled) set digits in the proportional face, so columns stop holding their place.
@@ -259,6 +259,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   and tables set numerals in the tabular stack; a language switch never shifts column alignment.
 - **Tests:** source pins over the size literals; a headless render pin (inside the T-144 lane)
   that the tiles stay aligned across a language flip.
+- **Status:** in-progress
 
 ## T-156 — Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation
 
