@@ -154,6 +154,19 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-147 Agent canon split: a lean always-on AGENTS.md, a deduped zettatrade skill and on-demand references | feat/canon-split | done | - |
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | planned | - |
+| T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | queued | - |
+| T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | queued | - |
+| T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | queued | - |
+| T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | queued | - |
+| T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | queued | - |
+| T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | queued | - |
+| T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | queued | T-154 (soft) |
+| T-157 Table grammar for positions and order history | feat/table-grammar | queued | T-154 (soft) |
+| T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | queued | - |
+| T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | queued | - |
+| T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | queued | T-154 (soft) |
+| T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | queued | - |
+| T-162 Product identity: the app icon and the title-bar brand | feat/branding | queued | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -242,3 +255,260 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** a streak of consecutive first-run green runs of the full App.Tests suite (target: ten, zero retry absorptions), the stabilized test keeps its original coverage intent (the stale-epoch drop still asserted through the real pump connection), the gate stops printing the flaky-retry warning on this path.
 - **Tests:** the stabilized fixture plus the repeated first-run streak; the gate over the branch.
 - **Status:** planned
+
+---
+
+## UI design review 2026-11-10 — findings index (source of T-150…T-162)
+
+A designer's pass over the shipped UI surfaces (the T-066 chrome strip, T-103 panel hosts, T-145
+layout fold, T-110 accessibility shapes) walking every window, dialog and theme palette. The
+findings are filed as T-150…T-162, one task per fixable area; no separate findings doc ships —
+each section below carries its own origin. The deliberate batch shape: the design-token
+discipline first (T-150, T-151, T-152 — the two parallel color systems and the contrast holes are
+systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
+(T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
+the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
+
+## T-150 — Design tokens: Fluent system brushes out of the views, palette keys only
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** two parallel color systems run side by side: ThemeManager publishes only the palette
+  keys, while the views lean on stock Fluent strokes — the status bar paints
+  `SystemAccentColorLight2` (the MainWindow status Border), the panel separators and the settings
+  cue glyphs ride `SystemControlForegroundBase*`. A user JSON theme recolors none of them: the
+  status bar stays the Fluent tint under any palette, and a light custom theme keeps dark-tuned
+  separators.
+- **What:** every view color rides the palette: the status bar moves to Surface + a top Border
+  stroke, the separators and cue glyph colors pick Border/TextSecondary families; ThemeManager
+  additionally publishes the derived Fluent system keys from the palette so stock control paths
+  converge. No layout or behavior change.
+- **Scope:** the App views' brushes, the Livery Themes publish step; no palette values (T-151 owns
+  values), no new dependencies.
+- **Acceptance:** a fresh theme JSON touching only Background/Surface/Border recolors the status
+  bar, the separators and the settings glyphs live; no view keeps a Fluent `System*` brush key;
+  hot-reload retints everything without a restart.
+- **Tests:** source pins over the views against the forbidden `SystemAccentColor*`/`SystemControl*`
+  keys; a ThemeManager test asserting the derived keys ride the palette; the existing contrast
+  pins stay green.
+
+## T-151 — Palette contract lint: WCAG pins over every theme file + the Accent role fix
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** the Accent key lost its role: the dark palette uses it as a barely-visible hover
+  fill (contrast vs Surface ~1.4:1), the light one makes the TextBox focus border invisible
+  (~1.2:1 vs white), while the auto-created sample theme reads Accent as a loud brand red. A
+  palette file can silently ship an unusable hover/focus state — `Livery.Themes.Contrast` already
+  has the math, the shipped themes have no battery walking their role pairs.
+- **What:** a role contract documented once (surface / interactive hover / focus stroke / text /
+  status) and a Livery test battery walking every shipped + user-scanned theme file through
+  Contrast.Ratio pins: hover-vs-Surface, TextPrimary-on-hover, focus-vs-Background, the state
+  colors as chip fills; dark.json/light.json values re-tuned (Accent becomes an
+  interactive-strength token, or the restyling moves hover/focus onto a dedicated key).
+- **Scope:** Livery.Themes (docs + tests + Contrast consumers), the themes/*.json values, the
+  Controls.axaml selectors if the hover token moves; no control markup.
+- **Acceptance:** every shipped theme passes the pin battery; breaking a value (e.g. an invisible
+  focus border) fails the gate naming the pair; custom user themes hit the same pins on load.
+- **Tests:** the pin battery over the real files (the shipped goldens recorded), plus a negative
+  fixture that a broken palette fails loudly.
+
+## T-152 — Trading mode chips readable: dark foreground on the state colors
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** safety-critical polish: the lane chips, the testnet badges and the health dots fill
+  with CandleUp/Highlight/Error while their text inherits the default foreground — white over
+  #22c55e/#ffd700/#ef4444 lands near ~2:1, far under WCAG for pill-sized type; T-123's
+  always-visible lane chip is exactly the element the user must never squint at.
+- **What:** a shared readable-chip treatment: a theme-aware dark foreground over the state fills
+  (or tinted fills with strong borders), applied to the status-bar lane chip, the ticket's testnet
+  badge and the panels' badges — every consumer of the state colors as chip fills.
+- **Scope:** the chip/badge templates in MainWindow, NewOrderDialogWindow, PositionsPanelWindow
+  and the OrderHistoryWindow copy; the Livery Chip class when T-154 lands; resx untouched.
+- **Acceptance:** every state-colored chip's text contrast measures at 4.5:1 or better in all
+  shipped themes (the T-151 pins may guard it); the lane stays legible in dark, light, OLED and
+  trading-pro at 100% zoom.
+- **Tests:** contrast pins per chip state per theme; source pins that no chip template overrides
+  the readable foreground.
+
+## T-153 — Status bar declutter: the message channel + the summary, the settings noise out
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** eight groups ride the bottom strip (the Ready text, the exchange picker, the active
+  exchange, the lane chip, the connection state, the theme name, the language name, the version
+  and the health dots); the theme/language/version facts change once a month and eat the reading
+  space needed for the actual status messages.
+- **What:** the strip keeps: a real message channel (transient event messages over the Ready idle
+  text), the exchange picker, the active exchange + lane chip, the connection state, the health
+  dots. The theme/language labels move to the settings (both already switch there); the version
+  moves to Help/About.
+- **Scope:** the MainWindow status Border, the StatusBar ViewModel rows, resx en+ru for the moved
+  captions; no exchange/provider contracts.
+- **Acceptance:** the strip carries at most the five named groups; an event still surfaces on the
+  strip before it vanishes; every removed label stays reachable in one action (settings/About).
+- **Tests:** StatusBar VM pins for the message channel's replace/coalesce behavior; a view pin
+  asserting the removed bindings are gone.
+
+## T-154 — Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** the same visual vocabulary is re-typed by hand: the `.on` toggle style copies five
+  times in ChartPanelView, the testnet-badge style copies across the windows, the state-dot
+  ellipse styles duplicate between the health strip and the signal rail, and the settings window
+  builds its "i" cue out of Border+TextBlock seven times. Copies drift.
+- **What:** the vocabulary lives once in Livery: a Chip class (rounded badge, state fill, the
+  readable foreground from T-152), a StateDot (the ellipse + state classes), a reusable toggle
+  `.on` style class for Button/ToggleButton, an InfoIcon templated control (focusable,
+  automation-named, tooltip-holding), an IconButton class for strip-icon-like actions; the views
+  replace their copies.
+- **Scope:** src/Livery (styles/controls), the dedupe edits across the App views; resx for the
+  InfoIcon automation names; pure restyling, no behavior changes.
+- **Acceptance:** zero copy-pasted `.on`/badge/dot/cue styles remain (source pins); the settings
+  "i" cues become focusable with automation names (an a11y step up); the chrome renders
+  identically before/after.
+- **Tests:** style-presence pins per control; an a11y pin for the InfoIcon peer.
+
+## T-155 — Type ramp + tabular numerals + the spacing scale, as tokens
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** font sizes grow ad hoc (10, 11, 11.5, 12, 13, 14, 16 across the windows) and the
+  paddings wander (4/6/8/10/12/14/16/20); the numeric surfaces (order tables, stats tiles, the
+  HUD handled) set digits in the proportional face, so columns stop holding their place.
+- **What:** a documented ramp (Caption 11 / Body 13 / SubtitleStrong 14 / Title 16) and a spacing
+  scale (4/8/12/16/24) published as resources from Livery; the monospaced numeric stack (the
+  HUD's precedent) becomes a NumericFont resource and rides the stats tiles, the table columns
+  and the price fields; the windows re-map their ad-hoc values onto the ramp without re-layout.
+- **Scope:** the Livery Themes resources, the App views' FontSize/margin values resurfaced; no
+  ViewModel changes.
+- **Acceptance:** no bare FontSize literals remain outside the ramp definitions; the stats tiles
+  and tables set numerals in the tabular stack; a language switch never shifts column alignment.
+- **Tests:** source pins over the size literals; a headless render pin (inside the T-144 lane)
+  that the tiles stay aligned across a language flip.
+
+## T-156 — Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch); soft blocker
+  T-154 (the kit's Chip/segment styles).
+- **Origin:** the ticket is the highest-stakes surface and reads like a neutral form: the side
+  hides in a ComboBox with no color semantics, Place/Cancel look identical, the parse/risk
+  failures surface only as a red line at the bottom, and the quantity field never says whether
+  it sizes in BASE or QUOTE.
+- **What:** the side becomes two large Buy/Sell segmented buttons in the state colors; the CTA
+  restyles as primary (filled) and its caption/tint follows the picked side; validation moves
+  inline per field with the summary line demoted to the flow failures; the qty/price captions
+  grow unit hints from the symbol (BASE/QUOTE); the sizer presets restyle as chips.
+- **Scope:** NewOrderDialogWindow + the ticket ViewModel exposing the unit captions; resx en+ru
+  for the unit/inline-error captions; the trading logic untouched — the parse → risk →
+  confirmation path stays exactly as is (the safety canon applies verbatim).
+- **Acceptance:** the picked side reads at a glance (color + control state), the primary CTA is
+  the visually dominant action, every field error lands next to its field, the trading path and
+  its validations unchanged.
+- **Tests:** the existing ticket tests stay green untouched (the behavior-parity proof); new pins
+  for the unit captions and the inline error wiring.
+
+## T-157 — Table grammar for positions and order history
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch); soft blocker
+  T-154 (the kit's Chip styles).
+- **Origin:** the positions/orders tables pin fixed pixel columns (125/50/75/150…), leave numbers
+  proportional and left-aligned, print sides as plain text and give Reduce/Close/Reverse the same
+  visual weight — Reverse, the destructive one, reads as a sibling button; three stacked sections
+  share one scroll, so the muscle memory never settles.
+- **What:** a shared row grammar: numeric columns right-aligned and tabular (rides T-155), side
+  chips LONG/SHORT in the state colors, an emphasized header row with hairline separators, an
+  action hierarchy (primary looked default, secondary bordered, destructive subdued behind its
+  existing confirmation), and the three sections (positions / open orders / session journal)
+  split by tabs or an owner-detail split.
+- **Scope:** PositionsPanelWindow (+ the order-history window's shared rows), the scaffold
+  converging into a reusable pattern; resx en+ru for the tab captions; the command wiring
+  unchanged.
+- **Acceptance:** every numeric column right-aligns and holds its decimals; sides are
+  color-coded; Reverse keeps its two-step gate and is never the busiest element on a row; the
+  layout survives the T-144 headless bounds pin.
+- **Tests:** view pins for the alignment/chips/action classes; the existing action command
+  goldens stay green.
+
+## T-158 — Assistant chat bubbles: role styling, copy, stop
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** the chat is a plain ListBox: a bold "Role:" line above a wrapped paragraph and a
+  10px timestamp under it — the author reads last, and a streaming answer cannot be interrupted
+  once the send happened.
+- **What:** bubble layout (user right in the accent tint, assistant left on Surface), the role +
+  timestamp inside the bubble header, a per-message copy affordance, and a Stop command canceling
+  the in-flight reply: the chat engine's existing cancellation seam surfaced, or the affordance
+  stays hidden honestly — no dead button ships.
+- **Scope:** AssistantPanelView + the ChatViewModel's stop/copy surface; the chat engine plumbing
+  if the cancel seam needs exposing; resx en+ru under the Chat.* prefix.
+- **Acceptance:** authorship reads without labels (position + tint carry it); long answers wrap
+  in bounded bubbles; Stop (when shipped) halts the stream and re-enables the input; the
+  local/remote model paths unaffected.
+- **Tests:** VM pins for the stop route (the no-op case included), the copy pin; the existing
+  chat goldens stay.
+
+## T-159 — Watchlist and heatmap color semantics
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** the watchlist prints the 24h change as plain text and the sparkline always draws in
+  Highlight — direction, the watchlist's whole point, rides parsing the digits; the heatmap tiles
+  are the only direction-aware surface today.
+- **What:** the change text tints by sign (CandleUp/CandleDown, contrast-pinned per T-151 over
+  both palettes), the sparkline colors by the ring's direction, the row hover affordance moves
+  onto the palette keys (off the stock brushes).
+- **Scope:** the WatchlistRowViewModel state fields + the row template; the HeatmapWidget only if
+  a shared color-scale helper lands; resx untouched.
+- **Acceptance:** direction legible without reading digits; the colors survive every shipped
+  theme; the rows' identity churn pins stay green (the feed-paced update path unaffected).
+- **Tests:** VM state pins (the sign→brush mapping), contrast pins for the new pairs; the
+  existing watchlist goldens.
+
+## T-160 — Chart toolbar icon pass, export flyout, shared PanelHeader
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch); soft blocker
+  T-154 (the IconButton class).
+- **Origin:** the chart band re-wraps text buttons (the three export buttons alone take ~300px),
+  the drawing tools print as text, and every panel caption + actions row is re-typed by hand
+  (the tape/book/rail headers at hand-tuned margins).
+- **What:** icon buttons (the title-bar strip-icon precedent) for the tool toggles + one Export
+  flyout gathering the three export actions; a PanelHeader scaffold (title left, actions right,
+  one padding grammar) adopted by the tape header, the book caption, the signal rail head and
+  the watchlist/heatmap tab captions.
+- **Scope:** ChartPanelView, the MainWindow panel headers, Livery (the IconButton if not landed
+  via T-154, the PanelHeader style); captions become automation names for the icon buttons —
+  a11y regressions free.
+- **Acceptance:** the band wraps at one more narrow step than today (measurable at min sizes in
+  the T-144 lane); every icon control keeps its automation name; the headers are uniform across
+  the panels.
+- **Tests:** the headless bounds fact, automation-name pins per icon control, source pins that
+  the per-panel copies are gone.
+
+## T-161 — Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** the first-run wizard picks a theme from a bare text combo (the settings picker
+  shows the T-006 swatches — the two picks disagree), never says which step of three is on, the
+  hotkey cheat sheet lists gestures as trailing text, and the symbol palette rows list flat.
+- **What:** the wizard's theme picker reuses the settings' swatch template and grows a 1/2/3
+  step indicator; the hotkey sheet renders gestures as keycap chips (kbd-style, palette-tinted);
+  the palette groups favorites/recent/other with headers.
+- **Scope:** FirstRunWizardWindow, the palette overlay's row grouping (the ViewModel groups), the
+  hotkey sheet template; resx en+ru for the step counter + group captions.
+- **Acceptance:** the wizard matches the settings' theme picker honestly (the same swatches); the
+  step count reads without the caption; the sheet reads like a real key legend; the palette's
+  keyboard routing (the T-095 contract) unchanged.
+- **Tests:** the wizard swatch pin (sharing the converter tests), the palette grouping goldens,
+  the sheet template pin.
+
+## T-162 — Product identity: the app icon and the title-bar brand
+
+- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Origin:** the shell still ships the stock `avalonia-logo.ico` window/taskbar icon, and the
+  custom strip carries no brand — the product is nameless in the one surface the user sees all
+  session long.
+- **What:** an in-house product mark (the icon ICO set + an SVG logomark for the strip), the
+  window Icon set across every window, the strip's left side optionally showing the logomark
+  before the title; the taskbar and the detached-panel windows inherit.
+- **Scope:** Assets, the window Icon setters, the TitleBar template's optional logo slot; the
+  landing page's artwork untouched (the T-126 owned surface).
+- **Acceptance:** no stock Avalonia logo remains in the shipped binaries; the icon reads at the
+  16px taskbar size; the strip keeps its drag/hit zones with the logo (the T-066 control's
+  contract).
+- **Tests:** asset-presence pins; a source pin that the strip's hit zones survive the logo slot.
