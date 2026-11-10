@@ -1,3 +1,33 @@
+## [0.1.0-alpha.92] - 2026-11-10
+
+Build of board task T-145 (branch `feat/ui-layout`).
+
+### Changed
+- The chart toolbar no longer paints over the neighbors (T-145): the
+  one-line 13-column header (a star symbol column plus twelve auto
+  columns) overflowed the chart column without clipping and drew the
+  spillover on top of the book, tape and watchlist panels — the chart
+  Border being the workspace grid's last child. The header now splits:
+  the symbol picker owns a stretch row on top and the controls ride a
+  finite-width WrapPanel that folds onto further lines when the column
+  narrows, so resizing finally agrees with the window.
+- The settings dialog grew and freed its tab strip (T-145): a resizable
+  760×720 window (Min 640×560) replaces the fixed 560×640 frame, and the
+  six tabs fold to four — Appearance and Indicators stand, MCP plus
+  Import/Export plus the factory reset ride Integrations, Pairs plus the
+  hotkey editor ride Workspace; the retired tab headers survive as the
+  sections' captions inside the merged tabs, the port section keeps its
+  own availability flag (a hidden port never hides MCP), and every
+  migrated control keeps its binding, handler and en+ru localization.
+
+### Infrastructure
+- Two new resx tab keys (`Settings.Tab.Integrations` and
+  `Settings.Tab.Workspace`, both en+ru) and the `WindowLayoutPinsTests`
+  source pins (8): the stale 13-column header absent, the wrap band and
+  every wired toolbar action present, the resize attributes, the
+  four-tab count with the folded keys resolving in both cultures; the
+  chrome, accessibility and indicator-gate pins stay green.
+
 ## [0.1.0-alpha.91] - 2026-11-10
 
 Build of board task T-132 (branch `feat/plugin-packaging`).

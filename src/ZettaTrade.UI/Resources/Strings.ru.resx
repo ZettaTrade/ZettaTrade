@@ -111,6 +111,9 @@
   <data name="Settings.Indicators.Empty" xml:space="preserve">
     <value>Плагины индикаторов в каталоге plugins папки данных приложения не найдены (пропуски сканирования фиксируются в журнале)</value>
   </data>
+  <data name="Settings.Tab.Integrations" xml:space="preserve">
+    <value>Интеграции</value>
+  </data>
   <data name="Settings.Tab.Mcp" xml:space="preserve">
     <value>MCP</value>
   </data>
@@ -185,6 +188,9 @@
   </data>
   <data name="Settings.McpClients.State.Empty" xml:space="preserve">
     <value>Ещё не применён — сохраните, чтобы менеджер подключил его</value>
+  </data>
+  <data name="Settings.Tab.Workspace" xml:space="preserve">
+    <value>Рабочая область</value>
   </data>
   <data name="Settings.Tab.Pairs" xml:space="preserve">
     <value>Пары</value>
