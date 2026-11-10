@@ -145,7 +145,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-138 Stabilize the App.Tests dispatcher tally flake: one serialized dispatcher world | feat/flaky-pump-tally | done | - |
 | T-139 Board truthfulness: archive the lingering T-117/T-118 sections, restore the canonical archive order | feat/board-truth | done | - |
 | T-140 Review hygiene pass: async-void routes, MCP registry locking, non-English prose cleanup | feat/review-hygiene | done | - |
-| T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | review | - |
+| T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | planned | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
@@ -189,16 +189,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the bootstrap and split commits in the new Livery repo, the ZettaTrade consumption switch, the docs notes; no product behavior changes.
 - **Acceptance:** the new repo's history reaches back through the split for Livery files (nothing lost at the splice); a clean ZettaTrade clone builds with zero in-tree Livery sources and the full test matrix stays green; the two-PR cross-repo path lands once as a rehearsal (a style tweak: the version-bumped PR in Livery, then the bump PR here).
 - **Tests:** the matrix over the consumption switch; the Livery suite in the new repo; the rehearsal change verified on both sides.
-
-## T-148 — Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories
-
-- **Branch:** feat/fixture-leak, worktree zt-fixture-leak, based on develop@afb4d52 (claimed 2026-11-10 during the T-147 gate diagnosis on develop@243c50a; re-based as T-103/T-129/T-132 landed and the T-149 claim landed first).
-- **Origin:** the T-147 gate flaked twice within one run (PluginIndicatorCatalogTests.Scan_APluginWithMissingDependencies_*, then green on manual reruns); the diagnosis chained three facts: the Broken fixture references BrokenBase without ExcludeAssets="runtime", so the base dll lands in Broken/bin and flows transitively into the Infrastructure.Tests output past the test project's direct exclusion; both plugin scanners load through Assembly.LoadFrom, whose context resolves a missing dependency by probing AppBase — the SDK host test then loads and locks the leaked copy; the two test classes run in parallel (no [Collection] grouping), so the catalog fixture's leak-delete races the lock and dies with an IOException, failing both tests at the Stage step.
-- **What:** the BrokenBase reference becomes compile-only in BOTH consumers: the Broken fixture and the Infrastructure.Tests project gain `Private="false"` on their BrokenBase ProjectReference (ExcludeAssets="runtime" alone was verified NOT to stop the copy-local flow on a clean rebuild — Private kills it on both the direct and the transitive path), so the base assembly never reaches any test output while the ProjectReference build-order guarantee stays; the catalog fixture's leak-delete remains as belt-and-suspenders. Two lines of build metadata plus honest comments; no product code, no test code.
-- **Scope:** tests/ZettaTrade.Plugins.Broken/ZettaTrade.Plugins.Broken.csproj plus the board. Test-fixture build hygiene: the shipped app does not change, so no version bump per rule 6.
-- **Acceptance:** after a clean rebuild ZettaTrade.Plugins.BrokenBase.dll is absent from both Broken/bin and the Infrastructure.Tests output; the full Infrastructure.Tests suite runs green with the lock-race ingredient gone; the T-054 premise (the base is never staged) holds on disk, not only by deletion.
-- **Tests:** the targeted rebuild assertions plus the gate over the branch; the gate becomes deterministic on this path.
-- **Status:** review. Canon: the claim `c763adf` and the work commit `a89b1fa` — two csproj metadata lines (`Private="false"` on both BrokenBase ProjectReferences, `ExcludeAssets="runtime"` kept as the intent marker) kill the deterministic copy of the base assembly: after a clean solution rebuild the leak counts are 0 in Broken/bin and 0 in the Infrastructure.Tests output while Broken.dll still ships (the SDK host test's File.Exists premise), and the full Infrastructure.Tests suite ran 417/417 green pre-commit. This removes the T-147 gate flake's ingredient (the catalog fixture's leak-delete no longer races a loaded-and-locked dll); the develop landing awaits review and the user's merge call.
 
 ## T-149 - Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin
 
