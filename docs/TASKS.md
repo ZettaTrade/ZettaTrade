@@ -156,7 +156,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | done | - |
 | T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | done | - |
 | T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | done | - |
-| T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | in-progress | - |
+| T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | done | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | queued | - |
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | queued | - |
 | T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | queued | - |
@@ -352,6 +352,31 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   trading-pro at 100% zoom.
 - **Tests:** contrast pins per chip state per theme; source pins that no chip template overrides
   the readable foreground.
+- **Status:** done. Canon: the claim `b7cd639`, the feat `a29100c`, the ship `45a2533`
+  (0.1.0-alpha.97; the satellite consumption line stays at Livery 0.1.4 — the treatment rides
+  the package's public `Contrast.Ratio`, no satellite change again). App-local design: the new
+  `ChipForegroundPublisher` (an `IAsyncInitializable` the startup walk owns, mirroring the
+  application-lifetime ThemeManager) re-derives on every theme apply — it reads the applied
+  CandleUp/Highlight/Error fills from the resource world (the source palette keys publish as
+  `Color` structs per the T-150 shape), scores the two achromatic candidates against all three
+  fills through `Livery.Themes.Contrast.Ratio` and publishes the better worst-case as the
+  `ChipForeground` brush (a brush over a new key — the T-150 publishes-as-brush canon). The
+  math puts at least one achromatic candidate above 4.5:1 against any single fill; a user
+  palette pairing bright and dark chip fills can deny both — best-effort keeps the better
+  worst-case, and the shipped set passes everywhere: black worst 5.58:1 (over Error #ef4444)
+  on the dark family, white worst 4.83:1 (over light Error #dc2626), against the pre-fix
+  ~2.28:1 (white over #22c55e) and 3.79:1 (black over the light Highlight #8a6100). Surfaces:
+  the T-123 lane chip's three state classes, the three T-127 testnet-badge copies
+  (NewOrderDialog, PositionsPanel, OrderHistory) and the notification count badge — the badge
+  dropped its Background-as-text walk-around for the honest equal. The derivation runs inline
+  on UI-thread applies and posts from the hot-reload pipeline's background thread; it stays
+  silent while the world carries no fills (a no-apply startup keeps the ambient foreground
+  rather than a wrong pairing). Tests: `ChipForegroundPublishTests` (pure dark/light worlds,
+  the mixed best-effort edge, and the acceptance walk applying all five shipped themes through
+  the real manager measuring every chip pair ≥ 4.5:1) plus three `PaletteTokenPinsTests`
+  source pins (the marker counts per window, the state fill keys, the dropped walk-around).
+  Gate PASSED on attempt 1; smoke 58 log entries, 0 ERR/FTL, ProductVersion
+  `0.1.0-alpha.97+45a25332…`.
 - **Status:** in-progress
 
 ## T-153 — Status bar declutter: the message channel + the summary, the settings noise out

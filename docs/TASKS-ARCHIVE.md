@@ -2052,6 +2052,49 @@ the board and its section below.
   first-serving check after the feed poll ran while the consumer still pinned the older
   version, so the honest restore check re-ran AFTER the `LiveryVersion` bump.
 
+## T-152 — Trading mode chips readable: dark foreground on the state colors
+
+- **Branch:** fix/lane-chip-contrast, worktree zt-chip-contrast, based on develop@0bdc21f (claimed 2026-11-11 as the third of the T-150…T-162 design-review batch — the readable-chip treatment lands on the converged token system).
+- **Origin:** safety-critical polish: the lane chips, the testnet badges and the health dots fill
+  with CandleUp/Highlight/Error while their text inherits the default foreground — white over
+  #22c55e/#ffd700/#ef4444 lands near ~2:1, far under WCAG for pill-sized type; T-123's
+  always-visible lane chip is exactly the element the user must never squint at.
+- **What:** a shared readable-chip treatment: a theme-aware dark foreground over the state fills
+  (or tinted fills with strong borders), applied to the status-bar lane chip, the ticket's testnet
+  badge and the panels' badges — every consumer of the state colors as chip fills.
+- **Scope:** the chip/badge templates in MainWindow, NewOrderDialogWindow, PositionsPanelWindow
+  and the OrderHistoryWindow copy; the Livery Chip class when T-154 lands; resx untouched.
+- **Acceptance:** every state-colored chip's text contrast measures at 4.5:1 or better in all
+  shipped themes (the T-151 pins may guard it); the lane stays legible in dark, light, OLED and
+  trading-pro at 100% zoom.
+- **Tests:** contrast pins per chip state per theme; source pins that no chip template overrides
+  the readable foreground.
+- **Status:** done. Canon: the claim `b7cd639`, the feat `a29100c`, the ship `45a2533`
+  (0.1.0-alpha.97; the satellite consumption line stays at Livery 0.1.4 — the treatment rides
+  the package's public `Contrast.Ratio`, no satellite change again). App-local design: the new
+  `ChipForegroundPublisher` (an `IAsyncInitializable` the startup walk owns, mirroring the
+  application-lifetime ThemeManager) re-derives on every theme apply — it reads the applied
+  CandleUp/Highlight/Error fills from the resource world (the source palette keys publish as
+  `Color` structs per the T-150 shape), scores the two achromatic candidates against all three
+  fills through `Livery.Themes.Contrast.Ratio` and publishes the better worst-case as the
+  `ChipForeground` brush (a brush over a new key — the T-150 publishes-as-brush canon). The
+  math puts at least one achromatic candidate above 4.5:1 against any single fill; a user
+  palette pairing bright and dark chip fills can deny both — best-effort keeps the better
+  worst-case, and the shipped set passes everywhere: black worst 5.58:1 (over Error #ef4444)
+  on the dark family, white worst 4.83:1 (over light Error #dc2626), against the pre-fix
+  ~2.28:1 (white over #22c55e) and 3.79:1 (black over the light Highlight #8a6100). Surfaces:
+  the T-123 lane chip's three state classes, the three T-127 testnet-badge copies
+  (NewOrderDialog, PositionsPanel, OrderHistory) and the notification count badge — the badge
+  dropped its Background-as-text walk-around for the honest equal. The derivation runs inline
+  on UI-thread applies and posts from the hot-reload pipeline's background thread; it stays
+  silent while the world carries no fills (a no-apply startup keeps the ambient foreground
+  rather than a wrong pairing). Tests: `ChipForegroundPublishTests` (pure dark/light worlds,
+  the mixed best-effort edge, and the acceptance walk applying all five shipped themes through
+  the real manager measuring every chip pair ≥ 4.5:1) plus three `PaletteTokenPinsTests`
+  source pins (the marker counts per window, the state fill keys, the dropped walk-around).
+  Gate PASSED on attempt 1; smoke 58 log entries, 0 ERR/FTL, ProductVersion
+  `0.1.0-alpha.97+45a25332…`.
+
 ## T-163 - The plugins consumption switch: the standard pack rides the package mechanics
 
 - **Branch:** feat/plugin-packages, worktree zt-plugin-packages, based on develop@1f2a622 (claimed 2026-11-10 per standing directive 6; filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
