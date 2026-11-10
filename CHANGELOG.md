@@ -1,3 +1,31 @@
+## [0.1.0-alpha.96] - 2026-11-11
+
+Build of board task T-151 (branch `feat/palette-lint`).
+
+### Added
+- The palette role contract (T-151): `PaletteContract` in the Livery
+  package 0.1.4 (the satellite's release, the tag `v0.1.4`) documents the
+  role shape — Background/Surface/Border planar fills, Accent the
+  interactive token (the hover fill and the focus stroke), Highlight the
+  on-state token, TextPrimary the reading token, Buy/Sell the chip fills —
+  and walks every palette through the WCAG battery: the hover fill and
+  the focus stroke at 3.0:1 (WCAG 1.4.11), text over the interactive fill
+  at 4.5:1, the chip fills at 3.0:1. A broken palette fails naming the
+  exact pair (the satellite's own facts pin the diagnostic), a palette
+  that cannot read its roles throws — never silently conforming.
+
+### Changed
+- The Accent role fix (T-151): the dark (#0f3460 → #2563eb), light
+  (#dee2e6 → #3b82f6) and OLED (#1a1a1a → #2563eb) palettes carry the
+  interactive-strength accent now — the hover fill and the focus stroke
+  the styles paint with it are visible (#0f3460 read ~1.4:1 on the dark
+  surface, #dee2e6 ~1.2:1 on the light background, #1a1a1a ~1.1:1 on the
+  OLED surface). midnight and trading-pro already answered the contract
+  and stay untouched; the auto-created sample theme drops the brand-red
+  accent (its white-on-red text read 3.8:1) for the interactive blue.
+  The battery pins the five shipped files and the generated sample — a
+  rolled-back value fails the gate naming the pair and the golden.
+
 ## [0.1.0-alpha.95] - 2026-11-11
 
 Build of board task T-150 (branch `feat/design-tokens`).
