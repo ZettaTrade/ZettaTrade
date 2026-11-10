@@ -136,7 +136,9 @@
                      adapter health dots already speak — calm CandleUp,
                      prompt Highlight, danger Error — and re-tint live on
                      theme switches; the caption and tooltip are dynamic
-                     localized data from the view model. -->
+                     localized data from the view model. The text rides the
+                     derived ChipForeground (T-152): the readable per-theme
+                     foreground over those fills. -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             Spacing="8"
@@ -165,7 +167,8 @@
                         </Border.Styles>
                         <TextBlock Text="{Binding TradingLaneLabel}"
                                    FontSize="11"
-                                   FontWeight="SemiBold" />
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource ChipForeground}" />
                     </Border>
                 </StackPanel>
                 <TextBlock Grid.Column="3" Text="{Binding ConnectionStatus}" Margin="16,0" VerticalAlignment="Center" />
@@ -458,7 +461,7 @@
                                         VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Count}"
                                                FontSize="11"
-                                               Foreground="{DynamicResource Background}" />
+                                               Foreground="{DynamicResource ChipForeground}" />
                                 </Border>
                                 <TextBlock Grid.Column="2"
                                            Text="{Binding Summary}"

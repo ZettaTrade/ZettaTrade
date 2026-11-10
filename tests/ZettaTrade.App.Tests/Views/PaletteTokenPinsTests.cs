@@ -81,6 +81,86 @@ public sealed class PaletteTokenPinsTests
     }
 
     /// <summary>
+    /// The chip templates ride the derived readable foreground (T-152):
+    /// the main window's lane chip and notification count badge, plus the
+    /// ticket's and the panels' testnet badges — every chip text overlays
+    /// a state-color fill and reads it through {DynamicResource
+    /// ChipForeground}, the per-theme derived candidate the startup walk
+    /// publishes. The inherited theme foreground failed the pill-sized
+    /// WCAG bar on those fills (white over #22c55e ≈ 2.3:1).
+    /// </summary>
+    [Fact]
+    public void TheChipTemplates_RideTheDerivedReadableForeground()
+    {
+        var markers = new (string Window, int ExpectedCount)[]
+        {
+            ("MainWindow", 2),
+            ("NewOrderDialogWindow", 1),
+            ("PositionsPanelWindow", 1),
+            ("OrderHistoryWindow", 1),
+        };
+
+        foreach (var (window, expectedCount) in markers)
+        {
+            var source = File.ReadAllText(
+                Path.Combine(AppProjectDirectory, "Views", $"{window}.axaml"));
+
+            var matches = Regex
+                .Matches(source, @"Foreground=""\{DynamicResource ChipForeground\}""")
+                .Count;
+
+            matches.Should().Be(
+                expectedCount,
+                "the {0} chip surface(s) must ride the derived readable foreground", window);
+        }
+    }
+
+    /// <summary>
+    /// The chip fills stay on the state keys: the lane chip keeps the
+    /// CandleUp/Highlight/Error fills and every badge keeps its Highlight
+    /// fill — the pins above bind the readable foreground to those very
+    /// consumers, so the treatment cannot drift off the fills.
+    /// </summary>
+    [Fact]
+    public void TheChipFills_StayOnTheStateColorKeys()
+    {
+        var main = File.ReadAllText(
+            Path.Combine(AppProjectDirectory, "Views", "MainWindow.axaml"));
+
+        foreach (var fillKey in new[] { "CandleUp", "Highlight", "Error" })
+        {
+            main.Should().Contain(
+                $@"Background"" Value=""{{DynamicResource {fillKey}}}""",
+                "the lane chip's state classes keep their fill keys");
+        }
+
+        foreach (var window in new[] { "NewOrderDialogWindow", "PositionsPanelWindow", "OrderHistoryWindow" })
+        {
+            File.ReadAllText(Path.Combine(AppProjectDirectory, "Views", $"{window}.axaml"))
+                .Should().Contain(
+                    @"Background" + "\" Value=\"{DynamicResource Highlight}\"",
+                    "the {0} testnet badge keeps its Highlight fill", window);
+        }
+    }
+
+    /// <summary>
+    /// The legacy walk-around stays dropped: the count badge used the
+    /// Background planar key as its text color — the derived readable
+    /// foreground is the honest equal and no chip template may re-introduce
+    /// the Background-as-foreground overdose.
+    /// </summary>
+    [Fact]
+    public void TheCountBadge_DropsTheBackgroundWalkaround()
+    {
+        var main = File.ReadAllText(
+            Path.Combine(AppProjectDirectory, "Views", "MainWindow.axaml"));
+
+        main.Should().NotContain(
+            @"Foreground=""{DynamicResource Background}""",
+            "the Background key is the planar role, the chip text rides ChipForeground");
+    }
+
+    /// <summary>
     /// Walk up from the test's base directory to the folder carrying the
     /// solution marker: tests, gate runners and IDE runs all execute inside
     /// the repository, so this resolves identically for every consumer.
