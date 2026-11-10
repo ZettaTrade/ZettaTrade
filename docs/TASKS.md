@@ -154,7 +154,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-147 Agent canon split: a lean always-on AGENTS.md, a deduped zettatrade skill and on-demand references | feat/canon-split | done | - |
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | done | - |
-| T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | in-progress | - |
+| T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | done | - |
 | T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | queued | - |
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | queued | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | queued | - |
@@ -274,7 +274,26 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 - **Tests:** source pins over the views against the forbidden `SystemAccentColor*`/`SystemControl*`
   keys; a ThemeManager test asserting the derived keys ride the palette; the existing contrast
   pins stay green.
-- **Status:** in-progress
+- **Status:** done. Canon: the claim `ba62bcb`, the feat `36a1d4e`, the ship `2850c59`
+  (0.1.0-alpha.95, the satellite consumption line at Livery 0.1.3). Two-repo choreography: the
+  satellite Livery carries the derived-key publish (`2ac3e23`, the tag `v0.1.2`, superseded the
+  same day by `d132077`, the tag `v0.1.3` — a re-publish was impossible, the tag existed and the
+  feed dedups) and the consumer rides `LiveryVersion` 0.1.3; the satellite's derived facts
+  (26 keys, arguably exact blend bytes) live in the consumer's UI.Tests. The hard discovery pin:
+  Avalonia 12's property store enforces value-type identity per effectively bound entry — a raw
+  Color published over a stock brush key throws
+  `InvalidCastException` («Unable to cast object of type 'Avalonia.Media.Color' to type
+  'Avalonia.Media.SolidColorBrush'») the moment a `DynamicResource` binding already resolved a
+  brush (0.1.3 publishes the `*Brush` family as `SolidColorBrush`, the accent family as Colors).
+  Views: the status bar Surface + a top Border stroke, 12 separators/light-queue strokes ride
+  Border, the settings cue glyphs ride Border/TextSecondary (`PaletteTokenPinsTests` forbids the
+  `SystemAccent`/`SystemControl` substrings across 25 app axaml files and regex-pins the status
+  bar). Suite infra: WindowChromeTests' style loader gained the app-world reuse guard — Avalonia
+  12 refuses a second AppBuilder setup, and the new publish-pins class stands the world up first.
+  Gate triage: attempt 1 failed the two chrome style pins (the unguarded second setup, fixed in
+  the feat), attempt 2 tripped `WorkspaceLayoutViewModelTests.TheRuntimeEmits_DriveTheMirror`
+  (green 5/5 in isolated Release replay — the known App.Tests load-sensitive timing family,
+  absorbed by the gate's flaky retry), attempt 3 PASSED.
 
 ## T-151 — Palette contract lint: WCAG pins over every theme file + the Accent role fix
 
