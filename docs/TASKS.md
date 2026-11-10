@@ -135,7 +135,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-128 Demo video: storyboard + shot list (docs/ops) | feat/demo-script | done | - |
 | T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | queued | T-126 |
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
-| T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | in-progress | - |
+| T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | done | - |
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
 | T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | done | T-082 |
 | T-134 Supervisor-mode skill (OpenCode): the standing directives load only on explicit invocation | feat/supervisor-skill | done | - |
@@ -205,16 +205,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the bootstrap and split commits in the new Livery repo, the ZettaTrade consumption switch, the docs notes; no product behavior changes.
 - **Acceptance:** the new repo's history reaches back through the split for Livery files (nothing lost at the splice); a clean ZettaTrade clone builds with zero in-tree Livery sources and the full test matrix stays green; the two-PR cross-repo path lands once as a rehearsal (a style tweak: the version-bumped PR in Livery, then the bump PR here).
 - **Tests:** the matrix over the consumption switch; the Livery suite in the new repo; the rehearsal change verified on both sides.
-
-## T-131 — Plugin SDK seam: versioned plugin abstractions for out-of-tree modules
-
-- **Branch:** feat/plugin-sdk, worktree zt-plugin-sdk, based on develop@2bf507b (claimed 2026-11-10 per standing directive 6; queued 2026-11-06 at the T-074:T-115 backlog cut). Open-core prerequisite; Core contracts are the supervisor's lane per AGENTS — additive interfaces only.
-- **Status:** in-progress.
-- **Origin:** plugin-first is the architecture since day one, yet no formally VERSIONED contract exists for modules compiled outside the solution; without one every core refactor breaks out-of-tree builds — the paid modules first of all — and the marketplace shape stays theoretical.
-- **What:** a contract surface `ZettaTrade.Plugins.Abstractions` — the plugin identity/manifest, the lifecycle via the `IAsyncInitializable` canon, DI registration entry points, the UI extension points (panel/toolbar/settings section registration), market-data and services access, and the trading-safety obligations (any order path inside a plugin passes `IRiskManager`/`IConfirmationService`, no exceptions); SemVer discipline declared with the governor note (a breaking release = a major bump + a pinned contract baseline test); the author guide `docs/PLUGINS.md` documents the contract, the rejected-not-defaulted error semantics and the platform rules (nothing writes to stdout except MCP protocol messages; logs go to files only).
-- **Scope:** the contract assembly, the loader wiring (one blessed path to register external assemblies), docs; NO proprietary code lands in the public repo — the surface stays MIT.
-- **Acceptance:** a sample MIT fixture plugin built out of the solution compiles against the published contract and loads through the loader with its panels registering; the matrix stays green with the sample present and absent.
-- **Tests:** loader contract tests (manifest parsing, duplicate ids, missing dependencies fail loudly), the end-to-end sample load golden, a public-API surface test pinning the contract baseline (accidental breaks fail CI).
 
 ## T-132 — Closed-source plugin packaging: signed artifacts + local license-key activation
 
