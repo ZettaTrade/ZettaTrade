@@ -237,9 +237,16 @@ public sealed class PluginCatalogPackRegistrationTests
 
     /// <summary>
     /// Cold-start laziness, the architectural half: the production
-    /// assemblies reference ZERO plugin assemblies - a cold start without
-    /// the plugins folder cannot even see the pack (the scan is the only
-    /// path in). The negative control proves the pin would catch one.
+    /// <summary>
+    /// The cold-start charter (T-092, shaped by T-131): the production
+    /// assemblies reference ZERO plugin implementation assemblies — a
+    /// cold start without the plugins folder cannot even see the pack
+    /// (the scan is the only path in). The one exception is the versioned
+    /// SDK contract itself (<c>ZettaTrade.Plugins.Abstractions</c>): it
+    /// is the compile-time surface out-of-tree plugins build against,
+    /// carries no plugin code, and the Infrastructure loader needs it for
+    /// the manifest scan. The negative control proves the pin would still
+    /// catch a real implementation reference.
     /// </summary>
     [Fact]
     public void ColdStart_TheProductionGraph_ReferencesNoPluginAssembly()
@@ -254,10 +261,14 @@ public sealed class PluginCatalogPackRegistrationTests
             .Select(reference => reference.Name)
             .ToList();
 
+        const string AllowedContractAssembly = "ZettaTrade.Plugins.Abstractions";
+
         foreach (var refs in new[] { appRefs, chartingRefs, infrastructureRefs })
         {
-            refs.Where(name => name is not null && name.StartsWith("ZettaTrade.Plugins.", StringComparison.Ordinal))
-                .Should().BeEmpty("the production graph never references a plugin assembly");
+            refs.Where(name => name is not null
+                    && name.StartsWith("ZettaTrade.Plugins.", StringComparison.Ordinal)
+                    && !string.Equals(name, AllowedContractAssembly, StringComparison.Ordinal))
+                .Should().BeEmpty("the production graph never references a plugin implementation assembly");
         }
 
         // Negative control: this test assembly references the pack, the

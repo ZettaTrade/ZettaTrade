@@ -23,6 +23,7 @@
     <ProjectReference Include="..\Livery\Livery.csproj" />
     <ProjectReference Include="..\ZettaTrade.Charting\ZettaTrade.Charting.csproj" />
     <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
+    <ProjectReference Include="..\ZettaTrade.Plugins.Abstractions\ZettaTrade.Plugins.Abstractions.csproj" />
   </ItemGroup>
 
   <!-- The test project pins the tolerant-number parser directly; assembly
