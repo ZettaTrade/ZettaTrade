@@ -154,7 +154,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-147 Agent canon split: a lean always-on AGENTS.md, a deduped zettatrade skill and on-demand references | feat/canon-split | done | - |
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | done | - |
-| T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | queued | - |
+| T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | in-progress | - |
 | T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | queued | - |
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | queued | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | queued | - |
@@ -255,7 +255,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-150 — Design tokens: Fluent system brushes out of the views, palette keys only
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Branch:** feat/design-tokens, worktree zt-design-tokens, based on develop@8395e6f (claimed 2026-11-11 as the first of the T-150…T-162 design-review batch — the two color systems converge first).
 - **Origin:** two parallel color systems run side by side: ThemeManager publishes only the palette
   keys, while the views lean on stock Fluent strokes — the status bar paints
   `SystemAccentColorLight2` (the MainWindow status Border), the panel separators and the settings
@@ -274,6 +274,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 - **Tests:** source pins over the views against the forbidden `SystemAccentColor*`/`SystemControl*`
   keys; a ThemeManager test asserting the derived keys ride the palette; the existing contrast
   pins stay green.
+- **Status:** in-progress
 
 ## T-151 — Palette contract lint: WCAG pins over every theme file + the Accent role fix
 
