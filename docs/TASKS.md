@@ -155,7 +155,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | done | - |
 | T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | done | - |
-| T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | in-progress | - |
+| T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | done | - |
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | queued | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | queued | - |
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | queued | - |
@@ -314,6 +314,25 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   focus border) fails the gate naming the pair; custom user themes hit the same pins on load.
 - **Tests:** the pin battery over the real files (the shipped goldens recorded), plus a negative
   fixture that a broken palette fails loudly.
+- **Status:** done. Canon: the claim `13c1b75`, the feat `f715449`, the ship `e264976`
+  (0.1.0-alpha.96, the satellite consumption line at Livery 0.1.4). Two-repo choreography: the
+  satellite Livery carries the contract itself (`72b6622`, the tag `v0.1.4` — `PaletteContract`
+  with the role-shape doc, the battery, and the sample theme dropping the brand-red accent for
+  the interactive blue) and the consumer rides `LiveryVersion` 0.1.4; the satellite's own facts
+  (healthy baseline, named-pair diagnostics, the missing/unparsable-role loudness) live in
+  `Livery.Tests`. The choice inside the task's fork ((a) re-tune vs (b) a dedicated
+  hover/focus key): (a) — the Accent becomes the interactive-strength token, no markup moves,
+  no new role rolls out; dark #0f3460 → #2563eb (hover 1.36 → 3.27, focus 1.58 → 3.24), light
+  #dee2e6 → #3b82f6 (1.24 → 3.56 hover, 1.30 → 3.68 focus, и чёрный TextPrimary на заливке
+  держит 4.5), oled #1a1a1a → #2563eb (1.14 → 3.27); midnight and trading-pro already
+  answered the contract untouched. The battery pins the five shipped files + the generated
+  sample through the real `ThemeManager.InitializeAsync` first-run path (a pre-existing empty
+  user directory never triggers the sample branch — the fact creates no directory before the
+  manager), and the accent goldens are literal pins, so a rollback fails the gate by name and
+  golden. Gate PASSED with one flaky-retry absorption in App.Tests (the known load-sensitive
+  timing family); the satellite release overcame one lesson of the T-150 choreography — the
+  first-serving check after the feed poll ran while the consumer still pinned the older
+  version, so the honest restore check re-ran AFTER the `LiveryVersion` bump.
 - **Status:** in-progress
 
 ## T-152 — Trading mode chips readable: dark foreground on the state colors

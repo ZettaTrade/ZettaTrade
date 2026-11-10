@@ -2013,6 +2013,45 @@ the board and its section below.
   (green 5/5 in isolated Release replay — the known App.Tests load-sensitive timing family,
   absorbed by the gate's flaky retry), attempt 3 PASSED.
 
+## T-151 — Palette contract lint: WCAG pins over every theme file + the Accent role fix
+
+- **Branch:** feat/palette-lint, worktree zt-palette-lint, based on develop@9c2cb0b (claimed 2026-11-11 as the second of the T-150…T-162 design-review batch — the Accent role contract lands right after the token convergence).
+- **Origin:** the Accent key lost its role: the dark palette uses it as a barely-visible hover
+  fill (contrast vs Surface ~1.4:1), the light one makes the TextBox focus border invisible
+  (~1.2:1 vs white), while the auto-created sample theme reads Accent as a loud brand red. A
+  palette file can silently ship an unusable hover/focus state — `Livery.Themes.Contrast` already
+  has the math, the shipped themes have no battery walking their role pairs.
+- **What:** a role contract documented once (surface / interactive hover / focus stroke / text /
+  status) and a Livery test battery walking every shipped + user-scanned theme file through
+  Contrast.Ratio pins: hover-vs-Surface, TextPrimary-on-hover, focus-vs-Background, the state
+  colors as chip fills; dark.json/light.json values re-tuned (Accent becomes an
+  interactive-strength token, or the restyling moves hover/focus onto a dedicated key).
+- **Scope:** Livery.Themes (docs + tests + Contrast consumers), the themes/*.json values, the
+  Controls.axaml selectors if the hover token moves; no control markup.
+- **Acceptance:** every shipped theme passes the pin battery; breaking a value (e.g. an invisible
+  focus border) fails the gate naming the pair; custom user themes hit the same pins on load.
+- **Tests:** the pin battery over the real files (the shipped goldens recorded), plus a negative
+  fixture that a broken palette fails loudly.
+- **Status:** done. Canon: the claim `13c1b75`, the feat `f715449`, the ship `e264976`
+  (0.1.0-alpha.96, the satellite consumption line at Livery 0.1.4). Two-repo choreography: the
+  satellite Livery carries the contract itself (`72b6622`, the tag `v0.1.4` — `PaletteContract`
+  with the role-shape doc, the battery, and the sample theme dropping the brand-red accent for
+  the interactive blue) and the consumer rides `LiveryVersion` 0.1.4; the satellite's own facts
+  (healthy baseline, named-pair diagnostics, the missing/unparsable-role loudness) live in
+  `Livery.Tests`. The choice inside the task's fork ((a) re-tune vs (b) a dedicated
+  hover/focus key): (a) — the Accent becomes the interactive-strength token, no markup moves,
+  no new role rolls out; dark #0f3460 → #2563eb (hover 1.36 → 3.27, focus 1.58 → 3.24), light
+  #dee2e6 → #3b82f6 (1.24 → 3.56 hover, 1.30 → 3.68 focus, и чёрный TextPrimary на заливке
+  держит 4.5), oled #1a1a1a → #2563eb (1.14 → 3.27); midnight and trading-pro already
+  answered the contract untouched. The battery pins the five shipped files + the generated
+  sample through the real `ThemeManager.InitializeAsync` first-run path (a pre-existing empty
+  user directory never triggers the sample branch — the fact creates no directory before the
+  manager), and the accent goldens are literal pins, so a rollback fails the gate by name and
+  golden. Gate PASSED with one flaky-retry absorption in App.Tests (the known load-sensitive
+  timing family); the satellite release overcame one lesson of the T-150 choreography — the
+  first-serving check after the feed poll ran while the consumer still pinned the older
+  version, so the honest restore check re-ran AFTER the `LiveryVersion` bump.
+
 ## T-163 - The plugins consumption switch: the standard pack rides the package mechanics
 
 - **Branch:** feat/plugin-packages, worktree zt-plugin-packages, based on develop@1f2a622 (claimed 2026-11-10 per standing directive 6; filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
