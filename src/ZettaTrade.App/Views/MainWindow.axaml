@@ -108,7 +108,9 @@
 
         <!-- Status bar -->
         <Border DockPanel.Dock="Bottom"
-                Background="{DynamicResource SystemAccentColorLight2}"
+                Background="{DynamicResource Surface}"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource Border}"
                 Padding="8,4"
                 DataContext="{Binding StatusBar}">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
@@ -265,7 +267,7 @@
                     <Border x:Name="BookPanelHost"
                             Grid.Column="2"
                             Margin="8,0,0,0"
-                            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                            BorderBrush="{DynamicResource Border}"
                             BorderThickness="1,0,0,0">
                         <panels:OrderBookPanelView x:Name="BookPanel" />
                     </Border>
@@ -280,7 +282,7 @@
                          symbol's rows in the widget. -->
                     <Border Grid.Column="4"
                             Margin="8,0,0,0"
-                            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                            BorderBrush="{DynamicResource Border}"
                             BorderThickness="1,0,0,0"
                             DataContext="{Binding TradeTape}">
                         <Grid RowDefinitions="Auto,*">
@@ -319,7 +321,7 @@
                                  workspace selection's row; each row keeps a stable
                                  identity (only its fields churn per pulse), the
                                  sparkline rides the row's own price ring. -->
-                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                            <Border BorderBrush="{DynamicResource Border}"
                                     BorderThickness="1,0,0,0">
                                 <ListBox ItemsSource="{Binding Rows}">
                                     <ListBox.ItemTemplate>
@@ -410,7 +412,7 @@
             <Border x:Name="AssistantPanelHost"
                     Grid.Column="2"
                     IsVisible="{Binding Chat.IsAiChatVisible}"
-                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderBrush="{DynamicResource Border}"
                     BorderThickness="1,0,0,0">
                 <panels:AssistantPanelView x:Name="AssistantPanel" />
             </Border>
