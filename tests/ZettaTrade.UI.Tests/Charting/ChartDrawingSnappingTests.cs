@@ -4,8 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
-using ZettaTrade.Charting;
 using Xunit;
+using ZettaTrade.Charting;
 
 /// <summary>
 /// The snapping goldens (T-091): nearest-rung picks for the price ladder,

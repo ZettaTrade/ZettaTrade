@@ -4,8 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
-using ZettaTrade.Charting;
 using Xunit;
+using ZettaTrade.Charting;
 
 /// <summary>
 /// The drawings layer's geometry goldens (T-091): the Fibonacci ladder's
@@ -111,7 +111,7 @@ public sealed class ChartDrawingGeometryTests
             new ChartDrawingAnchor(T0, 90m),
         };
 
-        var act = () => ChartDrawing.Validate(anchors);
+        var act = () => ChartDrawing.Validate(ChartDrawingKind.TrendLine, anchors);
 
         act.Should().Throw<ArgumentException>("anchors must stay ascending by time, a flipped segment reads backwards.");
     }
@@ -125,7 +125,7 @@ public sealed class ChartDrawingGeometryTests
             new ChartDrawingAnchor(T0, 100m),
         };
 
-        var act = () => ChartDrawing.Validate(anchors);
+        var act = () => ChartDrawing.Validate(ChartDrawingKind.TrendLine, anchors);
 
         act.Should().Throw<ArgumentException>();
     }
@@ -139,8 +139,55 @@ public sealed class ChartDrawingGeometryTests
             new ChartDrawingAnchor(T1, 120m),
         };
 
-        var act = () => ChartDrawing.Validate(anchors);
+        var act = () => ChartDrawing.Validate(ChartDrawingKind.TrendLine, anchors);
 
         act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_AnchorCountBelowTheTool_ThrowsLoudly()
+    {
+        var anchors = new[]
+        {
+            new ChartDrawingAnchor(T0, 100m),
+        };
+
+        var act = () => ChartDrawing.Validate(ChartDrawingKind.TrendLine, anchors);
+
+        act.Should().Throw<ArgumentException>("a trend line's second corner is not optional.");
+    }
+
+    [Fact]
+    public void Validate_AnchorCountAboveTheTool_ThrowsLoudly()
+    {
+        var anchors = new[]
+        {
+            new ChartDrawingAnchor(T0, 100m),
+            new ChartDrawingAnchor(T1, 110m),
+            new ChartDrawingAnchor(T1.AddHours(2), 120m),
+        };
+
+        var act = () => ChartDrawing.Validate(ChartDrawingKind.HorizontalLevel, anchors);
+
+        act.Should().Throw<ArgumentException>("a horizontal level pins one price; extra anchors never happened.");
+    }
+
+    [Fact]
+    public void AnchorCount_AndTheValidator_AgreePerTool()
+    {
+        foreach (var kind in new[] { ChartDrawingKind.TrendLine, ChartDrawingKind.HorizontalLevel, ChartDrawingKind.FibRetracement })
+        {
+            var expected = ChartDrawing.AnchorCount(kind);
+            if (expected > 1)
+            {
+                var anchors = Enumerable.Range(1, expected)
+                    .Select(n => new ChartDrawingAnchor(T0.AddHours(n), 100m + n))
+                    .ToArray();
+
+                var act = () => ChartDrawing.Validate(kind, anchors);
+
+                act.Should().NotThrow($"the {kind} tool's full anchor count validates.");
+            }
+        }
     }
 }

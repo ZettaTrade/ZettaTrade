@@ -3,6 +3,7 @@
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
         xmlns:charting="using:ZettaTrade.UI.Charting"
+        xmlns:tools="using:ZettaTrade.Charting"
         xmlns:app="using:ZettaTrade.App"
         x:Class="ZettaTrade.App.Views.MainWindow"
         Classes="chrome"
@@ -385,7 +386,7 @@
                                  the candles export writes the loaded series to a
                                  user-chosen CSV file. -->
                             <Grid Grid.Row="0"
-                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                                   Margin="0,0,0,8">
                                 <ComboBox Grid.Column="0"
                                           ItemsSource="{Binding AvailableSymbols}"
@@ -517,6 +518,62 @@
                                         ToolTip.Tip="{loc:Localized Chart.Compare.Tip}"
                                         MinWidth="92"
                                         Margin="8,0,0,0" />
+                                <!-- The drawing tools palette (T-091): each toggle
+                                     arms its tool on the chart control (a same-tool
+                                     press stands it down); the control's on-state
+                                     rides the active class, and a placed drawing
+                                     persists through the chart ViewModel. -->
+                                <Button Grid.Column="13"
+                                        Content="{loc:Localized Chart.Tool.TrendLine}"
+                                        Command="{Binding ToolCommand}"
+                                        CommandParameter="{x:Static tools:ChartDrawingTool.TrendLine}"
+                                        ToolTip.Tip="{loc:Localized Chart.Tool.TrendLine.Tip}"
+                                        Classes.on="{Binding IsTrendLineToolActive}"
+                                        MinWidth="72"
+                                        Margin="8,0,0,0"
+                                        Opacity="0.65">
+                                    <Button.Styles>
+                                        <Style Selector="Button.on">
+                                            <Setter Property="Opacity" Value="1" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                                        </Style>
+                                    </Button.Styles>
+                                </Button>
+                                <Button Grid.Column="14"
+                                        Content="{loc:Localized Chart.Tool.Level}"
+                                        Command="{Binding ToolCommand}"
+                                        CommandParameter="{x:Static tools:ChartDrawingTool.HorizontalLevel}"
+                                        ToolTip.Tip="{loc:Localized Chart.Tool.Level.Tip}"
+                                        Classes.on="{Binding IsLevelToolActive}"
+                                        MinWidth="72"
+                                        Margin="8,0,0,0"
+                                        Opacity="0.65">
+                                    <Button.Styles>
+                                        <Style Selector="Button.on">
+                                            <Setter Property="Opacity" Value="1" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                                        </Style>
+                                    </Button.Styles>
+                                </Button>
+                                <Button Grid.Column="15"
+                                        Content="{loc:Localized Chart.Tool.Fib}"
+                                        Command="{Binding ToolCommand}"
+                                        CommandParameter="{x:Static tools:ChartDrawingTool.FibRetracement}"
+                                        ToolTip.Tip="{loc:Localized Chart.Tool.Fib.Tip}"
+                                        Classes.on="{Binding IsFibToolActive}"
+                                        MinWidth="72"
+                                        Margin="8,0,0,0"
+                                        Opacity="0.65">
+                                    <Button.Styles>
+                                        <Style Selector="Button.on">
+                                            <Setter Property="Opacity" Value="1" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                                        </Style>
+                                    </Button.Styles>
+                                </Button>
                             </Grid>
 
                             <!-- Export failure -->
@@ -560,9 +617,13 @@
                                                        TradingFills="{Binding TradingFills}"
                                                        MainSeriesLabel="{Binding MainSeriesLabel}"
                                                        CompareLayers="{Binding CompareLayers}"
+                                                       Drawings="{Binding Drawings}"
+                                                       ActiveTool="{Binding ActiveDrawingTool}"
+                                                       SelectedDrawingId="{Binding SelectedDrawingId}"
                                                        FrameTapEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).Hud.IsVisible}" />
                                                         <!-- T-122: the trading footprint — my own position entry, working orders and fills, overlay-only (nothing routes back toward an order). -->
                                                         <!-- T-124: the compare overlays — the chip strip's main label follows the workspace symbol; the layers are transient chart-level state. -->
+                                                        <!-- T-091: the drawings layer — the persisted annotation list, the palette's armed tool and the selection ride one-way in; the control's interaction events mirror out through the window's subscriptions below. -->
 
                             <!-- Signal rail (T-112): the latest strategy readings
                                  streaming under the chart — one coalesced rows

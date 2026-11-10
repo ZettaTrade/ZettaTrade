@@ -4,10 +4,10 @@ using System;
 using System.Collections.Generic;
 using Avalonia;
 using FluentAssertions;
+using Xunit;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.UI.Charting;
-using Xunit;
 
 /// <summary>
 /// The drawings layer's pointer-mapping goldens (T-091): the inverse of

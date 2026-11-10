@@ -327,7 +327,8 @@ public sealed class ChartViewModelTests
         ISettingsService? settings = null,
         ICsvExportService? export = null,
         ILocalizationManager? localization = null,
-        ICandleCache? candleCache = null)
+        ICandleCache? candleCache = null,
+        FakeDrawingStore? drawingStore = null)
     {
         var timeFrameSettings = settings;
         if (timeFrameSettings is null)
@@ -346,6 +347,10 @@ public sealed class ChartViewModelTests
         // SAME cache the repair chain probes: the T-086 facts watch the
         // probe and the fetched segments on the one fake.
         var cache = candleCache ?? new FakeCandleCache([]);
+
+        // The drawings store the facts ride: an empty load plan answers
+        // every load with an empty layer unless a fact scripts one.
+        var drawings = drawingStore ?? new FakeDrawingStore();
 
         // The T-112 seam's inert hosting pair: no plugin resolves (the
         // substitute catalog is empty), so the markers stream stays silent
@@ -371,6 +376,7 @@ public sealed class ChartViewModelTests
             // The repair chain's fetcher: every pass rides the same fake
             // cache (write-before-emit visibility) and a plain logger.
             new CandleBackfillService(cache, NullLogger<CandleBackfillService>.Instance),
+            drawings,
             signals,
             rail,
             relay,
@@ -3105,6 +3111,296 @@ public sealed class ChartViewModelTests
     }
 
     #endregion Symbol Compare (T-124)
+
+    #region Drawing Actions (T-091)
+
+    /// <summary>
+    /// The IChartDrawingStore fake for the drawings facts: a scripted layer
+    /// queue answers the loads (exhaustion answers an empty layer), every
+    /// save is recorded and its answer echoes the caller's layer (the
+    /// store's naming reality in the happy path), and fault hooks stand
+    /// both arms ready.
+    /// </summary>
+    private sealed class FakeDrawingStore(IReadOnlyList<ChartDrawing>[]? layerPlan = null)
+        : IChartDrawingStore
+    {
+        private readonly Queue<IReadOnlyList<ChartDrawing>> _layers = new(layerPlan ?? []);
+
+        /// <summary>The recorded saves: the key plus the pushed layer, in call order.</summary>
+        public List<(string AdapterId, string Symbol, TimeFrame TimeFrame, IReadOnlyList<ChartDrawing> Layer)> Saves { get; } = [];
+
+        /// <summary>The recorded load keys, in call order.</summary>
+        public List<(string AdapterId, string Symbol, TimeFrame TimeFrame)> Loads { get; } = [];
+
+        /// <summary>When set, every save faults.</summary>
+        public Exception? SaveFault { get; set; }
+
+        /// <summary>When set, every load faults.</summary>
+        public Exception? LoadFault { get; set; }
+
+        public async Task<IReadOnlyList<ChartDrawing>> LoadAsync(
+            string adapterId,
+            string symbol,
+            TimeFrame timeFrame,
+            CancellationToken cancellationToken = default)
+        {
+            Loads.Add((adapterId, symbol, timeFrame));
+            if (LoadFault is { } fault)
+            {
+                throw fault;
+            }
+
+            if (_layers.TryDequeue(out var layer))
+            {
+                return layer;
+            }
+
+            return [];
+        }
+
+        public async Task<IReadOnlyList<ChartDrawing>> SaveAsync(
+            string adapterId,
+            string symbol,
+            TimeFrame timeFrame,
+            IReadOnlyList<ChartDrawing> drawings,
+            CancellationToken cancellationToken = default)
+        {
+            Saves.Add((adapterId, symbol, timeFrame, drawings));
+            if (SaveFault is { } fault)
+            {
+                throw fault;
+            }
+
+            return drawings;
+        }
+    }
+
+    /// <summary>The palette arms a tool, switches between tools and toggles the armed one off in place.</summary>
+    [Fact]
+    public async Task ToolCommand_ArmsSwitchesAndTogglesOff()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+
+        await chart.ToolCommand.Execute(ChartDrawingTool.TrendLine);
+        chart.ActiveDrawingTool.Should().Be(ChartDrawingTool.TrendLine);
+        chart.IsTrendLineToolActive.Should().BeTrue();
+        chart.IsLevelToolActive.Should().BeFalse();
+        chart.IsFibToolActive.Should().BeFalse();
+
+        await chart.ToolCommand.Execute(ChartDrawingTool.FibRetracement);
+        chart.ActiveDrawingTool.Should().Be(ChartDrawingTool.FibRetracement);
+        chart.IsTrendLineToolActive.Should().BeFalse();
+        chart.IsFibToolActive.Should().BeTrue();
+
+        await chart.ToolCommand.Execute(ChartDrawingTool.FibRetracement);
+        chart.ActiveDrawingTool.Should().Be(ChartDrawingTool.None, "the same-tool press toggles off");
+        chart.IsFibToolActive.Should().BeFalse();
+
+        await chart.ToolCommand.Execute(ChartDrawingTool.HorizontalLevel);
+        chart.IsLevelToolActive.Should().BeTrue();
+    }
+
+    /// <summary>A placement's commit routes the whole-layer save under the standing key and republishes the store's answer.</summary>
+    [Fact]
+    public async Task CommitDrawing_SavesTheLayer_UnderTheStandingKey()
+    {
+        var store = new FakeDrawingStore();
+        var chart = CreateChartWithStore(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            store);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var anchors = new[]
+        {
+            new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 100m),
+            new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 2, 0, 0, TimeSpan.Zero), 120m),
+        };
+        await chart.CommitDrawingAsync(new ChartDrawingEventArgs(null, ChartDrawingKind.TrendLine, anchors));
+
+        chart.Drawings.Should().ContainSingle()
+            .Which.Anchors.Should().BeEquivalentTo(anchors, "the store's answer republishes as the layer");
+        var (_, savedSymbol, savedTimeFrame, savedLayer) = store.Saves.Should().ContainSingle().Which;
+        savedSymbol.Should().Be("BTC/USDT");
+        savedTimeFrame.Should().Be(TimeFrame.H1, "the standing interval owns the key");
+        savedLayer.Should().ContainSingle()
+            .Which.Kind.Should().Be(ChartDrawingKind.TrendLine);
+    }
+
+    /// <summary>A commit before any load has no key to anchor to — it drops quietly, saving nothing.</summary>
+    [Fact]
+    public async Task CommitDrawing_WithoutALoadedPage_DropsQuietly()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+
+        await chart.CommitDrawingAsync(new ChartDrawingEventArgs(
+            null,
+            ChartDrawingKind.TrendLine,
+            [new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 100m),
+             new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 2, 0, 0, TimeSpan.Zero), 120m)]));
+
+        chart.Drawings.Should().BeEmpty();
+    }
+
+    /// <summary>A commit carrying degenerate geometry is refused before any store round-trip.</summary>
+    [Fact]
+    public async Task CommitDrawing_DegenerateGeometry_RefusesBeforeTheStore()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        await chart.CommitDrawingAsync(new ChartDrawingEventArgs(
+            null,
+            ChartDrawingKind.TrendLine,
+            [new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 2, 0, 0, TimeSpan.Zero), 100m),
+             new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 120m)]));
+
+        chart.Drawings.Should().BeEmpty("refused geometry never reaches the layer");
+    }
+
+    /// <summary>The delivered page mirrors its key's persisted layer, and the rebase drops rides with the fresh key.</summary>
+    [Fact]
+    public async Task TheDeliveredPage_MirrorsTheKeyLayer_AndTheRebaseReplacesIt()
+    {
+        var scripted = new ChartDrawing
+        {
+            Kind = ChartDrawingKind.HorizontalLevel,
+            Anchors = [new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 1, 0, 0, TimeSpan.Zero), 95m)],
+        };
+        var store = new FakeDrawingStore([[scripted]]);
+        var chart = CreateChartWithStore(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            store);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.Drawings.Should().ContainSingle().Which.Id.Should().Be(scripted.Id);
+
+        chart.SelectDrawing(scripted.Id);
+        chart.SelectedDrawingId.Should().Be(scripted.Id);
+
+        chart.SelectedTimeFrame = TimeFrame.M5;
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.Drawings.Should().BeEmpty("the fresh key's own layer is what stands");
+        chart.SelectedDrawingId.Should().BeNull("selections belong to their layer, never cross keys");
+    }
+
+    /// <summary>A faulted drawings load stands the layer empty and never breaks the page delivery.</summary>
+    [Fact]
+    public async Task AFaultedDrawingsLoad_StandsEmpty_AndThePageStillDelivers()
+    {
+        var chart = CreateChartWithStore(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            new FakeDrawingStore { LoadFault = new InvalidOperationException("db locked") });
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.Bars.Should().NotBeEmpty("the bars load is never the drawings' hostage");
+        chart.Drawings.Should().BeEmpty("the fault stands the layer empty honestly");
+    }
+
+    /// <summary>An edit replaces the named drawing's anchors; a stale name drops without saving.</summary>
+    [Fact]
+    public async Task EditDrawing_ReplacesTheNamedAnchors_AndStaleNamesDropQuietly()
+    {
+        var scripted = new ChartDrawing
+        {
+            Kind = ChartDrawingKind.HorizontalLevel,
+            Anchors = [new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 1, 0, 0, TimeSpan.Zero), 95m)],
+        };
+        var store = new FakeDrawingStore([[scripted]]);
+        var chart = CreateChartWithStore(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            store);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        await chart.EditDrawingAsync(new ChartDrawingEventArgs(
+            scripted.Id,
+            ChartDrawingKind.HorizontalLevel,
+            [new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 1, 0, 0, TimeSpan.Zero), 97m)]));
+
+        store.Saves.Should().ContainSingle();
+        chart.Drawings.Should().ContainSingle()
+            .Which.Anchors.Should().ContainSingle().Which.Price.Should().Be(97m);
+
+        await chart.EditDrawingAsync(new ChartDrawingEventArgs(
+            Guid.NewGuid(),
+            ChartDrawingKind.HorizontalLevel,
+            [new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 1, 0, 0, TimeSpan.Zero), 99m)]));
+
+        store.Saves.Should().ContainSingle("a stale edit routing never rewrites the store");
+    }
+
+    /// <summary>A SaveAsync fault keeps the pushed layer visible in memory — the store stays as it was.</summary>
+    [Fact]
+    public async Task AFailedSave_KeepsThePushedLayerInMemory()
+    {
+        var store = new FakeDrawingStore { SaveFault = new InvalidOperationException("disk full") };
+        var chart = CreateChartWithStore(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            store);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        await chart.CommitDrawingAsync(new ChartDrawingEventArgs(
+            null,
+            ChartDrawingKind.TrendLine,
+            [new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 100m),
+             new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 2, 0, 0, TimeSpan.Zero), 120m)]));
+
+        chart.Drawings.Should().ContainSingle("the session layer stands even when the store refused");
+        store.Saves.Should().ContainSingle("the write was routed before the fault");
+    }
+
+    /// <summary>A removal drops only the named drawing; an unknown name saves nothing.</summary>
+    [Fact]
+    public async Task DeleteDrawing_RemovesTheNamedDrawing_AndUnknownNamesSaveNothing()
+    {
+        var level = new ChartDrawing
+        {
+            Kind = ChartDrawingKind.HorizontalLevel,
+            Anchors = [new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 1, 0, 0, TimeSpan.Zero), 95m)],
+        };
+        var trend = new ChartDrawing
+        {
+            Kind = ChartDrawingKind.TrendLine,
+            Anchors =
+            [
+                new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 100m),
+                new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 2, 0, 0, TimeSpan.Zero), 120m),
+            ],
+        };
+        var store = new FakeDrawingStore([[level, trend]]);
+        var chart = CreateChartWithStore(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            store);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.SelectDrawing(level.Id);
+        await chart.DeleteDrawingAsync(level.Id);
+
+        chart.Drawings.Should().ContainSingle().Which.Id.Should().Be(trend.Id);
+        chart.SelectedDrawingId.Should().BeNull("the named removal clears its own selection");
+        store.Saves.Should().ContainSingle()
+            .Which.Layer.Should().ContainSingle().Which.Id.Should().Be(trend.Id);
+
+        await chart.DeleteDrawingAsync(Guid.NewGuid());
+
+        store.Saves.Should().ContainSingle("an unknown name never rewrites the store");
+    }
+
+    /// <summary>The CreateChart backend for the drawings facts: the scripted store stands in for the singleton.</summary>
+    private static ChartViewModel CreateChartWithStore(ActiveExchangeService service, FakeDrawingStore store) =>
+        CreateChart(service, drawingStore: store);
+
+    #endregion Drawing Actions (T-091)
 
     #endregion
 }

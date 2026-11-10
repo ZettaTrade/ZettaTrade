@@ -66,6 +66,14 @@ public static class ConfigPathResolver
     public static string CandleCacheDatabaseFile => Path.Combine(DataDirectory, "candles.db");
 
     /// <summary>
+    /// Path to the SQLite database holding the persisted chart drawings
+    /// (T-091): the trader's annotations keyed by (adapter, symbol,
+    /// interval) — a small owned surface, saved on every commit/edit and
+    /// reloaded per chart rebase.
+    /// </summary>
+    public static string ChartDrawingsDatabaseFile => Path.Combine(DataDirectory, "chart-drawings.db");
+
+    /// <summary>
     /// Ensure all required directories exist.
     /// </summary>
     public static void EnsureDirectoriesExist()

@@ -519,6 +519,24 @@
   <data name="Chart.CompareFetchFailed" xml:space="preserve">
     <value>Не удалось загрузить сравнение: {0}</value>
   </data>
+  <data name="Chart.Tool.TrendLine" xml:space="preserve">
+    <value>Тренд</value>
+  </data>
+  <data name="Chart.Tool.TrendLine.Tip" xml:space="preserve">
+    <value>Построить линию тренда: нажмите первый угол, протяните ко второму, отпустите (повторное нажатие выключает)</value>
+  </data>
+  <data name="Chart.Tool.Level" xml:space="preserve">
+    <value>Уровень</value>
+  </data>
+  <data name="Chart.Tool.Level.Tip" xml:space="preserve">
+    <value>Построить горизонтальный уровень цены: нажмите на цену, протяните, отпустите (повторное нажатие выключает)</value>
+  </data>
+  <data name="Chart.Tool.Fib" xml:space="preserve">
+    <value>Фибо</value>
+  </data>
+  <data name="Chart.Tool.Fib.Tip" xml:space="preserve">
+    <value>Построить уровни Фибоначчи: нажмите на максимум свинга, протяните до минимума, отпустите (повторное нажатие выключает)</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>

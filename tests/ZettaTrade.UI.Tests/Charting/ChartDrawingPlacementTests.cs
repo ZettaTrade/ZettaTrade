@@ -3,8 +3,8 @@ namespace ZettaTrade.UI.Tests.Charting;
 using System;
 using System.Linq;
 using FluentAssertions;
-using ZettaTrade.Charting;
 using Xunit;
+using ZettaTrade.Charting;
 
 /// <summary>
 /// The placement machine's goldens (T-091): the uniform press→move→release

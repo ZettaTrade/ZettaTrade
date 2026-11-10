@@ -519,6 +519,24 @@
   <data name="Chart.CompareFetchFailed" xml:space="preserve">
     <value>The compare fetch failed: {0}</value>
   </data>
+  <data name="Chart.Tool.TrendLine" xml:space="preserve">
+    <value>Trend</value>
+  </data>
+  <data name="Chart.Tool.TrendLine.Tip" xml:space="preserve">
+    <value>Draw a trend line: press a corner, drag to the second corner, release (press again to disarm)</value>
+  </data>
+  <data name="Chart.Tool.Level" xml:space="preserve">
+    <value>Level</value>
+  </data>
+  <data name="Chart.Tool.Level.Tip" xml:space="preserve">
+    <value>Draw a horizontal price level: press at the price, drag to place, release (press again to disarm)</value>
+  </data>
+  <data name="Chart.Tool.Fib" xml:space="preserve">
+    <value>Fib</value>
+  </data>
+  <data name="Chart.Tool.Fib.Tip" xml:space="preserve">
+    <value>Draw a Fibonacci retracement: press the swing high, drag to the swing low, release (press again to disarm)</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>

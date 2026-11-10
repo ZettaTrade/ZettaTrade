@@ -264,6 +264,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ICandleCache>(), // T-085: the bootstrap page serves the cache first.
                 sp.GetRequiredService<CandleBackfillService>(), // T-086: the repair chain's fetcher.
+                sp.GetRequiredService<IChartDrawingStore>(), // T-091: the persisted drawings the page mirrors.
                 sp.GetRequiredService<StrategySignalService>(), // T-112: the stances the markers read.
                 sp.GetRequiredService<SignalRailViewModel>(), // T-112: the rail strip's VM.
                 sp.GetRequiredService<SignalSeriesRelay>(), // T-112: the loads the host feeds from.
@@ -340,6 +341,7 @@ internal static class CompositionRoot
         // it rides, so the walk loads the Caching policy before the chart's
         // bootstrap can serve a first page from the cache.
         services.AddCandleCache();
+        services.AddChartDrawingStore(); // T-091: the persisted chart drawings (loads/saves whole annotation layers).
         services.AddCandleBackfillServices(); // T-086: the deep-history fetcher (bounded channel, write-through).
         services.AddHistoryUiServices();
         services.AddTradeStatsServices();

@@ -34,12 +34,21 @@ public sealed record ChartDrawing
     };
 
     /// <summary>
-    /// Validation over the anchor list: the tool's count, ascending times
-    /// and no duplicate anchors (a zero-length segment is a placement bug,
-    /// not a drawing). Throws with the offending rule named.
+    /// Validation over one drawing's anchor list (the kind checked too):
+    /// the tool's anchor count, ascending times and no duplicate anchors
+    /// (a zero-length segment is a placement bug, not a drawing). Throws
+    /// with the offending rule named, so the callers' drop paths can log
+    /// an honest reason.
     /// </summary>
-    public static void Validate(IReadOnlyList<ChartDrawingAnchor> anchors)
+    public static void Validate(ChartDrawingKind kind, IReadOnlyList<ChartDrawingAnchor> anchors)
     {
+        var expected = AnchorCount(kind);
+        if (anchors.Count != expected)
+        {
+            throw new ArgumentException(
+                $"A {kind} drawing carries {anchors.Count} anchor(s); the tool places exactly {expected}.");
+        }
+
         for (var i = 1; i < anchors.Count; i++)
         {
             if (anchors[i].Time < anchors[i - 1].Time)

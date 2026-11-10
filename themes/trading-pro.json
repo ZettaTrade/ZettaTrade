@@ -15,6 +15,8 @@
     "Sell": "#ef4444",
     "CandleUp": "#22c55e",
     "CandleDown": "#ef4444",
+    "DrawingLine": "#38bdf8",
+    "DrawingSelected": "#facc15",
     "ChartBackground": "#0f172a",
     "ChartGrid": "#1e293b",
     "Highlight": "#ffd700",
