@@ -7,15 +7,15 @@ using Xunit;
 using ZettaTrade.UI.Resources;
 
 /// <summary>
-/// The accessibility source pins (T-110): the views and the shared control
-/// themes have no headless render harness, so the wiring rides the
-/// source-of-truth files exactly like the chrome pins. Together with the
-/// live peer facts (the widget peers) this certifies the acceptance —
-/// every advertised control is reachable and named without a mouse: the
-/// icon-only title-bar buttons carry real automation names, the palette's
-/// picker and the chat's input are named, the equity curves are named per
-/// window, the focus indicators exist for the button/tab/menu families, and
-/// every accessibility string resolves in BOTH cultures.
+/// The accessibility source pins (T-110): the views have no headless render
+/// harness, so the wiring rides the source-of-truth files exactly like the
+/// chrome pins. Together with the live peer facts (the widget peers) this
+/// certifies the acceptance — every advertised control is reachable and
+/// named without a mouse: the palette's picker and the chat's input are
+/// named, the equity curves are named per window, and every accessibility
+/// string resolves in BOTH cultures. The shared-themes facts (the title-bar
+/// strip buttons' automation names, the focus indicators) moved home to the
+/// Livery repo's own suite with the split (T-130).
 /// </summary>
 public sealed class AccessibilityPinsTests
 {
@@ -26,48 +26,6 @@ public sealed class AccessibilityPinsTests
 
     private static string AssistantPanelXaml =>
         File.ReadAllText(Path.Combine(RepoRoot, "src", "ZettaTrade.App", "Views", "Panels", "AssistantPanelView.axaml"));
-
-    private static string ControlsThemes =>
-        File.ReadAllText(Path.Combine(RepoRoot, "src", "Livery", "Themes", "Controls.axaml"));
-
-    [Fact]
-    public void EveryTitleBarStripButton_CarriesItsAutomationName()
-    {
-        var source = ControlsThemes;
-
-        source.Should().Contain("AutomationProperties.Name=\"{loc:Localized Chrome.Minimize}\"",
-            "the minimize button is icon-only; assistive tech needs the name");
-        source.Should().Contain("AutomationProperties.Name=\"{loc:Localized Chrome.Maximize}\"",
-            "the maximize button is icon-only");
-        source.Should().Contain("AutomationProperties.Name=\"{loc:Localized Chrome.Restore}\"",
-            "the restore button is icon-only");
-        source.Should().Contain("AutomationProperties.Name=\"{loc:Localized Chrome.Close}\"",
-            "the close button is icon-only — its name must never rely on the tooltip");
-    }
-
-    [Fact]
-    public void TheSharedThemes_CarryTheKeyboardFocusIndicators()
-    {
-        var source = ControlsThemes;
-
-        foreach (var selector in new[]
-                 {
-                     "<Style Selector=\"Button:focus\">",
-                     "<Style Selector=\"ToggleButton:focus\">",
-                     "<Style Selector=\"TabItem:focus\">",
-                     "<Style Selector=\"MenuItem:focus\">",
-                     "<Style Selector=\"livery|TitleBar Button.strip-icon:focus\">",
-                 })
-        {
-            source.Should().Contain(
-                selector,
-                "keyboard focus needs a visible marker on every focusable family");
-        }
-
-        source.Should().Contain(
-            "Value=\"{DynamicResource Highlight}\"",
-            "the focus markers borrow the palette's on-state accent");
-    }
 
     [Fact]
     public void ThePalettePicker_AndTheChatInput_CarryTheirNames()
