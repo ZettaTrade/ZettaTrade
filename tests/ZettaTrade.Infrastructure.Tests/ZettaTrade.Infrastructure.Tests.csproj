@@ -28,7 +28,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZettaTrade.Core\ZettaTrade.Core.csproj" />
     <ProjectReference Include="..\..\src\ZettaTrade.Infrastructure\ZettaTrade.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\ZettaTrade.Plugins\Sma\ZettaTrade.Plugins.Sma.csproj" />
+    <!-- T-163: the SMA fixture rides the standard pack's feed package (the
+         pack's source left the tree for the ZettaTrade/Plugins repo); the
+         package's lib asset copy-locals where the ProjectReference used to. -->
+    <PackageReference Include="ZettaTrade.Plugins.Standard" Version="$(PluginsVersion)" />
     <!-- T-054 fixtures: the Broken plugin's dll lands in the test output
          (located by NAME by the catalog fixture — typeof would throw on its
          unresolvable base type). The base assembly stays compile-only so the

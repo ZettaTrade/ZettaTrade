@@ -53,4 +53,14 @@
   <PropertyGroup>
     <LiveryVersion>0.1.1</LiveryVersion>
   </PropertyGroup>
+
+  <!-- The standard indicator pack ships as a package (T-163): the
+       standalone ZettaTrade/Plugins repo publishes the umbrella
+       (ZettaTrade.Plugins.Standard - the seven plugin DLLs) to the private
+       GitHub Packages feed (the root nuget.config pins the source). One
+       version fact: bump this single line when a new pack release lands,
+       never the consuming test projects. -->
+  <PropertyGroup>
+    <PluginsVersion>0.1.0</PluginsVersion>
+  </PropertyGroup>
 </Project>
