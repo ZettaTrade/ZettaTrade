@@ -1,7 +1,6 @@
 namespace ZettaTrade.Plugins.Sma;
 
-using ZettaTrade.Charting;
-using ZettaTrade.Core.Entities;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
 /// The simple moving average over the bars' closes: the mean of the
@@ -59,7 +58,7 @@ public sealed class SmaIndicator : IIndicator
     public string Name => IndicatorName;
 
     /// <inheritdoc />
-    public IReadOnlyList<decimal?> Apply(IReadOnlyList<Bar> bars)
+    public IReadOnlyList<decimal?> Apply(IReadOnlyList<IndicatorBar> bars)
     {
         ArgumentNullException.ThrowIfNull(bars);
 

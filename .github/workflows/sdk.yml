@@ -1,0 +1,48 @@
+# The plugin SDK contract package (T-163): packs ZettaTrade.Plugins.Abstractions
+# and pushes it to the private GitHub Packages feed. Manual dispatch only -
+# the package version IS the contract version (2.0.0 today), which moves only
+# when the SemVer-governed golden surface test
+# (tests/ZettaTrade.Infrastructure.Tests/Plugins/PluginContractBaselineTests.cs)
+# rewrites, never per alpha release. A dispatch from any branch publishes the
+# contract exactly as that branch pins it - run it from develop.
+#
+# GITHUB_TOKEN carries packages:write - the package lands in this
+# repository's namespace and inherits its private visibility. Consumers
+# read it through the feed source the root nuget.config pins.
+name: sdk
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Pin the SDK from global.json
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Read the contract version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $csproj = Get-Content -Raw src/ZettaTrade.Plugins.Abstractions/ZettaTrade.Plugins.Abstractions.csproj
+          $version = [regex]::Match($csproj, '<Version>([^<>]+)</Version>').Groups[1].Value.Trim()
+          if (-not $version) { throw 'The Abstractions csproj carries no <Version>.' }
+          Write-Host "Publishing the plugin SDK contract package: $version"
+
+      - name: Pack
+        run: dotnet pack src/ZettaTrade.Plugins.Abstractions/ZettaTrade.Plugins.Abstractions.csproj -c Release -o dist
+
+      - name: Push to GitHub Packages
+        run: dotnet nuget push "dist/*.nupkg" --source https://nuget.pkg.github.com/ZettaTrade/index.json --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate

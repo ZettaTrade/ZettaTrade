@@ -1,7 +1,6 @@
 namespace ZettaTrade.Plugins.Rsi;
 
-using ZettaTrade.Charting;
-using ZettaTrade.Core.Entities;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
 /// The relative strength index over the bars' closes (T-092 pack), Wilder's
@@ -70,7 +69,7 @@ public sealed class RsiIndicator : IIndicator
     public string Name => IndicatorName;
 
     /// <inheritdoc />
-    public IReadOnlyList<decimal?> Apply(IReadOnlyList<Bar> bars)
+    public IReadOnlyList<decimal?> Apply(IReadOnlyList<IndicatorBar> bars)
     {
         ArgumentNullException.ThrowIfNull(bars);
 

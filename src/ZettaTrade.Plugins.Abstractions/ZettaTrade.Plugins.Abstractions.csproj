@@ -6,8 +6,17 @@
     <Nullable>enable</Nullable>
     <RootNamespace>ZettaTrade.Plugins.Abstractions</RootNamespace>
     <AssemblyName>ZettaTrade.Plugins.Abstractions</AssemblyName>
-    <Version>1.0.0</Version>
-    <Description>Versioned out-of-tree plugin contract (T-131): the manifest, the lifecycle, the services access and the UI extension descriptors. SemVer-governed — a breaking change bumps the major version and the pinned public surface fails CI.</Description>
+    <!-- NuGet packaging (T-163: the contract ships as a package on the
+         private GitHub Packages feed; out-of-tree packs build against it).
+         The version is the CONTRACT version - it moves only when the
+         SemVer-governed golden surface test rewrites, never per alpha
+         release. -->
+    <PackageId>ZettaTrade.Plugins.Abstractions</PackageId>
+    <Version>2.0.0</Version>
+    <Authors>ZettaTrade Contributors</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/ZettaTrade/ZettaTrade.git</RepositoryUrl>
+    <Description>Versioned out-of-tree plugin contract (T-131): the manifest, the lifecycle, the services access, the UI extension descriptors and the indicator seam (IIndicator + IndicatorBar, contract 2.0.0). SemVer-governed — a breaking change bumps the major version and the pinned public surface fails CI.</Description>
   </PropertyGroup>
 
   <!-- The plugin SDK contract (T-131): plugin authors compile against this

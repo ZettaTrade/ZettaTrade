@@ -1,7 +1,6 @@
 namespace ZettaTrade.Plugins.Bollinger;
 
-using ZettaTrade.Charting;
-using ZettaTrade.Core.Entities;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
 /// The Bollinger band indicator over the bars' closes (T-092 pack), the
@@ -105,7 +104,7 @@ public sealed class BollingerIndicator : IIndicator
     public string Name => IndicatorName;
 
     /// <inheritdoc />
-    public IReadOnlyList<decimal?> Apply(IReadOnlyList<Bar> bars)
+    public IReadOnlyList<decimal?> Apply(IReadOnlyList<IndicatorBar> bars)
     {
         ArgumentNullException.ThrowIfNull(bars);
 

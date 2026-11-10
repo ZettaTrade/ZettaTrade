@@ -146,12 +146,11 @@ public sealed class PluginCatalogPackRegistrationTests
         fixture.StageThePack();
 
         var catalog = new PluginIndicatorCatalog(fixture.Path, NullLogger<PluginIndicatorCatalog>.Instance);
-        var start = DateTimeOffset.FromUnixTimeSeconds(0);
         var bars = new[]
         {
-            new ZettaTrade.Core.Entities.Bar(start, 1m, 1m, 1m, 1m, 1),
-            new ZettaTrade.Core.Entities.Bar(start.AddMinutes(1), 1m, 1m, 1m, 2m, 1),
-            new ZettaTrade.Core.Entities.Bar(start.AddMinutes(2), 1m, 1m, 1m, 3m, 1),
+            new ZettaTrade.Plugins.Abstractions.IndicatorBar(1m, 1m, 1m, 1m),
+            new ZettaTrade.Plugins.Abstractions.IndicatorBar(1m, 1m, 1m, 2m),
+            new ZettaTrade.Plugins.Abstractions.IndicatorBar(1m, 1m, 1m, 3m),
         };
 
         var wma = catalog.Create("WMA", 3);
@@ -254,7 +253,7 @@ public sealed class PluginCatalogPackRegistrationTests
         var appRefs = typeof(ZettaTrade.App.App).Assembly.GetReferencedAssemblies()
             .Select(reference => reference.Name)
             .ToList();
-        var chartingRefs = typeof(ZettaTrade.Charting.IIndicator).Assembly.GetReferencedAssemblies()
+        var chartingRefs = typeof(ZettaTrade.Plugins.Abstractions.IIndicator).Assembly.GetReferencedAssemblies()
             .Select(reference => reference.Name)
             .ToList();
         var infrastructureRefs = typeof(PluginIndicatorCatalog).Assembly.GetReferencedAssemblies()

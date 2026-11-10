@@ -4,7 +4,7 @@ using System;
 using System.Linq;
 using FluentAssertions;
 using Xunit;
-using ZettaTrade.Core.Entities;
+using ZettaTrade.Plugins.Abstractions;
 using ZettaTrade.Plugins.Rsi;
 
 /// <summary>
@@ -20,16 +20,9 @@ public sealed class RsiIndicatorTests
 {
     #region Helpers
 
-    private static IReadOnlyList<Bar> MakeBars(params decimal[] closes)
+    private static IReadOnlyList<IndicatorBar> MakeBars(params decimal[] closes)
     {
-        var start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        return [.. closes.Select((close, i) => new Bar(
-            start.AddMinutes(i),
-            close,
-            close,
-            close,
-            close,
-            3))];
+        return [.. closes.Select(close => new IndicatorBar(close, close, close, close))];
     }
 
     #endregion

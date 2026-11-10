@@ -4,7 +4,7 @@ using System;
 using System.Linq;
 using FluentAssertions;
 using Xunit;
-using ZettaTrade.Core.Entities;
+using ZettaTrade.Plugins.Abstractions;
 using ZettaTrade.Plugins.Atr;
 
 /// <summary>
@@ -19,28 +19,21 @@ public sealed class AtrIndicatorTests
     #region Helpers
 
     /// <summary>A bar from (open, high, low, close).</summary>
-    private static Bar BarOf(
+    private static IndicatorBar BarOf(
         decimal open,
         decimal high,
         decimal low,
-        decimal close,
-        int minute) => new(
-            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddMinutes(minute),
-            open,
-            high,
-            low,
-            close,
-            3);
+        decimal close) => new(open, high, low, close);
 
-    private static IReadOnlyList<Bar> MakeBars(params (decimal open, decimal high, decimal low, decimal close)[] pieces)
+    private static IReadOnlyList<IndicatorBar> MakeBars(params (decimal open, decimal high, decimal low, decimal close)[] pieces)
     {
-        return [.. pieces.Select((piece, index) => BarOf(piece.open, piece.high, piece.low, piece.close, index))];
+        return [.. pieces.Select(piece => BarOf(piece.open, piece.high, piece.low, piece.close))];
     }
 
     /// <summary>Flat-candle bars (open=high=low=close) for the warmup-shape tests.</summary>
-    private static IReadOnlyList<Bar> FlatCandleBars(params decimal[] closes)
+    private static IReadOnlyList<IndicatorBar> FlatCandleBars(params decimal[] closes)
     {
-        return [.. closes.Select((close, i) => BarOf(close, close, close, close, i))];
+        return [.. closes.Select(close => BarOf(close, close, close, close))];
     }
 
     #endregion
