@@ -1,3 +1,34 @@
+## [0.1.0-alpha.94] - 2026-11-11
+
+Build of board task T-163 (branch `feat/plugin-packages`).
+
+### Added
+- The standard indicator pack left the tree for its own feed package
+  (T-163): the seven `src/ZettaTrade.Plugins/*` plugin sources moved to
+  the standalone `ZettaTrade/Plugins` repo (a subtree-split, their
+  history reaches back to the T-092 originals) and ship as the
+  `ZettaTrade.Plugins.Standard` umbrella package — the seven plugin
+  DLLs in `lib/net10.0`, version 0.1.0, pushed by the pack's `publish`
+  workflow from the `v0.1.0` tag. The one version fact is the
+  `PluginsVersion` property in `Directory.Build.props`; App.Tests and
+  Infrastructure.Tests ride `PackageReference`s pinned by it, the slnx
+  drops the Plugins folder, and the loader facts keep walking the
+  staged assemblies — the package's lib assets copy-local where the
+  ProjectReferences used to.
+- The plugin SDK contract ships as the feed package (T-163):
+  `IIndicator` moved from Charting into `ZettaTrade.Plugins.Abstractions`
+  and computes over the SDK-owned `IndicatorBar` OHLC record (the
+  Charting pipeline adapts the app `Bar` to it once per compute) — the
+  golden contract baseline pins 2.0.0 and the out-of-tree packs build
+  against that package alone.
+
+### Changed
+- The pack's standalone CI rides the contract package's Actions access
+  grant: the Plugins repository's `GITHUB_TOKEN` restores the private
+  `ZettaTrade.Plugins.Abstractions` package now that the package allows
+  the Plugins Actions (before the grant every pack CI run died with a
+  403 on the restore).
+
 ## [0.1.0-alpha.93] - 2026-11-10
 
 Build of board task T-130 (branch `feat/livery-split`).
