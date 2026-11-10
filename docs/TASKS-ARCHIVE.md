@@ -2141,6 +2141,60 @@ the board and its section below.
   (the six WRN entries are the demo-adapter unsupported-watchlist-symbol family plus the
   Binance quote-asset note — logged-by-design degradation, not startup faults).
 
+## T-154 — Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton
+
+- **Branch:** feat/livery-chrome-kit, worktree zt-livery-chrome-kit, based on develop@5ff3562 (claimed 2026-11-11 as the fifth of the T-150…T-162 design-review batch — the shared vocabulary lands right after the declutter; the satellite release 0.1.5 rides the same task).
+- **Origin:** the same visual vocabulary is re-typed by hand: the `.on` toggle style copies five
+  times in ChartPanelView, the testnet-badge style copies across the windows, the state-dot
+  ellipse styles duplicate between the health strip and the signal rail, and the settings window
+  builds its "i" cue out of Border+TextBlock seven times. Copies drift.
+- **What:** the vocabulary lives once in Livery: a Chip class (rounded badge, state fill, the
+  readable foreground from T-152), a StateDot (the ellipse + state classes), a reusable toggle
+  `.on` style class for Button/ToggleButton, an InfoIcon templated control (focusable,
+  automation-named, tooltip-holding), an IconButton class for strip-icon-like actions; the views
+  replace their copies.
+- **Scope:** src/Livery (styles/controls), the dedupe edits across the App views; resx for the
+  InfoIcon automation names; pure restyling, no behavior changes.
+- **Acceptance:** zero copy-pasted `.on`/badge/dot/cue styles remain (source pins); the settings
+  "i" cues become focusable with automation names (an a11y step up); the chrome renders
+  identically before/after.
+- **Tests:** style-presence pins per control; an a11y pin for the InfoIcon peer.
+- **Status:** done. Canon: the satellite release FIRST — Livery 0.1.5 (commit `88dd0c0`, tag
+  `v0.1.5`, the publish workflow packed and pushed it; verified by the consumer restore pulling
+  the fresh nuspec at 04:19, not a cache hit), then the one-line consuming bump
+  (`LiveryVersion` 0.1.4 → 0.1.5) and the app-side dedupe (`5462111`→feat `415ed87`,
+  0.1.0-alpha.99). The kit: the `chip` class (shape + the paper/testnet/live fills over
+  CandleUp/Highlight/Error + the direct-child caption treatment riding the host's derived
+  `ChipForeground` — a host without the derivation keeps its ambient foreground honestly), the
+  `dot` class (connected/reconnecting/down/unsupervised over
+  CandleUp/Highlight/Error/TextSecondary; the size stays the consumer's; the `dot` base class
+  namespaces the states so the kit never grabs a foreign ellipse), the
+  `Button.on, ToggleButton.on` class (the five chart toggles verbatim; the rest-state dimming
+  stays the consumer's), the `Button.icon` class (the strip-action shape with the
+  presenter-suppression mechanism the title bar carries; no consumer yet — vocabulary) and the
+  `InfoIcon` templated control (the 16×16 ring + glyph template, `Focusable=True`, the
+  `:focus` ring retint over Highlight; the consumer carries the automation name and the
+  tooltip). Consumer edits: the five `.on` style blocks deleted from ChartPanelView, the lane
+  chip and the three testnet badges ride `Classes="chip"` (+ the state classes) with their
+  Border.Styles and hand-set captions deleted, the health dots ride `Classes="dot"`, and the
+  settings' seven cue Borders became seven `livery:InfoIcon` elements named through seven new
+  `Chart.Indicators.A11y*Info` resx keys (en + ru). The notification count badge keeps its own
+  smaller badge shape (radius 6/padding 5,1 — not the pill) and its explicit ChipForeground:
+  it was T-152's surface, not a badge-style copy. The signal rail's long/flat dots stay
+  app-local (different semantics, one copy — not a duplication). Tests: the kit's style pins
+  live in the Livery repo (six StylePins facts, the CRLF-normalized source read), the consumer
+  matrix pins the zero-copies acceptance (`ChromeKitPinsTests`: five class assignments, no
+  `.on`/Border.Styles/Ellipse.Styles copies, seven named InfoIcon cues), the T-152 palette pins
+  re-anchored on the chip class (`TheChipSurfaces_RideTheSharedChipClass` — the lane chip's
+  caption treatment lives in the kit; the count badge keeps its explicit readable foreground;
+  the fills-fact moved to the satellite pins), and the a11y catalog battery grew the seven new
+  keys in both cultures. The chip-fill pin (`72d174d`) landed on the satellite's develop after
+  the v0.1.5 tag — test-only, the package binary unchanged; it rides the next release. Gate
+  PASSED (`-AllowProtected` for the bumps; the App.Tests timing family ate its flaky retry —
+  recorded, not fixed); smoke: alive 15 s, ProductVersion `0.1.0-alpha.99+415ed876a…`, the
+  run's 88-entry log slice 0 ERR/FTL. HIGH-RISK reviewer note for the human: the two trading
+  windows (NewOrderDialog, OrderHistory) touched only in their testnet-badge markup.
+
 ## T-163 - The plugins consumption switch: the standard pack rides the package mechanics
 
 - **Branch:** feat/plugin-packages, worktree zt-plugin-packages, based on develop@1f2a622 (claimed 2026-11-10 per standing directive 6; filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
