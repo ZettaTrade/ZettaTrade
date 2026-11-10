@@ -73,6 +73,13 @@ internal static class CompositionRoot
                 ConfigPathResolver.ThemesDirectory));
         services.AddSingleton<IThemeManager>(sp => sp.GetRequiredService<ThemeManager>());
 
+        // The chip foreground derivation (T-152): every theme apply serves
+        // the state-colored chips a readable text color (the dark themes
+        // fill the chips bright, the light theme dark — no fixed foreground
+        // serves both). IAsyncInitializable: the startup walk owns the
+        // subscription.
+        services.AddSingleton<ChipForegroundPublisher>();
+
         services.AddSingleton<IShellUtils>(new ShellUtils());
 
         services.AddSingleton<ILocalizationManager>(sp =>

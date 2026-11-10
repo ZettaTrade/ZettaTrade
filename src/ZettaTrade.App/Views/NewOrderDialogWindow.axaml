@@ -38,7 +38,8 @@
                 </Border.Styles>
                 <TextBlock Text="{loc:Localized Exchange.TestnetBadge}"
                            FontSize="11"
-                           FontWeight="SemiBold" />
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource ChipForeground}" />
             </Border>
         </StackPanel>
 
