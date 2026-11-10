@@ -158,7 +158,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | done | - |
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | done | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | done | - |
-| T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | in-progress | - |
+| T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | done | - |
 | T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | queued | - |
 | T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | queued | T-154 (soft) |
 | T-157 Table grammar for positions and order history | feat/table-grammar | queued | T-154 (soft) |
@@ -377,26 +377,6 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   source pins (the marker counts per window, the state fill keys, the dropped walk-around).
   Gate PASSED on attempt 1; smoke 58 log entries, 0 ERR/FTL, ProductVersion
   `0.1.0-alpha.97+45a25332…`.
-- **Status:** in-progress
-
-## T-154 — Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton
-
-- **Branch:** feat/livery-chrome-kit, worktree zt-livery-chrome-kit, based on develop@5ff3562 (claimed 2026-11-11 as the fifth of the T-150…T-162 design-review batch — the shared vocabulary lands right after the declutter; the satellite release 0.1.5 rides the same task).
-- **Origin:** the same visual vocabulary is re-typed by hand: the `.on` toggle style copies five
-  times in ChartPanelView, the testnet-badge style copies across the windows, the state-dot
-  ellipse styles duplicate between the health strip and the signal rail, and the settings window
-  builds its "i" cue out of Border+TextBlock seven times. Copies drift.
-- **What:** the vocabulary lives once in Livery: a Chip class (rounded badge, state fill, the
-  readable foreground from T-152), a StateDot (the ellipse + state classes), a reusable toggle
-  `.on` style class for Button/ToggleButton, an InfoIcon templated control (focusable,
-  automation-named, tooltip-holding), an IconButton class for strip-icon-like actions; the views
-  replace their copies.
-- **Scope:** src/Livery (styles/controls), the dedupe edits across the App views; resx for the
-  InfoIcon automation names; pure restyling, no behavior changes.
-- **Acceptance:** zero copy-pasted `.on`/badge/dot/cue styles remain (source pins); the settings
-  "i" cues become focusable with automation names (an a11y step up); the chrome renders
-  identically before/after.
-- **Tests:** style-presence pins per control; an a11y pin for the InfoIcon peer.
 - **Status:** in-progress
 
 ## T-155 — Type ramp + tabular numerals + the spacing scale, as tokens
