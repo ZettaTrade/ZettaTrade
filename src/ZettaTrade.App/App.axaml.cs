@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Livery.Localization;
@@ -54,6 +55,17 @@ public partial class App : Application
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
+                // The multi-window workspace (T-103): the main window closing
+                // IS the app shutdown (the detached panel windows follow it),
+                // and the shutdown arm makes the closing panel windows quiet —
+                // they return their content but never rewrite the stored
+                // record, so the detached layout stands exactly as the user
+                // left it for the next session.
+                desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
+                desktop.ShutdownRequested += (_, _) => Services
+                    .GetRequiredService<IDetachedPanelCoordinator>()
+                    .MarkShutdownRequested();
+
                 // The single-instance handoff (T-104): the dispatch pipe
                 // opens only now — after the composition walk — so a
                 // forwarded selection can never touch a half-initialized

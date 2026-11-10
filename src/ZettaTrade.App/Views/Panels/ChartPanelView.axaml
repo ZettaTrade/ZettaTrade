@@ -1,0 +1,360 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ZettaTrade.App.ViewModels"
+             xmlns:loc="using:Livery.Localization"
+             xmlns:charting="using:ZettaTrade.UI.Charting"
+             xmlns:tools="using:ZettaTrade.Charting"
+             xmlns:panels="using:ZettaTrade.App.Views.Panels"
+             x:Class="ZettaTrade.App.Views.Panels.ChartPanelView"
+             x:DataType="vm:ChartViewModel"
+             x:Name="Root">
+
+    <!-- The chart workspace panel (T-103): the exact content the main
+         window's chart column carried, extracted one-for-one so the SAME
+         control instance hosts in the main window's workspace column or in
+         the detached chart window (the detach moves the control, never a
+         copy). The HUD's frame-tap gate rides the panel's own
+         HudFrameTapSource property: the main window binds it to the HUD
+         visibility, the detached window leaves it off — the HUD tap readout
+         freezes while the chart lives in its own window (the HUD is a
+         main-window overlay; its detached counterpart is out of T-103
+         scope). -->
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+        <!-- Header: the symbol picker on the left (the star badge
+             marks the favorites; both marks are managed in the
+             settings window's pairs tab); the time frame picker
+             rides the same load key, so a flip reloads the
+             chart live; the overlay toggles (T-093) sit right
+             next to it, the persisted choices mirroring their
+             on/off state through the toggles' own class, and
+             the candles export writes the loaded series to a
+             user-chosen CSV file. -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+              Margin="0,0,0,8">
+            <ComboBox Grid.Column="0"
+                      ItemsSource="{Binding AvailableSymbols}"
+                      SelectedItem="{Binding SelectedSymbolRow}">
+                <ComboBox.ItemTemplate>
+                    <!-- One row: the star badge on the favorites,
+                         the symbol name. The row record carries the
+                         mark (rebuilt on every change), so the
+                         template binds within its own data type. -->
+                    <DataTemplate x:DataType="vm:SymbolRow">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="★"
+                                       Foreground="{DynamicResource Highlight}"
+                                       FontSize="14"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding IsFavorite}" />
+                            <TextBlock Text="{Binding Symbol.Normalized}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Grid.Column="1"
+                       Text="{loc:Localized Chart.TimeFrame}"
+                       VerticalAlignment="Center"
+                       Margin="12,0,6,0" />
+            <ComboBox Grid.Column="2"
+                      MinWidth="72"
+                      ItemsSource="{Binding TimeFrames}"
+                      SelectedItem="{Binding SelectedTimeFrame}" />
+            <!-- Chart type selector (T-089): five static localized
+                 items bound by index (the SelectedThemeIndex shim
+                 precedent) — the localized strings never touch the
+                 ViewModel, and the language switch re-inks them live. -->
+            <TextBlock Grid.Column="3"
+                       Text="{loc:Localized Chart.Type}"
+                       VerticalAlignment="Center"
+                       Margin="12,0,6,0" />
+            <ComboBox Grid.Column="4"
+                      MinWidth="92"
+                      SelectedIndex="{Binding SelectedChartTypeIndex}"
+                      ToolTip.Tip="{loc:Localized Chart.Type.Tip}">
+                <TextBlock Text="{loc:Localized Chart.Type.Candles}" />
+                <TextBlock Text="{loc:Localized Chart.Type.Line}" />
+                <TextBlock Text="{loc:Localized Chart.Type.Area}" />
+                <TextBlock Text="{loc:Localized Chart.Type.Bars}" />
+                <TextBlock Text="{loc:Localized Chart.Type.HeikinAshi}" />
+            </ComboBox>
+            <!-- Y-axis scale mode selector (T-090): three static
+                 localized items bound by index (the chart-type
+                 shim precedent) — the localized strings never
+                 touch the ViewModel, and the language switch
+                 re-inks them live. -->
+            <TextBlock Grid.Column="5"
+                       Text="{loc:Localized Chart.ScaleMode}"
+                       VerticalAlignment="Center"
+                       Margin="12,0,6,0" />
+            <ComboBox Grid.Column="6"
+                      MinWidth="92"
+                      SelectedIndex="{Binding SelectedScaleModeIndex}"
+                      ToolTip.Tip="{loc:Localized Chart.ScaleMode.Tip}">
+                <TextBlock Text="{loc:Localized Chart.ScaleMode.Linear}" />
+                <TextBlock Text="{loc:Localized Chart.ScaleMode.Log}" />
+                <TextBlock Text="{loc:Localized Chart.ScaleMode.Percent}" />
+            </ComboBox>
+            <Button Grid.Column="7"
+                    Content="{loc:Localized Chart.Vwap}"
+                    Command="{Binding ToggleVwapCommand}"
+                    ToolTip.Tip="{loc:Localized Chart.Vwap.Tip}"
+                    Classes.on="{Binding ShowVwap}"
+                    MinWidth="72"
+                    Margin="8,0,0,0"
+                    Opacity="0.65">
+                <Button.Styles>
+                    <Style Selector="Button.on">
+                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                        <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                    </Style>
+                </Button.Styles>
+            </Button>
+            <Button Grid.Column="8"
+                    Content="{loc:Localized Chart.VolumeProfile}"
+                    Command="{Binding ToggleVolumeProfileCommand}"
+                    ToolTip.Tip="{loc:Localized Chart.VolumeProfile.Tip}"
+                    Classes.on="{Binding ShowVolumeProfile}"
+                    MinWidth="92"
+                    Margin="8,0,0,0"
+                    Opacity="0.65">
+                <Button.Styles>
+                    <Style Selector="Button.on">
+                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                        <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                    </Style>
+                </Button.Styles>
+            </Button>
+            <Button Grid.Column="9"
+                    Content="{loc:Localized Chart.ExportCandlesCsv}"
+                    Command="{Binding ExportCandlesCommand}"
+                    MinWidth="110"
+                    Margin="8,0,0,0" />
+            <!-- The export pair (T-094): the PNG snapshot
+                 renders the current frame (same lens, same
+                 annotations) at a fixed scale with the
+                 symbol/timeframe watermark; the second CSV
+                 button exports exactly the visible range. -->
+            <Button Grid.Column="10"
+                    Content="{loc:Localized Chart.ExportPng}"
+                    Command="{Binding ExportPngCommand}"
+                    ToolTip.Tip="{loc:Localized Chart.ExportPng.Tip}"
+                    MinWidth="72"
+                    Margin="8,0,0,0" />
+            <Button Grid.Column="11"
+                    Content="{loc:Localized Chart.ExportVisibleCsv}"
+                    Command="{Binding ExportVisibleCandlesCommand}"
+                    ToolTip.Tip="{loc:Localized Chart.ExportVisibleCsv.Tip}"
+                    MinWidth="110"
+                    Margin="8,0,0,0" />
+            <!-- The compare action (T-124): a second series of
+                 the standing interval alongside the workspace
+                 one, each percent-rebased to its own zero. The
+                 pick rides the global palette's compare mode;
+                 the chart's legend chips carry their own detach
+                 press zones. -->
+            <Button Grid.Column="12"
+                    Content="{loc:Localized Chart.Compare}"
+                    Command="{Binding CompareCommand}"
+                    ToolTip.Tip="{loc:Localized Chart.Compare.Tip}"
+                    MinWidth="92"
+                    Margin="8,0,0,0" />
+            <!-- The drawing tools palette (T-091): each toggle
+                 arms its tool on the chart control (a same-tool
+                 press stands it down); the control's on-state
+                 rides the active class, and a placed drawing
+                 persists through the chart ViewModel. -->
+            <Button Grid.Column="13"
+                    Content="{loc:Localized Chart.Tool.TrendLine}"
+                    Command="{Binding ToolCommand}"
+                    CommandParameter="{x:Static tools:ChartDrawingTool.TrendLine}"
+                    ToolTip.Tip="{loc:Localized Chart.Tool.TrendLine.Tip}"
+                    Classes.on="{Binding IsTrendLineToolActive}"
+                    MinWidth="72"
+                    Margin="8,0,0,0"
+                    Opacity="0.65">
+                <Button.Styles>
+                    <Style Selector="Button.on">
+                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                        <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                    </Style>
+                </Button.Styles>
+            </Button>
+            <Button Grid.Column="14"
+                    Content="{loc:Localized Chart.Tool.Level}"
+                    Command="{Binding ToolCommand}"
+                    CommandParameter="{x:Static tools:ChartDrawingTool.HorizontalLevel}"
+                    ToolTip.Tip="{loc:Localized Chart.Tool.Level.Tip}"
+                    Classes.on="{Binding IsLevelToolActive}"
+                    MinWidth="72"
+                    Margin="8,0,0,0"
+                    Opacity="0.65">
+                <Button.Styles>
+                    <Style Selector="Button.on">
+                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                        <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                    </Style>
+                </Button.Styles>
+            </Button>
+            <Button Grid.Column="15"
+                    Content="{loc:Localized Chart.Tool.Fib}"
+                    Command="{Binding ToolCommand}"
+                    CommandParameter="{x:Static tools:ChartDrawingTool.FibRetracement}"
+                    ToolTip.Tip="{loc:Localized Chart.Tool.Fib.Tip}"
+                    Classes.on="{Binding IsFibToolActive}"
+                    MinWidth="72"
+                    Margin="8,0,0,0"
+                    Opacity="0.65">
+                <Button.Styles>
+                    <Style Selector="Button.on">
+                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+                        <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+                    </Style>
+                </Button.Styles>
+            </Button>
+        </Grid>
+
+        <!-- Export failure -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding ErrorMessage}"
+                   Foreground="{DynamicResource Error}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasErrorMessage}"
+                   Margin="0,0,0,8" />
+
+        <!-- Deep-history end note (T-086): where the feed's
+             candle series ends — shown while the loaded
+             history proved a limit. -->
+        <TextBlock Grid.Row="2"
+                   Text="{Binding HistoryLimitNote}"
+                   Foreground="{DynamicResource TextPrimary}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasHistoryLimitNote}"
+                   Margin="0,0,0,8" />
+
+        <!-- Chart: the T-093 overlays ride the same
+             publish path the indicator lines do (the
+             VWAP computed against the loaded series;
+             the toggled profile recomputes with the
+             visible window on every pass). The T-089
+             selector switches the renderer variant;
+             the Heikin-Ashi series publishes smoothed
+             HA bars aligned with the loaded series. The
+             frame-tap gate rides the panel's own
+             HudFrameTapSource (the host decides whether
+             the HUD counts this panel's frames). -->
+        <charting:CandlestickChart x:Name="CandlesChart" Grid.Row="3"
+                                   Bars="{Binding Bars}"
+                                   Use12HourClock="{Binding Use12HourClock}"
+                                   VwapOverlay="{Binding VwapOverlay}"
+                                   VolumeProfileVisible="{Binding ShowVolumeProfile}"
+                                   IndicatorLines="{Binding IndicatorLines}"
+                                   SeriesType="{Binding ChartType}"
+                                   ScaleMode="{Binding ScaleMode}"
+                                   HeikinAshiBars="{Binding HeikinAshiBars}"
+                                   SignalMarkers="{Binding SignalMarkers}"
+                                   TradingPosition="{Binding TradingPosition}"
+                                   TradingOrders="{Binding TradingOrders}"
+                                   TradingFills="{Binding TradingFills}"
+                                   MainSeriesLabel="{Binding MainSeriesLabel}"
+                                   CompareLayers="{Binding CompareLayers}"
+                                   Drawings="{Binding Drawings}"
+                                   ActiveTool="{Binding ActiveDrawingTool}"
+                                   SelectedDrawingId="{Binding SelectedDrawingId}"
+                                   FrameTapEnabled="{Binding $parent[panels:ChartPanelView].HudFrameTapSource}" />
+                                    <!-- T-122: the trading footprint — my own position entry, working orders and fills, overlay-only (nothing routes back toward an order). -->
+                                    <!-- T-124: the compare overlays — the chip strip's main label follows the workspace symbol; the layers are transient chart-level state. -->
+                                    <!-- T-091: the drawings layer — the persisted annotation list, the palette's armed tool and the selection ride one-way in; the control's interaction events mirror out through the host window's subscriptions. -->
+
+        <!-- Signal rail (T-112): the latest strategy readings
+             streaming under the chart — one coalesced rows
+             replacement per window, a bounded newest-first
+             ring (the coalescing lives in the rail's own
+             VM). A row press rides the host window's PREFILL
+             route (the same transient dialog path the
+             order book's level presses share); a signal
+             never sends an order itself — the human
+             decides on the ticket. -->
+        <Border Grid.Row="4"
+                Margin="0,8,0,0"
+                Padding="4,4,4,0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,1,0,0"
+                DataContext="{Binding SignalRail}">
+            <Grid RowDefinitions="Auto,*" MaxHeight="172">
+                <TextBlock Grid.Row="0"
+                           Text="{loc:Localized Signal.Rail.Title}"
+                           FontWeight="Bold"
+                           FontSize="14"
+                           Margin="4,2,0,6" />
+                <Grid Grid.Row="1">
+                    <TextBlock Text="{loc:Localized Signal.Rail.Empty}"
+                               Foreground="{DynamicResource TextSecondary}"
+                               VerticalAlignment="Center"
+                               Margin="4,0"
+                               IsVisible="{Binding IsEmpty}" />
+                    <ItemsControl ItemsSource="{Binding Rows, Mode=OneWay}"
+                                  IsVisible="{Binding HasRows}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Vertical" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SignalRailRow">
+                                <!-- One reading: the side accent dot
+                                     (the stance's direction read), the
+                                     composed facts, the time. The row is
+                                     a Button: the whole line is the
+                                     prefill affordance; the tooltip names
+                                     what a click does and does not do. -->
+                                <Button Command="{Binding PrefillCommand}"
+                                        ToolTip.Tip="{Binding Tooltip}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Left"
+                                        Padding="8,1"
+                                        Background="Transparent"
+                                        BorderThickness="0">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Ellipse Width="8"
+                                                 Height="8"
+                                                 VerticalAlignment="Center"
+                                                 Classes.long="{Binding IsEntryLong}"
+                                                 Classes.flat="{Binding IsEntryFlat}">
+                                            <Ellipse.Styles>
+                                                <Style Selector="Ellipse.long">
+                                                    <Setter Property="Fill" Value="{DynamicResource CandleUp}" />
+                                                </Style>
+                                                <Style Selector="Ellipse.flat">
+                                                    <Setter Property="Fill" Value="{DynamicResource TextSecondary}" />
+                                                </Style>
+                                            </Ellipse.Styles>
+                                        </Ellipse>
+                                        <TextBlock Text="{Binding CandleTime}"
+                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding StrategyId}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding StanceLabel}"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding SymbolText}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding PriceText}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

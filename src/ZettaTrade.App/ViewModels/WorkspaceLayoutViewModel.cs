@@ -2,11 +2,18 @@ namespace ZettaTrade.App.ViewModels;
 
 using System;
 using System.Reactive.Linq;
+using System.Threading;
 using Avalonia.Controls;
 using Livery.Contracts;
+using Livery.Extensions;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ZettaTrade.App.Services;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.UI.Extensions;
+// RxVoid rides an alias (not a plain ReactiveUI.Primitives import): plain both
+// imports would make every RxVoid Subscribe ambiguous against System's one.
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
 /// ViewModel owning the persisted column geometry of the main window's
@@ -23,6 +30,11 @@ using ZettaTrade.Core.Interfaces;
 /// panel collapses its column and its splitter track to zero width (no dead
 /// grab handle parked in an empty gutter) and the persisted width returns
 /// untouched on the next show.
+/// The detachable panels (T-103) mirror the runtime's detached state from
+/// the <see cref="IDetachedPanelCoordinator"/> and drive the View menu's
+/// detach/attach toggles through it; a hidden assistant that still lives in
+/// its own window attaches back first, so the collapse keeps one truth —
+/// the panel is inline whenever its column collapses.
 /// </summary>
 public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializable
 {
@@ -55,6 +67,9 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
 
     private readonly ISettingsService _settings;
     private readonly ILogger<WorkspaceLayoutViewModel> _logger;
+
+    /// <summary>The detached-panel runtime the mirror reflects and the View menu's toggle routes through (T-103).</summary>
+    private readonly IDetachedPanelCoordinator _detacher;
 
     /// <summary>
     /// The applied persisted book width. The persistence pipeline only fires
@@ -93,6 +108,9 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     private GridLength _aiColumnWidth = new(UiSettingsKeys.DefaultAiPanelWidth);
     private double _aiColumnMinWidth = UiSettingsKeys.MinAiPanelWidth;
     private GridLength _aiSplitterColumnWidth = SplitterTrack;
+    private bool _isChartDetached;
+    private bool _isBookDetached;
+    private bool _isAssistantDetached;
 
     #endregion
 
@@ -106,19 +124,57 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     /// drives the assistant column collapse: the subscription runs in the
     /// ctor so a visibility restore (the chat walks first — registration
     /// order) applies the collapsed geometry in the same step.</param>
+    /// <param name="detacher">The detached-panel runtime the mirror reflects
+    /// and the View menu's toggle routes through (T-103).</param>
     /// <param name="logger">The class logger.</param>
     public WorkspaceLayoutViewModel(
         ISettingsService settings,
         ChatViewModel chat,
+        IDetachedPanelCoordinator detacher,
         ILogger<WorkspaceLayoutViewModel> logger)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         chat = chat ?? throw new ArgumentNullException(nameof(chat));
+        _detacher = detacher ?? throw new ArgumentNullException(nameof(detacher));
+
+        // The detach mirror (T-103): the View menu's checkboxes bind these
+        // properties; the runtime's own emits (every detach leg including
+        // the restore) drive them. The runtime emits on the UI thread, and
+        // ObserveOnUiThread keeps the hop explicit — the mirror never
+        // crosses threads.
+        IsChartDetached = _detacher.IsDetached(PanelDetachId.Chart);
+        IsBookDetached = _detacher.IsDetached(PanelDetachId.Book);
+        IsAssistantDetached = _detacher.IsDetached(PanelDetachId.Assistant);
+        _detacher.PanelDetached
+            .ObserveOnUiThread()
+            .Subscribe(
+                panel => SetDetachMirror(panel, detached: true),
+                ex => _logger.LogError(ex, "The detached-panel stream stopped unexpectedly"));
+        _detacher.PanelAttached
+            .ObserveOnUiThread()
+            .Subscribe(
+                panel => SetDetachMirror(panel, detached: false),
+                ex => _logger.LogError(ex, "The attached-panel stream stopped unexpectedly"));
+
+        // The View menu's detach/attach toggle (T-103): one command, the
+        // panel id rides the parameter. The runtime answers every flip;
+        // a fault logs through ThrownExceptions, never a silent death.
+        ToggleDetachCommand = ReactiveCommand.CreateFromTask<PanelDetachId, RxVoid>(
+            async (panel, ct) =>
+            {
+                await _detacher.ToggleDetachAsync(panel, ct);
+                return RxVoid.Default;
+            });
+        ToggleDetachCommand.ThrownExceptions.Subscribe(
+            ex => _logger.LogError(ex, "The detached-panel toggle failed"));
 
         // The assistant column follows the panel: hidden → the column, its
         // splitter track and its min clamp all collapse to zero; shown → the
-        // captured width returns. (The book side has no hidden state.)
+        // captured width returns. (The book side has no hidden state.) A
+        // hidden panel that still lives in its own window attaches back
+        // FIRST (SubscribeAsync keeps the leg task-based): the collapse and
+        // the inline note never disagree.
         chat.WhenAnyValue(x => x.IsAiChatVisible)
             .Subscribe(
                 visible =>
@@ -133,6 +189,12 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
                     }
                 },
                 ex => _logger.LogError(ex, "The AI panel visibility stream stopped unexpectedly"));
+        chat.WhenAnyValue(x => x.IsAiChatVisible)
+            .Where(visible => !visible)
+            .Where(_ => _detacher.IsDetached(PanelDetachId.Assistant))
+            .SubscribeAsync(
+                _ => _detacher.AttachPanelWindowAsync(PanelDetachId.Assistant, CancellationToken.None),
+                onError: ex => _logger.LogError(ex, "The assistant attach-on-hide leg failed"));
 
         // External writers apply live: the display lead (the AI side) or the
         // cache (the book side) is updated BEFORE the property changes, so
@@ -345,6 +407,45 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
         private set => this.RaiseAndSetIfChanged(ref _aiSplitterColumnWidth, value);
     }
 
+    /// <summary>
+    /// Whether the chart lives in its own detached window right now (T-103).
+    /// The View menu's checkbox binds it; the runtime's own emits drive it.
+    /// </summary>
+    public bool IsChartDetached
+    {
+        get => _isChartDetached;
+        private set => this.RaiseAndSetIfChanged(ref _isChartDetached, value);
+    }
+
+    /// <summary>
+    /// Whether the order book lives in its own detached window right now
+    /// (T-103). The View menu's checkbox binds it; the runtime's own emits
+    /// drive it.
+    /// </summary>
+    public bool IsBookDetached
+    {
+        get => _isBookDetached;
+        private set => this.RaiseAndSetIfChanged(ref _isBookDetached, value);
+    }
+
+    /// <summary>
+    /// Whether the assistant lives in its own detached window right now
+    /// (T-103). The View menu's checkbox binds it; the runtime's own emits
+    /// drive it.
+    /// </summary>
+    public bool IsAssistantDetached
+    {
+        get => _isAssistantDetached;
+        private set => this.RaiseAndSetIfChanged(ref _isAssistantDetached, value);
+    }
+
+    /// <summary>
+    /// The View menu's detach/attach toggle (T-103): a detached panel
+    /// attaches back inline, an inline one detaches into its own window.
+    /// The menu checkboxes bind it with the panel id parameter.
+    /// </summary>
+    public ReactiveCommand<PanelDetachId, RxVoid> ToggleDetachCommand { get; }
+
     #endregion
 
     #region Public Methods
@@ -466,6 +567,25 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     #endregion
 
     #region Helpers
+
+    /// <summary>Apply one detach-mirror flip: the panel whose detached state changed (the runtime's closed enum — an unknown id faults loud, never silently drops).</summary>
+    private void SetDetachMirror(PanelDetachId panel, bool detached)
+    {
+        switch (panel)
+        {
+            case PanelDetachId.Chart:
+                IsChartDetached = detached;
+                break;
+            case PanelDetachId.Book:
+                IsBookDetached = detached;
+                break;
+            case PanelDetachId.Assistant:
+                IsAssistantDetached = detached;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(panel), panel, "The panel id has no detach mirror.");
+        }
+    }
 
     /// <summary>Clamp a stored width: garbage (non-finite — an out-of-range JSON magnitude, e.g. <c>1e999</c>) falls back to the shipped default, anything else keeps above the usable minimum.</summary>
     private static double ClampStoredWidth(double width, double min, double fallback) =>

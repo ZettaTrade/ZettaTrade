@@ -1,7 +1,9 @@
 namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using FluentAssertions;
@@ -11,6 +13,7 @@ using Xunit;
 using ZettaTrade.AI.Chat;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
+using ZettaTrade.App.Tests.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Interfaces;
 
@@ -20,10 +23,19 @@ using ZettaTrade.Core.Interfaces;
 /// never rewrites what it just applied; a settled drag burst persists once at
 /// the settled width; external writers apply live without echoing; and the
 /// assistant column collapses with the panel's visibility while the user's
-/// last width returns untouched on the next show.
+/// last width returns untouched on the next show. The detachable panels
+/// (T-103) mirror the runtime's detached state and route the View menu's
+/// toggle through it; a hidden assistant that still lives detached attaches
+/// back first.
 /// </summary>
+[Collection("AvaloniaDispatcherSerial")]
 public sealed class WorkspaceLayoutViewModelTests
 {
+    static WorkspaceLayoutViewModelTests()
+    {
+        AvaloniaDispatcherPump.EnsureInstalled();
+    }
+
     /// <summary>
     /// How long a test waits for the debounced drag persistence to reach the
     /// settings service before calling the arrangement broken (never hit in
@@ -110,6 +122,104 @@ public sealed class WorkspaceLayoutViewModelTests
             Arg.Any<string>(),
             Arg.Any<string>(),
             Arg.Any<double>());
+    }
+
+    #endregion
+
+    #region Detached Panels (T-103)
+
+    /// <summary>
+    /// The mirror starts from the runtime's CURRENT state: a session whose
+    /// restore already detached a panel (the coordinator was built before
+    /// the layout ViewModel resolves in the walk) shows it detached from
+    /// the first frame.
+    /// </summary>
+    [Fact]
+    public async Task TheDetachMirror_StartsFromTheRuntimeState()
+    {
+        var detacher = new FakeDetachedPanelCoordinator();
+        await detacher.DetachPanelWindowAsync(PanelDetachId.Book, CancellationToken.None);
+        var kit = await CreateKitAsync(detacher: detacher);
+
+        kit.Layout.IsBookDetached.Should().BeTrue();
+        kit.Layout.IsChartDetached.Should().BeFalse();
+        kit.Layout.IsAssistantDetached.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// The View menu's toggle routes the panel id to the runtime: one
+    /// execution detaches, the same execution again attaches — the
+    /// checkbox's flip IS the panel's window, nothing more.
+    /// </summary>
+    [Fact]
+    public async Task TheToggleCommand_RoutesThePanelIdToTheRuntime()
+    {
+        var kit = await CreateKitAsync();
+
+        await kit.Layout.ToggleDetachCommand.Execute(PanelDetachId.Chart);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        kit.Detacher.Toggles.Should().ContainInConsecutiveOrder(PanelDetachId.Chart);
+        kit.Detacher.IsDetached(PanelDetachId.Chart).Should().BeTrue();
+        kit.Layout.IsChartDetached.Should().BeTrue();
+
+        await kit.Layout.ToggleDetachCommand.Execute(PanelDetachId.Chart);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        kit.Detacher.Toggles.Should().ContainInConsecutiveOrder(PanelDetachId.Chart, PanelDetachId.Chart);
+        kit.Detacher.IsDetached(PanelDetachId.Chart).Should().BeFalse();
+        kit.Layout.IsChartDetached.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// The runtime's own emits (every detach leg including the restore and
+    /// the window's own close) drive the mirror: the menu checkbox stays
+    /// truthful no matter WHICH route moved the panel.
+    /// </summary>
+    [Fact]
+    public async Task TheRuntimeEmits_DriveTheMirror()
+    {
+        var kit = await CreateKitAsync();
+
+        await kit.Detacher.DetachPanelWindowAsync(PanelDetachId.Assistant, CancellationToken.None);
+        await AvaloniaDispatcherPump.DrainAsync();
+        kit.Layout.IsAssistantDetached.Should().BeTrue();
+
+        await kit.Detacher.AttachPanelWindowAsync(PanelDetachId.Assistant, CancellationToken.None);
+        await AvaloniaDispatcherPump.DrainAsync();
+        kit.Layout.IsAssistantDetached.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// A hidden assistant that still lives in its own window attaches back
+    /// FIRST: the collapse keeps one truth — the panel is inline whenever
+    /// its column collapses (the inline note and the collapsed column never
+    /// disagree).
+    /// </summary>
+    [Fact]
+    public async Task AHiddenAssistant_ThatLivesDetached_AttachesBackInline()
+    {
+        var kit = await CreateKitAsync();
+        await kit.Detacher.DetachPanelWindowAsync(PanelDetachId.Assistant, CancellationToken.None);
+
+        await kit.Chat.ToggleAsync();
+        await WaitUntilAsync(() => !kit.Detacher.IsDetached(PanelDetachId.Assistant));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        kit.Layout.IsAssistantDetached.Should().BeFalse();
+        CarriesPixelWidth(kit.Layout.AiColumnWidth, 0);
+    }
+
+    /// <summary>Give an async leg the settle budget to land, then fail loud if it never did.</summary>
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow + SettleWaitBudget;
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20);
+        }
+
+        condition().Should().BeTrue("the async leg never landed within the settle budget");
     }
 
     #endregion
@@ -387,8 +497,10 @@ public sealed class WorkspaceLayoutViewModelTests
     private static async Task<LayoutKit> CreateKitAsync(
         double storedBook = UiSettingsKeys.DefaultBookPanelWidth,
         double storedAi = UiSettingsKeys.DefaultAiPanelWidth,
-        bool persistedVisibility = UiSettingsKeys.DefaultShowAiPanel)
+        bool persistedVisibility = UiSettingsKeys.DefaultShowAiPanel,
+        FakeDetachedPanelCoordinator? detacher = null)
     {
+        detacher ??= new FakeDetachedPanelCoordinator();
         var settings = Substitute.For<ISettingsService>();
         settings.GetAsync<bool>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>())
             .Returns(persistedVisibility);
@@ -419,11 +531,12 @@ public sealed class WorkspaceLayoutViewModelTests
         var layout = new WorkspaceLayoutViewModel(
             settings,
             chat,
+            detacher,
             NullLogger<WorkspaceLayoutViewModel>.Instance);
         await chat.InitializeAsync();
         await layout.InitializeAsync();
 
-        return new LayoutKit(layout, chat, settings, changes);
+        return new LayoutKit(layout, chat, settings, changes, detacher);
     }
 
     /// <summary>
@@ -462,4 +575,5 @@ internal sealed record LayoutKit(
     WorkspaceLayoutViewModel Layout,
     ChatViewModel Chat,
     ISettingsService Settings,
-    Subject<SettingsChange> Changes);
+    Subject<SettingsChange> Changes,
+    FakeDetachedPanelCoordinator Detacher);

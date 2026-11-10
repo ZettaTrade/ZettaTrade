@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.DetachedBookWindow"
+        Classes="chrome"
+        Title="{loc:Localized Chrome.DetachBookTitle}"
+        Width="420" Height="720"
+        MinWidth="260" MinHeight="320"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Background}">
+
+    <!-- The detached book window (T-103): a trivial chrome shell the
+         coordinator fills with the order book panel's ONE control
+         instance at the detach leg. The placement rides the coordinator's
+         stored fractions against the display sample. -->
+</Window>

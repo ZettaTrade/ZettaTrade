@@ -75,6 +75,30 @@
   <data name="Menu.Help.AboutDisclaimer" xml:space="preserve">
     <value>О программе / Дисклеймер...</value>
   </data>
+  <data name="Menu.View" xml:space="preserve">
+    <value>Вид</value>
+  </data>
+  <data name="Menu.View.Chart" xml:space="preserve">
+    <value>График в отдельном окне</value>
+  </data>
+  <data name="Menu.View.Book" xml:space="preserve">
+    <value>Стакан в отдельном окне</value>
+  </data>
+  <data name="Menu.View.Assistant" xml:space="preserve">
+    <value>Ассистент в отдельном окне</value>
+  </data>
+  <data name="Chrome.DetachNote" xml:space="preserve">
+    <value>Панель открыта в отдельном окне (меню «Вид»). Закройте это окно, чтобы вернуть панель сюда.</value>
+  </data>
+  <data name="Chrome.DetachChartTitle" xml:space="preserve">
+    <value>График</value>
+  </data>
+  <data name="Chrome.DetachBookTitle" xml:space="preserve">
+    <value>Стакан</value>
+  </data>
+  <data name="Chrome.DetachAssistantTitle" xml:space="preserve">
+    <value>Ассистент</value>
+  </data>
   <data name="Settings.Title" xml:space="preserve">
     <value>Настройки</value>
   </data>

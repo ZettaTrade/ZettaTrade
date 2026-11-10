@@ -24,6 +24,9 @@ public sealed class AccessibilityPinsTests
     private static string MainWindowXaml =>
         File.ReadAllText(Path.Combine(RepoRoot, "src", "ZettaTrade.App", "Views", "MainWindow.axaml"));
 
+    private static string AssistantPanelXaml =>
+        File.ReadAllText(Path.Combine(RepoRoot, "src", "ZettaTrade.App", "Views", "Panels", "AssistantPanelView.axaml"));
+
     private static string ControlsThemes =>
         File.ReadAllText(Path.Combine(RepoRoot, "src", "Livery", "Themes", "Controls.axaml"));
 
@@ -74,7 +77,11 @@ public sealed class AccessibilityPinsTests
         source.Should().Contain(
             "AutomationProperties.Name=\"{loc:Localized Chart.A11ySymbolPicker}\"",
             "the palette's query box is the picker's advertised control");
-        source.Should().Contain(
+
+        // The chat input moved into the detachable assistant panel (T-103);
+        // the name rides the panel's own view — the hotkey focus route
+        // lands there whatever window hosts the panel.
+        AssistantPanelXaml.Should().Contain(
             "AutomationProperties.Name=\"{loc:Localized AI.Chat.InputName}\"",
             "the chat input is named — the hotkey focus route lands there");
     }
