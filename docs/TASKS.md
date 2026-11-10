@@ -150,7 +150,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-143 Palette suggestion rows carry automation names (not the record's ToString) | fix/palette-a11y-rows | queued | - |
 | T-144 UI test suite: a headless lane over the real windows (layout, tabs, flows) | feat/ui-tests | queued | - |
 | T-145 UI layout pass: a wrapping chart toolbar and a roomier settings window | feat/ui-layout | done | - |
-| T-146 Plugins into a dedicated solution folder and a physical plugins directory | feat/soln-plugins | in-progress | - |
+| T-146 Plugins into a dedicated solution folder and a physical plugins directory | feat/soln-plugins | review | - |
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | planned | - |
 
@@ -234,12 +234,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-146 — Plugins into a dedicated solution folder and a physical plugins directory
 
-- **Branch:** feat/soln-plugins, worktree zt-soln-plugins, based on develop@2bf507b (claimed 2026-11-10 at the user's request: the seven indicator plugin projects sat flat beside the product projects in src and ungrouped in the solution while the target layout already names `src/ZettaTrade.{...,Plugins}`).
+- **Branch:** feat/soln-plugins, worktree zt-soln-plugins, based on develop@58478b0 (claimed 2026-11-10 at the user's request on develop@2bf507b: the seven indicator plugin projects sat flat beside the product projects in src and ungrouped in the solution while the target layout already names `src/ZettaTrade.{...,Plugins}`; re-based as T-131/T-132, the T-149 claim, the T-148 fix, the T-141..143 queue and the T-145 landing batch arrived).
 - **Origin:** the user asked for a dedicated plugin home twice over — in the solution (the solution file carries no folders except `/tests/`) and on disk (the plugin projects' physical directories live beside `ZettaTrade.Core` and friends, so the plugin-first assemblies do not read as a family).
 - **What:** a `/Plugins/` solution folder arrangements the seven shipped indicator projects (`ZettaTrade.Plugins.Atr`, `Bollinger`, `Ema`, `Macd`, `Rsi`, `Sma`, `Wma`) beside the `/tests/` folder, and the seven projects' directories move under `src/ZettaTrade.Plugins/<indicator>/` with the csproj file names unchanged; the test-fixture plugins (`Plugin.Broken`, `BrokenBase`, `SampleStrategy`) stay on the tests side — they are harness fixtures, not product plugins. Project reference paths in the seven moved projects and in the test projects that pull them (App.Tests, Infrastructure.Tests) ride the new depth; the scanner, bootstrap and the app's plugin loading keep their shapes (they see output assemblies, not source paths).
 - **Scope:** `ZettaTrade.slnx`, the seven moved plugin directories (git mv), the reference paths in those csprojs plus App.Tests.csproj and Infrastructure.Tests.csproj; no code, no resx, no contracts.
 - **Acceptance:** the solution loads and builds clean; the full test run stays green; nothing but paths changes (a `git mv`-visible move, no content edits beyond the reference paths).
 - **Tests:** the green build + the green solution test run is the evidence; the gate over the branch is the final word.
+- **Status:** review. Canon: the claim `b0daf3b` and the work commit `1ad7622` — seven `git mv` folds into `src/ZettaTrade.Plugins/<indicator>/`, a `/Plugins/` solution folder, the reference paths in the seven moved csprojs and the two consuming test projects; the solution builds 0 warnings/0 errors and App.Tests (1357) plus Infrastructure.Tests (391) ran green pre-commit. The rebase resolved the slnx against T-131's SDK seam: the `ZettaTrade.Plugins.Abstractions` entry stays at its own root path, the seven moved projects ride the `/Plugins/` folder. The develop landing awaits review and the user's merge call.
 
 ## T-149 - Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin
 
