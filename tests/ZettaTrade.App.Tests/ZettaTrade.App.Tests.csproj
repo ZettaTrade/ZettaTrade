@@ -20,17 +20,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZettaTrade.App\ZettaTrade.App.csproj" />
-    <ProjectReference Include="..\..\src\ZettaTrade.Plugins\Sma\ZettaTrade.Plugins.Sma.csproj" />
-    <!-- T-092: the standard pack's plugin assemblies. Compile-once for the
-         facts: the app itself carries no reference to any of them (the
-         laziness fact pins that); at runtime the catalog stages them from
-         this build output into its fixture directories. -->
-    <ProjectReference Include="..\..\src\ZettaTrade.Plugins\Ema\ZettaTrade.Plugins.Ema.csproj" />
-    <ProjectReference Include="..\..\src\ZettaTrade.Plugins\Wma\ZettaTrade.Plugins.Wma.csproj" />
-    <ProjectReference Include="..\..\src\ZettaTrade.Plugins\Rsi\ZettaTrade.Plugins.Rsi.csproj" />
-    <ProjectReference Include="..\..\src\ZettaTrade.Plugins\Macd\ZettaTrade.Plugins.Macd.csproj" />
-    <ProjectReference Include="..\..\src\ZettaTrade.Plugins\Atr\ZettaTrade.Plugins.Atr.csproj" />
-    <ProjectReference Include="..\..\src\ZettaTrade.Plugins\Bollinger\ZettaTrade.Plugins.Bollinger.csproj" />
+    <!-- T-163: the standard pack rides its feed package now (the pack's
+         source left the tree for the ZettaTrade/Plugins repo). Compile-once
+         for the facts: the app itself carries no reference to any of the
+         plugins (the laziness fact pins that); at runtime the catalog
+         stages them from this build output into its fixture directories -
+         the package's lib assets copy-local exactly where the seven
+         ProjectReferences used to. -->
+    <PackageReference Include="ZettaTrade.Plugins.Standard" Version="$(PluginsVersion)" />
   </ItemGroup>
 
 </Project>
