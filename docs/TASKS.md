@@ -156,7 +156,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | done | - |
 | T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | done | - |
 | T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | done | - |
-| T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | queued | - |
+| T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | in-progress | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | queued | - |
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | queued | - |
 | T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | queued | - |
@@ -337,7 +337,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-152 — Trading mode chips readable: dark foreground on the state colors
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Branch:** fix/lane-chip-contrast, worktree zt-chip-contrast, based on develop@0bdc21f (claimed 2026-11-11 as the third of the T-150…T-162 design-review batch — the readable-chip treatment lands on the converged token system).
 - **Origin:** safety-critical polish: the lane chips, the testnet badges and the health dots fill
   with CandleUp/Highlight/Error while their text inherits the default foreground — white over
   #22c55e/#ffd700/#ef4444 lands near ~2:1, far under WCAG for pill-sized type; T-123's
@@ -352,6 +352,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   trading-pro at 100% zoom.
 - **Tests:** contrast pins per chip state per theme; source pins that no chip template overrides
   the readable foreground.
+- **Status:** in-progress
 
 ## T-153 — Status bar declutter: the message channel + the summary, the settings noise out
 
