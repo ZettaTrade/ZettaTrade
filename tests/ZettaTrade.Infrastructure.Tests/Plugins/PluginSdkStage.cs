@@ -2,6 +2,8 @@ namespace ZettaTrade.Infrastructure.Tests.Plugins;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NSubstitute;
+using ZettaTrade.Infrastructure.Licensing;
 using ZettaTrade.Infrastructure.Plugins;
 
 /// <summary>
@@ -56,12 +58,19 @@ internal sealed class PluginSdkStage : IDisposable
     /// Builds the host the house DI shape (AddPluginSdk) resolves and runs
     /// the one load pass; the returned registry and report are the
     /// post-load state. The disposables travel back for the test's own
-    /// teardown.
+    /// teardown. An optional entitlement gate (T-132) rides the host's
+    /// constructor seam when staged.
     /// </summary>
-    public async Task<(PluginSdkHost Host, ServiceProvider Provider, PluginExtensionRegistry Registry)> RunAsync()
+    public async Task<(PluginSdkHost Host, ServiceProvider Provider, PluginExtensionRegistry Registry)> RunAsync(
+        ILicenseGate? licenseGate = null)
     {
         var services = new ServiceCollection();
         services.AddPluginSdk(Path);
+        if (licenseGate is not null)
+        {
+            services.AddSingleton(licenseGate);
+        }
+
         services.AddSingleton<ILoggerFactory>(Loggers);
         services.AddSingleton<ILogger<PluginSdkHost>>(
             new RecordingTypeLogger<PluginSdkHost>(Loggers));

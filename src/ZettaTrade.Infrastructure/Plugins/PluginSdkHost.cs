@@ -2,6 +2,7 @@ using System.Reflection;
 using Livery.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Infrastructure.Licensing;
 using ZettaTrade.Plugins.Abstractions;
 using ZettaTrade.Plugins.Abstractions.Extensions;
 
@@ -21,11 +22,17 @@ namespace ZettaTrade.Infrastructure.Plugins;
 /// <param name="registry">The registry the extensions land in.</param>
 /// <param name="hostServices">The host's root provider — the capability window behind the plugin's own layer.</param>
 /// <param name="logger">The host logger.</param>
+/// <param name="licenseGate">
+/// The entitlement gate (T-132) consulted before every load; null (an app
+/// shape with the licensing module not registered) leaves every plugin
+/// unprotected — the same posture the default empty protected list gives.
+/// </param>
 public sealed class PluginSdkHost(
     string scanDirectory,
     PluginExtensionRegistry registry,
     IServiceProvider hostServices,
-    ILogger<PluginSdkHost> logger) : IAsyncInitializable
+    ILogger<PluginSdkHost> logger,
+    ILicenseGate? licenseGate = null) : IAsyncInitializable
 {
     /// <summary>The manifest record one candidate carries through the gates.</summary>
     private sealed record PluginCandidate(
@@ -83,9 +90,20 @@ public sealed class PluginSdkHost(
                 return;
             }
 
+            var loadable = await GateForLicenseAsync(ordered, errors, refused, cancellationToken);
+
+            if (loadable.Count == 0)
+            {
+                logger.LogInformation(
+                    "The plugin SDK found {Count} manifest(s) and loaded none of them: every candidate refused at a gate.",
+                    manifests.Count);
+                registry.Replace(PluginExtensionSnapshot.Empty);
+                return;
+            }
+
             var loggerFactory = hostServices.GetRequiredService<ILoggerFactory>();
 
-            foreach (var candidate in ordered)
+            foreach (var candidate in loadable)
             {
                 var id = candidate.Manifest.PluginId;
                 try
@@ -146,6 +164,61 @@ public sealed class PluginSdkHost(
     #endregion
 
     #region Private Methods
+
+    /// <summary>
+    /// The license entitlement stage (T-132): every candidate consults the
+    /// gate before any load leg runs; an entitled candidate keeps its
+    /// place, a refused one lands in the report with an explicit error
+    /// line (the gate's absence — licensing not registered — protects
+    /// nothing, matching the default empty protected list).
+    /// </summary>
+    private async Task<List<PluginCandidate>> GateForLicenseAsync(
+        List<PluginCandidate> ordered,
+        List<string> errors,
+        List<string> refused,
+        CancellationToken cancellationToken)
+    {
+        if (licenseGate is null)
+        {
+            return ordered;
+        }
+
+        var loadable = new List<PluginCandidate>();
+        foreach (var candidate in ordered)
+        {
+            var id = candidate.Manifest.PluginId;
+            LicenseVerdict verdict;
+            try
+            {
+                verdict = await licenseGate.EvaluateAsync(id, cancellationToken);
+            }
+            catch (Exception fault)
+            {
+                refused.Add(id);
+                errors.Add($"The plugin '{id}' refused at the license gate: the entitlement check failed ({FaultLine(fault)}) — refused.");
+                logger.LogError(
+                    fault,
+                    "The plugin '{PluginId}' failed its license entitlement check; refused.",
+                    id);
+                continue;
+            }
+
+            if (verdict.Entitled)
+            {
+                loadable.Add(candidate);
+                continue;
+            }
+
+            refused.Add(id);
+            errors.Add($"The plugin '{id}' refused at the license gate: {verdict.Status} — no valid entitlement, refused.");
+            logger.LogError(
+                "The plugin '{PluginId}' carries no valid license entitlement ({Status}); refused.",
+                id,
+                verdict.Status);
+        }
+
+        return loadable;
+    }
 
     /// <summary>
     /// One plugin's full load leg: construct, shape its own DI layer (its

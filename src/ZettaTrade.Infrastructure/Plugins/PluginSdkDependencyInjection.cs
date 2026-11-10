@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Infrastructure.Licensing;
 
 namespace ZettaTrade.Infrastructure.Plugins;
 
@@ -27,7 +28,8 @@ public static class PluginSdkDependencyInjection
             scanDirectory,
             serviceProvider.GetRequiredService<PluginExtensionRegistry>(),
             serviceProvider,
-            serviceProvider.GetRequiredService<ILogger<PluginSdkHost>>()));
+            serviceProvider.GetRequiredService<ILogger<PluginSdkHost>>(),
+            serviceProvider.GetService<ILicenseGate>()));
         services.AddSingleton<IPluginExtensionRegistry>(
             serviceProvider => serviceProvider.GetRequiredService<PluginExtensionRegistry>());
         return services;

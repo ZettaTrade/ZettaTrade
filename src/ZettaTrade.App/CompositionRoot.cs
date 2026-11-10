@@ -18,6 +18,7 @@ using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Indicators;
+using ZettaTrade.Infrastructure.Licensing;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Infrastructure.Plugins;
 using ZettaTrade.Infrastructure.Secrets;
@@ -97,6 +98,7 @@ internal static class CompositionRoot
         // assemblies travel — one manifest scan at the startup walk, the
         // registrations landing in the extension registry for the shell.
         services.AddPluginSdk(ConfigPathResolver.PluginsDirectory);
+        services.AddLicensingServices();
 
         // Active-exchange facade over the concrete adapters: every market
         // data consumer resolves one IMarketDataAdapter that forwards to
@@ -171,6 +173,7 @@ internal static class CompositionRoot
         // settings store (read fresh at every launch, never cached), and the
         // dialog view model is transient per open.
         services.AddDisclaimerServices();
+        services.AddLicenseActivationServices();
 
         // First-run wizard (T-099): the once-flag rides the settings store
         // the same way; the wizard view model is transient per open.

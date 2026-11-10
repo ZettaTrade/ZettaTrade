@@ -4,7 +4,9 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
+using ZettaTrade.Infrastructure.Licensing;
 using ZettaTrade.Infrastructure.Plugins;
 using ZettaTrade.Plugins.Fixtures;
 using ZettaTrade.Plugins.Fixtures.Hazards;
@@ -76,6 +78,51 @@ public sealed class PluginSdkHostTests
         }
     }
 
+    [Fact]
+    public async Task LicenseGateRefusal_KeepsEveryCandidateOutOfTheLoad()
+    {
+        using var stage = new PluginSdkStage();
+        stage.StageFixtures();
+        var gate = Substitute.For<ILicenseGate>();
+        gate.EvaluateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new LicenseVerdict(false, LicenseValidationStatus.Missing));
+
+        var (host, provider, registry) = await stage.RunAsync(gate);
+
+        host.Report.LoadedPluginIds.Should().BeEmpty("no entitlement, no load.");
+        host.Report.RefusedPluginIds.Should().Equal((IEnumerable<string>)["fx.alpha", "fx.beta", "fx.sample"]);
+        host.Report.Errors.Should().Contain(
+            e => e.Contains("resolved") || e.Contains("refused at the license gate"),
+            "the refusal line names the gate stage.");
+        registry.Snapshot.Panels.Should().BeEmpty("no extension publishes.");
+        SamplePanelPlugin.InitializeCalls.Should().Be(0, "the load leg never runs past the gate.");
+
+        using (provider)
+        {
+            Assert.True(true, "the provider disposes with the fact.");
+        }
+    }
+
+    [Fact]
+    public async Task LicenseGateEntitlement_LetsTheLoadLegRun()
+    {
+        using var stage = new PluginSdkStage();
+        stage.StageFixtures();
+        var gate = Substitute.For<ILicenseGate>();
+        gate.EvaluateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new LicenseVerdict(true, LicenseValidationStatus.Valid));
+
+        var (host, provider, registry) = await stage.RunAsync(gate);
+
+        host.Report.LoadedPluginIds.Should().Equal((IEnumerable<string>)["fx.alpha", "fx.beta", "fx.sample"]);
+        host.Report.RefusedPluginIds.Should().BeEmpty("an entitled candidate loads normally.");
+        registry.Snapshot.Panels.Should().ContainSingle().Which.PluginId.Should().Be("fx.sample");
+
+        using (provider)
+        {
+            Assert.True(true, "the provider disposes with the fact.");
+        }
+    }
     [Fact]
     public async Task HazardShapesRefuseLoudlyAndSpareTheSurvivors()
     {

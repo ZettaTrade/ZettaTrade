@@ -86,6 +86,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowBalancesRequested.RegisterHandler(OpenBalancesAsync);
         ViewModel?.Menu.FocusAiChatRequested.RegisterHandler(FocusChatAsync);
         ViewModel?.Menu.ShowDisclaimerRequested.RegisterHandler(OpenDisclaimerAsync);
+        ViewModel?.Menu.ShowLicenseActivationRequested.RegisterHandler(OpenLicenseActivationAsync);
         ViewModel?.Menu.ShowLogViewerRequested.RegisterHandler(OpenLogViewerAsync);
 
         // The toast host lives for the whole window's stay like the other
@@ -898,6 +899,31 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to land the notification route {Route}", context.Input);
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenLicenseActivationAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The license activation dialog (T-132): a fresh view model per
+            // open (transient — no pasted key or verdict carries over), the
+            // dialog closes itself on a stored activation, a refusal keeps
+            // it open with the verdict shown.
+            var viewModel = App.Services.GetRequiredService<ViewModels.LicenseActivationViewModel>();
+            var dialog = new LicenseActivationWindow
+            {
+                DataContext = viewModel,
+            };
+            await dialog.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the license activation dialog");
         }
         finally
         {

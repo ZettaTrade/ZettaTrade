@@ -1,3 +1,30 @@
+## [0.1.0-alpha.91] - 2026-11-10
+
+Build of board task T-132 (branch `feat/plugin-packaging`).
+
+### Added
+- The closed-source plugin packaging seam (T-132): the consumer side of the
+  open-core split — a local, offline license-key activation flow plus the
+  entitlement gate the plugin loader consults before every load. The key is
+  the compact `zt1.<payload>.<signature>` token: an RSA-SHA256 signature the
+  validator checks against the installation's configured public PEM (in
+  settings), the claims binding (the product, the plugin id, the issuer's
+  subject and the validity window) and the expiry — validation reads
+  settings and computes only, nothing phones home, and every failure shape
+  maps to an explicit status (malformed, tampered, expired, wrong product or
+  plugin id, missing, unconfigured) that REFUSES: activation stores nothing
+  and the loader keeps the plugin out — refused-not-defaulted on every path,
+  including an unparsable protected-plugins list (a malformed list protects
+  everything, not nothing). The license keys ride the settings document the
+  rest of the configuration lives on. The activation dialog (Help menu) is
+  local-first: a module carrying `<pluginId>.EULA.txt` next to its package
+  surfaces its agreement at the first activation and waits for the accept
+  tick before anything is stored; the acceptance persists per module.
+  The private-repo conventions for the closed modules (repo naming, the
+  proprietary LICENSE+EULA pair, the signing CI recipe, the key issuance
+  shape) live in `docs/PLUGIN-PACKAGING.md`, and the open-core split in
+  one glance lands as `docs/LICENSES.md`.
+
 ## [0.1.0-alpha.90] - 2026-11-10
 
 Build of board task T-103 (branch `feat/multi-window`).

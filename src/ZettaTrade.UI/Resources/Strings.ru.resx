@@ -1773,4 +1773,58 @@
   <data name="Hotkeys.Editor.Reset" xml:space="preserve">
     <value>Сброс</value>
   </data>
+  <data name="Menu.Help.LicenseActivation" xml:space="preserve">
+    <value>Активировать лицензию…</value>
+  </data>
+  <data name="Settings.License.Title" xml:space="preserve">
+    <value>Активация лицензии</value>
+  </data>
+  <data name="Settings.License.Eula.AcceptLabel" xml:space="preserve">
+    <value>Я прочитал и принимаю EULA модуля</value>
+  </data>
+  <data name="Settings.License.Eula.Caption" xml:space="preserve">
+    <value>Лицензионное соглашение модуля</value>
+  </data>
+  <data name="Settings.License.Hint" xml:space="preserve">
+    <value>Вставьте лицензионный ключ, выданный вместе с платным модулем. Проверка полностью локальна — ключ сверяется с открытым ключом этой установки, наружу ничего не отправляется. Идентификатор плагина должен совпадать с идентификатором модуля (см. его документацию).</value>
+  </data>
+  <data name="Settings.License.PluginLabel" xml:space="preserve">
+    <value>Идентификатор плагина</value>
+  </data>
+  <data name="Settings.License.KeyLabel" xml:space="preserve">
+    <value>Лицензионный ключ</value>
+  </data>
+  <data name="Settings.License.Activate" xml:space="preserve">
+    <value>Активировать</value>
+  </data>
+  <data name="Settings.License.Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="Settings.License.Verdict.Valid" xml:space="preserve">
+    <value>Лицензия действительна и сохранена. Откройте модуль заново (или перезапустите приложение), чтобы он загрузился.</value>
+  </data>
+  <data name="Settings.License.Verdict.EulaRequired" xml:space="preserve">
+    <value>Модуль поставляется с лицензионным соглашением: ознакомьтесь с ним выше, отметьте чек-бокс согласия и активируйте ещё раз. Пока ничего не сохранено.</value>
+  </data>
+  <data name="Settings.License.Verdict.Missing" xml:space="preserve">
+    <value>Для этого плагина не сохранено ни одного ключа.</value>
+  </data>
+  <data name="Settings.License.Verdict.Malformed" xml:space="preserve">
+    <value>Ключ не распознан. Вставьте полный токен ровно в том виде, в каком он выдан.</value>
+  </data>
+  <data name="Settings.License.Verdict.Tampered" xml:space="preserve">
+    <value>Ключ не проходит проверку подписи — он изменён или выдан не издателем модуля. Ничего не сохранено.</value>
+  </data>
+  <data name="Settings.License.Verdict.Expired" xml:space="preserve">
+    <value>Ключ подлинный, но срок его действия истёк. Запросите новый у издателя.</value>
+  </data>
+  <data name="Settings.License.Verdict.WrongProduct" xml:space="preserve">
+    <value>Ключ подлинный, но привязан к другому продукту или другому идентификатору плагина.</value>
+  </data>
+  <data name="Settings.License.Verdict.Unconfigured" xml:space="preserve">
+    <value>Проверка лицензий на этой установке не настроена (не задан открытый ключ). Обратитесь к оператору.</value>
+  </data>
+  <data name="Settings.License.Verdict.Failed" xml:space="preserve">
+    <value>Активация завершилась неожиданной ошибкой — подробности в просмотрщике логов. Ничего не сохранено.</value>
+  </data>
 </root>
