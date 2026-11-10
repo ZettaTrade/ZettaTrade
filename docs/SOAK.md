@@ -53,8 +53,9 @@ scopes the CI lane:
 
 A budget key written **in** the file is enforced: its verdict drives the tool's
 exit code (0 = pass, 3 = breach) and, for the run, the driver's `SOAK PASSED`
-vs `SOAK FAILED: budget breach`. A key written **null** is advisory: the
-measurement still appears in every summary, but nothing gates on it.
+vs a `SOAK BREACH` report that itself exits 3. A key written **null** is
+advisory: the measurement still appears in every summary, but nothing gates on
+it.
 
 - `gate.ps1 -Budgets` (opt-in, `-BudgetsSoakMinutes` defaults to 5): runs the
   soak against the **full** budgets and fails the gate on any breach.

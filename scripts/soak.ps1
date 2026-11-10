@@ -320,13 +320,18 @@ try {
     Say ('=' * 60)
 
     if ($soak.Code -eq 3) {
-        throw "budget breach (report: $reportPath, summary: $summaryPath)"
+        # A breach is a VERDICT, not an internal error: report it and carry
+        # exit 3 straight out — the catch-all below is for harness faults
+        # only (exit 1), never for a budget call.
+        Say 'SOAK BREACH: a budget is not held (the verdicts above name it).'
+        exit 3
     }
     Say "SOAK PASSED (summary: $summaryPath)"
     exit 0
 }
 catch {
-    # The verdict of a failed run: the app must never linger behind it.
+    # The catch-all: the app must never linger behind it, and a SOAK FAILED
+    # (internal error) always means the harness itself broke, exit 1.
     Get-Process -Name 'ZettaTrade*' -ErrorAction SilentlyContinue | Stop-Process -Force
     Say "SOAK FAILED (internal error): $($_.Exception.Message)"
     exit 1
