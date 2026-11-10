@@ -153,7 +153,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-146 Plugins into a dedicated solution folder and a physical plugins directory | feat/soln-plugins | done | - |
 | T-147 Agent canon split: a lean always-on AGENTS.md, a deduped zettatrade skill and on-demand references | feat/canon-split | done | - |
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
-| T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | planned | - |
+| T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | in-progress | - |
 | T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | queued | - |
 | T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | queued | - |
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | queued | - |
@@ -241,13 +241,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-149 - Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin
 
-- **Branch:** feat/app-test-flak, worktree zt-app-test-flak, based on develop@772a39c (claimed 2026-11-10 on develop@243c50a, re-based onto 772a39c when T-103/T-129/T-132 landed mid-flight; the stabilization work starts on the user's go).
+- **Branch:** feat/app-test-flak, worktree zt-app-test-flak, based on develop@cb5e3f9 (first claimed 2026-11-10 on develop@243c50a and re-based twice as T-103/T-129/T-132 and then the T-130..T-164 wave landed mid-flight; the stabilization work starts 2026-11-11 on the user's go).
 - **Origin:** the gate's flaky retry keeps absorbing an App.Tests failure: the feat/fixture-leak gate log (2026-11-10) records ZettaTrade.App.Tests.Services.HeatmapFeedServiceTests.AStaleEpochComposition_PublishesNothing failing the first run and passing the retry ("passed on flaky retry; consider stabilizing the timing-sensitive test"); an earlier gate run showed the same rescue, but gate-last.log keeps only the last run, so that occurrence is no longer reproducible from logs. The retry is the safety net, not a fix - the flake is pre-existing on develop and surfaces on unlucky scheduling. Third member of the stabilization family after T-135 and T-138.
 - **What:** the fixture's settle pin is a bounded Task.Yield() spin-poll whose budget is calibrated for an idle machine (the while/SpinAbortBudget loop after parkedGate.SetResult()): under the gate's solution-parallel load the pool-starved pipeline outlives the budget and the poll aborts loudly - the recorded FAIL. Make the pin completion-driven instead of spin-driven: await the outcome's own TCS (pumpConnect) behind a timeout guard, so the wait completes exactly when the swap's composition arms the demo pump, a never-landing composition still fails loudly on the timeout, and no spin budget can be exhausted by scheduling noise; the coverage intent stays and the gate's retry remains belt-and-suspenders.
 - **Scope:** tests/ZettaTrade.App.Tests only (the HeatmapFeedServiceTests fixture); no product code, no version bump (test stabilization, matching the T-135/T-138 precedent).
 - **Acceptance:** a streak of consecutive first-run green runs of the full App.Tests suite (target: ten, zero retry absorptions), the stabilized test keeps its original coverage intent (the stale-epoch drop still asserted through the real pump connection), the gate stops printing the flaky-retry warning on this path.
 - **Tests:** the stabilized fixture plus the repeated first-run streak; the gate over the branch.
-- **Status:** planned
+- **Status:** in-progress
 
 ---
 
