@@ -1971,6 +1971,48 @@ the board and its section below.
 - **Tests:** the stabilized fixture plus the repeated first-run streak; the gate over the branch.
 - **Status:** done. Canon: the claim `a6df1af`, the feat `6e26103` (one feat, no bump - test stabilization, the T-135/T-138 precedent). The pin went completion-driven: `Task.WhenAny(pumpConnect.Task, Task.Delay(SettleTimeout))` with a named `SettleTimeout` (5 s) and the loud diagnostic on a guard miss; the `SpinAbortBudget` constant deleted (dead after the rewrite). The acceptance streak verified by exit codes: TEN consecutive full App.Tests first-run greens, zero failures, zero retry absorptions (the streak script's cosmetic print glitched mid-loop; the verdict ledger is the `dotnet test` exit code and none of the ten failed). Gate PASSED on the first attempt - no flaky-retry warning on the heatmap path; the stale-epoch coverage intent stands (the settle is still the REAL pump connection: the fake's connect TCS completes only after the wrapper's inner subscription is fully formed).
 
+## T-150 — Design tokens: Fluent system brushes out of the views, palette keys only
+
+- **Branch:** feat/design-tokens, worktree zt-design-tokens, based on develop@8395e6f (claimed 2026-11-11 as the first of the T-150…T-162 design-review batch — the two color systems converge first).
+- **Origin:** two parallel color systems run side by side: ThemeManager publishes only the palette
+  keys, while the views lean on stock Fluent strokes — the status bar paints
+  `SystemAccentColorLight2` (the MainWindow status Border), the panel separators and the settings
+  cue glyphs ride `SystemControlForegroundBase*`. A user JSON theme recolors none of them: the
+  status bar stays the Fluent tint under any palette, and a light custom theme keeps dark-tuned
+  separators.
+- **What:** every view color rides the palette: the status bar moves to Surface + a top Border
+  stroke, the separators and cue glyph colors pick Border/TextSecondary families; ThemeManager
+  additionally publishes the derived Fluent system keys from the palette so stock control paths
+  converge. No layout or behavior change.
+- **Scope:** the App views' brushes, the Livery Themes publish step; no palette values (T-151 owns
+  values), no new dependencies.
+- **Acceptance:** a fresh theme JSON touching only Background/Surface/Border recolors the status
+  bar, the separators and the settings glyphs live; no view keeps a Fluent `System*` brush key;
+  hot-reload retints everything without a restart.
+- **Tests:** source pins over the views against the forbidden `SystemAccentColor*`/`SystemControl*`
+  keys; a ThemeManager test asserting the derived keys ride the palette; the existing contrast
+  pins stay green.
+- **Status:** done. Canon: the claim `ba62bcb`, the feat `36a1d4e`, the ship `2850c59`
+  (0.1.0-alpha.95, the satellite consumption line at Livery 0.1.3). Two-repo choreography: the
+  satellite Livery carries the derived-key publish (`2ac3e23`, the tag `v0.1.2`, superseded the
+  same day by `d132077`, the tag `v0.1.3` — a re-publish was impossible, the tag existed and the
+  feed dedups) and the consumer rides `LiveryVersion` 0.1.3; the satellite's derived facts
+  (26 keys, arguably exact blend bytes) live in the consumer's UI.Tests. The hard discovery pin:
+  Avalonia 12's property store enforces value-type identity per effectively bound entry — a raw
+  Color published over a stock brush key throws
+  `InvalidCastException` («Unable to cast object of type 'Avalonia.Media.Color' to type
+  'Avalonia.Media.SolidColorBrush'») the moment a `DynamicResource` binding already resolved a
+  brush (0.1.3 publishes the `*Brush` family as `SolidColorBrush`, the accent family as Colors).
+  Views: the status bar Surface + a top Border stroke, 12 separators/light-queue strokes ride
+  Border, the settings cue glyphs ride Border/TextSecondary (`PaletteTokenPinsTests` forbids the
+  `SystemAccent`/`SystemControl` substrings across 25 app axaml files and regex-pins the status
+  bar). Suite infra: WindowChromeTests' style loader gained the app-world reuse guard — Avalonia
+  12 refuses a second AppBuilder setup, and the new publish-pins class stands the world up first.
+  Gate triage: attempt 1 failed the two chrome style pins (the unguarded second setup, fixed in
+  the feat), attempt 2 tripped `WorkspaceLayoutViewModelTests.TheRuntimeEmits_DriveTheMirror`
+  (green 5/5 in isolated Release replay — the known App.Tests load-sensitive timing family,
+  absorbed by the gate's flaky retry), attempt 3 PASSED.
+
 ## T-163 - The plugins consumption switch: the standard pack rides the package mechanics
 
 - **Branch:** feat/plugin-packages, worktree zt-plugin-packages, based on develop@1f2a622 (claimed 2026-11-10 per standing directive 6; filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
