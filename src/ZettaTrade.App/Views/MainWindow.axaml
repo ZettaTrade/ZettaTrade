@@ -106,15 +106,25 @@
             </MenuItem>
         </Menu>
 
-        <!-- Status bar -->
+        <!-- Status bar (T-153): the strip carries exactly five groups — the
+             message channel (a transient event message over the Ready idle
+             text), the exchange picker, the active exchange + lane chip,
+             the connection state and the health dots. The theme, language
+             and version facts moved out: the first two switch in the
+             settings, the version lives in Help/About — every removed
+             label stays reachable in one action. -->
         <Border DockPanel.Dock="Bottom"
                 Background="{DynamicResource Surface}"
                 BorderThickness="0,1,0,0"
                 BorderBrush="{DynamicResource Border}"
                 Padding="8,4"
                 DataContext="{Binding StatusBar}">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Column="0" Text="{loc:Localized Status.Ready}" VerticalAlignment="Center" />
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                <!-- The message channel (T-153): the Ready idle text between
+                     notification events, a transient event message while the
+                     view model holds one (it vanishes back to the idle text
+                     after its quiet period). -->
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center" />
                 <!-- One concept, one control (T-016 anti-confusion rules): the
                      exchange picker renders only when two or more adapters are
                      registered; the trading mode never folds into the picker —
@@ -172,16 +182,13 @@
                     </Border>
                 </StackPanel>
                 <TextBlock Grid.Column="3" Text="{Binding ConnectionStatus}" Margin="16,0" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="4" Text="{Binding CurrentThemeName}" Margin="16,0" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="5" Text="{Binding CurrentLanguage}" Margin="16,0" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="6" Text="{Binding AppVersion}" Margin="16,0" VerticalAlignment="Center" />
                 <!-- The adapter health strip (T-098): one dot per registered
                      adapter. The palette keys re-tint live on theme switches
                      (DynamicResource); the state flags are what the dot's
                      styles pick the fill from — connected / reconnecting /
                      down / unsupervised, and the localized tooltip carries
                      the last event moment and the failure counter. -->
-                <ItemsControl Grid.Column="7"
+                <ItemsControl Grid.Column="4"
                               ItemsSource="{Binding AdapterHealthRows}"
                               Margin="8,0"
                               VerticalAlignment="Center">

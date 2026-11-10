@@ -6,7 +6,6 @@ using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Livery.Localization;
-using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -17,12 +16,13 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
-/// Tests for the status bar: the theme and language chips must show the
-/// managers' current value on construction and track later changes live;
-/// the exchange picker is hidden for a single adapter, visible (and
-/// switching-driving) for two; the persisted-choice fallback plays the loud
-/// localized notice in the connection chip for a bounded window and is not
-/// silently overwritten by a regular state refresh before it expires.
+/// Tests for the status bar: the message channel must surface a transient
+/// event message over the Ready idle text and vanish back (replace
+/// semantics, language-safe); the exchange picker is hidden for a single
+/// adapter, visible (and switching-driving) for two; the persisted-choice
+/// fallback plays the loud localized notice in the connection chip for a
+/// bounded window and is not silently overwritten by a regular state
+/// refresh before it expires.
 /// </summary>
 /// <remarks>
 /// Runs inside <see cref="AvaloniaDispatcherSerialCollection"/>: the
@@ -38,13 +38,6 @@ public sealed class StatusBarViewModelTests
     /// <summary>The notice facts drain through the pump; claim it once, before any fact.</summary>
     static StatusBarViewModelTests() => AvaloniaDispatcherPump.EnsureInstalled();
 
-    private static readonly ThemeInfo[] Themes =
-    [
-        new("dark", "Dark", true, []),
-        new("light", "Light", true, []),
-    ];
-
-    private readonly IThemeManager _themeManager = Substitute.For<IThemeManager>();
     private readonly ILocalizationManager _localizationManager = Substitute.For<ILocalizationManager>();
     private readonly ISettingsService _settings = Substitute.For<ISettingsService>();
     private readonly IMarketDataAdapter _first = Substitute.For<IMarketDataAdapter>();
@@ -52,11 +45,10 @@ public sealed class StatusBarViewModelTests
     private readonly ITradingAdapter _traded = Substitute.For<ITradingAdapter>();
     private readonly IConfirmationService _confirmation = Substitute.For<IConfirmationService>();
     private readonly Subject<IReadOnlyList<AdapterHealth>> _health = new();
+    private readonly Subject<Notification> _events = new();
 
     public StatusBarViewModelTests()
     {
-        _themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
-        _themeManager.AvailableThemes.Returns(Themes);
         _localizationManager.LanguageChanged.Returns(new BehaviorSubject<string>("en"));
 
         // The chip facts' captions resolve in a predictable, test-visible
@@ -101,68 +93,130 @@ public sealed class StatusBarViewModelTests
     private StatusBarViewModel CreateViewModel(
         ActiveExchangeService? exchanges = null,
         TimeSpan? fallbackNoticeDuration = null,
+        TimeSpan? statusMessageDuration = null,
         TradingModeService? tradingMode = null) =>
         new(
-            _themeManager,
             _localizationManager,
             exchanges ?? CreateService(),
             tradingMode ?? CreateTradingModeService(),
-            "0.1.0-test",
+            _events,
             _health,
             fallbackNoticeDuration,
+            statusMessageDuration,
             NullLogger<StatusBarViewModel>.Instance);
 
+    #region Tests: the message channel (T-153)
+
+    /// <summary>One journal-cancel event the channel can surface (the composed summary renders "[Notif.CancelOn]").</summary>
+    private static Notification CancelEvent() =>
+        Notification.ForJournalOutcome(
+            NotificationKind.OrderCancel,
+            DateTimeOffset.UtcNow,
+            "BTCUSDT",
+            ZettaTrade.Core.Enums.OrderSide.Buy,
+            0m);
+
+    /// <summary>One journal-fill event the channel can surface (the composed summary renders "[Notif.Fill]").</summary>
+    private static Notification FillEvent() =>
+        Notification.ForJournalOutcome(
+            NotificationKind.OrderFill,
+            DateTimeOffset.UtcNow,
+            "ETHUSDT",
+            ZettaTrade.Core.Enums.OrderSide.Sell,
+            1.5m);
+
     [Fact]
-    public void Constructor_WithManagersHoldingCurrentValue_ShowsDisplayNamesImmediately()
+    public void TheIdleStrip_ShowsTheReadyText()
     {
-        // Arrange: the theme manager broadcasts its current value on subscribe.
         var viewModel = CreateViewModel();
 
-        // Assert
-        viewModel.CurrentThemeName.Should().Be("Dark"); // DisplayName resolved from the canonical name
-        viewModel.CurrentLanguage.Should().Be("en");
+        viewModel.StatusMessage.Should().Be("[Status.Ready]", "the idle strip cell is the localized Ready text");
     }
 
     [Fact]
-    public void ManagerStreamChange_OnThemeOrLanguageEmitted_UpdatesChips()
+    public async Task AStatusEvent_SurfacesItsMessageThenVanishesToTheReadyText()
     {
-        var themeChanged = new BehaviorSubject<string>("dark");
+        var viewModel = CreateViewModel(statusMessageDuration: TimeSpan.FromMilliseconds(60));
+
+        // Act: the event arrives. BUG-018 discipline: the message write is
+        // POSTED to the UI thread, so BEFORE any drain nothing landed.
+        _events.OnNext(CancelEvent());
+
+        viewModel.StatusMessage.Should().Be("[Status.Ready]", "a posted message cannot write the cell before the drain");
+
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.StatusMessage.Should().Be("[Notif.CancelOn]", "the event surfaces its composed summary over the idle text");
+
+        // The expiry is a thread-pool timer; the 800 ms wait (the suite runs
+        // under sparse parallel processes) far exceeds the 60 ms window.
+        await Task.Delay(800);
+
+        // BUG-018 discipline: the 60 ms expiry timer elapsed above, yet the
+        // cell still shows the message — the timer thread wrote nothing; its
+        // refresh is posted to the dispatcher like every other write.
+        viewModel.StatusMessage.Should().Be(
+            "[Notif.CancelOn]",
+            "an elapsed expiry timer must not write the cell from its own thread");
+
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.StatusMessage.Should().Be("[Status.Ready]", "the message vanishes to the idle text after its quiet period");
+    }
+
+    [Fact]
+    public async Task ASecondEvent_ReplacesTheDisplayedMessage()
+    {
+        var viewModel = CreateViewModel(statusMessageDuration: TimeSpan.FromMilliseconds(60));
+
+        _events.OnNext(CancelEvent());
+        _events.OnNext(FillEvent());
+
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.StatusMessage.Should().Be("[Notif.Fill]", "the newest event's message replaces the displayed one, nothing queues");
+
+        await Task.Delay(800);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.StatusMessage.Should().Be("[Status.Ready]", "one vanishing ride covers the replaced message: the burst coalesces into the displayed latest");
+    }
+
+    [Fact]
+    public async Task ALanguageSwitch_CannotRevertALiveMessageAndReDerivesTheIdleText()
+    {
+        _localizationManager.GetString("Status.Ready").Returns("Ready");
         var languageChanged = new BehaviorSubject<string>("en");
-        _themeManager.ThemeChanged.Returns(themeChanged);
         _localizationManager.LanguageChanged.Returns(languageChanged);
-        var viewModel = CreateViewModel();
 
-        // Act
-        themeChanged.OnNext("light");
+        var viewModel = CreateViewModel(statusMessageDuration: TimeSpan.FromMilliseconds(60));
+
+        // Act: an event surfaces its message; a language switch lands while
+        // the message holds.
+        _events.OnNext(CancelEvent());
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.StatusMessage.Should().Be("[Notif.CancelOn]");
+
+        // The switch re-derives the idle text — but the displayed message
+        // keeps its arrival-composed text (the row snapshot discipline).
+        _localizationManager.GetString("Status.Ready").Returns("Готов");
         languageChanged.OnNext("ru");
+        await AvaloniaDispatcherPump.DrainAsync();
 
-        // Assert
-        viewModel.CurrentThemeName.Should().Be("Light"); // DisplayName resolved from the canonical name
-        viewModel.CurrentLanguage.Should().Be("ru");
+        viewModel.StatusMessage.Should().Be(
+            "[Notif.CancelOn]",
+            "a language switch must not silently revert a live message to the idle text");
+
+        await Task.Delay(800);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.StatusMessage.Should().Be(
+            "Готов",
+            "after expiry the idle text re-derives from the CURRENT language's catalog");
     }
 
-    [Fact]
-    public void ThemeStream_WithUnregisteredTheme_KeepsRawName()
-    {
-        // Arrange: the chip must not lose information when the theme is not
-        // (yet) registered — the raw value is the defensive fallback.
-        _themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
-        _themeManager.AvailableThemes.Returns([]);
-
-        // Act
-        var viewModel = CreateViewModel();
-
-        // Assert
-        viewModel.CurrentThemeName.Should().Be("dark");
-    }
-
-    [Fact]
-    public void Ctor_WithAppVersion_ShowsTheVersionChip()
-    {
-        var viewModel = CreateViewModel();
-
-        viewModel.AppVersion.Should().Be("0.1.0-test");
-    }
+    #endregion
 
     [Fact]
     public void ToDisplayVersion_TrimsTheGitSuffixTheSdkBakes()
@@ -447,8 +501,11 @@ public sealed class StatusBarViewModelTests
         _localizationManager.LanguageChanged.Returns(languageChanged);
         var viewModel = CreateViewModel();
 
-        _localizationManager.DidNotReceiveWithAnyArgs().GetString("Trading.Lane.Paper");
-        _localizationManager.DidNotReceiveWithAnyArgs().GetString("Trading.Lane.TooltipPaper");
+        // The pre-drain silence is the LANE CHIP's: the message channel's
+        // ctor owns its own idle-text read (Status.Ready), out of this pin's
+        // scope.
+        _localizationManager.DidNotReceive().GetString("Trading.Lane.Paper");
+        _localizationManager.DidNotReceive().GetString("Trading.Lane.TooltipPaper");
         await AvaloniaDispatcherPump.DrainAsync();
         _localizationManager.Received(2).GetString("Trading.Lane.Paper");
         _localizationManager.Received(2).GetString("Trading.Lane.TooltipPaper");

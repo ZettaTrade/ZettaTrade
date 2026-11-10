@@ -6,7 +6,8 @@ using System.Reflection;
 /// The running application version, resolved from the exe's
 /// <see cref="AssemblyInformationalVersionAttribute"/> — MSBuild bakes
 /// <c>Directory.Build.props</c> <c>$(Version)</c> (<c>0.1.0-alpha.N</c>) into
-/// it. Shown in the status bar.
+/// it. Shown in Help/About (the disclaimer dialog; T-153 moved it off the
+/// status strip).
 /// </summary>
 public static class AppVersion
 {

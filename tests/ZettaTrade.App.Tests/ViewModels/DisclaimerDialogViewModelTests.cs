@@ -28,6 +28,7 @@ public sealed class DisclaimerDialogViewModelTests
         var settings = Substitute.For<ISettingsService>();
         var viewModel = new DisclaimerDialogViewModel(
             settings,
+            "0.1.0-alpha.98",
             NullLogger<DisclaimerDialogViewModel>.Instance);
 
         // Act
@@ -50,6 +51,7 @@ public sealed class DisclaimerDialogViewModelTests
             .Do(_ => throw new InvalidOperationException("settings file locked"));
         var viewModel = new DisclaimerDialogViewModel(
             settings,
+            "0.1.0-alpha.98",
             NullLogger<DisclaimerDialogViewModel>.Instance);
 
         // Act, assert: the swallow-into-log contract keeps the command
@@ -60,5 +62,18 @@ public sealed class DisclaimerDialogViewModelTests
             Arg.Any<string>(),
             Arg.Any<string>(),
             Arg.Any<int>());
+    }
+
+    [Fact]
+    public void TheVersionLine_CarriesTheRunningVersion()
+    {
+        // T-153: the version left the status strip — the About dialog is its
+        // one-action home, so the dialog's view model carries the version.
+        var viewModel = new DisclaimerDialogViewModel(
+            Substitute.For<ISettingsService>(),
+            "0.1.0-alpha.98",
+            NullLogger<DisclaimerDialogViewModel>.Instance);
+
+        viewModel.VersionText.Should().Be("0.1.0-alpha.98");
     }
 }
