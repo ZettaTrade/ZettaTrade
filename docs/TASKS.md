@@ -113,7 +113,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-106 Exchange rate limiter with per-endpoint budgets | feat/rate-limiter | done | - |
 | T-107 Adapter conformance test kit (shared battery) | feat/adapter-kit | done | - |
 | T-108 Performance HUD overlay (fps, memory, WS latency) | feat/perf-hud | done | - |
-| T-109 Soak harness and budget gates (cold start < 3 s, memory < 500 MB) | feat/soak | in-progress | - |
+| T-109 Soak harness and budget gates (cold start < 3 s, memory < 500 MB) | feat/soak | done | - |
 | T-110 Accessibility pass (keyboard, automation peers, contrast) | feat/a11y | done | - |
 | T-111 Strategy contracts MVP: candle-close signals (no auto-trading) | feat/strategies | done | - |
 | T-112 Signal markers on the chart + signal rail | feat/signal-markers | done | - |
@@ -186,16 +186,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** layout service + window shells, symbol context broadcast, resx en+ru, tests.
 - **Acceptance:** detach/attach is lossless; restore across DPI shifts stays sane.
 - **Tests:** detach/attach roundtrip golden, context broadcast, geometry restore.
-
-## T-109 — Soak harness and budget gates (cold start < 3 s, memory < 500 MB)
-
-- **Branch:** feat/soak, worktree zt-soak, based on develop@f77941e (claimed 2026-11-10 per standing directive 6; queued 2026-11-06 at the T-074…T-115 backlog cut).
-- **Origin:** the perf targets are asserted ad-hoc; multi-hour stability is unmeasured.
-- **What:** a scripted soak (demo adapter + fixture replays) sampling memory/GC/fps over hours, a summary report, plus CI-able budget assertions for cold start and memory; headless VM lane runnable from `scripts/`.
-- **Scope:** the soak harness, CI integration bits, a docs page on interpreting reports.
-- **Acceptance:** a 4-hour soak on the fixtures finishes within memory budget; budget gates run in gate on demand.
-- **Tests:** the harness itself plus the budget assertions' goldens.
-- **Status:** in-progress.
 
 ## T-110 - Accessibility pass (keyboard, automation peers, contrast)
 
