@@ -1,3 +1,21 @@
+## [0.1.0-alpha.88] - 2026-11-10
+
+Build of board task T-091 (branch `feat/draw-tools`).
+
+### Added
+- Chart drawing tools (T-091): the annotations palette arms a trend line,
+  a horizontal price level and a Fibonacci retracement over the candle
+  chart; placements anchor to (bar-open time, price) pairs — a pan, a
+  zoom, a prepend of older history and a symbol/interval rebase keep every
+  corner glued to its own bar. Placement gestures, snapping to bars and
+  prices, anchor-body drags, Escape to cancel, Delete to remove the
+  selection and per-key (exchange, symbol, interval) persistence in the
+  local SQLite store — nothing leaves the process. The drawings' own
+  theme colors (`DrawingLine`, `DrawingSelected`) ride all five shipped
+  themes; the persisted layer reloads on every rebase and drops honestly
+  on a corrupted row (an unknown kind or a degenerate geometry rebuilds
+  nothing).
+
 ## [0.1.0-alpha.87] - 2026-11-10
 
 Build of board task T-110 (branch `feat/a11y`).

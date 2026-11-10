@@ -171,7 +171,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// pages ride WRITE-THROUGH (T-085): every adapter-served bar set
     /// persists so the next start renders instantly from the cache.
     /// </summary>
+    /// <summary>The local candle cache (T-085): the bootstrap page serves it first.</summary>
     private readonly ICandleCache _candleCache;
+
+    /// <summary>The persisted chart drawings store (T-091): the standing page's annotations load and save whole.</summary>
+    private readonly IChartDrawingStore _drawingStore;
 
     /// <summary>
     /// Whether the constructor restore is writing its own value into
@@ -625,13 +629,25 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>
     /// One delivered full load, with the (symbol, time frame, adapter) triple
     /// that produced it: the private payload the delivered subscriber uses to
-    /// pin <see cref="_loadedTarget"/> for the paging path.
+    /// pin <see cref="_loadedTarget"/> for the paging path. The load also
+    /// carries the triple's own persisted drawings layer (T-091) — the page
+    /// is the one truth the drawings state mirrors.
     /// </summary>
     private sealed record ChartBarsPage(
         Symbol Symbol,
         TimeFrame TimeFrame,
         IMarketDataAdapter Adapter,
-        IReadOnlyList<Bar> Bars);
+        IReadOnlyList<Bar> Bars,
+        IReadOnlyList<ChartDrawing> Drawings);
+
+    /// <summary>
+    /// One full load's pair (T-091): the bars the same (symbol, time frame,
+    /// adapter) load served and the key's persisted drawings layer, joined
+    /// before either reaches the page so a page is always complete.
+    /// </summary>
+    private sealed record ChartSeriesLoad(
+        IReadOnlyList<Bar> Bars,
+        IReadOnlyList<ChartDrawing> Drawings);
 
     private string? _errorMessage;
 
@@ -736,6 +752,72 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         get => _compareLayers;
         private set => this.RaiseAndSetIfChanged(ref _compareLayers, value);
     }
+
+    private IReadOnlyList<ChartDrawing> _drawings = [];
+
+    /// <summary>
+    /// The standing drawings layer (T-091): the annotations of the loaded
+    /// (exchange, symbol, interval) key, mirrored to the chart control and
+    /// rewritten in place by commit/edit/delete. The delivered page owns the
+    /// layer at every full load (see the drawings rebase in the delivered
+    /// subscriber); between loads the layer is exactly what the store last
+    /// acknowledged plus this session's own acknowledged saves.
+    /// </summary>
+    public IReadOnlyList<ChartDrawing> Drawings
+    {
+        get => _drawings;
+        private set => this.RaiseAndSetIfChanged(ref _drawings, value);
+    }
+
+    private ChartDrawingTool _activeDrawingTool = ChartDrawingTool.None;
+
+    /// <summary>
+    /// The armed drawing tool (T-091): the palette's toggle state, bound to
+    /// the chart control's own tool property — arming here arms the control's
+    /// placement gesture, dropping to <see cref="ChartDrawingTool.None"/>
+    /// stands it down. A same-tool press toggles off.
+    /// </summary>
+    public ChartDrawingTool ActiveDrawingTool
+    {
+        get => _activeDrawingTool;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _activeDrawingTool, value);
+            this.RaisePropertyChanged(nameof(IsTrendLineToolActive));
+            this.RaisePropertyChanged(nameof(IsLevelToolActive));
+            this.RaisePropertyChanged(nameof(IsFibToolActive));
+        }
+    }
+
+    /// <summary>Whether the trend-line tool is the armed one (the palette button's on-state).</summary>
+    public bool IsTrendLineToolActive => ActiveDrawingTool == ChartDrawingTool.TrendLine;
+
+    /// <summary>Whether the horizontal-level tool is the armed one (the palette button's on-state).</summary>
+    public bool IsLevelToolActive => ActiveDrawingTool == ChartDrawingTool.HorizontalLevel;
+
+    /// <summary>Whether the fib-retracement tool is the armed one (the palette button's on-state).</summary>
+    public bool IsFibToolActive => ActiveDrawingTool == ChartDrawingTool.FibRetracement;
+
+    private Guid? _selectedDrawingId;
+
+    /// <summary>
+    /// The selected drawing's identity (T-091): the control's press route
+    /// raises it through <see cref="CandlestickChart.DrawingSelected"/> and
+    /// the view mirrors it here; the Delete key's removal and the rebase
+    /// clear it. Bound one-way to the control, so the loop closes VM-side.
+    /// </summary>
+    public Guid? SelectedDrawingId
+    {
+        get => _selectedDrawingId;
+        private set => this.RaiseAndSetIfChanged(ref _selectedDrawingId, value);
+    }
+
+    /// <summary>
+    /// The drawings palette (T-091): pressing a tool arms it (or toggles a
+    /// standing tool off), the control's placement machine re-arms with the
+    /// changed value and the in-flight gesture stands down.
+    /// </summary>
+    public ReactiveCommand<ChartDrawingTool, RxVoid> ToolCommand { get; }
 
     private string _mainSeriesLabel = string.Empty;
 
@@ -1136,6 +1218,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <param name="backfill">The deep-history fetcher (T-086): the repair
     /// chain's passes ride it for the holes the calendar detects behind a
     /// delivered window.</param>
+    /// <param name="drawingStore">The persisted chart drawings store
+    /// (T-091): the standing key's annotations load with every full page
+    /// and every commit/edit/delete saves the whole layer back.</param>
     /// <param name="signals">The strategy signals service (T-112): the
     /// current series's stances the marker overlay reads and the signal
     /// stream the markers re-ink on. Consumed as inert output — a signal
@@ -1159,6 +1244,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         ILocalizationManager localization,
         ICandleCache candleCache,
         CandleBackfillService backfill,
+        IChartDrawingStore drawingStore,
         StrategySignalService signals,
         SignalRailViewModel signalRail,
         SignalSeriesRelay seriesRelay,
@@ -1173,6 +1259,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _localization = localization;
         _candleCache = candleCache;
         _backfill = backfill;
+        _drawingStore = drawingStore;
         _logger = logger;
 
         _signalService = signals;
@@ -1190,6 +1277,10 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         ToggleVolumeProfileCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVolumeProfile = !ShowVolumeProfile; });
         CompareCommand = ReactiveCommand.CreateFromTask(HandleCompareAsync);
         PickCompareRequested = new Interaction<RxVoid, Symbol?>();
+        ToolCommand = ReactiveCommand.Create<ChartDrawingTool>(tool =>
+        {
+            ActiveDrawingTool = ActiveDrawingTool == tool ? ChartDrawingTool.None : tool;
+        });
 
         SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
             .Where(symbol => symbol is not null)
@@ -1211,8 +1302,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 activeExchanges.AdapterChanges,
                 (symbol, timeFrame, adapter) => (Symbol: symbol, TimeFrame: timeFrame, Adapter: adapter))
             .Select(triple =>
-                LoadBars(triple.Symbol, triple.TimeFrame, triple.Adapter)
-                    .Select(bars => new ChartBarsPage(triple.Symbol, triple.TimeFrame, triple.Adapter, bars)))
+                LoadSeries(triple.Symbol, triple.TimeFrame, triple.Adapter)
+                    .Select(load => new ChartBarsPage(
+                        triple.Symbol,
+                        triple.TimeFrame,
+                        triple.Adapter,
+                        load.Bars,
+                        load.Drawings)))
             .Switch()
             .Replay(1)
             .RefCount();
@@ -1255,6 +1351,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     {
                         CompareLayers = [];
                     }
+
+                    // The drawings layer (T-091) rides the delivered page:
+                    // every (exchange, symbol, interval) key mirrors its own
+                    // persisted layer in, and the selection dies with the
+                    // rebase — the identities belong to the standing page's
+                    // list, never carry into the fresh one.
+                    Drawings = page.Drawings;
+                    SelectedDrawingId = null;
 
                     _loadedTarget = (page.Symbol, page.TimeFrame, page.Adapter.Id);
                     _loadedAdapter = page.Adapter;
@@ -2146,6 +2250,164 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     #endregion
 
+    #region Drawing Actions (T-091)
+
+    /// <summary>
+    /// Mirrors the control's selection (T-091): the pressed drawing's
+    /// identity takes the standing value, an empty-plot press or an Escape
+    /// clears it. Pure view-boundary state — nothing here touches the
+    /// store (selection is transient, the layer's is not).
+    /// </summary>
+    public void SelectDrawing(Guid? drawingId)
+    {
+        SelectedDrawingId = drawingId;
+    }
+
+    /// <summary>
+    /// Commits a fresh placement (T-091): the control's placed geometry —
+    /// already validated there (a degenerate release stands down before
+    /// any event) — joins the standing layer and the whole layer saves.
+    /// The store's answer carries the naming for the fresh drawing, which
+    /// republishes as the layer, so the VM's memory equals the store's
+    /// identity state. A store fault keeps the in-memory layer visible
+    /// (the annotation stays drawn; the store stays as it was and the
+    /// next save of the key rewrites everything from this state).
+    /// </summary>
+    public async Task CommitDrawingAsync(ChartDrawingEventArgs request)
+    {
+        if (_loadedTarget is not { } target)
+        {
+            _logger.LogWarning("Drawing commit ignored: no loaded chart to anchor to");
+            return;
+        }
+
+        try
+        {
+            ChartDrawing.Validate(request.Kind, request.Anchors);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Drawing commit refused: invalid {Kind} geometry", request.Kind);
+            return;
+        }
+
+        var layer = _drawings.Append(new ChartDrawing { Kind = request.Kind, Anchors = request.Anchors });
+
+        await SaveDrawingLayerAsync(target, layer);
+    }
+
+    /// <summary>
+    /// Settles a drag/edit (T-091): the named drawing's anchors replace
+    /// with the event's (the settle guard validated them control-side),
+    /// the whole layer saves and the settled layer republishes. An event
+    /// naming no standing drawing drops silently — a stale route after a
+    /// rebase, where the layer it named is already gone.
+    /// </summary>
+    public async Task EditDrawingAsync(ChartDrawingEventArgs request)
+    {
+        if (request.DrawingId is not { } drawingId || _loadedTarget is not { } target)
+        {
+            return;
+        }
+
+        var listing = IndexOfDrawing(_drawings, drawingId);
+        if (listing < 0)
+        {
+            return;
+        }
+
+        var edited = _drawings.ToList();
+        edited[listing] = request.Kind == edited[listing].Kind
+            ? edited[listing] with { Anchors = request.Anchors }
+            : edited[listing] with { Kind = request.Kind, Anchors = request.Anchors };
+
+        await SaveDrawingLayerAsync(target, edited);
+    }
+
+    /// <summary>
+    /// Removes the named drawing (T-091): the rest of the layer saves and
+    /// republishes; the selection clears when it pointed at the removed
+    /// drawing. An absent name drops silently — a stale Delete after the
+    /// rebase already replaced the layer.
+    /// </summary>
+    public async Task DeleteDrawingAsync(Guid drawingId)
+    {
+        if (_loadedTarget is not { } target || IndexOfDrawing(_drawings, drawingId) < 0)
+        {
+            return;
+        }
+
+        var kept = _drawings.Where(drawing => drawing.Id != drawingId).ToArray();
+        if (SelectedDrawingId == drawingId)
+        {
+            SelectedDrawingId = null;
+        }
+
+        await SaveDrawingLayerAsync(target, kept);
+    }
+
+    /// <summary>The layer position of the named drawing, -1 when absent.</summary>
+    private static int IndexOfDrawing(IReadOnlyList<ChartDrawing> layer, Guid drawingId)
+    {
+        for (var i = 0; i < layer.Count; i++)
+        {
+            if (layer[i].Id == drawingId)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// The commit/edit/delete shared write (T-091): the pushed layer
+    /// publishes FIRST (the drawing visibly stands the moment it was
+    /// placed, edited or removed), then the whole layer saves through the
+    /// store and the store's answer (the naming reality) republishes as
+    /// the standing layer, so the VM's memory and the store never drift on
+    /// identities. A store fault keeps the pushed state visible in memory
+    /// and logs the warning: the chart's annotations are a convenience,
+    /// their path never becomes a crash.
+    /// </summary>
+    private async Task SaveDrawingLayerAsync(
+        (Symbol Symbol, TimeFrame TimeFrame, string ExchangeId) target,
+        IEnumerable<ChartDrawing> layer)
+    {
+        var pushed = layer.ToArray();
+        Drawings = pushed;
+
+        IReadOnlyList<ChartDrawing> saved;
+        try
+        {
+            saved = await _drawingStore.SaveAsync(
+                target.ExchangeId,
+                target.Symbol.Normalized,
+                target.TimeFrame,
+                pushed);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Chart drawings save failed for {Symbol} {TimeFrame} on {ExchangeId}: the pushed layer stands in memory",
+                target.Symbol,
+                target.TimeFrame,
+                target.ExchangeId);
+            return;
+        }
+
+        Drawings = saved;
+        _logger.LogInformation(
+            "Chart drawings saved: {Count} drawing(s) for {Symbol} {TimeFrame} on {ExchangeId}",
+            saved.Count,
+            target.Symbol,
+            target.TimeFrame,
+            target.ExchangeId);
+    }
+
+    #endregion Drawing Actions (T-091)
+
     #region Indicator Overlay
 
     /// <summary>
@@ -2835,6 +3097,53 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         return Observable.Concat(
             CachedBars(symbol, timeFrame, adapter),
             FetchBars(symbol, timeFrame, adapter));
+    }
+
+    /// <summary>
+    /// The full load's pair (T-091): the bars pipeline joined with the
+    /// same key's persisted drawings layer, so a delivered page is always
+    /// complete. The join keeps the bars pipeline's own sequencing (cache
+    /// behind it) untouched — the drawings only ride along.
+    /// </summary>
+    private IObservable<ChartSeriesLoad> LoadSeries(
+        Symbol symbol,
+        TimeFrame timeFrame,
+        IMarketDataAdapter adapter)
+    {
+        return LoadBars(symbol, timeFrame, adapter)
+            .CombineLatest(
+                LoadDrawings(symbol, timeFrame, adapter),
+                static (bars, drawings) => new ChartSeriesLoad(bars, drawings));
+    }
+
+    /// <summary>
+    /// The key's persisted drawings (T-091), the load half of the drawings
+    /// pipeline: one async read through the store, and every fault stands
+    /// down honestly — a cancellation delivers nothing (the superseded
+    /// load is dead by construction), any other fault logs a warning and
+    /// delivers an EMPTY layer, never breaking the bars load. The chart
+    /// is a convenience surface; trading never reads these annotations.
+    /// </summary>
+    private IObservable<IReadOnlyList<ChartDrawing>> LoadDrawings(
+        Symbol symbol,
+        TimeFrame timeFrame,
+        IMarketDataAdapter adapter)
+    {
+        return Observable
+            .FromAsync(ct => _drawingStore.LoadAsync(adapter.Id, symbol.Normalized, timeFrame, ct))
+            .Catch<IReadOnlyList<ChartDrawing>, OperationCanceledException>(
+                _ => Observable.Empty<IReadOnlyList<ChartDrawing>>())
+            .Catch<IReadOnlyList<ChartDrawing>, Exception>(ex =>
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Chart drawings load failed for {Symbol} {TimeFrame} on {Exchange}: the layer stands empty",
+                    symbol,
+                    timeFrame,
+                    adapter.Name);
+
+                return Observable.Return<IReadOnlyList<ChartDrawing>>([]);
+            });
     }
 
     /// <summary>

@@ -97,7 +97,7 @@ public sealed class ChartDrawingPlacement
 
         try
         {
-            ChartDrawing.Validate(anchors);
+            ChartDrawing.Validate(Tool.ToKind(), anchors);
         }
         catch (ArgumentException)
         {

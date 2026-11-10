@@ -126,6 +126,33 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             onError: ex => Log.Error(ex, "Chart compare removal stream failed"));
         Closed += (_, _) => _compareRemovals.Dispose();
 
+        // The drawings layer's interaction mirror (T-091): the control owns
+        // the pointer routes (placement, drag, selection, delete) and the
+        // ViewModel owns the layer's persistence — the three state routes
+        // and the two lifecycle routes pair up per event (SubscribeAsync
+        // keeps every route task-based; stream failures land in the log
+        // via the error callback).
+        _drawingCommitted = CandlesChart.DrawingCommitted.SubscribeAsync(
+            request => ViewModel!.Chart.CommitDrawingAsync(request),
+            onError: ex => Log.Error(ex, "Chart drawing commit stream failed"));
+        Closed += (_, _) => _drawingCommitted.Dispose();
+        _drawingEdited = CandlesChart.DrawingEdited.SubscribeAsync(
+            request => ViewModel!.Chart.EditDrawingAsync(request),
+            onError: ex => Log.Error(ex, "Chart drawing edit stream failed"));
+        Closed += (_, _) => _drawingEdited.Dispose();
+        _drawingSelected = CandlesChart.DrawingSelected.SubscribeAsync(
+            id =>
+            {
+                ViewModel!.Chart.SelectDrawing(id);
+                return Task.CompletedTask;
+            },
+            onError: ex => Log.Error(ex, "Chart drawing select stream failed"));
+        Closed += (_, _) => _drawingSelected.Dispose();
+        _drawingDeleted = CandlesChart.DrawingDeleted.SubscribeAsync(
+            id => ViewModel!.Chart.DeleteDrawingAsync(id),
+            onError: ex => Log.Error(ex, "Chart drawing delete stream failed"));
+        Closed += (_, _) => _drawingDeleted.Dispose();
+
         // The chart view model is an application-lifetime singleton living
         // for the whole window's stay, so — like the menu handlers above —
         // its save-dialog registration is registered here without disposal:
@@ -229,6 +256,14 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
 
     /// <summary>Subscription of the compare chips' removal stream (T-124); disposed with the window.</summary>
     private IDisposable? _compareRemovals;
+
+    private IDisposable? _drawingCommitted;
+
+    private IDisposable? _drawingEdited;
+
+    private IDisposable? _drawingSelected;
+
+    private IDisposable? _drawingDeleted;
 
     /// <summary>
     /// The tape's clear button: the buffered tape lives entirely in the

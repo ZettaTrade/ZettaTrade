@@ -136,6 +136,16 @@ public sealed class HeatmapViewModelTests
             Substitute.For<ILocalizationManager>(),
             NullLogger<SignalRailViewModel>.Instance);
 
+        // The drawings store rides silent in these facts: an empty layer
+        // answers every load, so the page deliveries stay untouched.
+        var drawingStore = Substitute.For<IChartDrawingStore>();
+        drawingStore.LoadAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ChartDrawing>>([]));
+
         return new(
             service,
             new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
@@ -145,6 +155,7 @@ public sealed class HeatmapViewModelTests
             Substitute.For<ILocalizationManager>(),
             new Scene.EmptyCandleCache(),
             new CandleBackfillService(new Scene.EmptyCandleCache(), NullLogger<CandleBackfillService>.Instance),
+            drawingStore,
             signals,
             rail,
             relay,

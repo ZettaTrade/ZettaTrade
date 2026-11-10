@@ -2335,7 +2335,7 @@ public class CandlestickChart : Control
         {
             try
             {
-                ChartDrawing.Validate(anchors);
+                ChartDrawing.Validate(kind, anchors);
             }
             catch (ArgumentException)
             {
@@ -2376,22 +2376,22 @@ public class CandlestickChart : Control
                 switch (kind)
                 {
                     case ChartDrawingKind.TrendLine:
-                    {
-                        DrawSegmentTool(canvas, stroke, points, id, collectBodyHits);
-                        break;
-                    }
+                        {
+                            DrawSegmentTool(canvas, stroke, points, id, collectBodyHits);
+                            break;
+                        }
 
                     case ChartDrawingKind.HorizontalLevel:
-                    {
-                        DrawLevel(canvas, stroke, plotRect, points[0], id, collectBodyHits);
-                        break;
-                    }
+                        {
+                            DrawLevel(canvas, stroke, plotRect, points[0], id, collectBodyHits);
+                            break;
+                        }
 
                     case ChartDrawingKind.FibRetracement:
-                    {
-                        DrawFib(canvas, stroke, plotRect, points, anchors, minAxis, axisRange, id, collectBodyHits);
-                        break;
-                    }
+                        {
+                            DrawFib(canvas, stroke, plotRect, points, anchors, minAxis, axisRange, id, collectBodyHits);
+                            break;
+                        }
                 }
 
                 if (selected)
@@ -4389,7 +4389,7 @@ public class CandlestickChart : Control
 
         try
         {
-            ChartDrawing.Validate(drag.Anchors);
+            ChartDrawing.Validate(route.Kind, drag.Anchors);
         }
         catch (ArgumentException)
         {
