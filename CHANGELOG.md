@@ -1,3 +1,32 @@
+## [0.1.0-alpha.93] - 2026-11-10
+
+Build of board task T-130 (branch `feat/livery-split`).
+
+### Changed
+- The appearance library became a private-feed package (T-130): the
+  in-tree `src/Livery` sources are gone and App, Infrastructure, AI,
+  UI and UI.Tests ride a `PackageReference` pinned by the single
+  `LiveryVersion` property — the standalone `ZettaTrade/Livery` repo
+  publishes the private `Livery` package to the GitHub Packages feed
+  (the MIT license stays; the sources stay hidden and the package is
+  the public surface). A future package bump is a one-line change
+  here.
+- The package feed is wired everywhere (T-130): the root
+  `nuget.config` pins nuget.org plus the private `zettatrade` source
+  with no committed credentials — developers add the source once per
+  machine, CI injects the automatic GITHUB_TOKEN (the release and
+  soak workflows gained `packages: read` and the feed-auth step).
+- The chrome pins ride the compiled package surface (T-130): the
+  window-chrome facts walk the object graph the `StyleInclude`
+  serves — a bad publish fails in tests, not in a window — while the
+  source-text pins (title-bar automation names, focus indicators,
+  template content bindings) moved home to the Livery repo's own
+  test suite.
+- Rides Livery 0.1.1 (T-130): the two-repo rehearsal — a
+  version-only release in the Livery repo, then the one-line
+  consuming bump here — exercised the cross-repo path end to end.
+  No product behavior changes.
+
 ## [0.1.0-alpha.92] - 2026-11-10
 
 Build of board task T-145 (branch `feat/ui-layout`).
