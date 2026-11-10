@@ -68,6 +68,15 @@ interactive-surface shots are a pending real-run capture gap and are not faked.
 The download section links the GitHub Releases page: the delivery pipeline
 (T-125) attaches the per-OS archives to every version-tagged release.
 
+## Public metrics page
+
+`public/metrics/index.html` is **generated, never hand-edited**: the alpha
+program (T-129, `docs/ALPHA-PROGRAM.md`) renders it with
+`scripts/generate-metrics.ps1` from the public GitHub REST API, and the
+`metrics` workflow rebuilds it weekly. Every number carries the link that
+re-derives it; local regeneration is one command —
+`pwsh scripts/generate-metrics.ps1`.
+
 ## 📝 Note
 
 This is a documentation-only site. The main application source code is in the `src/` directory at the repository root.

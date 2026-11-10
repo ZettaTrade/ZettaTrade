@@ -1,0 +1,38 @@
+name: Feedback
+description: Nothing broke, but something feels wrong, slow, missing or great — tell us.
+labels: [triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feedback shapes the board as much as bugs do. This template is
+        free-form on purpose: an honest impression needs no form fields.
+        Blank issues are disabled — the fields below just keep reports
+        comparable.
+
+        Never paste real exchange API keys anywhere.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of feedback
+      options:
+        - Friction (something is awkward or slow)
+        - Missing (something you expected is not there)
+        - Delight (something works well — keep it)
+        - Idea (a proposal for the board)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Build version (optional)
+      placeholder: 0.1.0-alpha.___+___
+    validations:
+      required: false
+  - type: textarea
+    id: body
+    attributes:
+      label: The feedback
+      description: What you did, what you felt, what you would change. Screenshots welcome.
+    validations:
+      required: true
