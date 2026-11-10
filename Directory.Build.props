@@ -51,6 +51,6 @@
        version fact: bump this single line when a new package release
        lands, never the five consumers. -->
   <PropertyGroup>
-    <LiveryVersion>0.1.0</LiveryVersion>
+    <LiveryVersion>0.1.1</LiveryVersion>
   </PropertyGroup>
 </Project>
