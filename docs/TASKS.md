@@ -167,6 +167,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | queued | T-154 (soft) |
 | T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | queued | - |
 | T-162 Product identity: the app icon and the title-bar brand | feat/branding | queued | - |
+| T-163 The plugins consumption switch: the standard pack rides the package mechanics | feat/plugin-packages | queued | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -503,3 +504,12 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   16px taskbar size; the strip keeps its drag/hit zones with the logo (the T-066 control's
   contract).
 - **Tests:** asset-presence pins; a source pin that the strip's hit zones survive the logo slot.
+
+## T-163 — The plugins consumption switch: the standard pack rides the package mechanics
+
+- **Branch:** queued 2026-11-10 (filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
+- **Origin:** the in-tree standard plugin pack still ships as compile-time cargo: the app carries the sources and `App.Tests` ProjectReferences all seven `src/ZettaTrade.Plugins/*` projects to compile-once its manifest/loader facts, while a closed-source pack (the T-132 licensing path) has no clean package-consumption precedent. The T-130 mechanics are proven and idle.
+- **What:** the standard pack moves out of the tree into its own repository and ships as a NuGet package through the Livery playbook — a subtree-split with history, a publish workflow, semver+changelog discipline, the one-version-fact consuming bump; ZettaTrade swaps the seven plugin ProjectReferences in `App.Tests` (and any app-side compile-time ties) for package references pinned by a single version property; the loader keeps walking the physical plugins directory (T-146), so the runtime contract does not move; the closed-source pack consumes the same seam for its signed artifacts.
+- **Scope:** the new plugin-pack repo bootstrap, the ZettaTrade consumption switch, the `App.Tests` facts riding package assemblies, the docs notes; the SDK contracts (`ZettaTrade.Plugins.Abstractions`, T-131) stay in-tree and pinned — they are the seam both packs build against.
+- **Acceptance:** a clean ZettaTrade clone builds with zero in-tree plugin sources and the full test matrix stays green; the plugin-pack history reaches back through the split; a version-bumped package release lands once as the rehearsal (the Livery order: bump there, one-line consuming bump here).
+- **Tests:** the matrix over the switch; the plugin-pack's own suite in the new repo; the T-092 manifest/loader facts re-anchored on package assemblies.
