@@ -1,0 +1,18 @@
+## Exchange Adapters (Phase 2)
+- **Architecture**: Plugin-based with IExchangeAdapter interface
+- **Base Classes**:
+  - ExchangeAdapterBase - common functionality for all adapters
+  - WebSocketClient - WebSocket with auto-reconnection
+- **Market Data**:
+  - IMarketDataAdapter - read-only market data (tickers, order books, trades, historical bars)
+  - Reactive streams via IObservable for real-time updates
+  - ConcurrentDictionary for thread-safe subscription management
+- **Trading**:
+  - ITradingAdapter - extends IMarketDataAdapter with order management
+  - Risk validation via IRiskManager
+  - Human confirmation via IConfirmationService for high-risk operations
+- **Binance Implementation**:
+  - REST API for historical data and symbol info
+  - WebSocket streams for real-time ticker, order book, and trades
+  - Automatic reconnection with exponential backoff
+  - Symbol format conversion (normalized vs exchange-specific)
