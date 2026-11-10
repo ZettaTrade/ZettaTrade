@@ -257,6 +257,8 @@ public class CandlestickChart : Control
     private const string GridColorKey = "Border";
     private const string TextColorKey = "TextPrimary";
     private const string IndicatorLineColorKey = "IndicatorLine";
+    private const string DrawingColorKey = "DrawingLine";
+    private const string DrawingSelectedColorKey = "DrawingSelected";
 
     /// <summary>Supersampling factor of the PNG snapshot export (T-094): the frame renders at this multiple of its logical size, so the shared image stays readable when scaled down or zoomed into.</summary>
     private const int ExportScale = 2;
@@ -396,6 +398,62 @@ public class CandlestickChart : Control
     {
         get => GetValue(VolumeProfileVisibleProperty);
         set => SetValue(VolumeProfileVisibleProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the annotation drawings layer (T-091): the
+    /// ViewModel owns the collection (it loads, persists and republishes
+    /// it); the draw pass renders the geometry and the pointer routes
+    /// selection/drag over cached hit zones. Empty - the default - draws
+    /// no annotations.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<ChartDrawing>> DrawingsProperty =
+        AvaloniaProperty.Register<CandlestickChart, IReadOnlyList<ChartDrawing>>(
+            nameof(Drawings),
+            defaultValue: []);
+
+    /// <summary>
+    /// StyledProperty for the armed drawing tool (T-091): the palette
+    /// publishes it; an armed tool supersedes panning for the placement
+    /// gestures (press→move→release) through the pure
+    /// <see cref="ChartDrawingPlacement"/> machine. None - the default -
+    /// keeps the chart's ordinary pointer behavior.
+    /// </summary>
+    public static readonly StyledProperty<ChartDrawingTool> ActiveToolProperty =
+        AvaloniaProperty.Register<CandlestickChart, ChartDrawingTool>(
+            nameof(ActiveTool),
+            defaultValue: ChartDrawingTool.None);
+
+    /// <summary>
+    /// StyledProperty for the selected drawing's identity (T-091): the
+    /// selection lives with the ViewModel (metrics, deletion); the draw
+    /// pass marks the selected drawing's handles and its hit zones route
+    /// presses to anchor drags.
+    /// </summary>
+    public static readonly StyledProperty<Guid?> SelectedDrawingIdProperty =
+        AvaloniaProperty.Register<CandlestickChart, Guid?>(
+            nameof(SelectedDrawingId),
+            defaultValue: null);
+
+    /// <summary>The annotation drawings the chart draws; a change re-inks on the next pass.</summary>
+    public IReadOnlyList<ChartDrawing> Drawings
+    {
+        get => GetValue(DrawingsProperty);
+        set => SetValue(DrawingsProperty, value);
+    }
+
+    /// <summary>The armed drawing tool; a change routes the pointer's gestures (and disarms the in-flight placement).</summary>
+    public ChartDrawingTool ActiveTool
+    {
+        get => GetValue(ActiveToolProperty);
+        set => SetValue(ActiveToolProperty, value);
+    }
+
+    /// <summary>The selected drawing's identity; the draw pass marks its handles.</summary>
+    public Guid? SelectedDrawingId
+    {
+        get => GetValue(SelectedDrawingIdProperty);
+        set => SetValue(SelectedDrawingIdProperty, value);
     }
 
     /// <summary>
@@ -604,12 +662,20 @@ public class CandlestickChart : Control
     private static readonly SKColor DefaultTextColor = new(200, 200, 200);
     private static readonly SKColor DefaultIndicatorLineColor = new(245, 158, 11);
 
+    /// <summary>The annotations layer's fallback color: the drawing teal the dark theme carries nothing against.</summary>
+    private static readonly SKColor DefaultDrawingColor = new(56, 189, 248);
+
+    /// <summary>The selected drawing's fallback color: the amber highlight.</summary>
+    private static readonly SKColor DefaultDrawingSelectedColor = new(250, 204, 21);
+
     private SKColor _backgroundColor = DefaultBackgroundColor;
     private SKColor _bullishColor = DefaultBullishColor;
     private SKColor _bearishColor = DefaultBearishColor;
     private SKColor _gridColor = DefaultGridColor;
     private SKColor _textColor = DefaultTextColor;
     private SKColor _indicatorLineColor = DefaultIndicatorLineColor;
+    private SKColor _drawingLineColor = DefaultDrawingColor;
+    private SKColor _drawingSelectedColor = DefaultDrawingSelectedColor;
 
     private IDisposable? _themeChangeSubscription;
     private IDisposable? _languageChangeSubscription;
@@ -643,6 +709,41 @@ public class CandlestickChart : Control
     private CompareChipHit[] _compareChipRects = [];
 
     /// <summary>
+    /// The drawings layer's frame mapping (T-091) as the render thread
+    /// cached it for the latest frame: the plot rect, the bar pitch, the
+    /// visible window's open times, the price-axis rungs and the axis
+    /// mapping constants the pointer handlers inverse-map with. The same
+    /// cross-thread discipline as <see cref="_paintedBarPitch"/>: the worst
+    /// the handlers ever see is the previous frame's geometry.
+    /// </summary>
+    private ChartFrameGeometry _frameGeometry = new(
+        new Rect(0, 0, 1, 1),
+        MaxBarPitchPx,
+        [],
+        [],
+        decimal.Zero,
+        decimal.One,
+        PriceScaleMode.Linear,
+        decimal.Zero,
+        decimal.One);
+
+    /// <summary>
+    /// The drawings' hit zones (T-091) as the render thread cached them for
+    /// the latest frame: one entry per anchor grab zone and per body
+    /// segment; empty whenever nothing drew. The same cross-thread
+    /// discipline as <see cref="_paintedBarPitch"/>.
+    /// </summary>
+    private ChartDrawingHit[] _drawingHits = [];
+
+    /// <summary>
+    /// The live anchor drag's preview (T-091): the UI-thread drag state
+    /// that overrides one drawing's anchors for the render pass while the
+    /// pointer drags an anchor or the body. Null when no drag is active.
+    /// Consumed by <see cref="CreateSnapshot"/> like the placement state.
+    /// </summary>
+    private ChartDrawingPreviewOverride? _drawingDragPreview;
+
+    /// <summary>
     /// The compare chips' removal requests stream sink (hot; see
     /// <see cref="CompareRemovals"/>).
     /// </summary>
@@ -662,6 +763,57 @@ public class CandlestickChart : Control
     private readonly record struct CompareChipHit(string Label, SKRect Bounds);
 
     /// <summary>
+    /// The drawings layer's cached frame mapping (T-091): the inverse-map
+    /// facts the UI-thread pointer handlers consume to turn pixel presses
+    /// back into (time, price) anchors, to snap them onto the chart's own
+    /// grid (the bar-open ticks in time, the price-axis rungs in price)
+    /// and to run the drag deltas through the same mapping.
+    /// </summary>
+    /// <param name="PlotRect">The plot's rect in control space.</param>
+    /// <param name="BarPitch">The painted bar pitch (the slot mapping's stride).</param>
+    /// <param name="OpenTimes">The visible window's ascending bar-open times.</param>
+    /// <param name="AxisRungs">The price axis' ticks in AXIS domain (the padded spread's own space) — the snapping candidates; unwound to prices through <see cref="ChartPriceTransform.ToPrice"/>.</param>
+    /// <param name="MinAxis">The padded axis-domain minimum this frame's scale spans.</param>
+    /// <param name="AxisRange">The padded axis-domain range of the scale.</param>
+    /// <param name="ScaleMode">The scale mode this frame painted with (the inverse transform's input).</param>
+    /// <param name="AxisAnchor">The axis anchor behind the percent mode's inverse.</param>
+    /// <param name="AxisFloor">The positive domain floor behind the log/percent modes.</param>
+    private sealed record ChartFrameGeometry(
+        Rect PlotRect,
+        double BarPitch,
+        IReadOnlyList<DateTimeOffset> OpenTimes,
+        IReadOnlyList<decimal> AxisRungs,
+        decimal MinAxis,
+        decimal AxisRange,
+        PriceScaleMode ScaleMode,
+        decimal AxisAnchor,
+        decimal AxisFloor);
+
+    /// <summary>
+    /// The drawings' cached hit zones (T-091): anchor grab circles (their
+    /// centers) and body segments (per tool's geometry). A press resolves
+    /// against the PREVIOUS frame's zones — the honest cross-thread bound.
+    /// </summary>
+    /// <param name="Id">The drawing's identity (Guid.Empty never appears in the cache).</summary>
+    /// <param name="AnchorIndex">The anchor's index within the drawing, or -1 for a body segment.</param>
+    /// <param name="Center">The anchor grab center (null for a body segment).</param>
+    /// <param name="BodySegments">The body's pixel segments (empty for an anchor-only zone).</param>
+    private sealed record ChartDrawingHit(
+        Guid Id,
+        int AnchorIndex,
+        SKPoint? Center,
+        IReadOnlyList<(SKPoint A, SKPoint B)> BodySegments);
+
+    /// <summary>
+    /// A live drag's preview override (T-091): while the pointer drags one
+    /// drawing (by an anchor or the body), the render pass paints the named
+    /// drawing with these anchors instead of the stored list. The
+    /// ViewModel's republished layer ends the drag implicitly (its geometry
+    /// matches or replaces the override).
+    /// </summary>
+    private sealed record ChartDrawingPreviewOverride(Guid Id, IReadOnlyList<ChartDrawingAnchor> Anchors);
+
+    /// <summary>
     /// The older-history requests stream sink (hot; see <see cref="OlderHistoryRequested"/>).
     /// </summary>
     private readonly Subject<ChartOlderHistoryRequestedEventArgs> _olderHistoryRequested = new();
@@ -673,6 +825,53 @@ public class CandlestickChart : Control
     /// The ViewModel answers with a fetch of the previous windows.
     /// </summary>
     public IObservable<ChartOlderHistoryRequestedEventArgs> OlderHistoryRequested => _olderHistoryRequested;
+
+    /// <summary>
+    /// The drawings' interaction state (T-091): the pure placement machine
+    /// (armed tool + in-flight anchors) lives on the UI thread; pointer
+    /// events feed it, the snapshot copies its public state for the render
+    /// thread, and its commits go up to the ViewModel through
+    /// <see cref="DrawingCommitted"/>'s event args.
+    /// </summary>
+    private readonly ChartDrawingPlacement _placement = new();
+
+    /// <summary>The drawing events' sinks (hot; see the observable surfaces below).</summary>
+    private readonly Subject<ChartDrawingEventArgs> _drawingCommitted = new();
+    private readonly Subject<ChartDrawingEventArgs> _drawingEdited = new();
+    private readonly Subject<Guid?> _drawingSelected = new();
+    private readonly Subject<Guid> _drawingDeleted = new();
+
+    /// <summary>
+    /// A placement's commit (T-091), hot and raised on the UI thread: the
+    /// placed drawing carries its kind and anchors (the identity is the
+    /// ViewModel's call — it persists and republishes the layer with the
+    /// canonical drawing). The tool stays armed after the commit.
+    /// </summary>
+    public IObservable<ChartDrawingEventArgs> DrawingCommitted => _drawingCommitted;
+
+    /// <summary>
+    /// A drag/edit's settle (T-091), hot and raised on the UI thread: the
+    /// named drawing's anchors moved (the ViewModel persists the update and
+    /// republishes the layer).
+    /// </summary>
+    public IObservable<ChartDrawingEventArgs> DrawingEdited => _drawingEdited;
+
+    /// <summary>
+    /// The selection stream (T-091), hot and raised on the UI thread: the
+    /// pressed drawing's identity, or null when the press landed on empty
+    /// plot (the selection clears). The ViewModel mirrors it into
+    /// <see cref="SelectedDrawingId"/> — the draw pass marks the selection
+    /// off the property, so the mirror closes the loop.
+    /// </summary>
+    public IObservable<Guid?> DrawingSelected => _drawingSelected;
+
+    /// <summary>
+    /// The removal request stream (T-091), hot and raised on the UI thread:
+    /// the Delete key named the selected drawing for removal. The removal
+    /// itself (the store, the layer, the metrics) is the ViewModel's call —
+    /// the control never mutates the layer it is handed.
+    /// </summary>
+    public IObservable<Guid> DrawingDeleted => _drawingDeleted;
 
     /// <summary>
     /// The bars the frame currently paints (T-094): the visible window
@@ -821,6 +1020,25 @@ public class CandlestickChart : Control
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
         MainSeriesLabelProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        // The T-091 drawings: a new layer publish, a new armed tool or a
+        // re-selection re-inks the same way.
+        DrawingsProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+        ActiveToolProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, e) =>
+            {
+                x.OnActiveToolChanged(e);
+                Dispatcher.UIThread.Post(x.InvalidateVisual);
+            });
+        SelectedDrawingIdProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
+        // The T-091 drawings: the layer republished (loads, persistence,
+        // the VM's canonical round-trip) stands any live drag preview down
+        // — the published list is the new truth.
+        DrawingsProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.BeginRepublishedLayer));
     }
 
     public CandlestickChart()
@@ -919,6 +1137,8 @@ public class CandlestickChart : Control
         _gridColor = ResourceColor(GridColorKey, _gridColor);
         _textColor = ResourceColor(TextColorKey, _textColor);
         _indicatorLineColor = ResourceColor(IndicatorLineColorKey, _indicatorLineColor);
+        _drawingLineColor = ResourceColor(DrawingColorKey, _drawingLineColor);
+        _drawingSelectedColor = ResourceColor(DrawingSelectedColorKey, _drawingSelectedColor);
     }
 
     private static SKColor ResourceColor(string key, SKColor fallback)
@@ -935,6 +1155,29 @@ public class CandlestickChart : Control
     #endregion Theme & Language Tracking
 
     #region Property Change Handlers
+
+    /// <summary>
+    /// The armed tool switched (T-091): the placement machine re-arms with
+    /// the new tool and its in-flight gesture stands down — a palette
+    /// switch always restarts the gesture, never splices tools mid-drag.
+    /// </summary>
+    private void OnActiveToolChanged(AvaloniaPropertyChangedEventArgs e)
+    {
+        _placement.BeginTool(e.NewValue is ChartDrawingTool tool
+            ? tool
+            : ChartDrawingTool.None);
+    }
+
+    /// <summary>
+    /// The layer republished (T-091): a live drag preview whose source
+    /// list changed stands down — the published list is the new truth,
+    /// the control never splices a preview over a replaced drawing.
+    /// </summary>
+    private void BeginRepublishedLayer()
+    {
+        _drawingDragRoute = null;
+        _drawingDragPreview = null;
+    }
 
     private void OnBarsPropertyChanged(AvaloniaPropertyChangedEventArgs e)
     {
@@ -1038,7 +1281,15 @@ public class CandlestickChart : Control
             visible.Length > 0 ? visible[0].Close : 0m,
             ChartPriceTransform.PositiveFloor(floorCandidates),
             MainSeriesLabel,
-            compares);
+            compares,
+            Drawings,
+            ActiveTool,
+            SelectedDrawingId,
+            _placement.Tool == ActiveTool ? _placement.PreviewAnchors : [],
+            _placement.Tool == ActiveTool && _placement.Dragging ? _placement.PreviewAnchor : null,
+            _drawingLineColor,
+            _drawingSelectedColor,
+            _drawingDragPreview);
     }
 
     /// <summary>
@@ -1260,7 +1511,15 @@ public class CandlestickChart : Control
         decimal AxisAnchor,
         decimal AxisFloor,
         string MainSeriesLabel,
-        IReadOnlyList<CompareFrame> Compares);
+        IReadOnlyList<CompareFrame> Compares,
+        IReadOnlyList<ChartDrawing> Drawings,
+        ChartDrawingTool ActiveTool,
+        Guid? SelectedDrawingId,
+        IReadOnlyList<ChartDrawingAnchor> PlacementPreviewAnchors,
+        ChartDrawingAnchor? PlacementPreviewAnchor,
+        SKColor DrawingLine,
+        SKColor DrawingSelected,
+        ChartDrawingPreviewOverride? DragPreview);
 
     /// <summary>
     /// One aligned compare layer the draw pass consumes (T-124): the
@@ -1297,6 +1556,28 @@ public class CandlestickChart : Control
             _snapshot = snapshot;
             _owner = owner;
         }
+
+        /// <summary>
+        /// How far (px) inside the plot a Fibonacci level's line may sit
+        /// beyond the visible spread before it stops rendering entirely —
+        /// the cull margin keeps pan-drag continuous near the scale edges.
+        /// </summary>
+        private const double FibLevelOutTolerancePx = 7d;
+
+        /// <summary>How far (px) inside the span's right end the Fibonacci label's anchor sits.</summary>
+        private const double FibLabelInsetPx = 4d;
+
+        /// <summary>How far (px) above its level line the Fibonacci label's baseline rides.</summary>
+        private const double FibLabelBaselineOffsetPx = 4d;
+
+        /// <summary>The Fibonacci label's font size (px).</summary>
+        private const float FibLabelFontSizePx = 9f;
+
+        /// <summary>
+        /// The Fibonacci labels' number format: 0, 0.236, 0.382, 0.5, 0.618,
+        /// 0.786, 1 — the ladder reads without trailing zeros.
+        /// </summary>
+        private const string FibLabelFormat = "0.###";
 
         public Rect Bounds => _bounds;
 
@@ -1520,6 +1801,22 @@ public class CandlestickChart : Control
             var barPitch = ChartBarLayout.BarPitch(plotRect.Width, visibleBars.Length, MaxBarPitchPx);
             _owner._paintedBarPitch = barPitch;
 
+            // The drawings layer's frame mapping (T-091): the pointer
+            // handlers live on the UI thread while this pass paints on the
+            // render thread — the SAME cross-thread discipline as
+            // _paintedBarPitch: the worst the handlers ever see is the
+            // previous frame's geometry, never a torn read.
+            _owner._frameGeometry = new ChartFrameGeometry(
+                plotRect,
+                barPitch,
+                openTimes,
+                axisTicks,
+                minAxis,
+                axisRange,
+                _snapshot.ScaleMode,
+                _snapshot.AxisAnchor,
+                _snapshot.AxisFloor);
+
             DrawGrid(
                 canvas,
                 gridPaint,
@@ -1590,6 +1887,17 @@ public class CandlestickChart : Control
             DrawCompareLayers(canvas, font, textPaint, plotRect, barPitch, visibleBars.Length, minAxis, axisRange);
 
             DrawIndicatorLines(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Indicators);
+
+            // The annotations layer (T-091): the trader's drawings ride the
+            // mapped bar-time axis (the same pure ChartBarLayout mapping the
+            // grid uses) and paint between the overlays and the hover rails.
+            DrawDrawings(
+                canvas,
+                plotRect,
+                barPitch,
+                openTimes,
+                minAxis,
+                axisRange);
             DrawVwapOverlay(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Vwap);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minAxis, axisRange, axisTicks, priceTexts);
             DrawTimeAxis(canvas, font, textPaint, plotRect, barPitch, openTimes, timeTicks, timeTexts);
@@ -1927,6 +2235,307 @@ public class CandlestickChart : Control
                 // churn on every redraw for every indicator line).
                 using var drawnPath = path.Detach();
                 canvas.DrawPath(drawnPath, paint);
+            }
+        }
+
+        /// <summary>
+        /// The annotations layer (T-091): the trader's drawings ridden as
+        /// pixel geometry over the SAME bar-time/scale mapping the candles
+        /// and the grid use — a drawing is data (times, prices), the pixels
+        /// are this pass's projection. The pass also CACHES the mapped
+        /// geometry into the owner's hit zones (`_drawingHits`): the press
+        /// handler lives on the UI thread, the same cross-thread discipline
+        /// as `_paintedBarPitch` — the worst a press ever sees is the
+        /// previous frame's geometry. Selected drawings mark their anchors,
+        /// the placement renders its in-flight preview, degenerate
+        /// skips draw nothing (never a fabricated line).
+        /// </summary>
+        private void DrawDrawings(
+            SKCanvas canvas,
+            Rect plotRect,
+            double barPitch,
+            IReadOnlyList<DateTimeOffset> openTimes,
+            decimal minAxis,
+            decimal axisRange)
+        {
+            var hits = new List<ChartDrawingHit>();
+
+            // The live drag preview (the pointer is moving an existing
+            // drawing): the named drawing's anchors are overridden by the
+            // dragged geometry this frame, so the layer paints the drag.
+            var previewAnchors = _snapshot.DragPreview;
+            foreach (var drawing in _snapshot.Drawings)
+            {
+                var anchors = drawing.Anchors;
+                if (anchors.Count != ChartDrawing.AnchorCount(drawing.Kind))
+                {
+                    continue;   // Degenerate storage: skip, never fabricate.
+                }
+
+                var selected = _snapshot.SelectedDrawingId == drawing.Id;
+                if (previewAnchors is { } preview && preview.Id == drawing.Id)
+                {
+                    anchors = preview.Anchors;
+                    selected = true;
+                }
+
+                DrawOneDrawing(
+                    canvas,
+                    plotRect,
+                    barPitch,
+                    openTimes,
+                    minAxis,
+                    axisRange,
+                    drawing.Id,
+                    drawing.Kind,
+                    anchors,
+                    selected,
+                    collectBodyHits: hits);
+            }
+
+            // The placement's in-flight preview (anchor #1 planted, the
+            // previewed corner follows the pointer).
+            var tool = _snapshot.ActiveTool;
+            var pendingAnchors = _snapshot.PlacementPreviewAnchors;
+            if (tool != ChartDrawingTool.None
+                && _snapshot.PlacementPreviewAnchor is { } pendingAnchor
+                && pendingAnchors.Count > 0)
+            {
+                DrawOneDrawing(
+                    canvas,
+                    plotRect,
+                    barPitch,
+                    openTimes,
+                    minAxis,
+                    axisRange,
+                    Guid.Empty,
+                    tool.ToKind(),
+                    pendingAnchors,
+                    selected: false,
+                    collectBodyHits: null);
+            }
+
+            // Publish the frame's hit zones for the UI thread's presses.
+            _owner._drawingHits = hits.ToArray();
+        }
+
+        /// <summary>Draws one drawing's geometry (or one tool's in-flight preview) and appends its hit zones.</summary>
+        private void DrawOneDrawing(
+            SKCanvas canvas,
+            Rect plotRect,
+            double barPitch,
+            IReadOnlyList<DateTimeOffset> openTimes,
+            decimal minAxis,
+            decimal axisRange,
+            Guid id,
+            ChartDrawingKind kind,
+            IReadOnlyList<ChartDrawingAnchor> anchors,
+            bool selected,
+            List<ChartDrawingHit>? collectBodyHits)
+        {
+            try
+            {
+                ChartDrawing.Validate(anchors);
+            }
+            catch (ArgumentException)
+            {
+                return; // Degenerate geometry: nothing to draw.
+            }
+
+            var color = selected ? _snapshot.DrawingSelected : _snapshot.DrawingLine;
+            var points = anchors.Select(a => DrawingAnchorPoint(a, plotRect, barPitch, openTimes, minAxis, axisRange)).ToArray();
+
+            if (collectBodyHits is not null)
+            {
+                for (var i = 0; i < anchors.Count; i++)
+                {
+                    collectBodyHits.Add(new ChartDrawingHit(id, i, points[i], []));
+                }
+            }
+
+            using var stroke = new SKPaint
+            {
+                Color = color,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = selected ? 3 : 2,
+                IsAntialias = true,
+            };
+
+            // The drawings paint inside the plot only: an anchor mapping
+            // off the visible scale (a level dragged beyond the spread)
+            // draws at the clipped edge, never over the axes.
+            canvas.Save();
+            canvas.ClipRect(new SKRect(
+                (float)plotRect.Left,
+                (float)plotRect.Top,
+                (float)plotRect.Right,
+                (float)plotRect.Bottom));
+
+            try
+            {
+                switch (kind)
+                {
+                    case ChartDrawingKind.TrendLine:
+                    {
+                        DrawSegmentTool(canvas, stroke, points, id, collectBodyHits);
+                        break;
+                    }
+
+                    case ChartDrawingKind.HorizontalLevel:
+                    {
+                        DrawLevel(canvas, stroke, plotRect, points[0], id, collectBodyHits);
+                        break;
+                    }
+
+                    case ChartDrawingKind.FibRetracement:
+                    {
+                        DrawFib(canvas, stroke, plotRect, points, anchors, minAxis, axisRange, id, collectBodyHits);
+                        break;
+                    }
+                }
+
+                if (selected)
+                {
+                    DrawHandles(canvas, points);
+                }
+            }
+            finally
+            {
+                canvas.Restore();
+            }
+        }
+
+        /// <summary>The pixel point of one drawing anchor: ChartBarLayout's time mapping + the shared price scale.</summary>
+        private SKPoint DrawingAnchorPoint(
+            ChartDrawingAnchor anchor,
+            Rect plotRect,
+            double barPitch,
+            IReadOnlyList<DateTimeOffset> openTimes,
+            decimal minAxis,
+            decimal axisRange)
+        {
+            var x = ChartBarLayout.BarXForTime(plotRect.Right, barPitch, openTimes, anchor.Time);
+            var y = ChartPriceScale.PriceToY(plotRect, AxisOf(anchor.Price), minAxis, axisRange);
+
+            return new SKPoint((float)x, (float)y);
+        }
+
+        /// <summary>
+        /// The level's own horizontal line: the anchor's price rides the
+        /// plot's full width (the level spans whatever the chart shows),
+        /// and its one anchor sits where the trader pinned it in TIME.
+        /// </summary>
+        private void DrawLevel(
+            SKCanvas canvas,
+            SKPaint stroke,
+            Rect plotRect,
+            SKPoint anchor,
+            Guid id,
+            List<ChartDrawingHit>? collectBodyHits)
+        {
+            var y = anchor.Y;
+            canvas.DrawLine(new SKPoint((float)plotRect.Left, y), new SKPoint((float)plotRect.Right, y), stroke);
+
+            collectBodyHits?.Add(new ChartDrawingHit(
+                id,
+                -1,
+                null,
+                [(new SKPoint((float)plotRect.Left, y), new SKPoint((float)plotRect.Right, y))]));
+        }
+
+        /// <summary>
+        /// The trend line: one segment between the two mapped corners; its
+        /// body zone (the band the press resolves) is the segment itself.
+        /// </summary>
+        private void DrawSegmentTool(
+            SKCanvas canvas,
+            SKPaint stroke,
+            SKPoint[] points,
+            Guid id,
+            List<ChartDrawingHit>? collectBodyHits)
+        {
+            canvas.DrawLine(points[0], points[1], stroke);
+
+            collectBodyHits?.Add(new ChartDrawingHit(id, -1, null, [(points[0], points[1])]));
+        }
+
+        /// <summary>
+        /// The Fibonacci retracement: one horizontal level segment per
+        /// ratio across the two anchors' time span (the swing's own x
+        /// range), each labeled with its ratio INSIDE the span's right end.
+        /// Level prices ride the pure ladder — never a per-level handle
+        /// (the corners carry the edit; the ladder recomputes). The labels
+        /// stay inside the plot (the layer clips there); a level mapping
+        /// off the visible scale skips its line — the ratio stands
+        /// implicitly, never drawn at a clipped edge.
+        /// </summary>
+        private void DrawFib(
+            SKCanvas canvas,
+            SKPaint stroke,
+            Rect plotRect,
+            SKPoint[] points,
+            IReadOnlyList<ChartDrawingAnchor> anchors,
+            decimal minAxis,
+            decimal axisRange,
+            Guid id,
+            List<ChartDrawingHit>? collectBodyHits)
+        {
+            var left = Math.Min(points[0].X, points[1].X);
+            var right = Math.Max(points[0].X, points[1].X);
+
+            using var textPaint = new SKPaint
+            {
+                Color = stroke.Color,
+                IsAntialias = true,
+            };
+            using var labelFont = new SKFont(SKTypeface.Default, FibLabelFontSizePx);
+
+            foreach (var (ratio, price) in ChartDrawingGeometry.FibonacciLevels(anchors[0], anchors[1]))
+            {
+                var y = (float)ChartPriceScale.PriceToY(plotRect, AxisOf(price), minAxis, axisRange);
+                if (y < plotRect.Top - FibLevelOutTolerancePx || y > plotRect.Bottom + FibLevelOutTolerancePx)
+                {
+                    continue;   // The level rides off the visible scale — the ratio keeps standing implicitly.
+                }
+
+                canvas.DrawLine(new SKPoint(left, y), new SKPoint(right, y), stroke);
+                canvas.DrawText(
+                    ratio.ToString(FibLabelFormat, _snapshot.Culture),
+                    (float)(right - FibLabelInsetPx),
+                    y - (float)FibLabelBaselineOffsetPx,
+                    SKTextAlign.Right,
+                    labelFont,
+                    textPaint);
+
+                collectBodyHits?.Add(new ChartDrawingHit(
+                    id,
+                    -1,
+                    null,
+                    [(new SKPoint(left, y), new SKPoint(right, y))]));
+            }
+        }
+
+        /// <summary>Anchor grab handles (the drag affordance the selected drawing shows).</summary>
+        private void DrawHandles(SKCanvas canvas, SKPoint[] points)
+        {
+            using var fill = new SKPaint
+            {
+                Color = _snapshot.DrawingSelected,
+                IsAntialias = true,
+            };
+            using var ring = new SKPaint
+            {
+                Color = _snapshot.Background,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.5f,
+                IsAntialias = true,
+            };
+
+            foreach (var point in points)
+            {
+                var radius = (float)ChartDrawingGeometry.HandleRadiusPx;
+                canvas.DrawCircle(point, radius, fill);
+                canvas.DrawCircle(point, radius, ring);
             }
         }
 
@@ -3233,6 +3842,15 @@ public class CandlestickChart : Control
 
         var position = e.GetPosition(this);
 
+        // The drawings layer's live gestures (T-091) own the pointer while
+        // they run: the placement's previewed corner or the drag's drawn
+        // geometry both update per move and re-ink — pan and hover stand
+        // down for the event.
+        if (RouteDrawingPointerMoved(position))
+        {
+            return;
+        }
+
         // An armed pan drag scrolls first (whole bar slots); the hover
         // crosshair rides the same pointer either way.
         ApplyPan(position.X);
@@ -3314,6 +3932,16 @@ public class CandlestickChart : Control
                 }
             }
 
+            // The drawings layer (T-091): the placement's armed press or an
+            // existing drawing's hit routes before the pan capture — the
+            // gesture owns the press from here; an empty-plot press in the
+            // resting mode hands the pan back.
+            if (RouteDrawingPointerPressed(position, e))
+            {
+                e.Handled = true;
+                return;
+            }
+
             _panAnchorX = position.X;
             e.Pointer.Capture(this);
         }
@@ -3328,6 +3956,11 @@ public class CandlestickChart : Control
     {
         base.OnPointerReleased(e);
 
+        if (RouteDrawingPointerReleased(e))
+        {
+            return;
+        }
+
         EndPan();
     }
 
@@ -3339,6 +3972,17 @@ public class CandlestickChart : Control
     {
         base.OnPointerCaptureLost(e);
 
+        // The drawings' gestures stand down on a lost capture exactly like
+        // the pan does: the placement drops its in-flight gesture, a live
+        // drag drops its preview silently (the stored anchors stand).
+        if (_placement.Dragging)
+        {
+            _placement.Cancel();
+            InvalidateVisual();
+        }
+
+        _drawingDragRoute = null;
+        _drawingDragPreview = null;
         EndPan();
     }
 
@@ -3348,6 +3992,415 @@ public class CandlestickChart : Control
     private void EndPan()
     {
         _panAnchorX = null;
+    }
+
+    /// <summary>How close (px) a mapped anchor must ride the chart's own grid for it to snap (a bar-open tick in time, a price-axis rung in price).</summary>
+    private const double SnappingThresholdPx = 6d;
+
+    /// <summary>
+    /// The live drawing drag's route (T-091): which drawing (identity),
+    /// which anchor (-1 = the body), the kind (the validate and the event
+    /// payload), the stored anchors (the drag's origin geometry), the
+    /// pointer's start (the delta source) and that start mapped to an
+    /// anchor (the delta space). Null while no drag runs. UI-thread state:
+    /// the render thread sees it only through the snapshot's override.
+    /// </summary>
+    private (Guid Id,
+        int AnchorIndex,
+        ChartDrawingKind Kind,
+        IReadOnlyList<ChartDrawingAnchor> Anchors,
+        Point Start,
+        ChartDrawingAnchor StartAnchor)? _drawingDragRoute;
+
+    /// <summary>
+    /// The Escape/Delete keys route the drawings layer (T-091): Escape
+    /// cancels the in-flight placement gesture, else clears the selection;
+    /// Delete asks the removal of the selected drawing (the ViewModel owns
+    /// the removal — the control just names it).
+    /// </summary>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+
+        switch (e.Key)
+        {
+            case Key.Escape:
+                if (_placement.Dragging)
+                {
+                    _placement.Cancel();
+                    InvalidateVisual();
+                    e.Handled = true;
+                }
+                else if (SelectedDrawingId is { })
+                {
+                    _drawingSelected.OnNext(null);
+                    e.Handled = true;
+                }
+
+                break;
+
+            case Key.Delete:
+                if (SelectedDrawingId is { } selected)
+                {
+                    _drawingDeleted.OnNext(selected);
+                    e.Handled = true;
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Routes a press into the drawings layer (T-091). True when the press
+    /// belongs to the layer (the armed placement, a hit on an existing
+    /// drawing, or the armed tool standing down outside the plot): the
+    /// caller marks the event handled and never arms the pan. An
+    /// empty-plot press in the resting mode clears the selection and lets
+    /// the pan arm as usual.
+    /// </summary>
+    private bool RouteDrawingPointerPressed(Point position, PointerPressedEventArgs e)
+    {
+        var geo = _frameGeometry;
+        if (geo.OpenTimes.Count < 1)
+        {
+            return false;
+        }
+
+        if (_placement.Tool != ChartDrawingTool.None)
+        {
+            if (!geo.PlotRect.Contains(position))
+            {
+                return true;
+            }
+
+            if (MapPointToAnchor(position) is not { } pressed)
+            {
+                return true;
+            }
+
+            _placement.OnPress(SnapAnchor(pressed));
+            if (_placement.Dragging)
+            {
+                e.Pointer.Capture(this);
+                InvalidateVisual();
+            }
+
+            Focus();
+            return true;
+        }
+
+        if (ResolveDrawingHit(position) is { } zone)
+        {
+            _drawingSelected.OnNext(zone.Id);
+            e.Pointer.Capture(this);
+            Focus();
+
+            var drawing = Drawings.FirstOrDefault(d => d.Id == zone.Id);
+            if (drawing is { } grappable &&
+                grappable.Anchors.Count == ChartDrawing.AnchorCount(grappable.Kind))
+            {
+                StartDrawingDrag(zone, position, drawing);
+            }
+
+            if (_drawingDragRoute is not null)
+            {
+                InvalidateVisual();
+            }
+
+            return true;
+        }
+
+        if (geo.PlotRect.Contains(position))
+        {
+            _drawingSelected.OnNext(null);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Routes a move into the drawings layer's live gestures (T-091). True
+    /// when the pointer rides the placement's preview or a drawing drag —
+    /// the caller skips the pan and the hover for that event.
+    /// </summary>
+    private bool RouteDrawingPointerMoved(Point position)
+    {
+        if (_placement.Dragging)
+        {
+            if (MapPointToAnchor(position) is { } moved)
+            {
+                _placement.OnMove(SnapAnchor(moved));
+                InvalidateVisual();
+            }
+
+            return true;
+        }
+
+        if (_drawingDragRoute is not null)
+        {
+            UpdateDrawingDragPreview(position);
+            InvalidateVisual();
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Routes a release into the drawings layer's live gestures (T-091).
+    /// The placement commits through <see cref="DrawingCommitted"/> (a
+    /// degenerate release stands down silently — the tool stays armed);
+    /// the drag settles through <see cref="DrawingEdited"/> when its
+    /// geometry validated, silently drops otherwise. Always ends the pan
+    /// bookkeeping the caller used to own.
+    /// </summary>
+    private bool RouteDrawingPointerReleased(PointerReleasedEventArgs e)
+    {
+        var position = e.GetPosition(this);
+
+        if (_placement.Dragging)
+        {
+            if (MapPointToAnchor(position) is not { } released)
+            {
+                // The frame geometry vanished mid-gesture (a symbol switch,
+                // a collapsed window): the gesture stands down uncommitted.
+                _placement.Cancel();
+            }
+            else if (_placement.OnRelease(SnapAnchor(released)) is ChartPlacementEvent.Placed placed)
+            {
+                _drawingCommitted.OnNext(new ChartDrawingEventArgs(null, placed.Drawing.Kind, placed.Drawing.Anchors));
+            }
+
+            InvalidateVisual();
+            return true;
+        }
+
+        if (_drawingDragRoute is not null)
+        {
+            FinishDrawingDrag(position);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves a press against the previous frame's hit zones (T-091):
+    /// anchor grab circles first (the tightest affordance), then the body
+    /// zones — the segment band for the segment-shaped geometries (the
+    /// level's line spans the plot, and its band answers at ANY x).
+    /// Null when the press missed every drawing.
+    /// </summary>
+    private ChartDrawingHit? ResolveDrawingHit(Point position)
+    {
+        double px = position.X;
+        double py = position.Y;
+
+        foreach (var zone in _drawingHits)
+        {
+            if (zone.Center is { } center &&
+                ChartDrawingGeometry.Distance(px, py, center.X, center.Y) <= ChartDrawingGeometry.HandleRadiusPx)
+            {
+                return zone;
+            }
+        }
+
+        foreach (var zone in _drawingHits)
+        {
+            foreach (var (a, b) in zone.BodySegments)
+            {
+                if (ChartDrawingGeometry.DistanceToSegment(px, py, a.X, a.Y, b.X, b.Y) <=
+                    ChartDrawingGeometry.SegmentHitTolerancePx)
+                {
+                    return zone;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Maps a plot point back to the (time, price) anchor it stands for:
+    /// the pure <see cref="ChartPointerMapping"/> inverse over this
+    /// frame's cached constants. Null whenever no valid geometry has
+    /// painted yet.
+    /// </summary>
+    private ChartDrawingAnchor? MapPointToAnchor(Point position)
+    {
+        var geo = _frameGeometry;
+
+        return ChartPointerMapping.MapPointToAnchor(
+            geo.PlotRect,
+            geo.BarPitch,
+            geo.OpenTimes,
+            geo.MinAxis,
+            geo.AxisRange,
+            geo.ScaleMode,
+            geo.AxisAnchor,
+            geo.AxisFloor,
+            position.X,
+            position.Y);
+    }
+
+    /// <summary>
+    /// Snaps one mapped anchor onto the chart's own grid: the pure
+    /// <see cref="ChartPointerMapping.SnapToGrid"/> over this frame's
+    /// cached constants at the snapping threshold.
+    /// </summary>
+    private ChartDrawingAnchor SnapAnchor(ChartDrawingAnchor anchor)
+    {
+        var geo = _frameGeometry;
+
+        return ChartPointerMapping.SnapToGrid(
+            geo.PlotRect,
+            geo.BarPitch,
+            geo.OpenTimes,
+            geo.AxisRungs,
+            geo.MinAxis,
+            geo.AxisRange,
+            geo.ScaleMode,
+            geo.AxisAnchor,
+            geo.AxisFloor,
+            anchor,
+            SnappingThresholdPx);
+    }
+
+    /// <summary>
+    /// Arms a drawing drag (T-091): the route banks the drawing's stored
+    /// anchors (the origin geometry), the pointer's start and that start
+    /// mapped to an anchor — the drag's delta space — so every move's
+    /// override derives from the SAME stored list, never from a previous
+    /// preview frame.
+    /// </summary>
+    private void StartDrawingDrag(
+        ChartDrawingHit zone,
+        Point position,
+        ChartDrawing drawing)
+    {
+        if (MapPointToAnchor(position) is not { } startAnchor)
+        {
+            return;
+        }
+
+        _drawingDragRoute = (
+            zone.Id,
+            zone.AnchorIndex,
+            drawing.Kind,
+            drawing.Anchors,
+            position,
+            startAnchor);
+    }
+
+    /// <summary>
+    /// Rebuilds the drag's preview override for the move (T-091): the
+    /// grabbed anchor follows the pointer (snapped, with its time clocked
+    /// strictly between the neighbors — a drag never breaks the data
+    /// invariant, so a settle never fails on ordering); the body run
+    /// translates the WHOLE list by the pointer's (time, price) delta —
+    /// the level's body keeps the price (its anchor handle owns the
+    /// vertical edit) while the two-corner tools translate freely.
+    /// </summary>
+    private void UpdateDrawingDragPreview(Point position)
+    {
+        if (_drawingDragRoute is not { } route || MapPointToAnchor(position) is not { } current)
+        {
+            return;
+        }
+
+        IReadOnlyList<ChartDrawingAnchor> anchors;
+        if (route.AnchorIndex >= 0)
+        {
+            var moved = ClampAnchorTime(SnapAnchor(current), route.Anchors, route.AnchorIndex);
+            var edited = route.Anchors.ToList();
+            edited[route.AnchorIndex] = moved;
+            anchors = edited;
+        }
+        else if (route.Kind == ChartDrawingKind.HorizontalLevel)
+        {
+            var dt = current.Time - route.StartAnchor.Time;
+            anchors = route.Anchors
+                .Select(a => new ChartDrawingAnchor(a.Time + dt, a.Price))
+                .ToArray();
+        }
+        else
+        {
+            var dt = current.Time - route.StartAnchor.Time;
+            var dp = current.Price - route.StartAnchor.Price;
+            anchors = route.Anchors
+                .Select(a => new ChartDrawingAnchor(a.Time + dt, a.Price + dp))
+                .ToArray();
+        }
+
+        _drawingDragPreview = new ChartDrawingPreviewOverride(route.Id, anchors);
+    }
+
+    /// <summary>
+    /// Keeps an edited anchor's time strictly between its neighbors (the
+    /// drawing data's ascending invariant, held live during the drag):
+    /// crossing a neighbor clamps at the crossing's edge.
+    /// </summary>
+    private static ChartDrawingAnchor ClampAnchorTime(
+        ChartDrawingAnchor moved,
+        IReadOnlyList<ChartDrawingAnchor> anchors,
+        int index)
+    {
+        var minTicks = index > 0
+            ? anchors[index - 1].Time.Ticks + 1
+            : long.MinValue;
+        var maxTicks = index < (anchors.Count - 1)
+            ? anchors[index + 1].Time.Ticks - 1
+            : long.MaxValue;
+
+        if (moved.Time.Ticks >= minTicks && moved.Time.Ticks <= maxTicks)
+        {
+            return moved;
+        }
+
+        var clamped = Math.Clamp(moved.Time.Ticks, minTicks, maxTicks);
+
+        return new ChartDrawingAnchor(new DateTimeOffset(clamped, moved.Time.Offset), moved.Price);
+    }
+
+    /// <summary>
+    /// Settles the drag (T-091): the release pointer's geometry validates
+    /// and reports through <see cref="DrawingEdited"/>; a degenerate
+    /// settle (impossible by construction — the clamp holds the
+    /// invariant — but kept honest) drops silently. Either way the
+    /// preview overrides ends and the pointer comes home.
+    /// </summary>
+    private void FinishDrawingDrag(Point position)
+    {
+        if (_drawingDragRoute is not { } route)
+        {
+            return;
+        }
+
+        UpdateDrawingDragPreview(position);
+        var preview = _drawingDragPreview;
+        _drawingDragRoute = null;
+        _drawingDragPreview = null;
+
+        if (preview is not { } drag)
+        {
+            InvalidateVisual();
+            return;
+        }
+
+        try
+        {
+            ChartDrawing.Validate(drag.Anchors);
+        }
+        catch (ArgumentException)
+        {
+            // A degenerate settle: the drag drops silently, the stored
+            // anchors stand — never a fabricated geometry.
+            InvalidateVisual();
+            return;
+        }
+
+        _drawingEdited.OnNext(new ChartDrawingEventArgs(route.Id, route.Kind, drag.Anchors));
+        InvalidateVisual();
     }
 
     /// <summary>

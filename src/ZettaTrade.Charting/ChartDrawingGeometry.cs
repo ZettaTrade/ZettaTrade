@@ -74,17 +74,10 @@ public static class ChartDrawingGeometry
     }
 
     /// <summary>
-    /// The vertical half-band a horizontal level answers within: the drawing
-    /// affordance constant in pixels, so a level whose line sits within
-    /// ±<see cref="HorizontalLevelHitTolerancePx"/> of the pointer's Y is a
-    /// hit at any X (the level spans the whole plot horizontally).
-    /// </summary>
-    public const double HorizontalLevelHitTolerancePx = 5.0;
-
-    /// <summary>
-    /// The same pixel affordance for segment-shaped tools (the trend line
-    /// and the retracement's levels): a pointer within the band of the
-    /// segment's geometry is a hit.
+    /// The pixel affordance every drawing's body answers within: a segment
+    /// (the trend line, the fib levels, the level's full-width line — its
+    /// band answers at ANY x along the line) within the band of the
+    /// pointer is a hit.
     /// </summary>
     public const double SegmentHitTolerancePx = 5.0;
 
