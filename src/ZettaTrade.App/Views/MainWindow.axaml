@@ -102,6 +102,7 @@
                           IsChecked="{Binding Hotkeys.IsSheetVisible, Mode=OneWay}" />
                 <Separator />
                 <MenuItem Header="{loc:Localized Menu.Help.AboutDisclaimer}" Command="{Binding ShowDisclaimerCommand}" />
+                <MenuItem Header="{loc:Localized Menu.Help.LicenseActivation}" Command="{Binding ShowLicenseActivationCommand}" />
             </MenuItem>
         </Menu>
 

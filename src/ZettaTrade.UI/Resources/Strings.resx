@@ -1773,4 +1773,58 @@ Estimated fee: {7}</value>
   <data name="Hotkeys.Editor.Reset" xml:space="preserve">
     <value>Default</value>
   </data>
+  <data name="Menu.Help.LicenseActivation" xml:space="preserve">
+    <value>Activate a license…</value>
+  </data>
+  <data name="Settings.License.Title" xml:space="preserve">
+    <value>Activate a license</value>
+  </data>
+  <data name="Settings.License.Eula.AcceptLabel" xml:space="preserve">
+    <value>I have read and accept the module's EULA</value>
+  </data>
+  <data name="Settings.License.Eula.Caption" xml:space="preserve">
+    <value>Module license agreement</value>
+  </data>
+  <data name="Settings.License.Hint" xml:space="preserve">
+    <value>Paste the license key a paid module shipped with. Validation is fully local — the key verifies against the installation's public verification key and nothing leaves this machine. The plugin id must match the module's id (see its documentation).</value>
+  </data>
+  <data name="Settings.License.PluginLabel" xml:space="preserve">
+    <value>Plugin id</value>
+  </data>
+  <data name="Settings.License.KeyLabel" xml:space="preserve">
+    <value>License key</value>
+  </data>
+  <data name="Settings.License.Activate" xml:space="preserve">
+    <value>Activate</value>
+  </data>
+  <data name="Settings.License.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Settings.License.Verdict.Valid" xml:space="preserve">
+    <value>The license is valid and stored. Reopen the module (or restart the app) to load it.</value>
+  </data>
+  <data name="Settings.License.Verdict.EulaRequired" xml:space="preserve">
+    <value>The module carries a license agreement: review it above, tick the accept box, and activate again. Nothing was stored yet.</value>
+  </data>
+  <data name="Settings.License.Verdict.Missing" xml:space="preserve">
+    <value>No license key is stored for this plugin.</value>
+  </data>
+  <data name="Settings.License.Verdict.Malformed" xml:space="preserve">
+    <value>This is not a well-formed license key. Paste the full token exactly as issued.</value>
+  </data>
+  <data name="Settings.License.Verdict.Tampered" xml:space="preserve">
+    <value>The key does not verify against this installation's public key — it was altered or was not issued by the module's publisher. Nothing was stored.</value>
+  </data>
+  <data name="Settings.License.Verdict.Expired" xml:space="preserve">
+    <value>The key verifies but has expired. Request a renewed one from the publisher.</value>
+  </data>
+  <data name="Settings.License.Verdict.WrongProduct" xml:space="preserve">
+    <value>The key verifies but binds a different product or a different plugin id.</value>
+  </data>
+  <data name="Settings.License.Verdict.Unconfigured" xml:space="preserve">
+    <value>License verification is not configured on this installation (no public verification key set). Contact the operator.</value>
+  </data>
+  <data name="Settings.License.Verdict.Failed" xml:space="preserve">
+    <value>The activation failed unexpectedly — see the log viewer for details. Nothing was stored.</value>
+  </data>
 </root>

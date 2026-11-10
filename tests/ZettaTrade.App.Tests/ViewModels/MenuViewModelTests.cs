@@ -103,6 +103,31 @@ public sealed class MenuViewModelTests
         handled.Should().Be(1);
     }
 
+    /// <summary>
+    /// The Help menu's license-activation item (T-132) routes through its
+    /// interaction the same way every dialog command does — the View hosts
+    /// the dialog window.
+    /// </summary>
+    [Fact]
+    public async Task ShowLicenseActivationCommand_Executed_RoutesThroughShowLicenseActivationInteraction()
+    {
+        // Arrange
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
+        var handled = 0;
+        menu.ShowLicenseActivationRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref handled);
+            context.SetOutput(RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await menu.ShowLicenseActivationCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(1);
+    }
+
     [Fact]
     public async Task ShowOrderHistoryCommand_Executed_RoutesThroughShowOrderHistoryInteraction()
     {
