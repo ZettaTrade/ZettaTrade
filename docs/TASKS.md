@@ -151,6 +151,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-144 UI test suite: a headless lane over the real windows (layout, tabs, flows) | feat/ui-tests | queued | - |
 | T-145 UI layout pass: a wrapping chart toolbar and a roomier settings window | feat/ui-layout | done | - |
 | T-146 Plugins into a dedicated solution folder and a physical plugins directory | feat/soln-plugins | done | - |
+| T-147 Agent canon split: a lean always-on AGENTS.md, a deduped zettatrade skill and on-demand references | feat/canon-split | in-progress | - |
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | planned | - |
 
@@ -231,6 +232,16 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the headless package reference, a headless harness folder in tests/ZettaTrade.App.Tests, the gate wiring for the lane; no product code changes.
 - **Acceptance:** a headless bounds fact that fails against the pre-T-145 XAML (the toolbar painting over the book header) and passes after it; the lane stays green in the gate and CI across the three OS targets.
 - **Tests:** the harness facts themselves are the deliverable, plus a window-materialization smoke per window.
+
+## T-147 — Agent canon split: a lean always-on AGENTS.md, a deduped zettatrade skill and on-demand references
+
+- **Branch:** feat/canon-split, worktree zt-canon-split, based on develop@243c50a (claimed 2026-11-10 at the user's request: the canon lived in three overlapping copies and one 5.5k-token root monolith).
+- **Origin:** the user asked whether the agent skills had grown too large and whether splitting them across files would help; the survey measured AGENTS.md (62 content lines) against the zettatrade skill body (69) at 60 identical lines, the root ZettaTrade_SKILL.md at 361 lines read whole for any single section, and drift already landed in the role cards (a dead "Known debt" pointer, the missing `pwsh` executable, a `main`-based worktree line, the wedge-watching canon duplicated across two files).
+- **What:** AGENTS.md becomes the lean always-on file — identity, the ten workflow rules (pointers updated to the new homes), shared files, trading safety, performance targets, and a canon map; the zettatrade skill keeps the unique canon (architecture, MVVM and UI, localization) plus a read-on-demand index; eleven reference files are extracted verbatim from the root monolith into `.opencode/skills/zettatrade/references/` (project, adapters, charting, settings, theming, localization, style, sync, orchestrator, design-principles, making-changes); the root file becomes a short stub index; the role cards are de-drifted (zt-feature: the dead Known-debt clause out, the real gate command in; zt-supervisor: the wedge-watching duplication replaced by a pointer to the supervisor skill, `main` -> `develop`, the worktree base flag made explicit).
+- **Scope:** AGENTS.md, ZettaTrade_SKILL.md, `.opencode/skills/zettatrade/SKILL.md` and its new `references/`, `.opencode/agents/zt-feature.md`, `.opencode/agents/zt-supervisor.md`. Docs-only: no product code, no resx, no version bump. The supervisor skill and zt-reviewer stay untouched (explicit-invocation canon / verified clean).
+- **Acceptance:** an ordinary session carries each canon text once (the always-on AGENTS.md and the skill body each shed their duplicated half); every moved section resolves through the skill's index; the eleven references exist with intact headings; no machine-local paths anywhere in the canon; no canon sentence maintained in two places except by pointer.
+- **Tests:** docs-only task — the gate over the branch (`-AllowProtected` for the AGENTS.md shield) is the evidence; greps verify the reference set, the dedup and the path hygiene.
+- **Status:** in-progress
 
 ## T-149 - Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin
 
