@@ -168,7 +168,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | queued | - |
 | T-162 Product identity: the app icon and the title-bar brand | feat/branding | queued | - |
 | T-163 The plugins consumption switch: the standard pack rides the package mechanics | feat/plugin-packages | done | - |
-| T-164 Dev-side pack provisioning: the plugins directory fills from the package at build time | feat/plugin-provision | in-progress | - |
+| T-164 Dev-side pack provisioning: the plugins directory fills from the package at build time | feat/plugin-provision | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -505,13 +505,3 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   16px taskbar size; the strip keeps its drag/hit zones with the logo (the T-066 control's
   contract).
 - **Tests:** asset-presence pins; a source pin that the strip's hit zones survive the logo slot.
-
-## T-164 — Dev-side pack provisioning: the plugins directory fills from the package at build time
-
-- **Branch:** feat/plugin-provision, worktree zt-plugin-provision, based on develop@b4d99a6 (claimed 2026-11-11 at the user's request right after the T-163 closed: with the pack off the tree the shipped app reads its indicators from the blessed plugins directory — and nothing staged it automatically; the canon also carried the stale in-tree layout half).
-- **Origin:** T-163 removed the in-tree pack builder — the seven DLLs now reach only the test builds (the compile-once facts) while the real app's plugins directory stays empty until something copies the package assets, and the SKILL.md Target layout and the AGENTS.md Multi-repo section still named the old in-tree home.
-- **What:** the Windows build of App.Tests provisions the loader's real plugins directory from the feed package — the dev loop only (CI runs Linux, the macOS/Linux developers refresh by hand): the stale pack DLLs delete first by exactly the names the fresh copy brings (an abandoned version would shadow it; a manual contract assembly or a closed-source pack never falls to the cleanup), the Copy rides SkipUnchanged with Warn-and-Continue (a running app may hold one old assembly), and the path projection comes from GeneratePathProperty, which never adds assets beyond the existing compile-once flow. The work commit also carries the canon freshness: SKILL.md's Target layout bullet and AGENTS.md's Multi-repo section name the two satellite repos (Livery, T-130; Plugins, T-163) with the in-tree contract pinned.
-- **Scope:** tests/ZettaTrade.App.Tests/ZettaTrade.App.Tests.csproj, the skill canon, the AGENTS.md multi-repo note, the board. No product code — the shipped app binary does not change, so no version bump per rule 6 (T-148's build-hygiene precedent).
-- **Acceptance:** after a clean clone's dotnet build/test on Windows the seven plugin DLLs sit in ConfigPathResolver.PluginsDirectory with no manual step; the production NoPluginAssembly pin stays green; obsolete pack versions do not accumulate in the directory; non-pack files there (the garbage fixture) stay untouched.
-- **Tests:** the matrix over the branch (the staging target runs on every dev build; the gate exercises it); the staging fact verified by hand — quiet dir before: the old hand-staged Sma replaced by the package copy and the garbage file left alone; no domain logic to test.
-- **Status:** in-progress
