@@ -150,6 +150,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-143 Palette suggestion rows carry automation names (not the record's ToString) | fix/palette-a11y-rows | queued | - |
 | T-144 UI test suite: a headless lane over the real windows (layout, tabs, flows) | feat/ui-tests | queued | - |
 | T-145 UI layout pass: a wrapping chart toolbar and a roomier settings window | feat/ui-layout | done | - |
+| T-146 Plugins into a dedicated solution folder and a physical plugins directory | feat/soln-plugins | in-progress | - |
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | planned | - |
 
@@ -230,6 +231,15 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the headless package reference, a headless harness folder in tests/ZettaTrade.App.Tests, the gate wiring for the lane; no product code changes.
 - **Acceptance:** a headless bounds fact that fails against the pre-T-145 XAML (the toolbar painting over the book header) and passes after it; the lane stays green in the gate and CI across the three OS targets.
 - **Tests:** the harness facts themselves are the deliverable, plus a window-materialization smoke per window.
+
+## T-146 — Plugins into a dedicated solution folder and a physical plugins directory
+
+- **Branch:** feat/soln-plugins, worktree zt-soln-plugins, based on develop@2bf507b (claimed 2026-11-10 at the user's request: the seven indicator plugin projects sat flat beside the product projects in src and ungrouped in the solution while the target layout already names `src/ZettaTrade.{...,Plugins}`).
+- **Origin:** the user asked for a dedicated plugin home twice over — in the solution (the solution file carries no folders except `/tests/`) and on disk (the plugin projects' physical directories live beside `ZettaTrade.Core` and friends, so the plugin-first assemblies do not read as a family).
+- **What:** a `/Plugins/` solution folder arrangements the seven shipped indicator projects (`ZettaTrade.Plugins.Atr`, `Bollinger`, `Ema`, `Macd`, `Rsi`, `Sma`, `Wma`) beside the `/tests/` folder, and the seven projects' directories move under `src/ZettaTrade.Plugins/<indicator>/` with the csproj file names unchanged; the test-fixture plugins (`Plugin.Broken`, `BrokenBase`, `SampleStrategy`) stay on the tests side — they are harness fixtures, not product plugins. Project reference paths in the seven moved projects and in the test projects that pull them (App.Tests, Infrastructure.Tests) ride the new depth; the scanner, bootstrap and the app's plugin loading keep their shapes (they see output assemblies, not source paths).
+- **Scope:** `ZettaTrade.slnx`, the seven moved plugin directories (git mv), the reference paths in those csprojs plus App.Tests.csproj and Infrastructure.Tests.csproj; no code, no resx, no contracts.
+- **Acceptance:** the solution loads and builds clean; the full test run stays green; nothing but paths changes (a `git mv`-visible move, no content edits beyond the reference paths).
+- **Tests:** the green build + the green solution test run is the evidence; the gate over the branch is the final word.
 
 ## T-149 - Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin
 
