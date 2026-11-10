@@ -1,0 +1,72 @@
+name: Bug report
+description: Something broke — report it so it lands on the board.
+labels: [triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing the alpha. Fill the form below — every field is
+        what the triage walk needs first. Blank issues are disabled on
+        purpose: a structured report reaches the board faster.
+
+        Never paste real exchange API keys anywhere. Paper and testnet
+        adapters only; the log tail contains no secrets.
+  - type: input
+    id: version
+    attributes:
+      label: Build version
+      description: The status bar shows it (for example 0.1.0-alpha.90+sha).
+      placeholder: 0.1.0-alpha.___+___
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: Adapter and mode
+      description: Which adapter was active and in which trading mode.
+      options:
+        - Demo (built-in walk)
+        - Binance — paper
+        - Binance — testnet
+        - Bybit — paper
+        - Bybit — testnet
+        - Other / not trading-related
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, numbered, from a fresh start. A screenshot is worth a paragraph.
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: What you expected to happen, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log tail
+      description: |
+        Open Settings → Log viewer (or the state directory's logs/ files) and
+        paste the tail around the failure. It contains no secrets.
+    validations:
+      required: false
