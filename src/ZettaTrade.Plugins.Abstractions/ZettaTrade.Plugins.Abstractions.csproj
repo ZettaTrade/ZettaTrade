@@ -20,15 +20,14 @@
   </PropertyGroup>
 
   <!-- The plugin SDK contract (T-131): plugin authors compile against this
-       assembly alone — the app internals never leak into the surface. Core
-       is referenced for the services a plugin legitimately reaches
-       (market data adapters, settings, risk/confirmation); Livery stays
-       out so the surface carries no Avalonia dependency — UI plugins bring
+       assembly alone - the app internals never leak into the surface. The
+       pinned baseline test proves no app type ever reaches the public
+       surface (only BCL and Microsoft.Extensions shapes ride it), so the
+       package flows no dependency on the app's own projects: a stable
+       package cannot carry the app's prerelease version, and out-of-tree
+       consumers could not restore such a dependency (T-163). Livery stays
+       out so the surface carries no Avalonia dependency - UI plugins bring
        their own and non-UI plugins stay light. -->
-  <ItemGroup>
-    <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
