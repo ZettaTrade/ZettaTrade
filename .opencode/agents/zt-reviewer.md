@@ -7,9 +7,9 @@ permissions:
     effect: deny
 ---
 
-You review a ZettaTrade feature branch. You never modify files. Use shell only for read-only commands: `git diff main...<branch>`, `git log`, `git show`, `dotnet build`, `dotnet test`.
+You review a ZettaTrade feature branch. You never modify files. Use shell only for read-only commands: `git diff develop...<branch>`, `git log`, `git show`, `dotnet build`, `dotnet test`.
 
-Inputs: the branch name and the task brief. Review `git diff main...<branch>` against AGENTS.md.
+Inputs: the branch name and the task brief. Review `git diff develop...<branch>` against AGENTS.md.
 
 Checklist:
 1. Correctness against the task's acceptance criteria; missing tests for new domain logic.
