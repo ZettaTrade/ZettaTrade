@@ -136,7 +136,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | done | - |
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
 | T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | done | - |
-| T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
+| T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | in-progress | - |
 | T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | done | T-082 |
 | T-134 Supervisor-mode skill (OpenCode): the standing directives load only on explicit invocation | feat/supervisor-skill | done | - |
 | T-135 Stabilize the flaky PositionsPanel in-flight test under suite load | feat/flaky-pospanel-timing | done | - |
@@ -190,7 +190,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-132 — Closed-source plugin packaging: signed artifacts + local license-key activation
 
-- **Branch:** queued 2026-11-06 (licensing mechanics; cut in full only when the first paid module is actually chosen — until then it fixes the agreed skeleton). **Blocker:** T-131.
+- **Branch:** feat/plugin-packaging, worktree zt-plugin-packaging, based on develop@69badc4 (claimed 2026-11-10 per standing directive 6; queued 2026-11-06 at the licensing review). **Blocker:** T-131 (done — the SDK seam shipped as alpha.89).
 - **Origin:** in the open-core split the closed modules live in private repos and ship as SIGNED artifacts; customer machines activate them with a license key validated locally — the entitlement flow must exist and behave identically everywhere before real money moves.
 - **What:** the private-repo convention fixed in docs: the name `zettatrade-plugin-<feature>`, a proprietary LICENSE + EULA file, CI building a signed NuGet/zip artifact whose version tracks the SDK version it builds against; the consumer-side activation: the license key entered once (a dialog or a file), LOCAL validation (an offline-signed key check — no phone-home required; an optional online revalidation may arrive later without touching the no-telemetry promise — validation logs to files only), and refused-not-defaulted semantics: invalid, expired, tampered or wrong-product keys REFUSE activation loudly and the plugin stays off; the EULA surfaces at first activation.
 - **Scope:** the key validation lib + the activation UI (resx en+ru), the packaging docs/templates for the private CI, `docs/LICENSES.md` describing the open-core split (MIT core vs proprietary modules) in a glance-readable form; the private repos themselves appear only per actual module.
