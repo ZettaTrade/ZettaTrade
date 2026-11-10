@@ -194,11 +194,10 @@ internal static class CompositionRoot
         services.AddSingleton<MenuViewModel>();
         services.AddSingleton<StatusBarViewModel>(sp =>
             new StatusBarViewModel(
-                sp.GetRequiredService<IThemeManager>(),
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ActiveExchangeService>(),
                 sp.GetRequiredService<TradingModeService>(),
-                AppVersion.Current,
+                sp.GetRequiredService<NotificationCenter>().Events,
                 sp.GetRequiredService<AdapterHealthService>().HealthStream,
                 logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>()));
         services.AddSingleton<MarketContextPreambleComposer>();

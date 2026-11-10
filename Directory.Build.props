@@ -36,12 +36,12 @@
          carries the bump, the matching CHANGELOG.md section and the board
          flip. The beta flip happens by a board decision and is traced in
          the docs when it does. The version shows in the exe file
-         properties (Product version), in NuGet metadata and in the status
-         bar version chip. -->
+         properties (Product version), in NuGet metadata and in Help/About
+         (T-153 moved it off the status strip). -->
     <VersionPrefix>0.1.0</VersionPrefix>
 
 
-    <VersionSuffix>alpha.97</VersionSuffix>
+    <VersionSuffix>alpha.98</VersionSuffix>
 
   </PropertyGroup>
 

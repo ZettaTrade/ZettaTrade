@@ -1,3 +1,21 @@
+## [0.1.0-alpha.98] - 2026-11-11
+
+Build of board task T-153 (branch `feat/status-bar`).
+
+### Changed
+- The status strip declutter (T-153): the strip carries exactly five
+  groups — the message channel, the exchange picker, the active exchange
+  + lane chip, the connection state and the health dots. The theme and
+  language names left for the settings (both already switch there) and
+  the version left for Help/About: every removed label stays reachable in
+  one action.
+- The message channel: the strip's first cell is now a real transient
+  channel — each notification center event surfaces its localized
+  one-line summary over the Ready idle text for a bounded window
+  (five seconds), a later event replaces the displayed one and the cell
+  reverts to the idle text after the quiet period. The idle text follows
+  the language; a displayed message keeps its arrival-composed text.
+
 ## [0.1.0-alpha.97] - 2026-11-11
 
 Build of board task T-152 (branch `fix/lane-chip-contrast`).

@@ -663,6 +663,9 @@ Estimated fee: {7}</value>
   <data name="Trading.Disclaimer.Acknowledge" xml:space="preserve">
     <value>Acknowledge</value>
   </data>
+  <data name="Trading.Disclaimer.Version" xml:space="preserve">
+    <value>Version:</value>
+  </data>
   <data name="NewOrder.Title" xml:space="preserve">
     <value>New Order</value>
   </data>

@@ -9,7 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Livery.Localization;
-using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -46,7 +45,6 @@ public sealed class StatusBarAdapterHealthTests
     /// <summary>An example stamp the tooltip facts pin as text (rendered local-clock by the shared expression).</summary>
     private static readonly DateTimeOffset ExampleMoment = new(2026, 11, 7, 12, 34, 56, TimeSpan.Zero);
 
-    private readonly IThemeManager _themeManager = Substitute.For<IThemeManager>();
     private readonly ISettingsService _settings = Substitute.For<ISettingsService>();
     private readonly IMarketDataAdapter _first = Substitute.For<IMarketDataAdapter>();
     private readonly IMarketDataAdapter _second = Substitute.For<IMarketDataAdapter>();
@@ -55,7 +53,6 @@ public sealed class StatusBarAdapterHealthTests
 
     public StatusBarAdapterHealthTests()
     {
-        _themeManager.ThemeChanged.Returns(new BehaviorSubject<string>("dark"));
         _first.Id.Returns("one");
         _first.Name.Returns("First");
         _second.Id.Returns("two");
@@ -273,14 +270,13 @@ public sealed class StatusBarAdapterHealthTests
 
     private StatusBarViewModel CreateViewModel() =>
         new(
-            _themeManager,
             _localization,
             new ActiveExchangeService(
                 [_first, _second],
                 _settings,
                 NullLogger<ActiveExchangeService>.Instance),
             CreateTradingModeService(),
-            "0.1.0-test",
+            new System.Reactive.Subjects.Subject<Notification>(),
             _health,
             logger: NullLogger<StatusBarViewModel>.Instance);
 

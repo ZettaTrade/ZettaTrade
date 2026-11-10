@@ -9,7 +9,6 @@ using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Livery.Extensions;
 using Livery.Localization;
-using Livery.Themes;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
@@ -19,17 +18,21 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// <summary>
 /// ViewModel for status bar.
 /// Simple strings use direct XAML binding via {loc:Localized Key}.
-/// ViewModel properties only for dynamic data (theme, language, exchange, connection status).
+/// ViewModel properties only for dynamic data (exchange, connection status,
+/// the message channel).
 /// </summary>
 /// <remarks>
-/// The status bar is registered as an application-lifetime singleton, so the theme,
-/// language and exchange chips are wired to their managers in the constructor: WhenActivated
-/// would never fire for it. Both managers broadcast their current value on
-/// subscribe, so the chips start with the state applied at startup. The exchange
-/// chips render only when more than one adapter is registered — with a single
-/// exchange the toolbar looks exactly as before the selector existed. The
-/// adapter health strip rides the same pattern: the fold's snapshots arrive
-/// through the injected stream and re-render the dot rows on the UI thread.
+/// The status bar is registered as an application-lifetime singleton, so the
+/// message channel, the language-driven re-compositions and the exchange chips
+/// are wired in the constructor: WhenActivated would never fire for it. The
+/// theme and language chips left the strip in T-153 (both switch in the
+/// settings, the version lives in Help/About) — the localization manager's
+/// language stream here serves only the re-derivations of the localized chip
+/// texts. The exchange chips render only when more than one adapter is
+/// registered — with a single exchange the toolbar looks exactly as before
+/// the selector existed. The adapter health strip rides the same pattern: the
+/// fold's snapshots arrive through the injected stream and re-render the dot
+/// rows on the UI thread.
 /// </remarks>
 public sealed class StatusBarViewModel : ReactiveObject
 {
@@ -38,8 +41,14 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// <summary>Default length of the loud fallback notice in the connection chip.</summary>
     private const double DefaultFallbackNoticeSeconds = 5;
 
+    /// <summary>Default display time of one message the channel shows over the idle text.</summary>
+    private const double DefaultStatusMessageSeconds = 5;
+
     /// <summary>Localized fallback notice: the persisted choice was unavailable.</summary>
     private const string FallbackNoticeKey = "Status.ExchangeFallback";
+
+    /// <summary>The message channel's idle text: what the first strip cell shows between events.</summary>
+    private const string ReadyStatusKey = "Status.Ready";
 
     /// <summary>Localized strip state labels: the connected/disconnected pair rides the connection chip's existing keys (<see cref="ConnectedStatusKey"/>, <see cref="DisconnectedStatusKey"/>).</summary>
     private const string ReconnectingStateKey = "Status.Health.Reconnecting";
@@ -52,14 +61,13 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// <summary>Compact clock format of the tooltip's last-event member (the tape's pinned precedent).</summary>
     private const string TimeFormat = "HH:mm:ss";
 
-    private string _currentThemeName = string.Empty;
-    private string _currentLanguage = string.Empty;
     private string _connectionStatus = string.Empty;
     private string _selectedExchangeName = string.Empty;
     private string _activeExchangeName = string.Empty;
     private readonly ILocalizationManager _localizationManager;
     private readonly ActiveExchangeService _exchanges;
     private readonly TimeSpan _fallbackNoticeDuration;
+    private readonly TimeSpan _statusMessageDuration;
     private readonly ILogger<StatusBarViewModel> _logger;
 
     /// <summary>
@@ -77,31 +85,19 @@ public sealed class StatusBarViewModel : ReactiveObject
     private DateTimeOffset _noticeHeldUntil = DateTimeOffset.MinValue;
 
     /// <summary>
+    /// Until the displayed message owns the first strip cell: the idle
+    /// re-derivations (a language switch, a stray expiry callback) skip
+    /// while a message holds, so a live message never silently reverts to
+    /// the Ready text.
+    /// </summary>
+    private DateTimeOffset _messageHeldUntil = DateTimeOffset.MinValue;
+
+    /// <summary>
     /// The last health snapshot the strip rows were built from (empty until
     /// the first stream emission); a language switch re-composes the
     /// tooltips from it rather than from a stale collection.
     /// </summary>
     private IReadOnlyList<AdapterHealth> _lastAdapterHealth = [];
-
-    /// <summary>Running application version for the status bar chip.</summary>
-    public string AppVersion
-    {
-        get;
-    }
-
-    /// <summary>Current theme name.</summary>
-    public string CurrentThemeName
-    {
-        get => _currentThemeName;
-        private set => this.RaiseAndSetIfChanged(ref _currentThemeName, value);
-    }
-
-    /// <summary>Current language code.</summary>
-    public string CurrentLanguage
-    {
-        get => _currentLanguage;
-        private set => this.RaiseAndSetIfChanged(ref _currentLanguage, value);
-    }
 
     /// <summary>Connection status text (or the temporary fallback notice).</summary>
     public string ConnectionStatus
@@ -109,6 +105,21 @@ public sealed class StatusBarViewModel : ReactiveObject
         get => _connectionStatus;
         private set => this.RaiseAndSetIfChanged(ref _connectionStatus, value);
     }
+
+    /// <summary>
+    /// The first strip cell's text (T-153): the localized Ready idle text
+    /// between events, a transient event message while the channel holds
+    /// one. Messages compose at arrival (the notification row's snapshot
+    /// discipline) and vanish back to the idle text after the quiet
+    /// period.
+    /// </summary>
+    public string StatusMessage
+    {
+        get => _statusMessage;
+        private set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
+    }
+
+    private string _statusMessage = string.Empty;
 
     /// <summary>
     /// The exchange picker renders only when more than one adapter is
@@ -211,11 +222,16 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// <summary>
     /// Create a new StatusBarViewModel instance.
     /// </summary>
-    /// <param name="themeManager">Theme manager providing the theme chip state.</param>
-    /// <param name="localizationManager">Localization manager providing the language chip state.</param>
+    /// <param name="localizationManager">Localization manager providing the localized chip texts.</param>
     /// <param name="activeExchanges">The active-exchange facade providing the picker and the exchange/mode chip.</param>
     /// <param name="tradingMode">The trading-mode service providing the lane chip's resolved lane stream (T-123).</param>
-    /// <param name="appVersion">Running version for the version chip.</param>
+    /// <param name="statusEvents">
+    /// The notification center's raw event lane (T-153): the message
+    /// channel's source. Each event surfaces its localized summary over the
+    /// Ready idle text for the bounded display time; a later event replaces
+    /// the displayed one (the Switch-ed expiry timer of the replaced
+    /// message unsubscribes with it).
+    /// </param>
     /// <param name="adapterHealth">
     /// The adapter health fold's snapshot stream (T-098): the strip's rows
     /// re-render on every health emission; the subscription lives as long
@@ -225,15 +241,19 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// How long the fallback notice stays in the connection chip; defaults to
     /// five seconds (the parameter exists so tests can shorten the wait).
     /// </param>
+    /// <param name="statusMessageDuration">
+    /// How long one message stays over the Ready idle text; defaults to
+    /// five seconds (the parameter exists so tests can shorten the wait).
+    /// </param>
     /// <param name="logger">Logger.</param>
     public StatusBarViewModel(
-        IThemeManager themeManager,
         ILocalizationManager localizationManager,
         ActiveExchangeService activeExchanges,
         TradingModeService tradingMode,
-        string appVersion,
+        IObservable<Notification> statusEvents,
         IObservable<IReadOnlyList<AdapterHealth>> adapterHealth,
         TimeSpan? fallbackNoticeDuration = null,
+        TimeSpan? statusMessageDuration = null,
         ILogger<StatusBarViewModel>? logger = null)
     {
         _localizationManager = localizationManager;
@@ -241,25 +261,37 @@ public sealed class StatusBarViewModel : ReactiveObject
         _tradingMode = tradingMode
             ?? throw new ArgumentNullException(nameof(tradingMode));
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StatusBarViewModel>.Instance;
-        AppVersion = appVersion;
         _fallbackNoticeDuration = fallbackNoticeDuration ?? TimeSpan.FromSeconds(DefaultFallbackNoticeSeconds);
+        _statusMessageDuration = statusMessageDuration ?? TimeSpan.FromSeconds(DefaultStatusMessageSeconds);
+        StatusMessage = _localizationManager.GetString(ReadyStatusKey);
 
         ExchangeNames = [.. activeExchanges.Registered.Select(descriptor => descriptor.Name)];
         HasExchangeChoice = ExchangeNames.Count > 1;
 
         // The ViewModel lives as long as the application (singleton), so these
         // subscriptions mirror it and need no explicit disposal.
-        themeManager
-            .ThemeChanged
-            .Subscribe(name => CurrentThemeName = ResolveChipName(themeManager, name));
-
         localizationManager
             .LanguageChanged
-            .Subscribe(code =>
-            {
-                CurrentLanguage = code;
-                RefreshConnectionStatus();
-            });
+            .Subscribe(_ => RefreshConnectionStatus());
+
+        // The message channel (T-153): each notification surfaces its
+        // localized one-line summary over the Ready idle text for the
+        // bounded display time. The Switch-ed expiry timer implements the
+        // replace semantics — a later event unsubscribes the message it
+        // replaces along with that message's pending expiry — and every
+        // write lands on the user interface thread through the shared
+        // marshal (events may publish from any thread).
+        statusEvents
+            .ObserveOnUiThread()
+            .Do(ShowStatusMessage)
+            .Select(_ => Observable
+                .Timer(_statusMessageDuration)
+                .Select(_ => RxVoid.Default)
+                .ObserveOnUiThread())
+            .Switch()
+            .Subscribe(
+                _ => RefreshIdleStatusMessage(),
+                ex => _logger.LogError(ex, "The status message channel stopped unexpectedly"));
 
         // The behavioral exchange stream: the chip and the picker mirror the
         // facade. Emissions arrive on the starter walk for the restore and on
@@ -320,17 +352,23 @@ public sealed class StatusBarViewModel : ReactiveObject
                 RefreshAdapterHealthRows,
                 ex => _logger.LogError(ex, "The adapter health stream stopped unexpectedly"));
 
-        // A language switch re-composes the strip's localized tooltips from
-        // the stored snapshot: the rows survive the switch, only their
-        // composed texts change. The rows rebuild must stay a
-        // user-interface-thread write, so this subscription marshals like
+        // A language switch re-composes the strip's localized texts from the
+        // stored facts: the health rows from their snapshot and the message
+        // channel's idle text from the catalog (a DISPLAYED message keeps
+        // its arrival-composed text — the row snapshot discipline — only
+        // the idle text follows the language). The writes must stay
+        // user-interface-thread writes, so this subscription marshals like
         // the strip's own (the language broadcasts may be off-thread).
         localizationManager
             .LanguageChanged
             .Select(_ => RxVoid.Default)
             .ObserveOnUiThread()
             .Subscribe(
-                _ => RefreshAdapterHealthRows(_lastAdapterHealth),
+                _ =>
+                {
+                    RefreshAdapterHealthRows(_lastAdapterHealth);
+                    RefreshIdleStatusMessage();
+                },
                 ex => _logger.LogError(ex, "The strip's language re-composition stream stopped unexpectedly"));
 
         // The trading lane chip's captions and tooltips are localized data:
@@ -479,6 +517,41 @@ public sealed class StatusBarViewModel : ReactiveObject
     }
 
     /// <summary>
+    /// Show one event's message over the Ready idle text: the localized
+    /// summary composes at arrival (the notification row's snapshot
+    /// discipline — a later language switch never re-renders a displayed
+    /// message) and the hold stamps the moment the idle re-derivations
+    /// must skip until.
+    /// </summary>
+    /// <remarks>
+    /// The caller delivers this method on the user interface thread (the
+    /// channel's subscription marshals upstream), so the cell write here is
+    /// UI-thread-backed.
+    /// </remarks>
+    private void ShowStatusMessage(Notification notification)
+    {
+        _messageHeldUntil = DateTimeOffset.UtcNow + _statusMessageDuration;
+        StatusMessage = NotificationRow.ForDisplay(notification, _localizationManager).Summary;
+    }
+
+    /// <summary>
+    /// Re-derive the first strip cell's idle text from the catalog: the
+    /// localized Ready value. While a message holds the cell, the
+    /// derivation is skipped — the message owns the cell until its quiet
+    /// period expires (a language switch must not silently revert a live
+    /// message to the idle text).
+    /// </summary>
+    private void RefreshIdleStatusMessage()
+    {
+        if (DateTimeOffset.UtcNow < _messageHeldUntil)
+        {
+            return;
+        }
+
+        StatusMessage = _localizationManager.GetString(ReadyStatusKey);
+    }
+
+    /// <summary>
     /// Show the loud fallback notice in the connection chip for the bounded
     /// duration, then re-derive the regular chip text.
     /// </summary>
@@ -524,16 +597,6 @@ public sealed class StatusBarViewModel : ReactiveObject
             : _localizationManager.GetString(
                 isConnected ? ConnectedStatusKey : DisconnectedStatusKey);
     }
-
-    /// <summary>
-    /// Chip display name for a canonical theme Name: the matching theme's
-    /// DisplayName, or the raw name when the theme is not (yet) registered
-    /// (subscribe can run before the manager populated its list).
-    /// </summary>
-    private static string ResolveChipName(IThemeManager themeManager, string themeName) =>
-        themeManager.AvailableThemes
-            .FirstOrDefault(t => t.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase))
-            ?.DisplayName ?? themeName;
 
     /// <summary>
     /// Re-render the trading lane chip from one resolved lane: the class
