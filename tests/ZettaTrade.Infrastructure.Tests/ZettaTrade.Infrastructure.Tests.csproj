@@ -31,11 +31,16 @@
     <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Sma\ZettaTrade.Plugins.Sma.csproj" />
     <!-- T-054 fixtures: the Broken plugin's dll lands in the test output
          (located by NAME by the catalog fixture — typeof would throw on its
-         unresolvable base type). The base assembly is compile-only:
-         ExcludeAssets="runtime" keeps it OFF disk, so the dependency is
-         genuinely missing when the scan loads the plugin. -->
+         unresolvable base type). The base assembly stays compile-only so the
+         dependency is genuinely missing when the scan loads the plugin.
+         ExcludeAssets="runtime" alone did NOT keep it off disk (verified on
+         a clean rebuild, T-148): the primary output still rode the
+         copy-local flow, the LoadFrom probe of AppBase loaded and locked the
+         leaked copy, and the catalog fixture's leak-delete raced that lock.
+         Private="false" kills the copy on both the direct and the transitive
+         path; the leak-delete in the fixture stays as belt-and-suspenders. -->
     <ProjectReference Include="..\ZettaTrade.Plugins.Broken\ZettaTrade.Plugins.Broken.csproj" />
-    <ProjectReference Include="..\ZettaTrade.Plugins.BrokenBase\ZettaTrade.Plugins.BrokenBase.csproj" ExcludeAssets="runtime" />
+    <ProjectReference Include="..\ZettaTrade.Plugins.BrokenBase\ZettaTrade.Plugins.BrokenBase.csproj" ExcludeAssets="runtime" Private="false" />
     <ProjectReference Include="..\ZettaTrade.Plugins.Fixtures\ZettaTrade.Plugins.Fixtures.csproj" />
     <ProjectReference Include="..\ZettaTrade.Plugins.Fixtures.Hazards\ZettaTrade.Plugins.Fixtures.Hazards.csproj" />
   </ItemGroup>
