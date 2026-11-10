@@ -426,6 +426,27 @@
   <data name="Chart.Indicators.BollTip" xml:space="preserve">
     <value>Верхняя полоса Боллинджера: SMA за N периодов плюс 2 стандартных отклонения; средняя — обычная SMA, нижняя зеркальна.</value>
   </data>
+  <data name="Chart.Indicators.A11ySmaInfo" xml:space="preserve">
+    <value>Подробнее об индикаторе SMA</value>
+  </data>
+  <data name="Chart.Indicators.A11yEmaInfo" xml:space="preserve">
+    <value>Подробнее об индикаторе EMA</value>
+  </data>
+  <data name="Chart.Indicators.A11yWmaInfo" xml:space="preserve">
+    <value>Подробнее об индикаторе WMA</value>
+  </data>
+  <data name="Chart.Indicators.A11yRsiInfo" xml:space="preserve">
+    <value>Подробнее об индикаторе RSI</value>
+  </data>
+  <data name="Chart.Indicators.A11yMacdInfo" xml:space="preserve">
+    <value>Подробнее об индикаторе MACD</value>
+  </data>
+  <data name="Chart.Indicators.A11yAtrInfo" xml:space="preserve">
+    <value>Подробнее об индикаторе ATR</value>
+  </data>
+  <data name="Chart.Indicators.A11yBollInfo" xml:space="preserve">
+    <value>Подробнее об индикаторе Боллинджера</value>
+  </data>
   <data name="Chart.ExportCandlesCsv" xml:space="preserve">
     <value>Экспорт свечей в CSV</value>
   </data>

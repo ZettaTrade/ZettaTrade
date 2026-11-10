@@ -105,30 +105,14 @@
                         Classes.on="{Binding ShowVwap}"
                         MinWidth="72"
                         Margin="8,2,0,2"
-                        Opacity="0.65">
-                    <Button.Styles>
-                        <Style Selector="Button.on">
-                            <Setter Property="Opacity" Value="1" />
-                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
-                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
-                        </Style>
-                    </Button.Styles>
-                </Button>
+                        Opacity="0.65" />
                 <Button Content="{loc:Localized Chart.VolumeProfile}"
                         Command="{Binding ToggleVolumeProfileCommand}"
                         ToolTip.Tip="{loc:Localized Chart.VolumeProfile.Tip}"
                         Classes.on="{Binding ShowVolumeProfile}"
                         MinWidth="92"
                         Margin="8,2,0,2"
-                        Opacity="0.65">
-                    <Button.Styles>
-                        <Style Selector="Button.on">
-                            <Setter Property="Opacity" Value="1" />
-                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
-                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
-                        </Style>
-                    </Button.Styles>
-                </Button>
+                        Opacity="0.65" />
                 <Button Content="{loc:Localized Chart.ExportCandlesCsv}"
                         Command="{Binding ExportCandlesCommand}"
                         MinWidth="110"
@@ -171,15 +155,7 @@
                         Classes.on="{Binding IsTrendLineToolActive}"
                         MinWidth="72"
                         Margin="8,2,0,2"
-                        Opacity="0.65">
-                    <Button.Styles>
-                        <Style Selector="Button.on">
-                            <Setter Property="Opacity" Value="1" />
-                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
-                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
-                        </Style>
-                    </Button.Styles>
-                </Button>
+                        Opacity="0.65" />
                 <Button Content="{loc:Localized Chart.Tool.Level}"
                         Command="{Binding ToolCommand}"
                         CommandParameter="{x:Static tools:ChartDrawingTool.HorizontalLevel}"
@@ -187,15 +163,7 @@
                         Classes.on="{Binding IsLevelToolActive}"
                         MinWidth="72"
                         Margin="8,2,0,2"
-                        Opacity="0.65">
-                    <Button.Styles>
-                        <Style Selector="Button.on">
-                            <Setter Property="Opacity" Value="1" />
-                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
-                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
-                        </Style>
-                    </Button.Styles>
-                </Button>
+                        Opacity="0.65" />
                 <Button Content="{loc:Localized Chart.Tool.Fib}"
                         Command="{Binding ToolCommand}"
                         CommandParameter="{x:Static tools:ChartDrawingTool.FibRetracement}"
@@ -203,15 +171,7 @@
                         Classes.on="{Binding IsFibToolActive}"
                         MinWidth="72"
                         Margin="8,2,0,2"
-                        Opacity="0.65">
-                    <Button.Styles>
-                        <Style Selector="Button.on">
-                            <Setter Property="Opacity" Value="1" />
-                            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
-                            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
-                        </Style>
-                    </Button.Styles>
-                </Button>
+                        Opacity="0.65" />
             </WrapPanel>
         </Grid>
 

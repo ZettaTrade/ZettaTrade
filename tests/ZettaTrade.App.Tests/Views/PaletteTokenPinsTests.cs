@@ -81,65 +81,44 @@ public sealed class PaletteTokenPinsTests
     }
 
     /// <summary>
-    /// The chip templates ride the derived readable foreground (T-152):
-    /// the main window's lane chip and notification count badge, plus the
-    /// ticket's and the panels' testnet badges — every chip text overlays
-    /// a state-color fill and reads it through {DynamicResource
-    /// ChipForeground}, the per-theme derived candidate the startup walk
-    /// publishes. The inherited theme foreground failed the pill-sized
-    /// WCAG bar on those fills (white over #22c55e ≈ 2.3:1).
+    /// The chip surfaces ride the shared Livery chip class (T-154, the
+    /// T-152 readable-foreground heir): the lane chip and the three
+    /// testnet badges carry the `chip` class — the shape, the state fills
+    /// and the readable caption treatment live in the kit. The
+    /// notification count badge keeps its own smaller badge shape
+    /// (radius 6, padding 5,1 — not the pill) and rides the derived
+    /// foreground explicitly.
     /// </summary>
     [Fact]
-    public void TheChipTemplates_RideTheDerivedReadableForeground()
-    {
-        var markers = new (string Window, int ExpectedCount)[]
-        {
-            ("MainWindow", 2),
-            ("NewOrderDialogWindow", 1),
-            ("PositionsPanelWindow", 1),
-            ("OrderHistoryWindow", 1),
-        };
-
-        foreach (var (window, expectedCount) in markers)
-        {
-            var source = File.ReadAllText(
-                Path.Combine(AppProjectDirectory, "Views", $"{window}.axaml"));
-
-            var matches = Regex
-                .Matches(source, @"Foreground=""\{DynamicResource ChipForeground\}""")
-                .Count;
-
-            matches.Should().Be(
-                expectedCount,
-                "the {0} chip surface(s) must ride the derived readable foreground", window);
-        }
-    }
-
-    /// <summary>
-    /// The chip fills stay on the state keys: the lane chip keeps the
-    /// CandleUp/Highlight/Error fills and every badge keeps its Highlight
-    /// fill — the pins above bind the readable foreground to those very
-    /// consumers, so the treatment cannot drift off the fills.
-    /// </summary>
-    [Fact]
-    public void TheChipFills_StayOnTheStateColorKeys()
+    public void TheChipSurfaces_RideTheSharedChipClass()
     {
         var main = File.ReadAllText(
             Path.Combine(AppProjectDirectory, "Views", "MainWindow.axaml"));
 
-        foreach (var fillKey in new[] { "CandleUp", "Highlight", "Error" })
-        {
-            main.Should().Contain(
-                $@"Background"" Value=""{{DynamicResource {fillKey}}}""",
-                "the lane chip's state classes keep their fill keys");
-        }
+        main.Should().Contain(
+            "<Border Classes=\"chip\"",
+            "the lane chip is the shared chip class: the pill shape and the state fills live in the kit");
+
+        // The count badge is its own smaller variant (radius 6): its text
+        // still reads through the derived readable foreground.
+        var badgeForegrounds = Regex
+            .Matches(main, @"Foreground=""\{DynamicResource ChipForeground\}""")
+            .Count;
+        badgeForegrounds.Should().Be(
+            1,
+            "the notification count badge keeps the derived readable foreground; the lane chip's caption lives in the chip class now");
 
         foreach (var window in new[] { "NewOrderDialogWindow", "PositionsPanelWindow", "OrderHistoryWindow" })
         {
-            File.ReadAllText(Path.Combine(AppProjectDirectory, "Views", $"{window}.axaml"))
-                .Should().Contain(
-                    @"Background" + "\" Value=\"{DynamicResource Highlight}\"",
-                    "the {0} testnet badge keeps its Highlight fill", window);
+            var source = File.ReadAllText(
+                Path.Combine(AppProjectDirectory, "Views", $"{window}.axaml"));
+
+            source.Should().Contain(
+                "<Border Classes=\"chip\"",
+                "the {0} testnet badge is the shared chip class", window);
+            source.Should().Contain(
+                "Classes.testnet=",
+                "the {0} badge keeps its testnet lane state class", window);
         }
     }
 

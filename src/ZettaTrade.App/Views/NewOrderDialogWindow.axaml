@@ -25,21 +25,12 @@
                 <Run Text=" — " />
                 <Run Text="{Binding ActiveExchangeName}" />
             </TextBlock>
-            <Border CornerRadius="9"
-                    Padding="8,2"
+            <Border Classes="chip"
                     VerticalAlignment="Center"
                     IsVisible="{Binding IsTestnetLane}"
                     ToolTip.Tip="{loc:Localized Exchange.TestnetBadge.Tooltip}"
                     Classes.testnet="{Binding IsTestnetLane}">
-                <Border.Styles>
-                    <Style Selector="Border.testnet">
-                        <Setter Property="Background" Value="{DynamicResource Highlight}" />
-                    </Style>
-                </Border.Styles>
-                <TextBlock Text="{loc:Localized Exchange.TestnetBadge}"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource ChipForeground}" />
+                <TextBlock Text="{loc:Localized Exchange.TestnetBadge}" />
             </Border>
         </StackPanel>
 

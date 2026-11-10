@@ -6,6 +6,7 @@
         xmlns:views="using:ZettaTrade.App.Views"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
+        xmlns:livery="using:Livery.Controls"
         x:Class="ZettaTrade.App.Views.SettingsWindow"
         Classes="chrome-compact"
         x:DataType="vm:SettingsViewModel"
@@ -192,24 +193,14 @@
                                      checkbox, so the icon itself signals that an explanation
                                      is available. The text wraps so a long translation stays
                                      readable. -->
-                                <Border Width="16" Height="16"
-                                        CornerRadius="8"
-                                        Background="Transparent"
-                                        BorderThickness="1"
-                                        BorderBrush="{DynamicResource Border}"
-                                        VerticalAlignment="Center">
+                                <livery:InfoIcon VerticalAlignment="Center"
+                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11ySmaInfo}">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
                                                    Text="{loc:Localized Chart.Indicators.SmaTip}"
                                                    TextWrapping="Wrap" />
                                     </ToolTip.Tip>
-                                    <TextBlock Text="i"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
+                                </livery:InfoIcon>
                                 <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
                                            VerticalAlignment="Center" />
                                 <TextBox Text="{Binding SmaPeriodText}"
@@ -233,24 +224,14 @@
                                 <CheckBox Content="EMA"
                                           IsChecked="{Binding IsEmaEnabled}"
                                           VerticalAlignment="Center" />
-                                <Border Width="16" Height="16"
-                                        CornerRadius="8"
-                                        Background="Transparent"
-                                        BorderThickness="1"
-                                        BorderBrush="{DynamicResource Border}"
-                                        VerticalAlignment="Center">
+                                <livery:InfoIcon VerticalAlignment="Center"
+                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yEmaInfo}">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
                                                    Text="{loc:Localized Chart.Indicators.EmaTip}"
                                                    TextWrapping="Wrap" />
                                     </ToolTip.Tip>
-                                    <TextBlock Text="i"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
+                                </livery:InfoIcon>
                                 <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
                                            VerticalAlignment="Center" />
                                 <TextBox Text="{Binding EmaPeriodText}"
@@ -265,24 +246,14 @@
                                 <CheckBox Content="WMA"
                                           IsChecked="{Binding IsWmaEnabled}"
                                           VerticalAlignment="Center" />
-                                <Border Width="16" Height="16"
-                                        CornerRadius="8"
-                                        Background="Transparent"
-                                        BorderThickness="1"
-                                        BorderBrush="{DynamicResource Border}"
-                                        VerticalAlignment="Center">
+                                <livery:InfoIcon VerticalAlignment="Center"
+                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yWmaInfo}">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
                                                    Text="{loc:Localized Chart.Indicators.WmaTip}"
                                                    TextWrapping="Wrap" />
                                     </ToolTip.Tip>
-                                    <TextBlock Text="i"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
+                                </livery:InfoIcon>
                                 <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
                                            VerticalAlignment="Center" />
                                 <TextBox Text="{Binding WmaPeriodText}"
@@ -297,24 +268,14 @@
                                 <CheckBox Content="RSI"
                                           IsChecked="{Binding IsRsiEnabled}"
                                           VerticalAlignment="Center" />
-                                <Border Width="16" Height="16"
-                                        CornerRadius="8"
-                                        Background="Transparent"
-                                        BorderThickness="1"
-                                        BorderBrush="{DynamicResource Border}"
-                                        VerticalAlignment="Center">
+                                <livery:InfoIcon VerticalAlignment="Center"
+                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yRsiInfo}">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
                                                    Text="{loc:Localized Chart.Indicators.RsiTip}"
                                                    TextWrapping="Wrap" />
                                     </ToolTip.Tip>
-                                    <TextBlock Text="i"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
+                                </livery:InfoIcon>
                                 <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
                                            VerticalAlignment="Center" />
                                 <TextBox Text="{Binding RsiPeriodText}"
@@ -329,24 +290,14 @@
                                 <CheckBox Content="MACD"
                                           IsChecked="{Binding IsMacdEnabled}"
                                           VerticalAlignment="Center" />
-                                <Border Width="16" Height="16"
-                                        CornerRadius="8"
-                                        Background="Transparent"
-                                        BorderThickness="1"
-                                        BorderBrush="{DynamicResource Border}"
-                                        VerticalAlignment="Center">
+                                <livery:InfoIcon VerticalAlignment="Center"
+                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yMacdInfo}">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
                                                    Text="{loc:Localized Chart.Indicators.MacdTip}"
                                                    TextWrapping="Wrap" />
                                     </ToolTip.Tip>
-                                    <TextBlock Text="i"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
+                                </livery:InfoIcon>
                                 <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
                                            VerticalAlignment="Center" />
                                 <TextBox Text="{Binding MacdPeriodText}"
@@ -361,24 +312,14 @@
                                 <CheckBox Content="ATR"
                                           IsChecked="{Binding IsAtrEnabled}"
                                           VerticalAlignment="Center" />
-                                <Border Width="16" Height="16"
-                                        CornerRadius="8"
-                                        Background="Transparent"
-                                        BorderThickness="1"
-                                        BorderBrush="{DynamicResource Border}"
-                                        VerticalAlignment="Center">
+                                <livery:InfoIcon VerticalAlignment="Center"
+                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yAtrInfo}">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
                                                    Text="{loc:Localized Chart.Indicators.AtrTip}"
                                                    TextWrapping="Wrap" />
                                     </ToolTip.Tip>
-                                    <TextBlock Text="i"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
+                                </livery:InfoIcon>
                                 <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
                                            VerticalAlignment="Center" />
                                 <TextBox Text="{Binding AtrPeriodText}"
@@ -393,24 +334,14 @@
                                 <CheckBox Content="BOLL"
                                           IsChecked="{Binding IsBollEnabled}"
                                           VerticalAlignment="Center" />
-                                <Border Width="16" Height="16"
-                                        CornerRadius="8"
-                                        Background="Transparent"
-                                        BorderThickness="1"
-                                        BorderBrush="{DynamicResource Border}"
-                                        VerticalAlignment="Center">
+                                <livery:InfoIcon VerticalAlignment="Center"
+                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yBollInfo}">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
                                                    Text="{loc:Localized Chart.Indicators.BollTip}"
                                                    TextWrapping="Wrap" />
                                     </ToolTip.Tip>
-                                    <TextBlock Text="i"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
+                                </livery:InfoIcon>
                                 <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
                                            VerticalAlignment="Center" />
                                 <TextBox Text="{Binding BollPeriodText}"

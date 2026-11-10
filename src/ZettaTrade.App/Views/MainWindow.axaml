@@ -142,13 +142,14 @@
                      name. The lane is a property of the TRADED surface (the
                      trading-mode service's stream), never of the market
                      data picker (T-016: exchange and mode are two
-                     different decisions). Colors reuse the palette keys the
-                     adapter health dots already speak — calm CandleUp,
-                     prompt Highlight, danger Error — and re-tint live on
-                     theme switches; the caption and tooltip are dynamic
-                     localized data from the view model. The text rides the
-                     derived ChipForeground (T-152): the readable per-theme
-                     foreground over those fills. -->
+                     different decisions). The pill is the Livery chip class
+                     (T-154): the shape, the three state fills and the
+                     readable derived caption treatment live there; the
+                     colors reuse the palette keys the adapter health dots
+                     already speak — calm CandleUp, prompt Highlight,
+                     danger Error — and re-tint live on theme switches; the
+                     caption and tooltip are dynamic localized data from
+                     the view model. -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             Spacing="8"
@@ -157,37 +158,23 @@
                     <TextBlock VerticalAlignment="Center">
                         <Run Text="{Binding ActiveExchangeName}" />
                     </TextBlock>
-                    <Border CornerRadius="9"
-                            Padding="8,2"
+                    <Border Classes="chip"
                             VerticalAlignment="Center"
                             ToolTip.Tip="{Binding TradingLaneTooltip}"
                             Classes.paper="{Binding IsPaperLane}"
                             Classes.testnet="{Binding IsTestnetLane}"
                             Classes.live="{Binding IsLiveLane}">
-                        <Border.Styles>
-                            <Style Selector="Border.paper">
-                                <Setter Property="Background" Value="{DynamicResource CandleUp}" />
-                            </Style>
-                            <Style Selector="Border.testnet">
-                                <Setter Property="Background" Value="{DynamicResource Highlight}" />
-                            </Style>
-                            <Style Selector="Border.live">
-                                <Setter Property="Background" Value="{DynamicResource Error}" />
-                            </Style>
-                        </Border.Styles>
-                        <TextBlock Text="{Binding TradingLaneLabel}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource ChipForeground}" />
+                        <TextBlock Text="{Binding TradingLaneLabel}" />
                     </Border>
                 </StackPanel>
                 <TextBlock Grid.Column="3" Text="{Binding ConnectionStatus}" Margin="16,0" VerticalAlignment="Center" />
                 <!-- The adapter health strip (T-098): one dot per registered
-                     adapter. The palette keys re-tint live on theme switches
-                     (DynamicResource); the state flags are what the dot's
-                     styles pick the fill from — connected / reconnecting /
-                     down / unsupervised, and the localized tooltip carries
-                     the last event moment and the failure counter. -->
+                     adapter. The dots ride the Livery StateDot classes
+                     (T-154): the state fills live in the kit over the same
+                     palette keys the chips speak — connected / reconnecting
+                     / down / unsupervised — and re-tint live on theme
+                     switches (DynamicResource); the localized tooltip
+                     carries the last event moment and the failure counter. -->
                 <ItemsControl Grid.Column="4"
                               ItemsSource="{Binding AdapterHealthRows}"
                               Margin="8,0"
@@ -203,25 +190,11 @@
                                      Height="9"
                                      VerticalAlignment="Center"
                                      ToolTip.Tip="{Binding Tooltip}"
+                                     Classes="dot"
                                      Classes.connected="{Binding IsConnected}"
                                      Classes.reconnecting="{Binding IsReconnecting}"
                                      Classes.down="{Binding IsDown}"
-                                     Classes.unsupervised="{Binding IsUnsupervised}">
-                                <Ellipse.Styles>
-                                    <Style Selector="Ellipse.connected">
-                                        <Setter Property="Fill" Value="{DynamicResource CandleUp}" />
-                                    </Style>
-                                    <Style Selector="Ellipse.reconnecting">
-                                        <Setter Property="Fill" Value="{DynamicResource Highlight}" />
-                                    </Style>
-                                    <Style Selector="Ellipse.down">
-                                        <Setter Property="Fill" Value="{DynamicResource Error}" />
-                                    </Style>
-                                    <Style Selector="Ellipse.unsupervised">
-                                        <Setter Property="Fill" Value="{DynamicResource TextSecondary}" />
-                                    </Style>
-                                </Ellipse.Styles>
-                            </Ellipse>
+                                     Classes.unsupervised="{Binding IsUnsupervised}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
