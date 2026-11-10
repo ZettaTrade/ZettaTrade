@@ -133,7 +133,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-126 Product landing page: screenshots, story, download CTA | feat/landing-page | done | T-125 |
 | T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | done | - |
 | T-128 Demo video: storyboard + shot list (docs/ops) | feat/demo-script | done | - |
-| T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | queued | T-126 |
+| T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | in-progress | - |
 | T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
 | T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | done | - |
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | queued | T-131 |
@@ -181,7 +181,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-129 — Alpha program: testers onboarding, feedback triage, public metrics
 
-- **Branch:** queued 2026-11-06 (presentation-track gap, supervisor idea at the monetization review; not urgent). **Blocker:** T-126.
+- **Branch:** feat/alpha-program, worktree zt-alpha-program, based on develop@b38f7c1 (claimed 2026-11-10 per standing directive 6; queued 2026-11-06 at the monetization review). **Blocker:** T-126 (done — the landing is shipped).
 - **Origin:** the traction gap: features ship, but there is no channel between them and real humans, and any investor conversation needs honest, verifiable numbers — not private telemetry.
 - **What:** a lightweight program over the public surface: a call-for-testers section on the landing (T-126), feedback intake via GitHub (issue templates + a label set), a triage pipeline feeding findings into the board (TASKS.md rows in the usual lifecycle), and a public metrics page built ONLY from public GitHub data (Release download counts, contributor/star counts, issues resolved) with sources cited — the local-first/no-telemetry promise of the product stays absolute (nothing in the app phones home). The gate: numbers must be re-derivable by anyone clicking the cited links.
 - **Scope:** docs-site section(s), `.github/ISSUE_TEMPLATE/*` + labels, `docs/ALPHA-PROGRAM.md`, the metrics page generator (static, CI-able); no product code.
