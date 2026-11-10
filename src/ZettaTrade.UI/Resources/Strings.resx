@@ -111,6 +111,9 @@
   <data name="Settings.Indicators.Empty" xml:space="preserve">
     <value>No indicator plugins found in the app data directory's plugins folder (scan skips are reported in the log)</value>
   </data>
+  <data name="Settings.Tab.Integrations" xml:space="preserve">
+    <value>Integrations</value>
+  </data>
   <data name="Settings.Tab.Mcp" xml:space="preserve">
     <value>MCP</value>
   </data>
@@ -185,6 +188,9 @@
   </data>
   <data name="Settings.McpClients.State.Empty" xml:space="preserve">
     <value>Not applied yet — save to let the manager connect it</value>
+  </data>
+  <data name="Settings.Tab.Workspace" xml:space="preserve">
+    <value>Workspace</value>
   </data>
   <data name="Settings.Tab.Pairs" xml:space="preserve">
     <value>Pairs</value>
