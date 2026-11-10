@@ -27,8 +27,13 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Authenticate the private Livery package feed
-        run: dotnet nuget add source https://nuget.pkg.github.com/ZettaTrade/index.json --name zettatrade --username ZettaTrade --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text
+      - name: Authenticate the private package feed
+        # The root nuget.config already pins the zettatrade source - add
+        # refuses a duplicate name against the effective source list, so
+        # the pinned source is updated in place with the run's
+        # GITHUB_TOKEN. The credentials land in the checked-out copy
+        # only; nothing is committed.
+        run: dotnet nuget update source zettatrade --username ZettaTrade --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --configfile nuget.config
 
       - name: Build
         run: dotnet build ZettaTrade.slnx -nodeReuse:false -warnaserror --nologo -v q -clp:NoSummary
