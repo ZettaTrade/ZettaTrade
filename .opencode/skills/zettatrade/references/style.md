@@ -1,0 +1,36 @@
+## Coding Conventions
+- **ALL code, comments, XML docs, commit messages, and internal strings MUST be in English**
+- User-facing strings go through the localization system
+- File-scoped namespaces
+- Primary constructors where appropriate
+- Record types for DTOs and value objects
+- Interface segregation for testability
+- Async/await everywhere (no .Result or .Wait())
+- CancellationToken on all async methods
+- Nullable reference types enabled
+- XML docs on public API
+- **NEVER use CommunityToolkit.Mvvm** — use ReactiveUI exclusively
+- **NEVER use [ObservableProperty], [RelayCommand], ObservableObject** — use ReactiveUI equivalents
+- Use ReactiveObject as base class for all ViewModels
+- Use RaiseAndSetIfChanged for property change notifications
+- Use ReactiveCommand for commands
+- Use WhenActivated for lifecycle management and subscriptions
+- Use IObservable for reactive streams and data flows
+- **NEVER create generic catch-all files** like Enums.cs, Entities.cs, Models.cs, Utils.cs
+- **Split files by domain responsibility** — each file should have a clear, focused purpose
+- **Use descriptive file names** that indicate the domain concept (OrderEnums.cs, not Enums.cs)
+- **One entity per file** for complex entities (Order.cs, Position.cs, Trade.cs)
+- **Group related small types** in one file only if they share the same domain concept (MarketData.cs for Bar, Ticker, OrderBook)
+- **Avoid magic numbers** — use named constants or enums instead of bare literals (e.g., const int MaxRetries = 3; instead of if (attempts > 3))
+- **Use nameof()** for property/method/type names in strings (e.g., nameof(Order.Symbol) instead of "Symbol", RaisePropertyChanged(nameof(Status)))
+- **Extract repeated literals** — if a value appears in multiple places, define it as const or static readonly field in an appropriate location
+- **Prefer domain-specific constants** — group related constants in static classes (e.g., OrderLimits.MaxQuantity, ExchangeNames.Binance)
+- **Format method signatures** — methods with 3+ parameters should be formatted on multiple lines for readability (one parameter per line, indented)
+- **NEVER use fire-and-forget** — avoid underscore-equals async method pattern. Either await the task or use proper error handling with Subscribe(onError: ...) for reactive streams
+- **Avoid synchronous methods returning Task** — if a method is truly synchronous, return the value directly instead of wrapping in Task.FromResult. Only return Task when the method actually performs async I/O or when required by an interface contract
+- **NEVER use .GetAwaiter().GetResult() in constructors** — this blocks the thread and can cause deadlocks in UI applications. Use IAsyncInitializable pattern instead: implement InitializeAsync() method and call it from async context (e.g., App.OnFrameworkInitializationCompleted)
+- **Use RxVoid from ReactiveUI** — for commands without return value, use ReactiveCommand<TParam, RxVoid> (NOT System.Reactive.Unit). Methods should return Task (not Task<Unit>). Note: IObservable<T> is OK (it's from System.Reactive but used by ReactiveUI), but NEVER use System.Reactive.Unit — always use ReactiveUI.RxVoid instead
+- **NO HTML entities in C# code** — never use &lt;, &gt;, &amp;, etc. in C# source files. Use simple // comments for examples instead of XML documentation with HTML escapes
+
+## Typography and Encoding (mandatory)
+- **Enter non-ASCII characters through the file editor tools only** (em dashes, arrows, guillemets like «...») — never through console or shell paste paths. A UTF-8 file re-read as Windows-1251 bakes double-encoded mojibake into the bytes (the 2026-11-03..07 wave across CHANGELOG.md, chart and test comments, and the version-policy comment), and the gate lint `[MOJIBAKE]` fails the branch on it. Shell command strings themselves stay ASCII for the same reason non-glyph characters must never travel through terminal pipelines.

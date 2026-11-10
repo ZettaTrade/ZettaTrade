@@ -1,0 +1,11 @@
+## Settings & Configuration
+- **General settings**: appsettings.json + user overrides (JSON)
+- **Feature settings**: Per-module config files (mcp.config.json, exchanges.config.json, etc.)
+- **Secrets**: ISecretStore interface with platform-native implementations
+  - Windows: DPAPI (ProtectedData)
+  - macOS: Keychain Services (P/Invoke)
+  - Linux: Secret Service API (libsecret/D-Bus) with encrypted file fallback
+- **Config paths**: XDG-compliant per platform
+  - Windows: %APPDATA%/ZettaTrade/config/
+  - macOS: ~/Library/Application Support/ZettaTrade/config/
+  - Linux: ~/.config/ZettaTrade/config/
