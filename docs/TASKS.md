@@ -155,7 +155,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | done | - |
 | T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | done | - |
-| T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | queued | - |
+| T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | in-progress | - |
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | queued | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | queued | - |
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | queued | - |
@@ -297,7 +297,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-151 — Palette contract lint: WCAG pins over every theme file + the Accent role fix
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Branch:** feat/palette-lint, worktree zt-palette-lint, based on develop@9c2cb0b (claimed 2026-11-11 as the second of the T-150…T-162 design-review batch — the Accent role contract lands right after the token convergence).
 - **Origin:** the Accent key lost its role: the dark palette uses it as a barely-visible hover
   fill (contrast vs Surface ~1.4:1), the light one makes the TextBox focus border invisible
   (~1.2:1 vs white), while the auto-created sample theme reads Accent as a loud brand red. A
@@ -314,6 +314,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   focus border) fails the gate naming the pair; custom user themes hit the same pins on load.
 - **Tests:** the pin battery over the real files (the shipped goldens recorded), plus a negative
   fixture that a broken palette fails loudly.
+- **Status:** in-progress
 
 ## T-152 — Trading mode chips readable: dark foreground on the state colors
 
