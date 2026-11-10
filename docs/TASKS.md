@@ -145,6 +145,9 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-138 Stabilize the App.Tests dispatcher tally flake: one serialized dispatcher world | feat/flaky-pump-tally | done | - |
 | T-139 Board truthfulness: archive the lingering T-117/T-118 sections, restore the canonical archive order | feat/board-truth | done | - |
 | T-140 Review hygiene pass: async-void routes, MCP registry locking, non-English prose cleanup | feat/review-hygiene | done | - |
+| T-141 Soak isolation: pin the demo adapter so a run is network-free | fix/soak-isolation | queued | - |
+| T-142 Book timestamps: one clock discipline across adapters (the WS latency measures transport) | fix/book-timestamps | queued | - |
+| T-143 Palette suggestion rows carry automation names (not the record's ToString) | fix/palette-a11y-rows | queued | - |
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | planned | - |
 
@@ -189,6 +192,33 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the bootstrap and split commits in the new Livery repo, the ZettaTrade consumption switch, the docs notes; no product behavior changes.
 - **Acceptance:** the new repo's history reaches back through the split for Livery files (nothing lost at the splice); a clean ZettaTrade clone builds with zero in-tree Livery sources and the full test matrix stays green; the two-PR cross-repo path lands once as a rehearsal (a style tweak: the version-bumped PR in Livery, then the bump PR here).
 - **Tests:** the matrix over the consumption switch; the Livery suite in the new repo; the rehearsal change verified on both sides.
+
+## T-141 — Soak isolation: pin the demo adapter so a run is network-free
+
+- **Branch:** queued 2026-11-10 (filed from the QA review of the T-108/T-102/T-124/T-110/T-109 landing batch: docs/SOAK.md advertises isolation the driver does not provide).
+- **Origin:** docs/SOAK.md promises the deterministic demo adapter with no network, but scripts/soak.ps1 launches the app with no adapter pin — the review's soak window logged `Restored persisted exchange 'Bybit'` plus live api.bybit.com requests (and one to binance) inside the run, so a local soak rides the user's persisted config. CI gets away with it only because runners carry no user profile.
+- **What:** the launch step pins the app away from the real profile: either a per-run config sandbox (a child-process environment override of APPDATA via `ProcessStartInfo`, PowerShell 5.1-compatible, seeded with a pinned demo-adapter selection, discarded after the run) or an equivalent app-side demo-adapter CLI/env argument. Fold the label nit found in the same review: `Get-AppCpuPercent` calls itself "share of one core-equivalent" while the math divides by the total core count — one wording survives.
+- **Scope:** scripts/soak.ps1 (launch, cleanup, report wording), docs/SOAK.md; product code only if the CLI/env pin route wins.
+- **Acceptance:** a soak run's app log keeps exchange HTTP/WebSocket traffic at zero outside the demo adapter on every lane; the user's appsettings stays invisible to the run (the sandbox copy absorbs it); the harness stays PowerShell 5.1-runnable and CI's weekly soak keeps the same machinery.
+- **Tests:** a `-Minutes 0` self-check in the driver that asserts the pinned demo state from the run's own log census; no goldens change shape.
+
+## T-142 — Book timestamps: one clock discipline across adapters (the WS latency measures transport)
+
+- **Branch:** queued 2026-11-10 (filed from the same QA review: the T-108 histogram conflates transport with clock skew and the adapters stamp differently).
+- **Origin:** the WS-latency histogram mixes transport latency with clock offset and is adapter-inconsistent: Bybit stamps the assembled OrderBook with the exchange's server `ts` (BybitAdapter's WS book path carries the message's stamp into BybitOrderBookAssembler), Binance stamps `DateTimeOffset.UtcNow`; the review measured ~650 ms of local-vs-Bybit offset and saw the whole book stream land in the >500 ms overflow bucket.
+- **What:** one discipline everywhere — recommended: local receive time (`DateTimeOffset.UtcNow` at each adapter's ingestion point), making the histogram transport-only; the documented alternative keeps exchange stamps and carries a clock-skew caveat in the HUD. The `OrderBook.Timestamp` semantic is documented once; consumers outside the histogram see no change.
+- **Scope:** every adapter's book path (Bybit incl. BybitOrderBookAssembler, Binance, the demo adapter), the stamps' goldens, the HUD histogram's doc comment; Core interfaces untouched.
+- **Acceptance:** under a skewed local clock a fast feed keeps its samples in the small buckets; each adapter's stamping choice is pin-tested; the change is behavior-compatible for everything but the histogram.
+- **Tests:** per-adapter stamping pins plus a histogram golden with an injected skew; the existing book/HUD goldens adjusted.
+
+## T-143 — Palette suggestion rows carry automation names (not the record's ToString)
+
+- **Branch:** queued 2026-11-10 (filed from the same QA review; per docs/A11Y-AUDIT.md the palette row naming sat outside T-110's claimed scope).
+- **Origin:** the palette's suggestion rows surface their UIA Name as the SymbolPaletteRow record's ToString — a screen reader reads `SymbolPaletteRow { Symbol = BTC/USDT, ExchangeId = bybit, ... }` instead of a symbol-first entry (caught in the compare-pick flow of the review probe).
+- **What:** compose a real automation name per row — symbol first, exchange plus the favorite/recent qualifiers as needed, localized en+ru — via `AutomationProperties.Name` bindings in the palette view or a composed name riding the rows; the pins live next to T-110's accessibility fixtures.
+- **Scope:** the symbol palette view/ViewModel, resx en+ru (the `Chart.*` prefix), the a11y pins/tests; the palette's keyboard-first behavior stays untouched.
+- **Acceptance:** in both languages a row's UIA Name reads like a symbol entry (e.g. `BTC/USDT on Bybit`), every string resolves en+ru, and the compare-pick flow reports a clean name instead of the record dump.
+- **Tests:** row-naming pins in the palette a11y fixture (en+ru); the palette's unchanged behavior goldens.
 
 ## T-149 - Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin
 
