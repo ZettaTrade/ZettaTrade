@@ -95,7 +95,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-088 Depth chart: cumulative bid/ask areas view | feat/depth-chart | done | - |
 | T-089 Chart types: line, area, bars, Heikin-Ashi | feat/chart-types | done | - |
 | T-090 Y-axis scale modes: log and percent | feat/chart-scales | done | - |
-| T-091 Drawing tools: trend line, horizontal level, fib retracement | feat/draw-tools | in-progress | - |
+| T-091 Drawing tools: trend line, horizontal level, fib retracement | feat/draw-tools | done | - |
 | T-092 Standard indicator pack (EMA, RSI, MACD, Bollinger… as bundled plugins) | feat/indicator-pack | done | - |
 | T-093 VWAP + volume profile overlay | feat/vol-vwap | done | - |
 | T-094 Chart export: PNG snapshot + CSV candles | feat/chart-export | done | - |
@@ -168,16 +168,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-
-## T-091 - Drawing tools: trend line, horizontal level, fib retracement
-
-- **Branch:** feat/draw-tools, worktree zt-draw-tools, based on develop@fc4691a (claimed 2026-11-10 per standing directive 6; queued 2026-11-06 at the T-074…T-115 backlog cut).
-- **Origin:** annotation is the most-requested chart feature family in terminal land; nothing exists.
-- **What:** an overlay layer (Skia) above candles: trend line, horizontal level, fib retracement; draw/drag/edit/delete, snapping to price/time grid; per (symbol, interval) persistence in the local store; drawings never leave the process (no sync, no upload).
-- **Scope:** Charting overlay + tool palette UI, persistence, resx en+ru, tests.
-- **Acceptance:** drawings stay anchored across pan/zoom and reloads (T-033/T-036 lessons respected).
-- **Tests:** coordinate anchoring roundtrip, hit-test/drag golden, persistence reload.
-- **Status:** in-progress.
 
 ## T-103 — Detachable panels: multi-window workspaces
 
