@@ -120,7 +120,8 @@ secret is passed via stdin.
 
 - **Market data** — Binance and Bybit read-only adapters (public REST history + WebSocket
   streams), configurable endpoint host pairs, a toolbar exchange switcher, live order
-  book, candlestick charting with zoom/pan, indicator plugins (SMA ships first).
+  book, candlestick charting with zoom/pan, indicator plugins (SMA ships first). Out-of-tree
+  modules compile against the versioned plugin SDK — see `docs/PLUGINS.md`.
 - **Trading surface (paper)** — New Order dialog and a confirmation dialog for high-risk
   operations, positions panel, persisted order history (SQLite via EF Core); all orders
   go through risk validation.

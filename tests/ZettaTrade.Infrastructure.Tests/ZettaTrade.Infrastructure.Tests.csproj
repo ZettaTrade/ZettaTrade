@@ -36,6 +36,8 @@
          genuinely missing when the scan loads the plugin. -->
     <ProjectReference Include="..\ZettaTrade.Plugins.Broken\ZettaTrade.Plugins.Broken.csproj" />
     <ProjectReference Include="..\ZettaTrade.Plugins.BrokenBase\ZettaTrade.Plugins.BrokenBase.csproj" ExcludeAssets="runtime" />
+    <ProjectReference Include="..\ZettaTrade.Plugins.Fixtures\ZettaTrade.Plugins.Fixtures.csproj" />
+    <ProjectReference Include="..\ZettaTrade.Plugins.Fixtures.Hazards\ZettaTrade.Plugins.Fixtures.Hazards.csproj" />
   </ItemGroup>
 
 </Project>

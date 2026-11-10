@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- The SDK hazard fixtures (T-131): the failure shapes the SDK loader's
+       loud-failure canon pins — the cross-assembly duplicate id, the
+       declared-but-missing dependency, the unparsable version, the
+       manifest-less entry and both cycle shapes. The goldens stage this
+       assembly's dll into temp scan directories beside or instead of the
+       ZettaTrade.Plugins.Fixtures one; no product graph references it. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ZettaTrade.Core\ZettaTrade.Core.csproj" />
+    <ProjectReference Include="..\..\src\ZettaTrade.Plugins.Abstractions\ZettaTrade.Plugins.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+  </ItemGroup>
+
+</Project>

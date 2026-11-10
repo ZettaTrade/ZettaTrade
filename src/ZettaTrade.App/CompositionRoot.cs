@@ -19,6 +19,7 @@ using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Indicators;
 using ZettaTrade.Infrastructure.Persistence;
+using ZettaTrade.Infrastructure.Plugins;
 using ZettaTrade.Infrastructure.Secrets;
 using ZettaTrade.Infrastructure.Shell;
 using ZettaTrade.Strategies;
@@ -91,6 +92,11 @@ internal static class CompositionRoot
         // signals channel stays inert output — consumers prefill the ticket,
         // the human decides.
         services.AddStrategies(ConfigPathResolver.PluginsDirectory);
+
+        // The SDK plugin seam (T-131): the blessed path out-of-tree plugin
+        // assemblies travel — one manifest scan at the startup walk, the
+        // registrations landing in the extension registry for the shell.
+        services.AddPluginSdk(ConfigPathResolver.PluginsDirectory);
 
         // Active-exchange facade over the concrete adapters: every market
         // data consumer resolves one IMarketDataAdapter that forwards to

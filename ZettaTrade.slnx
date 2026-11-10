@@ -6,6 +6,7 @@
   <Project Path="src/ZettaTrade.Charting/ZettaTrade.Charting.csproj" />
   <Project Path="src/ZettaTrade.Core/ZettaTrade.Core.csproj" />
   <Project Path="src/ZettaTrade.Infrastructure/ZettaTrade.Infrastructure.csproj" />
+  <Project Path="src/ZettaTrade.Plugins.Abstractions/ZettaTrade.Plugins.Abstractions.csproj" />
   <Project Path="src/ZettaTrade.Plugins.Atr/ZettaTrade.Plugins.Atr.csproj" />
   <Project Path="src/ZettaTrade.Plugins.Bollinger/ZettaTrade.Plugins.Bollinger.csproj" />
   <Project Path="src/ZettaTrade.Plugins.Ema/ZettaTrade.Plugins.Ema.csproj" />
@@ -24,6 +25,8 @@
     <Project Path="tests/ZettaTrade.Infrastructure.Tests/ZettaTrade.Infrastructure.Tests.csproj" />
     <Project Path="tests/ZettaTrade.Plugins.Broken/ZettaTrade.Plugins.Broken.csproj" />
     <Project Path="tests/ZettaTrade.Plugins.BrokenBase/ZettaTrade.Plugins.BrokenBase.csproj" />
+    <Project Path="tests/ZettaTrade.Plugins.Fixtures.Hazards/ZettaTrade.Plugins.Fixtures.Hazards.csproj" />
+    <Project Path="tests/ZettaTrade.Plugins.Fixtures/ZettaTrade.Plugins.Fixtures.csproj" />
     <Project Path="tests/ZettaTrade.Plugins.SampleStrategy/ZettaTrade.Plugins.SampleStrategy.csproj" />
     <Project Path="tests/ZettaTrade.Soak.Tests/ZettaTrade.Soak.Tests.csproj" />
     <Project Path="tests/ZettaTrade.Strategies.Tests/ZettaTrade.Strategies.Tests.csproj" />

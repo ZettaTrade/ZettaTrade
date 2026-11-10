@@ -1,3 +1,24 @@
+## [0.1.0-alpha.89] - 2026-11-10
+
+Build of board task T-131 (branch `feat/plugin-sdk`).
+
+### Added
+- The plugin SDK seam (T-131): a versioned contract assembly,
+  `ZettaTrade.Plugins.Abstractions`, that out-of-tree modules compile
+  against — the per-class manifest with a stable id, a SemVer 2 version
+  and declared dependencies; the one-time async lifecycle; a bounded
+  services window (the plugin's own DI layer first, the host's
+  capabilities behind it, missing ones answer null); the panel, toolbar
+  and settings-section descriptors every plugin registers into its own
+  layer. The blessed loader walks the plugins directory once at startup:
+  duplicate ids, missing dependencies, cycles, unparsable versions and
+  manifest-less entries refuse loudly (every refusal lands in the load
+  report, sorted, with a reason), the survivors start dependency-first,
+  garbage dlls warn and skip, and an absent plugins directory costs
+  nothing. The public surface is pinned by a contract-baseline test — a
+  breaking release is a major bump or a refusal; `docs/PLUGINS.md` is the
+  author guide.
+
 ## [0.1.0-alpha.88] - 2026-11-10
 
 Build of board task T-091 (branch `feat/draw-tools`).
