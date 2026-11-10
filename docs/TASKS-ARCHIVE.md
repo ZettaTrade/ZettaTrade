@@ -2095,6 +2095,52 @@ the board and its section below.
   Gate PASSED on attempt 1; smoke 58 log entries, 0 ERR/FTL, ProductVersion
   `0.1.0-alpha.97+45a25332…`.
 
+## T-153 — Status bar declutter: the message channel + the summary, the settings noise out
+
+- **Branch:** feat/status-bar, worktree zt-status-bar, based on develop@b96dee7 (claimed 2026-11-11 as the fourth of the T-150…T-162 design-review batch — the strip sheds the once-a-month noise right after the chips-readability pass).
+- **Origin:** eight groups ride the bottom strip (the Ready text, the exchange picker, the active
+  exchange, the lane chip, the connection state, the theme name, the language name, the version
+  and the health dots); the theme/language/version facts change once a month and eat the reading
+  space needed for the actual status messages.
+- **What:** the strip keeps: a real message channel (transient event messages over the Ready idle
+  text), the exchange picker, the active exchange + lane chip, the connection state, the health
+  dots. The theme/language labels move to the settings (both already switch there); the version
+  moves to Help/About.
+- **Scope:** the MainWindow status Border, the StatusBar ViewModel rows, resx en+ru for the moved
+  captions; no exchange/provider contracts.
+- **Acceptance:** the strip carries at most the five named groups; an event still surfaces on the
+  strip before it vanishes; every removed label stays reachable in one action (settings/About).
+- **Tests:** StatusBar VM pins for the message channel's replace/coalesce behavior; a view pin
+  asserting the removed bindings are gone.
+- **Status:** done. Canon: the claim `b4012d6`, the feat `5462111` (0.1.0-alpha.98). Takeover
+  fact: the claim landed from a supervisor session that died right after committing it (no
+  drafts on disk) — adopted as-is and executed supervisor-solo (the subagent lane stays closed
+  per the 2026-11-09 quota deaths). Design decisions: the channel reads the notification
+  center's RAW `Events` lane, not the `Toasts` display lane — the strip is a status surface; the
+  per-source mutes and Do-Not-Disturb gate the toasts, never the status facts. Each event
+  surfaces its summary through `NotificationRow.ForDisplay` (the row's compose-at-arrival
+  discipline: a displayed message never re-renders on a language switch; only the Ready idle
+  text re-derives, and the idle re-derivation skips while a message holds via the
+  `_messageHeldUntil` guard — the fallback-notice pattern). Replace semantics ride a Switch-ed
+  per-event expiry timer: a later event unsubscribes the message it replaces together with that
+  message's pending expiry, so a burst coalesces into the displayed latest and one vanishing
+  ride covers it (five-second display, test-overridable). The version's one-action home is the
+  About/Disclaimer dialog — the existing Help menu item, no new window (the task scope kept the
+  surface set): the dialog's view model carries `VersionText` (`AppVersion.Current` through a
+  factory DI registration) rendered as a caption+value line; the strip itself went
+  five-column (`*,Auto,Auto,Auto,Auto`), health dots at column 4. Removed: the `IThemeManager`
+  and `appVersion` constructor dependencies plus the `CurrentThemeName`/`CurrentLanguage`/
+  `AppVersion` properties. Tests: the message-channel pin battery in `StatusBarViewModelTests`
+  (idle Ready text, surface-then-vanish with the BUG-018 posted-write discipline, the second
+  event's replace, the language-switch guard with the re-derived idle text),
+  `StatusBarStripPinsTests` view pins (exactly five columns, the removed bindings gone, the
+  version reachable in the About dialog), the disclaimer VM's version-line pin, and the
+  lane-chip call-count pin narrowed to the lane keys (the ctor's idle-text read is out of that
+  pin's scope). Gate PASSED on attempt 1 (`-AllowProtected` for the bump); smoke: alive 15 s,
+  ProductVersion `0.1.0-alpha.98+5462111826…`, the run's 88-entry log slice carries 0 ERR/FTL
+  (the six WRN entries are the demo-adapter unsupported-watchlist-symbol family plus the
+  Binance quote-asset note — logged-by-design degradation, not startup faults).
+
 ## T-163 - The plugins consumption switch: the standard pack rides the package mechanics
 
 - **Branch:** feat/plugin-packages, worktree zt-plugin-packages, based on develop@1f2a622 (claimed 2026-11-10 per standing directive 6; filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
