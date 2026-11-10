@@ -1,3 +1,36 @@
+## [0.1.0-alpha.97] - 2026-11-11
+
+Build of board task T-152 (branch `fix/lane-chip-contrast`).
+
+### Added
+- The shared readable-chip treatment (T-152): every state-colored chip
+  text rides a per-theme derived `ChipForeground` brush published into
+  the application's resource world — the derivation scores the two
+  achromatic candidates (black, white) against the applied CandleUp/
+  Highlight/Error fills through Livery's public `Contrast.Ratio` and
+  keeps the one whose worst pair reads best (the dark themes' bright
+  fills read with near-black text — worst-case 5.58:1 over Error; the
+  light theme's darker fills with near-white text — worst-case 4.83:1).
+  No fixed foreground served both worlds: the inherited theme
+  foreground measured ~2.3:1 white over #22c55e and ~3.8:1 black over
+  the light theme's dark gold.
+
+### Changed
+- The chip surfaces riding the derived foreground: the status-bar lane
+  chip (the T-123 PAPER/TESTNET/LIVE pill), the ticket's TESTNET badge
+  and the panels' badges (the four T-127 copies), and the notification
+  count badge — which dropped its previous walk-around (the badge's
+  Background key as its text color) for the honest equal. The
+  `ChipForegroundPublisher` (an `IAsyncInitializable` the startup walk
+  owns) subscribes to the theme stream, re-derives on every apply (theme
+  switches, hot-reload applies, the first-run default) and stays silent
+  while the resource world carries no fills yet. Tests: the derivation
+  facts pin both worlds' fills and a mixed best-effort edge, the
+  acceptance walk applies all five shipped themes through the real
+  manager and measures every chip pair at or above the 4.5:1 pill bar,
+  and the source pins freeze the markers, the fill keys and the dropped
+  walk-around across the four windows.
+
 ## [0.1.0-alpha.96] - 2026-11-11
 
 Build of board task T-151 (branch `feat/palette-lint`).
