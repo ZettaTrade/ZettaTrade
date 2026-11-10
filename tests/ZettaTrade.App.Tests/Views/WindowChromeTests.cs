@@ -227,9 +227,19 @@ public sealed class WindowChromeTests
         {
             try
             {
-                AppBuilder.Configure<Application>()
-                    .UseHeadless(new AvaloniaHeadlessPlatformOptions())
-                    .SetupWithoutStarting();
+                // Avalonia 12 refuses a second AppBuilder setup ("Setup was
+                // already called on one of AppBuilder instances"): reuse the
+                // process-singleton application world when another test
+                // class (the headless publish pins, T-150) already stood it
+                // up, and only build the bare windowing world when none
+                // exists. The load itself needs just the platform, not the
+                // application's own styles.
+                if (Application.Current is null)
+                {
+                    AppBuilder.Configure<Application>()
+                        .UseHeadless(new AvaloniaHeadlessPlatformOptions())
+                        .SetupWithoutStarting();
+                }
 
                 styles = (Styles)AvaloniaXamlLoader.Load(new Uri(StyleIncludeUri));
             }

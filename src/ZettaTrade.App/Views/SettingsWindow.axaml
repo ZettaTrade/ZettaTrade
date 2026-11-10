@@ -31,7 +31,7 @@
              checked state of its own, so the state rides a class). -->
         <Style Selector="Button.pair-star">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
         </Style>
         <Style Selector="Button.pair-star.on">
             <Setter Property="Foreground" Value="{DynamicResource Highlight}"/>
@@ -196,7 +196,7 @@
                                         CornerRadius="8"
                                         Background="Transparent"
                                         BorderThickness="1"
-                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        BorderBrush="{DynamicResource Border}"
                                         VerticalAlignment="Center">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
@@ -206,7 +206,7 @@
                                     <TextBlock Text="i"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               Foreground="{DynamicResource TextSecondary}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                 </Border>
@@ -237,7 +237,7 @@
                                         CornerRadius="8"
                                         Background="Transparent"
                                         BorderThickness="1"
-                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        BorderBrush="{DynamicResource Border}"
                                         VerticalAlignment="Center">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
@@ -247,7 +247,7 @@
                                     <TextBlock Text="i"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               Foreground="{DynamicResource TextSecondary}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                 </Border>
@@ -269,7 +269,7 @@
                                         CornerRadius="8"
                                         Background="Transparent"
                                         BorderThickness="1"
-                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        BorderBrush="{DynamicResource Border}"
                                         VerticalAlignment="Center">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
@@ -279,7 +279,7 @@
                                     <TextBlock Text="i"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               Foreground="{DynamicResource TextSecondary}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                 </Border>
@@ -301,7 +301,7 @@
                                         CornerRadius="8"
                                         Background="Transparent"
                                         BorderThickness="1"
-                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        BorderBrush="{DynamicResource Border}"
                                         VerticalAlignment="Center">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
@@ -311,7 +311,7 @@
                                     <TextBlock Text="i"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               Foreground="{DynamicResource TextSecondary}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                 </Border>
@@ -333,7 +333,7 @@
                                         CornerRadius="8"
                                         Background="Transparent"
                                         BorderThickness="1"
-                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        BorderBrush="{DynamicResource Border}"
                                         VerticalAlignment="Center">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
@@ -343,7 +343,7 @@
                                     <TextBlock Text="i"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               Foreground="{DynamicResource TextSecondary}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                 </Border>
@@ -365,7 +365,7 @@
                                         CornerRadius="8"
                                         Background="Transparent"
                                         BorderThickness="1"
-                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        BorderBrush="{DynamicResource Border}"
                                         VerticalAlignment="Center">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
@@ -375,7 +375,7 @@
                                     <TextBlock Text="i"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               Foreground="{DynamicResource TextSecondary}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                 </Border>
@@ -397,7 +397,7 @@
                                         CornerRadius="8"
                                         Background="Transparent"
                                         BorderThickness="1"
-                                        BorderBrush="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                        BorderBrush="{DynamicResource Border}"
                                         VerticalAlignment="Center">
                                     <ToolTip.Tip>
                                         <TextBlock MaxWidth="260"
@@ -407,7 +407,7 @@
                                     <TextBlock Text="i"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                               Foreground="{DynamicResource TextSecondary}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                 </Border>
@@ -491,7 +491,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:McpServerRow">
                                             <Border BorderThickness="1"
-                                                    BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                                                    BorderBrush="{DynamicResource Border}"
                                                     CornerRadius="4"
                                                     Padding="10"
                                                     Margin="0,0,6,0">
@@ -619,7 +619,7 @@
                                                                    FontSize="12" />
                                                         <TextBlock IsVisible="{Binding !IsStateKnown}"
                                                                    Text="{loc:Localized Settings.McpClients.State.Empty}"
-                                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                                                   Foreground="{DynamicResource TextSecondary}"
                                                                    FontSize="12" />
                                                     </StackPanel>
                                                 </StackPanel>
@@ -704,12 +704,12 @@
                                                         <TextBlock Text="{loc:Localized Port.From}"
                                                                    VerticalAlignment="Top"
                                                                    FontSize="12"
-                                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                                                                   Foreground="{DynamicResource TextSecondary}" />
                                                         <TextBlock Text="{Binding CurrentValueJson}"
                                                                    TextWrapping="Wrap"
                                                                    MaxWidth="380"
                                                                    FontSize="12"
-                                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                                                                   Foreground="{DynamicResource TextSecondary}" />
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                                         <TextBlock Text="{loc:Localized Port.To}"

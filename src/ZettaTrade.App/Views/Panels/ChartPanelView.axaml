@@ -279,7 +279,7 @@
         <Border Grid.Row="4"
                 Margin="0,8,0,0"
                 Padding="4,4,4,0"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderBrush="{DynamicResource Border}"
                 BorderThickness="0,1,0,0"
                 DataContext="{Binding SignalRail}">
             <Grid RowDefinitions="Auto,*" MaxHeight="172">
