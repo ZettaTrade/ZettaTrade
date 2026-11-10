@@ -1,6 +1,5 @@
 <Solution>
   <Project Path="src/ZettaTrade.AI/ZettaTrade.AI.csproj" />
-  <Project Path="src/Livery/Livery.csproj" />
   <Project Path="src/ZettaTrade.App/ZettaTrade.App.csproj" />
   <Project Path="src/ZettaTrade.Backtest/ZettaTrade.Backtest.csproj" />
   <Project Path="src/ZettaTrade.Charting/ZettaTrade.Charting.csproj" />

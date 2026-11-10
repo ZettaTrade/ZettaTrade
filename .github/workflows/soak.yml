@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  packages: read # restore the private Livery package from GitHub Packages
 
 jobs:
   soak:
@@ -25,6 +26,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Authenticate the private Livery package feed
+        run: dotnet nuget add source https://nuget.pkg.github.com/ZettaTrade/index.json --name zettatrade --username ZettaTrade --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text
 
       - name: Build
         run: dotnet build ZettaTrade.slnx -nodeReuse:false -warnaserror --nologo -v q -clp:NoSummary

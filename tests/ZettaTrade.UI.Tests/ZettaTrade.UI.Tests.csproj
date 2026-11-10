@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Livery\Livery.csproj" />
+    <PackageReference Include="Livery" Version="$(LiveryVersion)" />
     <ProjectReference Include="..\..\src\ZettaTrade.Core\ZettaTrade.Core.csproj" />
     <ProjectReference Include="..\..\src\ZettaTrade.Infrastructure\ZettaTrade.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\ZettaTrade.UI\ZettaTrade.UI.csproj" />
