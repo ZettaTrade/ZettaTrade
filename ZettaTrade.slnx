@@ -7,16 +7,18 @@
   <Project Path="src/ZettaTrade.Core/ZettaTrade.Core.csproj" />
   <Project Path="src/ZettaTrade.Infrastructure/ZettaTrade.Infrastructure.csproj" />
   <Project Path="src/ZettaTrade.Plugins.Abstractions/ZettaTrade.Plugins.Abstractions.csproj" />
-  <Project Path="src/ZettaTrade.Plugins.Atr/ZettaTrade.Plugins.Atr.csproj" />
-  <Project Path="src/ZettaTrade.Plugins.Bollinger/ZettaTrade.Plugins.Bollinger.csproj" />
-  <Project Path="src/ZettaTrade.Plugins.Ema/ZettaTrade.Plugins.Ema.csproj" />
-  <Project Path="src/ZettaTrade.Plugins.Macd/ZettaTrade.Plugins.Macd.csproj" />
-  <Project Path="src/ZettaTrade.Plugins.Rsi/ZettaTrade.Plugins.Rsi.csproj" />
-  <Project Path="src/ZettaTrade.Plugins.Sma/ZettaTrade.Plugins.Sma.csproj" />
-  <Project Path="src/ZettaTrade.Plugins.Wma/ZettaTrade.Plugins.Wma.csproj" />
   <Project Path="src/ZettaTrade.Soak/ZettaTrade.Soak.csproj" />
   <Project Path="src/ZettaTrade.Strategies/ZettaTrade.Strategies.csproj" />
   <Project Path="src/ZettaTrade.UI/ZettaTrade.UI.csproj" />
+  <Folder Name="/Plugins/">
+    <Project Path="src/ZettaTrade.Plugins/Atr/ZettaTrade.Plugins.Atr.csproj" />
+    <Project Path="src/ZettaTrade.Plugins/Bollinger/ZettaTrade.Plugins.Bollinger.csproj" />
+    <Project Path="src/ZettaTrade.Plugins/Ema/ZettaTrade.Plugins.Ema.csproj" />
+    <Project Path="src/ZettaTrade.Plugins/Macd/ZettaTrade.Plugins.Macd.csproj" />
+    <Project Path="src/ZettaTrade.Plugins/Rsi/ZettaTrade.Plugins.Rsi.csproj" />
+    <Project Path="src/ZettaTrade.Plugins/Sma/ZettaTrade.Plugins.Sma.csproj" />
+    <Project Path="src/ZettaTrade.Plugins/Wma/ZettaTrade.Plugins.Wma.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ZettaTrade.AdapterKit.Tests/ZettaTrade.AdapterKit.Tests.csproj" />
     <Project Path="tests/ZettaTrade.App.Tests/ZettaTrade.App.Tests.csproj" />

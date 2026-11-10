@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ZettaTrade.Charting\ZettaTrade.Charting.csproj" />
-    <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
+    <ProjectReference Include="..\..\ZettaTrade.Charting\ZettaTrade.Charting.csproj" />
+    <ProjectReference Include="..\..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
   </ItemGroup>
 
 </Project>
