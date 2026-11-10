@@ -21,8 +21,8 @@ These are the always-on rules: they bind in every session. The working canon —
 - `CompositionRoot.cs`: register your services in your own extension method (`Add<Module>Services`); add one line to the root.
 - `*.resx`: prefix your keys by module (`Chart.*`, `Exchange.*`, `Ai.*`) and add keys for BOTH en and ru.
 
-## Multi-repo (Livery)
-The appearance library is not an in-tree project: it ships as the private `Livery` NuGet package from the standalone `ZettaTrade/Livery` repo (GitHub Packages feed, pinned by the root `nuget.config`). Appearance-only changes go through the Livery repo — bump the package there, land it, then the one-line consuming bump here; platform-specific and trading code never move to it.
+## Multi-repo (satellites: Livery, Plugins)
+Two satellites ship as private-feed packages from standalone repos (the root `nuget.config` pins the `zettatrade` source): the appearance library rides `ZettaTrade/Livery` (the `Livery` package, T-130), and the standard indicator pack rides `ZettaTrade/Plugins` (the `ZettaTrade.Plugins.Standard` package, T-163 — the SDK contract `ZettaTrade.Plugins.Abstractions` stays in-tree and pinned). Package changes go through the satellite repo — bump the package there, land it, then the one-line consuming bump here; platform-specific and trading code never move to the satellites.
 
 ## Trading safety (CRITICAL, never relax)
 - Every order passes through `IRiskManager`. Never execute without validation.

@@ -26,8 +26,52 @@
          plugins (the laziness fact pins that); at runtime the catalog
          stages them from this build output into its fixture directories -
          the package's lib assets copy-local exactly where the seven
-         ProjectReferences used to. -->
-    <PackageReference Include="ZettaTrade.Plugins.Standard" Version="$(PluginsVersion)" />
+         ProjectReferences used to. GeneratePathProperty projects the
+         package root into $(PkgZettaTrade_Plugins_Standard) for T-164's
+         dev provisioning; it never adds assets beyond the runtime flow
+         above. -->
+    <PackageReference Include="ZettaTrade.Plugins.Standard" Version="$(PluginsVersion)" GeneratePathProperty="true" />
   </ItemGroup>
+
+  <!-- T-164: the dev-side staging of the standard pack. After every
+       Windows build the package's seven plugin DLLs copy into the real
+       plugins directory the production loader walks
+       (ConfigPathResolver.PluginsDirectory - the Windows data root is
+       SpecialFolder.LocalApplicationData, the same root MSBuild maps as
+       $(LOCALAPPDATA), so a clean clone's dotnet build/test ends with
+       the indicators loaded and a bumped PluginsVersion refreshes the
+       staging automatically (T-146: the loader keeps walking its
+       physical directory; the pack stays where T-163 put it, the feed
+       package is the only source of the assemblies). The staging is the
+       developer's bench by design: CI drives Linux (the OS condition
+       skips it) and the macOS/Linux developers refresh the directory by
+       hand; the test fixtures themselves stay hermetic (the T-092 facts
+       stage into their own fixture directories). Stale pack DLLs delete
+       first - the scan walks every top-level dll and would shadow a
+       fresh assembly with an abandoned version - but the cleanup match
+       lists only the names the fresh copy brings, so a manual contract
+       assembly or a closed-source pack never falls to it. The copies
+       warn instead of failing: a running app may hold one old assembly
+       while a new version lands; the next build after it closes
+       catches up. -->
+  <Target Name="ProvisionDevPlugins"
+          AfterTargets="Build"
+          Condition="'$(OS)' == 'Windows_NT'">
+    <PropertyGroup>
+      <ProvisionPluginsDirectory>$(LOCALAPPDATA)\ZettaTrade\data\plugins</ProvisionPluginsDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <ProvisionPackDlls Include="$(PkgZettaTrade_Plugins_Standard)\lib\net10.0\*.dll" />
+      <_ProvisionDest Include="@(ProvisionPackDlls->'$(ProvisionPluginsDirectory)\%(Filename)%(Extension)')" />
+      <_ProvisionStale Include="$(ProvisionPluginsDirectory)\ZettaTrade.Plugins.*.dll" Exclude="@(_ProvisionDest)" />
+    </ItemGroup>
+    <Delete Files="@(_ProvisionStale)" Condition="'@(_ProvisionStale)' != ''" ContinueOnError="WarnAndContinue" />
+    <Copy
+      SourceFiles="@(ProvisionPackDlls)"
+      DestinationFolder="$(ProvisionPluginsDirectory)"
+      SkipUnchangedFiles="true"
+      ContinueOnError="WarnAndContinue" />
+    <Message Condition="'@(ProvisionPackDlls)' != ''" Importance="high" Text="Staged the standard pack ($(PluginsVersion)) into $(ProvisionPluginsDirectory)" />
+  </Target>
 
 </Project>
