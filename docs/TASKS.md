@@ -107,7 +107,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-100 Settings import/export + factory reset | feat/settings-port | done | - |
 | T-101 Log viewer window + global crash guard | feat/log-viewer | done | - |
 | T-102 Hotkey manager + cheat sheet overlay | feat/hotkey-manager | done | - |
-| T-103 Detachable panels: multi-window workspaces | feat/multi-window | in-progress | - |
+| T-103 Detachable panels: multi-window workspaces | feat/multi-window | done | - |
 | T-104 Single instance hand-off + CLI symbol open | feat/single-instance | done | - |
 | T-105 Reconnect policy hardening: backoff, jitter, watchdog | feat/reconnect-policy | done | - |
 | T-106 Exchange rate limiter with per-endpoint budgets | feat/rate-limiter | done | - |
@@ -168,16 +168,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-
-## T-103 — Detachable panels: multi-window workspaces
-
-- **Branch:** feat/multi-window, worktree zt-multi-window, based on develop@243c50a (claimed 2026-11-10 per standing directive 6; queued 2026-11-06 at the T-074…T-115 backlog cut).
-- **Status:** in-progress.
-- **Origin:** splitters (T-038) resized one window; multi-monitor setups deserve owned windows.
-- **What:** chart/book/assistant detach into owned windows (chrome templates compose per the T-066 canon), geometry per display persisted, the workspace symbol context broadcasts across all panels, app shutdown persists both layouts.
-- **Scope:** layout service + window shells, symbol context broadcast, resx en+ru, tests.
-- **Acceptance:** detach/attach is lossless; restore across DPI shifts stays sane.
-- **Tests:** detach/attach roundtrip golden, context broadcast, geometry restore.
 
 ## T-110 - Accessibility pass (keyboard, automation peers, contrast)
 
