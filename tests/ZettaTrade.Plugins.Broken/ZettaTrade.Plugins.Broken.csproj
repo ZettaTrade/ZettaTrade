@@ -14,7 +14,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ZettaTrade.Plugins.BrokenBase\ZettaTrade.Plugins.BrokenBase.csproj" />
+    <!-- Compile-only: the base assembly must never reach the consumers'
+         output directories (T-054 premise: the dependency is genuinely
+         missing at scan time). ExcludeAssets alone did not stop the copy
+         (verified on a clean rebuild, T-148); Private="false" kills the
+         copy-local flow that leaked the dll from Broken/bin into the test
+         output, where the LoadFrom probe of AppBase loaded and locked it,
+         racing the catalog fixture's leak-delete. -->
+    <ProjectReference Include="..\ZettaTrade.Plugins.BrokenBase\ZettaTrade.Plugins.BrokenBase.csproj" ExcludeAssets="runtime" Private="false" />
   </ItemGroup>
 
 </Project>
