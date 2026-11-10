@@ -1,7 +1,6 @@
 namespace ZettaTrade.Plugins.Atr;
 
-using ZettaTrade.Charting;
-using ZettaTrade.Core.Entities;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
 /// The average true range over the bars (T-092 pack), Wilder's smoothed
@@ -67,7 +66,7 @@ public sealed class AtrIndicator : IIndicator
     public string Name => IndicatorName;
 
     /// <inheritdoc />
-    public IReadOnlyList<decimal?> Apply(IReadOnlyList<Bar> bars)
+    public IReadOnlyList<decimal?> Apply(IReadOnlyList<IndicatorBar> bars)
     {
         ArgumentNullException.ThrowIfNull(bars);
 
@@ -104,7 +103,7 @@ public sealed class AtrIndicator : IIndicator
     /// gaps against the prior close; the opening bar's spread stands alone
     /// (nothing to gap against yet).
     /// </summary>
-    private static decimal TrueRange(IReadOnlyList<Bar> bars, int index)
+    private static decimal TrueRange(IReadOnlyList<IndicatorBar> bars, int index)
     {
         var range = bars[index].High - bars[index].Low;
         if (index == 0)

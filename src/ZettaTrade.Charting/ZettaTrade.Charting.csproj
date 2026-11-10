@@ -8,6 +8,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
+    <!-- The indicator contract rides the SDK (T-163): IIndicatorCatalog is
+         the app-side seam over ZettaTrade.Plugins.Abstractions.IIndicator. -->
+    <ProjectReference Include="..\ZettaTrade.Plugins.Abstractions\ZettaTrade.Plugins.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,7 @@
 namespace ZettaTrade.Charting;
 
+using ZettaTrade.Plugins.Abstractions;
+
 /// <summary>
 /// Resolves the indicator implementation behind one configured overlay row:
 /// looks up <see cref="IIndicator.Name"/> and builds the implementation for

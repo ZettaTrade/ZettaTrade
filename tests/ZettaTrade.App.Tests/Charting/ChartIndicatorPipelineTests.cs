@@ -9,6 +9,7 @@ using Xunit;
 using ZettaTrade.App.Services;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
 /// The indicator compute pipeline on a fake catalog and a stub indicator
@@ -25,7 +26,7 @@ public sealed class ChartIndicatorPipelineTests
     {
         public string Name => "STUB";
 
-        public IReadOnlyList<decimal?> Apply(IReadOnlyList<Bar> bars) =>
+        public IReadOnlyList<decimal?> Apply(IReadOnlyList<IndicatorBar> bars) =>
             [.. new decimal?[bars.Count].Select(value => 42m)];
     }
 

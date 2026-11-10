@@ -3,6 +3,7 @@ namespace ZettaTrade.App.Services;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
 /// The chart indicator compute pipeline: turns the persisted indicator rows
@@ -37,6 +38,7 @@ public static class ChartIndicatorPipeline
         }
 
         List<ChartIndicatorLine> lines = [];
+        IndicatorBar[]? contractBars = null;
         foreach (var config in configs)
         {
             if (!config.Enabled)
@@ -50,9 +52,32 @@ public static class ChartIndicatorPipeline
                 continue;
             }
 
-            lines.Add(new ChartIndicatorLine(indicator.Name, indicator.Apply(bars)));
+            // The single adaptation site (T-163): the app's candle entity
+            // maps to the SDK-owned IndicatorBar shape once per compute -
+            // and only when a usable indicator exists - so the plugins
+            // never see the application's internal Bar.
+            contractBars ??= MapContractBars(bars);
+
+            lines.Add(new ChartIndicatorLine(indicator.Name, indicator.Apply(contractBars)));
         }
 
         return lines;
+    }
+
+    /// <summary>
+    /// Map the app's bars to the contract bars once per compute: the OHLC
+    /// prices carry over, the entity-only time and volume stay behind (the
+    /// contract 2.0.0 shape is time-free).
+    /// </summary>
+    private static IndicatorBar[] MapContractBars(IReadOnlyList<Bar> bars)
+    {
+        var contract = new IndicatorBar[bars.Count];
+        for (var i = 0; i < bars.Count; i++)
+        {
+            var bar = bars[i];
+            contract[i] = new IndicatorBar(bar.Open, bar.High, bar.Low, bar.Close);
+        }
+
+        return contract;
     }
 }

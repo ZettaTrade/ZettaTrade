@@ -1,7 +1,6 @@
 namespace ZettaTrade.Plugins.Wma;
 
-using ZettaTrade.Charting;
-using ZettaTrade.Core.Entities;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
 /// The linearly weighted moving average over the bars' closes (T-092 pack).
@@ -63,7 +62,7 @@ public sealed class WmaIndicator : IIndicator
     public string Name => IndicatorName;
 
     /// <inheritdoc />
-    public IReadOnlyList<decimal?> Apply(IReadOnlyList<Bar> bars)
+    public IReadOnlyList<decimal?> Apply(IReadOnlyList<IndicatorBar> bars)
     {
         ArgumentNullException.ThrowIfNull(bars);
 

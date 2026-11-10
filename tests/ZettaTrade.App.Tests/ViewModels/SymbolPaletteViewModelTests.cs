@@ -22,6 +22,7 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
+using ZettaTrade.Plugins.Abstractions;
 using ZettaTrade.Strategies;
 
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>

@@ -5,6 +5,7 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Charting;
 using ZettaTrade.Infrastructure.Configuration;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
 /// The plugin loader of the indicator seam (T-034): every <c>*.dll</c> in

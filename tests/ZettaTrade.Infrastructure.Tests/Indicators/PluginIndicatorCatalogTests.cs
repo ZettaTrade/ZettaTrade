@@ -139,12 +139,11 @@ public sealed class PluginIndicatorCatalogTests
         // The ctor(int) convention: the row's period reaches the indicator.
         // The parameterless fallback (period 20) would have produced all
         // nulls over a three-bar series; period 2 rolls the mean.
-        var start = DateTimeOffset.FromUnixTimeSeconds(0);
         var bars = new[]
         {
-            new ZettaTrade.Core.Entities.Bar(start, 1m, 1m, 1m, 3m, 1),
-            new ZettaTrade.Core.Entities.Bar(start.AddMinutes(1), 1m, 1m, 1m, 5m, 1),
-            new ZettaTrade.Core.Entities.Bar(start.AddMinutes(2), 1m, 1m, 1m, 7m, 1),
+            new ZettaTrade.Plugins.Abstractions.IndicatorBar(1m, 1m, 1m, 3m),
+            new ZettaTrade.Plugins.Abstractions.IndicatorBar(1m, 1m, 1m, 5m),
+            new ZettaTrade.Plugins.Abstractions.IndicatorBar(1m, 1m, 1m, 7m),
         };
         var values = indicator.Apply(bars);
         values[0].Should().BeNull("the warmup head");

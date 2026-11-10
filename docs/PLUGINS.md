@@ -10,11 +10,18 @@ compile against.
 
 Plugins reference `ZettaTrade.Plugins.Abstractions` and nothing else.
 The assembly is the versioned contract: it carries the manifest, the
-loader entry type, the services window and the UI extension descriptors,
-and it is SemVer-governed — a breaking change on any public member bumps
-the major version, and a pinned baseline test
+loader entry type, the services window, the UI extension descriptors and
+the indicator seam — `IIndicator.Apply` computes over the SDK-owned
+`IndicatorBar` OHLC shape (contract 2.0.0, T-163), never over the app's
+internal candle entity — and it is SemVer-governed — a breaking change on
+any public member bumps the major version, and a pinned baseline test
 (`tests/ZettaTrade.Infrastructure.Tests/Plugins/PluginContractBaselineTests.cs`)
 refuses an accidental break before any plugin author's build does.
+
+The contract ships as the `ZettaTrade.Plugins.Abstractions` NuGet package
+on the private GitHub Packages feed (the `sdk` workflow packs and pushes
+it on manual dispatch): out-of-tree packs build against the package, the
+in-tree projects keep the project reference.
 
 ## The manifest: one attribute per plugin class
 

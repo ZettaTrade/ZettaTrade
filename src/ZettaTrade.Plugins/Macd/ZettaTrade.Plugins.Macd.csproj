@@ -7,8 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\ZettaTrade.Charting\ZettaTrade.Charting.csproj" />
-    <ProjectReference Include="..\..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
+    <!-- The SDK blessed path (docs/PLUGINS.md): the Abstractions contract
+         and nothing else - the plugin builds out-of-tree against it. -->
+    <ProjectReference Include="..\..\ZettaTrade.Plugins.Abstractions\ZettaTrade.Plugins.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>
