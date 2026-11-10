@@ -1,4 +1,6 @@
 using System;
+using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -36,6 +38,15 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     public MainWindow()
     {
         InitializeComponent();
+
+        // The workspace panels' DataContexts (T-103): LocalValues, pushed the
+        // moment the main DataContext lands (the App sets it before the
+        // window shows — no unbound first frame). A markup binding on a
+        // panel would re-resolve against the DETACHED window's inherited
+        // (null) DataContext and unbind the moved control — the LocalValue
+        // survives the cross-window move; the detached windows carry no
+        // DataContext of their own by design.
+        DataContextChanged += (_, _) => SetPanelDataContexts();
     }
 
     /// <inheritdoc/>
@@ -43,11 +54,24 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     {
         base.OnOpened(e);
 
-        // The performance HUD's chart tap (T-108): the window owns the named
+        // The performance HUD's chart tap (T-108): the panel owns the named
         // control, so the drain rides here — one assignment at the open. The
         // tap counts nothing until the HUD's visibility opens the chart's
-        // FrameTapEnabled branch (the styled binding to Hud.IsVisible).
-        ViewModel?.Hud.AttachChartFrames(() => CandlesChart.TakeFrameTapCount());
+        // FrameTapEnabled branch (the styled gate rides the panel element's
+        // window-relative binding; a detached chart freezes the readout).
+        ViewModel?.Hud.AttachChartFrames(() => ChartPanel.ChartControl.TakeFrameTapCount());
+
+        // The detached-panel handover (T-103): the view lane registers the
+        // panel slots with the coordinator (the panel controls stay exactly
+        // where the XAML put them — the initial inline attach is already
+        // their declared home), then the stored record re-opens whatever the
+        // user left detached across sessions. The restore rides FromAsync +
+        // Subscribe (no bare fire-and-forget): it must not block the open,
+        // and its failures land in the file log.
+        _detachedRestore = Observable.FromAsync(RestoreDetachedLayoutAsync).Subscribe(
+            _ => { },
+            ex => Log.Error(ex, "The detached-panel layout restore failed"));
+        Closed += (_, _) => _detachedRestore.Dispose();
 
         // The main window opens once per application lifetime, so the handler
         // registration lives for the rest of it — no subscription disposal here.
@@ -74,7 +98,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // SAME dialog path the menu drives. SubscribeAsync keeps the whole
         // route task-based (zero async void) and stream failures land in
         // the log via the error callback.
-        _bookClicks = BookWidget.LevelClicked.SubscribeAsync(
+        _bookClicks = BookPanel.BookWidget.LevelClicked.SubscribeAsync(
             level => OpenNewOrderDialogAsync(new OrderPrefill(level.Symbol, level.Side, level.Price)),
             onError: ex => Log.Error(ex, "Book level click stream failed"));
         Closed += (_, _) => _bookClicks.Dispose();
@@ -93,7 +117,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // that reaches the loaded series' left edge asks the ViewModel for
         // the previous bars window (SubscribeAsync keeps the route task
         // based; stream failures land in the log via the error callback).
-        _olderHistoryRequests = CandlesChart.OlderHistoryRequested
+        _olderHistoryRequests = ChartPanel.ChartControl.OlderHistoryRequested
             .ObserveOnUiThread()
             .SubscribeAsync(
                 request => ViewModel!.Chart.RequestOlderBarsAsync(),
@@ -117,7 +141,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // layer and the next pass republishes the strip cache). SubscribeAsync
         // keeps the route task-based (zero async void); stream failures land
         // in the log via the error callback.
-        _compareRemovals = CandlesChart.CompareRemovals.SubscribeAsync(
+        _compareRemovals = ChartPanel.ChartControl.CompareRemovals.SubscribeAsync(
             label =>
             {
                 ViewModel!.Chart.RemoveCompare(label);
@@ -132,15 +156,15 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // and the two lifecycle routes pair up per event (SubscribeAsync
         // keeps every route task-based; stream failures land in the log
         // via the error callback).
-        _drawingCommitted = CandlesChart.DrawingCommitted.SubscribeAsync(
+        _drawingCommitted = ChartPanel.ChartControl.DrawingCommitted.SubscribeAsync(
             request => ViewModel!.Chart.CommitDrawingAsync(request),
             onError: ex => Log.Error(ex, "Chart drawing commit stream failed"));
         Closed += (_, _) => _drawingCommitted.Dispose();
-        _drawingEdited = CandlesChart.DrawingEdited.SubscribeAsync(
+        _drawingEdited = ChartPanel.ChartControl.DrawingEdited.SubscribeAsync(
             request => ViewModel!.Chart.EditDrawingAsync(request),
             onError: ex => Log.Error(ex, "Chart drawing edit stream failed"));
         Closed += (_, _) => _drawingEdited.Dispose();
-        _drawingSelected = CandlesChart.DrawingSelected.SubscribeAsync(
+        _drawingSelected = ChartPanel.ChartControl.DrawingSelected.SubscribeAsync(
             id =>
             {
                 ViewModel!.Chart.SelectDrawing(id);
@@ -148,7 +172,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             },
             onError: ex => Log.Error(ex, "Chart drawing select stream failed"));
         Closed += (_, _) => _drawingSelected.Dispose();
-        _drawingDeleted = CandlesChart.DrawingDeleted.SubscribeAsync(
+        _drawingDeleted = ChartPanel.ChartControl.DrawingDeleted.SubscribeAsync(
             id => ViewModel!.Chart.DeleteDrawingAsync(id),
             onError: ex => Log.Error(ex, "Chart drawing delete stream failed"));
         Closed += (_, _) => _drawingDeleted.Dispose();
@@ -178,7 +202,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
                 return;
             }
 
-            await CandlesChart.ExportSnapshotPngAsync(path, context.Input.Watermark);
+            await ChartPanel.ChartControl.ExportSnapshotPngAsync(path, context.Input.Watermark);
             context.SetOutput(path);
         });
 
@@ -195,7 +219,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
                 return;
             }
 
-            context.SetOutput(new VisibleCsvHandoff(path, CandlesChart.VisibleBarsSlice));
+            context.SetOutput(new VisibleCsvHandoff(path, ChartPanel.ChartControl.VisibleBarsSlice));
         });
 
         // The T-095 palette's own route: its both interactions live for the
@@ -264,6 +288,63 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     private IDisposable? _drawingSelected;
 
     private IDisposable? _drawingDeleted;
+
+    /// <summary>Subscription of the detached-layout restore leg (T-103); disposed with the window.</summary>
+    private IDisposable? _detachedRestore;
+
+    #region Detached panels (T-103)
+
+    /// <summary>
+    /// Push the workspace panels' DataContexts: LocalValues, set once the
+    /// main DataContext lands — they survive the cross-window move the
+    /// detach rides (a markup binding would re-resolve against the detached
+    /// window's inherited null and unbind the moved control).
+    /// </summary>
+    private void SetPanelDataContexts()
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        ChartPanel.DataContext = ViewModel.Chart;
+        BookPanel.DataContext = ViewModel.OrderBook;
+        AssistantPanel.DataContext = ViewModel.Chat;
+    }
+
+    /// <summary>The panel slots the view lane hands to the coordinator: the panel control, its inline swap host and the panel's own focus affordance.</summary>
+    private DetachedPanelSlot[] BuildPanelSlots() =>
+    [
+        new DetachedPanelSlot(PanelDetachId.Chart, ChartPanel, ChartPanelHost, null),
+        new DetachedPanelSlot(PanelDetachId.Book, BookPanel, BookPanelHost, null),
+        new DetachedPanelSlot(
+            PanelDetachId.Assistant,
+            AssistantPanel,
+            AssistantPanelHost,
+            () => AssistantPanel.ChatInput.Focus()),
+    ];
+
+    /// <summary>
+    /// The detached-layout restore: register the slots (the UI thread — the
+    /// view lane belongs to it), then let the coordinator re-open whatever
+    /// the stored record keeps detached. Faults land in the file log — the
+    /// open itself never fails over a detached-window restore.
+    /// </summary>
+    private async Task RestoreDetachedLayoutAsync()
+    {
+        try
+        {
+            var coordinator = App.Services.GetRequiredService<IDetachedPanelCoordinator>();
+            await Dispatcher.UIThread.InvokeAsync(() => coordinator.RegisterPanels(BuildPanelSlots()));
+            await coordinator.RestoreDetachedAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "The detached-panel layout restore failed");
+        }
+    }
+
+    #endregion Detached panels (T-103)
 
     /// <summary>
     /// The tape's clear button: the buffered tape lives entirely in the
@@ -481,15 +562,25 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     /// the request. An immediate Focus would hit the not-yet-arranged text
     /// box and be refused, so every attempt is queued below the render
     /// priority and awaited; the interaction resolves only when the focus
-    /// landed (or the budget ran out).
+    /// landed (or the budget ran out). A DETACHED assistant (T-103) routes
+    /// through the coordinator instead: it activates the panel's own window
+    /// and lands the same deferred focus on the same input control there.
     /// </summary>
     private async Task FocusChatAsync(IInteractionContext<RxVoid, RxVoid> context)
     {
+        var coordinator = App.Services.GetService<IDetachedPanelCoordinator>();
+        if (coordinator is not null && coordinator.IsDetached(PanelDetachId.Assistant))
+        {
+            await coordinator.FocusPanelAsync(PanelDetachId.Assistant, CancellationToken.None);
+            context.SetOutput(RxVoid.Default);
+            return;
+        }
+
         var focused = false;
         for (var attempt = MaxChatFocusFrames; attempt > 0 && !focused; attempt--)
         {
             focused = await Dispatcher.UIThread.InvokeAsync(
-                () => ChatInput.Focus(),
+                () => AssistantPanel.ChatInput.Focus(),
                 DispatcherPriority.Background);
         }
 

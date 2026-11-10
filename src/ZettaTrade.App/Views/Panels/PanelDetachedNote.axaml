@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:Livery.Localization"
+             x:Class="ZettaTrade.App.Views.Panels.PanelDetachedNote">
+
+    <!-- The detached-slot note (T-103): what the inline host shows while
+         the panel lives in its own window. Static localized text only —
+         the note carries no state. -->
+    <Border Padding="12">
+        <TextBlock Text="{loc:Localized Chrome.DetachNote}"
+                   Foreground="{DynamicResource TextSecondary}"
+                   TextWrapping="Wrap"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   TextAlignment="Center" />
+    </Border>
+</UserControl>

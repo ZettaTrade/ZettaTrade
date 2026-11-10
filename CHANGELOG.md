@@ -1,3 +1,24 @@
+## [0.1.0-alpha.90] - 2026-11-10
+
+Build of board task T-103 (branch `feat/multi-window`).
+
+### Added
+- Detachable panels (T-103): the chart, the order book and the AI assistant
+  each open into their own window from the View menu's checkboxes — the
+  panel's ONE control instance physically moves cross-window (no double
+  subscriptions, no re-created state), the inline slot carries a note while
+  the panel lives elsewhere, and closing the detached window (or flipping
+  the menu checkbox) brings it back exactly where it was. The placement is
+  stored as fractions of the display's working area under
+  `UI.DetachedPanels`, so a DPI or resolution shift between sessions
+  recomposes the same relative box (an exact display match wins, a monitor
+  swap remaps by the stored absolute point, nothing matches centers), the
+  persisted record parses fail-safe (blank, malformed, unknown-panel or
+  unusable entries restore nothing and never throw), and the app shutdown
+  never rewrites what the user left detached. A hidden assistant that still
+  lives in its own window attaches back first — the collapsed column and
+  the inline state stay one truth.
+
 ## [0.1.0-alpha.89] - 2026-11-10
 
 Build of board task T-131 (branch `feat/plugin-sdk`).

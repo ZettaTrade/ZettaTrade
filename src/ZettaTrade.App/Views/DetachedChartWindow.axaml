@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.DetachedChartWindow"
+        Classes="chrome"
+        Title="{loc:Localized Chrome.DetachChartTitle}"
+        Width="1100" Height="680"
+        MinWidth="640" MinHeight="420"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Background}">
+
+    <!-- The detached chart window (T-103): a trivial chrome shell the
+         coordinator fills with the chart panel's ONE control instance at
+         the detach leg. The window carries no content of its own and no
+         DataContext — the panel control keeps the DataContext the main
+         window set on it, so the cross-window move never re-binds
+         anything. The placement (position/size/maximized) rides the
+         coordinator's stored fractions against the display sample. -->
+</Window>

@@ -212,6 +212,11 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<ChatViewModel>>(),
                 sp.GetRequiredService<MarketContextPreambleComposer>()));
+        // The detached-panel runtime (T-103): the one authority of the
+        // detached state with its per-panel window shells. Registered
+        // before the layout ViewModel — the layout mirror and the View
+        // menu's toggle route through it.
+        services.AddDetachedPanelsServices();
         // Workspace layout: the persisted column widths of the draggable
         // splitters. Registered AFTER ChatViewModel on purpose — the startup
         // walk runs registrations in order, and the layout restore must
@@ -221,6 +226,7 @@ internal static class CompositionRoot
             new WorkspaceLayoutViewModel(
                 sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<ChatViewModel>(),
+                sp.GetRequiredService<IDetachedPanelCoordinator>(),
                 sp.GetRequiredService<ILogger<WorkspaceLayoutViewModel>>()));
         services.AddSingleton<SettingsViewModel>(sp =>
             new SettingsViewModel(

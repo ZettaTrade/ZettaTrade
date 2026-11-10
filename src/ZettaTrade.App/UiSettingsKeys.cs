@@ -321,6 +321,21 @@ public static class UiSettingsKeys
     public const string HotkeySection = "Hotkeys";
 
     /// <summary>
+    /// Settings key of the persisted detached-panel record (T-103): a JSON
+    /// array (see <see cref="Services.DetachedPanelsContract"/>) of the
+    /// panels currently detached into their own windows, each carrying the
+    /// display sample and the bounds fractions its window lived at. An
+    /// empty array (the default) means every panel lives inline.
+    /// </summary>
+    public const string DetachedPanels = "DetachedPanels";
+
+    /// <summary>
+    /// The detached-panel record applied until a stored one is loaded:
+    /// empty — every panel starts inline, the pre-detachment layout.
+    /// </summary>
+    public const string DefaultDetachedPanels = "[]";
+
+    /// <summary>
     /// Settings key of the persisted hotkey overrides (T-102): a JSON map
     /// of registry action id to the canonical gesture string.
     /// </summary>

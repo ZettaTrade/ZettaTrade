@@ -75,6 +75,30 @@
   <data name="Menu.Help.AboutDisclaimer" xml:space="preserve">
     <value>About / Disclaimer...</value>
   </data>
+  <data name="Menu.View" xml:space="preserve">
+    <value>View</value>
+  </data>
+  <data name="Menu.View.Chart" xml:space="preserve">
+    <value>Chart in its own window</value>
+  </data>
+  <data name="Menu.View.Book" xml:space="preserve">
+    <value>Order book in its own window</value>
+  </data>
+  <data name="Menu.View.Assistant" xml:space="preserve">
+    <value>Assistant in its own window</value>
+  </data>
+  <data name="Chrome.DetachNote" xml:space="preserve">
+    <value>This panel is open in its own window (View menu). Close that window to bring it back here.</value>
+  </data>
+  <data name="Chrome.DetachChartTitle" xml:space="preserve">
+    <value>Chart</value>
+  </data>
+  <data name="Chrome.DetachBookTitle" xml:space="preserve">
+    <value>Order book</value>
+  </data>
+  <data name="Chrome.DetachAssistantTitle" xml:space="preserve">
+    <value>AI assistant</value>
+  </data>
   <data name="Settings.Title" xml:space="preserve">
     <value>Settings</value>
   </data>

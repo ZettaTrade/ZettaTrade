@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.DetachedAssistantWindow"
+        Classes="chrome"
+        Title="{loc:Localized Chrome.DetachAssistantTitle}"
+        Width="420" Height="640"
+        MinWidth="300" MinHeight="360"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Background}">
+
+    <!-- The detached assistant window (T-103): a trivial chrome shell the
+         coordinator fills with the assistant panel's ONE control instance
+         at the detach leg. The placement rides the coordinator's stored
+         fractions against the display sample. -->
+</Window>
