@@ -36,11 +36,12 @@ using ZettaTrade.UI.Charting;
 public sealed class HeatmapFeedServiceTests
 {
     /// <summary>
-    /// The outcome-conditioned poll's loud abort bound (yielded iterations):
-    /// a settle that misses the bound fails loudly — a composition that
-    /// never lands never hangs the fact.
+    /// The completion-driven settle pin's deadline: a healthy composition
+    /// arms in milliseconds; the guard exists for a never-landing failure
+    /// (a loud fail, never a hang) and for nothing else — no scheduling
+    /// noise can exhaust it the way a yield-spin budget could.
     /// </summary>
-    private const int SpinAbortBudget = 200_000;
+    private static readonly TimeSpan SettleTimeout = TimeSpan.FromSeconds(5);
 
     #region The fake adapter
 
@@ -461,29 +462,28 @@ public sealed class HeatmapFeedServiceTests
 
         parkedGate.SetResult(); // the parked composition resumes and must drop.
 
-        // The composition's settle pin: outcome-conditioned poll with a
-        // LOUD abort - the wait completes exactly when the swap's
-        // composition armed the demo pump; a composition that never
-        // lands aborts the poll and fails the fact loudly, never a hang.
-        var spins = 0;
-        // The settle pin is the REAL pump connection: the fake's connect TCS
-        // completes only after the wrapper's inner subscription is fully
-        // formed - a publish after the settle lands in a LIVE handler (the
-        // method-call counter rose before the connection and let a publish
-        // slip inside that gap).
-        while (!pumpConnect.Task.IsCompleted)
+        // The composition's settle pin is completion-driven: the wait
+        // completes exactly when the swap's composition armed the demo
+        // pump — the settle is the REAL pump connection, the fake's
+        // connect TCS completes only after the wrapper's inner
+        // subscription is fully formed, so a publish after the settle
+        // lands in a LIVE handler (the method-call counter rose before
+        // the connection and once let a publish slip inside that gap).
+        // A composition that never lands fails loudly on the timeout
+        // guard — never a hang, and no spin budget can be exhausted by
+        // scheduling noise.
+        var settled = await Task.WhenAny(
+            pumpConnect.Task,
+            Task.Delay(SettleTimeout));
+        if (settled != pumpConnect.Task)
         {
-            await Task.Yield();
-            if (++spins > SpinAbortBudget)
-            {
-                Assert.Fail(
-                    $"The demo composition never armed its ticker pump after the switch (spins={spins})." +
-                    $" binance: fetches={binance.SymbolFetches} tickers={binance.TickerSubscriptions};" +
-                    $" demo: fetches={demo.SymbolFetches} tickers={demo.TickerSubscriptions};" +
-                    $" Current='{service.Current.Id}'." +
-                    $" Facade log: {string.Join(" | ", facadeProbe.Entries)}" +
-                    $" Feed log: {string.Join(" | ", feedProbe.Entries)}");
-            }
+            Assert.Fail(
+                $"The demo composition never armed its ticker pump after the switch (settle timeout)." +
+                $" binance: fetches={binance.SymbolFetches} tickers={binance.TickerSubscriptions};" +
+                $" demo: fetches={demo.SymbolFetches} tickers={demo.TickerSubscriptions};" +
+                $" Current='{service.Current.Id}'." +
+                $" Facade log: {string.Join(" | ", facadeProbe.Entries)}" +
+                $" Feed log: {string.Join(" | ", feedProbe.Entries)}");
         }
 
         demo.Publish("ETH/USDT", 50m, 1m, 0m);
