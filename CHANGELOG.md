@@ -1,3 +1,19 @@
+## [0.1.0-alpha.99] - 2026-11-11
+
+Build of board task T-154 (branch `feat/livery-chrome-kit`); the shared
+vocabulary itself ships as the Livery package 0.1.5 (satellite repo).
+
+### Changed
+- The chrome-kit consumption (T-154): the views ride the Livery package's
+  shared classes and control — the chart toolbar's five armed toggles
+  (the per-button `.on` style copies are gone), the lane chip and the
+  three testnet badges (the chip class: shape, state fills, readable
+  caption), the health-strip dots (the dot class) and the settings
+  window's seven "i" cues (the InfoIcon control: focusable with a
+  keyboard-focus ring, automation-named — an a11y step up over the
+  pointer-only Border+TextBlock copies; the names ride seven new
+  Chart.Indicators.A11y* keys in both cultures).
+
 ## [0.1.0-alpha.98] - 2026-11-11
 
 Build of board task T-153 (branch `feat/status-bar`).

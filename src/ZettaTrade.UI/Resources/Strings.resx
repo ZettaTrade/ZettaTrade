@@ -426,6 +426,27 @@
   <data name="Chart.Indicators.BollTip" xml:space="preserve">
     <value>Bollinger upper band: the N-period SMA of the closes plus 2 standard deviations; the middle is the plain SMA, the lower band mirrors them.</value>
   </data>
+  <data name="Chart.Indicators.A11ySmaInfo" xml:space="preserve">
+    <value>More about the SMA indicator</value>
+  </data>
+  <data name="Chart.Indicators.A11yEmaInfo" xml:space="preserve">
+    <value>More about the EMA indicator</value>
+  </data>
+  <data name="Chart.Indicators.A11yWmaInfo" xml:space="preserve">
+    <value>More about the WMA indicator</value>
+  </data>
+  <data name="Chart.Indicators.A11yRsiInfo" xml:space="preserve">
+    <value>More about the RSI indicator</value>
+  </data>
+  <data name="Chart.Indicators.A11yMacdInfo" xml:space="preserve">
+    <value>More about the MACD indicator</value>
+  </data>
+  <data name="Chart.Indicators.A11yAtrInfo" xml:space="preserve">
+    <value>More about the ATR indicator</value>
+  </data>
+  <data name="Chart.Indicators.A11yBollInfo" xml:space="preserve">
+    <value>More about the Bollinger indicator</value>
+  </data>
   <data name="Chart.ExportCandlesCsv" xml:space="preserve">
     <value>Export Candles CSV</value>
   </data>

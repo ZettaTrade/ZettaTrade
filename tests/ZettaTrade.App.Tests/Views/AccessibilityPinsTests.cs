@@ -66,6 +66,9 @@ public sealed class AccessibilityPinsTests
                      "Chart.A11ySymbolPicker", "Chart.A11yNoSeries", "Chart.A11ySeries",
                      "Chart.A11yWithCompare", "OrderBook.A11yWithSymbol", "OrderBook.A11yDepthWithSymbol",
                      "Tape.A11yWithSymbol", "Backtest.A11yEquity", "Stats.A11yEquity", "AI.Chat.InputName",
+                     "Chart.Indicators.A11ySmaInfo", "Chart.Indicators.A11yEmaInfo", "Chart.Indicators.A11yWmaInfo",
+                     "Chart.Indicators.A11yRsiInfo", "Chart.Indicators.A11yMacdInfo", "Chart.Indicators.A11yAtrInfo",
+                     "Chart.Indicators.A11yBollInfo",
                  })
         {
             Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)
