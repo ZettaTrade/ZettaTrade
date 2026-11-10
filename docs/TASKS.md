@@ -157,7 +157,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-150 Design tokens: Fluent system brushes out of the views, palette keys only | feat/design-tokens | done | - |
 | T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | done | - |
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | done | - |
-| T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | in-progress | - |
+| T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | done | - |
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | queued | - |
 | T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | queued | - |
 | T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | queued | T-154 (soft) |
@@ -377,25 +377,6 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   source pins (the marker counts per window, the state fill keys, the dropped walk-around).
   Gate PASSED on attempt 1; smoke 58 log entries, 0 ERR/FTL, ProductVersion
   `0.1.0-alpha.97+45a25332…`.
-- **Status:** in-progress
-
-## T-153 — Status bar declutter: the message channel + the summary, the settings noise out
-
-- **Branch:** feat/status-bar, worktree zt-status-bar, based on develop@b96dee7 (claimed 2026-11-11 as the fourth of the T-150…T-162 design-review batch — the strip sheds the once-a-month noise right after the chips-readability pass).
-- **Origin:** eight groups ride the bottom strip (the Ready text, the exchange picker, the active
-  exchange, the lane chip, the connection state, the theme name, the language name, the version
-  and the health dots); the theme/language/version facts change once a month and eat the reading
-  space needed for the actual status messages.
-- **What:** the strip keeps: a real message channel (transient event messages over the Ready idle
-  text), the exchange picker, the active exchange + lane chip, the connection state, the health
-  dots. The theme/language labels move to the settings (both already switch there); the version
-  moves to Help/About.
-- **Scope:** the MainWindow status Border, the StatusBar ViewModel rows, resx en+ru for the moved
-  captions; no exchange/provider contracts.
-- **Acceptance:** the strip carries at most the five named groups; an event still surfaces on the
-  strip before it vanishes; every removed label stays reachable in one action (settings/About).
-- **Tests:** StatusBar VM pins for the message channel's replace/coalesce behavior; a view pin
-  asserting the removed bindings are gone.
 - **Status:** in-progress
 
 ## T-154 — Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton
