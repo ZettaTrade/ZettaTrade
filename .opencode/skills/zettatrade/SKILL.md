@@ -14,7 +14,7 @@ architecture-side canon plus the on-demand references beside it.
 
 ## Architecture
 - Clean Architecture: Presentation -> Domain -> Infrastructure.
-- Target layout: `src/ZettaTrade.{App,Core,Infrastructure,AI,UI,Charting,Strategies,Plugins}` plus the domain-neutral `src/Livery` appearance library, `tests/*.Tests`. Not every project exists yet.
+- Target layout: `src/ZettaTrade.{App,Core,Infrastructure,AI,UI,Charting,Strategies,Plugins}`, `tests/*.Tests`. Not every project exists yet. The domain-neutral appearance library is not in-tree (T-130): it ships as the private `Livery` package from the standalone `ZettaTrade/Livery` repo (GitHub Packages; the root `nuget.config` pins the `zettatrade` source). Appearance-only changes go through the Livery repo (a package bump there, then the one-line consuming bump here); platform-specific and trading code never move to it.
 - Plugin-first: exchange adapters, indicators and strategies are separate assemblies. Never hardcode exchange-specific logic in core.
 - Platform-specific code lives only in Infrastructure.
 - Market data flows through `Channel<T>`; charts are rendered with SkiaSharp.

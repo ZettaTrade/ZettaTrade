@@ -50,7 +50,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ZettaTrade.AI\ZettaTrade.AI.csproj" />
-    <ProjectReference Include="..\Livery\Livery.csproj" />
+    <PackageReference Include="Livery" Version="$(LiveryVersion)" />
     <ProjectReference Include="..\ZettaTrade.Charting\ZettaTrade.Charting.csproj" />
     <ProjectReference Include="..\ZettaTrade.Infrastructure\ZettaTrade.Infrastructure.csproj" />
     <ProjectReference Include="..\ZettaTrade.Backtest\ZettaTrade.Backtest.csproj" />

@@ -44,4 +44,13 @@
     <VersionSuffix>alpha.92</VersionSuffix>
 
   </PropertyGroup>
+
+  <!-- The domain-neutral appearance library ships as a package (T-130):
+       the standalone ZettaTrade/Livery repo publishes it to the private
+       GitHub Packages feed (the root nuget.config pins the source). One
+       version fact: bump this single line when a new package release
+       lands, never the five consumers. -->
+  <PropertyGroup>
+    <LiveryVersion>0.1.0</LiveryVersion>
+  </PropertyGroup>
 </Project>

@@ -17,7 +17,8 @@
 # Code signing and notarization are deliberately out of scope until
 # beta; docs/SECURITY.md records the unsigned-artifact posture and what
 # the flip will need. No product code changes and no secrets beyond the
-# automatic GITHUB_TOKEN (the repository build is public).
+# automatic GITHUB_TOKEN: packages: read restores the private Livery
+# package (the Livery package grants this repository Actions access).
 name: release
 
 on:
@@ -27,6 +28,7 @@ on:
 
 permissions:
   contents: read
+  packages: read # restore the private Livery package from GitHub Packages
 
 jobs:
   package:
@@ -51,6 +53,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Authenticate the private Livery package feed
+        run: dotnet nuget add source https://nuget.pkg.github.com/ZettaTrade/index.json --name zettatrade --username ZettaTrade --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text
 
       - name: Parse the version from Directory.Build.props
         id: version

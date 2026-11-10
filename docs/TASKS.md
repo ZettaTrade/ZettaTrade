@@ -134,7 +134,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-127 Live testnet trading loop: a real limit order end-to-end (Bybit testnet) | feat/testnet-trading | done | - |
 | T-128 Demo video: storyboard + shot list (docs/ops) | feat/demo-script | done | - |
 | T-129 Alpha program: testers onboarding, feedback triage, public metrics | feat/alpha-program | done | - |
-| T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | queued | - |
+| T-130 Extract Livery into a standalone private repo (MIT kept) and consume it as a package | feat/livery-split | in-progress | - |
 | T-131 Plugin SDK seam: versioned abstractions that out-of-tree plugins build against | feat/plugin-sdk | done | - |
 | T-132 Closed-source plugin packaging: signed private-repo artifacts + local license-key activation | feat/plugin-packaging | done | - |
 | T-133 MCP paper fills enter the journal: tool-placed fills ride the ledger the panels and PnL read | feat/mcp-journal | done | T-082 |
@@ -203,12 +203,13 @@ the end of that file, so no effort is duplicated.
 
 ## T-130 — Extract Livery into a standalone private repo (MIT kept), consume as a package
 
-- **Branch:** queued 2026-11-06 (open-core structure at the licensing review: Livery goes to its own PRIVATE repo, the license stays MIT — the sources stay hidden and the package is the public surface, flipping the repo public later is one click; this is the pilot of the multi-repo mechanics. Sequenced between alpha releases, coordinated across sessions — Livery paths are touched by UI work).
+- **Branch:** feat/livery-split, worktree zt-livery-split, based on develop@1f9475c (claimed 2026-11-10; the split half already lives outside this repo — the Livery repo bootstrapped from the subtree-split history, package 0.1.0 published to the private GitHub Packages feed, CI green — so this task lands the consumption switch). Queued 2026-11-06 (open-core structure at the licensing review: Livery goes to its own PRIVATE repo, the license stays MIT — the sources stay hidden and the package is the public surface, flipping the repo public later is one click; this is the pilot of the multi-repo mechanics. Sequenced between alpha releases, coordinated across sessions — Livery paths are touched by UI work).
 - **Origin:** Livery is domain-neutral by design (appearance styles/controls plus the extensions like `ObserveOnUiThread`), has no tie to trading logic, and the paid plugin plan will ride the same multi-repo mechanics this split rehearses first (a versioned package, the two-PR cross-repo workflow).
 - **What:** a one-shot history-preserving split (`git filter-repo --subdirectory-filter src/Livery`) into the new private repo `Livery` on the same account, the LICENSE file stays MIT; a publish workflow shipping the NuGet package (a public binary on nuget.org, sources stay private); ZettaTrade removes the in-tree `src/Livery` and switches to `PackageReference` pinned to the package version; Livery gains its own README, its in-repo test suite and semver+changelog discipline from day one; AGENTS.md and ZettaTrade_SKILL.md updated (the target-layout note loses `src/Livery`, plus a two-repo ownership paragraph: appearance-only changes go through the Livery repo, platform-specific and trading code never move there).
 - **Scope:** the bootstrap and split commits in the new Livery repo, the ZettaTrade consumption switch, the docs notes; no product behavior changes.
 - **Acceptance:** the new repo's history reaches back through the split for Livery files (nothing lost at the splice); a clean ZettaTrade clone builds with zero in-tree Livery sources and the full test matrix stays green; the two-PR cross-repo path lands once as a rehearsal (a style tweak: the version-bumped PR in Livery, then the bump PR here).
 - **Tests:** the matrix over the consumption switch; the Livery suite in the new repo; the rehearsal change verified on both sides.
+- **Status:** in-progress
 
 ## T-141 — Soak isolation: pin the demo adapter so a run is network-free
 
