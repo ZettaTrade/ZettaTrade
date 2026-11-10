@@ -158,7 +158,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-151 Palette contract lint: WCAG pins over every theme file + the Accent role fix | feat/palette-lint | done | - |
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | done | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | done | - |
-| T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | queued | - |
+| T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | in-progress | - |
 | T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | queued | - |
 | T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | queued | T-154 (soft) |
 | T-157 Table grammar for positions and order history | feat/table-grammar | queued | T-154 (soft) |
@@ -381,7 +381,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-154 — Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Branch:** feat/livery-chrome-kit, worktree zt-livery-chrome-kit, based on develop@5ff3562 (claimed 2026-11-11 as the fifth of the T-150…T-162 design-review batch — the shared vocabulary lands right after the declutter; the satellite release 0.1.5 rides the same task).
 - **Origin:** the same visual vocabulary is re-typed by hand: the `.on` toggle style copies five
   times in ChartPanelView, the testnet-badge style copies across the windows, the state-dot
   ellipse styles duplicate between the health strip and the signal rail, and the settings window
@@ -397,6 +397,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   "i" cues become focusable with automation names (an a11y step up); the chrome renders
   identically before/after.
 - **Tests:** style-presence pins per control; an a11y pin for the InfoIcon peer.
+- **Status:** in-progress
 
 ## T-155 — Type ramp + tabular numerals + the spacing scale, as tokens
 
