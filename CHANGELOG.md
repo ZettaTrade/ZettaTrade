@@ -1,3 +1,29 @@
+## [0.1.0-alpha.95] - 2026-11-11
+
+Build of board task T-150 (branch `feat/design-tokens`).
+
+### Added
+- The derived Fluent system keys ride the palette (T-150): ThemeManager
+  0.1.3 (the satellite's release, the tag `v0.1.3`) publishes the stock
+  control templates' own families (`SystemAccentColor*`, the
+  `SystemControl*Brush` ramps, the chrome and highlight steps) from the
+  applied theme's palette — a user JSON theme recolors the stock paths
+  together with the palette roles, and a palette missing a foundation key
+  publishes nothing (the palette keys' own omission semantics). The
+  brush-family members publish as brushes, not Colors: Avalonia 12's
+  property store enforces value-type identity per effectively bound
+  entry (0.1.3's fix — a raw Color over a stock brush key threw the
+  effective-value store wide).
+
+### Changed
+- The second parallel color system left the views (T-150): the status bar
+  paints Surface over a top Border stroke (it kept the Fluent accent tint
+  under every theme), the panel separators ride Border, and the settings
+  cue glyphs ride Border/TextSecondary — a fresh theme JSON touching only
+  Background/Surface/Border retints all three live; source pins forbid
+  the Fluent `SystemAccentColor*`/`SystemControl*` keys in the app
+  sources, and the headless publish pins walk the app's resource world.
+
 ## [0.1.0-alpha.94] - 2026-11-11
 
 Build of board task T-163 (branch `feat/plugin-packages`).
