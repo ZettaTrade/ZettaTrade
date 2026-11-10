@@ -148,6 +148,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-141 Soak isolation: pin the demo adapter so a run is network-free | fix/soak-isolation | queued | - |
 | T-142 Book timestamps: one clock discipline across adapters (the WS latency measures transport) | fix/book-timestamps | queued | - |
 | T-143 Palette suggestion rows carry automation names (not the record's ToString) | fix/palette-a11y-rows | queued | - |
+| T-144 UI test suite: a headless lane over the real windows (layout, tabs, flows) | feat/ui-tests | queued | - |
+| T-145 UI layout pass: a wrapping chart toolbar and a roomier settings window | feat/ui-layout | in-progress | - |
 | T-148 Kill the BrokenBase fixture leak: the T-054 base assembly never reaches the output directories | feat/fixture-leak | done | - |
 | T-149 Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin | feat/app-test-flak | planned | - |
 
@@ -219,6 +221,24 @@ the end of that file, so no effort is duplicated.
 - **Scope:** the symbol palette view/ViewModel, resx en+ru (the `Chart.*` prefix), the a11y pins/tests; the palette's keyboard-first behavior stays untouched.
 - **Acceptance:** in both languages a row's UIA Name reads like a symbol entry (e.g. `BTC/USDT on Bybit`), every string resolves en+ru, and the compare-pick flow reports a clean name instead of the record dump.
 - **Tests:** row-naming pins in the palette a11y fixture (en+ru); the palette's unchanged behavior goldens.
+
+## T-144 — UI test suite: a headless lane over the real windows
+
+- **Branch:** queued 2026-11-10 (filed at the user's request during the turn that also shipped the T-141…T-143 findings; T-145's layout pins are the acceptance's first tranche).
+- **Origin:** the window-level UI facts ride source pins and ad-hoc UIA probes today (the chrome/accessibility pins say it plainly: no headless render harness), so layout regressions like the T-145 toolbar overflow reach the user instead of the gate.
+- **What:** a headless UI lane over the real views: Avalonia.Headless (the XUnit flavor) materializes actual windows against the ViewModel graph with mocked services; the pinned facts — at every min-size layout the chart toolbar never intersects the book/tape/watchlist headers, the settings window opens with its folded tab strip and the pinned Save/Close row inside the bounds, the overlay surfaces (palette, hotkey cheat sheet) route their keys, and a language flip re-inks the static strings; the lane rides the local gate and the CI matrix.
+- **Scope:** the headless package reference, a headless harness folder in tests/ZettaTrade.App.Tests, the gate wiring for the lane; no product code changes.
+- **Acceptance:** a headless bounds fact that fails against the pre-T-145 XAML (the toolbar painting over the book header) and passes after it; the lane stays green in the gate and CI across the three OS targets.
+- **Tests:** the harness facts themselves are the deliverable, plus a window-materialization smoke per window.
+
+## T-145 — UI layout pass: a wrapping chart toolbar and a roomier settings window
+
+- **Branch:** feat/ui-layout, worktree zt-ui-layout, based on develop@fc4691a (claimed 2026-11-10 by the QA-review session; the user filed both complaints with a screenshot: the toolbar painted over the book header, the settings dialog baked six tab headers into a 560-wide fixed frame).
+- **Origin:** the chart header is a 13-column grid (a star symbol column plus twelve auto columns) inside the chart column; the auto sum exceeds the column, nothing clips, and the chart Border — the workspace grid's last child — paints the spillover on top of the book, tape and watchlist panels; resizing only shrinks the star, never the auto sum. The settings window is fixed 560×640 with six tabs — the header strip consumes the dialog's width and the fixed size blocks the bigger lists.
+- **What:** the chart header splits into two rows — the symbol picker owns a stretch row, the controls (time frame, type, scale, the toggles, the exports, compare) ride a finite-width WrapPanel that folds onto further lines when the column narrows; the rows below keep their indices (the header is one nested grid child). The settings window grows to a resizable 760×720 (Min 640×560) and folds to four tabs per the user's pick: Appearance and Indicators stand, MCP plus Import/Export plus the factory reset fold into Integrations, Pairs plus the hotkey editor fold into Workspace; every retired tab header survives as its section caption inside the merged tab, and the port section's visibility rides its own stack (a hidden port never hides MCP).
+- **Scope:** MainWindow.axaml, SettingsWindow.axaml, resx en+ru (the two new tab keys), the layout pins test file; no ViewModel or contract changes.
+- **Acceptance:** no toolbar pixel lands on the book/tape/watchlist columns at any window size down to the minimums; the settings dialog resizes with the pinned Save/Close row and four tab headers fitting the strip; every migrated control keeps its binding, handler and en+ru localization.
+- **Tests:** layout source pins (the stale header grid gone, the wrap band present, the four-tab count and the resize attributes, the migrated content keys) with the new tab keys resolving in both cultures; the existing chrome, accessibility and indicator-gate pins stay green.
 
 ## T-149 - Stabilize the App.Tests heatmap stale-epoch flake: a completion-driven settle pin
 
