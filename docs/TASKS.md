@@ -180,7 +180,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-173 A detached order book frees its main-window column: no dead reserved width rides behind the detached window (the user report) | feat/book-detach-space | done | - |
 | T-174 The standard pack grows the strategy catalog: the classic swing/breakout/reversion set rides the package (the user ask, scoped by the supervisor's analytics) | feat/strategy-catalog | done | T-168 |
 | T-175 The startup binding sweep: the debug-output binding errors go silent and the menu gesture hints render (the user's debug log) | fix/binding-noise | done | - |
-| T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | in-progress | - |
+| T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | done | - |
 | T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | planned | T-112, T-172 |
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete-affordance | planned | T-091 |
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | fix/skia-header-padding | planned | T-103 |
@@ -258,18 +258,6 @@ systemic), the Livery shared-kit prep next (T-154, T-155), then the surface rede
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
 
 
-
----
-
-## T-176 - The user-action E2E lane: real-window UI tests (the framework call)
-
-- **Branch:** feat/e2e-flaui-lane, worktree zt-e2e-flaui-lane, based on develop@8be9425 (claimed 2026-11-12; queued 2026-11-11 — filed from the user's correction: the "UI tests" asks meant tests that imitate user actions on the compiled app - the FlaUI shape - not the headless pins; the framework proposal rides this section).
-- **Origin:** the board's UI-task acceptance tests are headless pins (the T-144 harness lane): in-process, input-injected, no real window. The user asked for a separate lane of user-action tests over the real application. The supervisor's framework call (researched 2026-11-11): FlaUI 6.0 (UIA3, MIT, .NET 10 supported since 6.0.0) drives the real process through Windows UI Automation; Avalonia exposes the full accessibility tree on Windows with `AutomationProperties.AutomationId` as the stable, localization-proof test identifier. Appium (Avalonia's own internal choice, per the official testing docs) is the heavier alternative: a server process plus drivers, its Windows engine rides the deprecated-maintenance WinAppDriver stack; it earns its cost only with macOS/Linux E2E ambitions.
-- **What:** a separate E2E test project riding FlaUI.UIA3: launches the compiled app, attaches through the automation tree, walks the critical flows as a user (startup, the settings round-trip, a splitter drag, a detach cycle, the order ticket path, hotkeys); Windows-only tests (a trait gates them off elsewhere; the dev box and the smoke lane run Windows); the views gain `AutomationId`s where missing (the accessibility work already seeded many names); the headless interaction scripts (T-172's shape) stay the cheap in-gate tier, FlaUI is the real-process tier on top.
-- **Scope:** a new tests/ZettaTrade.E2E.Tests project (xUnit + FluentAssertions, FlaUI.Core + FlaUI.UIA3 packages), AutomationId additions in views, no production behavior change; no alpha bump (tests-only).
-- **Acceptance:** the E2E lane launches the real app and passes the critical-flow scripts locally; the gate runs it behind the Windows trait; the headless pins keep their lane.
-- **Tests:** the E2E critical-flow scripts; the existing gate stays green.
-- **Status:** in-progress.
 
 ---
 
