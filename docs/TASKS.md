@@ -176,6 +176,10 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-169 Settings window polish pass: the pairs transfer buttons ride the icon kit, the indicators rows align on fixed columns, the tab content clears the scrollbar | feat/settings-polish | done | - |
 | T-170 Scroll surfaces audit: no window's content sits under the scrollbar (the user reports the overlap beyond the settings window) | feat/scroll-gutter | done | - |
 | T-171 The license activation dialog opens again: the EULA surface resolves under its interface (the user-reported live ERR) | feat/license-di | done | - |
+| T-172 The layout splitters become discoverable grips: every resizable boundary shows a visible grab handle (the user cannot find the resize affordance) | feat/splitter-grips | in-progress | - |
+| T-173 A detached order book frees its main-window column: no dead reserved width rides behind the detached window (the user report) | fix/book-detach-space | planned | - |
+| T-174 The standard pack grows the strategy catalog: the classic swing/breakout/reversion set rides the package (the user ask, scoped by the supervisor's analytics) | feat/strategy-pack-expansion | planned | T-168 |
+| T-175 The startup binding sweep: the debug-output binding errors go silent and the menu gesture hints render (the user's debug log) | fix/binding-noise | planned | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -212,5 +216,54 @@ discipline first (T-150, T-151, T-152 — the two parallel color systems and the
 systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
 (T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
+
+
+---
+
+## T-172 - The layout splitters become discoverable grips
+
+- **Branch:** feat/splitter-grips, worktree zt-splitter-grips, based on develop@e1060ec (claimed 2026-11-11; filed from the user's ask - "add a vertical slider to resize the pieces" - while T-038 already shipped draggable splitters, the user cannot find them).
+- **Origin:** T-038 landed four GridSplitters (the assistant/book, chart/book, book/tape, tape/watchlist boundaries) and made them Focusable, but the grips carry no visual affordance after the T-066 restyle - they render as invisible gutters, so the user reads the layout as fixed and asks for "a slider".
+- **What:** every main-window splitter shows a visible grab handle: a grip affordance that reveals itself on hover and stays discoverable at rest (a subtle thumb line, not chrome noise - the design-tokens canon governs); the drag behavior and the persisted widths (T-038) ride untouched.
+- **Scope:** MainWindow.axaml (the four splitters + the splitter styles) + the UI.Tests headless pins; alpha.118 + the CHANGELOG section; no ViewModel seams (the widths already persist).
+- **Acceptance:** headless pins prove each boundary renders a visible grip element with its hover state resolving; the drag behavior stays untouched (the persisted-width facts T-038 pinned keep passing).
+- **Tests:** the UI.Tests headless splitter-lane pins (grip presence per boundary, hit-testability); the full gate stays green.
+- **Status:** in-progress.
+
+---
+
+## T-173 - A detached order book frees its main-window column
+
+- **Branch:** queued 2026-11-11 (filed from the user's ask: "if the order book is opened as a separate window, do not reserve its space in the main window").
+- **Origin:** T-103's detach moves the book panel into its own window, but the main window's book column keeps its persisted width - a dead reserved gutter rides behind the detached window and the layout reads wrong. The AI panel already solves the same problem: its splitter track and column collapse with the panel's visibility (`AiSplitterColumnWidth`, the "hidden panel never leaves a dead gutter" precedent).
+- **What:** the book column, its splitter track and the column widths collapse when `IsBookDetached` goes true - the workspace reclaims the space for the chart; on re-attach the persisted book width restores (the persistence keys ride untouched); the chart column keeps its star share.
+- **Scope:** WorkspaceLayoutViewModel (a book splitter-track sibling of the AI precedent), MainWindow.axaml (the book column + splitter bindings), the UI.Tests pins; alpha.119 + the CHANGELOG section.
+- **Acceptance:** headless pins prove the detached state leaves no reserved book gutter and the re-attached state restores the persisted width; the detach/attach cycle round-trips.
+- **Tests:** the UI.Tests headless detach-lane pins (column collapse per state, the restore round-trip); the full gate stays green.
+- **Status:** planned.
+
+---
+
+## T-174 - The standard pack grows the strategy catalog
+
+- **Branch:** queued 2026-11-11 (filed from the user's ask: "add more strategy variants"; the satellite-first shape per the multi-repo rule).
+- **Origin:** T-168 landed the strategy seam and the pack ships one strategy (sma-golden-cross). The user asks for more variants but flags uncertainty about what actually helps trading ("not very good at trading, so this is up in the air") - the supervisor's analytics call: ship a small set of well-understood classics over exotic auto-tuned shapes; every signal stays inert (contract 2.1.0: a pure walk, deterministic, long/flat/neutral) and verifiable in the backtest picker.
+- **What:** three new strategies ride the Plugins package (0.2.0 -> 0.3.0), each modeled on the SmaCross template shape (a pure walk, a Neutral warmup, a guarded ctor, a stable id): EmaCross (the fast/slow EMA golden/death cross), RsiReversion (an oversold entry / overbought exit band logic), BollingerBreakout (a close outside the bands with a mid-band exit). The picker auto-discovers the pack (T-163's mechanics) - no consuming-side seam.
+- **Scope:** the satellite repo first (the three strategies + their unit facts + the package bump), then the one-line consuming bump in-tree (PluginsVersion) + the CHANGELOG section (alpha.120); platform-specific and trading code never move to the satellite; the Abstractions contract stays 2.1.0.
+- **Acceptance:** the satellite package tests prove each strategy's warmup neutrality, its entry/exit transitions and determinism (a second walk replays identical signals); in-tree the picker lists all four pack strategies.
+- **Tests:** the satellite xUnit facts per strategy (warmup neutrality, the transition matrix, determinism); in-tree the gate stays green.
+- **Status:** planned.
+
+---
+
+## T-175 - The startup binding sweep: the debug noise goes silent, the gesture hints render
+
+- **Branch:** queued 2026-11-11 (filed from the user's debug-output report).
+- **Origin:** the user's debug output shows two defect families at startup. (1) Binding noise: the menu detach commands/checkboxes and the chart HUD bind `$parent[Window].DataContext.*` while the window's DataContext is still null - `new MainWindow { DataContext = mainVm }` (App.axaml.cs:79) runs the object initializer AFTER the ctor's InitializeComponent, so the bindings first evaluate against null, log errors and self-heal only on the later assignment. (2) A functional defect: `InputGesture="{Binding Hotkeys.*Gesture}"` binds System.String values ('Ctrl+N', 'Ctrl+Shift+A', 'Ctrl+OemComma') to the KeyGesture-typed property - the conversion fails, so the menu gesture hints never render at all (not just debug noise).
+- **What:** the window's DataContext lands before InitializeComponent (the instantiation order restructures around a main-view-model-carrying ctor) so the null-DataContext evaluation phase disappears for the menu/HUD lanes; the hotkey strings convert to KeyGesture for real - a string-to-KeyGesture converter or KeyGesture-typed hotkey properties, with an unparsable string surfacing as a logged warning rather than a silent dead hint (the trading-safety canon: no silent defaults).
+- **Scope:** App.axaml.cs (the instantiation order), MainWindow.axaml(.cs) (the gesture bindings), the Hotkeys surface, the UI.Tests pins; alpha.121 + the CHANGELOG section.
+- **Acceptance:** a headless startup pin captures the binding-error stream (the debug-output lane) and proves zero binding errors for the detach menu, the HUD and the gesture hints; the menu items render their gesture text; the smoke's file log shows no new ERR/FTL.
+- **Tests:** the UI.Tests headless startup-lane pin (the binding-error capture + the gesture text presence); the full gate stays green.
+- **Status:** planned.
 
 
