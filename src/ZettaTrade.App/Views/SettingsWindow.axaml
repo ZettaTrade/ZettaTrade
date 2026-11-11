@@ -9,6 +9,7 @@
         xmlns:livery="using:Livery.Controls"
         x:Class="ZettaTrade.App.Views.SettingsWindow"
         Classes="chrome-compact"
+        AutomationProperties.AutomationId="SettingsWindow"
         Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:SettingsViewModel"
         Title="{loc:Localized Settings.Title}"
@@ -112,11 +113,14 @@
                                    Text="{loc:Localized Chart.TimeFormat}"
                                    VerticalAlignment="Center" />
                         <ComboBox Grid.Row="2" Grid.Column="1"
+                                  AutomationProperties.AutomationId="TimeFormatComboBox"
                                   SelectedIndex="{Binding SelectedTimeFormatIndex}"
                                   MinWidth="220"
                                   HorizontalAlignment="Left">
-                            <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours24}" />
-                            <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours12}" />
+                            <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours24}"
+                                          AutomationProperties.AutomationId="TimeFormatHours24Item" />
+                            <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours12}"
+                                          AutomationProperties.AutomationId="TimeFormatHours12Item" />
                         </ComboBox>
                     </Grid>
 
@@ -876,6 +880,7 @@
              scrolled away. -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
             <Button x:Name="SaveButton"
+                    AutomationProperties.AutomationId="SaveButton"
                     Content="{loc:Localized Settings.Save}"
                     MinWidth="90"
                     Click="OnSaveClick" />
