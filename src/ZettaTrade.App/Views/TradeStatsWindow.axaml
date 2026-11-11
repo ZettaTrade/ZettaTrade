@@ -13,7 +13,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="10">
 
         <!-- Filters: text fields, the paper-live tag and the date range -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*" >
@@ -55,47 +55,47 @@
 
         <!-- Stats + equity area: the tiles stand over the chart; both honest
              zero/dash baselines while nothing is scanned yet. -->
-        <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+        <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource SpaceS}">
             <UniformGrid Grid.Row="0" Columns="5" Rows="2" Margin="0,4,0,0">
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Trades}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding TradesText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding TradesText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Wins}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding WinsText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding WinsText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Losses}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding LossesText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding LossesText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.WinRate}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding WinRateText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding WinRateText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.ProfitFactor}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding ProfitFactorText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding ProfitFactorText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.AverageWinner}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding AverageWinnerText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding AverageWinnerText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.AverageLoser}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding AverageLoserText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding AverageLoserText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.MaxDrawdown}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding MaxDrawdownText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding MaxDrawdownText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Realized}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding RealizedText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding RealizedText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Spacing="2" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Volume}" Foreground="{DynamicResource TextSecondary}" />
-                    <TextBlock Text="{Binding VolumeText}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding VolumeText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
             </UniformGrid>
 
@@ -115,7 +115,7 @@
         </Grid>
 
         <!-- Progress / failure -->
-        <StackPanel Grid.Row="2" Spacing="4">
+        <StackPanel Grid.Row="2" Spacing="{StaticResource SpaceXs}">
             <TextBlock Text="{Binding ScanStateText}"
                        IsVisible="{Binding ScanStateText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             <TextBlock Text="{Binding ErrorMessage}"

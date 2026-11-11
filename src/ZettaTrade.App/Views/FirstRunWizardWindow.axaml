@@ -18,13 +18,13 @@
          nav row always stays in place (the wizard never moves its controls —
          a step is a panel flip, not a window shuffle). Every step's pick is
          a draft: nothing applies before the finish button's task lands. -->
-    <StackPanel Margin="20" Spacing="12">
+    <StackPanel Margin="20" Spacing="{StaticResource SpaceM}">
 
         <!-- Step one: the theme pick. -->
         <StackPanel IsVisible="{Binding IsThemeStepVisible}" Spacing="10">
             <TextBlock Text="{loc:Localized Wizard.Theme.Header}"
                        FontWeight="Bold"
-                       FontSize="16" />
+                       FontSize="{StaticResource TitleFontSize}" />
             <TextBlock Text="{loc:Localized Wizard.Theme.Caption}"
                        TextWrapping="Wrap" />
             <ComboBox ItemsSource="{Binding ThemeOptions}"
@@ -44,7 +44,7 @@
         <StackPanel IsVisible="{Binding IsAdapterStepVisible}" Spacing="10">
             <TextBlock Text="{loc:Localized Wizard.Adapter.Header}"
                        FontWeight="Bold"
-                       FontSize="16" />
+                       FontSize="{StaticResource TitleFontSize}" />
             <TextBlock Text="{loc:Localized Wizard.Adapter.Caption}"
                        TextWrapping="Wrap" />
             <ComboBox ItemsSource="{Binding AdapterOptions}"
@@ -53,16 +53,16 @@
                       HorizontalAlignment="Left">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="interfaces:IMarketDataAdapter">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding Id}" FontSize="12" />
+                            <TextBlock Text="{Binding Id}" />
                         </StackPanel>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
             <TextBlock Text="{loc:Localized Wizard.Adapter.Secrets}"
                        TextWrapping="Wrap"
-                       FontSize="12" />
+                       />
         </StackPanel>
 
         <!-- Step three: the first symbol pick, refilled on every draft-adapter
@@ -70,7 +70,7 @@
         <StackPanel IsVisible="{Binding IsSymbolStepVisible}" Spacing="10">
             <TextBlock Text="{loc:Localized Wizard.Symbol.Header}"
                        FontWeight="Bold"
-                       FontSize="16" />
+                       FontSize="{StaticResource TitleFontSize}" />
             <TextBlock Text="{loc:Localized Wizard.Symbol.Caption}"
                        TextWrapping="Wrap" />
             <ListBox ItemsSource="{Binding SymbolNames}"
@@ -81,7 +81,7 @@
         <!-- The nav row: back walks the drafts, next advances, finish is the
              last step's confirm, skip leaves without applying anything (a
              plain close — the same path the system close takes). -->
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="{StaticResource SpaceS}">
             <Button Grid.Column="0"
                     IsVisible="{Binding IsBackVisible}"
                     Content="{loc:Localized Wizard.Back}"

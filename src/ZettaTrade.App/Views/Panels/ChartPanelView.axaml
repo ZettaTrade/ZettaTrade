@@ -38,7 +38,7 @@
              the same band. -->
         <Grid Grid.Row="0"
               RowDefinitions="Auto,Auto"
-              RowSpacing="8"
+              RowSpacing="{StaticResource SpaceS}"
               Margin="0,0,0,8">
             <ComboBox Grid.Row="0"
                       ItemsSource="{Binding AvailableSymbols}"
@@ -52,7 +52,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <TextBlock Text="★"
                                        Foreground="{DynamicResource Highlight}"
-                                       FontSize="14"
+                                       FontSize="{StaticResource SubtitleStrongFontSize}"
                                        VerticalAlignment="Center"
                                        IsVisible="{Binding IsFavorite}" />
                             <TextBlock Text="{Binding Symbol.Normalized}"
@@ -246,7 +246,7 @@
                 <TextBlock Grid.Row="0"
                            Text="{loc:Localized Signal.Rail.Title}"
                            FontWeight="Bold"
-                           FontSize="14"
+                           FontSize="{StaticResource SubtitleStrongFontSize}"
                            Margin="4,2,0,6" />
                 <Grid Grid.Row="1">
                     <TextBlock Text="{loc:Localized Signal.Rail.Empty}"

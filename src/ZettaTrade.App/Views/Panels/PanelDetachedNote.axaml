@@ -6,7 +6,7 @@
     <!-- The detached-slot note (T-103): what the inline host shows while
          the panel lives in its own window. Static localized text only —
          the note carries no state. -->
-    <Border Padding="12">
+    <Border Padding="{StaticResource InsetM}">
         <TextBlock Text="{loc:Localized Chrome.DetachNote}"
                    Foreground="{DynamicResource TextSecondary}"
                    TextWrapping="Wrap"

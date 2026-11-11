@@ -12,7 +12,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="16" RowDefinitions="*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto" RowSpacing="10">
 
         <ScrollViewer Grid.Row="0">
             <StackPanel Spacing="14">
@@ -25,7 +25,7 @@
                     <ItemsControl ItemsSource="{Binding Sources}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:BalancesSourceViewModel">
-                                <StackPanel Spacing="4">
+                                <StackPanel Spacing="{StaticResource SpaceXs}">
                                     <TextBlock Text="{Binding AdapterName}"
                                                FontWeight="Bold"
                                                Margin="0,6,0,0" />

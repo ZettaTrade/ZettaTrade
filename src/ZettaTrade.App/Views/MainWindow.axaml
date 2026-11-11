@@ -152,7 +152,7 @@
                      the view model. -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
-                            Spacing="8"
+                            Spacing="{StaticResource SpaceS}"
                             Margin="16,0"
                             VerticalAlignment="Center">
                     <TextBlock VerticalAlignment="Center">
@@ -222,7 +222,7 @@
                           IsVisible="{Binding Chat.IsAiChatVisible}" />
 
             <!-- Left: Trading workspace (charts, order book, etc.) -->
-            <Border Grid.Column="0" Padding="8">
+            <Border Grid.Column="0" Padding="{StaticResource InsetS}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -277,7 +277,7 @@
                                         MinWidth="72" />
                                 <TextBlock Text="{loc:Localized Tape.Title}"
                                            FontWeight="Bold"
-                                           FontSize="14"
+                                           FontSize="{StaticResource SubtitleStrongFontSize}"
                                            VerticalAlignment="Center" />
                             </DockPanel>
                             <charting:TradeTapeWidget x:Name="TapeWidget" Grid.Row="1" Trades="{Binding Updates}" />
@@ -427,11 +427,11 @@
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="10,6">
-                            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding Moment}"
                                            Foreground="{DynamicResource TextSecondary}"
-                                           FontSize="11"
+                                           FontSize="{StaticResource CaptionFontSize}"
                                            VerticalAlignment="Center" />
                                 <Border Grid.Column="1"
                                         CornerRadius="6"
@@ -440,7 +440,7 @@
                                         IsVisible="{Binding HasCountBadge}"
                                         VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Count}"
-                                               FontSize="11"
+                                               FontSize="{StaticResource CaptionFontSize}"
                                                Foreground="{DynamicResource ChipForeground}" />
                                 </Border>
                                 <TextBlock Grid.Column="2"
@@ -488,7 +488,7 @@
                         <TextBlock Grid.Row="0"
                                    Text="{loc:Localized Palette.Title}"
                                    FontWeight="Bold"
-                                   FontSize="14" />
+                                   FontSize="{StaticResource SubtitleStrongFontSize}" />
                         <TextBox x:Name="PaletteQuery"
                                  Grid.Row="1"
                                  AutomationProperties.Name="{loc:Localized Chart.A11ySymbolPicker}"
@@ -501,7 +501,7 @@
                         <TextBlock Grid.Row="2"
                                    Text="{loc:Localized Palette.CompareHint}"
                                    Foreground="{DynamicResource Highlight}"
-                                   FontSize="11"
+                                   FontSize="{StaticResource CaptionFontSize}"
                                    IsVisible="{Binding Palette.IsPickingCompare}" />
                         <Grid Grid.Row="3">
                             <ListBox x:Name="PaletteRows"
@@ -518,7 +518,7 @@
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:SymbolPaletteRow">
                                         <Grid ColumnDefinitions="Auto,Auto,*,Auto"
-                                              ColumnSpacing="8"
+                                              ColumnSpacing="{StaticResource SpaceS}"
                                               Margin="2">
                                             <!-- The star: the favorites read-only mirror
                                                  (the marks are made in the settings window's
@@ -541,7 +541,6 @@
                                             <TextBlock Grid.Column="3"
                                                        Text="{Binding ExchangeName}"
                                                        Foreground="{DynamicResource TextSecondary}"
-                                                       FontSize="12"
                                                        VerticalAlignment="Center" />
                                         </Grid>
                                     </DataTemplate>
@@ -568,7 +567,7 @@
                         <TextBlock Grid.Row="4"
                                    Text="{loc:Localized Palette.Hint}"
                                    Foreground="{DynamicResource TextSecondary}"
-                                   FontSize="11" />
+                                   FontSize="{StaticResource CaptionFontSize}" />
                     </Grid>
                 </Border>
             </Panel>
@@ -579,10 +578,10 @@
              overlay so it rides on top of every panel too. Off by default
              (Diagnostics.HudEnabled); the Help menu's checkbox owns the
              flip, the sampler runs only while the overlay shows, and the
-             off state leaves the frame pass its one property read — no
+             off state leaves the frame pass its one property read - no
              subscriptions, no timers, nothing to see. The lines re-format
-             at the sampler's own 1 Hz cadence; the readout digits ride a
-             monospaced stack so the numbers hold their columns. -->
+             at the sampler's own 1 Hz cadence; the readout digits ride the
+             shared NumericFont token so the numbers hold their columns. -->
         <Panel x:Name="HudOverlay"
                IsVisible="{Binding Hud.IsVisible}"
                HorizontalAlignment="Right"
@@ -599,8 +598,8 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <TextBlock Text="{Binding}"
-                                       FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
-                                       FontSize="11.5"
+                                       FontFamily="{StaticResource NumericFont}"
+                                       FontSize="{StaticResource CaptionFontSize}"
                                        Foreground="{DynamicResource TextPrimary}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -634,7 +633,7 @@
                     <StackPanel Spacing="10">
                         <TextBlock Text="{loc:Localized Hotkeys.Sheet.Title}"
                                    FontWeight="Bold"
-                                   FontSize="14" />
+                                   FontSize="{StaticResource SubtitleStrongFontSize}" />
                         <ItemsControl ItemsSource="{Binding Hotkeys.Sheet}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:HotkeySheetRow">
@@ -647,7 +646,7 @@
                                                    Text="{Binding Gesture}"
                                                    Foreground="{DynamicResource TextSecondary}"
                                                    HorizontalAlignment="Right"
-                                                   FontSize="12" />
+                                                   />
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

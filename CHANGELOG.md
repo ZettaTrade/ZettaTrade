@@ -1,3 +1,23 @@
+## [0.1.0-alpha.100] - 2026-11-11
+
+Build of board task T-155 (branch `feat/type-scale`); the tokens
+themselves ship as the Livery package 0.1.6 (satellite repo).
+
+### Changed
+- The type-token consumption (T-155): every view reads its text sizes
+  from the Livery ramp (Caption 11 / Body 13 / SubtitleStrong 14 /
+  Title 16 — the platform default of 12 stays implicit, so all 35 bare
+  12-literals are gone), the numeric surfaces set digits in the shared
+  `NumericFont` monospaced stack (the ten stats tiles, the positions and
+  order-history table columns, the ticket's quantity/price/trigger/trail/
+  OCO-cap/risk fields, the HUD readout and the backtest report — the two
+  hand-typed font-family copies dedupe onto the token), and the spacing
+  scale (4/8/12/16/24) adopts its steps wherever the value already
+  matched (a no-change vocabulary adoption; the between-step drift is
+  the surface redesigns' lane). Layout is untouched: the ramp remap
+  moves only 10/11.5 captions a half-pixel up to 11 and the scale
+  adoption is a rename.
+
 ## [0.1.0-alpha.99] - 2026-11-11
 
 Build of board task T-154 (branch `feat/livery-chrome-kit`); the shared
