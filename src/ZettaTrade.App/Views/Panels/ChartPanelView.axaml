@@ -113,25 +113,40 @@
                         MinWidth="92"
                         Margin="8,2,0,2"
                         Opacity="0.65" />
-                <Button Content="{loc:Localized Chart.ExportCandlesCsv}"
-                        Command="{Binding ExportCandlesCommand}"
-                        MinWidth="110"
-                        Margin="8,2,0,2" />
-                <!-- The export pair (T-094): the PNG snapshot
-                     renders the current frame (same lens, same
-                     annotations) at a fixed scale with the
-                     symbol/timeframe watermark; the second CSV
-                     button exports exactly the visible range. -->
-                <Button Content="{loc:Localized Chart.ExportPng}"
-                        Command="{Binding ExportPngCommand}"
-                        ToolTip.Tip="{loc:Localized Chart.ExportPng.Tip}"
-                        MinWidth="72"
-                        Margin="8,2,0,2" />
-                <Button Content="{loc:Localized Chart.ExportVisibleCsv}"
-                        Command="{Binding ExportVisibleCandlesCommand}"
-                        ToolTip.Tip="{loc:Localized Chart.ExportVisibleCsv.Tip}"
-                        MinWidth="110"
-                        Margin="8,2,0,2" />
+                <!-- The export flyout (T-160): the three export actions
+                     gather under one icon — the band's narrowest step
+                     wins without hiding any action. Each item keeps its
+                     caption (the header text is the item's automation
+                     name) and its own command; the two exported-shape
+                     tips stay on their items. The flyout button itself
+                     is named for the screen reader: an icon-only
+                     control's name never rides its tooltip. -->
+                <Button Classes="icon"
+                        ToolTip.Tip="{loc:Localized Chart.Export}"
+                        AutomationProperties.Name="{loc:Localized Chart.Export}"
+                        Margin="8,2,0,2">
+                    <Button.Flyout>
+                        <MenuFlyout>
+                            <MenuItem Header="{loc:Localized Chart.ExportCandlesCsv}"
+                                      Command="{Binding ExportCandlesCommand}" />
+                            <!-- The export pair (T-094): the PNG snapshot
+                                 renders the current frame (same lens, same
+                                 annotations) at a fixed scale with the
+                                 symbol/timeframe watermark; the second CSV
+                                 item exports exactly the visible range. -->
+                            <MenuItem Header="{loc:Localized Chart.ExportPng}"
+                                      ToolTip.Tip="{loc:Localized Chart.ExportPng.Tip}"
+                                      Command="{Binding ExportPngCommand}" />
+                            <MenuItem Header="{loc:Localized Chart.ExportVisibleCsv}"
+                                      ToolTip.Tip="{loc:Localized Chart.ExportVisibleCsv.Tip}"
+                                      Command="{Binding ExportVisibleCandlesCommand}" />
+                        </MenuFlyout>
+                    </Button.Flyout>
+                    <Path Stretch="None"
+                          StrokeThickness="1.5"
+                          Stroke="{DynamicResource TextPrimary}"
+                          Data="M 6 8 V 2 M 3 5 L 6 2 L 9 5 M 1 8 V 11 H 11 V 8" />
+                </Button>
                 <!-- The compare action (T-124): a second series of
                      the standing interval alongside the workspace
                      one, each percent-rebased to its own zero. The
@@ -143,35 +158,53 @@
                         ToolTip.Tip="{loc:Localized Chart.Compare.Tip}"
                         MinWidth="92"
                         Margin="8,2,0,2" />
-                <!-- The drawing tools palette (T-091): each toggle
+                <!-- The drawing tools palette (T-091, T-160): each toggle
                      arms its tool on the chart control (a same-tool
-                     press stands it down); the control's on-state
-                     rides the active class, and a placed drawing
-                     persists through the chart ViewModel. -->
-                <Button Content="{loc:Localized Chart.Tool.TrendLine}"
+                     press stands it down); the controls speak the kit's
+                     icon shape — borderless glyph buttons whose armed
+                     state rides the .on class (full-bright, the glyph
+                     stroking in the armed ink) and whose captions became
+                     the automation names (the icon-only controls' names
+                     never ride their tooltips). The glyphs draw like the
+                     title-bar strip's: explicit strokes, no inheritance
+                     chain; a placed drawing persists through the chart
+                     ViewModel. -->
+                <Button Classes="icon"
+                        Classes.on="{Binding IsTrendLineToolActive}"
                         Command="{Binding ToolCommand}"
                         CommandParameter="{x:Static tools:ChartDrawingTool.TrendLine}"
                         ToolTip.Tip="{loc:Localized Chart.Tool.TrendLine.Tip}"
-                        Classes.on="{Binding IsTrendLineToolActive}"
-                        MinWidth="72"
-                        Margin="8,2,0,2"
-                        Opacity="0.65" />
-                <Button Content="{loc:Localized Chart.Tool.Level}"
+                        AutomationProperties.Name="{loc:Localized Chart.Tool.TrendLine}"
+                        Margin="8,2,0,2">
+                    <Path Stretch="None"
+                          StrokeThickness="1.5"
+                          Stroke="{DynamicResource TextPrimary}"
+                          Data="M 1.5 10.5 L 10.5 1.5" />
+                </Button>
+                <Button Classes="icon"
+                        Classes.on="{Binding IsLevelToolActive}"
                         Command="{Binding ToolCommand}"
                         CommandParameter="{x:Static tools:ChartDrawingTool.HorizontalLevel}"
                         ToolTip.Tip="{loc:Localized Chart.Tool.Level.Tip}"
-                        Classes.on="{Binding IsLevelToolActive}"
-                        MinWidth="72"
-                        Margin="8,2,0,2"
-                        Opacity="0.65" />
-                <Button Content="{loc:Localized Chart.Tool.Fib}"
+                        AutomationProperties.Name="{loc:Localized Chart.Tool.Level}"
+                        Margin="8,2,0,2">
+                    <Path Stretch="None"
+                          StrokeThickness="1.5"
+                          Stroke="{DynamicResource TextPrimary}"
+                          Data="M 1 6 H 11" />
+                </Button>
+                <Button Classes="icon"
+                        Classes.on="{Binding IsFibToolActive}"
                         Command="{Binding ToolCommand}"
                         CommandParameter="{x:Static tools:ChartDrawingTool.FibRetracement}"
                         ToolTip.Tip="{loc:Localized Chart.Tool.Fib.Tip}"
-                        Classes.on="{Binding IsFibToolActive}"
-                        MinWidth="72"
-                        Margin="8,2,0,2"
-                        Opacity="0.65" />
+                        AutomationProperties.Name="{loc:Localized Chart.Tool.Fib}"
+                        Margin="8,2,0,2">
+                    <Path Stretch="None"
+                          StrokeThickness="1.5"
+                          Stroke="{DynamicResource TextPrimary}"
+                          Data="M 1 2 H 11 M 1 6 H 11 M 1 10 H 11" />
+                </Button>
             </WrapPanel>
         </Grid>
 
@@ -243,11 +276,15 @@
                 BorderThickness="0,1,0,0"
                 DataContext="{Binding SignalRail}">
             <Grid RowDefinitions="Auto,*" MaxHeight="172">
-                <TextBlock Grid.Row="0"
-                           Text="{loc:Localized Signal.Rail.Title}"
-                           FontWeight="Bold"
-                           FontSize="{StaticResource SubtitleStrongFontSize}"
-                           Margin="4,2,0,6" />
+                <!-- The rail head rides the kit's panel-header scaffold
+                     (T-160): the one padding grammar and the title
+                     treatment live in the kit — no hand-typed margins.
+                     The host Border's own planar padding stays the
+                     rows' inset; the head's effective inset rides the
+                     scaffold on top of it. -->
+                <DockPanel Grid.Row="0" Classes="panel-header">
+                    <TextBlock Text="{loc:Localized Signal.Rail.Title}" />
+                </DockPanel>
                 <Grid Grid.Row="1">
                     <TextBlock Text="{loc:Localized Signal.Rail.Empty}"
                                Foreground="{DynamicResource TextSecondary}"

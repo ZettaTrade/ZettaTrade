@@ -9,22 +9,20 @@
     <!-- The order book panel (T-103): the exact content the main window's
          book column carried, extracted one-for-one so the SAME control
          instance hosts in the main window's book column or in the detached
-         book window (the detach moves the control, never a copy). -->
+         book window (the detach moves the control, never a copy). The two
+         captions ride the kit's panel-header scaffold (T-160): the padding
+         grammar and the title treatment live in the kit. -->
     <Grid RowDefinitions="Auto,*,Auto,*">
-        <TextBlock Grid.Row="0"
-                   Text="{loc:Localized OrderBook.Title}"
-                   FontWeight="Bold"
-                   FontSize="{StaticResource SubtitleStrongFontSize}"
-                   Margin="8,0,0,4" />
+        <DockPanel Grid.Row="0" Classes="panel-header">
+            <TextBlock Text="{loc:Localized OrderBook.Title}" />
+        </DockPanel>
         <charting:OrderBookWidget x:Name="BookWidget" Grid.Row="1" Book="{Binding Book}" />
         <!-- Depth chart: the cumulative shape of the same
              served snapshot the ladder binds (no new
              transport; the two panels resolve one depth). -->
-        <TextBlock Grid.Row="2"
-                   Text="{loc:Localized OrderBook.DepthTitle}"
-                   FontWeight="Bold"
-                   FontSize="{StaticResource SubtitleStrongFontSize}"
-                   Margin="8,0,0,4" />
+        <DockPanel Grid.Row="2" Classes="panel-header">
+            <TextBlock Text="{loc:Localized OrderBook.DepthTitle}" />
+        </DockPanel>
         <charting:DepthChartWidget x:Name="DepthWidget" Grid.Row="3" Book="{Binding Book}" />
     </Grid>
 </UserControl>

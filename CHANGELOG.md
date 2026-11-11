@@ -1,4 +1,29 @@
-## [0.1.0-alpha.104] - 2026-11-11
+## [0.1.0-alpha.105] - 2026-11-11
+
+Build of board task T-160 (branch `feat/chart-toolbar-icons`); the Livery
+0.1.7 satellite release rode first (the two kit additions land in the
+package, the consumer pin moves in the same series).
+
+### Changed
+- The chart rail's three drawing tools (T-160) trade their text captions
+  for the Livery kit's icon button: each rides an explicit-stroke glyph
+  path (the strip precedent — inline `Stroke="{DynamicResource
+  TextPrimary}"`, thickness 1.5), the armed state lights the stroke to
+  Highlight through the kit's `Button.icon.on` classes, and the caption
+  becomes an `AutomationProperties.Name` — an icon-only control's name
+  never rides a tooltip. The three export actions gather under one
+  icon-button flyout (`Chart.Export` string, en+ru); the menu items keep
+  their header captions as their own names. Avalonia 12 fact: a
+  `MenuFlyout` hosts `MenuItem` elements — the `MenuFlyoutItem` type is
+  gone. VWAP, VolumeProfile and Compare stay text (outside the icon
+  pass's named scope).
+- The shared panel-header scaffold (Livery 0.1.7's `DockPanel.panel-header`
+  + the combined title selector) is adopted by the tape head, the book's
+  two captions and the chart rail head; the watch/heatmap tab captions
+  ride the `panel-title` treatment alone — the tab chrome keeps its own
+  geometry. Host container paddings stay the containers' own duties
+  (recorded). Kit styles read tokens via DynamicResource (a Styles
+  dictionary cannot StaticResource its sibling).
 
 Build of board task T-159 (branch `feat/watchlist-polish`); no satellite
 release rides it.

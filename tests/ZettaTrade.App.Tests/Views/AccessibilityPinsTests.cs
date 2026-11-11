@@ -69,6 +69,11 @@ public sealed class AccessibilityPinsTests
                      "Chart.Indicators.A11ySmaInfo", "Chart.Indicators.A11yEmaInfo", "Chart.Indicators.A11yWmaInfo",
                      "Chart.Indicators.A11yRsiInfo", "Chart.Indicators.A11yMacdInfo", "Chart.Indicators.A11yAtrInfo",
                      "Chart.Indicators.A11yBollInfo",
+                     // The icon controls' names (T-160): the three drawing
+                     // tools and the export flyout carry their captions as
+                     // the automation names — the icon-only controls' names
+                     // never ride their tooltips.
+                     "Chart.Tool.TrendLine", "Chart.Tool.Level", "Chart.Tool.Fib", "Chart.Export",
                  })
         {
             Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)
