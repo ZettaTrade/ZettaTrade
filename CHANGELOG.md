@@ -1,3 +1,22 @@
+## [0.1.0-alpha.125] - 2026-11-12
+
+Build of board task T-180 (branch `feat/theme-preview-mirror`): the theme
+preview swatches mirror the Accent again, filed from the 2026-11-12 UI
+review findings batch.
+
+### Fixed
+- The dark, light and oled themes' fourth preview swatch mirrors their
+  live Accent again: the T-151 Accent re-tune never reached the mirrors
+  and the theme picker's swatch strip kept selling colors the themes no
+  longer own - dark advertised the retired hover blue `#0f3460` (Accent
+  `#2563eb`), light a grey `#dee2e6` (Accent `#3b82f6`), oled a
+  near-black `#1a1a1a` (Accent `#2563eb`).
+- The palette contract battery grew the mirror lane: every shipped theme
+  carrying a fourth preview swatch must mirror its Accent (the A11Y
+  audit's own rule, enforced in the gate from now on - a stale mirror
+  fails the pin naming the file and the pair), and the auto-created
+  sample theme keeps the same promise on load.
+
 ## [0.1.0-alpha.124] - 2026-11-12
 
 Build of board task T-179 (branch `feat/tape-header-gap`): the Skia header

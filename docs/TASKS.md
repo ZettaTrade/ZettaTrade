@@ -286,7 +286,9 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
 - **Acceptance:** the theme picker's swatches read the live Accent in every shipped theme; a
   stale mirror fails the pin naming the file and the pair.
 - **Tests:** the preview-mirror pin battery over the real theme files (the negative fixture
-  included); the existing theme-identity pins stay green.
+  included); the existing theme-identity pins stay green; the gate-blocking LogTail ring fact
+  stabilized mid-task (the recorded family's dice root pinned to the fact's own wait — the close
+  canon carries the shape).
 - **Status:** in-progress.
 
 ## T-181 - The order ticket's CTA and side segments answer hover and pressed
