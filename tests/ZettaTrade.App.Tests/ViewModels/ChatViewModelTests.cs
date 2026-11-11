@@ -21,7 +21,10 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// the send pipeline turns the input into a workspace-context completion
 /// where the user turn lands first, the answer appends as an assistant turn,
 /// an unavailable assistant reports an honest in-chat error line, and no
-/// request ever races another.
+/// request ever races another. The Stop command (T-158) halts an in-flight
+/// reply through the engine's existing cancellation seam: it offers itself
+/// only while a reply runs, a raced click after the settle is a no-op, and
+/// a stopped request leaves the accepted turn unanswered with no error line.
 /// </summary>
 public sealed class ChatViewModelTests
 {
@@ -547,6 +550,85 @@ public sealed class ChatViewModelTests
 
         // Assert
         unlocked.Should().BeTrue();
+    }
+
+    #endregion
+
+    #region Stop (T-158)
+
+    /// <summary>
+    /// The Stop affordance offers itself only while a reply runs: with
+    /// nothing in flight it stays locked — never a dead button, and the
+    /// raced click after the reply settled is a no-op by the guard.
+    /// </summary>
+    [Fact]
+    public void StopCommand_WhileIdle_StaysLocked()
+    {
+        // Arrange: the guard emits its current state at subscribe
+        var kit = ChatTests.CreateKit();
+        bool? stoppable = null;
+        using var watch = kit.Chat.StopCommand.CanExecute.Subscribe(guard => stoppable = guard);
+
+        // Assert
+        stoppable.Should().BeFalse("no request in flight, no stop — the button never presents itself dead");
+    }
+
+    /// <summary>
+    /// The Stop click cancels the in-flight reply's source: the request
+    /// rides one cancellation token, the stop flags it, and the canceled
+    /// request settles with the accepted turn in the chat (no answer, no
+    /// error line), the bus idle and the stop locked again — the next
+    /// send (not a stop) is what a trader can do with a silent chat.
+    /// </summary>
+    [Fact]
+    public async Task StopCommand_WhileInFlight_CancelsTheRequestAndSettlesTheStop()
+    {
+        // Arrange: a request parked mid-flight, its cancellation token captured
+        var kit = ChatTests.CreateKit();
+        var pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var histories = new List<IReadOnlyList<ChatTurn>>();
+        var captured = new List<CancellationToken>();
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Do<IReadOnlyList<ChatTurn>>(histories.Add),
+                Arg.Do<CancellationToken>(captured.Add))
+            .Returns(pending.Task);
+        kit.Chat.AiChatInput = "How is the market?";
+
+        var parked = kit.Chat
+            .WhenAnyValue(x => x.IsBusy)
+            .Where(busy => busy)
+            .FirstAsync()
+            .Timeout(SendWaitBudget)
+            .ToTask();
+        var firstDone = new TaskCompletionSource<RxVoid>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var firstWatcher = kit.Chat.SendTextCommand.Execute(RxVoid.Default).Subscribe(
+            value => firstDone.TrySetResult(value),
+            exception => firstDone.SetException(exception),
+            () => firstDone.TrySetResult(RxVoid.Default));
+        await parked;
+
+        // Act: the Stop click while the reply runs
+        await kit.Chat.StopCommand.Execute(RxVoid.Default);
+
+        captured.Should().ContainSingle("the request rides one cancellation token");
+        captured[0].IsCancellationRequested.Should().BeTrue("the stop cancels the in-flight source");
+
+        // The stopped request settles canceled
+        pending.TrySetCanceled();
+        await firstDone.Task;
+
+        // Assert: the turn stays, nothing fabricated follows the stop, and
+        // the affordance locks again the moment nothing is in flight
+        kit.Chat.ChatMessages
+            .Select(message => message.Kind)
+            .Should().Equal(new[] { ChatMessageKind.UserTurn }, "the accepted turn stays, no answer and no error line follows a stop");
+        kit.Chat.IsBusy.Should().BeFalse("the stopped request settled and the bus went idle");
+
+        bool? stoppable = null;
+        using var watch = kit.Chat.StopCommand.CanExecute.Subscribe(guard => stoppable = guard);
+        stoppable.Should().BeFalse("the stop locked again — a late click is a no-op, not a dead button");
     }
 
     #endregion

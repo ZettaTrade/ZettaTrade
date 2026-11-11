@@ -1,3 +1,24 @@
+## [0.1.0-alpha.103] - 2026-11-11
+
+Build of board task T-158 (branch `feat/chat-bubbles`); no satellite
+release rides it.
+
+### Changed
+- The assistant chat (T-158) speaks bubbles: the trader's turn rides right
+  on the Highlight fill with the derived ChipForeground caption (the
+  T-152-scored pairing), the assistant's answer left on a Surface card
+  with the explicit TextPrimary ink, and an in-chat failure line renders
+  bare in the Error color — authorship reads from position + tint, no
+  labels. Each bubble carries its own header (role, moment, a quiet copy
+  pin whose clipboard write is view-side and best-effort) and long
+  answers wrap inside a bounded bubble; the messages stack replaces the
+  old selection ListBox.
+- Stop (T-158) joins the input row: it cancels the in-flight reply
+  through the engine's existing cancellation seam, offers itself only
+  while a reply runs (never a dead button), a raced click after the
+  settle is a no-op, and a stopped request leaves the accepted turn
+  unanswered with no error line (`AI.Chat.Stop`, `AI.Chat.Copy`, en + ru).
+
 ## [0.1.0-alpha.102] - 2026-11-11
 
 Build of board task T-157 (branch `feat/table-grammar`); no satellite
