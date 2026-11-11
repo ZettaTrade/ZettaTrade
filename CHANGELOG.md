@@ -1,3 +1,44 @@
+## [0.1.0-alpha.116] - 2026-11-11
+
+Build of board task T-169 (branch `feat/settings-polish`): three
+settings-window polish fixes filed from the user's report.
+
+### Fixed
+- The pairs tab's transfer buttons ride the chrome kit's icon button
+  (T-154 consumed as-is): the plain `>` / `<` text buttons became
+  borderless glyph buttons with explicit-stroke chevron Paths (the
+  title-bar strip's glyph discipline), the kit's opacity feedback carries
+  hover/press. The automation names (`Settings.Pairs.Hide`/`Reveal`),
+  the tooltips, the commands and the vertical order survive — the glyph
+  alone never carries meaning. No satellite change; a Livery follow-up
+  candidate (a shared chevron glyph or an `IconButton` glyph vocabulary)
+  is recorded on the task for the kit's own repo.
+- The indicators tab's seven rows (SMA + the standard pack) re-lay on one
+  shared column set — a fixed name column wide enough for the widest
+  canonical name (MACD/BOLL), the info cue, one aligned Period caption
+  column and one fixed box width — so the ragged name widths no longer
+  walk the captions and boxes per row (the user's "nothing changed
+  here after all" verdict on the earlier alignment attempt finally
+  gets a structural fix). The section caption moves onto its own header line (rendered
+  whatever the catalog holds); the loaded-plugin row gates
+  (`Is*PluginLoaded`), the honest empty state and every binding ride
+  untouched — no ViewModel change.
+- Every settings scroll content (both merged tabs' bodies, the MCP client
+  cards, the import preview and the broken-theme list) gains a right
+  gutter shaped by the Fluent overlay scrollbar's own strip: the
+  ScrollViewer's content presenter spans the scrollbar's 16 px
+  ScrollBarSize strip when the bar appears, so the content now ends a
+  strip width short of the viewport's right edge — the hotkeys' gesture
+  boxes, the verdict messages and the pairs hint never sit under the bar.
+
+### Tests
+- Headless settings-lane pins (the T-144 harness): the seven rows'
+  Period captions and boxes share x-bounds and one box width across all
+  visible rows; the transfer buttons keep their names/commands and
+  render the chevron affordance (Path content over the kit's `icon`
+  class, no plain-text content); each scroll content's right edge clears
+  the 16 px gutter at the shipped 760×720 default.
+
 ## [0.1.0-alpha.115] - 2026-11-11
 
 Build of board task T-171 (branch `feat/license-di`), supervisor-solo

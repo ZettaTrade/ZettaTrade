@@ -140,7 +140,9 @@
                         <TextBlock Text="{loc:Localized Settings.ThemeErrors.Header}"
                                    FontWeight="Bold" />
                         <ScrollViewer MaxHeight="160">
-                            <ItemsControl ItemsSource="{Binding ThemeFileErrors}">
+                            <!-- The gutter rides the list too (T-169). -->
+                            <ItemsControl ItemsSource="{Binding ThemeFileErrors}"
+                                          Margin="0,0,16,0">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="themes:ThemeFileLoadError">
                                         <TextBlock Text="{Binding FileName}"
@@ -176,184 +178,199 @@
                      the real catalog, it never assumes a shipped assembly);
                      with a whole empty catalog the honest empty state shows
                      instead. -->
-                <Grid ColumnDefinitions="*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10" Margin="0,12,0,0">
-                    <StackPanel Grid.Row="0" IsVisible="{Binding IsSmaPluginLoaded}">
-                        <!-- The row layout (label column + controls) as long
-                             as the SMA row renders. -->
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
-                            <!-- "SMA" is the plugin's canonical name - a product name, not a
-                                 localized string; the row label and the period caption are. -->
-                            <TextBlock Grid.Column="0"
-                                       Text="{loc:Localized Chart.Indicators}"
-                                       VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                                <CheckBox Content="SMA"
-                                          IsChecked="{Binding IsSmaEnabled}"
-                                          VerticalAlignment="Center" />
-                                <!-- The info affordance: the tooltip lives HERE, not on the
-                                     checkbox, so the icon itself signals that an explanation
-                                     is available. The text wraps so a long translation stays
-                                     readable. -->
-                                <livery:InfoIcon VerticalAlignment="Center"
-                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11ySmaInfo}">
-                                    <ToolTip.Tip>
-                                        <TextBlock MaxWidth="260"
-                                                   Text="{loc:Localized Chart.Indicators.SmaTip}"
-                                                   TextWrapping="Wrap" />
-                                    </ToolTip.Tip>
-                                </livery:InfoIcon>
-                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                                           VerticalAlignment="Center" />
-                                <TextBox Text="{Binding SmaPeriodText}"
-                                         MinWidth="64"
-                                         VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10" Margin="0,12,0,0">
+                    <!-- The section caption rides its own header line (T-169):
+                         with the rows re-laid on one shared column set the SMA
+                         row no longer carries the label column, and the caption
+                         reads above the rows like every merged tab's section
+                         captions. It stays rendered whatever the catalog holds
+                         - the honest empty state below speaks for the zero. -->
+                    <TextBlock Grid.Row="0"
+                               Text="{loc:Localized Chart.Indicators}"
+                               FontWeight="SemiBold" />
+                    <!-- Every row is the SAME grid (T-169): a name column wide
+                         enough for the widest canonical name (MACD/BOLL), the
+                         info cue, one aligned Period caption column and one
+                         box width. The fixed columns hold the captions and
+                         the boxes on the same x per row - the ragged name
+                         widths no longer walk the controls. -->
+                    <Grid Grid.Row="1" IsVisible="{Binding IsSmaPluginLoaded}"
+                          ColumnDefinitions="80,Auto,64,64" ColumnSpacing="10">
+                        <!-- "SMA" is the plugin's canonical name - a product name, not a
+                             localized string; the period caption is. -->
+                        <CheckBox Grid.Column="0"
+                                  Content="SMA"
+                                  IsChecked="{Binding IsSmaEnabled}"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center" />
+                        <!-- The info affordance: the tooltip lives HERE, not on the
+                             checkbox, so the icon itself signals that an explanation
+                             is available. The text wraps so a long translation stays
+                             readable. -->
+                        <livery:InfoIcon Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.Name="{loc:Localized Chart.Indicators.A11ySmaInfo}">
+                            <ToolTip.Tip>
+                                <TextBlock MaxWidth="260"
+                                           Text="{loc:Localized Chart.Indicators.SmaTip}"
+                                           TextWrapping="Wrap" />
+                            </ToolTip.Tip>
+                        </livery:InfoIcon>
+                        <TextBlock Grid.Column="2"
+                                   Text="{loc:Localized Chart.Indicators.Period}"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding SmaPeriodText}"
+                                 VerticalAlignment="Center" />
+                    </Grid>
                     <!-- The standard pack's rows (T-092): every one the exact
                          contract the SMA row carries - a row renders only for
                          a plugin the scanned catalog actually loaded, the
                          checkbox is the enable draft, the period box is the
-                         plugin's single parameter knob. The row label stays
-                         on the first row; the rows below keep the same two
-                         columns so the controls align. The checkbox labels
-                         are the plugins' canonical names - product names, not
-                         localized strings. -->
-                    <StackPanel Grid.Row="1" IsVisible="{Binding IsEmaPluginLoaded}">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                                <CheckBox Content="EMA"
-                                          IsChecked="{Binding IsEmaEnabled}"
-                                          VerticalAlignment="Center" />
-                                <livery:InfoIcon VerticalAlignment="Center"
-                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yEmaInfo}">
-                                    <ToolTip.Tip>
-                                        <TextBlock MaxWidth="260"
-                                                   Text="{loc:Localized Chart.Indicators.EmaTip}"
-                                                   TextWrapping="Wrap" />
-                                    </ToolTip.Tip>
-                                </livery:InfoIcon>
-                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                                           VerticalAlignment="Center" />
-                                <TextBox Text="{Binding EmaPeriodText}"
-                                         MinWidth="64"
-                                         VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                    <StackPanel Grid.Row="2" IsVisible="{Binding IsWmaPluginLoaded}">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                                <CheckBox Content="WMA"
-                                          IsChecked="{Binding IsWmaEnabled}"
-                                          VerticalAlignment="Center" />
-                                <livery:InfoIcon VerticalAlignment="Center"
-                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yWmaInfo}">
-                                    <ToolTip.Tip>
-                                        <TextBlock MaxWidth="260"
-                                                   Text="{loc:Localized Chart.Indicators.WmaTip}"
-                                                   TextWrapping="Wrap" />
-                                    </ToolTip.Tip>
-                                </livery:InfoIcon>
-                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                                           VerticalAlignment="Center" />
-                                <TextBox Text="{Binding WmaPeriodText}"
-                                         MinWidth="64"
-                                         VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                    <StackPanel Grid.Row="3" IsVisible="{Binding IsRsiPluginLoaded}">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                                <CheckBox Content="RSI"
-                                          IsChecked="{Binding IsRsiEnabled}"
-                                          VerticalAlignment="Center" />
-                                <livery:InfoIcon VerticalAlignment="Center"
-                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yRsiInfo}">
-                                    <ToolTip.Tip>
-                                        <TextBlock MaxWidth="260"
-                                                   Text="{loc:Localized Chart.Indicators.RsiTip}"
-                                                   TextWrapping="Wrap" />
-                                    </ToolTip.Tip>
-                                </livery:InfoIcon>
-                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                                           VerticalAlignment="Center" />
-                                <TextBox Text="{Binding RsiPeriodText}"
-                                         MinWidth="64"
-                                         VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                    <StackPanel Grid.Row="4" IsVisible="{Binding IsMacdPluginLoaded}">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                                <CheckBox Content="MACD"
-                                          IsChecked="{Binding IsMacdEnabled}"
-                                          VerticalAlignment="Center" />
-                                <livery:InfoIcon VerticalAlignment="Center"
-                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yMacdInfo}">
-                                    <ToolTip.Tip>
-                                        <TextBlock MaxWidth="260"
-                                                   Text="{loc:Localized Chart.Indicators.MacdTip}"
-                                                   TextWrapping="Wrap" />
-                                    </ToolTip.Tip>
-                                </livery:InfoIcon>
-                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                                           VerticalAlignment="Center" />
-                                <TextBox Text="{Binding MacdPeriodText}"
-                                         MinWidth="64"
-                                         VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                    <StackPanel Grid.Row="5" IsVisible="{Binding IsAtrPluginLoaded}">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                                <CheckBox Content="ATR"
-                                          IsChecked="{Binding IsAtrEnabled}"
-                                          VerticalAlignment="Center" />
-                                <livery:InfoIcon VerticalAlignment="Center"
-                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yAtrInfo}">
-                                    <ToolTip.Tip>
-                                        <TextBlock MaxWidth="260"
-                                                   Text="{loc:Localized Chart.Indicators.AtrTip}"
-                                                   TextWrapping="Wrap" />
-                                    </ToolTip.Tip>
-                                </livery:InfoIcon>
-                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                                           VerticalAlignment="Center" />
-                                <TextBox Text="{Binding AtrPeriodText}"
-                                         MinWidth="64"
-                                         VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                    <StackPanel Grid.Row="6" IsVisible="{Binding IsBollPluginLoaded}">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                                <CheckBox Content="BOLL"
-                                          IsChecked="{Binding IsBollEnabled}"
-                                          VerticalAlignment="Center" />
-                                <livery:InfoIcon VerticalAlignment="Center"
-                                                 AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yBollInfo}">
-                                    <ToolTip.Tip>
-                                        <TextBlock MaxWidth="260"
-                                                   Text="{loc:Localized Chart.Indicators.BollTip}"
-                                                   TextWrapping="Wrap" />
-                                    </ToolTip.Tip>
-                                </livery:InfoIcon>
-                                <TextBlock Text="{loc:Localized Chart.Indicators.Period}"
-                                           VerticalAlignment="Center" />
-                                <TextBox Text="{Binding BollPeriodText}"
-                                         MinWidth="64"
-                                         VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
+                         plugin's single parameter knob, and the checkbox
+                         labels are the plugins' canonical names - product
+                         names, not localized strings. -->
+                    <Grid Grid.Row="2" IsVisible="{Binding IsEmaPluginLoaded}"
+                          ColumnDefinitions="80,Auto,64,64" ColumnSpacing="10">
+                        <CheckBox Grid.Column="0"
+                                  Content="EMA"
+                                  IsChecked="{Binding IsEmaEnabled}"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center" />
+                        <livery:InfoIcon Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yEmaInfo}">
+                            <ToolTip.Tip>
+                                <TextBlock MaxWidth="260"
+                                           Text="{loc:Localized Chart.Indicators.EmaTip}"
+                                           TextWrapping="Wrap" />
+                            </ToolTip.Tip>
+                        </livery:InfoIcon>
+                        <TextBlock Grid.Column="2"
+                                   Text="{loc:Localized Chart.Indicators.Period}"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding EmaPeriodText}"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid Grid.Row="3" IsVisible="{Binding IsWmaPluginLoaded}"
+                          ColumnDefinitions="80,Auto,64,64" ColumnSpacing="10">
+                        <CheckBox Grid.Column="0"
+                                  Content="WMA"
+                                  IsChecked="{Binding IsWmaEnabled}"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center" />
+                        <livery:InfoIcon Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yWmaInfo}">
+                            <ToolTip.Tip>
+                                <TextBlock MaxWidth="260"
+                                           Text="{loc:Localized Chart.Indicators.WmaTip}"
+                                           TextWrapping="Wrap" />
+                            </ToolTip.Tip>
+                        </livery:InfoIcon>
+                        <TextBlock Grid.Column="2"
+                                   Text="{loc:Localized Chart.Indicators.Period}"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding WmaPeriodText}"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid Grid.Row="4" IsVisible="{Binding IsRsiPluginLoaded}"
+                          ColumnDefinitions="80,Auto,64,64" ColumnSpacing="10">
+                        <CheckBox Grid.Column="0"
+                                  Content="RSI"
+                                  IsChecked="{Binding IsRsiEnabled}"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center" />
+                        <livery:InfoIcon Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yRsiInfo}">
+                            <ToolTip.Tip>
+                                <TextBlock MaxWidth="260"
+                                           Text="{loc:Localized Chart.Indicators.RsiTip}"
+                                           TextWrapping="Wrap" />
+                            </ToolTip.Tip>
+                        </livery:InfoIcon>
+                        <TextBlock Grid.Column="2"
+                                   Text="{loc:Localized Chart.Indicators.Period}"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding RsiPeriodText}"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid Grid.Row="5" IsVisible="{Binding IsMacdPluginLoaded}"
+                          ColumnDefinitions="80,Auto,64,64" ColumnSpacing="10">
+                        <CheckBox Grid.Column="0"
+                                  Content="MACD"
+                                  IsChecked="{Binding IsMacdEnabled}"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center" />
+                        <livery:InfoIcon Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yMacdInfo}">
+                            <ToolTip.Tip>
+                                <TextBlock MaxWidth="260"
+                                           Text="{loc:Localized Chart.Indicators.MacdTip}"
+                                           TextWrapping="Wrap" />
+                            </ToolTip.Tip>
+                        </livery:InfoIcon>
+                        <TextBlock Grid.Column="2"
+                                   Text="{loc:Localized Chart.Indicators.Period}"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding MacdPeriodText}"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid Grid.Row="6" IsVisible="{Binding IsAtrPluginLoaded}"
+                          ColumnDefinitions="80,Auto,64,64" ColumnSpacing="10">
+                        <CheckBox Grid.Column="0"
+                                  Content="ATR"
+                                  IsChecked="{Binding IsAtrEnabled}"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center" />
+                        <livery:InfoIcon Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yAtrInfo}">
+                            <ToolTip.Tip>
+                                <TextBlock MaxWidth="260"
+                                           Text="{loc:Localized Chart.Indicators.AtrTip}"
+                                           TextWrapping="Wrap" />
+                            </ToolTip.Tip>
+                        </livery:InfoIcon>
+                        <TextBlock Grid.Column="2"
+                                   Text="{loc:Localized Chart.Indicators.Period}"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding AtrPeriodText}"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid Grid.Row="7" IsVisible="{Binding IsBollPluginLoaded}"
+                          ColumnDefinitions="80,Auto,64,64" ColumnSpacing="10">
+                        <CheckBox Grid.Column="0"
+                                  Content="BOLL"
+                                  IsChecked="{Binding IsBollEnabled}"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center" />
+                        <livery:InfoIcon Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.Name="{loc:Localized Chart.Indicators.A11yBollInfo}">
+                            <ToolTip.Tip>
+                                <TextBlock MaxWidth="260"
+                                           Text="{loc:Localized Chart.Indicators.BollTip}"
+                                           TextWrapping="Wrap" />
+                            </ToolTip.Tip>
+                        </livery:InfoIcon>
+                        <TextBlock Grid.Column="2"
+                                   Text="{loc:Localized Chart.Indicators.Period}"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding BollPeriodText}"
+                                 VerticalAlignment="Center" />
+                    </Grid>
                     <!-- The honest empty state: zero indicators registered by the
                          scan (missing or skipped plugin assemblies). -->
-                    <TextBlock Grid.Row="7"
+                    <TextBlock Grid.Row="8"
                                IsVisible="{Binding IsIndicatorCatalogEmpty}"
                                Text="{loc:Localized Settings.Indicators.Empty}"
                                TextWrapping="Wrap" />
@@ -373,8 +390,15 @@
                  Each long list still scrolls its own viewport; the merged
                  tab's body scrolls as one for small machines. -->
             <TabItem Header="{loc:Localized Settings.Tab.Integrations}">
+                <!-- The scroll content's right gutter (T-169): the Fluent
+                     ScrollViewer's content presenter spans the scrollbar's
+                     strip when the overlay bar appears, so the content ends
+                     a ScrollBarSize (16 px, the bar's own strip width) short
+                     of the viewport's right edge — the verdict messages and
+                     the hint texts never sit under the bar. Every scroll
+                     content in the window carries the same shape. -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="14" Margin="0,12,0,0">
+                    <StackPanel Spacing="14" Margin="0,12,16,0">
                         <TextBlock Text="{loc:Localized Settings.Tab.Mcp}"
                                    FontWeight="SemiBold" />
                         <StackPanel Spacing="{StaticResource SpaceL}">
@@ -414,7 +438,9 @@
                             <ScrollViewer MaxHeight="280"
                                           HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto">
-                                <ItemsControl ItemsSource="{Binding McpServers}">
+                                <!-- The inner viewport carries the same gutter (T-169). -->
+                                <ItemsControl ItemsSource="{Binding McpServers}"
+                                              Margin="0,0,16,0">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <StackPanel Spacing="10" />
@@ -612,7 +638,9 @@
                                 <ScrollViewer MaxHeight="230"
                                               HorizontalScrollBarVisibility="Disabled"
                                               VerticalScrollBarVisibility="Auto">
-                                    <ItemsControl ItemsSource="{Binding ImportPreview}">
+                                    <!-- The inner viewport carries the same gutter (T-169). -->
+                                    <ItemsControl ItemsSource="{Binding ImportPreview}"
+                                                  Margin="0,0,16,0">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <StackPanel Spacing="6" />
@@ -703,8 +731,11 @@
                  scrollbars, the original discipline) so the merged tab's
                  body scrolls as one. -->
             <TabItem Header="{loc:Localized Settings.Tab.Workspace}">
+                <!-- The same right gutter as every scroll content (T-169):
+                     the hotkeys' gesture boxes and the pairs hint never sit
+                     under the overlay scrollbar's strip. -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="14" Margin="0,12,0,0">
+                    <StackPanel Spacing="14" Margin="0,12,16,0">
                         <TextBlock Text="{loc:Localized Settings.Tab.Pairs}"
                                    FontWeight="SemiBold" />
                         <Grid Height="360"
@@ -716,7 +747,13 @@
                                        Text="{loc:Localized Settings.Pairs.All}" />
                             <TextBlock Grid.Row="0" Grid.Column="2"
                                        Text="{loc:Localized Settings.Pairs.Hidden}" />
+                            <!-- The pair lists scroll internally, so each
+                                 carries its own right gutter: the overlay
+                                 bar paints over the list's right strip,
+                                 and the star buttons and the default rows
+                                 must end a strip short of the edge. -->
                             <ListBox Grid.Row="1" Grid.Column="0"
+                                     Padding="0,0,16,0"
                                      ItemsSource="{Binding AllPairs}"
                                      SelectedItem="{Binding SelectedAllPair}">
                                 <ListBox.ItemTemplate>
@@ -749,24 +786,41 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <ListBox Grid.Row="1" Grid.Column="2"
+                                     Padding="0,0,16,0"
                                      ItemsSource="{Binding HiddenPairs}"
                                      SelectedItem="{Binding SelectedHiddenPair}" />
                             <StackPanel Grid.Row="1" Grid.Column="1"
                                         VerticalAlignment="Center"
                                         Spacing="{StaticResource SpaceS}">
-                                <!-- The caption glyphs carry the flow direction; the
+                                <!-- The transfer pair rides the chrome kit's icon
+                                     button (T-154, consumed as-is): borderless,
+                                     state fill suppressed, the strip's opacity
+                                     feedback. The chevron Path carries the flow
+                                     direction like the title-bar strip's glyphs
+                                     (explicit strokes, no inheritance chain); the
                                      readable captions ride the automation name and
-                                     the tooltip (assistive tech and hover alike). -->
-                                <Button Width="34" Padding="0"
-                                        Content=">"
+                                     the tooltip (assistive tech and hover alike) —
+                                     the glyph alone never carries meaning. -->
+                                <Button Classes="icon"
+                                        Width="34" Height="30" Padding="0"
                                         ToolTip.Tip="{loc:Localized Settings.Pairs.Hide}"
                                         AutomationProperties.Name="{loc:Localized Settings.Pairs.Hide}"
-                                        Command="{Binding HidePairCommand}" />
-                                <Button Width="34" Padding="0"
-                                        Content="&lt;"
+                                        Command="{Binding HidePairCommand}">
+                                    <Path Stretch="None"
+                                          StrokeThickness="1.5"
+                                          Stroke="{DynamicResource TextPrimary}"
+                                          Data="M 4.5 2.5 L 9.5 6 L 4.5 9.5" />
+                                </Button>
+                                <Button Classes="icon"
+                                        Width="34" Height="30" Padding="0"
                                         ToolTip.Tip="{loc:Localized Settings.Pairs.Reveal}"
                                         AutomationProperties.Name="{loc:Localized Settings.Pairs.Reveal}"
-                                        Command="{Binding RevealPairCommand}" />
+                                        Command="{Binding RevealPairCommand}">
+                                    <Path Stretch="None"
+                                          StrokeThickness="1.5"
+                                          Stroke="{DynamicResource TextPrimary}"
+                                          Data="M 9.5 2.5 L 4.5 6 L 9.5 9.5" />
+                                </Button>
                             </StackPanel>
                         </Grid>
                         <TextBlock Text="{loc:Localized Settings.Pairs.Hint}"
