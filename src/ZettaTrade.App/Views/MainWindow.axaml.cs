@@ -12,6 +12,7 @@ using ReactiveUI;
 using ReactiveUI.Avalonia;
 using Serilog;
 using ZettaTrade.App.Services;
+using ZettaTrade.App.Views.Panels;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.UI.Extensions;
 // RxVoid rides an alias (not a plain ReactiveUI.Primitives import): plain both
@@ -32,21 +33,72 @@ namespace ZettaTrade.App.Views;
 /// </summary>
 public partial class MainWindow : ReactiveWindow<MainViewModel>
 {
+    /// <summary>The chart workspace panel (T-103): created in the ctor (T-175), one instance for both hosts.</summary>
+    private readonly ChartPanelView ChartPanel;
+
+    /// <summary>The order book panel (T-103): created in the ctor (T-175), one instance for both hosts.</summary>
+    private readonly OrderBookPanelView BookPanel;
+
+    /// <summary>The AI assistant panel (T-103): created in the ctor (T-175), one instance for both hosts.</summary>
+    private readonly AssistantPanelView AssistantPanel;
+
     /// <summary>
-    /// Create a new MainWindow instance.
+    /// Create the main window around its view model (T-175): the DataContext
+    /// lands BEFORE InitializeComponent, so the XAML's <c>$parent[Window]</c>
+    /// lanes - the View menu's detach toggles, the HUD's tap gate - and the
+    /// menu's own bindings evaluate against the live graph on the first
+    /// pass. The null-DataContext phase that logged binding errors and
+    /// self-healed on the later assignment (the debug-output noise) is
+    /// gone: the app's construction rides this ctor, nothing else.
+    /// </summary>
+    public MainWindow(MainViewModel mainViewModel)
+    {
+        DataContext = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+
+        InitializeComponent();
+
+        // The workspace panels (T-103, T-175): created in code so each carries
+        // its view model as a LocalValue from its OWN construction. The XAML-
+        // created alternative let the loader wire the inherited MainViewModel
+        // into the still-unattached panel (ahead of every visual and logical
+        // tree link) and its subtree's first binding pass cast-errored on it -
+        // the startup noise this sweep kills. The LocalValue outranks the
+        // inherited value by priority and survives the detach move (the T-103
+        // discipline holds by construction: no markup binding ever exists).
+        ChartPanel = new ChartPanelView(mainViewModel.Chart);
+        ChartPanel.Name = "ChartPanel";
+        ChartPanelHost.Child = ChartPanel;
+        BookPanel = new OrderBookPanelView(mainViewModel.OrderBook);
+        BookPanel.Name = "BookPanel";
+        BookPanelHost.Child = BookPanel;
+        AssistantPanel = new AssistantPanelView(mainViewModel.Chat);
+        AssistantPanel.Name = "AssistantPanel";
+        AssistantPanelHost.Child = AssistantPanel;
+    }
+
+    /// <summary>
+    /// The parameterless construction: the caller assigns the DataContext
+    /// after InitializeComponent (the designer's route). The production
+    /// path never rides it - the T-175 view-model-carrying ctor is the one
+    /// the app uses, and the late assignment's null-DataContext binding
+    /// noise (the <c>$parent[Window]</c> lanes evaluate while the
+    /// DataContext is still unset) is the defect shape the startup pin
+    /// reproduces as its counterfactual. The panels ride bare VMs so the
+    /// detach machinery still arms.
     /// </summary>
     public MainWindow()
     {
         InitializeComponent();
 
-        // The workspace panels' DataContexts (T-103): LocalValues, pushed the
-        // moment the main DataContext lands (the App sets it before the
-        // window shows — no unbound first frame). A markup binding on a
-        // panel would re-resolve against the DETACHED window's inherited
-        // (null) DataContext and unbind the moved control — the LocalValue
-        // survives the cross-window move; the detached windows carry no
-        // DataContext of their own by design.
-        DataContextChanged += (_, _) => SetPanelDataContexts();
+        ChartPanel = new ChartPanelView(null);
+        ChartPanel.Name = "ChartPanel";
+        ChartPanelHost.Child = ChartPanel;
+        BookPanel = new OrderBookPanelView(null);
+        BookPanel.Name = "BookPanel";
+        BookPanelHost.Child = BookPanel;
+        AssistantPanel = new AssistantPanelView(null);
+        AssistantPanel.Name = "AssistantPanel";
+        AssistantPanelHost.Child = AssistantPanel;
     }
 
     /// <inheritdoc/>
@@ -294,24 +346,6 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     private IDisposable? _detachedRestore;
 
     #region Detached panels (T-103)
-
-    /// <summary>
-    /// Push the workspace panels' DataContexts: LocalValues, set once the
-    /// main DataContext lands — they survive the cross-window move the
-    /// detach rides (a markup binding would re-resolve against the detached
-    /// window's inherited null and unbind the moved control).
-    /// </summary>
-    private void SetPanelDataContexts()
-    {
-        if (ViewModel is null)
-        {
-            return;
-        }
-
-        ChartPanel.DataContext = ViewModel.Chart;
-        BookPanel.DataContext = ViewModel.OrderBook;
-        AssistantPanel.DataContext = ViewModel.Chat;
-    }
 
     /// <summary>The panel slots the view lane hands to the coordinator: the panel control, its inline swap host and the panel's own focus affordance.</summary>
     private DetachedPanelSlot[] BuildPanelSlots() =>

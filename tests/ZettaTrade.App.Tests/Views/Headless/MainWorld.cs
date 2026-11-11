@@ -203,7 +203,7 @@ internal sealed record MainWorld(
     /// </summary>
     public async Task<MainWindow> ShowWindowAsync()
     {
-        var window = await HeadlessWorld.OnUi(() => new MainWindow { DataContext = Main });
+        var window = await HeadlessWorld.OnUi(() => new MainWindow(Main));
         await HeadlessWorld.ShowAndSettleAsync(window);
         return window;
     }

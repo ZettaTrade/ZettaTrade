@@ -20,7 +20,25 @@ using ZettaTrade.App.ViewModels;
 public partial class AssistantPanelView : UserControl
 {
     /// <summary>
-    /// Create a new AssistantPanelView instance.
+    /// Create the AI assistant panel around its view model (T-175): the
+    /// DataContext is a LocalValue from the panel's own construction, so the
+    /// subtree's compiled bindings evaluate against the chat VM from their
+    /// very first pass. The XAML-created alternative let the loader wire the
+    /// inherited MainViewModel into the unattached panel ahead of every
+    /// tree link, cast-erroring the whole subtree on startup (the noise the
+    /// T-175 sweep kills); the parameterless route keeps the designer
+    /// preview working and the T-175 counterfactual reproducible.
+    /// </summary>
+    public AssistantPanelView(ChatViewModel? chat)
+    {
+        DataContext = chat;
+
+        InitializeComponent();
+    }
+
+    /// <summary>
+    /// The bare construction (the designer's route): the caller assigns the
+    /// DataContext later; the startup cast-noise shape lives here.
     /// </summary>
     public AssistantPanelView()
     {
