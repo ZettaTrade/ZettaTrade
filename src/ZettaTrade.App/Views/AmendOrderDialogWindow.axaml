@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.AmendOrderDialogWindow"
         Classes="chrome-compact"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:AmendOrderDialogViewModel"
         Title="{loc:Localized Positions.AmendTitle}"
         Width="420" SizeToContent="Height"

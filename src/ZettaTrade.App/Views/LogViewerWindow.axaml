@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.LogViewerWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:LogViewerViewModel"
         Title="{loc:Localized Log.Window.Title}"
         Width="940" Height="620"

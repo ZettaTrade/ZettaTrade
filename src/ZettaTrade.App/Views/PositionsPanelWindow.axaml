@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.PositionsPanelWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:PositionsPanelViewModel"
         Title="{loc:Localized Positions.Title}"
         Width="1000" Height="560"

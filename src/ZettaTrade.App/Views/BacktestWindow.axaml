@@ -5,6 +5,7 @@
         xmlns:charting="using:ZettaTrade.UI.Charting"
         x:Class="ZettaTrade.App.Views.BacktestWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:BacktestRunViewModel"
         Title="{loc:Localized Backtest.Title}"
         Width="1000" Height="720"

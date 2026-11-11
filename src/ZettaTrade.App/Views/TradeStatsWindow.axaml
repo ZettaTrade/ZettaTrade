@@ -5,6 +5,7 @@
         xmlns:charting="using:ZettaTrade.UI.Charting"
         x:Class="ZettaTrade.App.Views.TradeStatsWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:TradeStatsViewModel"
         Title="{loc:Localized Stats.Title}"
         Width="1000" Height="640"

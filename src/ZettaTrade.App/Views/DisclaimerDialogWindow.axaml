@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.DisclaimerDialogWindow"
         Classes="chrome-compact"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:DisclaimerDialogViewModel"
         Title="{loc:Localized Trading.Disclaimer.Title}"
         Width="480" SizeToContent="Height"

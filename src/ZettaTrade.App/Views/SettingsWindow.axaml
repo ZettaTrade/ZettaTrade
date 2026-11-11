@@ -9,6 +9,7 @@
         xmlns:livery="using:Livery.Controls"
         x:Class="ZettaTrade.App.Views.SettingsWindow"
         Classes="chrome-compact"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:SettingsViewModel"
         Title="{loc:Localized Settings.Title}"
         Width="760" Height="720"

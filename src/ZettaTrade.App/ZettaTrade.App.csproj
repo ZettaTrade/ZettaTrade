@@ -5,6 +5,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The product mark (T-162): the exe file's icon and the taskbar's
+         pinned/running icon ride the in-house ICO set; the windows set the
+         same asset through the Icon attribute. -->
+    <ApplicationIcon>Assets\ZettaTrade.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
