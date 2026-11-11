@@ -207,6 +207,16 @@ public sealed class BinanceAdapterWsE2eTests
         books[0].Bids.Should().Equal(ExpectedBids);
         books[0].Asks.Should().Equal(ExpectedAsks);
 
+        // The book stamp is the frame's local receive moment (T-142's clock
+        // discipline): Binance's partial depth payloads carry no event time,
+        // so the stamp is the adapter's ingestion moment, never a wire clock.
+        // The wide tolerance is load patience (the 240 s budget's own
+        // reasoning), never a latency claim.
+        books[0].Timestamp.Should().BeCloseTo(
+            DateTimeOffset.UtcNow,
+            TimeSpan.FromSeconds(30),
+            "the book stamps the local receive moment");
+
         // The numeric encoding must parse identically to the string one.
         books[1].Bids.Should().Equal(ExpectedBids);
         books[1].Asks.Should().Equal(ExpectedAsks);

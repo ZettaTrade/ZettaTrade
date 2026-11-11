@@ -640,6 +640,13 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         try
         {
+            // The book stamp is the frame's local receive moment (T-142's one
+            // clock discipline): captured once at the ingestion point, never
+            // an exchange clock — the WS-latency histogram measures
+            // transport, not offset. Tickers and trades keep their exchange
+            // event times (E / T).
+            var receivedAt = DateTimeOffset.UtcNow;
+
             using var json = JsonDocument.Parse(message);
             var root = json.RootElement;
 
@@ -669,7 +676,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
             }
             else if (stream.Contains("@depth"))
             {
-                HandleOrderBookMessage(symbol, data);
+                HandleOrderBookMessage(symbol, data, receivedAt);
             }
             else if (stream.EndsWith("@trade"))
             {
@@ -697,18 +704,20 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         PublishTicker(ticker);
     }
 
-    private void HandleOrderBookMessage(Symbol symbol, JsonElement data)
+    private void HandleOrderBookMessage(Symbol symbol, JsonElement data, DateTimeOffset receivedAt)
     {
         var bids = ParsePriceLevels(data.GetProperty("bids"));
         var asks = ParsePriceLevels(data.GetProperty("asks"));
 
-        // Partial book depth snapshots carry no event timestamp, only lastUpdateId.
+        // Partial book depth snapshots carry no event timestamp, only
+        // lastUpdateId — the stamp is the frame's local receive moment
+        // (T-142's one clock discipline).
         var orderBook = new OrderBook
         {
             Symbol = symbol,
             Bids = bids,
             Asks = asks,
-            Timestamp = DateTimeOffset.UtcNow
+            Timestamp = receivedAt
         };
 
         PublishOrderBook(orderBook);

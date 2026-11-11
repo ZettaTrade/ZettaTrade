@@ -263,6 +263,9 @@ public sealed class DemoMarketDataAdapter : IMarketDataAdapter
             Symbol = symbol,
             Bids = bids,
             Asks = asks,
+            // The canned surface generates locally, so the generation moment
+            // IS the ingestion point: the receive-time stamp discipline
+            // (T-142) holds without any pin work.
             Timestamp = DateTimeOffset.UtcNow,
         };
     }

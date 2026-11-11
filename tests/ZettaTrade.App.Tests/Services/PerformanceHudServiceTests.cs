@@ -144,4 +144,83 @@ public sealed class PerformanceHudServiceTests
         sample!.ChartFps.Should().Be(0, "no drain attached — the chart reads quiet, not broken");
         sample.BackpressureBacklog.Should().Be(0, "no probe attached");
     }
+
+    /// <summary>
+    /// T-142's skew golden: a fast feed whose books carry the local receive
+    /// stamp (what every adapter now does) keeps every sample in the small
+    /// buckets — the stamp and the age's "now" read the SAME local clock, so
+    /// a skewed wall clock shifts both sides equally and the exchange's
+    /// clock never enters the computation.
+    /// </summary>
+    [Fact]
+    public void AUniformlyStampedFastFeed_KeepsEverySampleInTheSmallBuckets()
+    {
+        var books = new Subject<OrderBook>();
+        var service = new PerformanceHudService(
+            books,
+            null,
+            8192,
+            NullLogger<PerformanceHudService>.Instance);
+
+        PerformanceSnapshot? sample = null;
+        using var leg = service.Snapshots.Subscribe(s => sample = s);
+
+        service.Start();
+        for (var i = 0; i < 8; i++)
+        {
+            // The ingestion stamp the adapters now write: UtcNow at the push.
+            books.OnNext(new OrderBook
+            {
+                Symbol = Symbol.Parse("BTC/USDT"),
+                Bids = [],
+                Asks = [],
+                Timestamp = DateTimeOffset.UtcNow,
+            });
+        }
+
+        service.EmitSample();
+
+        sample!.LatencyBuckets.Should().HaveCount(6);
+        sample.LatencyBuckets[0].Should().Be(8, "same-clock ages are pipeline dust — the fastest bucket");
+        sample.LatencyBuckets[1..].Should().OnlyContain(count => count == 0, "no sample leaks past the 1 ms edge");
+
+        service.Stop();
+    }
+
+    /// <summary>
+    /// The removed failure mode, pinned by name: a stamp written from a
+    /// foreign clock (the old Bybit behavior — the exchange's server ts) is
+    /// years behind the local "now", so its age overflows every edge. The
+    /// histogram reports the aged delivery honestly; the T-142 discipline
+    /// exists so no real adapter can produce such a stamp.
+    /// </summary>
+    [Fact]
+    public void AStampFromAForeignClock_OverflowsEveryEdge()
+    {
+        var books = new Subject<OrderBook>();
+        var service = new PerformanceHudService(
+            books,
+            null,
+            8192,
+            NullLogger<PerformanceHudService>.Instance);
+
+        PerformanceSnapshot? sample = null;
+        using var leg = service.Snapshots.Subscribe(s => sample = s);
+
+        service.Start();
+        books.OnNext(new OrderBook
+        {
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Bids = [],
+            Asks = [],
+            Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(1700000000000),
+        });
+
+        service.EmitSample();
+
+        sample!.LatencyBuckets[^1].Should().Be(1, "the foreign stamp's age lands in the overflow");
+        sample.LatencyBuckets[..^1].Should().OnlyContain(count => count == 0);
+
+        service.Stop();
+    }
 }

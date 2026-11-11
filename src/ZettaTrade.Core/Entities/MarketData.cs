@@ -32,7 +32,14 @@ public sealed record OrderBook
     /// <summary>Ask side (sell orders).</summary>
     public required IReadOnlyList<PriceLevel> Asks { get; init; }
 
-    /// <summary>Snapshot timestamp.</summary>
+    /// <summary>
+    /// The snapshot's local receive moment: the <c>DateTimeOffset.UtcNow</c>
+    /// the adapter's book ingestion point captured when the update arrived —
+    /// never the exchange's own server stamp. One clock discipline across
+    /// every adapter (T-142): a comparison against the book's age then
+    /// measures the feed's pipeline latency only; an exchange clock would
+    /// conflate transport speed with the local-vs-exchange clock offset.
+    /// </summary>
     public required DateTimeOffset Timestamp { get; init; }
 
     /// <summary>Best bid price level.</summary>
