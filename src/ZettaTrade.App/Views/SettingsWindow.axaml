@@ -36,6 +36,19 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
         </Style>
+        <!-- T-181: the explicit interaction siblings (the window-scoped
+             Transparent background defeats the generic hover/pressed, so
+             the quiet star answers the pointer itself): the glyph
+             brightens to the primary text ink on hover and holds it
+             through the press (the copy-pin's quiet-control language);
+             the armed state stays gold — its block rides after, so the
+             pinned star never greys under the pointer. -->
+        <Style Selector="Button.pair-star:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="Button.pair-star:pressed">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
         <Style Selector="Button.pair-star.on">
             <Setter Property="Foreground" Value="{DynamicResource Highlight}"/>
         </Style>

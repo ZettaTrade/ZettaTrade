@@ -72,6 +72,15 @@
     <Style Selector="Button.row-action.secondary">
         <Setter Property="Background" Value="Transparent" />
     </Style>
+    <!-- T-181: the family's explicit pressed step — the window-scoped
+         class styles defeat the generic pressed fill, so the quiet
+         outlined sibling pressed dead (the default rode the generic by
+         its absence of a Background setter, the destructive ships its
+         own). The block rides after the .secondary rest and before the
+         destructive blocks, so the ghost's own pressed keeps winning. -->
+    <Style Selector="Button.row-action:pressed">
+        <Setter Property="Background" Value="{DynamicResource Border}" />
+    </Style>
     <Style Selector="Button.row-action.destructive">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />

@@ -34,6 +34,19 @@
             <Setter Property="Background" Value="{DynamicResource Error}" />
             <Setter Property="Foreground" Value="{DynamicResource ChipForeground}" />
         </Style>
+        <!-- T-181: the interaction variants ship explicitly (the kit's
+             strip-icon discipline) — the window-scoped class styles apply
+             after the app styles, so Livery's generic hover/pressed fills
+             never reach a classed button. The state fills never leave (a
+             trading segment keeps its side under the pointer): the hover
+             rides the kit's emphasis ring (the row grammar's own hover
+             border), the press the strip's dim step. -->
+        <Style Selector="Button.side:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+        </Style>
+        <Style Selector="Button.side:pressed">
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
 
         <!-- The primary CTA: the visually dominant action, filled with the
              picked side's state color (the caption tint follows it). -->
@@ -48,6 +61,16 @@
         <Style Selector="Button.cta.sell">
             <Setter Property="Background" Value="{DynamicResource Error}" />
             <Setter Property="Foreground" Value="{DynamicResource ChipForeground}" />
+        </Style>
+        <!-- T-181: the CTA's own variants — the same explicit-sibling
+             discipline: the state fill holds under the pointer, the
+             emphasis ring answers the hover, the press dims (never
+             recolors — the side must stay readable through the click). -->
+        <Style Selector="Button.cta:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+        </Style>
+        <Style Selector="Button.cta:pressed">
+            <Setter Property="Opacity" Value="0.8" />
         </Style>
 
         <!-- The sizer presets as chips: the pill shape, the compact
