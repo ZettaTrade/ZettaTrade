@@ -39,7 +39,7 @@
         </Style>
     </Window.Styles>
 
-    <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="16">
+    <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="{StaticResource SpaceL}">
         <!-- The settings sections live on four folded tabs (T-145): the
              retired tab headers survive as the sections' captions inside the
              merged tabs, so nothing loses its name. Each tab's content root
@@ -48,7 +48,7 @@
              TabControl.Padding does not reach the content). -->
         <TabControl Grid.Row="0">
             <TabItem Header="{loc:Localized Settings.Tab.Appearance}">
-                <StackPanel Spacing="16" Margin="0,12,0,0">
+                <StackPanel Spacing="{StaticResource SpaceL}" Margin="0,12,0,0">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
                         <TextBlock Grid.Row="0" Grid.Column="0"
                                    Text="{loc:Localized Settings.Theme}"
@@ -128,7 +128,7 @@
                                 HorizontalAlignment="Left" />
                         <TextBlock Text="{loc:Localized Settings.ThemeErrors.Hint}"
                                    TextWrapping="Wrap"
-                                   FontSize="12" />
+                                   />
                     </StackPanel>
 
                     <!-- Broken theme files (theme files that failed to parse): hidden
@@ -160,7 +160,7 @@
                     <Separator Margin="0,4" />
                     <TextBlock Text="{loc:Localized Settings.FirstRunWizard.Hint}"
                                TextWrapping="Wrap"
-                               FontSize="12" />
+                               />
                     <Button x:Name="FirstRunWizardButton"
                             Content="{loc:Localized Settings.FirstRunWizard.RunAgain}"
                             HorizontalAlignment="Left"
@@ -376,7 +376,7 @@
                     <StackPanel Spacing="14" Margin="0,12,0,0">
                         <TextBlock Text="{loc:Localized Settings.Tab.Mcp}"
                                    FontWeight="SemiBold" />
-                        <StackPanel Spacing="16">
+                        <StackPanel Spacing="{StaticResource SpaceL}">
                             <CheckBox Content="{loc:Localized Settings.Mcp.Enable}"
                                       IsChecked="{Binding IsMcpServerEnabled}" />
 
@@ -385,18 +385,18 @@
                                  exclusive by construction). -->
                             <TextBlock IsVisible="{Binding IsMcpRunning}"
                                        Text="{loc:Localized Settings.Mcp.Running}"
-                                       FontSize="12" />
+                                       />
                             <TextBlock IsVisible="{Binding IsMcpStopped}"
                                        Text="{loc:Localized Settings.Mcp.Stopped}"
-                                       FontSize="12" />
+                                       />
                             <TextBlock IsVisible="{Binding IsMcpFailed}"
                                        Text="{loc:Localized Settings.Mcp.StartFailed}"
                                        TextWrapping="Wrap"
-                                       FontSize="12" />
+                                       />
 
                             <TextBlock Text="{loc:Localized Settings.Mcp.Hint}"
                                        TextWrapping="Wrap"
-                                       FontSize="12" />
+                                       />
 
                             <!-- ==================== External MCP client servers (T-068) ====================
                                  The editor drafts live in the rows (only Save applies —
@@ -426,10 +426,10 @@
                                                     CornerRadius="4"
                                                     Padding="10"
                                                     Margin="0,0,6,0">
-                                                <StackPanel Spacing="8">
+                                                <StackPanel Spacing="{StaticResource SpaceS}">
                                                     <!-- The header: the entry's name (the key the connections and the states key
                                                          by) with the enabled flag and the local-until-save remove button. -->
-                                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource SpaceS}">
                                                         <TextBox Grid.Column="0"
                                                                  Text="{Binding Name}"
                                                                  PlaceholderText="{loc:Localized Settings.McpClients.Name}"
@@ -447,7 +447,7 @@
                                                     <!-- The transport pick: stdio entries edit command + args, HTTP entries
                                                          the address/port (plus the optional seconds timeout). The names on
                                                          the combo are the protocol's own proper names, not localized. -->
-                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                                         <TextBlock Grid.Column="0"
                                                                    Text="{loc:Localized Settings.McpClients.Transport}"
                                                                    VerticalAlignment="Center" />
@@ -464,8 +464,8 @@
                                                          the command over the PATH; the arguments ride space-separated —
                                                          an argument containing spaces does not fit the text shape, the
                                                          hint documents it). -->
-                                                    <StackPanel IsVisible="{Binding IsStdio}" Spacing="8">
-                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <StackPanel IsVisible="{Binding IsStdio}" Spacing="{StaticResource SpaceS}">
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                                             <TextBlock Grid.Column="0"
                                                                        Text="{loc:Localized Settings.McpClients.Command}"
                                                                        VerticalAlignment="Center" />
@@ -474,7 +474,7 @@
                                                                      PlaceholderText="command"
                                                                      ToolTip.Tip="{loc:Localized Settings.McpClients.Command}" />
                                                         </Grid>
-                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                                             <TextBlock Grid.Column="0"
                                                                        Text="{loc:Localized Settings.McpClients.Args}"
                                                                        VerticalAlignment="Center" />
@@ -488,8 +488,8 @@
                                                     <!-- The HTTP fields: address + port (empty port = the scheme's default,
                                                          URL semantics, nothing substituted) and the optional connect
                                                          timeout seconds (empty = the transport's shipped default). -->
-                                                    <StackPanel IsVisible="{Binding IsHttp}" Spacing="8">
-                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <StackPanel IsVisible="{Binding IsHttp}" Spacing="{StaticResource SpaceS}">
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                                             <TextBlock Grid.Column="0"
                                                                        Text="{loc:Localized Settings.McpClients.Address}"
                                                                        VerticalAlignment="Center" />
@@ -497,7 +497,7 @@
                                                                      Text="{Binding Address}"
                                                                      ToolTip.Tip="{loc:Localized Settings.McpClients.Address}" />
                                                         </Grid>
-                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                                             <TextBlock Grid.Column="0"
                                                                        Text="{loc:Localized Settings.McpClients.Port}"
                                                                        VerticalAlignment="Center" />
@@ -506,7 +506,7 @@
                                                                      PlaceholderText="{loc:Localized Settings.McpClients.Port.Empty}"
                                                                      ToolTip.Tip="{loc:Localized Settings.McpClients.Port}" />
                                                         </Grid>
-                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                                             <TextBlock Grid.Column="0"
                                                                        Text="{loc:Localized Settings.McpClients.Timeout}"
                                                                        VerticalAlignment="Center" />
@@ -518,7 +518,7 @@
 
                                                     <!-- The auth secret reference key ONLY: the store resolves it — the
                                                          secret itself never rides config or the logs. -->
-                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                                         <TextBlock Grid.Column="0"
                                                                    Text="{loc:Localized Settings.McpClients.AuthRef}"
                                                                    VerticalAlignment="Center" />
@@ -533,25 +533,25 @@
                                                     <StackPanel Orientation="Horizontal" Spacing="10">
                                                         <TextBlock IsVisible="{Binding IsDisabled}"
                                                                    Text="{loc:Localized Settings.McpClients.State.Disabled}"
-                                                                   FontSize="12" />
+                                                                   />
                                                         <TextBlock IsVisible="{Binding IsConnecting}"
                                                                    Text="{loc:Localized Settings.McpClients.State.Connecting}"
-                                                                   FontSize="12" />
+                                                                   />
                                                         <TextBlock IsVisible="{Binding IsConnected}"
                                                                    Text="{loc:Localized Settings.McpClients.State.Connected}"
-                                                                   FontSize="12" />
+                                                                   />
                                                         <TextBlock IsVisible="{Binding IsFailed}"
                                                                    Text="{loc:Localized Settings.McpClients.State.Failed}"
                                                                    Foreground="{DynamicResource Error}"
-                                                                   FontSize="12" />
+                                                                   />
                                                         <TextBlock IsVisible="{Binding IsFailed}"
                                                                    Text="{Binding DetailText}"
                                                                    TextWrapping="Wrap"
-                                                                   FontSize="12" />
+                                                                   />
                                                         <TextBlock IsVisible="{Binding !IsStateKnown}"
                                                                    Text="{loc:Localized Settings.McpClients.State.Empty}"
                                                                    Foreground="{DynamicResource TextSecondary}"
-                                                                   FontSize="12" />
+                                                                   />
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Border>
@@ -566,7 +566,7 @@
 
                             <TextBlock Text="{loc:Localized Settings.McpClients.Hint}"
                                        TextWrapping="Wrap"
-                                       FontSize="12" />
+                                       />
                         </StackPanel>
 
                         <!-- ==================== The settings port section (T-100) ====================
@@ -592,7 +592,7 @@
                                     HorizontalAlignment="Left" />
                             <TextBlock Text="{loc:Localized Port.Hint}"
                                        TextWrapping="Wrap"
-                                       FontSize="12" />
+                                       />
 
                             <!-- The import block: pick → validated preview → apply. -->
                             <Button Content="{loc:Localized Port.Import}"
@@ -603,7 +603,7 @@
                                        Text="{Binding ImportErrorText}"
                                        Foreground="{DynamicResource Error}"
                                        TextWrapping="Wrap"
-                                       FontSize="12" />
+                                       />
 
                             <StackPanel IsVisible="{Binding IsImportPreviewVisible}" Spacing="10">
                                 <TextBlock Text="{loc:Localized Port.PreviewHeader}"
@@ -620,36 +620,34 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="services:PortImportRow">
                                                 <StackPanel Spacing="2">
-                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
                                                         <TextBlock Text="{Binding Section}" FontWeight="SemiBold" />
                                                         <TextBlock Text="." VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding Key}" FontWeight="SemiBold" />
                                                         <TextBlock IsVisible="{Binding IsAdded}"
                                                                    Text="{loc:Localized Port.Change.Added}"
-                                                                   FontSize="12" />
+                                                                   />
                                                         <TextBlock IsVisible="{Binding IsChanged}"
                                                                    Text="{loc:Localized Port.Change.Changed}"
-                                                                   FontSize="12" />
+                                                                   />
                                                     </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsChanged}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}" IsVisible="{Binding IsChanged}">
                                                         <TextBlock Text="{loc:Localized Port.From}"
                                                                    VerticalAlignment="Top"
-                                                                   FontSize="12"
                                                                    Foreground="{DynamicResource TextSecondary}" />
                                                         <TextBlock Text="{Binding CurrentValueJson}"
                                                                    TextWrapping="Wrap"
                                                                    MaxWidth="380"
-                                                                   FontSize="12"
                                                                    Foreground="{DynamicResource TextSecondary}" />
                                                     </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                                                         <TextBlock Text="{loc:Localized Port.To}"
                                                                    VerticalAlignment="Top"
-                                                                   FontSize="12" />
+                                                                   />
                                                         <TextBlock Text="{Binding ImportedValueJson}"
                                                                    TextWrapping="Wrap"
                                                                    MaxWidth="380"
-                                                                   FontSize="12" />
+                                                                   />
                                                     </StackPanel>
                                                 </StackPanel>
                                             </DataTemplate>
@@ -668,7 +666,7 @@
                                        FontWeight="SemiBold" />
                             <TextBlock Text="{loc:Localized Port.Reset.Hint}"
                                        TextWrapping="Wrap"
-                                       FontSize="12" />
+                                       />
                             <Button Content="{loc:Localized Port.Reset.Button}"
                                     Click="OnResetClick"
                                     HorizontalAlignment="Left" />
@@ -676,7 +674,7 @@
                             <TextBlock IsVisible="{Binding HasPortStatusText}"
                                        Text="{Binding PortStatusText}"
                                        TextWrapping="Wrap"
-                                       FontSize="12" />
+                                       />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
@@ -710,7 +708,7 @@
                                    FontWeight="SemiBold" />
                         <Grid Height="360"
                               ColumnDefinitions="*,Auto,*"
-                              ColumnSpacing="12"
+                              ColumnSpacing="{StaticResource SpaceM}"
                               RowDefinitions="Auto,*"
                               RowSpacing="10">
                             <TextBlock Grid.Row="0" Grid.Column="0"
@@ -734,7 +732,7 @@
                                                        VerticalAlignment="Center" />
                                             <Button Grid.Column="1"
                                                     Content="★"
-                                                    FontSize="14"
+                                                    FontSize="{StaticResource SubtitleStrongFontSize}"
                                                     Padding="6,2"
                                                     MinWidth="28"
                                                     VerticalAlignment="Center"
@@ -754,7 +752,7 @@
                                      SelectedItem="{Binding SelectedHiddenPair}" />
                             <StackPanel Grid.Row="1" Grid.Column="1"
                                         VerticalAlignment="Center"
-                                        Spacing="8">
+                                        Spacing="{StaticResource SpaceS}">
                                 <!-- The caption glyphs carry the flow direction; the
                                      readable captions ride the automation name and
                                      the tooltip (assistive tech and hover alike). -->
@@ -772,7 +770,7 @@
                         </Grid>
                         <TextBlock Text="{loc:Localized Settings.Pairs.Hint}"
                                    TextWrapping="Wrap"
-                                   FontSize="12" />
+                                   />
 
                         <StackPanel DataContext="{Binding Hotkeys, RelativeSource={RelativeSource AncestorType={x:Type views:SettingsWindow}}}">
                             <TextBlock Text="{loc:Localized Settings.Tab.Hotkeys}"
@@ -780,13 +778,13 @@
                             <TextBlock Text="{loc:Localized Hotkeys.Editor.Hint}"
                                        Foreground="{DynamicResource TextSecondary}"
                                        TextWrapping="Wrap"
-                                       FontSize="12" />
+                                       />
                             <ItemsControl ItemsSource="{Binding Rows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:HotkeyRowViewModel">
                                         <StackPanel Spacing="2" Margin="0,3">
                                             <Grid ColumnDefinitions="*,Auto,150,Auto"
-                                                  ColumnSpacing="8">
+                                                  ColumnSpacing="{StaticResource SpaceS}">
                                                 <TextBlock Grid.Column="0"
                                                            Text="{Binding Name}"
                                                            VerticalAlignment="Center" />
@@ -808,7 +806,7 @@
                                                        Text="{Binding Message}"
                                                        Foreground="{DynamicResource Error}"
                                                        TextWrapping="Wrap"
-                                                       FontSize="12" />
+                                                       />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

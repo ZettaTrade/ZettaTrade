@@ -12,13 +12,14 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <StackPanel Margin="16" Spacing="10">
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="10">
         <!-- The editing target: side, quantity, symbol, price and status,
              precomputed by the view model at initialize time -->
         <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
 
         <TextBlock Text="{loc:Localized Positions.AmendQuantityLabel}" />
         <TextBox Text="{Binding QuantityInput, Mode=TwoWay}"
+                 FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="0.01" />
 
         <!-- Limit price: the limit-bearing types only; an empty field keeps
@@ -27,6 +28,7 @@
         <TextBlock Text="{loc:Localized Positions.AmendPriceLabel}"
                    IsVisible="{Binding IsPriceEditable}" />
         <TextBox Text="{Binding PriceInput, Mode=TwoWay}"
+                 FontFamily="{StaticResource NumericFont}"
                  IsVisible="{Binding IsPriceEditable}"
                  PlaceholderText="50000" />
 

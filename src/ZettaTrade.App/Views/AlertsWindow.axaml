@@ -12,14 +12,14 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="16" RowDefinitions="*,Auto,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto,Auto" RowSpacing="10">
 
         <!-- The manager table: the engine's roster, one row per alert. Every
              text re-renders live on roster events and language switches. -->
         <Grid Grid.Row="0" RowDefinitions="Auto,*" RowSpacing="6">
             <Grid Grid.Row="0"
                   ColumnDefinitions="1.1*,1.5*,1.1*,1.1*,1.4*"
-                  ColumnSpacing="8">
+                  ColumnSpacing="{StaticResource SpaceS}">
                 <TextBlock Grid.Column="0"
                            Text="{loc:Localized Alert.Column.Symbol}"
                            FontWeight="Bold" />
@@ -44,7 +44,7 @@
                          Background="Transparent">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:AlertsRowViewModel">
-                            <Grid ColumnDefinitions="1.1*,1.5*,1.1*,1.1*,1.4*" ColumnSpacing="8">
+                            <Grid ColumnDefinitions="1.1*,1.5*,1.1*,1.1*,1.4*" ColumnSpacing="{StaticResource SpaceS}">
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding SymbolText}"
                                            FontWeight="SemiBold" />
@@ -56,7 +56,7 @@
                                            TextWrapping="Wrap" />
                                 <TextBlock Grid.Column="3"
                                            Text="{Binding LastFiredText}"
-                                           FontSize="11"
+                                           FontSize="{StaticResource CaptionFontSize}"
                                            Foreground="{DynamicResource TextSecondary}" />
                                 <TextBlock Grid.Column="4"
                                            Text="{Binding NoteText}"
@@ -74,9 +74,9 @@
              hidden. Every spelling parses at submit, nothing defaults. -->
         <Grid Grid.Row="1"
               ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*"
-              ColumnSpacing="8">
+              ColumnSpacing="{StaticResource SpaceS}">
             <StackPanel Grid.Column="0">
-                <TextBlock Text="{loc:Localized Alert.Editing.Kind}" FontSize="11" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Kind}" FontSize="{StaticResource CaptionFontSize}" />
                 <ComboBox Width="130"
                           ItemsSource="{Binding KindOptions}"
                           SelectedItem="{Binding SelectedKind, Mode=TwoWay}">
@@ -89,7 +89,7 @@
             </StackPanel>
             <StackPanel Grid.Column="1"
                         IsVisible="{Binding IsPriceKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Trigger}" FontSize="11" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Trigger}" FontSize="{StaticResource CaptionFontSize}" />
                 <ComboBox Width="110"
                           ItemsSource="{Binding TriggerOptions}"
                           SelectedItem="{Binding SelectedTrigger, Mode=TwoWay}">
@@ -102,25 +102,25 @@
             </StackPanel>
             <StackPanel Grid.Column="2"
                         IsVisible="{Binding IsPriceKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Target}" FontSize="11" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Target}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Width="110" Text="{Binding TargetText}" />
             </StackPanel>
             <StackPanel Grid.Column="3"
                         IsVisible="{Binding IsPercentKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Percent}" FontSize="11" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Percent}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Width="80" Text="{Binding PercentText}" />
             </StackPanel>
             <StackPanel Grid.Column="4"
                         IsVisible="{Binding IsPercentKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Window}" FontSize="11" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Window}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Width="70" Text="{Binding WindowText}" />
             </StackPanel>
             <StackPanel Grid.Column="5">
-                <TextBlock Text="{loc:Localized Alert.Editing.Symbol}" FontSize="11" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Symbol}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Width="120" Text="{Binding SymbolText}" />
             </StackPanel>
             <StackPanel Grid.Column="6">
-                <TextBlock Text="{loc:Localized Alert.Editing.Note}" FontSize="11" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Note}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Text="{Binding NoteText}" />
             </StackPanel>
         </Grid>

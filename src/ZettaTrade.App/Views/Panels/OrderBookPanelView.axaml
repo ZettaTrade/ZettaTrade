@@ -14,7 +14,7 @@
         <TextBlock Grid.Row="0"
                    Text="{loc:Localized OrderBook.Title}"
                    FontWeight="Bold"
-                   FontSize="14"
+                   FontSize="{StaticResource SubtitleStrongFontSize}"
                    Margin="8,0,0,4" />
         <charting:OrderBookWidget x:Name="BookWidget" Grid.Row="1" Book="{Binding Book}" />
         <!-- Depth chart: the cumulative shape of the same
@@ -23,7 +23,7 @@
         <TextBlock Grid.Row="2"
                    Text="{loc:Localized OrderBook.DepthTitle}"
                    FontWeight="Bold"
-                   FontSize="14"
+                   FontSize="{StaticResource SubtitleStrongFontSize}"
                    Margin="8,0,0,4" />
         <charting:DepthChartWidget x:Name="DepthWidget" Grid.Row="3" Book="{Binding Book}" />
     </Grid>

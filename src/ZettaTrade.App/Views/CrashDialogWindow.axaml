@@ -17,7 +17,7 @@
 
         <TextBlock Text="{loc:Localized Log.Crash.Title}"
                    FontWeight="Bold"
-                   FontSize="16" />
+                   FontSize="{StaticResource TitleFontSize}" />
 
         <!-- The composed summary: the exception type + its message (the
              crash guard composes it during the teardown; nothing updates

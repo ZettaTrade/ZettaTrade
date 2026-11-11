@@ -16,7 +16,7 @@
          the verdict line is dynamic (the ViewModel's mapping through the
          localization manager). A stored activation closes the window from
          the code-behind; a refusal keeps it open with the verdict shown. -->
-    <StackPanel Margin="20" Spacing="12">
+    <StackPanel Margin="20" Spacing="{StaticResource SpaceM}">
         <TextBlock Text="{loc:Localized Settings.License.Hint}"
                    TextWrapping="Wrap" />
         <TextBox PlaceholderText="{loc:Localized Settings.License.PluginLabel}"
@@ -35,7 +35,7 @@
             <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
                 <TextBlock Text="{Binding EulaText}"
                            TextWrapping="Wrap"
-                           FontSize="12" />
+                           />
             </ScrollViewer>
             <CheckBox Content="{loc:Localized Settings.License.Eula.AcceptLabel}"
                       IsChecked="{Binding Accepted}" />
@@ -47,7 +47,7 @@
                 Margin="0,4,0,0" />
         <TextBlock Text="{Binding Verdict}"
                    TextWrapping="Wrap"
-                   FontSize="12" />
+                   />
         <Button Content="{loc:Localized Settings.License.Close}"
                 Click="OnCloseClicked"
                 MinWidth="140"

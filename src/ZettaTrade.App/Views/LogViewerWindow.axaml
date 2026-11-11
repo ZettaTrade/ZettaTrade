@@ -21,7 +21,7 @@
         </Style>
     </Window.Styles>
 
-    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
 
         <!-- Filters: the min-level picker and the source-contains text;
              both rebuild the bound surface synchronously out of the ring
@@ -30,7 +30,7 @@
             <TextBlock Text="{loc:Localized Log.Filter.Level}"
                        VerticalAlignment="Center"
                        FontWeight="Bold"
-                       FontSize="13" />
+                       FontSize="{StaticResource BodyFontSize}" />
             <ComboBox MinWidth="190"
                       SelectedIndex="{Binding LevelFilterIndex}">
                 <ComboBoxItem Content="{loc:Localized Log.Filter.Level.All}" />
@@ -41,7 +41,7 @@
             <TextBlock Text="{loc:Localized Log.Filter.Source}"
                        VerticalAlignment="Center"
                        FontWeight="Bold"
-                       FontSize="13" />
+                       FontSize="{StaticResource BodyFontSize}" />
             <TextBox MinWidth="220"
                      PlaceholderText="{loc:Localized Log.Filter.SourceWatermark}"
                      Text="{Binding SourceFilter, Mode=TwoWay}" />
@@ -53,13 +53,13 @@
             <TextBlock Grid.Column="0"
                        Text="{Binding TailFileLabel}"
                        Foreground="{DynamicResource TextSecondary}"
-                       FontSize="11"
+                       FontSize="{StaticResource CaptionFontSize}"
                        TextWrapping="NoWrap"
                        TextTrimming="CharacterEllipsis" />
             <TextBlock Grid.Column="1"
                        Text="{Binding LinesLabel}"
                        Foreground="{DynamicResource TextSecondary}"
-                       FontSize="11" />
+                       FontSize="{StaticResource CaptionFontSize}" />
         </Grid>
 
         <!-- The tail itself: the fixed-capacity virtualized list whose
@@ -86,19 +86,19 @@
                                                Text="{Binding Moment}"
                                                MinWidth="160"
                                                Foreground="{DynamicResource TextSecondary}"
-                                               FontSize="11"
+                                               FontSize="{StaticResource CaptionFontSize}"
                                                VerticalAlignment="Top" />
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding LevelName}"
                                                MinWidth="86"
                                                Foreground="{DynamicResource TextSecondary}"
-                                               FontSize="11"
+                                               FontSize="{StaticResource CaptionFontSize}"
                                                VerticalAlignment="Top" />
                                     <TextBlock Grid.Column="2"
                                                Text="{Binding Line.Source}"
                                                MinWidth="150"
                                                TextTrimming="CharacterEllipsis"
-                                               FontSize="11"
+                                               FontSize="{StaticResource CaptionFontSize}"
                                                VerticalAlignment="Top" />
                                     <TextBlock Grid.Column="3"
                                                Text="{Binding Line.Message}"
@@ -126,13 +126,13 @@
                    IsVisible="{Binding HasStatusNote}"
                    Foreground="{DynamicResource TextSecondary}"
                    TextWrapping="Wrap"
-                   FontSize="11" />
+                   FontSize="{StaticResource CaptionFontSize}" />
         <TextBlock Grid.Row="4"
                    Text="{Binding ErrorMessage}"
                    IsVisible="{Binding HasErrorMessage}"
                    Foreground="{DynamicResource Error}"
                    TextWrapping="Wrap"
-                   FontSize="11" />
+                   FontSize="{StaticResource CaptionFontSize}" />
 
         <Grid Grid.Row="5" ColumnDefinitions="*,Auto,Auto">
             <Button Grid.Column="1"

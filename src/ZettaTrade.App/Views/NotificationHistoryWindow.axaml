@@ -12,7 +12,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
 
         <!-- Do-Not-Disturb: the mirrored flag (read-only) takes its truth
              from the reactive settings stream; the toggle writes through
@@ -25,11 +25,11 @@
         <!-- The per-source mutes: toggles flip through the reactive keys;
              the boxes mirror the applied set (Drawer or external settings
              edit re-applies without a restart). -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12">
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource SpaceM}">
             <TextBlock Text="{loc:Localized Notif.MuteHeader}"
                        VerticalAlignment="Center"
                        FontWeight="Bold"
-                       FontSize="13" />
+                       FontSize="{StaticResource BodyFontSize}" />
             <ItemsControl ItemsSource="{Binding MuteRows}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -60,11 +60,11 @@
                                     BorderThickness="0,0,0,1"
                                     Padding="0,5,0,5">
                                 <Grid ColumnDefinitions="Auto,Auto,*"
-                                      ColumnSpacing="8">
+                                      ColumnSpacing="{StaticResource SpaceS}">
                                     <TextBlock Grid.Column="0"
                                                Text="{Binding Moment}"
                                                Foreground="{DynamicResource TextSecondary}"
-                                               FontSize="11"
+                                               FontSize="{StaticResource CaptionFontSize}"
                                                VerticalAlignment="Top" />
                                     <Border Grid.Column="1"
                                             CornerRadius="6"
@@ -73,7 +73,7 @@
                                             IsVisible="{Binding HasCountBadge}"
                                             VerticalAlignment="Top">
                                         <TextBlock Text="{Binding Count}"
-                                                   FontSize="11"
+                                                   FontSize="{StaticResource CaptionFontSize}"
                                                    Foreground="{DynamicResource Background}" />
                                     </Border>
                                     <TextBlock Grid.Column="2"

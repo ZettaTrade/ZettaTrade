@@ -12,14 +12,14 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <StackPanel Margin="16" Spacing="10">
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="10">
         <!-- Header: the localized title plus the live active-exchange name —
              the dialog's price/context source; mirrors the status-bar chip
              and follows toolbar switches while the dialog is open. The
              TESTNET badge (T-127) appears beside it only while the traded
              surface rides the testnet lane (the same lane stream the
              status-bar chip resolves). -->
-        <StackPanel Orientation="Horizontal" Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
             <TextBlock VerticalAlignment="Center">
                 <Run Text="{loc:Localized NewOrder.Title}" />
                 <Run Text=" — " />
@@ -44,7 +44,7 @@
                          IsDropDownOpen="{Binding IsSymbolSuggestionsOpen, Mode=TwoWay}"
                          PlaceholderText="BTC/USDT" />
 
-        <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4">
+        <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="{StaticResource SpaceXs}">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Localized NewOrder.Side}" />
             <ComboBox Grid.Row="1" Grid.Column="0"
                       SelectedIndex="{Binding SelectedSideIndex}">
@@ -58,6 +58,7 @@
 
             <TextBlock Grid.Row="0" Grid.Column="1" Text="{loc:Localized NewOrder.Quantity}" />
             <TextBox Grid.Row="1" Grid.Column="1"
+                     FontFamily="{StaticResource NumericFont}"
                      Text="{Binding QuantityInput}"
                      PlaceholderText="0.01" />
 
@@ -91,6 +92,7 @@
         <TextBlock Text="{loc:Localized NewOrder.OcoLimitPrice}"
                    IsVisible="{Binding IsOcoMode}" />
         <TextBox Text="{Binding PriceInput}"
+                 FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="50000"
                  IsVisible="{Binding IsPriceRequired}" />
 
@@ -101,6 +103,7 @@
         <TextBlock Text="{loc:Localized NewOrder.OcoStopTrigger}"
                    IsVisible="{Binding IsOcoMode}" />
         <TextBox Text="{Binding StopTriggerInput}"
+                 FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="49000"
                  IsVisible="{Binding IsTriggerVisible}" />
 
@@ -108,6 +111,7 @@
         <TextBlock Text="{loc:Localized NewOrder.TrailDistance}"
                    IsVisible="{Binding IsTrailVisible}" />
         <TextBox Text="{Binding TrailDistanceInput}"
+                 FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="500"
                  IsVisible="{Binding IsTrailVisible}" />
 
@@ -116,6 +120,7 @@
         <TextBlock Text="{loc:Localized NewOrder.OcoStopLimitPrice}"
                    IsVisible="{Binding IsOcoStopLimitVisible}" />
         <TextBox Text="{Binding OcoStopLimitInput}"
+                 FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="48000"
                  IsVisible="{Binding IsOcoStopLimitVisible}" />
 
@@ -162,10 +167,11 @@
                  a market or plain-limit order has no stop context, and the
                  OCO pair has none it could anchor one distance on — the
                  row hides the mode for exactly those. -->
-            <StackPanel IsVisible="{Binding Sizer.IsRiskModeAvailable}" Spacing="4">
+            <StackPanel IsVisible="{Binding Sizer.IsRiskModeAvailable}" Spacing="{StaticResource SpaceXs}">
                 <TextBlock Text="{loc:Localized NewOrder.SizerRiskCaption}" />
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <TextBox Text="{Binding Sizer.RiskPercentText}"
+                             FontFamily="{StaticResource NumericFont}"
                              PlaceholderText="1"
                              MinWidth="80" />
                     <Button Command="{Binding Sizer.ApplyRiskCommand}"

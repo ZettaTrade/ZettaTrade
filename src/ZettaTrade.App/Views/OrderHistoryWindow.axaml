@@ -12,7 +12,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="16" RowDefinitions="*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto" RowSpacing="10">
 
         <ScrollViewer Grid.Row="0">
             <StackPanel Spacing="6">
@@ -54,15 +54,15 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:OrderHistoryRowViewModel">
                             <Grid ColumnDefinitions="150,90,125,55,75,75,150,125,110">
-                                <TextBlock Grid.Column="0" Text="{Binding Opened}" />
+                                <TextBlock Grid.Column="0" Text="{Binding Opened}" FontFamily="{StaticResource NumericFont}" />
                                 <TextBlock Grid.Column="1" Text="{Binding Exchange}" />
                                 <TextBlock Grid.Column="2" Text="{Binding Symbol}" />
                                 <TextBlock Grid.Column="3" Text="{Binding Side}" />
                                 <TextBlock Grid.Column="4" Text="{Binding Type}" />
-                                <TextBlock Grid.Column="5" Text="{Binding Quantity}" />
-                                <TextBlock Grid.Column="6" Text="{Binding Price}" />
+                                <TextBlock Grid.Column="5" Text="{Binding Quantity}" FontFamily="{StaticResource NumericFont}" />
+                                <TextBlock Grid.Column="6" Text="{Binding Price}" FontFamily="{StaticResource NumericFont}" />
                                 <TextBlock Grid.Column="7" Text="{Binding Status}" />
-                                <TextBlock Grid.Column="8" Text="{Binding Fee}" />
+                                <TextBlock Grid.Column="8" Text="{Binding Fee}" FontFamily="{StaticResource NumericFont}" />
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
