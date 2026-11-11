@@ -1,3 +1,22 @@
+## [0.1.0-alpha.110] - 2026-11-11
+
+Build of board task T-143 (branch `fix/palette-a11y-rows`); no satellite
+release rides it.
+
+### Changed
+- Every symbol palette row carries a composed automation name (T-143):
+  a screen reader reads a symbol entry — "BTC/USDT on Bybit", qualified
+  by ", favorite" and ", recently applied" as the marks hold — instead
+  of the row record's `ToString` dump. The name composes in the
+  ViewModel through the localization manager (the row template binds
+  the record's `AutomationName` on its root, which the list item's
+  automation peer falls back to) and every piece rides the
+  `Chart.A11yPalette.*` resx keys in both cultures.
+- A language switch re-publishes an OPEN palette, so every row's name
+  re-lands in the new language; a closed palette composes its names at
+  its next open. Each qualifier suffix carries its own separator, so
+  every language owns its full qualifier shape.
+
 ## [0.1.0-alpha.109] - 2026-11-11
 
 Build of board task T-142 (branch `fix/book-timestamps`); no satellite

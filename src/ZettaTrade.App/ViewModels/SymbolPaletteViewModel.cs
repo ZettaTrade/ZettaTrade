@@ -8,6 +8,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Livery.Extensions;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
@@ -59,6 +60,15 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     /// <summary>The selection standing nowhere.</summary>
     internal const int NoSelection = -1;
 
+    /// <summary>
+    /// The rows' automation-name pieces (T-143): the symbol-on-exchange
+    /// base and the two mark qualifiers. Every suffix carries its own
+    /// separator, so each language owns its full qualifier shape.
+    /// </summary>
+    internal const string RowNameFormatKey = "Chart.A11yPalette.RowFormat";
+    internal const string RowNameFavoriteKey = "Chart.A11yPalette.Favorite";
+    internal const string RowNameRecentKey = "Chart.A11yPalette.Recent";
+
     #endregion Constants
 
     #region Properties
@@ -67,6 +77,7 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     private readonly SymbolPaletteSource _source;
     private readonly ISettingsService _settings;
     private readonly ChartViewModel _chart;
+    private readonly ILocalizationManager _localization;
     private readonly ILogger<SymbolPaletteViewModel> _logger;
 
     /// <summary>
@@ -238,18 +249,23 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     /// — read by the palette, never written.</param>
     /// <param name="chart">The chart ViewModel whose
     /// <c>SelectedSymbol</c> IS the workspace symbol context.</param>
+    /// <param name="localization">The UI localization the rows' automation
+    /// names compose through (T-143): a language switch re-publishes an
+    /// open palette with re-composed, localized names.</param>
     /// <param name="logger">The palette's own logger.</param>
     public SymbolPaletteViewModel(
         ActiveExchangeService activeExchanges,
         SymbolPaletteSource source,
         ISettingsService settings,
         ChartViewModel chart,
+        ILocalizationManager localization,
         ILogger<SymbolPaletteViewModel> logger)
     {
         _activeExchanges = activeExchanges ?? throw new ArgumentNullException(nameof(activeExchanges));
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _chart = chart ?? throw new ArgumentNullException(nameof(chart));
+        _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         FocusQueryRequested = new Interaction<RxVoid, RxVoid>();
@@ -302,6 +318,22 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
             .Subscribe(
                 _ => PublishCurrentRank(),
                 ex => _logger.LogError(ex, "The palette ranking stream stopped unexpectedly"));
+
+        // A language switch re-composes the OPEN palette's automation
+        // names (T-143): the rows re-publish and every name re-lands
+        // localized. A closed palette composes its names at the next
+        // open anyway — no publish while closed.
+        _localization.LanguageChanged
+            .ObserveOnUiThread()
+            .Subscribe(
+                _ =>
+                {
+                    if (IsOpen)
+                    {
+                        PublishCurrentRank();
+                    }
+                },
+                ex => _logger.LogError(ex, "The palette language stream stopped unexpectedly"));
 
         ToggleCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>((_, ct) => ToggleAsync(ct));
         CloseCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
@@ -662,15 +694,42 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     }
 
     /// <summary>One instrument's row with the flags the current marks and recents say.</summary>
-    private SymbolPaletteRow MarkRow(PaletteInstrument instrument, bool isRecent, PaletteGroupKind? head = null) =>
-        new(
+    private SymbolPaletteRow MarkRow(PaletteInstrument instrument, bool isRecent, PaletteGroupKind? head = null)
+    {
+        var isFavorite = _favoriteMarks.TryGetValue(instrument.ExchangeId, out var names) &&
+            names.Contains(instrument.Symbol.Normalized);
+        return new(
             instrument.Symbol,
             instrument.ExchangeId,
             instrument.ExchangeName,
-            IsFavorite: _favoriteMarks.TryGetValue(instrument.ExchangeId, out var names) &&
-                names.Contains(instrument.Symbol.Normalized),
+            IsFavorite: isFavorite,
             IsRecent: isRecent,
-            GroupHead: head);
+            GroupHead: head,
+            AutomationName: RowName(instrument.Symbol.Normalized, instrument.ExchangeName, isFavorite, isRecent));
+    }
+
+    /// <summary>
+    /// Compose one row's automation name (T-143): the symbol on its
+    /// serving exchange, qualified by the favorite and recent marks as
+    /// they hold — a screen reader reads a symbol entry ("BTC/USDT on
+    /// Bybit"), never the record's ToString dump. Every suffix carries
+    /// its own separator, so each language owns its full qualifier shape.
+    /// </summary>
+    private string RowName(string symbol, string exchange, bool isFavorite, bool isRecent)
+    {
+        var name = _localization.GetString(RowNameFormatKey, symbol, exchange);
+        if (isFavorite)
+        {
+            name += _localization.GetString(RowNameFavoriteKey);
+        }
+
+        if (isRecent)
+        {
+            name += _localization.GetString(RowNameRecentKey);
+        }
+
+        return name;
+    }
 
     /// <summary>Whether the position selects a row (the keyboard route and the apply command share this row predicate).</summary>
     public bool HasRowAt(int position) => position >= 0 && position < Rows.Count;
@@ -697,7 +756,8 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
             row.ExchangeId,
             row.ExchangeName,
             row.IsFavorite,
-            IsRecent: true));
+            IsRecent: true,
+            AutomationName: RowName(row.Symbol.Normalized, row.ExchangeName, row.IsFavorite, isRecent: true)));
         while (_recents.Count > MaxRecents)
         {
             _recents.RemoveAt(_recents.Count - 1);

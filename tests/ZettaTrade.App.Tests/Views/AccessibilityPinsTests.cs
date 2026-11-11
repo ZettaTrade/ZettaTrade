@@ -45,6 +45,15 @@ public sealed class AccessibilityPinsTests
     }
 
     [Fact]
+    public void ThePaletteRows_CarryTheirComposedNames()
+    {
+        MainWindowXaml.Should().Contain(
+            "AutomationProperties.Name=\"{Binding AutomationName}\"",
+            "the palette's rows read their composed names — a screen reader " +
+            "reads a symbol entry, never the record's ToString dump (T-143)");
+    }
+
+    [Fact]
     public void BothEquityWindows_NameTheirCurve()
     {
         File.ReadAllText(Path.Combine(RepoRoot, "src", "ZettaTrade.App", "Views", "BacktestWindow.axaml"))
@@ -64,7 +73,11 @@ public sealed class AccessibilityPinsTests
         foreach (var key in new[]
                  {
                      "Chart.A11ySymbolPicker", "Chart.A11yNoSeries", "Chart.A11ySeries",
-                     "Chart.A11yWithCompare", "OrderBook.A11yWithSymbol", "OrderBook.A11yDepthWithSymbol",
+                     "Chart.A11yWithCompare",
+                     // The palette rows' composed names (T-143): the
+                     // symbol-on-exchange base and the two mark qualifiers.
+                     "Chart.A11yPalette.RowFormat", "Chart.A11yPalette.Favorite", "Chart.A11yPalette.Recent",
+                     "OrderBook.A11yWithSymbol", "OrderBook.A11yDepthWithSymbol",
                      "Tape.A11yWithSymbol", "Backtest.A11yEquity", "Stats.A11yEquity", "AI.Chat.InputName",
                      "Chart.Indicators.A11ySmaInfo", "Chart.Indicators.A11yEmaInfo", "Chart.Indicators.A11yWmaInfo",
                      "Chart.Indicators.A11yRsiInfo", "Chart.Indicators.A11yMacdInfo", "Chart.Indicators.A11yAtrInfo",
