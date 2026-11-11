@@ -145,7 +145,7 @@ public sealed class PluginStrategyCatalogTests
 
         // The registered instance evaluates: a window ending on its own
         // high stands long — the sample's documented trivial read.
-        var context = new StrategyContext(TestBars.Symbol, TimeFrame.M1, TestBars.Candles(2, 4, 6));
+        var context = TestBars.SdkContext(TestBars.Candles(2, 4, 6));
         strategy!.Evaluate(context).Should().Be(StrategyStance.Long, "the probe-built instance evaluates honestly");
         catalog.All.Should().ContainSingle(s => s.Id == SampleCrossStrategy.StrategyId, "the load-order snapshot holds the registration");
 

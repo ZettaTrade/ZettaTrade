@@ -14,6 +14,11 @@
        touches orders, risk or any trading adapter. -->
   <ItemGroup>
     <ProjectReference Include="..\ZettaTrade.Core\ZettaTrade.Core.csproj" />
+    <!-- The strategy implementation contract moved into the versioned SDK
+         contract (T-168): the seam keeps the loader, the host and the
+         catalog; the interface, the context and the stance vocabulary ride
+         the contract package out-of-tree strategies build against. -->
+    <ProjectReference Include="..\ZettaTrade.Plugins.Abstractions\ZettaTrade.Plugins.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

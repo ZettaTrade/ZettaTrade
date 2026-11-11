@@ -19,7 +19,7 @@ using ZettaTrade.Strategies;
 /// candle enters the pump EXACTLY ONCE per series (a re-covered delivery
 /// — a flip back to a loaded set — drops its whole re-visit), and the
 /// stance registry prunes to the delivered window's floor so the overlay
-/// lookups never outgrow the displayed series. The demo crossover runs
+/// lookups never outgrow the displayed series. The inline cross walk runs
 /// the honest deterministic walk (neutral through the warmup, then the
 /// trend), so a crafted monotonic series pins every fact without any
 /// plugin machinery.
@@ -29,8 +29,8 @@ public sealed class StrategySignalServiceTests
     /// <summary>Base instant the crafted candles step through (UTC, offset zero).</summary>
     private static readonly DateTimeOffset Base = new(2026, 3, 2, 0, 0, 0, TimeSpan.Zero);
 
-    /// <summary>The demo's id (the strategies' own canonical one).</summary>
-    private const string Demo = DemoGoldenCrossStrategy.StrategyId;
+    /// <summary>The walk double's id (the strategies' own canonical one).</summary>
+    private const string WalkId = "test-golden-walk";
 
     /// <summary>The series identity the facts feed.</summary>
     private static readonly Symbol Symbol = Symbol.Parse("BTC/USDT");
@@ -64,7 +64,7 @@ public sealed class StrategySignalServiceTests
             var pinned = clock ?? (() => Base.AddHours(11));
             var service = new StrategySignalService(
                 relay.Pages,
-                new FixedCatalog(new DemoGoldenCrossStrategy()),
+                new FixedCatalog(new WalkStrategy()),
                 NullLoggerFactory.Instance,
                 pinned);
             return new TestService(service, relay, pinned);
@@ -77,7 +77,67 @@ public sealed class StrategySignalServiceTests
         public IReadOnlyList<IStrategy> All => strategies;
 
         public IStrategy? Get(string strategyId) =>
-            strategyId == Demo ? strategies[0] : null;
+            strategyId == WalkId ? strategies[0] : null;
+    }
+
+    /// <summary>
+    /// The walk double (T-168): the two-SMA transition the shipped strategy
+    /// carries, kept as a private stand-in so the feed facts keep their
+    /// hand-countable warmup-to-trend walk without any plugin machinery -
+    /// the shipped implementation itself lives in the standard pack
+    /// satellite. Periods 3/6: five honest neutrals, then the rising
+    /// series' golden cross at the sixth candle.
+    /// </summary>
+    private sealed class WalkStrategy : IStrategy
+    {
+        private const int FastPeriod = 3;
+
+        private const int SlowPeriod = 6;
+
+        public string Id => WalkId;
+
+        public StrategyStance Evaluate(StrategyContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            var bars = context.ClosedBars ?? throw new ArgumentException("The context carries no closed bars", nameof(context));
+
+            var count = bars.Count;
+            if (count < SlowPeriod)
+            {
+                return StrategyStance.Neutral;
+            }
+
+            var stance = StrategyStance.Neutral;
+            var fastSum = 0m;
+            var slowSum = 0m;
+
+            for (var i = 0; i < SlowPeriod; i++)
+            {
+                slowSum += bars[i].Close;
+            }
+
+            for (var i = SlowPeriod - FastPeriod; i < SlowPeriod; i++)
+            {
+                fastSum += bars[i].Close;
+            }
+
+            for (var i = SlowPeriod - 1; i < count; i++)
+            {
+                var fast = fastSum / FastPeriod;
+                var slow = slowSum / SlowPeriod;
+                stance = fast > slow
+                    ? StrategyStance.Long
+                    : fast < slow ? StrategyStance.Flat : stance;
+
+                if (i + 1 < count)
+                {
+                    fastSum += bars[i + 1].Close - bars[i + 1 - FastPeriod].Close;
+                    slowSum += bars[i + 1].Close - bars[i + 1 - SlowPeriod].Close;
+                }
+            }
+
+            return stance;
+        }
     }
 
     /// <summary>Poll until the signal registry carries the target count (the pump is a hosted task).</summary>
@@ -117,7 +177,7 @@ public sealed class StrategySignalServiceTests
         {
             await test.Service.InitializeAsync(CancellationToken.None);
 
-            // Six rising H1 bars: the demo walks five honest neutrals through
+            // Six rising H1 bars: the walk runs five honest neutrals through
             // the warmup and one flat-out long at the sixth candle.
             test.Relay.Publish(new ChartSeriesPage(Symbol, TimeFrame.H1, RisingBars(0, 1, 2, 3, 4, 5)));
             await AwaitCountAsync(watcher.Seen, 6);
@@ -125,7 +185,7 @@ public sealed class StrategySignalServiceTests
 
             watcher.Seen.Should().HaveCount(6, "each closed candle was evaluated exactly once");
             watcher.Seen[0].Stance.Should().Be(StrategyStance.Neutral, "the warmup is an honest absence");
-            watcher.Seen[0].StrategyId.Should().Be(Demo, "the host always carries its own stamps");
+            watcher.Seen[0].StrategyId.Should().Be(WalkId, "the host always carries its own stamps");
             watcher.Seen[0].Candle.Time.Should().Be(Base);
             watcher.Seen[5].Stance.Should().Be(StrategyStance.Long, "the rising series crossed golden at the sixth candle");
             watcher.Seen[5].Candle.Time.Should().Be(Base.AddHours(5));

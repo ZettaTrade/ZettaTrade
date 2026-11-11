@@ -155,7 +155,10 @@ public sealed class StrategyHost
 
         window.Append(candle.Bar);
         var bars = window.Snapshot();
-        var context = new StrategyContext(candle.Symbol, candle.Interval, bars);
+        var context = new StrategyContext(
+            candle.Symbol.Normalized,
+            candle.Interval.ToString(),
+            ToSdkBars(bars));
 
         foreach (var strategy in _strategies)
         {
@@ -185,6 +188,31 @@ public sealed class StrategyHost
             _signals.Writer.TryWrite(
                 new StrategySignal(id, candle.Symbol, candle.Interval, candle.Bar, stance));
         }
+    }
+
+    #endregion
+
+    #region SDK Context Adapter
+
+    /// <summary>
+    /// The app-to-SDK bar adaptation (T-168): the strategy contract rides
+    /// the SDK-owned <see cref="ZettaTrade.Plugins.Abstractions.IndicatorBar"/>
+    /// OHLC shape, so the host converts the retained window once per
+    /// evaluation - the T-163 grammar (the Charting pipeline adapts once
+    /// per compute) applied to the strategy seam. The allocation rides the
+    /// closed-candle cadence, never the per-strategy loop: one array per
+    /// series evaluation serves every registered strategy.
+    /// </summary>
+    private static ZettaTrade.Plugins.Abstractions.IndicatorBar[] ToSdkBars(IReadOnlyList<Core.Entities.Bar> bars)
+    {
+        var sdkBars = new ZettaTrade.Plugins.Abstractions.IndicatorBar[bars.Count];
+        for (var i = 0; i < bars.Count; i++)
+        {
+            var bar = bars[i];
+            sdkBars[i] = new ZettaTrade.Plugins.Abstractions.IndicatorBar(bar.Open, bar.High, bar.Low, bar.Close);
+        }
+
+        return sdkBars;
     }
 
     #endregion

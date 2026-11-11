@@ -178,11 +178,11 @@ public sealed class BacktestRunViewModelTests
     public async Task StartCommand_ComposesRequestFromTheForm_AndRendersTheCompletedReport()
     {
         var (model, backtest, _, _, _) = Build(
-            new FakeStrategy("demo-golden-cross"),
+            new FakeStrategy("sma-golden-cross"),
             new FakeStrategy("ema-strategy"));
         var request = new BacktestRunRequest
         {
-            StrategyId = "demo-golden-cross",
+            StrategyId = "sma-golden-cross",
             AdapterId = "fake",
             Symbol = Symbol.Parse("BTC/USDT"),
             Interval = TimeFrame.H1,
@@ -220,7 +220,7 @@ public sealed class BacktestRunViewModelTests
         await model.StartCommand.Execute(RxVoid.Default);
 
         composed.Should().NotBeNull();
-        composed!.StrategyId.Should().Be("demo-golden-cross", "the picker lands on the catalog's first id");
+        composed!.StrategyId.Should().Be("sma-golden-cross", "the picker lands on the catalog's first id");
         composed.AdapterId.Should().Be("fake", "the active venue is the cached-series adapter key");
         composed.Symbol.Normalized.Should().Be("BTC/USDT", "the default spelling parses through Symbol");
         composed.Interval.Should().Be(TimeFrame.H1);
@@ -267,7 +267,7 @@ public sealed class BacktestRunViewModelTests
     [Fact]
     public async Task StartCommand_BlankSymbolRefusesWithItsOwnLine()
     {
-        var (model, backtest, _, _, _) = Build(new FakeStrategy("demo-golden-cross"));
+        var (model, backtest, _, _, _) = Build(new FakeStrategy("sma-golden-cross"));
         model.SymbolText = "   ";
 
         await model.StartCommand.Execute(RxVoid.Default);
@@ -290,7 +290,7 @@ public sealed class BacktestRunViewModelTests
         string garbage,
         string expectedKey)
     {
-        var (model, backtest, _, _, _) = Build(new FakeStrategy("demo-golden-cross"));
+        var (model, backtest, _, _, _) = Build(new FakeStrategy("sma-golden-cross"));
         switch (field)
         {
             case "Bars":
@@ -319,7 +319,7 @@ public sealed class BacktestRunViewModelTests
     [Fact]
     public async Task StartCommand_ServiceRefusalSurfacesTheLocalizedStartFailedLine()
     {
-        var (model, backtest, _, _, _) = Build(new FakeStrategy("demo-golden-cross"));
+        var (model, backtest, _, _, _) = Build(new FakeStrategy("sma-golden-cross"));
         backtest.RunAsync(Arg.Any<BacktestRunRequest>(), Arg.Any<CancellationToken>())
             .Returns<Task<BacktestRunResult>>(_ =>
                 throw new InvalidOperationException("unknown strategy"));
@@ -339,7 +339,7 @@ public sealed class BacktestRunViewModelTests
     [Fact]
     public async Task CancelCommand_MidRun_YieldsTheCancelledPhaseWithoutArtifacts()
     {
-        var (model, backtest, _, _, _) = Build(new FakeStrategy("demo-golden-cross"));
+        var (model, backtest, _, _, _) = Build(new FakeStrategy("sma-golden-cross"));
         var gate = new TaskCompletionSource<BacktestRunResult>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         backtest.RunAsync(Arg.Any<BacktestRunRequest>(), Arg.Any<CancellationToken>())
@@ -381,7 +381,7 @@ public sealed class BacktestRunViewModelTests
     [Fact]
     public async Task AttachRunEvents_RendersProgressAndReRendersOnLanguageChange_AndDiesWithTheHandle()
     {
-        var (model, backtest, loc, events, languageChanges) = Build(new FakeStrategy("demo-golden-cross"));
+        var (model, backtest, loc, events, languageChanges) = Build(new FakeStrategy("sma-golden-cross"));
 
         using (var attach = model.AttachRunEvents())
         {

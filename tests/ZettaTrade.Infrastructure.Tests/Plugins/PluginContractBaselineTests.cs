@@ -33,7 +33,7 @@ public sealed class PluginContractBaselineTests
 
     private static class Pinned
     {
-        /// <summary>The contract 2.0.0 surface (T-163: the indicator seam rides the contract): types alphabetical, sections in the dump order (constructors, fields, properties, methods), members alphabetical inside each section.</summary>
+        /// <summary>The contract 2.1.0 surface (T-168: the strategy seam rides the contract): types alphabetical, sections in the dump order (constructors, properties, fields, methods), members alphabetical inside each section.</summary>
         public static readonly string[] Lines =
         [
             "#ZettaTrade.Plugins.Abstractions.Extensions.PluginPanelDescriptor",
@@ -71,6 +71,19 @@ public sealed class PluginContractBaselineTests
             "ZettaTrade.Plugins.Abstractions.ZettaTradePluginAttribute: prop System.String DisplayName",
             "ZettaTrade.Plugins.Abstractions.ZettaTradePluginAttribute: prop System.String PluginId",
             "ZettaTrade.Plugins.Abstractions.ZettaTradePluginAttribute: prop System.String Version",
+            "#ZettaTrade.Strategies.IStrategy",
+            "ZettaTrade.Strategies.IStrategy: prop System.String Id",
+            "ZettaTrade.Strategies.IStrategy: method Evaluate(ZettaTrade.Strategies.StrategyContext) : ZettaTrade.Strategies.StrategyStance",
+            "#ZettaTrade.Strategies.StrategyContext",
+            "ZettaTrade.Strategies.StrategyContext: ctor(System.String, System.String, System.Collections.Generic.IReadOnlyList`1[ZettaTrade.Plugins.Abstractions.IndicatorBar])",
+            "ZettaTrade.Strategies.StrategyContext: prop System.Collections.Generic.IReadOnlyList`1[ZettaTrade.Plugins.Abstractions.IndicatorBar] ClosedBars",
+            "ZettaTrade.Strategies.StrategyContext: prop System.String Interval",
+            "ZettaTrade.Strategies.StrategyContext: prop System.String Symbol",
+            "#ZettaTrade.Strategies.StrategyStance",
+            "ZettaTrade.Strategies.StrategyStance: field ZettaTrade.Strategies.StrategyStance Flat",
+            "ZettaTrade.Strategies.StrategyStance: field ZettaTrade.Strategies.StrategyStance Long",
+            "ZettaTrade.Strategies.StrategyStance: field ZettaTrade.Strategies.StrategyStance Neutral",
+            "ZettaTrade.Strategies.StrategyStance: field System.Int32 value__",
         ];
     }
 

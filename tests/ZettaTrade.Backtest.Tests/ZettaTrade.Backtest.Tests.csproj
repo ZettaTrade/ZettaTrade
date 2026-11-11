@@ -24,6 +24,10 @@
     <ProjectReference Include="..\..\src\ZettaTrade.Core\ZettaTrade.Core.csproj" />
     <ProjectReference Include="..\..\src\ZettaTrade.Infrastructure\ZettaTrade.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\ZettaTrade.Strategies\ZettaTrade.Strategies.csproj" />
+    <!-- T-168: the deterministic strategy fixture the backtest facts ride
+         after the demo moved to the standard pack (the sample plugin's
+         assembly is a test fixture, never a product reference). -->
+    <ProjectReference Include="..\ZettaTrade.Plugins.SampleStrategy\ZettaTrade.Plugins.SampleStrategy.csproj" />
   </ItemGroup>
 
 </Project>

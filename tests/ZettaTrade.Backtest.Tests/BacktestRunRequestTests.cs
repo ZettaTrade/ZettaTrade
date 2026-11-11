@@ -16,7 +16,7 @@ public sealed class BacktestRunRequestTests
     /// <summary>One fully valid request every fact mutates.</summary>
     private static BacktestRunRequest Valid() => new()
     {
-        StrategyId = "demo-golden-cross",
+        StrategyId = "sma-golden-cross",
         AdapterId = "demo",
         Symbol = Symbol.Parse("BTC/USDT"),
         Interval = Core.Enums.TimeFrame.H1,

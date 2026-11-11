@@ -12,10 +12,10 @@ using ZettaTrade.Strategies.Tests.Harness;
 
 /// <summary>
 /// The host facts (T-111): one evaluation loop, one stamped signal per
-/// (strategy, series) per ACCEPTED closed candle - the demo golden rides
-/// the channel end to end on the same seeded candles the pure walk pins;
-/// a throwing strategy is quarantined for the session while the healthy
-/// one keeps evaluating; stale or duplicate candles are ignored, never
+/// (strategy, series) per ACCEPTED closed candle - the harness cross walk
+/// rides the channel end to end on the same seeded candles the pure walk
+/// pins; a throwing strategy is quarantined for the session while the
+/// healthy one keeps evaluating; stale or duplicate candles are ignored, never
 /// re-evaluated; the window is capped; two series never share a window;
 /// multiple strategies emit in catalog order; a cancelled pump still
 /// completes the output. The channel is the whole story: inert output,
@@ -31,22 +31,22 @@ public sealed class StrategyHostTests
     #endregion
 
     [Fact]
-    public async Task TheHost_Golden_EmitOneStampedSignalPerDemoStancePerClosedCandle()
+    public async Task TheHost_Golden_EmitOneStampedSignalPerWalkStancePerClosedCandle()
     {
         var host = new StrategyHost(
-            [new DemoGoldenCrossStrategy()],
+            [new GoldenWalkStrategy()],
             NullLogger<StrategyHost>.Instance);
         var candles = ClosedCandles(TestBars.GoldenCandles());
 
         var signals = await RunAndDrainAsync(host, candles);
 
-        signals.Should().HaveCount(candles.Length, "one accepted candle per strategy, the demo is the only strategy");
+        signals.Should().HaveCount(candles.Length, "one accepted candle per strategy, the walk is the only strategy");
 
         var expected = TestBars.ExpectedGoldenStances;
         for (var k = 0; k < expected.Length; k++)
         {
             var signal = signals[k];
-            signal.StrategyId.Should().Be(DemoGoldenCrossStrategy.StrategyId);
+            signal.StrategyId.Should().Be(GoldenWalkStrategy.StrategyId);
             signal.Symbol.Should().Be(TestBars.Symbol);
             signal.Interval.Should().Be(TimeFrame.M1);
             signal.Candle.Should().Be(candles[k].Bar, "the stamp names the candle the evaluation ran on");
@@ -157,11 +157,11 @@ public sealed class StrategyHostTests
             ("BTC/USDT", TestBars.Candles(1, 3, 5))).ToList());
 
         var eth = capturing.Contexts
-            .Where(context => context.Symbol.Normalized == "ETH/USDT")
+            .Where(context => context.Symbol == "ETH/USDT")
             .Select(context => context.ClosedBars.Select(bar => bar.Close).ToArray())
             .ToList();
         var btc = capturing.Contexts
-            .Where(context => context.Symbol.Normalized == "BTC/USDT")
+            .Where(context => context.Symbol == "BTC/USDT")
             .Select(context => context.ClosedBars.Select(bar => bar.Close).ToArray())
             .ToList();
 
