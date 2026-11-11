@@ -22,8 +22,12 @@ using ZettaTrade.App.Views.Panels;
 /// facts pin the folded tab strip and the Save/Close row staying inside
 /// the minimum window. Every window touch rides the world's
 /// user-interface lane (an off-thread constructor dies on VerifyAccess).
-/// </summary>
-[Collection("AvaloniaDispatcherSerial")]
+/// The facts share the LocalizationManager singleton with the chart-layout
+/// family, so the class rides the LocalizationManagerSingleton collection:
+/// a manager-creating class running concurrently would swap and dispose
+/// the singleton behind a window's attach (ObjectDisposedException on the
+/// language stream's BehaviorSubject — the observed poison shape).
+[Collection("LocalizationManagerSingleton")]
 public sealed class HeadlessLayoutBoundsTests
 {
     static HeadlessLayoutBoundsTests() => AvaloniaDispatcherPump.EnsureInstalled();

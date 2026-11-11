@@ -1,8 +1,8 @@
 namespace ZettaTrade.App.Tests;
 
 using System;
-using System.Collections.Concurrent;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 
@@ -38,18 +38,18 @@ internal static class AvaloniaDispatcherPump
     private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// The wake gate between the fact threads and the pump thread: the
-    /// queue carries the per-drain completions, the monitor carries the
-    /// wake. A monitor pulse has no counter ceiling — a semaphore's
-    /// maxCount made two concurrent drains race a double release
-    /// (SemaphoreFullException on whichever test drained next), so the
-    /// signal rides a plain lock instead: the pump re-checks the queue
-    /// under the same lock a pulse fires under, no wake is ever lost.
+    /// The wake path between the fact threads and the pump thread: an
+    /// unbounded channel of per-drain completions. The channel is both the
+    /// queue and the wake — a write completes the reader's wait and is
+    /// never lost, and nothing has a counter ceiling (the semaphore's
+    /// maxCount made two concurrent drains race a double release,
+    /// SemaphoreFullException on whichever test drained next).
     /// </summary>
-    private static readonly object Gate = new();
-
-    /// <summary>Per-drain completion handles, consumed one RunJobs cycle each.</summary>
-    private static readonly ConcurrentQueue<TaskCompletionSource> DrainRequests = new();
+    private static readonly Channel<TaskCompletionSource> DrainRequests =
+        Channel.CreateUnbounded<TaskCompletionSource>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+        });
 
     /// <summary>The thread claiming (and forever holding) the dispatcher ownership; null before install.</summary>
     private static Thread? _pump;
@@ -124,25 +124,18 @@ internal static class AvaloniaDispatcherPump
         }
     }
 
-    /// <summary>Idle forever; execute exactly one drain cycle per request batch.</summary>
+    /// <summary>Idle forever; serve one drain cycle per queued request.</summary>
     private static void PumpLoop()
     {
         while (true)
         {
-            lock (Gate)
-            {
-                // Spurious wakeups and pulses that arrive while a batch is
-                // mid-flight both land here: the loop re-enters the wait
-                // only when the queue is verifiably empty UNDER THE LOCK
-                // (the same lock every enqueue-and-pulse holds), so no
-                // request is ever left sleeping in the queue.
-                while (DrainRequests.IsEmpty)
-                {
-                    _ = Monitor.Wait(Gate);
-                }
-            }
+            // Block the owner thread until a request arrives, then serve
+            // the backlog ON this thread: RunJobs demands the dispatcher
+            // ownership (VerifyAccess inside job execution), so neither
+            // the wait's completion nor the reads may hop threads.
+            DrainRequests.Reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult();
 
-            while (DrainRequests.TryDequeue(out var completion))
+            while (DrainRequests.Reader.TryRead(out var completion))
             {
                 try
                 {
@@ -170,14 +163,7 @@ internal static class AvaloniaDispatcherPump
     internal static async Task DrainAsync()
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        lock (Gate)
-        {
-            DrainRequests.Enqueue(completion);
-            // The pulse is bounded by nothing: a second concurrent drain
-            // pulses again harmlessly — the semaphore's maxCount made that
-            // same shape a SemaphoreFullException.
-            Monitor.Pulse(Gate);
-        }
+        await DrainRequests.Writer.WriteAsync(completion);
 
         await completion.Task.WaitAsync(DrainTimeout);
     }

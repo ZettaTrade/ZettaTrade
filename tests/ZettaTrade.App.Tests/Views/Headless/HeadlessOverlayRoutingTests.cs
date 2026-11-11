@@ -20,9 +20,12 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// owns its navigation keys (Esc closes it) and the cheat sheet's Esc
 /// rides first when it shows. The keys raise on the routed-event source
 /// the real keyboard would feed: the window for the global route, the
-/// overlay element for the palette's own route.
-/// </summary>
-[Collection("AvaloniaDispatcherSerial")]
+/// overlay element for the palette's own route. The class rides the
+/// LocalizationManagerSingleton collection: every fact materializes the
+/// REAL main window whose chart widgets subscribe the localization and
+/// theme singletons on attach, so the manager-creating classes run
+/// strictly sequentially with it.
+[Collection("LocalizationManagerSingleton")]
 public sealed class HeadlessOverlayRoutingTests
 {
     static HeadlessOverlayRoutingTests() => AvaloniaDispatcherPump.EnsureInstalled();

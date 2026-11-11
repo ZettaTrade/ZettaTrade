@@ -18,8 +18,11 @@ using ZettaTrade.App.Views;
 /// standing language in a finally, so the process-global state survives
 /// even a failed assert. Every visual-tree read rides the world's
 /// user-interface lane — an off-thread Header read dies on VerifyAccess.
-/// </summary>
-[Collection("AvaloniaDispatcherSerial")]
+/// The class rides the LocalizationManagerSingleton collection: the flip
+/// re-inks through the REAL manager and the manager-creating classes run
+/// strictly sequentially with it (a concurrent manager construction would
+/// swap and dispose the singleton behind the flip).
+[Collection("LocalizationManagerSingleton")]
 public sealed class HeadlessLocalizationTests
 {
     static HeadlessLocalizationTests() => AvaloniaDispatcherPump.EnsureInstalled();
