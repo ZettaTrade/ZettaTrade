@@ -43,7 +43,13 @@ public sealed class DemoMarketDataAdapter : IMarketDataAdapter
     private static readonly TimeSpan TickerRefreshInterval = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan TradeRefreshInterval = TimeSpan.FromSeconds(2);
 
-    /// <summary>The fixed tradable universe (a Binance subset).</summary>
+    /// <summary>
+    /// The fixed tradable universe (a Binance subset). It covers the
+    /// watchlist's starter majors (T-166): the default first-run exchange is
+    /// this adapter, so the catalog must never be narrower than the starter
+    /// list — a starter row the catalog lacks throws at every startup and
+    /// never prices.
+    /// </summary>
     private static readonly Symbol[] SupportedSymbols =
     [
         Symbol.Parse("BTC/USDT"),
@@ -52,6 +58,12 @@ public sealed class DemoMarketDataAdapter : IMarketDataAdapter
         Symbol.Parse("BTC/USDC"),
         Symbol.Parse("XRP/USDT"),
         Symbol.Parse("ETH/BTC"),
+        Symbol.Parse("ADA/USDT"),
+        Symbol.Parse("DOGE/USDT"),
+        Symbol.Parse("BNB/USDT"),
+        Symbol.Parse("LINK/USDT"),
+        Symbol.Parse("AVAX/USDT"),
+        Symbol.Parse("LTC/USDT"),
     ];
 
     /// <summary>Seeded anchor price per normalized symbol.</summary>
@@ -63,6 +75,12 @@ public sealed class DemoMarketDataAdapter : IMarketDataAdapter
         ["BTC/USDC"] = 67110m,
         ["XRP/USDT"] = 0.62m,
         ["ETH/BTC"] = 0.0522m,
+        ["ADA/USDT"] = 0.45m,
+        ["DOGE/USDT"] = 0.12m,
+        ["BNB/USDT"] = 580m,
+        ["LINK/USDT"] = 14m,
+        ["AVAX/USDT"] = 28m,
+        ["LTC/USDT"] = 66m,
     };
 
     #endregion Constants

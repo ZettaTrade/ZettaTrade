@@ -1,3 +1,22 @@
+## [0.1.0-alpha.112] - 2026-11-11
+
+Build of board task T-166 (branch `feat/demo-catalog-majors`); no
+satellite release rides it.
+
+### Fixed
+- The demo catalog covers the watchlist's starter majors (T-166): the
+  fixed demo universe gains ADA/USDT, DOGE/USDT, BNB/USDT, LINK/USDT,
+  AVAX/USDT and LTC/USDT with documented anchors, so on the default
+  first-run exchange (Demo) every starter row prices instead of throwing
+  an ArgumentException inside the ticker projection at every startup —
+  six of the ten starter rows stayed unpriced forever and each logged a
+  "ticker stream failed" warning, and under the VS debugger the six
+  exception pauses made the launch look broken. The `Validate` throw
+  stays (trading safety: unknown symbols are an error, never a default);
+  the fix removes the starter-list-vs-catalog mismatch, and the seam is
+  pinned from both sides (the adapter's anchor table covers exactly its
+  catalog; the watchlist starter set is a subset of the demo catalog).
+
 ## [0.1.0-alpha.111] - 2026-11-11
 
 Build of board task T-165 (branch `feat/theme-singleton-hygiene`); the
