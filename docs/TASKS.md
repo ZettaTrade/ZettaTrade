@@ -162,7 +162,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | done | - |
 | T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | done | T-154 (soft) |
 | T-157 Table grammar for positions and order history | feat/table-grammar | done | T-154 (soft) |
-| T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | in-progress | - |
+| T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | done | - |
 | T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | queued | - |
 | T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | queued | T-154 (soft) |
 | T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | queued | - |
@@ -242,25 +242,6 @@ discipline first (T-150, T-151, T-152 — the two parallel color systems and the
 systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
 (T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
-
-## T-158 — Assistant chat bubbles: role styling, copy, stop
-
-- **Branch:** feat/chat-bubbles, worktree zt-chat-bubbles, based on develop@25898a7 (claimed 2026-11-11 as the ninth of the T-150…T-162 design-review batch).
-- **Origin:** the chat is a plain ListBox: a bold "Role:" line above a wrapped paragraph and a
-  10px timestamp under it — the author reads last, and a streaming answer cannot be interrupted
-  once the send happened.
-- **What:** bubble layout (user right in the accent tint, assistant left on Surface), the role +
-  timestamp inside the bubble header, a per-message copy affordance, and a Stop command canceling
-  the in-flight reply: the chat engine's existing cancellation seam surfaced, or the affordance
-  stays hidden honestly — no dead button ships.
-- **Scope:** AssistantPanelView + the ChatViewModel's stop/copy surface; the chat engine plumbing
-  if the cancel seam needs exposing; resx en+ru under the Chat.* prefix.
-- **Acceptance:** authorship reads without labels (position + tint carry it); long answers wrap
-  in bounded bubbles; Stop (when shipped) halts the stream and re-enables the input; the
-  local/remote model paths unaffected.
-- **Tests:** VM pins for the stop route (the no-op case included), the copy pin; the existing
-  chat goldens stay.
-- **Status:** in-progress
 
 ## T-159 — Watchlist and heatmap color semantics
 
