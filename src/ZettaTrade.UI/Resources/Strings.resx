@@ -384,6 +384,12 @@
   <data name="AI.Chat.InputName" xml:space="preserve">
     <value>Assistant message input</value>
   </data>
+  <data name="AI.Chat.Stop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="AI.Chat.Copy" xml:space="preserve">
+    <value>Copy the message</value>
+  </data>
   <data name="Chart.NoDataMessage" xml:space="preserve">
     <value>No data available</value>
   </data>

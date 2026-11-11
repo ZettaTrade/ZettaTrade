@@ -68,6 +68,24 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     private string _input = string.Empty;
     private bool _isBusy;
 
+    /// <summary>
+    /// The in-flight reply's cancellation source: the Stop command cancels
+    /// it, the pipeline parks it while the request runs and clears it when
+    /// the flow settles — a stop click after the reply settled reads null
+    /// and stays a no-op.
+    /// </summary>
+    private CancellationTokenSource? _inFlight;
+
+    /// <summary>
+    /// Whether the reply in flight was stopped by a Stop click. The
+    /// cancellation log reads it to tell a user stop apart from an
+    /// abandonment (the source itself is already cleared by the time the
+    /// cancellation unwinds, so the flag is the only witness that survives
+    /// the settlement); StopReply sets it before the cancel, the flow
+    /// clears it as it settles.
+    /// </summary>
+    private bool _userStopRequested;
+
     private readonly ISettingsService _settings;
     private readonly IChatCompletion _completion;
     private readonly ChatContextService _context;
@@ -187,6 +205,15 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
                 x => x.IsBusy,
                 (input, busy) => !string.IsNullOrWhiteSpace(input) && !busy));
 
+        // The Stop affordance (T-158) surfaces the engine's existing
+        // cancellation seam: the in-flight completion already rides a
+        // CancellationToken, so the command cancels its source. It offers
+        // itself only while a reply runs — never a dead button — and the
+        // guard keeps a raced click after the reply settled a no-op.
+        StopCommand = ReactiveCommand.Create(
+            StopReply,
+            this.WhenAnyValue(x => x.IsBusy));
+
         // The consent chip flips the property; the persistence pipeline above
         // carries the write.
         ToggleContextCommand = ReactiveCommand.Create(() =>
@@ -299,6 +326,13 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>Send the typed message to the assistant (send button + Enter).</summary>
     public ReactiveCommand<RxVoid, RxVoid> SendTextCommand { get; }
 
+    /// <summary>
+    /// Stop the in-flight assistant reply (T-158): cancels the completion's
+    /// token, so the answer flow abandons and the input unlocks. Enabled
+    /// only while a reply runs; a click after the reply settled is a no-op.
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> StopCommand { get; }
+
     /// <summary>Flip the market-context consent chip (persisted pipeline rides
     /// the property change).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleContextCommand { get; }
@@ -368,29 +402,60 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         IsBusy = true;
         try
         {
-            var turns = ChatMessages
-                .Where(message => message.Kind != ChatMessageKind.ErrorLine)
-                .Select(message => message.Kind == ChatMessageKind.UserTurn
-                    ? new ChatTurn(ChatTurn.UserRole, message.Content)
-                    : new ChatTurn(ChatTurn.AssistantRole, message.Content))
-                .ToList();
+            // The reply rides a source the Stop command can reach: linked to
+            // the command's own token, so the host's abandonment (shutdown)
+            // still cancels everything — the stop adds one more cancel path,
+            // never a competing one.
+            using var inFlight = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _inFlight = inFlight;
+            try
+            {
+                var turns = ChatMessages
+                    .Where(message => message.Kind != ChatMessageKind.ErrorLine)
+                    .Select(message => message.Kind == ChatMessageKind.UserTurn
+                        ? new ChatTurn(ChatTurn.UserRole, message.Content)
+                        : new ChatTurn(ChatTurn.AssistantRole, message.Content))
+                    .ToList();
 
-            var workspace = _context.Current;
-            var systemPrompt = IsMarketContextEnabled && _momentComposer is not null
-                ? _composer.Compose(
-                    workspace,
-                    _momentComposer.Compose(workspace.ToMarketMoment()))
-                : _composer.Compose(workspace);
+                var workspace = _context.Current;
+                var systemPrompt = IsMarketContextEnabled && _momentComposer is not null
+                    ? _composer.Compose(
+                        workspace,
+                        _momentComposer.Compose(workspace.ToMarketMoment()))
+                    : _composer.Compose(workspace);
 
-            var reply = await _completion.CompleteAsync(systemPrompt, turns, ct);
+                var reply = await _completion.CompleteAsync(systemPrompt, turns, inFlight.Token);
 
-            AddTurn(ChatMessageKind.AssistantTurn, reply, RoleAssistantKey);
+                AddTurn(ChatMessageKind.AssistantTurn, reply, RoleAssistantKey);
+            }
+            finally
+            {
+                // Cleared BEFORE the busy flag drops: the Stop command's
+                // disablement and the no-op guard cross-fade here — a stop
+                // click racing the settlement reads null and stays a no-op
+                // (the source itself is never disposed while a click may
+                // still reach it, so Cancel cannot object).
+                _inFlight = null;
+            }
         }
         catch (OperationCanceledException)
         {
-            // The request was abandoned (shutdown/hot-reload path): the
-            // accepted turn stays in the chat, no answer follows.
-            _logger.LogWarning("The assistant request was abandoned before it answered");
+            // The request was abandoned (the user stopped it — T-158 — or the
+            // shutdown/hot-reload path canceled it): the accepted turn stays
+            // in the chat, no answer and no error line follows. The stop
+            // flag tells the two apart — the source is already cleared by
+            // the time the cancellation unwinds, so the flag is the only
+            // witness that survived the settlement; the click's own
+            // Information entry rode StopReply, a cancellation without one
+            // is an abandonment.
+            if (_userStopRequested)
+            {
+                _logger.LogInformation("The assistant reply was stopped by the user");
+            }
+            else
+            {
+                _logger.LogWarning("The assistant request was abandoned before it answered");
+            }
         }
         catch (Exception ex)
         {
@@ -402,8 +467,30 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         }
         finally
         {
+            _userStopRequested = false;
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// The Stop command's route: cancel the in-flight source so the
+    /// completion abandons. A raced click after the reply settled reads no
+    /// source and stays a no-op (the command is disabled by then anyway).
+    /// </summary>
+    private void StopReply()
+    {
+        if (_inFlight is null)
+        {
+            return;
+        }
+
+        // The flag goes up before the cancel: the cancellation unwinds
+        // through the pipeline while the flag is the surviving witness of
+        // WHO canceled — a user stop logs Information, an abandonment
+        // (shutdown, the provider's own token) logs Warning.
+        _userStopRequested = true;
+        _logger.LogInformation("The user pressed Stop on the in-flight assistant reply");
+        _inFlight.Cancel();
     }
 
     #endregion
@@ -446,6 +533,18 @@ public sealed class ChatMessageViewModel : ReactiveObject
 
     /// <summary>Which pipeline produced this row.</summary>
     public ChatMessageKind Kind { get; init; } = ChatMessageKind.UserTurn;
+
+    /// <summary>Whether this row is the trader's turn (the tinted bubble,
+    /// T-158: the position and the tint carry the authorship).</summary>
+    public bool IsUserTurn => Kind == ChatMessageKind.UserTurn;
+
+    /// <summary>Whether this row is the assistant's answer (the raised
+    /// Surface bubble, T-158).</summary>
+    public bool IsAssistantTurn => Kind == ChatMessageKind.AssistantTurn;
+
+    /// <summary>Whether this row is an in-chat failure line (the
+    /// transparent error variant, T-158).</summary>
+    public bool IsErrorLine => Kind == ChatMessageKind.ErrorLine;
 
     /// <summary>Localized display label of the row's role.</summary>
     public required string Role { get; init; }

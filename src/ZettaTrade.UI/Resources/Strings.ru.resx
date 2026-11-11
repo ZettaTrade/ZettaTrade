@@ -384,6 +384,12 @@
   <data name="AI.Chat.InputName" xml:space="preserve">
     <value>Ввод сообщения ассистенту</value>
   </data>
+  <data name="AI.Chat.Stop" xml:space="preserve">
+    <value>Стоп</value>
+  </data>
+  <data name="AI.Chat.Copy" xml:space="preserve">
+    <value>Копировать сообщение</value>
+  </data>
   <data name="Chart.NoDataMessage" xml:space="preserve">
     <value>Нет данных</value>
   </data>

@@ -5,6 +5,69 @@
              x:Class="ZettaTrade.App.Views.Panels.AssistantPanelView"
              x:DataType="vm:ChatViewModel">
 
+    <UserControl.Styles>
+        <!--
+        The message bubbles (T-158): the authorship reads without labels —
+        the position (the trader's turn right, everything the panel itself
+        says left) and the tint carry it. The user turn rides the Highlight
+        fill with the derived ChipForeground caption (the T-152-scored
+        pairing, the same one the kit blesses for chips), the assistant's
+        answer rides the Surface card over the window background with the
+        explicit TextPrimary, and an honest failure line renders bare (no
+        fill, no border, the Error color). Every color rides the palette's
+        keys, so a user theme retints the bubbles live.
+        -->
+        <Style Selector="Border.message">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="MaxWidth" Value="480" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style Selector="Border.message.assistant">
+            <Setter Property="Background" Value="{DynamicResource Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource TextPrimary}" />
+        </Style>
+        <Style Selector="Border.message.user">
+            <Setter Property="Background" Value="{DynamicResource Highlight}" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource ChipForeground}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <Style Selector="Border.message.error">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource Error}" />
+        </Style>
+
+        <!-- The copy pin (T-158): a quiet icon button inside the bubble
+             header, dim at rest and full on the pointer, whose glyph
+             strokes in the bubble's own ink — the descendant styles below
+             pick the stroke per bubble class deterministically (a Foreground
+             inheritance chain would leak the platform button chrome's
+             foreground instead). -->
+        <Style Selector="Button.copy-pin">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <Style Selector="Button.copy-pin:pointerover">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Button.copy-pin:pressed">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Border.message.user Path.copy-glyph">
+            <Setter Property="Stroke" Value="{DynamicResource ChipForeground}" />
+        </Style>
+        <Style Selector="Border.message.assistant Path.copy-glyph">
+            <Setter Property="Stroke" Value="{DynamicResource TextPrimary}" />
+        </Style>
+        <Style Selector="Border.message.error Path.copy-glyph">
+            <Setter Property="Stroke" Value="{DynamicResource Error}" />
+        </Style>
+    </UserControl.Styles>
+
     <!-- The AI assistant panel (T-103): the exact content the main window's
          assistant column carried, extracted one-for-one so the SAME control
          instance hosts in the main window's assistant column or in the
@@ -31,12 +94,13 @@
                       Command="{Binding ToggleContextCommand}"
                       IsChecked="{Binding IsMarketContextEnabled, Mode=OneWay}" />
 
-        <!-- Chat input + send (named input: the menu/hotkey focus
-             request lands on it, so the assistant is one
-             keystroke away); the send button carries the
-             command, disabled while the input is empty or a
-             request is in flight -->
-        <Grid DockPanel.Dock="Bottom" Margin="{StaticResource InsetS}" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceS}">
+        <!-- Chat input + stop + send (named input: the menu/hotkey focus
+             request lands on it, so the assistant is one keystroke away);
+             the send button carries the command, disabled while the input
+             is empty or a request is in flight; the Stop button (T-158)
+             halts the in-flight reply, offered only while one runs — the
+             command's own availability, never a dead button -->
+        <Grid DockPanel.Dock="Bottom" Margin="{StaticResource InsetS}" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource SpaceS}">
             <TextBox x:Name="ChatInput"
                      Grid.Column="0"
                      AutomationProperties.Name="{loc:Localized AI.Chat.InputName}"
@@ -51,21 +115,63 @@
                 </TextBox.KeyBindings>
             </TextBox>
             <Button Grid.Column="1"
+                    Content="{loc:Localized AI.Chat.Stop}"
+                    Command="{Binding StopCommand}" />
+            <Button Grid.Column="2"
                     Content="{loc:Localized AI.Chat.Send}"
                     Command="{Binding SendTextCommand}" />
         </Grid>
 
-        <!-- Chat messages -->
-        <ListBox ItemsSource="{Binding ChatMessages}" Margin="{StaticResource InsetS}">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <StackPanel Margin="{StaticResource InsetXs}">
-                        <TextBlock Text="{Binding Role}" FontWeight="Bold" />
-                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}" FontSize="{StaticResource CaptionFontSize}" Foreground="{DynamicResource TextSecondary}" />
-                    </StackPanel>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+        <!-- Chat messages: a scrolling stack of bubbles (the T-158 rewrite
+             dropped the selection-free-list-as-ListBox shape; the messages
+             are never selectable data rows, so the ItemsControl is the
+             honest host); the bubble bounds the wrap (480), the rest of
+             the width stays the column's -->
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding ChatMessages}" Margin="{StaticResource InsetS}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="{StaticResource SpaceXs}" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Classes="message"
+                                Classes.user="{Binding IsUserTurn}"
+                                Classes.assistant="{Binding IsAssistantTurn}"
+                                Classes.error="{Binding IsErrorLine}">
+                            <StackPanel Spacing="{StaticResource SpaceXs}">
+                                <!-- The row's header lives INSIDE the bubble
+                                     (role, moment, copy): the T-157 strip
+                                     grammar's caption treatment, carried by
+                                     the bubble's own ink -->
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource SpaceXs}">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Role}"
+                                               FontSize="{StaticResource CaptionFontSize}"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
+                                               FontSize="{StaticResource CaptionFontSize}" />
+                                    <Button Grid.Column="2"
+                                            Classes="copy-pin"
+                                            Click="OnCopyMessageClick"
+                                            AutomationProperties.Name="{loc:Localized AI.Chat.Copy}"
+                                            ToolTip.Tip="{loc:Localized AI.Chat.Copy}">
+                                        <!-- The two-square copy glyph: stroked,
+                                             riding the bubble's ink class -->
+                                        <Path Classes="copy-glyph"
+                                              Stretch="None"
+                                              StrokeThickness="1"
+                                              Data="M1,1 H5 V5 H1 Z M4,4 H9 V9 H4 Z" />
+                                    </Button>
+                                </Grid>
+                                <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
     </DockPanel>
 </UserControl>
