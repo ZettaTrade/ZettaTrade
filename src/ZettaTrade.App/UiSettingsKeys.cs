@@ -113,6 +113,36 @@ public static class UiSettingsKeys
     public const double MinWatchlistPanelWidth = 200;
 
     /// <summary>
+    /// Settings key of the persisted signal rail height (logical pixels):
+    /// written by the rail ViewModel when the rail's splitter drag settles
+    /// (T-177), restored by the startup walk before the first frame.
+    /// </summary>
+    public const string SignalRailHeight = "SignalRailHeight";
+
+    /// <summary>
+    /// The signal rail height applied until a stored height is loaded: the
+    /// 172 px cap the rail rode before the splitter existed (the T-112
+    /// layout every session saw).
+    /// </summary>
+    public const double DefaultSignalRailHeight = 172;
+
+    /// <summary>
+    /// Usable-minimum clamp of the signal rail height (logical pixels):
+    /// bound to the row's <c>MinHeight</c>, so the splitter itself stops
+    /// here and a stored (or externally written) height below it is clamped
+    /// on restore — the header and one reading row stay readable.
+    /// </summary>
+    public const double MinSignalRailHeight = 72;
+
+    /// <summary>
+    /// Upper clamp of the signal rail height (logical pixels): bound to the
+    /// row's <c>MaxHeight</c>, so the splitter itself stops here and a
+    /// stored (or externally written) height above it is clamped on restore
+    /// — the rail grows within its band, never eats the chart's star row.
+    /// </summary>
+    public const double MaxSignalRailHeight = 480;
+
+    /// <summary>
     /// Settings key of the persisted chart indicator overlay configuration:
     /// a JSON array of indicator rows (the ChartIndicatorConfig shape).
     /// </summary>

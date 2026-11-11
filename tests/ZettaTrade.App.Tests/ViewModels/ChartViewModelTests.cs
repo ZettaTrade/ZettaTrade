@@ -364,6 +364,7 @@ public sealed class ChartViewModelTests
         var rail = new SignalRailViewModel(
             signals.Signals,
             localization ?? Substitute.For<ILocalizationManager>(),
+            Substitute.For<ISettingsService>(),
             NullLogger<SignalRailViewModel>.Instance);
 
         return new(

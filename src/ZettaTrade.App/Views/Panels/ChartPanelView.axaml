@@ -5,9 +5,39 @@
              xmlns:charting="using:ZettaTrade.UI.Charting"
              xmlns:tools="using:ZettaTrade.Charting"
              xmlns:panels="using:ZettaTrade.App.Views.Panels"
+             xmlns:controls="using:ZettaTrade.App.Controls"
              x:Class="ZettaTrade.App.Views.Panels.ChartPanelView"
              x:DataType="vm:ChartViewModel"
              x:Name="Root">
+
+    <UserControl.Styles>
+        <!-- The rail's splitter grip (T-177): the T-172 column-handle
+             look, row-wise — the quiet hairline the drag grabs, tinting
+             to the Accent on hover while the whole track keeps the
+             north-south cursor. The styles live on the panel itself: the
+             ONE panel instance carries the handle cross-window (the
+             detached chart window hosts it too). -->
+        <Style Selector="controls|RowResizeHandle">
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="Cursor" Value="SizeNorthSouth" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Panel>
+                        <Border Background="Transparent" />
+                        <Border x:Name="GripLine"
+                                Height="1"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource Border}" />
+                    </Panel>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="controls|RowResizeHandle:pointerover /template/ Border#GripLine">
+            <Setter Property="Height" Value="3" />
+            <Setter Property="CornerRadius" Value="1.5" />
+            <Setter Property="Background" Value="{DynamicResource Accent}" />
+        </Style>
+    </UserControl.Styles>
 
     <!-- The chart workspace panel (T-103): the exact content the main
          window's chart column carried, extracted one-for-one so the SAME
@@ -19,7 +49,20 @@
          freezes while the chart lives in its own window (the HUD is a
          main-window overlay; its detached counterpart is out of T-103
          scope). -->
-    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <!-- The rail's splitter track (T-177): the thin band the row
+                 handle rides, between the chart's star row and the rail's
+                 persisted-height row. -->
+            <RowDefinition Height="8" />
+            <RowDefinition Height="{Binding SignalRail.RailHeight, Mode=TwoWay}"
+                           MinHeight="{Binding SignalRail.MinRailHeight}"
+                           MaxHeight="{Binding SignalRail.MaxRailHeight}" />
+        </Grid.RowDefinitions>
         <!-- Header: the symbol picker owns a stretch row; the controls
              ride a finite wrap band BELOW it (T-145: the old one-line
              16-column header's auto sum overflowed the panel width, and
@@ -268,14 +311,18 @@
              route (the same transient dialog path the
              order book's level presses share); a signal
              never sends an order itself — the human
-             decides on the ticket. -->
-        <Border Grid.Row="4"
-                Margin="0,8,0,0"
+             decides on the ticket. The rail's height is
+             persisted state (T-177): its row rides the
+             TwoWay RailHeight binding above, the splitter
+             track row feeds the drags in, and the overflow
+             scrolls once the rows outgrow the rail. -->
+        <controls:RowResizeHandle Grid.Row="4" />
+        <Border Grid.Row="5"
                 Padding="4,4,4,0"
                 BorderBrush="{DynamicResource Border}"
                 BorderThickness="0,1,0,0"
                 DataContext="{Binding SignalRail}">
-            <Grid RowDefinitions="Auto,*" MaxHeight="172">
+            <Grid RowDefinitions="Auto,*">
                 <!-- The rail head rides the kit's panel-header scaffold
                      (T-160): the one padding grammar and the title
                      treatment live in the kit — no hand-typed margins.
@@ -291,60 +338,68 @@
                                VerticalAlignment="Center"
                                Margin="4,0"
                                IsVisible="{Binding IsEmpty}" />
-                    <ItemsControl ItemsSource="{Binding Rows, Mode=OneWay}"
-                                  IsVisible="{Binding HasRows}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Vertical" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:SignalRailRow">
-                                <!-- One reading: the side accent dot
-                                     (the stance's direction read), the
-                                     composed facts, the time. The row is
-                                     a Button: the whole line is the
-                                     prefill affordance; the tooltip names
-                                     what a click does and does not do. -->
-                                <Button Command="{Binding PrefillCommand}"
-                                        ToolTip.Tip="{Binding Tooltip}"
-                                        HorizontalAlignment="Stretch"
-                                        HorizontalContentAlignment="Left"
-                                        Padding="8,1"
-                                        Background="Transparent"
-                                        BorderThickness="0">
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <Ellipse Width="8"
-                                                 Height="8"
-                                                 VerticalAlignment="Center"
-                                                 Classes.long="{Binding IsEntryLong}"
-                                                 Classes.flat="{Binding IsEntryFlat}">
-                                            <Ellipse.Styles>
-                                                <Style Selector="Ellipse.long">
-                                                    <Setter Property="Fill" Value="{DynamicResource CandleUp}" />
-                                                </Style>
-                                                <Style Selector="Ellipse.flat">
-                                                    <Setter Property="Fill" Value="{DynamicResource TextSecondary}" />
-                                                </Style>
-                                            </Ellipse.Styles>
-                                        </Ellipse>
-                                        <TextBlock Text="{Binding CandleTime}"
-                                                   Foreground="{DynamicResource TextSecondary}"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding StrategyId}"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding StanceLabel}"
-                                                   FontWeight="SemiBold"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding SymbolText}"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding PriceText}"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <!-- The rows surface scrolls (T-177): the overflow
+                         stays reachable — the newest-first order is the
+                         rows list's own, the scroller only reveals the
+                         ring's tail. -->
+                    <ScrollViewer x:Name="RailRowsScroller"
+                                  IsVisible="{Binding HasRows}"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Rows, Mode=OneWay}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Vertical" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SignalRailRow">
+                                    <!-- One reading: the side accent dot
+                                         (the stance's direction read), the
+                                         composed facts, the time. The row is
+                                         a Button: the whole line is the
+                                         prefill affordance; the tooltip names
+                                         what a click does and does not do. -->
+                                    <Button Command="{Binding PrefillCommand}"
+                                            ToolTip.Tip="{Binding Tooltip}"
+                                            HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Left"
+                                            Padding="8,1"
+                                            Background="Transparent"
+                                            BorderThickness="0">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <Ellipse Width="8"
+                                                     Height="8"
+                                                     VerticalAlignment="Center"
+                                                     Classes.long="{Binding IsEntryLong}"
+                                                     Classes.flat="{Binding IsEntryFlat}">
+                                                <Ellipse.Styles>
+                                                    <Style Selector="Ellipse.long">
+                                                        <Setter Property="Fill" Value="{DynamicResource CandleUp}" />
+                                                    </Style>
+                                                    <Style Selector="Ellipse.flat">
+                                                        <Setter Property="Fill" Value="{DynamicResource TextSecondary}" />
+                                                    </Style>
+                                                </Ellipse.Styles>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding CandleTime}"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding StrategyId}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding StanceLabel}"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding SymbolText}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding PriceText}"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </Grid>
             </Grid>
         </Border>

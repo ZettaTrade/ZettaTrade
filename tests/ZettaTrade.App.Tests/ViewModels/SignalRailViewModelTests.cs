@@ -6,14 +6,18 @@ using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
+using Avalonia.Controls;
 using FluentAssertions;
 using Livery.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using ReactiveUI;
 using Xunit;
+using ZettaTrade.App;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
+using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Strategies;
 
@@ -27,6 +31,11 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// oldest evicted, a neutral stance is an honest absence that never
 /// enters, rows rebuild newest-first, and a row press raises the row
 /// itself over the prefill stream — the ticket facts, never an order.
+/// The rail height facts (T-177): the walk restores stored, clamped or
+/// garbage-safe default heights before the first frame and never rewrites
+/// what it just applied; a settled drag persists once at the settled
+/// height; an out-of-band write clamps at the persisted value; external
+/// writers apply live without echoing.
 /// Rows ride the dispatcher only through their marshaled assignment, so
 /// the facts run inside the AvaloniaDispatcherSerial collection and drain
 /// the pump to observe the settled rows deterministically.
@@ -40,6 +49,24 @@ public sealed class SignalRailViewModelTests
     private static readonly DateTimeOffset Base = new(2026, 3, 2, 0, 0, 0, TimeSpan.Zero);
 
     private static readonly Symbol Symbol = Symbol.Parse("BTC/USDT");
+
+    /// <summary>
+    /// How long a test waits for the debounced drag persistence to reach
+    /// the settings service before calling the arrangement broken (never
+    /// hit in a healthy pipeline — the burst write lands right after the
+    /// VM's quarter-second quiet time; keeps a stalled test diagnosable).
+    /// </summary>
+    private static readonly TimeSpan SettleWaitBudget = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// How long a "nothing was written" assertion keeps watching past the
+    /// drag quiet time before declaring the window closed — double the
+    /// quiet time, so a late write would still land inside the observation.
+    /// </summary>
+    private static readonly TimeSpan EchoQuietBudget = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>Height fuzz a float comparison tolerates (mirrors the VM's epsilon).</summary>
+    private const double HeightEpsilon = 0.01;
 
     /// <summary>The localized-text fake: keys read as bracketed ids, formats name their arguments in order.</summary>
     private sealed class FakeLocalization : ILocalizationManager
@@ -72,7 +99,11 @@ public sealed class SignalRailViewModelTests
     {
         var signals = new Subject<StrategySignal>();
         var loc = new FakeLocalization();
-        var rail = new SignalRailViewModel(signals, loc, NullLogger<SignalRailViewModel>.Instance);
+        var rail = new SignalRailViewModel(
+            signals,
+            loc,
+            Substitute.For<ISettingsService>(),
+            NullLogger<SignalRailViewModel>.Instance);
         return (rail, signals, loc);
     }
 
@@ -128,6 +159,33 @@ public sealed class SignalRailViewModelTests
     }
 
     [Fact]
+    public async Task ABurstWiderThanTheRing_LandsBoundedAtTheCapacity()
+    {
+        var (rail, signals, _) = Build();
+
+        // 14 readings inside ONE coalesce window: the ring still holds at
+        // its capacity — the burst's oldest tail falls off with the rest
+        // (the T-177 scroll probe caught the unbounded-burst gap).
+        for (var hour = 0; hour < SignalRailViewModel.MaxRows + 2; hour++)
+        {
+            signals.OnNext(Long("demo", hour));
+        }
+
+        await SettleAsync();
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        rail.Rows.Should().HaveCount(
+            SignalRailViewModel.MaxRows,
+            "a burst wider than the ring never grows the rail past it");
+        rail.Rows[0].Source.Candle.Time.Should().Be(
+            Base.AddHours(SignalRailViewModel.MaxRows + 1),
+            "the newest reading rides the top");
+        rail.Rows[^1].Source.Candle.Time.Should().Be(
+            Base.AddHours(2),
+            "the burst's oldest tail is the eviction");
+    }
+
+    [Fact]
     public async Task NeutralStance_IsAnHonestAbsence_NeverEntersTheRail()
     {
         var (rail, signals, _) = Build();
@@ -166,6 +224,7 @@ public sealed class SignalRailViewModelTests
         var rail = new SignalRailViewModel(
             new Subject<StrategySignal>(),
             local,
+            Substitute.For<ISettingsService>(),
             NullLogger<SignalRailViewModel>.Instance);
 
         var longRow = SignalRailRow.For(Signal("sma-golden-cross", 5, StrategyStance.Long), local, rail);
@@ -204,4 +263,267 @@ public sealed class SignalRailViewModelTests
         rail.IsEmpty.Should().BeFalse();
         rail.HasRows.Should().BeTrue();
     }
+
+    // The rail height facts (T-177): the height is persisted state riding
+    // the workspace-geometry pipeline shape (T-038), row-wise.
+
+    /// <summary>
+    /// The walk with the third-party default read keeps the layout every
+    /// session saw before the splitter existed: the old 172 px cap.
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_NoStoredHeight_KeepsTheShippedDefault()
+    {
+        var kit = await CreateHeightKitAsync();
+
+        CarriesPixelHeight(kit.Rail.RailHeight, UiSettingsKeys.DefaultSignalRailHeight);
+        kit.Rail.MinRailHeight.Should().Be(UiSettingsKeys.MinSignalRailHeight);
+        kit.Rail.MaxRailHeight.Should().Be(UiSettingsKeys.MaxSignalRailHeight);
+    }
+
+    /// <summary>
+    /// The stored height applies at the walk, and the walk never writes
+    /// the value it just read back.
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_RestoresTheStoredHeight_WithoutRewritingIt()
+    {
+        var kit = await CreateHeightKitAsync(storedHeight: 300);
+
+        CarriesPixelHeight(kit.Rail.RailHeight, 300);
+        await WaitPastQuietTimeAsync();
+        await kit.Settings.DidNotReceive().SetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<double>());
+    }
+
+    /// <summary>
+    /// Whatever the settings reader let through non-finite (an out-of-range
+    /// JSON magnitude such as <c>1e999</c>, a hand-edited file) falls back
+    /// to the shipped default instead of eating the chart's band.
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_GarbageStoredHeight_FallsBackToTheDefault()
+    {
+        var kit = await CreateHeightKitAsync(storedHeight: double.PositiveInfinity);
+
+        CarriesPixelHeight(kit.Rail.RailHeight, UiSettingsKeys.DefaultSignalRailHeight);
+    }
+
+    /// <summary>
+    /// A stored height outside the usable band clamps into it on restore,
+    /// silently (the clamp is not a user choice worth a rewrite).
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_OutOfBandStoredHeights_ClampIntoTheUsableBand()
+    {
+        var low = await CreateHeightKitAsync(storedHeight: 50);
+        CarriesPixelHeight(low.Rail.RailHeight, UiSettingsKeys.MinSignalRailHeight);
+        await WaitPastQuietTimeAsync();
+        await low.Settings.DidNotReceive().SetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<double>());
+
+        var high = await CreateHeightKitAsync(storedHeight: 5000);
+        CarriesPixelHeight(high.Rail.RailHeight, UiSettingsKeys.MaxSignalRailHeight);
+        await WaitPastQuietTimeAsync();
+        await high.Settings.DidNotReceive().SetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<double>());
+    }
+
+    /// <summary>
+    /// A settled rail drag persists ONCE, at the settled height: the
+    /// burst's per-pixel arrangement collapses behind the debounce (a
+    /// preview write of an intermediate height never reaches the settings
+    /// file).
+    /// </summary>
+    [Fact]
+    public async Task DragSettles_TheBurstPersistsOnceAtTheSettledHeight()
+    {
+        var kit = await CreateHeightKitAsync();
+
+        // Act: one drag burst — a few writebacks a pixel apart, then settle
+        kit.Rail.RailHeight = new GridLength(200);
+        kit.Rail.RailHeight = new GridLength(260);
+        var signal = ArmWriteSignal(kit.Settings);
+        kit.Rail.RailHeight = new GridLength(280);
+
+        // Assert
+        var settled = await signal.Task.WaitAsync(SettleWaitBudget);
+        settled.Should().Be(280, "the burst persists the height the drag settled at");
+        await kit.Settings.Received(1).SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.SignalRailHeight,
+            280d);
+
+        // Act: a second, later burst is a new difference and persists too
+        kit.Rail.RailHeight = new GridLength(320);
+        settled = await ArmWriteSignal(kit.Settings).Task.WaitAsync(SettleWaitBudget);
+
+        settled.Should().Be(320);
+        await kit.Settings.Received(1).SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.SignalRailHeight,
+            320d);
+    }
+
+    /// <summary>
+    /// A write past the usable band clamps at the persisted value: the
+    /// splitter's own row clamp stops real drags, and any programmatic
+    /// write beyond it never banks a chart-eating height.
+    /// </summary>
+    [Fact]
+    public async Task AWriteAboveTheMaximum_ClampsThePersistedValue()
+    {
+        var kit = await CreateHeightKitAsync();
+
+        kit.Rail.RailHeight = new GridLength(600);
+
+        var settled = await ArmWriteSignal(kit.Settings).Task.WaitAsync(SettleWaitBudget);
+
+        settled.Should().Be(UiSettingsKeys.MaxSignalRailHeight);
+        await kit.Settings.Received(1).SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.SignalRailHeight,
+            UiSettingsKeys.MaxSignalRailHeight);
+    }
+
+    /// <summary>
+    /// An external writer re-applies the rail height live without a
+    /// restart: matching keys apply, unrelated keys and non-double
+    /// payloads drop.
+    /// </summary>
+    [Fact]
+    public async Task TheSettingsServiceChange_AppliesTheHeightLive_WithoutEchoingIt()
+    {
+        var kit = await CreateHeightKitAsync();
+
+        kit.Changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.Theme,
+            "dark",
+            "light"));
+        kit.Changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.SignalRailHeight,
+            UiSettingsKeys.DefaultSignalRailHeight,
+            "not a number"));
+        CarriesPixelHeight(kit.Rail.RailHeight, UiSettingsKeys.DefaultSignalRailHeight,
+            "an unrelated key and a non-double payload both leave the height alone");
+
+        kit.Changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.SignalRailHeight,
+            UiSettingsKeys.DefaultSignalRailHeight,
+            320.0));
+
+        CarriesPixelHeight(kit.Rail.RailHeight, 320);
+        await WaitPastQuietTimeAsync();
+        await kit.Settings.DidNotReceive().SetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<double>());
+    }
+
+    /// <summary>
+    /// The applied external change is silent on the settings service, and
+    /// a real drag AFTER the application still persists its (now
+    /// different) settled height.
+    /// </summary>
+    [Fact]
+    public async Task TheSettingsServiceChange_TheEchoIsSilent_ARealDragStillPersists()
+    {
+        var kit = await CreateHeightKitAsync();
+
+        // Act: an external writer applies a height live
+        kit.Changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.SignalRailHeight,
+            UiSettingsKeys.DefaultSignalRailHeight,
+            320.0));
+
+        // Assert: the application stayed silent
+        await WaitPastQuietTimeAsync();
+        await kit.Settings.DidNotReceive().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.SignalRailHeight,
+            320.0);
+
+        // Act: the user re-dragged the rail after the application
+        var signal = ArmWriteSignal(kit.Settings);
+        kit.Rail.RailHeight = new GridLength(360);
+
+        var settled = await signal.Task.WaitAsync(SettleWaitBudget);
+
+        settled.Should().Be(360);
+        await kit.Settings.Received(1).SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.SignalRailHeight,
+            360d);
+    }
+
+    /// <summary>
+    /// A wired height kit: the settings substitute answers the rail height
+    /// read, the changes stream is an open subject, and the rail stands
+    /// where the startup walk leaves it — constructed and initialized.
+    /// </summary>
+    private static async Task<HeightKit> CreateHeightKitAsync(
+        double storedHeight = UiSettingsKeys.DefaultSignalRailHeight)
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<double>(
+                Arg.Any<string>(),
+                Arg.Is<string>(key => key == UiSettingsKeys.SignalRailHeight),
+                Arg.Any<double>())
+            .Returns(storedHeight);
+        var changes = new Subject<SettingsChange>();
+        settings.Changes.Returns(changes);
+
+        var rail = new SignalRailViewModel(
+            new Subject<StrategySignal>(),
+            new FakeLocalization(),
+            settings,
+            NullLogger<SignalRailViewModel>.Instance);
+        await rail.InitializeAsync();
+
+        return new HeightKit(rail, settings, changes);
+    }
+
+    /// <summary>
+    /// Arm the write signal: the NEXT settings write with a double payload
+    /// completes the returned task with its value (a deterministic wait for
+    /// the debounced burst; a second burst arms a fresh signal, since each
+    /// arm re-configures the write handler).
+    /// </summary>
+    private static TaskCompletionSource<double> ArmWriteSignal(ISettingsService settings)
+    {
+        var signal = new TaskCompletionSource<double>(TaskCreationOptions.RunContinuationsAsynchronously);
+        settings.SetAsync<double>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<double>())
+            .Returns(callInfo =>
+            {
+                signal.TrySetResult(callInfo.ArgAt<double>(2));
+                return Task.CompletedTask;
+            });
+        return signal;
+    }
+
+    /// <summary>Give the quiet-time window a chance to invalidate a silence claim.</summary>
+    private static Task WaitPastQuietTimeAsync() => Task.Delay(EchoQuietBudget);
+
+    /// <summary>Assert an absolute (pixel) grid length carries the expected height.</summary>
+    private static void CarriesPixelHeight(GridLength actual, double expected, string because = "")
+    {
+        actual.IsAbsolute.Should().BeTrue("the rail height is an absolute pixel length");
+        actual.Value.Should().BeApproximately(expected, HeightEpsilon, because);
+    }
 }
+
+/// <summary>One wired rail height pipeline with every collaborator a test drives.</summary>
+internal sealed record HeightKit(
+    SignalRailViewModel Rail,
+    ISettingsService Settings,
+    Subject<SettingsChange> Changes);

@@ -62,9 +62,10 @@ internal sealed record MainWorld(
     /// offline adapter: a fresh profile's shape — no stored choices, no
     /// marks, an empty plugin catalog — with every stream open. The headless
     /// world stands first (its localization singleton feeds the composed
-    /// ViewModels).
+    /// ViewModels). The optional rail (T-177) swaps the chart's rail strip
+    /// for a subject-fed one the facts drive directly.
     /// </summary>
-    public static async Task<MainWorld> CreateAsync()
+    public static async Task<MainWorld> CreateAsync(SignalRailViewModel? rail = null)
     {
         await HeadlessWorld.EnsureAppAsync();
         await HeadlessWorld.EnsureHealthyThemeSingletonAsync();
@@ -93,7 +94,7 @@ internal sealed record MainWorld(
 
         var localization = LocalizationManager.Instance;
 
-        var chart = CreateChart(activeExchanges, settings);
+        var chart = CreateChart(activeExchanges, settings, rail);
         var palette = new SymbolPaletteViewModel(
             activeExchanges,
             new SymbolPaletteSource(activeExchanges, NullLogger<SymbolPaletteSource>.Instance),
@@ -223,18 +224,24 @@ internal sealed record MainWorld(
     /// <summary>
     /// The chart recipe the palette facts ride (T-103's inert hosting
     /// pair included): a quiet signals stream, an empty drawing store and
-    /// the honest cold cache — the chart pipeline stays bare.
+    /// the honest cold cache — the chart pipeline stays bare. The optional
+    /// rail (T-177) replaces the default one so a fact feeds rows through
+    /// its own subject.
     /// </summary>
-    private static ChartViewModel CreateChart(ActiveExchangeService service, ISettingsService settings)
+    internal static ChartViewModel CreateChart(
+        ActiveExchangeService service,
+        ISettingsService settings,
+        SignalRailViewModel? rail = null)
     {
         var relay = new SignalSeriesRelay();
         var signals = new StrategySignalService(
             relay.Pages,
             Substitute.For<IStrategyCatalog>(),
             NullLoggerFactory.Instance);
-        var rail = new SignalRailViewModel(
+        rail ??= new SignalRailViewModel(
             signals.Signals,
             Substitute.For<ILocalizationManager>(),
+            settings,
             NullLogger<SignalRailViewModel>.Instance);
 
         var drawingStore = Substitute.For<IChartDrawingStore>();
