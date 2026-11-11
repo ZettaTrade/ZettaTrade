@@ -606,6 +606,12 @@
   <data name="Chart.Tool.Fib.Tip" xml:space="preserve">
     <value>Draw a Fibonacci retracement: press the swing high, drag to the swing low, release (press again to disarm)</value>
   </data>
+  <data name="Chart.Drawing.Delete" xml:space="preserve">
+    <value>Delete selected drawing</value>
+  </data>
+  <data name="Chart.Drawing.Delete.Tip" xml:space="preserve">
+    <value>Delete the selected drawing. The Delete key removes it; Esc cancels the in-flight placement, else clears the selection.</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>

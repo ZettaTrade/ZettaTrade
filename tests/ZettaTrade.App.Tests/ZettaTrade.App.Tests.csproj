@@ -6,7 +6,18 @@
     <OutputType>Library</OutputType>
   </PropertyGroup>
 
+  <!-- The runner serializes the whole assembly (one test at a time): the
+       facts share ONE process-wide Avalonia dispatcher pump whose
+       "frozen between drains" discipline the timing facts read
+       deterministically - a concurrent collection's drain executes
+       another test's posted refresh mid-window (the StatusBar expiry
+       facts died exactly this way under the parallel full-suite load;
+       the T-178 supervisor lane pinned the diagnosis on the clean
+       develop build, where the mimic reproduced without the task's own
+       facts). maxParallelThreads=1 honors the pump contract everywhere;
+       the assembly trades wall time for determinism. -->
   <ItemGroup>
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.4" />
     <PackageReference Include="FluentAssertions" Version="7.2.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

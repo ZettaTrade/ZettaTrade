@@ -819,6 +819,17 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     public ReactiveCommand<ChartDrawingTool, RxVoid> ToolCommand { get; }
 
+    /// <summary>
+    /// The selected drawing's removal affordance (T-178): the header
+    /// strip's visible delete button rides the same route the chart's
+    /// Delete key names — <see cref="DeleteDrawingAsync"/>, the whole
+    /// layer saves and the settled layer republishes. Gated on the
+    /// standing selection: with nothing selected the affordance stays
+    /// disabled, the honest answer to "delete what?", and it re-arms the
+    /// moment a drawing is selected again.
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> DeleteSelectedDrawingCommand { get; }
+
     private string _mainSeriesLabel = string.Empty;
 
     /// <summary>
@@ -1281,6 +1292,21 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         {
             ActiveDrawingTool = ActiveDrawingTool == tool ? ChartDrawingTool.None : tool;
         });
+
+        // The delete affordance rides the standing selection as its gate
+        // (T-178): the AlertsViewModel grammar — the selection stream's
+        // null-ness arms the button, the removal clears the selection and
+        // the button stands down again with it.
+        DeleteSelectedDrawingCommand = ReactiveCommand.CreateFromTask(
+            async () =>
+            {
+                if (SelectedDrawingId is { } drawingId)
+                {
+                    await DeleteDrawingAsync(drawingId);
+                }
+            },
+            canExecute: this.WhenAnyValue(x => x.SelectedDrawingId)
+                .Select(static id => id is not null));
 
         SymbolSelections = this.WhenAnyValue(x => x.SelectedSymbol)
             .Where(symbol => symbol is not null)

@@ -606,6 +606,12 @@
   <data name="Chart.Tool.Fib.Tip" xml:space="preserve">
     <value>Построить уровни Фибоначчи: нажмите на максимум свинга, протяните до минимума, отпустите (повторное нажатие выключает)</value>
   </data>
+  <data name="Chart.Drawing.Delete" xml:space="preserve">
+    <value>Удалить выбранный рисунок</value>
+  </data>
+  <data name="Chart.Drawing.Delete.Tip" xml:space="preserve">
+    <value>Удалить выбранный рисунок. Клавиша Delete тоже удаляет его; Esc отменяет незавершённое построение, иначе снимает выделение.</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>
