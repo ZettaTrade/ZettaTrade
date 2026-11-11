@@ -49,7 +49,10 @@ public sealed class SplitterDragTests
             15, "the drag round-trip restores the column within a pixel's slop");
     }
 
-    /// <summary>Drag an element by a screen delta with the real mouse.</summary>
+    /// <summary>Drag an element by a screen delta with the real mouse. The
+    /// delta rides small steps with a settle beat after the press: the Thumb
+    /// must capture before the first move lands, and a sweep of small moves
+    /// never loses the gesture to input coalescing under suite load.</summary>
     private static void DragBy(AutomationElement handle, int dx, int dy)
     {
         var rect = handle.BoundingRectangle;
@@ -57,8 +60,22 @@ public sealed class SplitterDragTests
             rect.Left + (rect.Width / 2),
             rect.Top + (rect.Height / 2));
         Mouse.Down(MouseButton.Left);
-        Mouse.MoveBy(dx / 2, dy / 2);
-        Mouse.MoveBy(dx - (dx / 2), dy - (dy / 2));
+        System.Threading.Thread.Sleep(60);
+
+        var steps = 8;
+        var movedX = 0;
+        var movedY = 0;
+        for (var step = 1; step <= steps; step++)
+        {
+            var targetX = dx * step / steps;
+            var targetY = dy * step / steps;
+            Mouse.MoveBy(targetX - movedX, targetY - movedY);
+            movedX = targetX;
+            movedY = targetY;
+        }
+
+        System.Threading.Thread.Sleep(60);
         Mouse.Up(MouseButton.Left);
+        System.Threading.Thread.Sleep(60);
     }
 }
