@@ -72,16 +72,28 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     private readonly IDetachedPanelCoordinator _detacher;
 
     /// <summary>
-    /// The applied persisted book width. The persistence pipeline only fires
-    /// on a real difference against this cache, so both the startup restore
-    /// and the changes-stream echo are absorbed without a settings rewrite.
+    /// The book width the detach captures and a later attach restores (the
+    /// user-visible truth — drags may outpace the debounced persistence, so
+    /// the capture, not any persisted value, is what a show puts back).
     /// </summary>
-    private double _persistedBookWidth = UiSettingsKeys.DefaultBookPanelWidth;
+    private GridLength _bookWidthAtDetach = new(UiSettingsKeys.DefaultBookPanelWidth);
 
-    /// <summary>See <see cref="_persistedBookWidth"/>; the tape column's own cache.</summary>
+    /// <summary>
+    /// The width the book-side ViewModel last applied to the bound column.
+    /// Programmatic writes (restore, detach, attach, external echoes) update
+    /// this BEFORE the property changes, so the persistence pipeline filters
+    /// them out and only real splitter drags push differences through. The
+    /// detached book's collapsed shape rides the same guard.
+    /// </summary>
+    private GridLength _appliedBookDisplayWidth = new(UiSettingsKeys.DefaultBookPanelWidth);
+
+    /// <summary>Whether the book-side display geometry currently shows the panel (drives the detach capture).</summary>
+    private bool _bookColumnShown = true;
+
+    /// <summary>The applied persisted tape width. The persistence pipeline only fires on a real difference against this cache, so both the startup restore and the changes-stream echo are absorbed without a settings rewrite.</summary>
     private double _persistedTapeWidth = UiSettingsKeys.DefaultTapePanelWidth;
 
-    /// <summary>See <see cref="_persistedBookWidth"/>; the watchlist column's own cache.</summary>
+    /// <summary>See <see cref="_persistedTapeWidth"/>; the watchlist column's own cache.</summary>
     private double _persistedWatchlistWidth = UiSettingsKeys.DefaultWatchlistPanelWidth;
 
     /// <summary>
@@ -103,6 +115,8 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     private bool _aiColumnShown = true;
 
     private GridLength _bookColumnWidth = new(UiSettingsKeys.DefaultBookPanelWidth);
+    private GridLength _bookSplitterColumnWidth = SplitterTrack;
+    private double _bookColumnMinWidth = UiSettingsKeys.MinBookPanelWidth;
     private GridLength _tapeColumnWidth = new(UiSettingsKeys.DefaultTapePanelWidth);
     private GridLength _watchlistColumnWidth = new(UiSettingsKeys.DefaultWatchlistPanelWidth);
     private GridLength _aiColumnWidth = new(UiSettingsKeys.DefaultAiPanelWidth);
@@ -146,6 +160,18 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
         IsChartDetached = _detacher.IsDetached(PanelDetachId.Chart);
         IsBookDetached = _detacher.IsDetached(PanelDetachId.Book);
         IsAssistantDetached = _detacher.IsDetached(PanelDetachId.Assistant);
+
+        // The book column frees with its panel (T-173): a book already
+        // detached at construction (the restore walk re-opened its window
+        // before the layout resolved) starts with the collapsed geometry
+        // from the first frame; the runtime's later emits drive the same
+        // flip. The collapsed writes run before the persistence pipelines
+        // subscribe, and their display lead keeps the restore silent too.
+        if (IsBookDetached)
+        {
+            HideBookColumn();
+        }
+
         _detacher.PanelDetached
             .ObserveOnUiThread()
             .Subscribe(
@@ -196,26 +222,17 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
                 _ => _detacher.AttachPanelWindowAsync(PanelDetachId.Assistant, CancellationToken.None),
                 onError: ex => _logger.LogError(ex, "The assistant attach-on-hide leg failed"));
 
-        // External writers apply live: the display lead (the AI side) or the
-        // cache (the book side) is updated BEFORE the property changes, so
-        // the persistence pipelines see an already-applied value and skip it.
+        // External writers apply live: the display lead is updated BEFORE
+        // the property changes, so the persistence pipelines see an
+        // already-applied value and skip it (the AI side leads the display,
+        // the tape and watchlist lead their caches).
         _settings.Changes
             .Where(change => change.Section == UiSettingsKeys.Section &&
                              change.Key == UiSettingsKeys.BookPanelWidth)
             .Select(change => change.NewValue)
             .OfType<double>()
             .Subscribe(
-                width =>
-                {
-                    // The external value becomes the book width truth; the
-                    // cache leads the property change, so the changed value
-                    // the pipelines would observe is already absorbed.
-                    _persistedBookWidth = ClampStoredWidth(
-                        width,
-                        UiSettingsKeys.MinBookPanelWidth,
-                        UiSettingsKeys.DefaultBookPanelWidth);
-                    BookColumnWidth = new GridLength(_persistedBookWidth);
-                },
+                ApplyExternalBookWidth,
                 ex => _logger.LogError(ex, "The book width stream stopped unexpectedly"));
 
         _settings.Changes
@@ -269,11 +286,11 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
         // writing the settings file per pixel; Concat serializes the
         // writes). The BookColumnWidth property is the binding writeback
         // target of the grid's book column, so this pipeline fires exactly
-        // on those splitter writes; the restore and the external echo never
-        // cross the difference guard.
+        // on those splitter writes; the restore, the detach collapse and
+        // the external echo never cross the difference guard.
         this.WhenAnyValue(x => x.BookColumnWidth)
             .Skip(1)
-            .Where(width => !IsSameWidth(width, _persistedBookWidth))
+            .Where(width => !IsSameWidth(width, _appliedBookDisplayWidth))
             .Throttle(DragQuietTime)
             .Select(width => Observable
                 .FromAsync(() => _settings.SetAsync(
@@ -283,7 +300,7 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
                 .Select(_ => width))
             .Concat()
             .Subscribe(
-                issuedWidth => _persistedBookWidth = issuedWidth.Value,
+                issuedWidth => _appliedBookDisplayWidth = issuedWidth,
                 ex => _logger.LogError(ex, "Failed to persist the book panel width"));
 
         this.WhenAnyValue(x => x.TapeColumnWidth)
@@ -350,6 +367,30 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
     {
         get => _bookColumnWidth;
         set => this.RaiseAndSetIfChanged(ref _bookColumnWidth, value);
+    }
+
+    /// <summary>
+    /// Minimum width of the book column: the usable-minimum clamp while the
+    /// panel is inline, zero while detached (the collapsed column must be
+    /// allowed to be zero). The grid column binds it OneWay.
+    /// </summary>
+    public double BookColumnMinWidth
+    {
+        get => _bookColumnMinWidth;
+        private set => this.RaiseAndSetIfChanged(ref _bookColumnMinWidth, value);
+    }
+
+    /// <summary>
+    /// Width of the book side's splitter tracks: the grab handles ride them.
+    /// They vanish with the panel so a detached book never leaves a dead
+    /// grab handle parked in an empty gutter. Both book-side tracks (the
+    /// chart/book and the book/tape boundary) bind it OneWay — with the
+    /// panel away, neither boundary has the neighbor it serves.
+    /// </summary>
+    public GridLength BookSplitterColumnWidth
+    {
+        get => _bookSplitterColumnWidth;
+        private set => this.RaiseAndSetIfChanged(ref _bookSplitterColumnWidth, value);
     }
 
     /// <summary>
@@ -485,8 +526,20 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
         // The displays lead the property assignments on purpose: a drag the
         // persistence pipelines would observe sits behind the difference
         // guards, so a restore never rewrites the value it just read.
-        _persistedBookWidth = book;
-        BookColumnWidth = new GridLength(book);
+        _bookWidthAtDetach = new GridLength(book);
+        if (_bookColumnShown)
+        {
+            _appliedBookDisplayWidth = new GridLength(book);
+            BookColumnWidth = new GridLength(book);
+        }
+        else
+        {
+            // A book already detached at construction: the stored width
+            // becomes only the attach-back truth, the column stays
+            // collapsed (the re-assignments restate the ctor's geometry).
+            _appliedBookDisplayWidth = Collapsed;
+            BookColumnWidth = Collapsed;
+        }
         _persistedTapeWidth = tape;
         TapeColumnWidth = new GridLength(tape);
         _persistedWatchlistWidth = watchlist;
@@ -504,8 +557,9 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
         }
 
         _logger.LogInformation(
-            "Restored persisted workspace widths: book {BookWidth:F0}px, tape {TapeWidth:F0}px, watchlist {WatchlistWidth:F0}px, assistant {AiWidth:F0}px ({AiState})",
+            "Restored persisted workspace widths: book {BookWidth:F0}px ({BookState}), tape {TapeWidth:F0}px, watchlist {WatchlistWidth:F0}px, assistant {AiWidth:F0}px ({AiState})",
             book,
+            _bookColumnShown ? "inline" : "detached",
             tape,
             watchlist,
             ai,
@@ -566,6 +620,59 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
 
     #endregion
 
+    #region Book Column Geometry
+
+    /// <summary>Apply the inline geometry: the captured width comes back untouched.</summary>
+    private void ShowBookColumn()
+    {
+        var restored = new GridLength(
+            ClampStoredWidth(_bookWidthAtDetach.Value, UiSettingsKeys.MinBookPanelWidth, UiSettingsKeys.DefaultBookPanelWidth));
+        _bookWidthAtDetach = restored;
+        _bookColumnShown = true;
+        _appliedBookDisplayWidth = restored;
+        BookColumnMinWidth = UiSettingsKeys.MinBookPanelWidth;
+        BookSplitterColumnWidth = SplitterTrack;
+        BookColumnWidth = restored;
+    }
+
+    /// <summary>Apply the collapsed geometry; the capture keeps only a width the user actually saw.</summary>
+    private void HideBookColumn()
+    {
+        if (_bookColumnShown)
+        {
+            // A drag may still ride the debounce (≤ DragQuietTime old), so
+            // the displayed value — not the persisted cache — is the truth
+            // a later attach must restore.
+            _bookWidthAtDetach = _bookColumnWidth;
+            _bookColumnShown = false;
+        }
+
+        _appliedBookDisplayWidth = Collapsed;
+        BookColumnMinWidth = 0;
+        BookSplitterColumnWidth = Collapsed;
+        BookColumnWidth = Collapsed;
+    }
+
+    /// <summary>
+    /// An external writer set <c>UI.BookPanelWidth</c>: the value becomes the
+    /// book width truth (displayed live while the panel is inline, the
+    /// attach-back truth while it is detached), and the display lead is set
+    /// first so the persistence pipeline stays silent.
+    /// </summary>
+    private void ApplyExternalBookWidth(double width)
+    {
+        var applied = new GridLength(
+            ClampStoredWidth(width, UiSettingsKeys.MinBookPanelWidth, UiSettingsKeys.DefaultBookPanelWidth));
+        _bookWidthAtDetach = applied;
+        _appliedBookDisplayWidth = applied;
+        if (_bookColumnShown)
+        {
+            BookColumnWidth = applied;
+        }
+    }
+
+    #endregion
+
     #region Helpers
 
     /// <summary>Apply one detach-mirror flip: the panel whose detached state changed (the runtime's closed enum — an unknown id faults loud, never silently drops).</summary>
@@ -578,6 +685,15 @@ public sealed class WorkspaceLayoutViewModel : ReactiveObject, IAsyncInitializab
                 break;
             case PanelDetachId.Book:
                 IsBookDetached = detached;
+                if (detached)
+                {
+                    HideBookColumn();
+                }
+                else
+                {
+                    ShowBookColumn();
+                }
+
                 break;
             case PanelDetachId.Assistant:
                 IsAssistantDetached = detached;

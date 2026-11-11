@@ -289,9 +289,10 @@
 
         <!-- Main content area: the workspace column is the flexible star; the
              book and assistant columns carry the persisted widths the
-             draggable splitters write (T-038), and the assistant-side
-             splitter track and its column collapse with the panel's
-             visibility so a hidden panel never leaves a dead gutter. -->
+             draggable splitters write (T-038). The assistant-side splitter
+             track and its column collapse with the panel's visibility, and
+             the book side collapses with its detach (T-173) so a hidden or
+             away panel never leaves a dead gutter. -->
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -311,10 +312,10 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="{Binding Layout.BookSplitterColumnWidth}" />
                         <ColumnDefinition Width="{Binding Layout.BookColumnWidth, Mode=TwoWay}"
-                                          MinWidth="{x:Static app:UiSettingsKeys.MinBookPanelWidth}" />
-                        <ColumnDefinition Width="8" />
+                                          MinWidth="{Binding Layout.BookColumnMinWidth}" />
+                        <ColumnDefinition Width="{Binding Layout.BookSplitterColumnWidth}" />
                         <ColumnDefinition Width="{Binding Layout.TapeColumnWidth, Mode=TwoWay}"
                                           MinWidth="{x:Static app:UiSettingsKeys.MinTapePanelWidth}" />
                         <ColumnDefinition Width="8" />
@@ -323,8 +324,12 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Chart/book handle: drags resize the persisted book
-                         column; the chart keeps its flexible star. -->
-                    <controls:ColumnResizeHandle Grid.Column="1" />
+                         column; the chart keeps its flexible star. Hidden
+                         with the panel so a detached book never leaves a
+                         dead grab handle parked in an empty gutter (the
+                         collapsed tracks ride BookSplitterColumnWidth). -->
+                    <controls:ColumnResizeHandle Grid.Column="1"
+                                                 IsVisible="{Binding !Layout.IsBookDetached}" />
 
                     <!-- Depth panel (T-103): the book panel's ONE control
                          instance hosts here inline and moves into the
@@ -342,8 +347,12 @@
 
                     <!-- Book/tape handle: drags move the boundary — the
                          book pays what the tape takes (the stock GridSplitter
-                         never moved this fixed-to-fixed seam). -->
-                    <controls:ColumnResizeHandle Grid.Column="3" />
+                         never moved this fixed-to-fixed seam). Its track
+                         collapses with the book too: detached, the tape's
+                         left neighbor is gone, and a drag here could only
+                         resurrect a phantom column. -->
+                    <controls:ColumnResizeHandle Grid.Column="3"
+                                                 IsVisible="{Binding !Layout.IsBookDetached}" />
 
                     <!-- Trade tape panel: the newest trades on top (side
                          coloring on the aggressor), pauses on hover, clears
