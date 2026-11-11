@@ -453,6 +453,9 @@
   <data name="Chart.Indicators.A11yBollInfo" xml:space="preserve">
     <value>More about the Bollinger indicator</value>
   </data>
+  <data name="Chart.Export" xml:space="preserve">
+    <value>Export</value>
+  </data>
   <data name="Chart.ExportCandlesCsv" xml:space="preserve">
     <value>Export Candles CSV</value>
   </data>

@@ -306,16 +306,18 @@
                             BorderThickness="1,0,0,0"
                             DataContext="{Binding TradeTape}">
                         <Grid RowDefinitions="Auto,*">
-                            <DockPanel Grid.Row="0" Margin="8,0,4,4">
+                            <!-- The tape head rides the kit's panel-header
+                                 scaffold (T-160): the padding grammar and
+                                 the title treatment live in the kit, the
+                                 Clear action right-docks into it — no
+                                 hand-typed margins or type copies. -->
+                            <DockPanel Grid.Row="0" Classes="panel-header">
                                 <Button x:Name="TapeClearButton"
                                         DockPanel.Dock="Right"
                                         Content="{loc:Localized Tape.Clear}"
                                         Click="OnTapeClearClick"
                                         MinWidth="72" />
-                                <TextBlock Text="{loc:Localized Tape.Title}"
-                                           FontWeight="Bold"
-                                           FontSize="{StaticResource SubtitleStrongFontSize}"
-                                           VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Localized Tape.Title}" />
                             </DockPanel>
                             <charting:TradeTapeWidget x:Name="TapeWidget" Grid.Row="1" Trades="{Binding Updates}" />
                         </Grid>
@@ -335,8 +337,16 @@
                          into the workspace symbol. -->
                     <TabControl Grid.Column="6"
                                 Margin="8,0,0,0">
-                        <TabItem Header="{loc:Localized Watch.Title}"
-                                 DataContext="{Binding Watchlist}">
+                        <!-- The tab captions ride the kit's panel-title
+                             treatment (T-160): bold, the ramp's
+                             SubtitleStrong step — the tab chrome keeps
+                             its own geometry, the title treatment is
+                             what the panels' heads share. -->
+                        <TabItem DataContext="{Binding Watchlist}">
+                            <TabItem.Header>
+                                <TextBlock Classes="panel-title"
+                                           Text="{loc:Localized Watch.Title}" />
+                            </TabItem.Header>
                             <!-- Watchlist panel: the feed-paced majors rows plus the
                                  workspace selection's row; each row keeps a stable
                                  identity (only its fields churn per pulse), the
@@ -387,8 +397,11 @@
                                 </ListBox>
                             </Border>
                         </TabItem>
-                        <TabItem DataContext="{Binding Heatmap}"
-                                 Header="{loc:Localized Heatmap.Title}">
+                        <TabItem DataContext="{Binding Heatmap}">
+                            <TabItem.Header>
+                                <TextBlock Classes="panel-title"
+                                           Text="{loc:Localized Heatmap.Title}" />
+                            </TabItem.Header>
                             <Grid RowDefinitions="Auto,*">
                                 <!-- The metric switch: static localized items bound
                                      by index (the chart type selector's shim), and

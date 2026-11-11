@@ -453,6 +453,9 @@
   <data name="Chart.Indicators.A11yBollInfo" xml:space="preserve">
     <value>Подробнее об индикаторе Боллинджера</value>
   </data>
+  <data name="Chart.Export" xml:space="preserve">
+    <value>Экспорт</value>
+  </data>
   <data name="Chart.ExportCandlesCsv" xml:space="preserve">
     <value>Экспорт свечей в CSV</value>
   </data>
