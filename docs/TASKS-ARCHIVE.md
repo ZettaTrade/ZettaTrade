@@ -2296,6 +2296,68 @@ the board and its section below.
   failure-tagging only (the parse order, every message and the validations identical; no order
   content change), the view is markup + styles only.
 
+## T-157 — Table grammar for positions and order history
+
+- **Branch:** feat/table-grammar, worktree zt-table-grammar, based on develop@aaddda1 (claimed 2026-11-11 as the eighth of the T-150…T-162 design-review batch; soft blocker T-154 — done, the kit's Chip styles).
+- **Origin:** the positions/orders tables pin fixed pixel columns (125/50/75/150…), leave numbers
+  proportional and left-aligned, print sides as plain text and give Reduce/Close/Reverse the same
+  visual weight — Reverse, the destructive one, reads as a sibling button; three stacked sections
+  share one scroll, so the muscle memory never settles.
+- **What:** a shared row grammar: numeric columns right-aligned and tabular (rides T-155), side
+  chips LONG/SHORT in the state colors, an emphasized header row with hairline separators, an
+  action hierarchy (primary looked default, secondary bordered, destructive subdued behind its
+  existing confirmation), and the three sections (positions / open orders / session journal)
+  split by tabs or an owner-detail split.
+- **Scope:** PositionsPanelWindow (+ the order-history window's shared rows), the scaffold
+  converging into a reusable pattern; resx en+ru for the tab captions; the command wiring
+  unchanged.
+- **Acceptance:** every numeric column right-aligns and holds its decimals; sides are
+  color-coded; Reverse keeps its two-step gate and is never the busiest element on a row; the
+  layout survives the T-144 headless bounds pin.
+- **Tests:** view pins for the alignment/chips/action classes; the existing action command
+  goldens stay green.
+- **Status:** done. Canon: the scaffold is ONE dictionary — `src/ZettaTrade.App/Themes/RowGrammar.axaml`
+  included once per window (`StyleInclude`; zero window-local copies, the ChromeKit zero-copy pin
+  respected) — carrying `Border.table-header-row` (caption-weight secondary text over the Border
+  hairline), `Border.table-row` (the same hairline down, the 6 vertical between-step tune, the
+  cells centered), `Border.chip.buy/.sell` (the CandleUp/Error pair the T-152 contrast publisher
+  scores — the same pair the ticket's segmented side speaks; captions through the kit's derived
+  `ChipForeground`; app-local because the Livery chip states are lanes only) and the
+  `Button.row-action` family (default = the stock filled look for the row's main move —
+  Close/Cancel/bulk cancel; `.secondary` = the quiet outlined Reduce/Amend; `.destructive` = the
+  subdued ghost resting as TextSecondary text over a transparent border, the danger reading in
+  the text tint on hover only, the T-110 focus ring re-armed through `:focus` Highlight). The
+  three panel sections split by `TabControl` tabs (`Positions.Tab*`, en + ru; the three in-tab
+  section headers dropped — the tab IS the caption; the empty states and the amending status
+  swap stay). Reverse pins to exactly one `row-action destructive` per panel and its two-step
+  gate is untouched (the service's confirmation path — the command goldens green). Numeric
+  grammar: every numeric column (data + header) right-aligns beside its T-155 `NumericFont`
+  attribute — the positions panel 20 right-aligns (10 cells + 10 headers), the history window 8;
+  the reduce input rides the stack without the alignment (a field, not a column);
+  `TokensPinsTests` re-anchored 3→11 (3+3+4 cells + the reduce input), history stays 4. The
+  fixed-pixel scaffold relaxes: the symbol column flexes (`*`), the data columns size for the F8
+  money cells and the `yyyy-MM-dd HH:mm` stamps, the side column fixed 80 (the chips and the ru
+  header fit). Row state: `IsBuySide` required + the `IsSellSide` negation on all three row
+  types, filled by the parents from the order side itself (never re-parsed from the localized
+  text — the chip text stays the localized Buy/Sell string; the board's LONG/SHORT is the
+  long/short reading the state colors deliver); VM facts ride both panel test files. The honest
+  deferral stands recorded: "the layout survives the T-144 headless bounds pin" is uncertifiable
+  while the render-harness lane is queued — written into the pins' doc comment, not faked.
+  Tests: `TableGrammarPinsTests` 6 facts (the shared include + the seven class shapes, the tab
+  split + the resx drops, the side chips + their scored fills, the header/row hairlines, the
+  right-alignment pairing incl. the field-vs-column split, the action hierarchy + the subdued
+  destructive family); the existing command goldens green untouched; the pin families
+  (ChromeKit/PaletteToken/Tokens/WindowChrome/StatusBarStrip/WindowLayout/Accessibility)
+  green. Gate PASSED attempt 1 with `-AllowProtected` (the bump; both flaky families —
+  App.Tests, Infrastructure.Tests — ate their retries, recorded, not fixed). Smoke: alive 15 s,
+  ProductVersion `0.1.0-alpha.102+388fe3b9…`, the run's 58-entry log slice 0 ERR/FTL. HIGH-RISK
+  reviewer note for the human: the gate flagged OrderHistoryViewModel, OrderHistoryRowViewModel,
+  OrderRowViewModel and OrderHistoryWindow — the VM changes are the two chip-state fields only
+  (an added `required bool` + its negation and one initializer line per row factory; no command,
+  no pipeline, no message change), the views are markup + the shared styles include. No
+  satellite release: the vocabulary stays app-local (Livery stays 0.1.6; its develop still
+  carries the test-only pin commit riding the next release).
+
 ## T-163 - The plugins consumption switch: the standard pack rides the package mechanics
 
 - **Branch:** feat/plugin-packages, worktree zt-plugin-packages, based on develop@1f2a622 (claimed 2026-11-10 per standing directive 6; filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
