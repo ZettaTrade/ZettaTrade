@@ -12,6 +12,59 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
+    <Window.Styles>
+        <!-- T-156: the ticket's own vocabulary — the segmented side pair,
+             the primary CTA, the chip-shaped sizer presets and the inline
+             field error. The state fills ride the palette keys the T-152
+             contrast publisher scores (CandleUp, Error), the captions read
+             through the derived readable foreground; the un-picked side
+             stays quiet chrome. -->
+        <Style Selector="Button.side">
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="FontSize" Value="{StaticResource SubtitleStrongFontSize}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.side.buy.selected">
+            <Setter Property="Background" Value="{DynamicResource CandleUp}" />
+            <Setter Property="Foreground" Value="{DynamicResource ChipForeground}" />
+        </Style>
+        <Style Selector="Button.side.sell.selected">
+            <Setter Property="Background" Value="{DynamicResource Error}" />
+            <Setter Property="Foreground" Value="{DynamicResource ChipForeground}" />
+        </Style>
+
+        <!-- The primary CTA: the visually dominant action, filled with the
+             picked side's state color (the caption tint follows it). -->
+        <Style Selector="Button.cta">
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.cta.buy">
+            <Setter Property="Background" Value="{DynamicResource CandleUp}" />
+            <Setter Property="Foreground" Value="{DynamicResource ChipForeground}" />
+        </Style>
+        <Style Selector="Button.cta.sell">
+            <Setter Property="Background" Value="{DynamicResource Error}" />
+            <Setter Property="Foreground" Value="{DynamicResource ChipForeground}" />
+        </Style>
+
+        <!-- The sizer presets as chips: the pill shape, the compact
+             padding; a proposal stays quiet chrome, never a state color. -->
+        <Style Selector="Button.chip-action">
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="{StaticResource InsetS}" />
+            <Setter Property="MinHeight" Value="28" />
+        </Style>
+
+        <!-- The inline field error (T-156): the parse refusal next to its
+             field, the caption size, the error tint. -->
+        <Style Selector="TextBlock.field-error">
+            <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+            <Setter Property="Foreground" Value="{DynamicResource Error}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Window.Styles>
+
     <StackPanel Margin="{StaticResource InsetL}" Spacing="10">
         <!-- Header: the localized title plus the live active-exchange name —
              the dialog's price/context source; mirrors the status-bar chip
@@ -36,34 +89,52 @@
 
         <!-- Symbol: free-form normalized BASE/QUOTE text with adapter-driven
              suggestions; symbol-list failure simply leaves the field without
-             completions (the designed empty state). -->
+             completions (the designed empty state). Its parse refusal
+             renders inline (T-156). -->
         <TextBlock Text="{loc:Localized NewOrder.Symbol}" />
         <AutoCompleteBox Text="{Binding SymbolInput, Mode=TwoWay}"
                          ItemsSource="{Binding SymbolSuggestions}"
                          FilterMode="None"
                          IsDropDownOpen="{Binding IsSymbolSuggestionsOpen, Mode=TwoWay}"
                          PlaceholderText="BTC/USDT" />
+        <TextBlock Classes="field-error"
+                   Text="{Binding SymbolError}"
+                   IsVisible="{Binding HasSymbolError}" />
 
-        <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="{StaticResource SpaceXs}">
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Localized NewOrder.Side}" />
-            <ComboBox Grid.Row="1" Grid.Column="0"
-                      SelectedIndex="{Binding SelectedSideIndex}">
-                <ComboBoxItem>
-                    <TextBlock Text="{loc:Localized Order.Buy}" />
-                </ComboBoxItem>
-                <ComboBoxItem>
-                    <TextBlock Text="{loc:Localized Order.Sell}" />
-                </ComboBoxItem>
-            </ComboBox>
+        <!-- The side (T-156): two large segmented buttons in the state
+             colors — the picked side reads at a glance (fill + the derived
+             readable caption). The VM's SelectedSideIndex stays the single
+             source of the picked side: the prefill and the pipeline keep
+             writing the index, the segments follow it. -->
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="{StaticResource SpaceS}">
+            <Button Grid.Column="0"
+                    Classes="side buy"
+                    Classes.selected="{Binding IsBuySide}"
+                    Content="{loc:Localized Order.Buy}"
+                    Command="{Binding SelectBuySideCommand}" />
+            <Button Grid.Column="1"
+                    Classes="side sell"
+                    Classes.selected="{Binding IsSellSide}"
+                    Content="{loc:Localized Order.Sell}"
+                    Command="{Binding SelectSellSideCommand}" />
+        </Grid>
 
-            <TextBlock Grid.Row="0" Grid.Column="1" Text="{loc:Localized NewOrder.Quantity}" />
-            <TextBox Grid.Row="1" Grid.Column="1"
+        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="{StaticResource SpaceXs}">
+            <TextBlock Grid.Row="0" Grid.Column="0">
+                <Run Text="{loc:Localized NewOrder.Quantity}" />
+                <Run Text="{Binding QuantityUnitHint, Mode=OneWay}" />
+            </TextBlock>
+            <TextBox Grid.Row="1" Grid.Column="0"
                      FontFamily="{StaticResource NumericFont}"
                      Text="{Binding QuantityInput}"
                      PlaceholderText="0.01" />
+            <TextBlock Grid.Row="2" Grid.Column="0"
+                       Classes="field-error"
+                       Text="{Binding QuantityError}"
+                       IsVisible="{Binding HasQuantityError}" />
 
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="{loc:Localized NewOrder.OrderType}" />
-            <ComboBox Grid.Row="1" Grid.Column="2"
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{loc:Localized NewOrder.OrderType}" />
+            <ComboBox Grid.Row="1" Grid.Column="1"
                       SelectedIndex="{Binding SelectedTypeIndex}">
                 <ComboBoxItem>
                     <TextBlock Text="{loc:Localized Order.Market}" />
@@ -86,15 +157,25 @@
         <!-- Limit price: limit and stop-limit orders; in the OCO mode the
              SAME field prices the take-profit leg, so its caption follows
              the mode. Both captions are static localized strings — the
-             caption FOLLOWS via visibility, never a view model property. -->
-        <TextBlock Text="{loc:Localized NewOrder.Price}"
-                   IsVisible="{Binding !IsOcoMode}" />
-        <TextBlock Text="{loc:Localized NewOrder.OcoLimitPrice}"
-                   IsVisible="{Binding IsOcoMode}" />
+             caption FOLLOWS via visibility, never a view model property;
+             the unit hint (T-156) rides the parsed symbol's quote asset.
+             The parse refusal renders inline (T-156) and hides with the
+             row itself. -->
+        <TextBlock IsVisible="{Binding !IsOcoMode}">
+            <Run Text="{loc:Localized NewOrder.Price}" />
+            <Run Text="{Binding PriceUnitHint, Mode=OneWay}" />
+        </TextBlock>
+        <TextBlock IsVisible="{Binding IsOcoMode}">
+            <Run Text="{loc:Localized NewOrder.OcoLimitPrice}" />
+            <Run Text="{Binding PriceUnitHint, Mode=OneWay}" />
+        </TextBlock>
         <TextBox Text="{Binding PriceInput}"
                  FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="50000"
                  IsVisible="{Binding IsPriceRequired}" />
+        <TextBlock Classes="field-error"
+                   Text="{Binding PriceError}"
+                   IsVisible="{Binding IsPriceErrorVisible}" />
 
         <!-- Stop trigger: the stop-limit's own trigger, or the OCO pair's
              stop-loss leg's trigger in the OCO mode (caption follows). -->
@@ -106,6 +187,9 @@
                  FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="49000"
                  IsVisible="{Binding IsTriggerVisible}" />
+        <TextBlock Classes="field-error"
+                   Text="{Binding TriggerError}"
+                   IsVisible="{Binding IsTriggerErrorVisible}" />
 
         <!-- Trailing distance: the trailing-stop's drags-along distance only. -->
         <TextBlock Text="{loc:Localized NewOrder.TrailDistance}"
@@ -114,6 +198,9 @@
                  FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="500"
                  IsVisible="{Binding IsTrailVisible}" />
+        <TextBlock Classes="field-error"
+                   Text="{Binding TrailError}"
+                   IsVisible="{Binding IsTrailErrorVisible}" />
 
         <!-- OCO stop-loss leg's own limit price (its protective cap at
              trigger time) — the OCO mode only. -->
@@ -123,6 +210,9 @@
                  FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="48000"
                  IsVisible="{Binding IsOcoStopLimitVisible}" />
+        <TextBlock Classes="field-error"
+                   Text="{Binding OcoStopLimitError}"
+                   IsVisible="{Binding IsOcoStopLimitErrorVisible}" />
 
         <!-- Fee estimate (T-080): one line per leg the ticket would place,
              each naming the maker/taker role and the schedule-priced
@@ -142,17 +232,20 @@
              parse → risk → confirmation path at submit. Proposals ride
              captured snapshots and the ticket's own inputs: zero network
              calls at sizing time, and the plain capture line says when
-             the reference was taken. -->
+             the reference was taken. The presets restyle as chips (T-156). -->
         <StackPanel IsVisible="{Binding Sizer.IsRowVisible}" Spacing="6">
             <TextBlock Text="{loc:Localized NewOrder.SizerBalanceCaption}" />
             <UniformGrid Columns="3">
-                <Button Command="{Binding Sizer.ApplyQuarterCommand}"
+                <Button Classes="chip-action"
+                        Command="{Binding Sizer.ApplyQuarterCommand}"
                         Content="{loc:Localized NewOrder.SizerQuarter}"
                         MinWidth="52" Margin="0,0,8,0" />
-                <Button Command="{Binding Sizer.ApplyHalfCommand}"
+                <Button Classes="chip-action"
+                        Command="{Binding Sizer.ApplyHalfCommand}"
                         Content="{loc:Localized NewOrder.SizerHalf}"
                         MinWidth="52" Margin="0,0,8,0" />
-                <Button Command="{Binding Sizer.ApplyWholeCommand}"
+                <Button Classes="chip-action"
+                        Command="{Binding Sizer.ApplyWholeCommand}"
                         Content="{loc:Localized NewOrder.SizerWhole}"
                         MinWidth="62" />
             </UniformGrid>
@@ -193,14 +286,21 @@
                        TextWrapping="Wrap" />
         </StackPanel>
 
-        <!-- Flow errors (parse failure, risk rejection, adapter failure) -->
+        <!-- Flow failures (risk rejection, market-relative sanity, adapter
+             failure, OCO abort) — T-156 demoted the summary to the flow
+             lane: a field's parse refusal renders next to its field. -->
         <TextBlock Text="{Binding ErrorMessage}"
                    Foreground="{DynamicResource Error}"
                    TextWrapping="Wrap"
-                   IsVisible="{Binding HasErrorMessage}" />
+                   IsVisible="{Binding HasSummaryError}" />
 
         <UniformGrid Columns="2" HorizontalAlignment="Right" Margin="0,8,0,0">
-            <Button Command="{Binding PlaceOrderCommand}"
+            <!-- The primary CTA (T-156): the visually dominant action,
+                 filled with the picked side's state color. -->
+            <Button Classes="cta"
+                    Classes.buy="{Binding IsBuySide}"
+                    Classes.sell="{Binding IsSellSide}"
+                    Command="{Binding PlaceOrderCommand}"
                     Content="{loc:Localized NewOrder.Place}"
                     MinWidth="120" Margin="0,0,8,0" />
             <Button Content="{loc:Localized Trading.Cancel}"

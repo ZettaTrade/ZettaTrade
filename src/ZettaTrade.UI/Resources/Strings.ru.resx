@@ -786,6 +786,9 @@
   <data name="NewOrder.OcoAborted" xml:space="preserve">
     <value>Размещение OCO прервано: размещённое плечо отменено.</value>
   </data>
+  <data name="NewOrder.UnitHintFormat" xml:space="preserve">
+    <value>· {0}</value>
+  </data>
   <data name="NewOrder.SizerBalanceCaption" xml:space="preserve">
     <value>Доля доступного баланса</value>
   </data>

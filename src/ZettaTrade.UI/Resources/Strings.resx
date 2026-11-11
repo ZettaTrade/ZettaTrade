@@ -786,6 +786,9 @@ Estimated fee: {7}</value>
   <data name="NewOrder.OcoAborted" xml:space="preserve">
     <value>OCO placement aborted: the placed leg was cancelled.</value>
   </data>
+  <data name="NewOrder.UnitHintFormat" xml:space="preserve">
+    <value>· {0}</value>
+  </data>
   <data name="NewOrder.SizerBalanceCaption" xml:space="preserve">
     <value>Share of the available balance</value>
   </data>

@@ -40,7 +40,11 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// row (<see cref="Sizer"/>, T-079) proposes quantities into the
 /// quantity field from captured balance/reference snapshots plus the
 /// ticket's own stop context — sizing never bypasses the placement
-/// pipeline. The view
+/// pipeline. The reports route by owner (T-156): a field-tagged parse
+/// refusal surfaces next to its field through the per-field error
+/// properties, the side reads as the segmented Buy/Sell pair over
+/// <see cref="SelectedSideIndex"/>, and the quantity/price captions name
+/// the parsed symbol's units. The view
 /// model is transient (one instance per window) and implements
 /// <see cref="IDisposable"/>: the owning window releases the facade
 /// subscription on closure.
@@ -70,6 +74,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private const string OrderPlacedKey = "NewOrder.OrderPlaced";
     private const string OcoPlacedKey = "NewOrder.OcoPlaced";
     private const string OcoAbortedKey = "NewOrder.OcoAborted";
+    private const string UnitHintFormatKey = "NewOrder.UnitHintFormat";
     private const string FeeEstimateMakerKey = "Fees.EstimateMakerFormat";
     private const string FeeEstimateTakerKey = "Fees.EstimateTakerFormat";
     private const string FeeUnknownKey = "Fees.Unknown";
@@ -186,9 +191,17 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private int _selectedTypeIndex;
     private string? _errorMessage;
     private string? _resultMessage;
+    private string? _symbolError;
+    private string? _quantityError;
+    private string? _priceError;
+    private string? _triggerError;
+    private string? _trailError;
+    private string? _ocoStopLimitError;
     private string _activeExchangeName = string.Empty;
     private IReadOnlyList<string> _feeEstimates = [];
     private bool _isTestnetLane;
+    private string _quantityUnitHint = string.Empty;
+    private string _priceUnitHint = string.Empty;
 
     private IReadOnlyList<string> _allSymbols = [];
     private IReadOnlyList<string> _symbolSuggestions = [];
@@ -220,6 +233,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             _symbolInput = value;
             this.RaisePropertyChanged(nameof(SymbolInput));
             RefreshSymbolSuggestions();
+            UpdateUnitHints();
         }
     }
 
@@ -262,12 +276,34 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         set => this.RaiseAndSetIfChanged(ref _ocoStopLimitInput, value);
     }
 
-    /// <summary>Side combo box index (matches the <see cref="OrderSide"/> values).</summary>
+    /// <summary>
+    /// Side combo box index (matches the <see cref="OrderSide"/> values).
+    /// The segmented Buy/Sell control (T-156) rides the same state: the two
+    /// buttons set it through their commands, the picked-side visibility
+    /// properties raise with every change — the prefill and the tests keep
+    /// writing the index directly.
+    /// </summary>
     public int SelectedSideIndex
     {
         get => _selectedSideIndex;
-        set => this.RaiseAndSetIfChanged(ref _selectedSideIndex, value);
+        set
+        {
+            if (_selectedSideIndex == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _selectedSideIndex, value);
+            this.RaisePropertyChanged(nameof(IsBuySide));
+            this.RaisePropertyChanged(nameof(IsSellSide));
+        }
     }
+
+    /// <summary>True while the picked side is the buy side (T-156): the buy segment's selection state and the CTA's tint.</summary>
+    public bool IsBuySide => SelectedSideIndex == (int)OrderSide.Buy;
+
+    /// <summary>True while the picked side is the sell side (T-156): the sell segment's selection state and the CTA's tint.</summary>
+    public bool IsSellSide => SelectedSideIndex == (int)OrderSide.Sell;
 
     /// <summary>
     /// Type combo box index: 0 = Market, 1 = Limit, 2 = StopLimit, 3 =
@@ -293,6 +329,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             this.RaisePropertyChanged(nameof(IsTrailVisible));
             this.RaisePropertyChanged(nameof(IsOcoMode));
             this.RaisePropertyChanged(nameof(IsOcoStopLimitVisible));
+            this.RaisePropertyChanged(nameof(IsPriceErrorVisible));
+            this.RaisePropertyChanged(nameof(IsTriggerErrorVisible));
+            this.RaisePropertyChanged(nameof(IsTrailErrorVisible));
+            this.RaisePropertyChanged(nameof(IsOcoStopLimitErrorVisible));
         }
     }
 
@@ -323,7 +363,24 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// (the OCO mode only).</summary>
     public bool IsOcoStopLimitVisible => IsOcoMode;
 
-    /// <summary>Last flow error (parse failure, risk rejection, adapter failure).</summary>
+    /// <summary>Whether the price field's inline error applies to the
+    /// visible ticket (T-156): the line hides with its own row, so a type
+    /// switch never leaves a dangling error under a hidden field.</summary>
+    public bool IsPriceErrorVisible => HasPriceError && IsPriceRequired;
+
+    /// <summary>Whether the trigger field's inline error applies to the visible ticket (T-156).</summary>
+    public bool IsTriggerErrorVisible => HasTriggerError && IsTriggerVisible;
+
+    /// <summary>Whether the trail field's inline error applies to the visible ticket (T-156).</summary>
+    public bool IsTrailErrorVisible => HasTrailError && IsTrailVisible;
+
+    /// <summary>Whether the OCO stop-limit field's inline error applies to the visible ticket (T-156).</summary>
+    public bool IsOcoStopLimitErrorVisible => HasOcoStopLimitError && IsOcoStopLimitVisible;
+
+    /// <summary>The attempt's full report (parse failure, risk rejection,
+    /// adapter failure) — the contract the behavior-parity battery reads
+    /// verbatim. The VIEW routes it (T-156): a field-tagged refusal renders
+    /// inline next to its field, the summary line keeps the flow lane.</summary>
     public string? ErrorMessage
     {
         get => _errorMessage;
@@ -337,11 +394,174 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             _errorMessage = value;
             this.RaisePropertyChanged(nameof(ErrorMessage));
             this.RaisePropertyChanged(nameof(HasErrorMessage));
+            this.RaisePropertyChanged(nameof(HasSummaryError));
         }
     }
 
     /// <summary>True while <see cref="ErrorMessage"/> holds text; drives the error line visibility.</summary>
     public bool HasErrorMessage => _errorMessage is not null;
+
+    /// <summary>
+    /// Whether the attempt's report is a FLOW failure (T-156): the summary
+    /// line's residents are the market-relative sanity readings, the risk
+    /// rejections and the adapter failures — a field-tagged parse refusal
+    /// renders next to its field instead, and the summary stays hidden for
+    /// it (the attempt still reports in full through
+    /// <see cref="ErrorMessage"/>; the behavior-parity battery reads it).
+    /// </summary>
+    public bool HasSummaryError => HasErrorMessage && !HasFieldError;
+
+    /// <summary>True while any field owns the attempt's inline error (T-156).</summary>
+    public bool HasFieldError =>
+        SymbolError is not null
+        || QuantityError is not null
+        || PriceError is not null
+        || TriggerError is not null
+        || TrailError is not null
+        || OcoStopLimitError is not null;
+
+    /// <summary>The symbol field's inline parse refusal (T-156): missing or unparsable text.</summary>
+    public string? SymbolError
+    {
+        get => _symbolError;
+        private set
+        {
+            if (_symbolError == value)
+            {
+                return;
+            }
+
+            _symbolError = value;
+            this.RaisePropertyChanged(nameof(SymbolError));
+            this.RaisePropertyChanged(nameof(HasSymbolError));
+        }
+    }
+
+    /// <summary>True while the symbol field shows its inline error (T-156).</summary>
+    public bool HasSymbolError => _symbolError is not null;
+
+    /// <summary>The quantity field's inline parse refusal (T-156): missing or unparsable text.</summary>
+    public string? QuantityError
+    {
+        get => _quantityError;
+        private set
+        {
+            if (_quantityError == value)
+            {
+                return;
+            }
+
+            _quantityError = value;
+            this.RaisePropertyChanged(nameof(QuantityError));
+            this.RaisePropertyChanged(nameof(HasQuantityError));
+        }
+    }
+
+    /// <summary>True while the quantity field shows its inline error (T-156).</summary>
+    public bool HasQuantityError => _quantityError is not null;
+
+    /// <summary>The price field's inline parse refusal (T-156) — the limit price, the OCO take-profit leg's price.</summary>
+    public string? PriceError
+    {
+        get => _priceError;
+        private set
+        {
+            if (_priceError == value)
+            {
+                return;
+            }
+
+            _priceError = value;
+            this.RaisePropertyChanged(nameof(PriceError));
+            this.RaisePropertyChanged(nameof(HasPriceError));
+        }
+    }
+
+    /// <summary>True while the price field shows its inline error (T-156).</summary>
+    public bool HasPriceError => _priceError is not null;
+
+    /// <summary>The trigger field's inline parse refusal (T-156): the stop-limit's and the OCO stop leg's trigger.</summary>
+    public string? TriggerError
+    {
+        get => _triggerError;
+        private set
+        {
+            if (_triggerError == value)
+            {
+                return;
+            }
+
+            _triggerError = value;
+            this.RaisePropertyChanged(nameof(TriggerError));
+            this.RaisePropertyChanged(nameof(HasTriggerError));
+        }
+    }
+
+    /// <summary>True while the trigger field shows its inline error (T-156).</summary>
+    public bool HasTriggerError => _triggerError is not null;
+
+    /// <summary>The trail field's inline parse refusal (T-156): missing, unparsable or market-swallowing distance.</summary>
+    public string? TrailError
+    {
+        get => _trailError;
+        private set
+        {
+            if (_trailError == value)
+            {
+                return;
+            }
+
+            _trailError = value;
+            this.RaisePropertyChanged(nameof(TrailError));
+            this.RaisePropertyChanged(nameof(HasTrailError));
+        }
+    }
+
+    /// <summary>True while the trail field shows its inline error (T-156).</summary>
+    public bool HasTrailError => _trailError is not null;
+
+    /// <summary>The OCO stop-limit field's inline parse refusal (T-156): the stop-loss leg's own limit price.</summary>
+    public string? OcoStopLimitError
+    {
+        get => _ocoStopLimitError;
+        private set
+        {
+            if (_ocoStopLimitError == value)
+            {
+                return;
+            }
+
+            _ocoStopLimitError = value;
+            this.RaisePropertyChanged(nameof(OcoStopLimitError));
+            this.RaisePropertyChanged(nameof(HasOcoStopLimitError));
+        }
+    }
+
+    /// <summary>True while the OCO stop-limit field shows its inline error (T-156).</summary>
+    public bool HasOcoStopLimitError => _ocoStopLimitError is not null;
+
+    /// <summary>
+    /// Route the attempt's build failure to its display surface (T-156): a
+    /// field-tagged error lands next to its field and clears every other
+    /// field's line, an untagged one clears the inline lane entirely. The
+    /// summary's <see cref="ErrorMessage"/> contract is untouched either
+    /// way — the caller reports there in full.
+    /// </summary>
+    private void ApplyFieldError(TicketField field, string? error)
+    {
+        SymbolError = field == TicketField.Symbol ? error : null;
+        QuantityError = field == TicketField.Quantity ? error : null;
+        PriceError = field == TicketField.Price ? error : null;
+        TriggerError = field == TicketField.Trigger ? error : null;
+        TrailError = field == TicketField.Trail ? error : null;
+        OcoStopLimitError = field == TicketField.OcoStopLimit ? error : null;
+        this.RaisePropertyChanged(nameof(HasFieldError));
+        this.RaisePropertyChanged(nameof(HasSummaryError));
+        this.RaisePropertyChanged(nameof(IsPriceErrorVisible));
+        this.RaisePropertyChanged(nameof(IsTriggerErrorVisible));
+        this.RaisePropertyChanged(nameof(IsTrailErrorVisible));
+        this.RaisePropertyChanged(nameof(IsOcoStopLimitErrorVisible));
+    }
 
     /// <summary>Text of a successfully placed order (before the dialog closes).</summary>
     public string? ResultMessage
@@ -418,6 +638,28 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     }
 
     /// <summary>
+    /// The quantity caption's unit hint (T-156): the parsed symbol's BASE
+    /// asset, formatted through the shared unit-hint format — empty while
+    /// the field names no parsable symbol (the caption rides plain).
+    /// </summary>
+    public string QuantityUnitHint
+    {
+        get => _quantityUnitHint;
+        private set => this.RaiseAndSetIfChanged(ref _quantityUnitHint, value);
+    }
+
+    /// <summary>
+    /// The price caption's unit hint (T-156): the parsed symbol's QUOTE
+    /// asset — empty while the symbol parses to nothing or the instrument
+    /// carries no quote asset (a quote-less price has no unit to name).
+    /// </summary>
+    public string PriceUnitHint
+    {
+        get => _priceUnitHint;
+        private set => this.RaiseAndSetIfChanged(ref _priceUnitHint, value);
+    }
+
+    /// <summary>
     /// Raised when the dialog must close (order placed or user cancelled);
     /// the View owns the actual window close.
     /// </summary>
@@ -441,6 +683,12 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// fetches at sizing time.
     /// </summary>
     public ReactiveCommand<RxVoid, RxVoid> InitializeSizingCommand { get; }
+
+    /// <summary>Picks the buy side (T-156): the segmented control's buy half.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> SelectBuySideCommand { get; }
+
+    /// <summary>Picks the sell side (T-156): the segmented control's sell half.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> SelectSellSideCommand { get; }
 
     /// <summary>The quick-size row the ticket hosts (hidden for metadata-less instruments).</summary>
     public OrderSizerRowViewModel Sizer { get; }
@@ -497,6 +745,16 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         LoadSymbolsCommand = ReactiveCommand.CreateFromTask(HandleLoadSymbolsAsync);
         PlaceOrderCommand = ReactiveCommand.CreateFromTask(HandlePlaceOrderAsync);
         InitializeSizingCommand = ReactiveCommand.CreateFromTask(HandleInitializeSizingAsync);
+        SelectBuySideCommand = ReactiveCommand.Create<RxVoid, RxVoid>(_ =>
+        {
+            SelectedSideIndex = (int)OrderSide.Buy;
+            return RxVoid.Default;
+        });
+        SelectSellSideCommand = ReactiveCommand.Create<RxVoid, RxVoid>(_ =>
+        {
+            SelectedSideIndex = (int)OrderSide.Sell;
+            return RxVoid.Default;
+        });
 
         // The ticket-local quick-size row: its quantity proposals land in
         // THIS dialog's quantity field (the same field the submit pipeline
@@ -797,6 +1055,37 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     }
 
     /// <summary>
+    /// Re-derive the unit hints (T-156) from the typed symbol: a clean parse
+    /// names the caption units (the BASE sizes the quantity, the QUOTE
+    /// prices the field), garbage or empty text clears both hints. Display
+    /// state only — nothing here feeds the build.
+    /// </summary>
+    private void UpdateUnitHints()
+    {
+        Symbol? symbol = null;
+        var raw = SymbolInput.Trim();
+        if (raw.Length > 0)
+        {
+            try
+            {
+                symbol = Symbol.Parse(raw);
+            }
+            catch (ArgumentException)
+            {
+                // Unparsable text leaves the captions plain; no unit is
+                // derived from garbage input.
+            }
+        }
+
+        QuantityUnitHint = symbol is null
+            ? string.Empty
+            : _localization.GetString(UnitHintFormatKey, symbol.BaseAsset);
+        PriceUnitHint = symbol?.QuoteAsset is { } quote
+            ? _localization.GetString(UnitHintFormatKey, quote)
+            : string.Empty;
+    }
+
+    /// <summary>
     /// Push the ticket's parsed symbol to the sizing row: exact parses
     /// commit (a metadata-known commit also schedules the fresh
     /// capture), everything else hides the row without stale context.
@@ -988,6 +1277,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         // A fresh attempt replaces whatever the previous attempt reported.
         ErrorMessage = null;
         ResultMessage = null;
+        ApplyFieldError(TicketField.None, null);
 
         var build = (RequestBuild?)null;
         var placed = new List<Order>();
@@ -1010,6 +1300,11 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
             if (build.Failed)
             {
+                // The report routes by owner (T-156): a field-tagged parse
+                // refusal renders next to its field, a flow failure stays
+                // on the summary line. ErrorMessage carries the full text
+                // either way — the behavior-parity battery reads it.
+                ApplyFieldError(build.Field, build.Field == TicketField.None ? null : build.Error);
                 ErrorMessage = build.Error;
                 return;
             }
@@ -1182,10 +1477,31 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// The ticket field a build failure belongs to (T-156): the inline
+    /// error's routing key. <see cref="None"/> marks a flow-level failure
+    /// (a market-relative sanity reading, an invalid built request) that no
+    /// single field owns — the summary line's resident.
+    /// </summary>
+    private enum TicketField
+    {
+        None,
+        Symbol,
+        Quantity,
+        Price,
+        Trigger,
+        Trail,
+        OcoStopLimit,
+    }
+
     /// <summary>Whether an order-building attempt produced requests at all.</summary>
     /// <param name="Requests">The built requests, empty on a failed attempt.</param>
     /// <param name="Error">The localized build error of a failed attempt.</param>
-    private sealed record RequestBuild(IReadOnlyList<OrderRequest> Requests, string? Error)
+    /// <param name="Field">The field the failure belongs to (T-156): a
+    /// field-tagged failure renders next to its field, an untagged one stays
+    /// on the summary line. The parse sequence and every message are
+    /// untouched — only the display surface of a failure moves.</param>
+    private sealed record RequestBuild(IReadOnlyList<OrderRequest> Requests, string? Error, TicketField Field = TicketField.None)
     {
         /// <summary>True when the inputs failed to build requests.</summary>
         public bool Failed => Error is not null;
@@ -1195,6 +1511,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
         /// <summary>A failed attempt with its localized error.</summary>
         public static RequestBuild Fail(string error) => new([], error);
+
+        /// <summary>A failed attempt with its localized error, tagged with the field that owns it (T-156).</summary>
+        public static RequestBuild Fail(string error, TicketField field) => new([], error, field);
     }
 
     /// <summary>
@@ -1212,7 +1531,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         var rawSymbol = SymbolInput.Trim();
         if (rawSymbol.Length == 0)
         {
-            return RequestBuild.Fail(_localization.GetString(SymbolMissingKey));
+            return RequestBuild.Fail(_localization.GetString(SymbolMissingKey), TicketField.Symbol);
         }
 
         Symbol symbol;
@@ -1222,7 +1541,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         }
         catch (ArgumentException)
         {
-            return RequestBuild.Fail(_localization.GetString(SymbolInvalidKey, rawSymbol));
+            return RequestBuild.Fail(_localization.GetString(SymbolInvalidKey, rawSymbol), TicketField.Symbol);
         }
 
         // Empty (or whitespace) means MISSING, not unparsable: "not a
@@ -1235,7 +1554,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 out var quantity,
                 out var quantityError))
         {
-            return RequestBuild.Fail(quantityError);
+            return RequestBuild.Fail(quantityError, TicketField.Quantity);
         }
 
         var side = (OrderSide)SelectedSideIndex;
@@ -1367,7 +1686,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 out var price,
                 out var error))
         {
-            return RequestBuild.Fail(error);
+            return RequestBuild.Fail(error, TicketField.Price);
         }
 
         return RequestBuild.Ok([LimitRequest(symbol, side, quantity, new Price(price))]);
@@ -1388,7 +1707,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 out var limitPrice,
                 out var limitError))
         {
-            return RequestBuild.Fail(limitError);
+            return RequestBuild.Fail(limitError, TicketField.Price);
         }
 
         if (!TryParsePositiveDecimal(
@@ -1398,7 +1717,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 out var trigger,
                 out var triggerError))
         {
-            return RequestBuild.Fail(triggerError);
+            return RequestBuild.Fail(triggerError, TicketField.Trigger);
         }
 
         var referenceClose = await MarketReference.GetLatestCloseAsync(_trading, symbol, CancellationToken.None);
@@ -1425,7 +1744,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 out var trail,
                 out var trailError))
         {
-            return RequestBuild.Fail(trailError);
+            return RequestBuild.Fail(trailError, TicketField.Trail);
         }
 
         var referenceClose = await MarketReference.GetLatestCloseAsync(_trading, symbol, CancellationToken.None);
@@ -1436,7 +1755,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         // default.
         if (side == OrderSide.Sell && trail >= referenceClose.Value)
         {
-            return RequestBuild.Fail(_localization.GetString(TrailTooLargeKey, trail, referenceClose.Value));
+            return RequestBuild.Fail(
+                _localization.GetString(TrailTooLargeKey, trail, referenceClose.Value),
+                TicketField.Trail);
         }
 
         var seed = side == OrderSide.Sell
@@ -1462,7 +1783,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 out var takeProfit,
                 out var takeProfitError))
         {
-            return RequestBuild.Fail(takeProfitError);
+            return RequestBuild.Fail(takeProfitError, TicketField.Price);
         }
 
         if (!TryParsePositiveDecimal(
@@ -1472,7 +1793,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 out var stopTrigger,
                 out var stopTriggerError))
         {
-            return RequestBuild.Fail(stopTriggerError);
+            return RequestBuild.Fail(stopTriggerError, TicketField.Trigger);
         }
 
         if (!TryParsePositiveDecimal(
@@ -1482,7 +1803,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 out var stopLimitPrice,
                 out var stopLimitError))
         {
-            return RequestBuild.Fail(stopLimitError);
+            return RequestBuild.Fail(stopLimitError, TicketField.OcoStopLimit);
         }
 
         var referenceClose = await MarketReference.GetLatestCloseAsync(_trading, symbol, CancellationToken.None);
