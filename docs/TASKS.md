@@ -180,6 +180,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-173 A detached order book frees its main-window column: no dead reserved width rides behind the detached window (the user report) | fix/book-detach-space | planned | - |
 | T-174 The standard pack grows the strategy catalog: the classic swing/breakout/reversion set rides the package (the user ask, scoped by the supervisor's analytics) | feat/strategy-pack-expansion | planned | T-168 |
 | T-175 The startup binding sweep: the debug-output binding errors go silent and the menu gesture hints render (the user's debug log) | fix/binding-noise | planned | - |
+| T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | planned | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -220,14 +221,14 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ---
 
-## T-172 - The layout splitters become discoverable grips
+## T-172 - The layout splitters: prove the drags, then make the grips discoverable
 
-- **Branch:** feat/splitter-grips, worktree zt-splitter-grips, based on develop@e1060ec (claimed 2026-11-11; filed from the user's ask - "add a vertical slider to resize the pieces" - while T-038 already shipped draggable splitters, the user cannot find them).
-- **Origin:** T-038 landed four GridSplitters (the assistant/book, chart/book, book/tape, tape/watchlist boundaries) and made them Focusable, but the grips carry no visual affordance after the T-066 restyle - they render as invisible gutters, so the user reads the layout as fixed and asks for "a slider".
-- **What:** every main-window splitter shows a visible grab handle: a grip affordance that reveals itself on hover and stays discoverable at rest (a subtle thumb line, not chrome noise - the design-tokens canon governs); the drag behavior and the persisted widths (T-038) ride untouched.
-- **Scope:** MainWindow.axaml (the four splitters + the splitter styles) + the UI.Tests headless pins; alpha.118 + the CHANGELOG section; no ViewModel seams (the widths already persist).
-- **Acceptance:** headless pins prove each boundary renders a visible grip element with its hover state resolving; the drag behavior stays untouched (the persisted-width facts T-038 pinned keep passing).
-- **Tests:** the UI.Tests headless splitter-lane pins (grip presence per boundary, hit-testability); the full gate stays green.
+- **Branch:** feat/splitter-grips, worktree zt-splitter-grips, based on develop@e1060ec (claimed 2026-11-11; filed from the user's ask - "add a vertical slider to resize the pieces" - extended by the user's follow-up: "they don't seem to work, I never managed to resize anything").
+- **Origin:** T-038 shipped four GridSplitters (the assistant/book, chart/book, book/tape, tape/watchlist boundaries) riding dedicated 8px columns, with the persisted column widths bound TwoWay (BookColumnWidth, TapeColumnWidth, WatchlistColumnWidth, AiColumnWidth). The user cannot find them (no visual affordance survives the T-066 restyle) AND reports the drags never worked - the functional question comes first: whether a drag actually resizes anything (the hit area, or the splitter's write fighting the TwoWay-bound column width).
+- **What:** (1) a headless drag reproduction first: pointer-press/move/release scripts across each boundary prove the width deltas (or expose the defect - the T-144 harness lane's input injection); (2) the functional fix if a boundary fails the script (the splitter's write must win over or ride the TwoWay binding, the hit area stays honest); (3) the affordance: every splitter shows a visible grab handle - a thumb line discoverable at rest, a hover state on top (the design-tokens canon governs, no chrome noise).
+- **Scope:** MainWindow.axaml (+ any ViewModel seam the drag fix needs) + the UI.Tests headless interaction pins; alpha.118 + the CHANGELOG section.
+- **Acceptance:** the headless interaction scripts prove each boundary resizes under a simulated drag (width deltas before/after) and the widths persist across a settings round-trip; each splitter renders a discoverable grip with its hover state resolving.
+- **Tests:** the UI.Tests headless splitter-lane pins (the drag scripts per boundary, the persistence round-trip, grip presence); the full gate stays green.
 - **Status:** in-progress.
 
 ---
@@ -264,6 +265,18 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 - **Scope:** App.axaml.cs (the instantiation order), MainWindow.axaml(.cs) (the gesture bindings), the Hotkeys surface, the UI.Tests pins; alpha.121 + the CHANGELOG section.
 - **Acceptance:** a headless startup pin captures the binding-error stream (the debug-output lane) and proves zero binding errors for the detach menu, the HUD and the gesture hints; the menu items render their gesture text; the smoke's file log shows no new ERR/FTL.
 - **Tests:** the UI.Tests headless startup-lane pin (the binding-error capture + the gesture text presence); the full gate stays green.
+- **Status:** planned.
+
+---
+
+## T-176 - The user-action E2E lane: real-window UI tests (the framework call)
+
+- **Branch:** queued 2026-11-11 (filed from the user's correction: the "UI tests" asks meant tests that imitate user actions on the compiled app - the FlaUI shape - not the headless pins; the framework proposal rides this section).
+- **Origin:** the board's UI-task acceptance tests are headless pins (the T-144 harness lane): in-process, input-injected, no real window. The user asked for a separate lane of user-action tests over the real application. The supervisor's framework call (researched 2026-11-11): FlaUI 6.0 (UIA3, MIT, .NET 10 supported since 6.0.0) drives the real process through Windows UI Automation; Avalonia exposes the full accessibility tree on Windows with `AutomationProperties.AutomationId` as the stable, localization-proof test identifier. Appium (Avalonia's own internal choice, per the official testing docs) is the heavier alternative: a server process plus drivers, its Windows engine rides the deprecated-maintenance WinAppDriver stack; it earns its cost only with macOS/Linux E2E ambitions.
+- **What:** a separate E2E test project riding FlaUI.UIA3: launches the compiled app, attaches through the automation tree, walks the critical flows as a user (startup, the settings round-trip, a splitter drag, a detach cycle, the order ticket path, hotkeys); Windows-only tests (a trait gates them off elsewhere; the dev box and the smoke lane run Windows); the views gain `AutomationId`s where missing (the accessibility work already seeded many names); the headless interaction scripts (T-172's shape) stay the cheap in-gate tier, FlaUI is the real-process tier on top.
+- **Scope:** a new tests/ZettaTrade.E2E.Tests project (xUnit + FluentAssertions, FlaUI.Core + FlaUI.UIA3 packages), AutomationId additions in views, no production behavior change; no alpha bump (tests-only).
+- **Acceptance:** the E2E lane launches the real app and passes the critical-flow scripts locally; the gate runs it behind the Windows trait; the headless pins keep their lane.
+- **Tests:** the E2E critical-flow scripts; the existing gate stays green.
 - **Status:** planned.
 
 
