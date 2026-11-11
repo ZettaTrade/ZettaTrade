@@ -7,6 +7,7 @@
         xmlns:tools="using:ZettaTrade.Charting"
         xmlns:app="using:ZettaTrade.App"
         xmlns:panels="using:ZettaTrade.App.Views.Panels"
+        xmlns:controls="using:ZettaTrade.App.Controls"
         xmlns:svc="using:ZettaTrade.App.Services"
         x:Class="ZettaTrade.App.Views.MainWindow"
         Classes="chrome"
@@ -69,6 +70,35 @@
         </Style>
         <Style Selector="ListBox.watch-rows ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Surface}" />
+        </Style>
+
+        <!-- The workspace's resize handles (T-172): each boundary shows a
+             visible grip line at rest — the stock GridSplitter it replaces
+             was effectively invisible and its fixed-to-fixed drag never
+             moved the boundary — and the grip tints to the Accent on hover
+             while the whole track keeps the west-east cursor. The drag
+             behavior lives in the control: both neighbors move, the
+             standard right-grows-left direction, the TwoWay column
+             bindings keep carrying the persisted widths. -->
+        <Style Selector="controls|ColumnResizeHandle">
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="Cursor" Value="SizeWestEast" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Panel>
+                        <Border Background="Transparent" />
+                        <Border x:Name="GripLine"
+                                Width="1"
+                                HorizontalAlignment="Center"
+                                Background="{DynamicResource Border}" />
+                    </Panel>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="controls|ColumnResizeHandle:pointerover /template/ Border#GripLine">
+            <Setter Property="Width" Value="3" />
+            <Setter Property="CornerRadius" Value="1.5" />
+            <Setter Property="Background" Value="{DynamicResource Accent}" />
         </Style>
     </Window.Styles>
 
@@ -270,12 +300,11 @@
                                   MinWidth="{Binding Layout.AiColumnMinWidth}" />
             </Grid.ColumnDefinitions>
 
-            <!-- Book/assistant splitter: drags resize the persisted assistant
+            <!-- Book/assistant handle: drags resize the persisted assistant
                  column (the star workspace absorbs the difference); hidden
                  with the panel so the collapsed geometry stays grab-free. -->
-            <GridSplitter Grid.Column="1"
-                          Focusable="True"
-                          IsVisible="{Binding Chat.IsAiChatVisible}" />
+            <controls:ColumnResizeHandle Grid.Column="1"
+                                         IsVisible="{Binding Chat.IsAiChatVisible}" />
 
             <!-- Left: Trading workspace (charts, order book, etc.) -->
             <Border Grid.Column="0" Padding="{StaticResource InsetS}">
@@ -293,9 +322,9 @@
                                           MinWidth="{x:Static app:UiSettingsKeys.MinWatchlistPanelWidth}" />
                     </Grid.ColumnDefinitions>
 
-                    <!-- Chart/book splitter: drags resize the persisted book
+                    <!-- Chart/book handle: drags resize the persisted book
                          column; the chart keeps its flexible star. -->
-                    <GridSplitter Grid.Column="1" Focusable="True" />
+                    <controls:ColumnResizeHandle Grid.Column="1" />
 
                     <!-- Depth panel (T-103): the book panel's ONE control
                          instance hosts here inline and moves into the
@@ -311,9 +340,10 @@
                         <panels:OrderBookPanelView x:Name="BookPanel" />
                     </Border>
 
-                    <!-- Book/tape splitter: drags resize the persisted tape
-                         column; the book column keeps its persisted width. -->
-                    <GridSplitter Grid.Column="3" Focusable="True" />
+                    <!-- Book/tape handle: drags move the boundary — the
+                         book pays what the tape takes (the stock GridSplitter
+                         never moved this fixed-to-fixed seam). -->
+                    <controls:ColumnResizeHandle Grid.Column="3" />
 
                     <!-- Trade tape panel: the newest trades on top (side
                          coloring on the aggressor), pauses on hover, clears
@@ -342,9 +372,9 @@
                         </Grid>
                     </Border>
 
-                    <!-- Tape/watchlist splitter: drags resize the persisted
-                         watchlist column; the tape column keeps its width. -->
-                    <GridSplitter Grid.Column="5" Focusable="True" />
+                    <!-- Tape/watchlist handle: drags move the boundary —
+                         the tape pays what the watchlist takes. -->
+                    <controls:ColumnResizeHandle Grid.Column="5" />
 
                     <!-- Right rail: the watchlist (T-120) and the market
                          heatmap (T-121) share the persisted column as tabs —
