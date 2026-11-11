@@ -147,7 +147,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-140 Review hygiene pass: async-void routes, MCP registry locking, non-English prose cleanup | feat/review-hygiene | done | - |
 | T-141 Soak isolation: pin the demo adapter so a run is network-free | feat/soak-isolation | done | - |
 | T-142 Book timestamps: one clock discipline across adapters (the WS latency measures transport) | fix/book-timestamps | done | - |
-| T-143 Palette suggestion rows carry automation names (not the record's ToString) | fix/palette-a11y-rows | in-progress | - |
+| T-143 Palette suggestion rows carry automation names (not the record's ToString) | fix/palette-a11y-rows | done | - |
 | T-144 UI test suite: a headless lane over the real windows (layout, tabs, flows) | feat/ui-tests | queued | - |
 | T-145 UI layout pass: a wrapping chart toolbar and a roomier settings window | feat/ui-layout | done | - |
 | T-146 Plugins into a dedicated solution folder and a physical plugins directory | feat/soln-plugins | done | - |
@@ -192,15 +192,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-
-## T-143 — Palette suggestion rows carry automation names (not the record's ToString)
-
-- **Branch:** fix/palette-a11y-rows, worktree zt-palette-a11y, based on develop@854f718 (claimed 2026-11-11 per standing directive 6; filed from the same QA review; per docs/A11Y-AUDIT.md the palette row naming sat outside T-110's claimed scope).
-- **Origin:** the palette's suggestion rows surface their UIA Name as the SymbolPaletteRow record's ToString — a screen reader reads `SymbolPaletteRow { Symbol = BTC/USDT, ExchangeId = bybit, ... }` instead of a symbol-first entry (caught in the compare-pick flow of the review probe).
-- **What:** compose a real automation name per row — symbol first, exchange plus the favorite/recent qualifiers as needed, localized en+ru — via `AutomationProperties.Name` bindings in the palette view or a composed name riding the rows; the pins live next to T-110's accessibility fixtures.
-- **Scope:** the symbol palette view/ViewModel, resx en+ru (the `Chart.*` prefix), the a11y pins/tests; the palette's keyboard-first behavior stays untouched.
-- **Acceptance:** in both languages a row's UIA Name reads like a symbol entry (e.g. `BTC/USDT on Bybit`), every string resolves en+ru, and the compare-pick flow reports a clean name instead of the record dump.
-- **Tests:** row-naming pins in the palette a11y fixture (en+ru); the palette's unchanged behavior goldens.
 
 ## T-144 — UI test suite: a headless lane over the real windows
 
