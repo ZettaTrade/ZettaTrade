@@ -185,7 +185,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete | done | T-091 |
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | feat/tape-header-gap | done | T-103 |
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | feat/theme-preview-mirror | done | - |
-| T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | fix/ticket-hover-response | planned | - |
+| T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | feat/ticket-cta-states | in-progress | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | planned | T-183 (soft) |
@@ -272,7 +272,9 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
 
 ## T-181 - The order ticket's CTA and side segments answer hover and pressed
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 review findings batch).
+- **Branch:** feat/ticket-cta-states, worktree zt-ticket-cta-states, based on develop@686567d
+  (claimed 2026-11-12 per standing directive 6 — the review findings batch, T-180 landed;
+  the queued branch name fix/ticket-hover-response replaced by the real one).
 - **Origin:** NewOrderDialogWindow carries no `:pointerover`/`:pressed` styles at all, and its
   window-scoped `Button.cta`/`Button.side` class styles set Background — applied after the app
   styles they override Livery's generic `Button:pointerover`/`Button:pressed`
@@ -292,7 +294,7 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
   parity — the existing ticket tests stay green untouched.
 - **Tests:** the fleet-wide source pin (class style → interaction siblings); the existing
   ticket goldens.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-182 - The small-surface strays ride the scale and the palette
 
