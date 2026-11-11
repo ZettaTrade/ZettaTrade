@@ -187,6 +187,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | fix/theme-preview-mirror | planned | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | fix/ticket-hover-response | planned | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
+| T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
+| T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | planned | T-183 (soft) |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -348,6 +350,79 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
   visual parity otherwise.
 - **Tests:** the source pins over the spacing literals and bare opacity values; the existing
   headless bounds pins stay green.
+- **Status:** planned.
+
+---
+
+## Design pass 2026-11-12 — variant A approved (source of T-183…T-184)
+
+The user's UI complaints after the 2026-11-12 review: the buttons look clunky (the solid Accent
+hover flash reads as the main offender), the settings window forces scrolling, and the section
+headers read as plain bold text with a big top gap — they should read as panels. Three option
+sets were proposed (quiet/primary buttons, a category rail vs densified tabs, section cards vs
+header bars); the user approved **variant A** against a mockup that carried the exact dark.json
+palette — an HTML mockup shared outside the repository (the image generators were quota-gated
+that day), whose live hover let the user feel the resting/hover/primary states instead of
+looking at a static picture. The approved shape files as T-183 (the button/kit half, riding the
+Livery satellite) and T-184 (the settings window's rail + cards); no separate findings doc —
+each section below carries its own origin. All rows start `planned`.
+
+## T-183 - The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 design pass, variant A approved by the user).
+- **Origin:** every button rests as a Surface fill + hairline border and flashes a **solid
+  Accent fill on hover** (Livery Controls.axaml:29-35) — the flash the user names as the main
+  offender; no hierarchy exists (the settings' "Open themes folder" and the ticket's "Place"
+  read identically), and the corner radius is not tokenized at all (no Corner keys in
+  Tokens.axaml). The approved variant A: quiet by default, tinted on hover, one primary per
+  window.
+- **What:** the Livery button vocabulary grows the approved shape — the resting state goes
+  transparent/barely-tinted over a hairline Border-family stroke; hover becomes a **soft Accent
+  tint** (~12%, a published derived key, the T-150 derived-key shape), pressed a stronger tint,
+  keyboard focus keeps the Highlight border; a `.primary` class (solid Accent fill, the
+  readable foreground the T-152 publisher scores) marks the ONE main action per window; corner
+  radius and row-action sizing publish as tokens (CornerM = 4) and Button/ComboBox/TextBox
+  adopt them for one consistent rounding. The windows then adopt: each window's main action
+  goes primary, the rest quiet.
+- **Scope:** Livery Themes (the Controls.axaml button family + the Tokens.axaml corner/padding
+  keys) — the package change rides the satellite repo per the multi-repo rule (bump Livery
+  there, land, then the one-line consuming bump); the App windows' class adoption in the
+  consuming bump's wake; resx untouched.
+- **Acceptance:** no button flashes a solid Accent fill on hover (source pin); every window
+  carries at most one primary action; the hover pairs' contrast passes the T-151 battery; no
+  bare corner-radius literals remain in the adopted surfaces.
+- **Tests:** the contrast pins for the new pairs (the hover tint vs Surface, primary vs its
+  foreground); source pins (the solid-Accent hover out, the radius literals onto the tokens);
+  Livery's own gate rides the satellite.
+- **Status:** planned.
+
+## T-184 - The settings window rides the category rail and the section cards
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 design pass, variant A approved by the user);
+  soft blocker T-183 (the buttons land first).
+- **Origin:** the settings window (760x720, four folded tabs) scrolls its long tabs whole —
+  Integrations and Workspace wrap their bodies in ScrollViewers, so the user scrolls to reach
+  anything; the section headers are bare bold TextBlocks with a top margin, reading as plain
+  text; the user asked for panels that read as panels. The approved variant A mockup fixes all
+  three: a left category rail, section cards, compact headers.
+- **What:** the tab strip becomes a left category rail (~190px: the retired tab captions
+  Appearance/Indicators/Integrations/Workspace become the rail items; the selected item rides
+  the soft Accent tint + the 3px Accent tick, keyboard navigable per the T-110 discipline); the
+  window grows taller-and-wider (~880x640) so each page fits without the whole-body scroll —
+  the long lists keep their own scrollports, Save/Close stay pinned; every section becomes a
+  Surface card (1px Border stroke, the CornerM radius) whose header is a compact label (Caption
+  11, uppercase, letter-spaced, TextSecondary) with a 3px Accent tick — the card+header shape
+  ships once (the Livery kit if shared, else the App themes), the settings' sections consume.
+- **Scope:** SettingsWindow.axaml (+ the rail's selected-index state on SettingsViewModel, the
+  TabControl index binding re-rides), the Livery kit if the section-card shape is shared; resx:
+  the rail captions reuse the existing tab keys; no settings behavior change — every binding,
+  command and persistence seam untouched.
+- **Acceptance:** no whole-window scroll at the default size (the headless bounds pin in the
+  T-144 lane); every section reads as a card with the compact header; the rail keyboard-navigates;
+  the pinned Save/Close footer survives the re-layout.
+- **Tests:** the headless bounds pin (no scroll at the default size); the existing settings
+  goldens stay green (behavior parity); a source pin that the section headers ride the shared
+  style.
 - **Status:** planned.
 
 
