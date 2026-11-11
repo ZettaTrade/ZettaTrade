@@ -25,8 +25,13 @@ using ZettaTrade.UI.Resources;
 /// root walk is deterministic for test and gate runs alike). The library
 /// style facts ride the compiled package surface (T-130): the pins walk the
 /// object graph the StyleInclude serves; the source-text pins live in the
-/// Livery repo's own suite now.
+/// Livery repo's own suite now. The class rides the
+/// LocalizationManagerSingleton collection: its own ThemeManager
+/// construction swaps and its Dispose poisons the static Instance for
+/// every later window attach, so the manager-creating and
+/// manager-consuming classes run strictly sequentially.
 /// </summary>
+[Collection("LocalizationManagerSingleton")]
 public sealed class WindowChromeTests
 {
     private const string StyleIncludeUri = "avares://Livery/Themes/Controls.axaml";

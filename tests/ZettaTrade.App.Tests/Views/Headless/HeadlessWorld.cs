@@ -14,6 +14,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FluentAssertions;
 using Livery.Localization;
+using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
@@ -119,11 +120,58 @@ internal static class HeadlessWorld
 
     /// <summary>
     /// The first visual descendant of the given type carrying the given
-    /// element name — the facts' way to reach the windows' named controls
+    /// name — the facts' way to reach the windows' named controls
     /// (the code-behind's generated fields are private to the app).
     /// </summary>
     internal static T? FindDescendant<T>(Visual root, string name) where T : Control =>
         Descendants<Control>(root).OfType<T>().FirstOrDefault(control => control.Name == name);
+
+    /// <summary>
+    /// The theme singleton's health for one world (every world creation
+    /// calls it): the widgets subscribe
+    /// <c>ThemeManager.Instance.ThemeChanged</c> on attach, and a probe
+    /// class's own manager poisons the pointer — its Dispose tears the
+    /// subjects down but (unlike the localization manager's) never clears
+    /// the static Instance, so the next window attach dies on
+    /// CheckDisposed. Called inside the serialized singleton collection,
+    /// so the check-then-heal cannot race a concurrent disposer.
+    /// </summary>
+    internal static async Task EnsureHealthyThemeSingletonAsync()
+    {
+        var needsHeal = await OnUi(() =>
+        {
+            if (ThemeManager.IsInitialized is false)
+            {
+                return true;
+            }
+
+            try
+            {
+                using var probe = ThemeManager.Instance.ThemeChanged.Subscribe(_ => { });
+                return false;
+            }
+            catch (ObjectDisposedException)
+            {
+                // The pointer survived a probe's Dispose: heal.
+                return true;
+            }
+        });
+
+        if (needsHeal is false)
+        {
+            return;
+        }
+
+        // The bare constructor is the whole heal: it re-registers the
+        // singleton and stands the live subjects up without touching any
+        // disk (theme files load on InitializeAsync, which the facts never
+        // need — their colors ride the merged resource dictionaries).
+        await OnUi(() => _ = new ThemeManager(
+            NullLogger.Instance,
+            System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                $"headless-world-themes-{Guid.NewGuid():N}")));
+    }
 
     private static async Task<Application> SetupAsync()
     {
