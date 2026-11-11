@@ -170,7 +170,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-163 The plugins consumption switch: the standard pack rides the package mechanics | feat/plugin-packages | done | - |
 | T-164 Dev-side pack provisioning: the plugins directory fills from the package at build time | feat/plugin-provision | done | - |
 | T-165 Theme singleton hygiene: the ThemeManager Dispose clears the static Instance (the T-073 shape) | feat/theme-singleton-hygiene | done | - |
-| T-166 The demo catalog covers the watchlist's starter majors (the silent first-run failure: 6 of 10 rows never price) | feat/demo-catalog-majors | in-progress | - |
+| T-166 The demo catalog covers the watchlist's starter majors (the silent first-run failure: 6 of 10 rows never price) | feat/demo-catalog-majors | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -207,15 +207,3 @@ discipline first (T-150, T-151, T-152 — the two parallel color systems and the
 systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
 (T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
-
----
-
-## T-166 — The demo catalog covers the watchlist's starter majors (the silent first-run failure)
-
-- **Branch:** feat/demo-catalog-majors, worktree zt-demo-catalog-majors, based on develop@02dd5f0 (claimed 2026-11-11; filed from the user's launch-failure report — "the app doesn't start", with the Demo adapter's `ArgumentException` in the pasted trace).
-- **Origin:** the first-run watchlist ships ten starter majors (`WatchlistFeedService.StarterSymbols`), but the demo adapter's fixed universe held only six symbols; on the default first-run exchange (Demo) six of the ten rows (ADA, DOGE, BNB, LINK, AVAX, LTC — all /USDT) threw `ArgumentException` inside the per-row ticker projection at every startup, stayed unpriced forever, and each logged a "ticker stream failed" warning; under the VS debugger the six exception pauses made the launch look broken. The launch smoke had seen these warnings in every run and misfiled them as ambient — the user's directive upgrades the smoke to functional assertions (zero ticker-failure warnings, not merely ERR/FTL cleanliness).
-- **What:** extend `DemoMarketDataAdapter.SupportedSymbols` and `AnchorPrices` with the six missing majors so every starter row prices on the demo exchange. The `Validate` throw STAYS (trading safety: unknown symbols are an error, never a default) — the fix removes the starter-list-vs-catalog mismatch, not the validation. Watchlist rows are not persisted, so the starter list is the whole exposure.
-- **Scope:** `DemoMarketDataAdapter.cs` (SupportedSymbols + AnchorPrices), its tests, the watchlist seam fact; alpha.112 + the CHANGELOG section; no satellite, no watchlist product code.
-- **Acceptance:** a fresh-profile launch on the demo-only pin logs zero "Watchlist: ticker stream ... failed" warnings (the upgraded functional smoke); the demo catalog enumerates every starter major; the adapter's anchor table covers exactly its catalog.
-- **Tests:** the adapter's catalog facts (the extended subset, the exact anchor coverage), the watchlist seam fact (every starter row is served by the demo adapter), the unknown-symbol rejection facts re-aimed off-catalog (PEPE/USDT).
-- **Status:** in-progress.
