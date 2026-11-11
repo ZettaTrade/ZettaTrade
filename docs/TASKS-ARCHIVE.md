@@ -2195,6 +2195,54 @@ the board and its section below.
   run's 88-entry log slice 0 ERR/FTL. HIGH-RISK reviewer note for the human: the two trading
   windows (NewOrderDialog, OrderHistory) touched only in their testnet-badge markup.
 
+## T-155 — Type ramp + tabular numerals + the spacing scale, as tokens
+
+- **Branch:** feat/type-scale, worktree zt-type-scale, based on develop@6cce2ea (claimed 2026-11-11 as the sixth of the T-150…T-162 design-review batch — the tokens publish as Livery resources, so the satellite release 0.1.6 rides the same task).
+- **Origin:** font sizes grow ad hoc (10, 11, 11.5, 12, 13, 14, 16 across the windows) and the
+  paddings wander (4/6/8/10/12/14/16/20); the numeric surfaces (order tables, stats tiles, the
+  HUD handled) set digits in the proportional face, so columns stop holding their place.
+- **What:** a documented ramp (Caption 11 / Body 13 / SubtitleStrong 14 / Title 16) and a spacing
+  scale (4/8/12/16/24) published as resources from Livery; the monospaced numeric stack (the
+  HUD's precedent) becomes a NumericFont resource and rides the stats tiles, the table columns
+  and the price fields; the windows re-map their ad-hoc values onto the ramp without re-layout.
+- **Scope:** the Livery Themes resources, the App views' FontSize/margin values resurfaced; no
+  ViewModel changes.
+- **Acceptance:** no bare FontSize literals remain outside the ramp definitions; the stats tiles
+  and tables set numerals in the tabular stack; a language switch never shifts column alignment.
+- **Tests:** source pins over the size literals; a headless render pin (inside the T-144 lane)
+  that the tiles stay aligned across a language flip.
+- **Status:** done. Canon: the satellite release FIRST — Livery 0.1.6 (commit `365f385`, tag
+  `v0.1.6`, main ff-merged at the tag, develop and origin in sync; the publish workflow packed
+  and pushed it — proven by the package landing in the consumer's nuget cache with
+  `project.assets.json` referencing `Livery/0.1.6`), then the one-line consuming bump
+  (`LiveryVersion` 0.1.5 → 0.1.6, `VersionSuffix` alpha.99 → alpha.100). The tokens are static
+  design constants (a theme switch retints colors, it never resizes type), so the views read
+  them with `StaticResource`: the ramp Caption 11 / Body 13 / SubtitleStrong 14 / Title 16 (the
+  platform default of 12 is the implicit step the ramp documents but does not republish — an
+  unset FontSize IS 12), the spacing scale 4/8/12/16/24 in two shapes (the `Space*` doubles for
+  the Spacing family, the `Inset*` Thickness for Margin/Padding) and the shared `NumericFont`
+  monospaced stack (Consolas, Menlo, DejaVu Sans Mono, monospace — the HUD's hand-typed
+  precedent deduped onto the token). Consumer adoption (`ede5eda`): every bare FontSize literal
+  is gone — the 35 default-size spots ride the platform default of 12, the rest name a ramp
+  step; the numeric surfaces ride the token (the ten stats tiles, the positions table's 3 and
+  the history's 4 numeric columns, the ticket's 6 fields, the amend's 2, the HUD readout and
+  the backtest report — the two hand-typed font-family copies deduped); the scale steps
+  adopted wherever the value already matched (a no-change rename; the between-step drift
+  2/3/6/7/10/14/15/20 stays a layout-tuning decision for the surface redesigns
+  T-156/T-157/T-161). Tests: `TokensPinsTests` five facts (no bare FontSize literals anywhere
+  the App ships, all four ramp steps in use, the numeric-surface counts per window, no
+  `Consolas` copy, the dictionary merged once above every view; the scale-step adoption
+  pinned). The language-flip alignment render pin waits for the queued T-144 headless-render
+  lane (the repo has no render harness yet — the acceptance's uncertifiable part is recorded,
+  not faked). Gate PASSED attempt 1 (`-AllowProtected` for the bump); smoke: alive 15 s,
+  ProductVersion `0.1.0-alpha.100+ede5eda3074…`, the run's 88-entry log slice 0 ERR/FTL.
+  Provenance: the session that claimed and implemented the task died after the feat had landed
+  on develop and pushed (`d5753b5` claim, `ede5eda` feat) — the takeover replayed the protocol
+  on the reconstructed `feat/type-scale` worktree (gate + smoke ran there; the close rides the
+  branch); nothing restarted, nothing discarded. Trading windows note: NewOrderDialog and
+  OrderHistory touched in their FontSize/FontFamily markup only — the trading logic and its
+  validations untouched (pure markup + resources, no ViewModel changes).
+
 ## T-163 - The plugins consumption switch: the standard pack rides the package mechanics
 
 - **Branch:** feat/plugin-packages, worktree zt-plugin-packages, based on develop@1f2a622 (claimed 2026-11-10 per standing directive 6; filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
