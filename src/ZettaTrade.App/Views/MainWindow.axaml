@@ -16,6 +16,43 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Background}">
 
+    <!-- The watchlist row's color semantics (T-159): the change text tints
+         by the 24h sign and the sparkline colors by the ring's direction —
+         both ride the candle state colors (the same inks the chart and the
+         book speak), with the plain text ink and the Highlight pointer line
+         left as the no-signal states (unpriced, flat). The rows' visual
+         states move OFF the stock brushes (T-150's swept family): Fluent
+         paints the ListBoxItem hover/selection straight onto the template
+         part with system brushes, so the overrides target that same part —
+         the hover affordance reads Surface over the window background, an
+         inert selection (the rows' click does nothing today) stays quiet. -->
+    <Window.Styles>
+        <Style Selector="TextBlock.watch-change.up">
+            <Setter Property="Foreground" Value="{DynamicResource CandleUp}" />
+        </Style>
+        <Style Selector="TextBlock.watch-change.down">
+            <Setter Property="Foreground" Value="{DynamicResource CandleDown}" />
+        </Style>
+        <Style Selector="Polyline.watch-spark">
+            <Setter Property="Stroke" Value="{DynamicResource Highlight}" />
+        </Style>
+        <Style Selector="Polyline.watch-spark.up">
+            <Setter Property="Stroke" Value="{DynamicResource CandleUp}" />
+        </Style>
+        <Style Selector="Polyline.watch-spark.down">
+            <Setter Property="Stroke" Value="{DynamicResource CandleDown}" />
+        </Style>
+        <Style Selector="ListBox.watch-rows ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Surface}" />
+        </Style>
+        <Style Selector="ListBox.watch-rows ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.watch-rows ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Surface}" />
+        </Style>
+    </Window.Styles>
+
     <!-- The global hotkeys (T-102): no static KeyBindings remain — the
          window's only key route is the code-behind handler in
          OnOpened (OnGlobalKeyDown), which translates every pressed
@@ -306,7 +343,7 @@
                                  sparkline rides the row's own price ring. -->
                             <Border BorderBrush="{DynamicResource Border}"
                                     BorderThickness="1,0,0,0">
-                                <ListBox ItemsSource="{Binding Rows}">
+                                <ListBox ItemsSource="{Binding Rows}" Classes="watch-rows">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="vm:WatchlistRowViewModel">
                                             <Grid ColumnDefinitions="*,Auto" Margin="8,3,4,3">
@@ -315,7 +352,14 @@
                                                                FontWeight="Bold" />
                                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                                         <TextBlock Text="{Binding LastPriceText}" />
-                                                        <TextBlock Text="{Binding Change24hText}" />
+                                                        <!-- T-159: the change text tints by
+                                                             the 24h sign (the candle state
+                                                             colors); a flat or unpriced row
+                                                             keeps the plain ink -->
+                                                        <TextBlock Text="{Binding Change24hText}"
+                                                                   Classes="watch-change"
+                                                                   Classes.up="{Binding IsChangeUp}"
+                                                                   Classes.down="{Binding IsChangeDown}" />
                                                         <TextBlock Text="{Binding Volume24hText}"
                                                                    Opacity="0.65" />
                                                     </StackPanel>
@@ -323,13 +367,19 @@
                                                 <!-- The sparkline: the viewport's one
                                                      synthetic shape, the row's price
                                                      ring mapped onto the canvas (the
-                                                     ring itself lives in the feed). -->
+                                                     ring itself lives in the feed);
+                                                     T-159 colors it by the ring's own
+                                                     oldest-to-newest direction, the
+                                                     Highlight line stays the
+                                                     no-signal state -->
                                                 <Polyline Grid.Column="1"
                                                           Width="96"
                                                           Height="28"
                                                           VerticalAlignment="Center"
+                                                          Classes="watch-spark"
+                                                          Classes.up="{Binding IsSparklineUp}"
+                                                          Classes.down="{Binding IsSparklineDown}"
                                                           Points="{Binding SparklinePoints}"
-                                                          Stroke="{DynamicResource Highlight}"
                                                           StrokeThickness="1.5" />
                                             </Grid>
                                         </DataTemplate>

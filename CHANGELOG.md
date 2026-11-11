@@ -1,3 +1,27 @@
+## [0.1.0-alpha.104] - 2026-11-11
+
+Build of board task T-159 (branch `feat/watchlist-polish`); no satellite
+release rides it.
+
+### Changed
+- The watchlist rows (T-159) read direction without digits: the 24h change
+  text tints by its sign and the sparkline colors by the ring's own
+  oldest-to-newest direction (the two truths stay deliberately
+  independent), both riding the candle state colors the chart and the book
+  speak — the plain text ink and the Highlight line stay the no-signal
+  states (unpriced, flat). The rows' hover affordance reads the palette's
+  Surface (the stock Fluent hover painted a system brush straight onto the
+  template part), and the inert selection stops painting the accent fill;
+  the churn discipline holds — a re-pulsed row with unchanged signs raises
+  nothing.
+- The light theme's CandleDown retunes to the text-leg strength (#b91c1c —
+  #ef4444 read 3.76:1 on white, below the WCAG AA text minimum the new pin
+  carries; the dark CandleUp got the symmetric treatment in the light
+  palette long ago). Every shipped theme now reads both candle inks at
+  4.5:1 over its background (UI.Tests' palette battery pins the leg).
+- The heatmap tiles stay untouched (the shared color-scale helper the
+  scope's conditional named did not land; recorded in the canon).
+
 ## [0.1.0-alpha.103] - 2026-11-11
 
 Build of board task T-158 (branch `feat/chat-bubbles`); no satellite
