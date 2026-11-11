@@ -164,7 +164,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-157 Table grammar for positions and order history | feat/table-grammar | done | T-154 (soft) |
 | T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | done | - |
 | T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | done | - |
-| T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | queued | T-154 (soft) |
+| T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | in-progress | T-154 (soft) |
 | T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | queued | - |
 | T-162 Product identity: the app icon and the title-bar brand | feat/branding | queued | - |
 | T-163 The plugins consumption switch: the standard pack rides the package mechanics | feat/plugin-packages | done | - |
@@ -245,8 +245,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-160 — Chart toolbar icon pass, export flyout, shared PanelHeader
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch); soft blocker
-  T-154 (the IconButton class).
+- **Branch:** feat/chart-toolbar-icons, worktree zt-chart-toolbar-icons, based on develop@12ad0c4 (claimed 2026-11-11 as the eleventh of the T-150…T-162 design-review batch; soft blocker T-154 landed).
 - **Origin:** the chart band re-wraps text buttons (the three export buttons alone take ~300px),
   the drawing tools print as text, and every panel caption + actions row is re-typed by hand
   (the tape/book/rail headers at hand-tuned margins).
@@ -262,6 +261,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   the panels.
 - **Tests:** the headless bounds fact, automation-name pins per icon control, source pins that
   the per-panel copies are gone.
+- **Status:** in-progress
 
 ## T-161 — Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups
 
