@@ -49,7 +49,10 @@
             <!-- Open positions -->
             <TabItem Header="{loc:Localized Positions.TabPositions}">
                 <ScrollViewer>
-                    <StackPanel Spacing="{StaticResource SpaceS}">
+                    <!-- The table stack ends a strip short of the overlay
+                         bar's right edge (T-170): the row actions must not
+                         sit under it. -->
+                    <StackPanel Spacing="{StaticResource SpaceS}" Margin="0,0,16,0">
                         <Border Classes="table-header-row"
                                 IsVisible="{Binding HasPositions}">
                             <Grid ColumnDefinitions="*,80,90,110,140,320">
@@ -108,7 +111,10 @@
             <!-- Open orders -->
             <TabItem Header="{loc:Localized Positions.TabOpenOrders}">
                 <ScrollViewer>
-                    <StackPanel Spacing="{StaticResource SpaceS}">
+                    <!-- The table stack ends a strip short of the overlay
+                         bar's right edge (T-170): the row actions must not
+                         sit under it. -->
+                    <StackPanel Spacing="{StaticResource SpaceS}" Margin="0,0,16,0">
                         <!-- Bulk action (T-076): cancel every working order on the
                              workspace's active symbol; the panel gates it by the
                              idle state and the non-empty section. -->
@@ -175,7 +181,10 @@
             <!-- Orders placed this session (from the session order journal) -->
             <TabItem Header="{loc:Localized Positions.TabRecent}">
                 <ScrollViewer>
-                    <StackPanel Spacing="{StaticResource SpaceS}">
+                    <!-- The table stack ends a strip short of the overlay
+                         bar's right edge (T-170): the row actions must not
+                         sit under it. -->
+                    <StackPanel Spacing="{StaticResource SpaceS}" Margin="0,0,16,0">
                         <Border Classes="table-header-row"
                                 IsVisible="{Binding HasRecentOrders}">
                             <Grid ColumnDefinitions="*,80,90,110,120,140,90,150">

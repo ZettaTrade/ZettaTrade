@@ -372,7 +372,10 @@
                                  sparkline rides the row's own price ring. -->
                             <Border BorderBrush="{DynamicResource Border}"
                                     BorderThickness="1,0,0,0">
-                                <ListBox ItemsSource="{Binding Rows}" Classes="watch-rows">
+                                <!-- The watch rows clear the list's own
+                                     overlay bar (T-170): the padding is
+                                     the list's internal gutter. -->
+                                <ListBox ItemsSource="{Binding Rows}" Classes="watch-rows" Padding="0,0,16,0">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="vm:WatchlistRowViewModel">
                                             <Grid ColumnDefinitions="*,Auto" Margin="8,3,4,3">
@@ -591,7 +594,8 @@
                                      ItemsSource="{Binding Palette.Rows}"
                                      SelectedIndex="{Binding Palette.SelectedIndex, Mode=TwoWay}"
                                      Focusable="False"
-                                     MaxHeight="420">
+                                     MaxHeight="420"
+                                     Padding="0,0,16,0">
                                 <ListBox.Styles>
                                     <Style Selector="ListBoxItem">
                                         <Setter Property="Focusable" Value="False" />

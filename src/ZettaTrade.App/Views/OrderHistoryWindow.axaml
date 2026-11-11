@@ -24,7 +24,9 @@
     <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto" RowSpacing="10">
 
         <ScrollViewer Grid.Row="0">
-            <StackPanel Spacing="{StaticResource SpaceS}">
+            <!-- The history stack ends a strip short of the overlay bar's
+                 right edge (T-170). -->
+            <StackPanel Spacing="{StaticResource SpaceS}" Margin="0,0,16,0">
 
                 <!-- Testnet lane badge (T-127): top-right, mirrors the
                      status-bar chip; visible only while the traded surface

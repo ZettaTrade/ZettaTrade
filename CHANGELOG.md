@@ -1,3 +1,30 @@
+## [0.1.0-alpha.117] - 2026-11-11
+
+Build of board task T-170 (branch `feat/scroll-gutter`): the scroll
+surfaces audit filed from the user's report - no window's content sits
+under the overlay scrollbar.
+
+### Fixed
+- Every scroll surface outside the settings window clears the Fluent
+  overlay scrollbar's strip (the shape T-169 shipped for the settings
+  tabs, walked across the rest of the app): the alerts list (a ListBox
+  under the outer bar - the audit's direct overlap report), the balances
+  and order-history stacks, the notification summary, the
+  license-activation terms and the positions panel's three tab stacks
+  end a 16 px strip short of the right edge; the assistant chat's
+  content carries the strip on top of its own 8 px insets (24 px on the
+  right); the wizard's symbol list, the log viewer's rows and the main
+  window's watchlist and palette lists carry the same gutter as their
+  own internal list padding. View markup only - no ViewModel change.
+- The headless scroll-gutter pins (the T-144 harness, the T-169 lane's
+  shape): four facts materialize the REAL windows and measure the
+  gutters - the five dialog windows' outer scroll contents, the
+  positions panel's three tab stacks walked tab by tab, the main
+  window's internal-bar lists plus the assistant chat's 24 px inset, and
+  the wizard's and log viewer's internal lists. The windows
+  materialize without a view model (the gutters are the views' own
+  properties; every activation body is null-safe) - the doc comments
+  say what the facts measure.
 ## [0.1.0-alpha.116] - 2026-11-11
 
 Build of board task T-169 (branch `feat/settings-polish`): three

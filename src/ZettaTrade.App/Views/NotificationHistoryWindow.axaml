@@ -54,7 +54,9 @@
              is the record. -->
         <Grid Grid.Row="2">
             <ScrollViewer IsVisible="{Binding HasRows}">
-                <ItemsControl ItemsSource="{Binding Rows}">
+                <!-- The summary column wraps: the overlay bar must never
+                     ride over its right edge (T-170). -->
+                <ItemsControl ItemsSource="{Binding Rows}" Margin="0,0,16,0">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:NotificationRow">
                             <Border BorderBrush="{DynamicResource Border}"
