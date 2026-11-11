@@ -165,7 +165,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | done | - |
 | T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | done | - |
 | T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | done | T-154 (soft) |
-| T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | queued | - |
+| T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | in-progress | - |
 | T-162 Product identity: the app icon and the title-bar brand | feat/branding | queued | - |
 | T-163 The plugins consumption switch: the standard pack rides the package mechanics | feat/plugin-packages | done | - |
 | T-164 Dev-side pack provisioning: the plugins directory fills from the package at build time | feat/plugin-provision | done | - |
@@ -245,7 +245,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-161 — Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Branch:** feat/small-surfaces, worktree zt-small-surfaces, based on develop@5377f70 (claimed 2026-11-11 as the twelfth of the T-150…T-162 design-review batch).
 - **Origin:** the first-run wizard picks a theme from a bare text combo (the settings picker
   shows the T-006 swatches — the two picks disagree), never says which step of three is on, the
   hotkey cheat sheet lists gestures as trailing text, and the symbol palette rows list flat.
@@ -259,6 +259,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   keyboard routing (the T-095 contract) unchanged.
 - **Tests:** the wizard swatch pin (sharing the converter tests), the palette grouping goldens,
   the sheet template pin.
+- **Status:** in-progress
 
 ## T-162 — Product identity: the app icon and the title-bar brand
 
