@@ -3,6 +3,8 @@ namespace ZettaTrade.Strategies.Tests.Harness;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Plugins.Abstractions;
+using ZettaTrade.Strategies;
 
 /// <summary>
 /// The seeded candles of the seam fact suites (T-111): closes only - OHLC
@@ -14,6 +16,39 @@ public static class TestBars
 {
     /// <summary>The trading symbol every fact addresses (one identity, pinned everywhere).</summary>
     public static Symbol Symbol { get; } = Symbol.Parse("BTC/USDT");
+
+    /// <summary>
+    /// Build the SDK evaluation context (T-168: the strategy contract rides
+    /// the SDK-owned context) over the seeded candles built from the given
+    /// closes: the canonical spellings plus the contract's IndicatorBar
+    /// shape adapted from the application bars.
+    /// </summary>
+    /// <param name="closes">The closes of the series, oldest first.</param>
+    public static StrategyContext SdkContext(params decimal[] closes) => SdkContext(Candles(closes));
+
+    /// <summary>
+    /// Build the SDK evaluation context (T-168) over the given application
+    /// bars: the canonical spellings plus the contract's IndicatorBar shape
+    /// adapted once, the same conversion the host performs.
+    /// </summary>
+    /// <param name="bars">The closed bars, oldest first.</param>
+    public static StrategyContext SdkContext(IReadOnlyList<Bar> bars) => new(
+        Symbol.Normalized,
+        TimeFrame.M1.ToString(),
+        ToSdkBars(bars));
+
+    /// <summary>The app-to-SDK bar adaptation, the harness's copy of the host's conversion.</summary>
+    public static IndicatorBar[] ToSdkBars(IReadOnlyList<Bar> bars)
+    {
+        var sdkBars = new IndicatorBar[bars.Count];
+        for (var i = 0; i < bars.Count; i++)
+        {
+            var bar = bars[i];
+            sdkBars[i] = new IndicatorBar(bar.Open, bar.High, bar.Low, bar.Close);
+        }
+
+        return sdkBars;
+    }
 
     /// <summary>
     /// Build an ascending M1 closed-candle series from the closes: close
@@ -41,10 +76,10 @@ public static class TestBars
     /// <summary>
     /// The seed of the golden walks (T-111): twelve closes in a straight
     /// ramp (1..12), then the fall (12, 10, 8, 6, 4, 2), then the recovery
-    /// (10, 12, 14). Every crossing of the demo's fast/slow averages lands
-    /// on a hand-countable index: the stance per closed candle walks
-    /// Neutral(5) > Long(9) > Flat(5) > Long(2) - one stance per candle,
-    /// twenty-one candles, all three stances exercised.
+    /// (10, 12, 14). Every crossing of the harness walk's fast/slow
+    /// averages lands on a hand-countable index: the stance per closed
+    /// candle walks Neutral(5) > Long(9) > Flat(5) > Long(2) - one stance
+    /// per candle, twenty-one candles, all three stances exercised.
     /// </summary>
     public static Bar[] GoldenCandles() =>
         Candles(
@@ -53,8 +88,8 @@ public static class TestBars
             10, 12, 14);
 
     /// <summary>
-    /// The golden the demo's slow average (six) yields: the per-candle
-    /// stance over the window-so-far, candle by candle.
+    /// The golden the harness walk's slow average (six) yields: the
+    /// per-candle stance over the window-so-far, candle by candle.
     /// </summary>
     public static StrategyStance[] ExpectedGoldenStances { get; } =
     [

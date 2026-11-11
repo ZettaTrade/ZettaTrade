@@ -1,8 +1,5 @@
 namespace ZettaTrade.Plugins.SampleStrategy;
 
-using ZettaTrade.Core.Entities;
-using ZettaTrade.Core.Enums;
-using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Strategies;
 
 /// <summary>

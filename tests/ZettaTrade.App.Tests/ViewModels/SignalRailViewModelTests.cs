@@ -168,7 +168,7 @@ public sealed class SignalRailViewModelTests
             local,
             NullLogger<SignalRailViewModel>.Instance);
 
-        var longRow = SignalRailRow.For(Signal("demo-golden-cross", 5, StrategyStance.Long), local, rail);
+        var longRow = SignalRailRow.For(Signal("sma-golden-cross", 5, StrategyStance.Long), local, rail);
         longRow.Side.Should().Be(OrderSide.Buy, "a long reading maps to the buy side");
         longRow.IsEntryLong.Should().BeTrue();
         longRow.IsEntryFlat.Should().BeFalse();
@@ -177,7 +177,7 @@ public sealed class SignalRailViewModelTests
         longRow.PriceText.Should().Be("16.00", "close 16 renders with the ticket's own decimal floor");
         longRow.CandleTime.Should().Be("2026-03-02 05:00");
         longRow.Tooltip.Should().Be(
-            "[Signal.Rail.Row.Tooltip/demo-golden-cross|BTC/USDT|16.00|2026-03-02 05:00]",
+            "[Signal.Rail.Row.Tooltip/sma-golden-cross|BTC/USDT|16.00|2026-03-02 05:00]",
             "the tooltip composes at arrival: strategy, symbol, close, time");
 
         var flatRow = SignalRailRow.For(Signal("ema", 6, StrategyStance.Flat), local, rail);

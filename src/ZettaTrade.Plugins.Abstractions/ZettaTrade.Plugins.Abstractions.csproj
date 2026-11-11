@@ -12,11 +12,11 @@
          SemVer-governed golden surface test rewrites, never per alpha
          release. -->
     <PackageId>ZettaTrade.Plugins.Abstractions</PackageId>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <Authors>ZettaTrade Contributors</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/ZettaTrade/ZettaTrade.git</RepositoryUrl>
-    <Description>Versioned out-of-tree plugin contract (T-131): the manifest, the lifecycle, the services access, the UI extension descriptors and the indicator seam (IIndicator + IndicatorBar, contract 2.0.0). SemVer-governed — a breaking change bumps the major version and the pinned public surface fails CI.</Description>
+    <Description>Versioned out-of-tree plugin contract (T-131): the manifest, the lifecycle, the services access, the UI extension descriptors, the indicator seam (IIndicator + IndicatorBar, contract 2.0.0) and the strategy seam (IStrategy + StrategyContext + StrategyStance, contract 2.1.0). SemVer-governed — a breaking change bumps the major version and the pinned public surface fails CI.</Description>
   </PropertyGroup>
 
   <!-- The plugin SDK contract (T-131): plugin authors compile against this

@@ -59,7 +59,7 @@ public abstract class StrategyConformanceBattery
     [Fact]
     public void Evaluate_AnEmptyWindow_IsNeutral()
     {
-        var context = new StrategyContext(TestBars.Symbol, TimeFrame.M1, Array.Empty<Bar>());
+        var context = TestBars.SdkContext(Array.Empty<Bar>());
 
         _factory().Evaluate(context).Should().Be(StrategyStance.Neutral, "there is no closed candle to judge");
     }
@@ -68,7 +68,7 @@ public abstract class StrategyConformanceBattery
     [Fact]
     public void Evaluate_AOneBarWindow_ReturnsADefinedStance()
     {
-        var context = new StrategyContext(TestBars.Symbol, TimeFrame.M1, TestBars.Candles(7));
+        var context = TestBars.SdkContext(TestBars.Candles(7));
 
         _factory().Evaluate(context).Should().BeOneOf(
             new[] { StrategyStance.Neutral, StrategyStance.Long, StrategyStance.Flat },
@@ -87,7 +87,7 @@ public abstract class StrategyConformanceBattery
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
             12, 10, 8, 6, 4, 2,
             10, 12, 14);
-        var context = new StrategyContext(TestBars.Symbol, TimeFrame.M1, bars);
+        var context = TestBars.SdkContext(bars);
 
         var first = _factory().Evaluate(context);
         var second = _factory().Evaluate(context);

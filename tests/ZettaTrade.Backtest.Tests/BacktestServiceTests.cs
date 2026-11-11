@@ -14,12 +14,13 @@ using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Fees;
+using ZettaTrade.Plugins.SampleStrategy;
 using ZettaTrade.Strategies;
 
 /// <summary>
 /// The harness's end-to-end facts (T-113): a run loads its window from the
 /// cache (the honest walk-back when the cache serves less), replays it
-/// through a real T-111 host over the demo strategy, journals the stance
+/// through a real T-111 host over the sample strategy, journals the stance
 /// changes through the paper-parity ledger, folds the report, and ends
 /// deterministically — the same request over the same cache is
 /// <see cref="BacktestReport.ToCanonicalText"/>-identical, a zero-slip
@@ -90,7 +91,7 @@ public sealed class BacktestServiceTests
     {
         if (strategies.Length == 0)
         {
-            strategies = [new DemoGoldenCrossStrategy()];
+            strategies = [new SampleCrossStrategy()];
         }
 
         var cache = new TestCandleCache();
@@ -107,7 +108,7 @@ public sealed class BacktestServiceTests
         int seed = BacktestRunRequest.DefaultSeed,
         decimal slippage = BacktestRunRequest.DefaultSlippageValue) => new()
         {
-            StrategyId = DemoGoldenCrossStrategy.StrategyId,
+            StrategyId = SampleCrossStrategy.StrategyId,
             AdapterId = DemoAdapter,
             Symbol = BtcUsdt,
             Interval = TimeFrame.H1,

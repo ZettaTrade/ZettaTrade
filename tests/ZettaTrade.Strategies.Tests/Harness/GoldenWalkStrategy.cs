@@ -1,24 +1,24 @@
-namespace ZettaTrade.Strategies;
+namespace ZettaTrade.Strategies.Tests.Harness;
 
-using ZettaTrade.Core.Entities;
+using ZettaTrade.Strategies;
 
 /// <summary>
-/// The demo strategy of the seam (T-111): a classic two-SMA cross. The
-/// stance re-derives from the retained window on every evaluation - a
-/// pure walk, no state between calls - so the same candle sequence always
-/// yields the same stance sequence: a golden cross of the fast average
-/// over the slow one stands long, a death cross stands flat, ties hold
-/// the stance, and an unfinished warmup is an honest
-/// <see cref="StrategyStance.Neutral"/>. It evaluates on candle close and
-/// emits nothing else: the signals channel is inert output, the human
-/// decides.
+/// The harness's hand-countable cross walk (T-168): the two-SMA transition
+/// the seam facts walk over <see cref="TestBars.GoldenCandles"/> - a
+/// golden cross of the fast average over the slow one stands long, a
+/// death cross stands flat, ties hold the stance, an unfinished warmup is
+/// an honest <see cref="StrategyStance.Neutral"/>. It stands in for the
+/// shipped strategy after the demo moved to the standard pack (T-168):
+/// the seam's host and feed facts need a deterministic walk over a seed
+/// small enough to count by hand, not a plugin load - the shipped
+/// strategy's own math facts live in the satellite's suite.
 /// </summary>
-public sealed class DemoGoldenCrossStrategy : IStrategy
+public sealed class GoldenWalkStrategy : IStrategy
 {
     #region Constants
 
-    /// <summary>The canonical id the catalog registers the demo under.</summary>
-    public const string StrategyId = "demo-golden-cross";
+    /// <summary>The canonical id the facts register the harness walk under.</summary>
+    public const string StrategyId = "test-golden-walk";
 
     /// <summary>The fast average's period.</summary>
     public const int FastPeriod = 3;
