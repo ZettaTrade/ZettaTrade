@@ -2358,6 +2358,25 @@ the board and its section below.
   satellite release: the vocabulary stays app-local (Livery stays 0.1.6; its develop still
   carries the test-only pin commit riding the next release).
 
+## T-158 — Assistant chat bubbles: role styling, copy, stop
+
+- **Branch:** feat/chat-bubbles, worktree zt-chat-bubbles, based on develop@25898a7 (claimed 2026-11-11 as the ninth of the T-150…T-162 design-review batch).
+- **Origin:** the chat is a plain ListBox: a bold "Role:" line above a wrapped paragraph and a
+  10px timestamp under it — the author reads last, and a streaming answer cannot be interrupted
+  once the send happened.
+- **What:** bubble layout (user right in the accent tint, assistant left on Surface), the role +
+  timestamp inside the bubble header, a per-message copy affordance, and a Stop command canceling
+  the in-flight reply: the chat engine's existing cancellation seam surfaced, or the affordance
+  stays hidden honestly — no dead button ships.
+- **Scope:** AssistantPanelView + the ChatViewModel's stop/copy surface; the chat engine plumbing
+  if the cancel seam needs exposing; resx en+ru under the Chat.* prefix.
+- **Acceptance:** authorship reads without labels (position + tint carry it); long answers wrap
+  in bounded bubbles; Stop (when shipped) halts the stream and re-enables the input; the
+  local/remote model paths unaffected.
+- **Tests:** VM pins for the stop route (the no-op case included), the copy pin; the existing
+  chat goldens stay.
+- **Status:** done. Canon: work commit `abe5c3a` (alpha.103). Stop rides the chat engine's EXISTING cancellation seam (`IChatCompletion.CompleteAsync` already takes a token): a linked CTS parked in `_inFlight`, canceled by `StopCommand` whose availability is the `IsBusy` watch (never a dead button), a raced click after the settle reads null and stays a no-op, and the stopped turn stays unanswered — no answer, no error line, no new `ChatMessageKind`, the local/remote model paths untouched (no engine plumbing moved; the history-composition filter rides unchanged). The stop-vs-abandonment log discrimination rides a `_userStopRequested` flag: the mid-flight checkpoint's `_inFlight is null` read was dead code — the inner finally clears the source before the OCE catch runs, so the flag is the only witness that survives the settlement (repaired in-flight, recorded here). The copy affordance is VIEW-side: `OnCopyMessageClick` in the panel code-behind via `TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync` (Avalonia 12 ships it as the `Avalonia.Input.Platform` extension — the app's first clipboard consumer, faults best-effort swallowed), the VM stays clipboard-free. Bubble inks: user right = Highlight fill + ChipForeground caption (the T-152-scored pairing, kit-blessed — the board's "accent tint" reads as the scored pairing, the unscored Accent stays out and pinned), assistant left = Surface card + explicit TextPrimary, an honest failure line bare in Error; the three variants are classes on ONE shared `Border.message` whose kind classes the VM computes (`IsUserTurn`/`IsAssistantTurn`/`IsErrorLine`), headers (role, moment, copy) live INSIDE the bubble, long answers wrap in the 480-bounded shape, and the messages stack (`ScrollViewer` + `ItemsControl`) replaces the selection ListBox — no autoscroll (parity with the old list, noted not a regression). Two Avalonia facts the pins record: `Border.Foreground` does not exist (the ink rides the `TextElement.Foreground` attached property) and the copy glyph's ink picks per bubble class through descendant styles (`Border.message.* Path.copy-glyph` — a Foreground inheritance chain would leak the platform button chrome's ink). Resx `AI.Chat.Stop` + `AI.Chat.Copy` en + ru. Tests: the stop VM facts (idle lock, in-flight cancel + settle, stop locked again), the bubble/copy pins (`ChatBubblePinsTests`), the existing chat goldens stay. Gate PASSED on attempt 2 — attempt 1 ate the load-sensitive App.Tests family (DerivedSystemKeysPublishTests ×2 + LogTailServiceTests.TheRing, a WorkspaceLayoutViewModelTests victim in the log too; isolated reruns green), the flaky retry recorded it; smoke alive 15 s `0.1.0-alpha.103+abe5c3a89…`, 58-entry slice 0 ERR/FTL.
+
 ## T-163 - The plugins consumption switch: the standard pack rides the package mechanics
 
 - **Branch:** feat/plugin-packages, worktree zt-plugin-packages, based on develop@1f2a622 (claimed 2026-11-10 per standing directive 6; filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
