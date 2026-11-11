@@ -42,9 +42,9 @@ public static class HudMath
     /// when <c>value</c> is at most <c>bounds[i]</c> (the bounds are
     /// inclusive upper edges, ascending), the last index
     /// (<c>bounds.Length</c>) when the value overflows every edge. A
-    /// negative value (clock skew between the exchange stamp and the
-    /// receive moment) reads as the fastest bucket — an age below zero is
-    /// still "no visible lag".
+    /// negative value (a stamp a hair ahead of the observer's now — a
+    /// scheduling race between two reads of the same local clock) reads as
+    /// the fastest bucket: an age below zero is still "no visible lag".
     /// </summary>
     /// <param name="valueMs">The latency sample, in milliseconds.</param>
     /// <param name="boundsMs">The ascending inclusive upper edges.</param>
@@ -203,8 +203,13 @@ public sealed class PerformanceHudService(
 
     /// <summary>
     /// The book stream's tap: count the update and bucket its stamp's age —
-    /// the WS latency as the snapshot age at the consumer edge. Runs on the
-    /// stream's thread while running; counters only.
+    /// the receive-to-consumer pipeline latency. T-142's clock discipline
+    /// makes the age transport-only: every adapter stamps its books with the
+    /// local receive moment, so <c>UtcNow - Timestamp</c> is how long the
+    /// update traveled the pipeline after ingestion — an exchange clock
+    /// never enters the computation, and a skewed wall clock shifts both
+    /// sides equally. Runs on the stream's thread while running; counters
+    /// only.
     /// </summary>
     private void OnBookUpdate(OrderBook book)
     {

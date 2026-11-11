@@ -227,6 +227,9 @@ public sealed class PerformanceHudViewModel : ReactiveObject, IAsyncInitializabl
     /// <summary>
     /// The latency line's histogram body: one "≤Nms count" pair per bounded
     /// bucket and one ">Nms count" for the overflow, joined by mid dots.
+    /// The metric is the book's receive-to-render pipeline latency (T-142:
+    /// every adapter stamps its books with the local receive moment, so the
+    /// ages measure the transport after ingestion, never a clock offset).
     /// The digits and the millisecond unit stay culture-invariant (the
     /// localized label around the body names the metric; the histogram
     /// itself is a data readout).

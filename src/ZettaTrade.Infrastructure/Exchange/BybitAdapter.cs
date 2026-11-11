@@ -632,14 +632,20 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
                 ? typeProp.GetString()
                 : null;
 
+            // The book stamp is the frame's local receive moment (T-142):
+            // captured once at the ingestion point, never the exchange's
+            // server ts — the WS-latency histogram measures transport, not
+            // clock offset. The ticker keeps the exchange ts (an event fact).
+            var receivedAt = DateTimeOffset.UtcNow;
+
             var timestamp = root.TryGetProperty("ts", out var tsProp) &&
                             tsProp.ValueKind == JsonValueKind.Number
                 ? DateTimeOffset.FromUnixTimeMilliseconds(tsProp.GetInt64())
-                : DateTimeOffset.UtcNow;
+                : receivedAt;
 
             if (topic.StartsWith(OrderBookTopicPrefix, StringComparison.Ordinal))
             {
-                HandleOrderBookFrame(topic, type, data, timestamp);
+                HandleOrderBookFrame(topic, type, data, receivedAt);
             }
             else if (topic.StartsWith(TickerTopicPrefix, StringComparison.Ordinal))
             {
@@ -719,9 +725,11 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// discards the state and re-subscribes the topic (via the serialized
     /// re-subscribe queue, never fire-and-forget). Stale deltas are the
     /// server's own races and are skipped silently — logging them would
-    /// drown the real warnings at the 100 ms stream rate.
+    /// drown the real warnings at the 100 ms stream rate. The rebuilt book
+    /// carries the frame's local receive moment (T-142's one clock
+    /// discipline), never the exchange's server ts.
     /// </summary>
-    private void HandleOrderBookFrame(string topic, string? type, JsonElement data, DateTimeOffset timestamp)
+    private void HandleOrderBookFrame(string topic, string? type, JsonElement data, DateTimeOffset receivedAt)
     {
         var symbol = ParseExchangeSymbol(GetTopicSymbol(topic));
         if (symbol is null)
@@ -752,8 +760,8 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
             _ => new BybitOrderBookAssembler(symbol, DepthLevelCount));
 
         var apply = type == FrameTypes.Snapshot
-            ? assembler.ApplySnapshot(sequence, bids, asks, timestamp)
-            : assembler.ApplyDelta(sequence, bids, asks, timestamp);
+            ? assembler.ApplySnapshot(sequence, bids, asks, receivedAt)
+            : assembler.ApplyDelta(sequence, bids, asks, receivedAt);
 
         switch (apply.Outcome)
         {

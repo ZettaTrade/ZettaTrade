@@ -1,3 +1,29 @@
+## [0.1.0-alpha.109] - 2026-11-11
+
+Build of board task T-142 (branch `fix/book-timestamps`); no satellite
+release rides it.
+
+### Changed
+- One clock discipline across every adapter's book path (T-142):
+  `OrderBook.Timestamp` is the snapshot's local receive moment — the
+  `DateTimeOffset.UtcNow` the adapter's ingestion point captured when the
+  update arrived — never the exchange's own server stamp. The semantic is
+  documented once on the entity; the change is behavior-compatible for
+  every consumer outside the WS-latency histogram.
+- Bybit's WS book path stopped carrying the envelope's server `ts` into
+  the rebuilt book: the frame's receive moment is captured once at the
+  dispatcher and rides the state machine into the stamp (the ticker keeps
+  the exchange `ts` — an event fact). Binance captures the receive moment
+  at the frame dispatcher too (its partial depth payloads carry no event
+  time at all); the demo adapter's locally generated books already
+  conform.
+- The WS-latency histogram measures transport (T-142): with every book
+  stamped by the same local clock, the HUD's ages are the
+  receive-to-render pipeline latency — a skewed wall clock shifts both
+  sides equally, so the ~650 ms local-vs-Bybit offset can no longer dump
+  the whole book stream into the >500 ms overflow bucket. The histogram's
+  doc comments name the metric precisely.
+
 ## [0.1.0-alpha.108] - 2026-11-11
 
 Build of board task T-141 (branch `feat/soak-isolation`); no satellite
@@ -21,9 +47,10 @@ release rides it.
   entry's symbol catalog at startup, so a demo-only catalog is what
   makes the soak's run network-free.
 - The soak driver (T-141) seeds the sandbox with the pinned demo
-  adapter, runs it demo-only, censuses the run's own log (the demo
-  restore present, zero real-exchange hosts), and discards the sandbox
-  after the run.
+  adapter, runs it demo-only, censuses the run's own log (the sandbox
+  settings load present, no fallback warnings, zero real-exchange
+  hosts — with the demo-only catalog a persisted demo restore is a
+  silent no-op), and discards the sandbox after the run.
 - Fixed in flight (T-141): the single-instance claim read a missing
   profile directory as contention (DirectoryNotFoundException is an
   IOException), so every fresh-profile start — a first-ever launch

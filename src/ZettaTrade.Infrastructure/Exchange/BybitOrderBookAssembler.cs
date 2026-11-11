@@ -56,11 +56,14 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
     /// rebuilt book. Snapshots are idempotent — any stale or interleaved one
     /// simply wins as the new state.
     /// </summary>
+    /// <param name="receivedAt">The frame's local receive moment at the
+    /// adapter's ingestion point (T-142) — carried verbatim into the
+    /// rebuilt book's <see cref="OrderBook.Timestamp"/>.</param>
     public BybitOrderBookApply ApplySnapshot(
         long sequence,
         IReadOnlyList<PriceLevel> bids,
         IReadOnlyList<PriceLevel> asks,
-        DateTimeOffset timestamp)
+        DateTimeOffset receivedAt)
     {
         _bids.Clear();
         _asks.Clear();
@@ -85,7 +88,7 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
             }
         }
 
-        return BuildApplied(timestamp);
+        return BuildApplied(receivedAt);
     }
 
     /// <summary>
@@ -95,11 +98,14 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
     /// <see cref="BybitOrderBookOutcome.GapDetected"/> so the adapter can
     /// re-subscribe the topic.
     /// </summary>
+    /// <param name="receivedAt">The frame's local receive moment at the
+    /// adapter's ingestion point (T-142) — carried verbatim into the
+    /// rebuilt book's <see cref="OrderBook.Timestamp"/>.</param>
     public BybitOrderBookApply ApplyDelta(
         long sequence,
         IReadOnlyList<PriceLevel> bids,
         IReadOnlyList<PriceLevel> asks,
-        DateTimeOffset timestamp)
+        DateTimeOffset receivedAt)
     {
         if (!_hasSnapshot || sequence > _lastSequence + 1)
         {
@@ -125,7 +131,7 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
         }
 
         _lastSequence = sequence;
-        return BuildApplied(timestamp);
+        return BuildApplied(receivedAt);
     }
 
     /// <summary>Drop the whole state (after a detected gap; a fresh snapshot rebuilds it).</summary>
@@ -153,7 +159,7 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
         }
     }
 
-    private BybitOrderBookApply BuildApplied(DateTimeOffset timestamp)
+    private BybitOrderBookApply BuildApplied(DateTimeOffset receivedAt)
     {
         Cap(_bids);
         Cap(_asks);
@@ -177,7 +183,7 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
                 Symbol = symbol,
                 Bids = bids,
                 Asks = asks,
-                Timestamp = timestamp,
+                Timestamp = receivedAt,
             });
     }
 

@@ -188,7 +188,15 @@ public sealed class BybitAdapterWsE2eTests
         books[0].Symbol.Should().Be(BtcUsdt);
         books[0].Bids.Should().Equal(ExpectedSnapshotBids);
         books[0].Asks.Should().Equal(ExpectedSnapshotAsks);
-        books[0].Timestamp.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1700000000000));
+
+        // The book stamp is the frame's local receive moment (T-142's clock
+        // discipline), never the exchange's server ts: the frame's ts says
+        // 2023-10-14, the stamp reads "now". The wide tolerance is load
+        // patience (the 240 s budget's own reasoning), never a latency claim.
+        books[0].Timestamp.Should().BeCloseTo(
+            DateTimeOffset.UtcNow,
+            TimeSpan.FromSeconds(30),
+            "the book stamps the local receive moment, not the exchange ts");
 
         // The delta frame publishes the FULL rebuilt state: the new bid level
         // merged in, the empty ask array a no-op.

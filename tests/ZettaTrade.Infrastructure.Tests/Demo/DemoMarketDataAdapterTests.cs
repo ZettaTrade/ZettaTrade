@@ -179,6 +179,22 @@ public sealed class DemoMarketDataAdapterTests
     }
 
     [Fact]
+    public async Task SubscribeOrderBook_TheStampIsTheLocalReceiveMoment()
+    {
+        var before = DateTimeOffset.UtcNow;
+
+        var first = await FirstWithin(_adapter.SubscribeOrderBook(BtcUsdt()), TimeSpan.FromSeconds(2));
+
+        first.Timestamp.Should().BeOnOrAfter(
+            before,
+            "the stamp is the ingestion moment, never an earlier read");
+        first.Timestamp.Should().BeCloseTo(
+            DateTimeOffset.UtcNow,
+            TimeSpan.FromSeconds(5),
+            "T-142's clock discipline: the canned surface stamps now, not an exchange clock");
+    }
+
+    [Fact]
     public async Task SubscribeTicker_EmitsASnapshotImmediately()
     {
         var first = await FirstWithin(_adapter.SubscribeTicker(BtcUsdt()), TimeSpan.FromSeconds(2));
