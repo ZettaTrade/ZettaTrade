@@ -54,17 +54,17 @@ public sealed class HotkeyViewModel : ReactiveObject
 
     private bool _isSheetVisible;
 
-    /// <summary>The menu item's advertised gesture (settings).</summary>
-    private string _settingsGesture;
+    /// <summary>The menu item's advertised gesture (settings), typed for the InputGesture binding (T-175).</summary>
+    private KeyGesture? _settingsGesture;
 
-    /// <summary>The menu item's advertised gesture (new order).</summary>
-    private string _newOrderGesture;
+    /// <summary>The menu item's advertised gesture (new order), typed for the InputGesture binding (T-175).</summary>
+    private KeyGesture? _newOrderGesture;
 
-    /// <summary>The menu item's advertised gesture (AI chat).</summary>
-    private string _aiChatGesture;
+    /// <summary>The menu item's advertised gesture (AI chat), typed for the InputGesture binding (T-175).</summary>
+    private KeyGesture? _aiChatGesture;
 
-    /// <summary>The menu item's advertised gesture (palette).</summary>
-    private string _paletteGesture;
+    /// <summary>The menu item's advertised gesture (palette), typed for the InputGesture binding (T-175).</summary>
+    private KeyGesture? _paletteGesture;
 
     /// <summary>
     /// Create a new HotkeyViewModel instance.
@@ -85,10 +85,6 @@ public sealed class HotkeyViewModel : ReactiveObject
             action,
             service.GestureFor(action.Id),
             localization.GetString(action.NameKey)))];
-        _settingsGesture = service.GestureFor(HotkeyRegistry.OpenSettings);
-        _newOrderGesture = service.GestureFor(HotkeyRegistry.NewOrder);
-        _aiChatGesture = service.GestureFor(HotkeyRegistry.ToggleAiChat);
-        _paletteGesture = service.GestureFor(HotkeyRegistry.TogglePalette);
         _effective = HotkeyRegistry.Actions.ToDictionary(
             action => action.Id,
             action => service.GestureFor(action.Id),
@@ -151,17 +147,17 @@ public sealed class HotkeyViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _isSheetVisible, value);
     }
 
-    /// <summary>Gets the settings item's advertised gesture (the menu binding).</summary>
-    public string SettingsGesture => _settingsGesture;
+    /// <summary>Gets the settings item's advertised gesture, typed for the menu's <c>InputGesture</c> binding (T-175); null when the map's text does not parse (the warning logged, the hint silent).</summary>
+    public KeyGesture? SettingsGesture => _settingsGesture;
 
-    /// <summary>Gets the new-order item's advertised gesture (the menu binding).</summary>
-    public string NewOrderGesture => _newOrderGesture;
+    /// <summary>Gets the new-order item's advertised gesture, typed for the menu's <c>InputGesture</c> binding (T-175); null when the map's text does not parse.</summary>
+    public KeyGesture? NewOrderGesture => _newOrderGesture;
 
-    /// <summary>Gets the AI-chat item's advertised gesture (the menu binding).</summary>
-    public string AiChatGesture => _aiChatGesture;
+    /// <summary>Gets the AI-chat item's advertised gesture, typed for the menu's <c>InputGesture</c> binding (T-175); null when the map's text does not parse.</summary>
+    public KeyGesture? AiChatGesture => _aiChatGesture;
 
-    /// <summary>Gets the palette item's advertised gesture (the menu binding).</summary>
-    public string PaletteGesture => _paletteGesture;
+    /// <summary>Gets the palette item's advertised gesture, typed for the menu's <c>InputGesture</c> binding (T-175); null when the map's text does not parse.</summary>
+    public KeyGesture? PaletteGesture => _paletteGesture;
 
     /// <summary>Gets the sheet overlay's toggle (the menu's "?" item).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleSheetCommand { get; }
@@ -251,11 +247,33 @@ public sealed class HotkeyViewModel : ReactiveObject
             row.IsOverridden = _service.Overrides.ContainsKey(row.Action.Id);
         }
 
-        this.RaiseAndSetIfChanged(ref _settingsGesture, map[HotkeyRegistry.OpenSettings], nameof(SettingsGesture));
-        this.RaiseAndSetIfChanged(ref _newOrderGesture, map[HotkeyRegistry.NewOrder], nameof(NewOrderGesture));
-        this.RaiseAndSetIfChanged(ref _aiChatGesture, map[HotkeyRegistry.ToggleAiChat], nameof(AiChatGesture));
-        this.RaiseAndSetIfChanged(ref _paletteGesture, map[HotkeyRegistry.TogglePalette], nameof(PaletteGesture));
+        this.RaiseAndSetIfChanged(ref _settingsGesture, MenuGesture(map[HotkeyRegistry.OpenSettings]), nameof(SettingsGesture));
+        this.RaiseAndSetIfChanged(ref _newOrderGesture, MenuGesture(map[HotkeyRegistry.NewOrder]), nameof(NewOrderGesture));
+        this.RaiseAndSetIfChanged(ref _aiChatGesture, MenuGesture(map[HotkeyRegistry.ToggleAiChat]), nameof(AiChatGesture));
+        this.RaiseAndSetIfChanged(ref _paletteGesture, MenuGesture(map[HotkeyRegistry.TogglePalette]), nameof(PaletteGesture));
         RebuildSheet(map);
+    }
+
+    /// <summary>
+    /// The menu's typed gesture (T-175): the map's canonical text parses
+    /// into the KeyGesture the <c>InputGesture</c> binding carries. The
+    /// registry and the editor's own Normalize guard make an unparsable
+    /// map text impossible in practice; a persisted stray must never
+    /// fabricate a binding error, so it logs a warning and the hint stays
+    /// silent (no silent default in the map itself - the row text keeps
+    /// the map's truth).
+    /// </summary>
+    private KeyGesture? MenuGesture(string canonical)
+    {
+        try
+        {
+            return KeyGesture.Parse(canonical);
+        }
+        catch (FormatException ex)
+        {
+            _logger.LogWarning(ex, "The hotkey map's gesture {Gesture} does not parse - the menu hint stays silent", canonical);
+            return null;
+        }
     }
 
     /// <summary>

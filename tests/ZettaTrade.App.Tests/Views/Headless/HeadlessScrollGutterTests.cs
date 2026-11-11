@@ -217,7 +217,7 @@ public sealed class HeadlessScrollGutterTests
     {
         var window = await HeadlessWorld.OnUi(() =>
         {
-            var created = new MainWindow { DataContext = main };
+            var created = new MainWindow(main);
             created.Width = 1400;
             created.Height = 900;
             return created;

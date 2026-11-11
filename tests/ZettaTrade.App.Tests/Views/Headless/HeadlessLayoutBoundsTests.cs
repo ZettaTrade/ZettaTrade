@@ -186,7 +186,7 @@ public sealed class HeadlessLayoutBoundsTests
     {
         var window = await HeadlessWorld.OnUi(() =>
         {
-            var created = new MainWindow { DataContext = main };
+            var created = new MainWindow(main);
             created.Width = width ?? created.MinWidth;
             created.Height = created.MinHeight;
             return created;

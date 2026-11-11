@@ -34,7 +34,7 @@ public sealed class HeadlessLocalizationTests
         var manager = LocalizationManager.Instance;
         var standing = manager.CurrentLanguage;
 
-        var window = await HeadlessWorld.OnUi(() => new MainWindow { DataContext = world.Main });
+        var window = await HeadlessWorld.OnUi(() => new MainWindow(world.Main));
         await HeadlessWorld.ShowAndSettleAsync(window);
         try
         {

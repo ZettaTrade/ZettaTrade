@@ -76,10 +76,13 @@ public partial class App : Application
                 await RunSingleInstanceHandoffAsync(desktop);
 
                 var mainVm = Services.GetRequiredService<MainViewModel>();
-                var mainWindow = new MainWindow
-                {
-                    DataContext = mainVm,
-                };
+
+                // The window carries its view model through the ctor (T-175):
+                // the DataContext precedes InitializeComponent, so the XAML's
+                // first binding pass - the View menu's $parent[Window] lanes,
+                // the HUD gate, the gesture hints - resolves against the live
+                // graph and logs no null-DataContext noise.
+                var mainWindow = new MainWindow(mainVm);
                 desktop.MainWindow = mainWindow;
 
                 // StartCore() shows MainWindow synchronously right after this callback returns.

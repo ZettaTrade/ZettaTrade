@@ -6,7 +6,6 @@
         xmlns:charting="using:ZettaTrade.UI.Charting"
         xmlns:tools="using:ZettaTrade.Charting"
         xmlns:app="using:ZettaTrade.App"
-        xmlns:panels="using:ZettaTrade.App.Views.Panels"
         xmlns:controls="using:ZettaTrade.App.Controls"
         xmlns:svc="using:ZettaTrade.App.Services"
         x:Class="ZettaTrade.App.Views.MainWindow"
@@ -336,14 +335,16 @@
                          detached book window on detach (the code-behind
                          routes its level presses through this same
                          instance on either host). The border is the swap
-                         host: detached, it carries the note. -->
+                         host: detached, it carries the note. The panel
+                         itself is created in the code-behind (T-175): it
+                         carries its view model as a LocalValue from its
+                         own construction, ahead of its subtree's first
+                         binding pass. -->
                     <Border x:Name="BookPanelHost"
                             Grid.Column="2"
                             Margin="8,0,0,0"
                             BorderBrush="{DynamicResource Border}"
-                            BorderThickness="1,0,0,0">
-                        <panels:OrderBookPanelView x:Name="BookPanel" />
-                    </Border>
+                            BorderThickness="1,0,0,0" />
 
                     <!-- Book/tape handle: drags move the boundary — the
                          book pays what the tape takes (the stock GridSplitter
@@ -497,14 +498,14 @@
                          chart window on detach — the code-behind's HUD and
                          export routes ride the same instance on either host.
                          The border is the swap host: detached, it carries the
-                         note. The HUD frame-tap gate keeps the window-relative
-                         binding on the panel element itself (a detached chart
+                         note. The panel itself is created in the code-behind
+                         (T-175), carrying its view model as a LocalValue from
+                         its own construction; the HUD frame-tap gate (T-108)
+                         rides the panel's own attach hook (a detached chart
                          freezes the HUD's tap readout — the HUD overlay is a
-                         main-window citizen; the detached window carries none). -->
-                    <Border x:Name="ChartPanelHost" Grid.Column="0">
-                        <panels:ChartPanelView x:Name="ChartPanel"
-                                               HudFrameTapSource="{Binding $parent[Window].((vm:MainViewModel)DataContext).Hud.IsVisible}" />
-                    </Border>
+                         main-window citizen; the detached window carries
+                         none). -->
+                    <Border x:Name="ChartPanelHost" Grid.Column="0" />
                 </Grid>
             </Border>
 
@@ -512,17 +513,16 @@
                  control instance hosts here inline and moves into the
                  detached assistant window on detach. The border is the swap
                  host: detached, it carries the note; the persisted chat
-                 visibility binding stays on it. The panel's DataContext is
-                 set by the code-behind (a LocalValue survives the
-                 cross-window move; a markup binding would re-resolve
-                 against the new window). -->
+                 visibility binding stays on it. The panel itself is created
+                 in the code-behind (T-175): it carries its view model as a
+                 LocalValue from its own construction, ahead of its subtree's
+                 first binding pass (a markup binding would re-resolve
+                 against the new window and unbind the moved control). -->
             <Border x:Name="AssistantPanelHost"
                     Grid.Column="2"
                     IsVisible="{Binding Chat.IsAiChatVisible}"
                     BorderBrush="{DynamicResource Border}"
-                    BorderThickness="1,0,0,0">
-                <panels:AssistantPanelView x:Name="AssistantPanel" />
-            </Border>
+                    BorderThickness="1,0,0,0" />
         </Grid>
         </DockPanel>
 

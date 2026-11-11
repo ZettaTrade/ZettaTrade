@@ -1,3 +1,42 @@
+## [0.1.0-alpha.121] - 2026-11-11
+
+Build of board task T-175 (branch `fix/binding-noise`): the startup
+binding sweep, filed from the user's report - the app logged binding
+errors into the debug output on every launch.
+
+### Fixed
+- The startup no longer logs binding errors: the main window now carries
+  its view model through the constructor (`MainWindow(MainViewModel)`),
+  so the DataContext precedes `InitializeComponent` and the XAML's
+  `$parent[Window]` lanes - the View menu's detach toggles, the HUD's
+  tap gate - evaluate against the live graph on their first pass (the
+  null-DataContext phase that logged "Value is null" warnings and
+  self-healed on the later assignment is gone).
+- The workspace panels (chart, order book, assistant) are created in the
+  window's constructor instead of the XAML: each carries its view model
+  as a LocalValue from its own construction, so its subtree's first
+  binding pass resolves against the panel's own VM. The XAML-created
+  alternative let the loader wire the inherited MainViewModel into the
+  still-unattached panel ahead of every visual and logical tree link -
+  the panel's subtree cast-errored on every binding before self-healing
+  (the second, larger noise family the sweep caught). The LocalValue
+  discipline the T-103 detach rides now holds by construction; the
+  panels keep their names, and the chart panel's HUD frame-tap gate
+  (T-108) rides the panel's own attach hook (a detached chart still
+  freezes its HUD readout).
+- The menu's gesture hints are typed: the HotkeyViewModel's menu
+  properties publish `KeyGesture?` (parsed from the effective map's
+  canonical text, a stray unparsable text logs a warning and leaves the
+  hint silent instead of fabricating a binding error), so the
+  `InputGesture` bindings never carry a string.
+- The designer route stays: the parameterless `MainWindow` ctor remains
+  (documented as the designer's shape), and the headless startup pins
+  hold both faces - the production construction logs zero binding
+  warnings at or above Warning while rendering the four effective
+  gesture hints and carrying the panels' view models; the designer
+  shape's late assignment reproduces the killed noise as the
+  counterfactual.
+
 ## [0.1.0-alpha.120] - 2026-11-11
 
 Build of board task T-174 (branch `feat/strategy-catalog`): the standard

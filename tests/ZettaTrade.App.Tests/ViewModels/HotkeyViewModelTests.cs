@@ -54,10 +54,14 @@ public sealed class HotkeyViewModelTests
     {
         var kit = NewKit();
 
-        kit.ViewModel.SettingsGesture.Should().Be("Ctrl+OemComma");
-        kit.ViewModel.NewOrderGesture.Should().Be("Ctrl+N");
-        kit.ViewModel.AiChatGesture.Should().Be("Ctrl+Shift+A");
-        kit.ViewModel.PaletteGesture.Should().Be("Ctrl+K");
+        kit.ViewModel.SettingsGesture.Should().BeOfType<KeyGesture>()
+            .Which.ToString().Should().Be("Ctrl+OemComma", "the menu gesture is the typed parse of the map's canonical text");
+        kit.ViewModel.NewOrderGesture.Should().BeOfType<KeyGesture>()
+            .Which.ToString().Should().Be("Ctrl+N");
+        kit.ViewModel.AiChatGesture.Should().BeOfType<KeyGesture>()
+            .Which.ToString().Should().Be("Ctrl+Shift+A");
+        kit.ViewModel.PaletteGesture.Should().BeOfType<KeyGesture>()
+            .Which.ToString().Should().Be("Ctrl+K");
     }
 
     [Fact]
@@ -121,7 +125,8 @@ public sealed class HotkeyViewModelTests
         row.GestureText.Should().Be("Ctrl+B", "the applied map re-seeds the row");
         row.IsOverridden.Should().BeTrue("the row carries a user override now");
         row.HasMessage.Should().BeFalse("a committed row clears its verdict");
-        kit.ViewModel.NewOrderGesture.Should().Be("Ctrl+B", "the menu gesture re-publishes live");
+        kit.ViewModel.NewOrderGesture.Should().BeOfType<KeyGesture>()
+            .Which.ToString().Should().Be("Ctrl+B", "the menu gesture re-publishes live");
         kit.ViewModel.Sheet.Single(item => item.Name == HotkeyRegistry.ActionFor(HotkeyRegistry.NewOrder)!.NameKey)
             .Gesture.Should().Be("Ctrl+B", "the cheat sheet mirrors the applied map");
         kit.ViewModel.TryMatch(Key.B, KeyModifiers.Control, out var route).Should().BeTrue();
