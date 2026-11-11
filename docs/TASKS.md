@@ -182,7 +182,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-175 The startup binding sweep: the debug-output binding errors go silent and the menu gesture hints render (the user's debug log) | fix/binding-noise | done | - |
 | T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | done | - |
 | T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | done | T-112, T-172 |
-| T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete-affordance | planned | T-091 |
+| T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete | in-progress | T-091 |
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | fix/skia-header-padding | planned | T-103 |
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | fix/theme-preview-mirror | planned | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | fix/ticket-hover-response | planned | - |
@@ -263,13 +263,13 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-178 - The drawings delete affordance: the selected drawing's removal is discoverable
 
-- **Branch:** queued 2026-11-11 (filed from the user's ask: how do you delete drawn lines from the chart - maybe a button should be added).
+- **Branch:** feat/drawings-delete, worktree zt-drawings-delete, based on develop@8cd8e95 (claimed 2026-11-12; queued 2026-11-11 — filed from the user's ask: how do you delete drawn lines from the chart - maybe a button should be added).
 - **Origin:** the T-091 drawings layer already routes removal - a click selects the drawing and the Delete key removes it (Escape cancels the in-flight placement, else clears the selection) - but the route is undiscoverable: the hotkey registry (the "?" cheat sheet, the settings tab) carries only the four window-level actions, nothing names the chart's own Delete/Escape routes, and no visible affordance offers the removal. The user's question is the discoverability gap.
 - **What:** a discoverable removal affordance on the selection (a visible delete button where the selection already shows - the drawings toolbar strip or at the selection itself), plus the chart's own Delete/Escape routes surfacing where the user reads them (the cheat sheet's drawing lane or the affordance's tooltip). The removal's semantics stay untouched (the store, the layer, the metrics keep the T-091 discipline; deleting an annotation is not a trading action - no confirmation).
 - **Scope:** CandlestickChart (the affordance's anchor and the key routes), the drawings toolbar surface, the cheat-sheet/tooltip wording, the App.Tests headless pins; alpha.123 + the CHANGELOG section.
 - **Acceptance:** a headless pin selects a drawing, proves the affordance visible and wired to the same removal route the Delete key drives, and proves the chart's keys read where the user looks for them.
 - **Tests:** the App.Tests headless drawings-lane pins (the affordance presence + the route pairing); the full gate stays green.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ---
 
