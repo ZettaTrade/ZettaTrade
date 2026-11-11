@@ -159,7 +159,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-152 Trading-mode chips readable: dark foreground on the state colors | fix/lane-chip-contrast | done | - |
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | done | - |
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | done | - |
-| T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | in-progress | - |
+| T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | done | - |
 | T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | queued | T-154 (soft) |
 | T-157 Table grammar for positions and order history | feat/table-grammar | queued | T-154 (soft) |
 | T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | queued | - |
@@ -242,24 +242,6 @@ discipline first (T-150, T-151, T-152 — the two parallel color systems and the
 systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
 (T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
-
-## T-155 — Type ramp + tabular numerals + the spacing scale, as tokens
-
-- **Branch:** feat/type-scale, worktree zt-type-scale, based on develop@6cce2ea (claimed 2026-11-11 as the sixth of the T-150…T-162 design-review batch — the tokens publish as Livery resources, so the satellite release 0.1.6 rides the same task).
-- **Origin:** font sizes grow ad hoc (10, 11, 11.5, 12, 13, 14, 16 across the windows) and the
-  paddings wander (4/6/8/10/12/14/16/20); the numeric surfaces (order tables, stats tiles, the
-  HUD handled) set digits in the proportional face, so columns stop holding their place.
-- **What:** a documented ramp (Caption 11 / Body 13 / SubtitleStrong 14 / Title 16) and a spacing
-  scale (4/8/12/16/24) published as resources from Livery; the monospaced numeric stack (the
-  HUD's precedent) becomes a NumericFont resource and rides the stats tiles, the table columns
-  and the price fields; the windows re-map their ad-hoc values onto the ramp without re-layout.
-- **Scope:** the Livery Themes resources, the App views' FontSize/margin values resurfaced; no
-  ViewModel changes.
-- **Acceptance:** no bare FontSize literals remain outside the ramp definitions; the stats tiles
-  and tables set numerals in the tabular stack; a language switch never shifts column alignment.
-- **Tests:** source pins over the size literals; a headless render pin (inside the T-144 lane)
-  that the tiles stay aligned across a language flip.
-- **Status:** in-progress
 
 ## T-156 — Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation
 
