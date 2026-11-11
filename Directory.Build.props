@@ -41,7 +41,7 @@
     <VersionPrefix>0.1.0</VersionPrefix>
 
 
-    <VersionSuffix>alpha.113</VersionSuffix>
+    <VersionSuffix>alpha.114</VersionSuffix>
 
   </PropertyGroup>
 
@@ -61,6 +61,6 @@
        version fact: bump this single line when a new pack release lands,
        never the consuming test projects. -->
   <PropertyGroup>
-    <PluginsVersion>0.1.0</PluginsVersion>
+    <PluginsVersion>0.2.0</PluginsVersion>
   </PropertyGroup>
 </Project>
