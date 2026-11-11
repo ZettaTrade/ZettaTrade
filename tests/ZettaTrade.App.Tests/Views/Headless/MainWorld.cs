@@ -62,6 +62,7 @@ internal sealed record MainWorld(
     public static async Task<MainWorld> CreateAsync()
     {
         await HeadlessWorld.EnsureAppAsync();
+        await HeadlessWorld.EnsureHealthyThemeSingletonAsync();
 
         var settings = Substitute.For<ISettingsService>();
         var changes = new Subject<SettingsChange>();

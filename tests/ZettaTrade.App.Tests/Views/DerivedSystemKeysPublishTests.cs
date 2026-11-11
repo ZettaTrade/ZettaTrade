@@ -27,8 +27,13 @@ using ZettaTrade.App.Tests;
 /// theme files register off-thread (the manager's registry is its own
 /// thread-safe world), the apply and every assertion run inside posted
 /// drain jobs — a never-drained job never executes, so no fact leaks state
-/// into another's (the pump's own protocol).
+/// into another's (the pump's own protocol). The class rides the
+/// LocalizationManagerSingleton collection: its own ThemeManager
+/// construction swaps and its Dispose poisons the static Instance for
+/// every later window attach, so the manager-creating and
+/// manager-consuming classes run strictly sequentially.
 /// </summary>
+[Collection("LocalizationManagerSingleton")]
 public sealed class DerivedSystemKeysPublishTests
 {
     private static Task<(Application App, Window Probe)>? _appWindowTask;

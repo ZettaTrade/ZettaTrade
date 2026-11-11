@@ -25,7 +25,12 @@ using ZettaTrade.App.Services;
 /// dispatcher-affine (the shared process-singleton application the
 /// derived-system-key facts stand up): the apply and every assertion run
 /// inside posted drain jobs, a never-drained job never executes.
+/// The class rides the LocalizationManagerSingleton collection: its own
+/// ThemeManager construction swaps and its Dispose poisons the static
+/// Instance for every later window attach, so the manager-creating and
+/// manager-consuming classes run strictly sequentially.
 /// </summary>
+[Collection("LocalizationManagerSingleton")]
 public sealed class ChipForegroundPublishTests
 {
     private static readonly string RepoRoot = FindRepositoryRoot();
