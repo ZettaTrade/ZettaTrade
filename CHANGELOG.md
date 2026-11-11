@@ -1,4 +1,37 @@
-## [0.1.0-alpha.117] - 2026-11-11
+## [0.1.0-alpha.118] - 2026-11-11
+
+Build of board task T-172 (branch `feat/splitter-grips`): the workspace's
+four layout boundaries become proven-draggable, discoverable grips, filed
+from the user's report - the splitters were invisible and the resize
+never worked.
+
+### Fixed
+- The workspace's resizable boundaries now follow the pointer. The stock
+  `GridSplitter` only ever wrote the FIRST fixed column when its
+  neighbors were both fixed (its own SplitBehavior.Resize1), so on the
+  book/tape and tape/watchlist seams the grabbed line never moved - the
+  chart star silently absorbed the drag instead. The four boundaries ride
+  the new `ColumnResizeHandle` (a Thumb in `ZettaTrade.App.Controls`):
+  both neighbors trade the delta, the star side absorbs, the standard
+  direction holds (a rightward drag grows the column left of the handle),
+  the joint minimum clamps stop the shrinking side, and the arrow keys
+  step the focused boundary by 10 px. The TwoWay column bindings keep
+  carrying every write into the persisted widths (the T-038 pipelines,
+  untouched).
+- Every boundary shows a visible grip line at rest (the quiet 1 px hair
+  the stock splitter never had) and it widens to a 3 px Accent pill on
+  hover, with the west-east cursor over the whole 8 px track.
+
+### Added
+- The headless splitter-drag pins (the T-144 harness lane): eight facts
+  drive the REAL main window through pointer press/move/release scripts -
+  each boundary moves with the delta it is given (the boundary follows
+  the pointer on the fixed-to-fixed seams), the tape's minimum clamps a
+  past-the-minimum sweep, a settled book drag persists through the
+  settings pipeline end to end, the four grip lines render at their rest
+  width and widen on hover, and the focused handle steps the boundary
+  with the arrow keys.
+
 
 Build of board task T-170 (branch `feat/scroll-gutter`): the scroll
 surfaces audit filed from the user's report - no window's content sits
