@@ -14,6 +14,7 @@
     <Project Path="tests/ZettaTrade.App.Tests/ZettaTrade.App.Tests.csproj" />
     <Project Path="tests/ZettaTrade.Backtest.Tests/ZettaTrade.Backtest.Tests.csproj" />
     <Project Path="tests/ZettaTrade.Core.Tests/ZettaTrade.Core.Tests.csproj" />
+    <Project Path="tests/ZettaTrade.E2E.Tests/ZettaTrade.E2E.Tests.csproj" />
     <Project Path="tests/ZettaTrade.Infrastructure.Tests/ZettaTrade.Infrastructure.Tests.csproj" />
     <Project Path="tests/ZettaTrade.Plugins.Broken/ZettaTrade.Plugins.Broken.csproj" />
     <Project Path="tests/ZettaTrade.Plugins.BrokenBase/ZettaTrade.Plugins.BrokenBase.csproj" />

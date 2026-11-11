@@ -10,6 +10,7 @@
         xmlns:svc="using:ZettaTrade.App.Services"
         x:Class="ZettaTrade.App.Views.MainWindow"
         Classes="chrome"
+        AutomationProperties.AutomationId="MainWindow"
         Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:MainViewModel"
         Title="{loc:Localized Chrome.Title}"
@@ -117,13 +118,17 @@
         <DockPanel>
         <!-- Top menu bar -->
         <Menu DockPanel.Dock="Top" DataContext="{Binding Menu}">
-            <MenuItem Header="{loc:Localized Menu.File}">
-                <MenuItem Header="{loc:Localized Menu.File.Settings}" Command="{Binding OpenSettingsCommand}" InputGesture="{Binding Hotkeys.SettingsGesture}" />
+            <MenuItem Header="{loc:Localized Menu.File}"
+                      AutomationProperties.AutomationId="FileMenu">
+                <MenuItem Header="{loc:Localized Menu.File.Settings}" Command="{Binding OpenSettingsCommand}" InputGesture="{Binding Hotkeys.SettingsGesture}"
+                          AutomationProperties.AutomationId="FileSettingsMenuItem" />
                 <Separator />
                 <MenuItem Header="{loc:Localized Menu.File.Exit}" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
             </MenuItem>
-            <MenuItem Header="{loc:Localized Menu.Trading}">
-                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="{Binding Hotkeys.NewOrderGesture}" />
+            <MenuItem Header="{loc:Localized Menu.Trading}"
+                      AutomationProperties.AutomationId="TradingMenu">
+                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="{Binding Hotkeys.NewOrderGesture}"
+                          AutomationProperties.AutomationId="TradingNewOrderMenuItem" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.Balances}" Command="{Binding ShowBalancesCommand}" />
                 <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
@@ -145,18 +150,22 @@
                  in its own window, and the flip rides the layout ViewModel's
                  toggle command through the window-routed binding (the same
                  $parent[Window] shape the chart's HUD gate keeps). -->
-            <MenuItem Header="{loc:Localized Menu.View}">
+            <MenuItem Header="{loc:Localized Menu.View}"
+                      AutomationProperties.AutomationId="ViewMenu">
                 <MenuItem Header="{loc:Localized Menu.View.Chart}"
+                          AutomationProperties.AutomationId="ViewChartMenuItem"
                           Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.ToggleDetachCommand}"
                           CommandParameter="{x:Static svc:PanelDetachId.Chart}"
                           ToggleType="CheckBox"
                           IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.IsChartDetached, Mode=OneWay}" />
                 <MenuItem Header="{loc:Localized Menu.View.Book}"
+                          AutomationProperties.AutomationId="ViewBookMenuItem"
                           Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.ToggleDetachCommand}"
                           CommandParameter="{x:Static svc:PanelDetachId.Book}"
                           ToggleType="CheckBox"
                           IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.IsBookDetached, Mode=OneWay}" />
                 <MenuItem Header="{loc:Localized Menu.View.Assistant}"
+                          AutomationProperties.AutomationId="ViewAssistantMenuItem"
                           Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.ToggleDetachCommand}"
                           CommandParameter="{x:Static svc:PanelDetachId.Assistant}"
                           ToggleType="CheckBox"
@@ -328,6 +337,7 @@
                          dead grab handle parked in an empty gutter (the
                          collapsed tracks ride BookSplitterColumnWidth). -->
                     <controls:ColumnResizeHandle Grid.Column="1"
+                                                 AutomationProperties.AutomationId="BookResizeHandle"
                                                  IsVisible="{Binding !Layout.IsBookDetached}" />
 
                     <!-- Depth panel (T-103): the book panel's ONE control
@@ -341,6 +351,7 @@
                          own construction, ahead of its subtree's first
                          binding pass. -->
                     <Border x:Name="BookPanelHost"
+                            AutomationProperties.AutomationId="BookPanelHost"
                             Grid.Column="2"
                             Margin="8,0,0,0"
                             BorderBrush="{DynamicResource Border}"
@@ -505,7 +516,8 @@
                          freezes the HUD's tap readout — the HUD overlay is a
                          main-window citizen; the detached window carries
                          none). -->
-                    <Border x:Name="ChartPanelHost" Grid.Column="0" />
+                    <Border x:Name="ChartPanelHost" Grid.Column="0"
+                            AutomationProperties.AutomationId="ChartPanelHost" />
                 </Grid>
             </Border>
 
@@ -519,6 +531,7 @@
                  first binding pass (a markup binding would re-resolve
                  against the new window and unbind the moved control). -->
             <Border x:Name="AssistantPanelHost"
+                    AutomationProperties.AutomationId="AssistantPanelHost"
                     Grid.Column="2"
                     IsVisible="{Binding Chat.IsAiChatVisible}"
                     BorderBrush="{DynamicResource Border}"

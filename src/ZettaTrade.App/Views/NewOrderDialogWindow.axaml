@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.NewOrderDialogWindow"
         Classes="chrome-compact"
+        AutomationProperties.AutomationId="NewOrderDialogWindow"
         Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:NewOrderDialogViewModel"
         Title="{loc:Localized NewOrder.Title}"
@@ -126,6 +127,7 @@
                 <Run Text="{Binding QuantityUnitHint, Mode=OneWay}" />
             </TextBlock>
             <TextBox Grid.Row="1" Grid.Column="0"
+                     AutomationProperties.AutomationId="QuantityInput"
                      FontFamily="{StaticResource NumericFont}"
                      Text="{Binding QuantityInput}"
                      PlaceholderText="0.01" />
@@ -136,20 +138,21 @@
 
             <TextBlock Grid.Row="0" Grid.Column="1" Text="{loc:Localized NewOrder.OrderType}" />
             <ComboBox Grid.Row="1" Grid.Column="1"
+                      AutomationProperties.AutomationId="OrderTypeComboBox"
                       SelectedIndex="{Binding SelectedTypeIndex}">
-                <ComboBoxItem>
+                <ComboBoxItem AutomationProperties.AutomationId="OrderTypeMarketItem">
                     <TextBlock Text="{loc:Localized Order.Market}" />
                 </ComboBoxItem>
-                <ComboBoxItem>
+                <ComboBoxItem AutomationProperties.AutomationId="OrderTypeLimitItem">
                     <TextBlock Text="{loc:Localized Order.Limit}" />
                 </ComboBoxItem>
-                <ComboBoxItem>
+                <ComboBoxItem AutomationProperties.AutomationId="OrderTypeStopLimitItem">
                     <TextBlock Text="{loc:Localized Order.StopLimit}" />
                 </ComboBoxItem>
-                <ComboBoxItem>
+                <ComboBoxItem AutomationProperties.AutomationId="OrderTypeTrailingStopItem">
                     <TextBlock Text="{loc:Localized Order.TrailingStop}" />
                 </ComboBoxItem>
-                <ComboBoxItem>
+                <ComboBoxItem AutomationProperties.AutomationId="OrderTypeOcoItem">
                     <TextBlock Text="{loc:Localized Order.Oco}" />
                 </ComboBoxItem>
             </ComboBox>
@@ -171,6 +174,7 @@
             <Run Text="{Binding PriceUnitHint, Mode=OneWay}" />
         </TextBlock>
         <TextBox Text="{Binding PriceInput}"
+                 AutomationProperties.AutomationId="PriceInput"
                  FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="50000"
                  IsVisible="{Binding IsPriceRequired}" />
@@ -305,6 +309,7 @@
                     Content="{loc:Localized NewOrder.Place}"
                     MinWidth="120" Margin="0,0,8,0" />
             <Button Content="{loc:Localized Trading.Cancel}"
+                    AutomationProperties.AutomationId="CancelButton"
                     Click="OnCancelClick"
                     MinWidth="90" />
         </UniformGrid>
