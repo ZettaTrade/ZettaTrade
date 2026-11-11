@@ -1,3 +1,39 @@
+## [0.1.0-alpha.119] - 2026-11-11
+
+Build of board task T-173 (branch `feat/book-detach-space`): the detached
+order book frees its main-window column, filed from the user's ask - the
+book lives in its own window while the workspace keeps the empty hole.
+
+### Fixed
+- Detaching the order book now frees its workspace space: the book
+  column, both its splitter tracks and its minimum clamp collapse to zero
+  so the chart star absorbs the width (the chart/assistant detaches keep
+  their reserved space - the ask named only the book). The attach puts
+  the width the user actually saw right back: the capture reads the
+  displayed truth at the detach beat (a drag may still ride the settle
+  debounce), not any persisted cache. A book already detached at
+  construction starts with the collapsed geometry from the first frame
+  and the stored width stays the attach-back truth.
+- The book-side grab handles hide with the panel: with the column gone,
+  the chart/book boundary has nothing to serve, and a drag at the old
+  book/tape seam could only resurrect a phantom column - both tracks ride
+  one `BookSplitterColumnWidth`, both handles bind `!IsBookDetached`.
+- The book's persistence pipeline guards on the applied display width
+  (the assistant collapse's shape): the detach flip, the external echoes
+  and the startup restore stay silent, so the collapse never writes a
+  zero over the width's persisted truth; an external width while
+  detached becomes the attach-back truth only.
+
+### Added
+- The book-detach pins: five ViewModel facts (the collapse/restore
+  geometry round-trip, the View-menu toggle path, the settings-pipeline
+  silence across the quiet window, the detached-at-construction first
+  frame, the external-width-while-detached truth) and three headless
+  facts on the REAL window (the drag-to-350 detach frees the column for
+  the chart and the attach restores it, the collapse never persists, a
+  pointer sweep at the hidden book/tape seam cannot resurrect the
+  column).
+
 ## [0.1.0-alpha.118] - 2026-11-11
 
 Build of board task T-172 (branch `feat/splitter-grips`): the workspace's

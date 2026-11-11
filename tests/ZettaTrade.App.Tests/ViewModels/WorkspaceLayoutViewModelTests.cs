@@ -224,6 +224,133 @@ public sealed class WorkspaceLayoutViewModelTests
 
     #endregion
 
+    #region Book Detach Space (T-173)
+
+    /// <summary>
+    /// The detach frees the book's space: the column, its splitter tracks
+    /// and its minimum clamp all collapse to zero so the chart star absorbs
+    /// the width, and the attach puts the width the user saw right back.
+    /// </summary>
+    [Fact]
+    public async Task DetachingTheBook_CollapsesItsGeometry_AndAttachRestoresIt()
+    {
+        var kit = await CreateKitAsync(storedBook: 420);
+        await WaitPastQuietTimeAsync();
+
+        await kit.Detacher.DetachPanelWindowAsync(PanelDetachId.Book, CancellationToken.None);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        kit.Layout.IsBookDetached.Should().BeTrue();
+        CarriesPixelWidth(kit.Layout.BookColumnWidth, 0, "the detached book frees its column");
+        kit.Layout.BookColumnMinWidth.Should().Be(0, "the collapsed column must be allowed to be zero");
+        CarriesPixelWidth(kit.Layout.BookSplitterColumnWidth, 0, "the book-side tracks vanish with the panel");
+
+        await kit.Detacher.AttachPanelWindowAsync(PanelDetachId.Book, CancellationToken.None);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        kit.Layout.IsBookDetached.Should().BeFalse();
+        CarriesPixelWidth(kit.Layout.BookColumnWidth, 420, "the attach restores the width the user saw");
+        kit.Layout.BookColumnMinWidth.Should().Be(UiSettingsKeys.MinBookPanelWidth);
+        CarriesPixelWidth(kit.Layout.BookSplitterColumnWidth, SplitterTrackWidth);
+    }
+
+    /// <summary>
+    /// The View menu's toggle drives the same geometry through the runtime:
+    /// one execution detaches the book (the column collapses), the same
+    /// execution again attaches it (the width returns).
+    /// </summary>
+    [Fact]
+    public async Task TheViewMenuToggle_DrivesTheBookSpace()
+    {
+        var kit = await CreateKitAsync();
+
+        await kit.Layout.ToggleDetachCommand.Execute(PanelDetachId.Book);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        kit.Layout.IsBookDetached.Should().BeTrue();
+        CarriesPixelWidth(kit.Layout.BookColumnWidth, 0);
+
+        await kit.Layout.ToggleDetachCommand.Execute(PanelDetachId.Book);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        kit.Layout.IsBookDetached.Should().BeFalse();
+        CarriesPixelWidth(kit.Layout.BookColumnWidth, UiSettingsKeys.DefaultBookPanelWidth);
+    }
+
+    /// <summary>
+    /// The collapse is a display flip, not a settings choice: the
+    /// persistence pipeline never writes the collapsed zero (the width
+    /// keeps its persisted truth for the next session).
+    /// </summary>
+    [Fact]
+    public async Task DetachingTheBook_KeepsTheCollapseSilentInTheSettingsPipeline()
+    {
+        var kit = await CreateKitAsync(storedBook: 420);
+        await WaitPastQuietTimeAsync();
+
+        await kit.Detacher.DetachPanelWindowAsync(PanelDetachId.Book, CancellationToken.None);
+        await WaitPastQuietTimeAsync();
+
+        await kit.Settings.DidNotReceive().SetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<double>());
+    }
+
+    /// <summary>
+    /// A book already detached at construction (the restore walk re-opened
+    /// its window before the layout resolved) shows the collapsed geometry
+    /// from the first frame, and the stored width stays the attach-back
+    /// truth.
+    /// </summary>
+    [Fact]
+    public async Task TheBookDetachedAtConstruction_StartsCollapsed_AndAttachRestoresTheStoredWidth()
+    {
+        var detacher = new FakeDetachedPanelCoordinator();
+        await detacher.DetachPanelWindowAsync(PanelDetachId.Book, CancellationToken.None);
+        var kit = await CreateKitAsync(detacher: detacher, storedBook: 380);
+
+        kit.Layout.IsBookDetached.Should().BeTrue();
+        CarriesPixelWidth(kit.Layout.BookColumnWidth, 0, "the first frame shows the collapsed column");
+        CarriesPixelWidth(kit.Layout.BookSplitterColumnWidth, 0);
+        kit.Layout.BookColumnMinWidth.Should().Be(0);
+
+        await kit.Detacher.AttachPanelWindowAsync(PanelDetachId.Book, CancellationToken.None);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        CarriesPixelWidth(kit.Layout.BookColumnWidth, 380, "the attach applies the stored width");
+        kit.Layout.BookColumnMinWidth.Should().Be(UiSettingsKeys.MinBookPanelWidth);
+        CarriesPixelWidth(kit.Layout.BookSplitterColumnWidth, SplitterTrackWidth);
+    }
+
+    /// <summary>
+    /// An external writer while the book lives detached: the value becomes
+    /// the attach-back truth only — the collapsed column stays collapsed,
+    /// and the attach applies the external width.
+    /// </summary>
+    [Fact]
+    public async Task AnExternalBookWidthWhileDetached_UpdatesOnlyTheAttachBackTruth()
+    {
+        var kit = await CreateKitAsync();
+        await kit.Detacher.DetachPanelWindowAsync(PanelDetachId.Book, CancellationToken.None);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        kit.Changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.BookPanelWidth,
+            UiSettingsKeys.DefaultBookPanelWidth,
+            500d));
+
+        CarriesPixelWidth(kit.Layout.BookColumnWidth, 0, "the detached column stays collapsed");
+
+        await kit.Detacher.AttachPanelWindowAsync(PanelDetachId.Book, CancellationToken.None);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        CarriesPixelWidth(kit.Layout.BookColumnWidth, 500, "the attach applies the external truth");
+    }
+
+    #endregion
+
     #region Settled Drag Persistence
 
     /// <summary>

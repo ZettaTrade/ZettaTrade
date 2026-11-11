@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ZettaTrade.AI.Mcp;
 using ZettaTrade.App.Services;
+using ZettaTrade.App.Tests.Services;
 using ZettaTrade.App.Tests.ViewModels;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.App.Views;
@@ -44,13 +45,17 @@ using ZettaTrade.Strategies;
 /// <param name="Settings">The shared settings substitute.</param>
 /// <param name="Changes">The settings change stream the mirror reads.</param>
 /// <param name="Localization">The REAL localization singleton the world initialized.</param>
+/// <param name="Detacher">The detach runtime the layout's mirror rides (the
+/// T-103 fake: its emits drive the real window's detach geometry, the
+/// T-173 lane included).</param>
 internal sealed record MainWorld(
     MainViewModel Main,
     ActiveExchangeService Exchanges,
     MainWorld.FakeMarketDataAdapter Adapter,
     ISettingsService Settings,
     Subject<SettingsChange> Changes,
-    ILocalizationManager Localization)
+    ILocalizationManager Localization,
+    FakeDetachedPanelCoordinator Detacher)
 {
     /// <summary>
     /// Compose the world off the shared settings substitute and the one
@@ -150,10 +155,16 @@ internal sealed record MainWorld(
             new EmptyIndicatorCatalog(),
             mcpClients,
             NullLogger<SettingsViewModel>.Instance);
+        // The detach runtime the mirror reflects: the T-103 fake with its
+        // synchronous emits — the detach/attach lanes drive the real
+        // window's geometry through it (hoisted so the layout ctor reads
+        // the same instance the record exposes).
+        var detacher = new FakeDetachedPanelCoordinator();
+
         var layout = new WorkspaceLayoutViewModel(
             settings,
             chat,
-            Substitute.For<IDetachedPanelCoordinator>(),
+            detacher,
             NullLogger<WorkspaceLayoutViewModel>.Instance);
         var menu = new MenuViewModel(chat, hud, hotkeys);
 
@@ -181,7 +192,8 @@ internal sealed record MainWorld(
             adapter,
             settings,
             changes,
-            localization);
+            localization,
+            detacher);
     }
 
     /// <summary>
