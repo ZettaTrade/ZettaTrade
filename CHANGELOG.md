@@ -1,3 +1,27 @@
+## [0.1.0-alpha.114] - 2026-11-11
+
+Build of board task T-168 (branch `feat/strategy-pack`); the Plugins
+satellite release rides first in the same series (the strategy ships in
+the standard pack, the consumer pin moves with it).
+
+### Added
+- The strategy seam rides the plugin SDK contract 2.1.0 (T-168): the
+  implementation contract (`IStrategy`, the SDK-owned `StrategyContext`
+  over the contract's `IndicatorBar` OHLC shape — app entities never
+  reach the surface) and the `StrategyStance` vocabulary move into
+  `ZettaTrade.Plugins.Abstractions`, additive, in the seam's canonical
+  `ZettaTrade.Strategies` namespace; the golden surface baseline rewrites
+  to 2.1.0. The single `Evaluate` call site (`StrategyHost`) gains the
+  app→SDK bar adapter — one array per series evaluation serves every
+  registered strategy.
+- The standard pack's first strategy (T-168, satellite release
+  `ZettaTrade.Plugins.Standard` 0.2.0): `ZettaTrade.Plugins.SmaCross`,
+  id `sma-golden-cross`, the classic 50/200 two-SMA cross — the host's
+  256-bar window carries the warmup. The backtest picker's catalog scan
+  finally lists a shipped strategy instead of the honest zero, and the
+  satellite's suite walks the cross (golden/death/tie/warmup).
+- The `PluginsVersion` consumer pin moves to 0.2.0 in the same series.
+
 ## [0.1.0-alpha.113] - 2026-11-11
 
 Build of board task T-167 (branch `feat/titlebar-buttons`); the Livery

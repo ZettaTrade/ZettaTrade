@@ -21,6 +21,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZettaTrade.Core\ZettaTrade.Core.csproj" />
     <ProjectReference Include="..\..\src\ZettaTrade.Strategies\ZettaTrade.Strategies.csproj" />
+    <!-- T-168: the shipped standard pack - the suite's pack-staging fact
+         walks the real loader over the pack's SmaCross assembly (the lib
+         assets copy-local into this output, exactly where the T-163
+         consumers staged them). GeneratePathProperty projects the package
+         root for the fact's staging source. -->
+    <PackageReference Include="ZettaTrade.Plugins.Standard" Version="$(PluginsVersion)" GeneratePathProperty="true" />
     <!-- The valid out-of-tree strategy fixture: its dll lands in the test
          output (located by NAME by the catalog fixture - staging is what
          the loader scans at runtime). -->
