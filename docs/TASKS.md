@@ -184,7 +184,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | done | T-112, T-172 |
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete | done | T-091 |
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | feat/tape-header-gap | done | T-103 |
-| T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | fix/theme-preview-mirror | planned | - |
+| T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | feat/theme-preview-mirror | in-progress | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | fix/ticket-hover-response | planned | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
@@ -272,7 +272,7 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
 
 ## T-180 - The theme preview swatches mirror the Accent again (dark, light, oled)
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 review findings batch).
+- **Branch:** feat/theme-preview-mirror, worktree zt-theme-preview-mirror, based on develop@3c325e0 (claimed 2026-11-12; queued 2026-11-12 — the 2026-11-12 review findings batch).
 - **Origin:** the A11Y-audit convention makes the fourth preview swatch the Accent mirror
   (trading-pro.json and midnight.json follow it), but the T-151 Accent re-tune never reached the
   mirrors: dark.json advertises the retired hover blue `#0f3460` (Accent `#2563eb`), light.json a
@@ -287,7 +287,7 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
   stale mirror fails the pin naming the file and the pair.
 - **Tests:** the preview-mirror pin battery over the real theme files (the negative fixture
   included); the existing theme-identity pins stay green.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-181 - The order ticket's CTA and side segments answer hover and pressed
 
