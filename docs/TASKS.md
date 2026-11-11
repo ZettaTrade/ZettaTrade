@@ -148,7 +148,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-141 Soak isolation: pin the demo adapter so a run is network-free | feat/soak-isolation | done | - |
 | T-142 Book timestamps: one clock discipline across adapters (the WS latency measures transport) | fix/book-timestamps | done | - |
 | T-143 Palette suggestion rows carry automation names (not the record's ToString) | fix/palette-a11y-rows | done | - |
-| T-144 UI test suite: a headless lane over the real windows (layout, tabs, flows) | feat/ui-tests | queued | - |
+| T-144 UI test suite: a headless lane over the real windows (layout, tabs, flows) | feat/ui-tests | in-progress | - |
 | T-145 UI layout pass: a wrapping chart toolbar and a roomier settings window | feat/ui-layout | done | - |
 | T-146 Plugins into a dedicated solution folder and a physical plugins directory | feat/soln-plugins | done | - |
 | T-147 Agent canon split: a lean always-on AGENTS.md, a deduped zettatrade skill and on-demand references | feat/canon-split | done | - |
@@ -195,7 +195,7 @@ the end of that file, so no effort is duplicated.
 
 ## T-144 — UI test suite: a headless lane over the real windows
 
-- **Branch:** queued 2026-11-10 (filed at the user's request during the turn that also shipped the T-141…T-143 findings; T-145's layout pins are the acceptance's first tranche).
+- **Branch:** feat/ui-tests, worktree zt-ui-tests, based on develop@48e487a (claimed 2026-11-11 per standing directive 6; filed at the user's request during the turn that also shipped the T-141…T-143 findings; T-145's layout pins are the acceptance's first tranche).
 - **Origin:** the window-level UI facts ride source pins and ad-hoc UIA probes today (the chrome/accessibility pins say it plainly: no headless render harness), so layout regressions like the T-145 toolbar overflow reach the user instead of the gate.
 - **What:** a headless UI lane over the real views: Avalonia.Headless (the XUnit flavor) materializes actual windows against the ViewModel graph with mocked services; the pinned facts — at every min-size layout the chart toolbar never intersects the book/tape/watchlist headers, the settings window opens with its folded tab strip and the pinned Save/Close row inside the bounds, the overlay surfaces (palette, hotkey cheat sheet) route their keys, and a language flip re-inks the static strings; the lane rides the local gate and the CI matrix.
 - **Scope:** the headless package reference, a headless harness folder in tests/ZettaTrade.App.Tests, the gate wiring for the lane; no product code changes.
