@@ -1,3 +1,24 @@
+## [0.1.0-alpha.111] - 2026-11-11
+
+Build of board task T-165 (branch `feat/theme-singleton-hygiene`); the
+Livery 0.1.9 satellite release rode first (the dispose contract lands in
+the package, the consumer pin moves in the same series).
+
+### Fixed
+- The theme manager's dispose stops claiming process-wide initialization
+  (T-165, Livery 0.1.9): a disposed `ThemeManager` now clears the static
+  `Instance` when it owns it — the localization manager's T-073 shape,
+  which the theme twin lacked. The stale pointer served subscribes and
+  lookups from the torn-down subjects forever (the T-144 test-suite
+  poison's exact route: every later widget attach died on the
+  `ThemeChanged` subject's CheckDisposed); with the honest
+  `IsInitialized` every widget's attach guard skips the theme
+  subscription gracefully instead, the headless lane's per-world heal
+  keeps the lane's world app-shaped, and the Livery suite pins the
+  dispose-clears-Instance contract with two facts.
+- The Livery consumer pin moves to 0.1.9 in the same series (the one
+  `LiveryVersion` line, the five consumers follow it).
+
 ## [0.1.0-alpha.110] - 2026-11-11
 
 Build of board task T-143 (branch `fix/palette-a11y-rows`); no satellite
