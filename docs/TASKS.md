@@ -169,6 +169,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-162 Product identity: the app icon and the title-bar brand | feat/branding | done | - |
 | T-163 The plugins consumption switch: the standard pack rides the package mechanics | feat/plugin-packages | done | - |
 | T-164 Dev-side pack provisioning: the plugins directory fills from the package at build time | feat/plugin-provision | done | - |
+| T-165 Theme singleton hygiene: the ThemeManager Dispose clears the static Instance (the T-073 shape) | feat/theme-singleton-hygiene | queued | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -193,7 +194,14 @@ the end of that file, so no effort is duplicated.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
 
+## T-165 — Theme singleton hygiene: the ThemeManager Dispose clears the static Instance (the T-073 shape)
 
+- **Origin:** the T-144 headless lane reproduced the poison shape across the App.Tests Debug suite: a probe class's own ThemeManager ctor re-registers the static Instance, its Dispose tears the subjects down but never clears `_instance` (the clear-on-dispose guard exists only in `LocalizationManager`, the T-073 flake family's fix), and every later widget attach dies on `BehaviorSubject.CheckDisposed` — the synchronized mass collapse of every window-materializing fact.
+- **What:** in the Livery satellite: `ThemeManager.Dispose` clears `_instance` when it owns it (the `LocalizationManager.Dispose` pattern verbatim, with its own comment naming the stale-pointer route); `IsInitialized` then honestly reports the teardown and consumers re-initialize. In the app repo: the page-layout classes (`DepthChartLayoutTests`, `OrderBookPageLayoutTests`, `TradeTapePageLayoutTests`) adopt the T-144 world's per-fact theme heal (or the collection-plus-heal recipe the `HeadlessWorld` carries), so no App.Tests window attach ever meets a torn-down singleton.
+- **Scope:** the Livery satellite repo (the ThemeManager fix, its own suite facts and the package bump), then the consuming bump here; the App.Tests page-layout files; no app product code.
+- **Acceptance:** the Debug App.Tests full suite stays green across repeated runs with the probe classes unordered (no `ObjectDisposedException` from the `ThemeManager.Instance` subscribers); the Livery suite pins the dispose-clears-Instance contract.
+- **Tests:** the Livery ThemeManager dispose facts; the app suite's repeated-run stability evidence recorded in the task's canon.
+- **Status:** queued. Canon: filed by the T-144 close (the poison's reproduction is the T-144 archive's subject); the T-144 lane shipped the interim containment (the collection serialization plus the per-fact heal in `HeadlessWorld`).
 
 ---
 
