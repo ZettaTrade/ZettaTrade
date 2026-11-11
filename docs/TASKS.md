@@ -183,7 +183,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | done | - |
 | T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | done | T-112, T-172 |
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete | done | T-091 |
-| T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | feat/tape-header-gap | in-progress | T-103 |
+| T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | feat/tape-header-gap | done | T-103 |
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | fix/theme-preview-mirror | planned | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | fix/ticket-hover-response | planned | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
@@ -258,18 +258,6 @@ systemic), the Livery shared-kit prep next (T-154, T-155), then the surface rede
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
 
 
-
----
-
-## T-179 - The Skia header bands breathe: the column headers stop sitting flush on their first rows
-
-- **Branch:** feat/tape-header-gap, worktree zt-tape-header-gap, based on develop@b08a686 (claimed 2026-11-12; queued 2026-11-11 — filed from the user's ask: add padding between the table header and the data, and look for similar places).
-- **Origin:** the trade tape's column headers (Time/Price/Size, T-103) are drawn with their text baseline exactly on the header band's bottom edge - the first trade row starts at that same edge, so the caption glyphs touch the row glyphs with zero gap; the order book's column headers (Price/Cumulative volume) repeat the identical geometry. The user's screenshots are both defect sites.
-- **What (revised in-flight):** the claim-time plan ("lift the baseline inside the band, the band height unchanged") died on the study: each band carries TWO text lines - the tape's paused hint and the book's symbol/spread label ride a font-12 line, the column captions a font-10 line - and 22 px cannot hold them with air (the caption line was glued to the band edge, and the paused hint's descenders already crossed the size caption's tops before the fix). The shipped shape: the band grows 22 → 26 px, the label line gets its own baseline constant (`HeaderBaselinePx` = 11) and the captions theirs (`ColumnHeaderBaselinePx` = 22), in both widgets; at some panel heights that costs at most one data row. A render-geometry pin scans the REAL headless-Skia frames' ink rows (the world flipped from the headless drawing backend to `UseSkia()` + `UseHeadlessDrawing = false` — the pixel pins capture the widgets' custom draw operations the screen paints); a sweep of the remaining Skia surfaces (DepthChart, Heatmap: mid-label and no-data texts only, no header bands) found no other hiding places.
-- **Scope:** the two widget draw sites, the App.Tests geometry pin, the headless world's render backend; alpha.124 + the CHANGELOG section.
-- **Acceptance:** the pin proves ≥ 2 background rows between the caption line's ink and the first row's ink on both widgets (the book also pins ≥ 1 background row between its label line and the caption line; the tape's paused hint pins the label line near the band top), all 44 headless facts green under the flipped world.
-- **Tests:** the App.Tests widget geometry pin (three facts: the running tape, the book, the paused tape); the full gate stays green.
-- **Status:** in-progress.
 
 ---
 
