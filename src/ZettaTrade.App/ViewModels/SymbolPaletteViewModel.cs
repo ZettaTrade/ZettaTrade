@@ -591,7 +591,11 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     /// head — only the pairs still served by the current snapshot; a
     /// dropped exchange's pair cannot apply), then the favorites in
     /// registration order, then the rest of the instruments in their
-    /// natural order. Every page capped at <see cref="MaxResults"/>.
+    /// natural order. Every page capped at <see cref="MaxResults"/>. Each
+    /// pool's first landed row carries its <see cref="PaletteGroupKind"/>
+    /// (T-161) so the row template prints the section header above it —
+    /// the ranking order and the flat keyboard list stay exactly as they
+    /// were; only the visuals read the grouping.
     /// </summary>
     private IReadOnlyList<SymbolPaletteRow> PageEmptyQuery(
         IReadOnlyList<PaletteInstrument> instruments)
@@ -599,22 +603,24 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
         var seen = new HashSet<(string ExchangeId, string Normalized)>();
         var page = new List<SymbolPaletteRow>(Math.Min(MaxResults, instruments.Count));
 
-        void TryAdd(PaletteInstrument instrument, bool isRecent)
+        bool TryAdd(PaletteInstrument instrument, bool isRecent, PaletteGroupKind? head)
         {
             if (page.Count >= MaxResults)
             {
-                return;
+                return false;
             }
 
             var key = (instrument.ExchangeId, instrument.Symbol.Normalized);
             if (!seen.Add(key))
             {
-                return;
+                return false;
             }
 
-            page.Add(MarkRow(instrument, isRecent));
+            page.Add(MarkRow(instrument, isRecent, head));
+            return true;
         }
 
+        var recentsHeadPrinted = false;
         foreach (var recent in _recents)
         {
             var instrument = instruments.FirstOrDefault(candidate =>
@@ -623,38 +629,48 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
                     candidate.Symbol.Normalized,
                     recent.Symbol.Normalized,
                     StringComparison.Ordinal));
-            if (instrument is not null)
+            if (instrument is not null &&
+                TryAdd(instrument, isRecent: true, recentsHeadPrinted ? null : PaletteGroupKind.Recents))
             {
-                TryAdd(instrument, isRecent: true);
+                recentsHeadPrinted = true;
             }
         }
 
+        var favoritesHeadPrinted = false;
         foreach (var instrument in instruments)
         {
             if (_favoriteMarks.TryGetValue(instrument.ExchangeId, out var names) &&
                 names.Contains(instrument.Symbol.Normalized))
             {
-                TryAdd(instrument, isRecent: false);
+                if (TryAdd(instrument, isRecent: false, favoritesHeadPrinted ? null : PaletteGroupKind.Favorites))
+                {
+                    favoritesHeadPrinted = true;
+                }
             }
         }
 
+        var otherHeadPrinted = false;
         foreach (var instrument in instruments)
         {
-            TryAdd(instrument, isRecent: false);
+            if (TryAdd(instrument, isRecent: false, otherHeadPrinted ? null : PaletteGroupKind.Other))
+            {
+                otherHeadPrinted = true;
+            }
         }
 
         return page;
     }
 
     /// <summary>One instrument's row with the flags the current marks and recents say.</summary>
-    private SymbolPaletteRow MarkRow(PaletteInstrument instrument, bool isRecent) =>
+    private SymbolPaletteRow MarkRow(PaletteInstrument instrument, bool isRecent, PaletteGroupKind? head = null) =>
         new(
             instrument.Symbol,
             instrument.ExchangeId,
             instrument.ExchangeName,
             IsFavorite: _favoriteMarks.TryGetValue(instrument.ExchangeId, out var names) &&
                 names.Contains(instrument.Symbol.Normalized),
-            IsRecent: isRecent);
+            IsRecent: isRecent,
+            GroupHead: head);
 
     /// <summary>Whether the position selects a row (the keyboard route and the apply command share this row predicate).</summary>
     public bool HasRowAt(int position) => position >= 0 && position < Rows.Count;

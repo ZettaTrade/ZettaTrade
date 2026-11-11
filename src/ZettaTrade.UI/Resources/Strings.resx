@@ -1326,6 +1326,15 @@ Estimated fee: {7}</value>
   <data name="Palette.Title" xml:space="preserve">
     <value>Symbols</value>
   </data>
+  <data name="Palette.Group.Recents" xml:space="preserve">
+    <value>Recent</value>
+  </data>
+  <data name="Palette.Group.Favorites" xml:space="preserve">
+    <value>Favorites</value>
+  </data>
+  <data name="Palette.Group.Other" xml:space="preserve">
+    <value>Other</value>
+  </data>
   <data name="Palette.Placeholder" xml:space="preserve">
     <value>Match symbols across exchanges...</value>
   </data>
@@ -1424,6 +1433,9 @@ Estimated fee: {7}</value>
   </data>
   <data name="Wizard.Title" xml:space="preserve">
     <value>Welcome to ZettaTrade</value>
+  </data>
+  <data name="Wizard.Step.Counter" xml:space="preserve">
+    <value>Step {0} of {1}</value>
   </data>
   <data name="Wizard.Theme.Header" xml:space="preserve">
     <value>Pick a look</value>

@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:themes="using:Livery.Themes"
+        xmlns:media="using:Avalonia.Media"
         xmlns:interfaces="using:ZettaTrade.Core.Interfaces"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
@@ -20,6 +21,14 @@
          a draft: nothing applies before the finish button's task lands. -->
     <StackPanel Margin="20" Spacing="{StaticResource SpaceM}">
 
+        <!-- The step counter (T-161): the walk's position reads without the
+             captions — "Step 2 of 3" above every step body, the drafts and
+             the nav row untouched. -->
+        <TextBlock Text="{Binding StepCounter}"
+                   HorizontalAlignment="Right"
+                   Foreground="{DynamicResource TextSecondary}"
+                   FontSize="{StaticResource CaptionFontSize}" />
+
         <!-- Step one: the theme pick. -->
         <StackPanel IsVisible="{Binding IsThemeStepVisible}" Spacing="10">
             <TextBlock Text="{loc:Localized Wizard.Theme.Header}"
@@ -33,7 +42,34 @@
                       HorizontalAlignment="Left">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="themes:ThemeInfo">
-                        <TextBlock Text="{Binding DisplayName}" />
+                        <!-- The settings picker's own swatch shape (T-161):
+                             the name and the theme file's preview strip,
+                             honestly the same pick the settings window
+                             offers — the two pickers cannot disagree. The
+                             converter drops unparseable entries (the
+                             settings picker's own test lane). -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding DisplayName}"
+                                       VerticalAlignment="Center" />
+                            <ItemsControl Grid.Column="1"
+                                          VerticalAlignment="Center"
+                                          ItemsSource="{Binding PreviewColors, Converter={x:Static themes:PreviewColorsToBrushesConverter.Instance}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="3" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="media:ISolidColorBrush">
+                                        <Border Width="10"
+                                                Height="10"
+                                                CornerRadius="2"
+                                                Background="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>

@@ -557,6 +557,95 @@ public sealed class SymbolPaletteViewModelTests
         scene.Palette.IsOpen.Should().BeTrue("the mirror re-ranks, it never closes anything");
     }
 
+    [Fact]
+    public async Task TheBlankPage_PrintsThePoolHeads_InPoolOrder()
+    {
+        var scene = new Scene(
+            new FakeMarketData("beta", "Beta", "BTC/USDT", "ETH/BTC"),
+            new FakeMarketData("alpha", "Alpha", "SOL/USDT"));
+        scene.WithFavorites("""{ "alpha": ["SOL/USDT"] }""");
+        await scene.SettleAsync();
+
+        await scene.ToggleAsync();
+        await scene.ApplyAtAsync(scene.IndexOf("beta", "BTC/USDT"));
+        await scene.ToggleAsync();
+
+        var rows = scene.Palette.Rows;
+        rows[0].IsRecentsHead.Should().BeTrue(
+            "the recents pool's first landed row opens the section");
+        rows[1].IsFavoritesHead.Should().BeTrue(
+            "the favorites pool's first landed row opens its section");
+        rows[2].IsOtherHead.Should().BeTrue(
+            "the natural-order pool's first landed row opens its section");
+
+        rows[0].GroupHead.Should().Be(PaletteGroupKind.Recents);
+        rows[1].GroupHead.Should().Be(PaletteGroupKind.Favorites);
+        rows[2].GroupHead.Should().Be(PaletteGroupKind.Other);
+    }
+
+    [Fact]
+    public async Task TheHeads_StayOffTheContinuations_AndOffTheQueryPages()
+    {
+        var scene = new Scene(
+            new FakeMarketData("beta", "Beta", "BTC/USDT", "ETH/BTC"),
+            new FakeMarketData("alpha", "Alpha", "SOL/USDT"));
+        scene.WithFavorites("""{ "alpha": ["SOL/USDT"] }""");
+        await scene.SettleAsync();
+
+        await scene.ToggleAsync();
+        await scene.ApplyAtAsync(scene.IndexOf("beta", "BTC/USDT"));
+        await scene.ToggleAsync();
+
+        var rows = scene.Palette.Rows;
+        rows.Where(row => row.GroupHead is not null).Should().HaveCount(
+            3,
+            "one head per non-empty pool, never a phantom head on a continuation row");
+
+        // A typed query is one ranked pool: every row is a match, no heads.
+        await scene.TypeQueryAsync("BTC");
+        scene.Palette.Rows.All(row => row.GroupHead is null).Should().BeTrue(
+            "a query page is one pool — the section headers are the blank page's own vocabulary");
+    }
+
+    [Fact]
+    public async Task APoolWithoutRows_PrintsNoHead()
+    {
+        var scene = new Scene(
+            new FakeMarketData("beta", "Beta", "BTC/USDT", "ETH/BTC"));
+        // No recents, no favorites: the other pool's head is the page's only one.
+        await scene.SettleAsync();
+        await scene.ToggleAsync();
+
+        var rows = scene.Palette.Rows;
+        rows[0].IsOtherHead.Should().BeTrue("the natural order is the page's only pool");
+        rows[1].GroupHead.Should().BeNull("a continuation row never carries a head");
+        rows.Should().NotContain(row => row.IsRecentsHead || row.IsFavoritesHead,
+            "an empty pool prints no section header");
+    }
+
+    [Fact]
+    public async Task TheHeads_NeverOccupyASelectionIndex()
+    {
+        var scene = new Scene(
+            new FakeMarketData("beta", "Beta", "BTC/USDT", "ETH/BTC"),
+            new FakeMarketData("alpha", "Alpha", "SOL/USDT"));
+        scene.WithFavorites("""{ "alpha": ["SOL/USDT"] }""");
+        await scene.SettleAsync();
+
+        await scene.ToggleAsync();
+        await scene.ApplyAtAsync(scene.IndexOf("beta", "BTC/USDT"));
+        await scene.ToggleAsync();
+
+        var rows = scene.Palette.Rows;
+        rows.Should().HaveCount(
+            3,
+            "the heads are the rows' own visuals — the flat list the route walks is unchanged");
+        scene.Palette.SelectedIndex.Should().Be(
+            0,
+            "every publish re-points the keyboard selection to the head, the T-095 route untouched");
+        scene.Palette.HasRowAt(2).Should().BeTrue("the third row is reachable by the same indices");
+    }
+
     #endregion The ranking
 
     #region The apply seam

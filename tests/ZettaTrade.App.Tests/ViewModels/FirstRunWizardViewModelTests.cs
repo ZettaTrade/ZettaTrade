@@ -5,6 +5,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -44,6 +45,7 @@ public sealed class FirstRunWizardViewModelTests
     private readonly IMarketDataAdapter _binance = Substitute.For<IMarketDataAdapter>();
     private readonly IMarketDataAdapter _demo = Substitute.For<IMarketDataAdapter>();
     private readonly ISettingsService _settings = Substitute.For<ISettingsService>();
+    private readonly FakeLocalization _localization = new();
 
     public FirstRunWizardViewModelTests()
     {
@@ -65,6 +67,7 @@ public sealed class FirstRunWizardViewModelTests
         _settings,
         _themeManager,
         CreateExchanges(),
+        _localization,
         NullLogger<FirstRunWizardViewModel>.Instance);
 
     /// <summary>The demo lane is the first registered adapter — the shipped registration order — so the facade's default is the demo.</summary>
@@ -179,6 +182,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
 
         viewModel.SelectedTheme = new ThemeInfo("light", "Light", true, []);
@@ -216,6 +220,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
         viewModel.SelectedTheme = new ThemeInfo("light", "Light", true, []);
         viewModel.SelectedAdapter = _binance;
@@ -260,6 +265,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
         viewModel.SelectedAdapter = _binance;
         viewModel.SelectedSymbolName = "BTC/USDT";
@@ -286,6 +292,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
         viewModel.SelectedTheme = new ThemeInfo("midnight", "Midnight", false, []);
         viewModel.SelectedAdapter = _binance;
@@ -309,6 +316,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
         viewModel.SelectedAdapter = null;
         viewModel.SelectedSymbolName = "BTC/USDT";
@@ -334,6 +342,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
         viewModel.SelectedAdapter = ghost;
         viewModel.SelectedSymbolName = "BTC/USDT";
@@ -357,6 +366,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
         viewModel.SelectedTheme = new ThemeInfo("light", "Light", true, []);
         viewModel.SelectedAdapter = _binance;
@@ -389,6 +399,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
         viewModel.SelectedAdapter = _binance;
         viewModel.SelectedSymbolName = "BTC/USDT";
@@ -417,6 +428,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
 
         // A full walk with draft switches and a draft pick — everything a
@@ -450,6 +462,7 @@ public sealed class FirstRunWizardViewModelTests
             _settings,
             _themeManager,
             exchanges,
+            _localization,
             NullLogger<FirstRunWizardViewModel>.Instance);
 
         using (viewModel.AttachSymbolListing())
@@ -462,4 +475,59 @@ public sealed class FirstRunWizardViewModelTests
     }
 
     #endregion The Listing Fetch
+
+    #region The Step Counter
+
+    [Fact]
+    public void TheCounter_ReadsTheWalkPosition_ThroughTheParameterizedRecipe()
+    {
+        var viewModel = CreateVm();
+
+        viewModel.StepCounter.Should().Be(
+            "Wizard.Step.Counter:1,3",
+            "the counter speaks the 1-based step and the walk's length, the localizer's own recipe");
+    }
+
+    [Fact]
+    public async Task TheCounter_MovesWithTheWalk_BothDirections()
+    {
+        var viewModel = CreateVm();
+
+        await viewModel.NextCommand.Execute(RxVoid.Default);
+
+        viewModel.StepCounter.Should().Be(
+            "Wizard.Step.Counter:2,3",
+            "the counter rides the same raise chain the visibility facts ride");
+
+        await viewModel.BackCommand.Execute(RxVoid.Default);
+
+        viewModel.StepCounter.Should().Be(
+            "Wizard.Step.Counter:1,3",
+            "the back walk re-points the counter honestly");
+    }
+
+    #endregion The Step Counter
+
+    /// <summary>
+    /// The wizard's localizer fake: the parameterized recipe records the key
+    /// and its args ("Key:arg1,arg2"), so a counter fact reads the exact
+    /// format input.
+    /// </summary>
+    private sealed class FakeLocalization : ILocalizationManager
+    {
+        public string CurrentLanguage => "en";
+
+        public IReadOnlyList<LanguageInfo> AvailableLanguages { get; } = [];
+
+        public Task SetLanguageAsync(string cultureCode, CancellationToken ct = default) => Task.CompletedTask;
+
+        public string GetString(string key) => "[" + key + "]";
+
+        public string GetString(string key, params object[] args) =>
+            key + ":" + string.Join(",", args);
+
+        public IObservable<string> LanguageChanged { get; } = Observable.Never<string>();
+
+        public IObservable<string> GetObservable(string key) => Observable.Never<string>();
+    }
 }

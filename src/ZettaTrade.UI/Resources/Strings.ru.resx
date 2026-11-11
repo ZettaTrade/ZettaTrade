@@ -1326,6 +1326,15 @@
   <data name="Palette.Title" xml:space="preserve">
     <value>Инструменты</value>
   </data>
+  <data name="Palette.Group.Recents" xml:space="preserve">
+    <value>Недавние</value>
+  </data>
+  <data name="Palette.Group.Favorites" xml:space="preserve">
+    <value>Избранное</value>
+  </data>
+  <data name="Palette.Group.Other" xml:space="preserve">
+    <value>Другие</value>
+  </data>
   <data name="Palette.Placeholder" xml:space="preserve">
     <value>Поиск символов по биржам...</value>
   </data>
@@ -1424,6 +1433,9 @@
   </data>
   <data name="Wizard.Title" xml:space="preserve">
     <value>Добро пожаловать в ZettaTrade</value>
+  </data>
+  <data name="Wizard.Step.Counter" xml:space="preserve">
+    <value>Шаг {0} из {1}</value>
   </data>
   <data name="Wizard.Theme.Header" xml:space="preserve">
     <value>Выберите оформление</value>

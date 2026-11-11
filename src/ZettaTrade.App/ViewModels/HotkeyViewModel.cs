@@ -21,7 +21,16 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// </summary>
 /// <param name="Name">The localized display name.</param>
 /// <param name="Gesture">The effective gesture, canonical.</param>
-public sealed record HotkeySheetRow(string Name, string Gesture);
+public sealed record HotkeySheetRow(string Name, string Gesture)
+{
+    /// <summary>
+    /// The gesture's keycap parts (T-161): the sheet renders the gesture as
+    /// kbd-style chips, one per key, split on the gesture's own separator —
+    /// "Ctrl+K" reads as the two keys it is.
+    /// </summary>
+    public IReadOnlyList<string> GestureParts =>
+        Gesture.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
 
 /// <summary>
 /// The hotkey manager's ViewModel (T-102): the settings tab's editable
