@@ -38,8 +38,12 @@ public class OrderBookWidget : Control
     /// <summary>Vertical space of one level row; the layout receives it.</summary>
     private const double RowHeightPx = 14;
 
-    /// <summary>Vertical space of the symbol/spread header band.</summary>
-    private const double HeaderHeightPx = 22;
+    /// <summary>
+    /// Vertical space of the header band: the symbol/spread label line rides
+    /// the top and the column captions sit above the top level row with real
+    /// padding (T-179) — the two text lines never share a line.
+    /// </summary>
+    private const double HeaderHeightPx = 26;
 
     /// <summary>Horizontal padding of the columns.</summary>
     private const float PaddingPx = 8;
@@ -47,6 +51,15 @@ public class OrderBookWidget : Control
     private const float HeaderFontSizePx = 12;
     private const float ColumnHeaderFontSizePx = 10;
     private const float RowFontSizePx = 11;
+
+    /// <summary>Text baseline of the band's label line (symbol and spread).</summary>
+    private const float HeaderBaselinePx = 11;
+
+    /// <summary>
+    /// Text baseline of the column captions inside the band: clear of the
+    /// label line's glyphs above and of the top level row's ink below.
+    /// </summary>
+    private const float ColumnHeaderBaselinePx = 22;
 
     /// <summary>Text baseline offset inside a row (top Y + offset).</summary>
     private const float RowBaselineOffsetPx = 10;
@@ -409,11 +422,11 @@ public class OrderBookWidget : Control
 
             using var font = new SKFont(SKTypeface.Default, HeaderFontSizePx);
 
-            canvas.DrawText(page.SymbolLabel, PaddingPx, HeaderFontSizePx, SKTextAlign.Left, font, paint);
+            canvas.DrawText(page.SymbolLabel, PaddingPx, HeaderBaselinePx, SKTextAlign.Left, font, paint);
 
             if (page.SpreadText is { } spread)
             {
-                canvas.DrawText(spread, width - PaddingPx, HeaderFontSizePx, SKTextAlign.Right, font, paint);
+                canvas.DrawText(spread, width - PaddingPx, HeaderBaselinePx, SKTextAlign.Right, font, paint);
             }
         }
 
@@ -427,8 +440,8 @@ public class OrderBookWidget : Control
 
             using var font = new SKFont(SKTypeface.Default, ColumnHeaderFontSizePx);
 
-            canvas.DrawText(page.PriceHeader, PaddingPx, (float)HeaderHeightPx, SKTextAlign.Left, font, paint);
-            canvas.DrawText(page.CumulativeHeader, width - PaddingPx, (float)HeaderHeightPx, SKTextAlign.Right, font, paint);
+            canvas.DrawText(page.PriceHeader, PaddingPx, ColumnHeaderBaselinePx, SKTextAlign.Left, font, paint);
+            canvas.DrawText(page.CumulativeHeader, width - PaddingPx, ColumnHeaderBaselinePx, SKTextAlign.Right, font, paint);
         }
 
         private void DrawMidLine(SKCanvas canvas, float width, OrderBookPage page)

@@ -41,8 +41,12 @@ public class TradeTapeWidget : Control
     /// <summary>Vertical space of one trade row; the layout receives it.</summary>
     private const double RowHeightPx = 14;
 
-    /// <summary>Vertical space of the header band (the paused hint rides its top line).</summary>
-    private const double HeaderHeightPx = 22;
+    /// <summary>
+    /// Vertical space of the header band: the label line (the paused hint)
+    /// rides the top and the column captions sit above the body's first row
+    /// with real padding (T-179) — the two text lines never share a line.
+    /// </summary>
+    private const double HeaderHeightPx = 26;
 
     /// <summary>Horizontal padding of the columns.</summary>
     private const float PaddingPx = 8;
@@ -50,6 +54,15 @@ public class TradeTapeWidget : Control
     private const float HeaderFontSizePx = 12;
     private const float ColumnHeaderFontSizePx = 10;
     private const float RowFontSizePx = 11;
+
+    /// <summary>Text baseline of the band's label line (the paused hint).</summary>
+    private const float HeaderBaselinePx = 11;
+
+    /// <summary>
+    /// Text baseline of the column captions inside the band: clear of the
+    /// label line's descenders above and of the first row's ink below.
+    /// </summary>
+    private const float ColumnHeaderBaselinePx = 22;
 
     /// <summary>Text baseline offset inside a row (top Y + offset).</summary>
     private const float RowBaselineOffsetPx = 10;
@@ -579,13 +592,13 @@ public class TradeTapeWidget : Control
 
                 using var headerFont = new SKFont(SKTypeface.Default, HeaderFontSizePx);
 
-                canvas.DrawText(hint, width - PaddingPx, HeaderFontSizePx, SKTextAlign.Right, headerFont, headerPaint);
+                canvas.DrawText(hint, width - PaddingPx, HeaderBaselinePx, SKTextAlign.Right, headerFont, headerPaint);
             }
 
             using var columnFont = new SKFont(SKTypeface.Default, ColumnHeaderFontSizePx);
-            canvas.DrawText(page.TimeHeader, PaddingPx, (float)HeaderHeightPx, SKTextAlign.Left, columnFont, textPaint);
-            canvas.DrawText(page.PriceHeader, width / 2, (float)HeaderHeightPx, SKTextAlign.Center, columnFont, textPaint);
-            canvas.DrawText(page.SizeHeader, width - PaddingPx, (float)HeaderHeightPx, SKTextAlign.Right, columnFont, textPaint);
+            canvas.DrawText(page.TimeHeader, PaddingPx, ColumnHeaderBaselinePx, SKTextAlign.Left, columnFont, textPaint);
+            canvas.DrawText(page.PriceHeader, width / 2, ColumnHeaderBaselinePx, SKTextAlign.Center, columnFont, textPaint);
+            canvas.DrawText(page.SizeHeader, width - PaddingPx, ColumnHeaderBaselinePx, SKTextAlign.Right, columnFont, textPaint);
 
             foreach (var row in page.Rows)
             {
