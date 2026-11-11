@@ -2243,6 +2243,59 @@ the board and its section below.
   OrderHistory touched in their FontSize/FontFamily markup only — the trading logic and its
   validations untouched (pure markup + resources, no ViewModel changes).
 
+## T-156 — Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation
+
+- **Branch:** feat/order-ticket-ui, worktree zt-order-ticket-ui, based on develop@c9d5f9c (claimed 2026-11-11 as the seventh of the T-150…T-162 design-review batch; soft blocker T-154 — done, the kit's Chip/segment styles).
+- **Origin:** the ticket is the highest-stakes surface and reads like a neutral form: the side
+  hides in a ComboBox with no color semantics, Place/Cancel look identical, the parse/risk
+  failures surface only as a red line at the bottom, and the quantity field never says whether
+  it sizes in BASE or QUOTE.
+- **What:** the side becomes two large Buy/Sell segmented buttons in the state colors; the CTA
+  restyles as primary (filled) and its caption/tint follows the picked side; validation moves
+  inline per field with the summary line demoted to the flow failures; the qty/price captions
+  grow unit hints from the symbol (BASE/QUOTE); the sizer presets restyle as chips.
+- **Scope:** NewOrderDialogWindow + the ticket ViewModel exposing the unit captions; resx en+ru
+  for the unit/inline-error captions; the trading logic untouched — the parse → risk →
+  confirmation path stays exactly as is (the safety canon applies verbatim).
+- **Acceptance:** the picked side reads at a glance (color + control state), the primary CTA is
+  the visually dominant action, every field error lands next to its field, the trading path and
+  its validations unchanged.
+- **Tests:** the existing ticket tests stay green untouched (the behavior-parity proof); new pins
+  for the unit captions and the inline error wiring.
+- **Status:** done. Canon: the vocabulary stays app-local (no satellite release — the kit's
+  chip/.on classes and the T-152 contrast story carry the state-color reading; a segmented
+  style in Livery is a future need, not this task's). The side reads as two large segmented
+  buttons (`Button.side.buy/.sell` + `Classes.selected` over the VM's `IsBuySide`/`IsSellSide`
+  — `SelectedSideIndex` stays the single source the prefill and the pipeline write; the
+  ComboBox is gone) over the CandleUp/Error fills the T-152 contrast publisher scores with the
+  captions through the derived `ChipForeground`; the CTA (`Button.cta`) is the primary filled
+  action whose tint follows the picked side; the sizer presets ride `Button.chip-action` (the
+  pill shape, the InsetS padding). The parse refusals render inline next to their fields (the
+  `field-error` style, the Caption size + Error tint; the price/trigger/trail/OCO lines hide
+  with their own row through the gated `Is*ErrorVisible` properties) — the routing is
+  DISPLAY-side: `RequestBuild` grew a `TicketField` tag (`Fail(error, field)`) while
+  `ErrorMessage` keeps its full-report contract verbatim (the behavior-parity battery reads it
+  — untouched, green) and the summary line binds `HasSummaryError` (the flow lane: risk
+  rejections, the market-relative sanity readings, adapter failures, OCO aborts; TrailTooLarge
+  rides its field, the market-relative trigger/take-profit readings stay summary — they own no
+  single field). Unit hints: `QuantityUnitHint`/`PriceUnitHint` mirror the SAME `Symbol.Parse`
+  the build rides (a quote-less asset hints the base only — the hint is honest to what the
+  pipeline would parse), formatted through the new `NewOrder.UnitHintFormat` (en + ru, `· {0}`);
+  the caption choice stays visibility-driven (the price/OCO swap), the hint rides a `Run`
+  inside the caption. Tests: `TicketRedesignViewModelTests` 11 facts (the segment defaults, the
+  commands, the prefill, the hints incl. the quote-less case, the field/flow routing, the OCO
+  stop-limit leg's own field, the clearing on the next attempt, the row-gated line) +
+  `TicketRedesignPinsTests` 6 facts (the segments not the ComboBox, the CTA classes + fills,
+  the three chip presets, the six inline errors + the four gates, the demoted summary, the
+  hints in both cultures); the existing ticket battery green untouched (the behavior-parity
+  proof) and the pin families (ChromeKit/PaletteToken/Tokens/WindowChrome) green. Gate PASSED
+  attempt 1 (`-AllowProtected` for the bump; the App.Tests timing family ate its flaky retry —
+  recorded, not fixed). Smoke: alive 15 s, ProductVersion `0.1.0-alpha.101+3eead32a…`, the
+  run's 88-entry log slice 0 ERR/FTL. HIGH-RISK reviewer note for the human: the gate flagged
+  NewOrderDialogViewModel + NewOrderDialogWindow — the VM's pipeline changes are the
+  failure-tagging only (the parse order, every message and the validations identical; no order
+  content change), the view is markup + styles only.
+
 ## T-163 - The plugins consumption switch: the standard pack rides the package mechanics
 
 - **Branch:** feat/plugin-packages, worktree zt-plugin-packages, based on develop@1f2a622 (claimed 2026-11-10 per standing directive 6; filed at the T-130 close: the Livery split's Origin names the plugin plan as the next rider of the multi-repo mechanics, and the two-repo rehearsal landed end to end — a version-bumped release in the dependency repo, the one-line consuming bump in ZettaTrade).
