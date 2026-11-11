@@ -172,7 +172,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-165 Theme singleton hygiene: the ThemeManager Dispose clears the static Instance (the T-073 shape) | feat/theme-singleton-hygiene | done | - |
 | T-166 The demo catalog covers the watchlist's starter majors (the silent first-run failure: 6 of 10 rows never price) | feat/demo-catalog-majors | done | - |
 | T-167 The title-bar close button rides its own column (the user-reported overlap with maximize) | feat/titlebar-buttons | done | - |
-| T-168 The backtest picker offers the standard pack's first strategy (the strategy seam rides the SDK contract 2.1.0) | feat/strategy-pack | in-progress | - |
+| T-168 The backtest picker offers the standard pack's first strategy (the strategy seam rides the SDK contract 2.1.0) | feat/strategy-pack | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -209,15 +209,3 @@ discipline first (T-150, T-151, T-152 — the two parallel color systems and the
 systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
 (T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
-
----
-
-## T-168 — The backtest picker offers the standard pack's first strategy (the strategy seam rides the SDK contract 2.1.0)
-
-- **Branch:** feat/strategy-pack, worktree zt-strategy-pack, based on develop@47b401a (claimed 2026-11-11; filed from the user's report — "В backtest список стратегий пуст").
-- **Origin:** the backtest window's strategy picker reads the T-111 strategy seam, whose only source is the plugins-directory scan (`PluginStrategyCatalog` over `ConfigPathResolver.PluginsDirectory`). The standard pack (T-163) carries only the seven indicator plugins — no `IStrategy` assembly ships anywhere — so the scan honestly answers zero and the picker renders empty. A product gap, not a loader bug.
-- **What:** the strategy implementation contract moves into the versioned SDK contract (`ZettaTrade.Plugins.Abstractions` 2.0.0 -> 2.1.0, additive): `IStrategy`, the SDK-owned `StrategyContext` (string symbol/interval over the existing `IndicatorBar` OHLC shape — app entities never reach the surface, the NU5104 lesson) and the `StrategyStance` vocabulary, all in the seam's canonical `ZettaTrade.Strategies` namespace so the app tree compiles unchanged. The app-side demo (T-111's golden cross) moves to the standard pack satellite as the first shipped strategy (`ZettaTrade.Plugins.SmaCross`, id `sma-golden-cross`, the classic 50/200 — the host's 256-bar window carries it); the pack rides 0.1.0 -> 0.2.0, and the consumer pin moves in the same series.
-- **Scope:** the in-tree contract + seam adaptation (the single `Evaluate` call site — `StrategyHost` — gains the app->SDK bar adapter), the Plugins satellite (the new strategy project, the pack bump), then the consuming bump here; no trading-path code.
-- **Acceptance:** the golden contract baseline test rewrites to 2.1.0 (the surface grows, nothing breaks); the backtest picker lists `sma-golden-cross` on a fresh profile (the catalog's log line names it); the satellite's suite covers the cross walk.
-- **Tests:** the baseline test's 2.1.0 pin; the satellite's SmaCross math facts (golden/death/tie/warmup walk); the existing loader/fixture suite stays green on the moved types (the namespace preservation keeps fixtures compiling).
-- **Status:** in-progress.
