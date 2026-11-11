@@ -160,7 +160,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | done | - |
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | done | - |
 | T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | done | - |
-| T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | queued | T-154 (soft) |
+| T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | in-progress | T-154 (soft) |
 | T-157 Table grammar for positions and order history | feat/table-grammar | queued | T-154 (soft) |
 | T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | queued | - |
 | T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | queued | - |
@@ -245,8 +245,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-156 — Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch); soft blocker
-  T-154 (the kit's Chip/segment styles).
+- **Branch:** feat/order-ticket-ui, worktree zt-order-ticket-ui, based on develop@c9d5f9c (claimed 2026-11-11 as the seventh of the T-150…T-162 design-review batch; soft blocker T-154 — done, the kit's Chip/segment styles).
 - **Origin:** the ticket is the highest-stakes surface and reads like a neutral form: the side
   hides in a ComboBox with no color semantics, Place/Cancel look identical, the parse/risk
   failures surface only as a red line at the bottom, and the quantity field never says whether
@@ -263,6 +262,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   its validations unchanged.
 - **Tests:** the existing ticket tests stay green untouched (the behavior-parity proof); new pins
   for the unit captions and the inline error wiring.
+- **Status:** in-progress
 
 ## T-157 — Table grammar for positions and order history
 
