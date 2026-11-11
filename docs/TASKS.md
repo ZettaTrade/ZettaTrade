@@ -183,7 +183,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | done | - |
 | T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | done | T-112, T-172 |
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete | done | T-091 |
-| T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | fix/skia-header-padding | planned | T-103 |
+| T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | feat/tape-header-gap | in-progress | T-103 |
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | fix/theme-preview-mirror | planned | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | fix/ticket-hover-response | planned | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
@@ -263,13 +263,13 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-179 - The Skia header bands breathe: the column headers stop sitting flush on their first rows
 
-- **Branch:** queued 2026-11-11 (filed from the user's ask: add padding between the table header and the data, and look for similar places).
+- **Branch:** feat/tape-header-gap, worktree zt-tape-header-gap, based on develop@b08a686 (claimed 2026-11-12; queued 2026-11-11 — filed from the user's ask: add padding between the table header and the data, and look for similar places).
 - **Origin:** the trade tape's column headers (Time/Price/Size, T-103) are drawn with their text baseline exactly on the header band's bottom edge - the first trade row starts at that same edge, so the caption glyphs touch the row glyphs with zero gap; the order book's column headers (Price/Cumulative volume) repeat the identical geometry. The user's screenshots are both defect sites.
 - **What:** a shared draw fix shape - the column-header baseline lifts to a named constant inside the band (the band height unchanged, no layout ripple) in `TradeTapeWidget` and `OrderBookWidget`; a render-geometry pin asserts baseline &lt; first-row top for both widgets; a sweep of the remaining Skia surfaces (DepthChart, Heatmap - no header bands) recorded so the pattern has no other hiding places.
 - **Scope:** the two widget draw sites, the App.Tests geometry pin; alpha.124 + the CHANGELOG section.
 - **Acceptance:** the pin proves a visible gap between the column captions and the first row on both widgets; the tape's and the book's band heights stay untouched (no row-count change at a fixed panel size).
 - **Tests:** the App.Tests widget geometry pin (both widgets); the full gate stays green.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ---
 
