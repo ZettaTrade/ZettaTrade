@@ -37,8 +37,16 @@ internal static class AvaloniaDispatcherPump
     /// <summary>How long a fact's drain may stay unexecuted before the pump is deemed hung.</summary>
     private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(5);
 
-    /// <summary>Signal the pump worker: at least one drain was requested.</summary>
-    private static readonly SemaphoreSlim PumpRequested = new(initialCount: 0, maxCount: 1);
+    /// <summary>
+    /// The wake gate between the fact threads and the pump thread: the
+    /// queue carries the per-drain completions, the monitor carries the
+    /// wake. A monitor pulse has no counter ceiling — a semaphore's
+    /// maxCount made two concurrent drains race a double release
+    /// (SemaphoreFullException on whichever test drained next), so the
+    /// signal rides a plain lock instead: the pump re-checks the queue
+    /// under the same lock a pulse fires under, no wake is ever lost.
+    /// </summary>
+    private static readonly object Gate = new();
 
     /// <summary>Per-drain completion handles, consumed one RunJobs cycle each.</summary>
     private static readonly ConcurrentQueue<TaskCompletionSource> DrainRequests = new();
@@ -116,12 +124,23 @@ internal static class AvaloniaDispatcherPump
         }
     }
 
-    /// <summary>Idle forever; execute exactly one drain cycle per request.</summary>
+    /// <summary>Idle forever; execute exactly one drain cycle per request batch.</summary>
     private static void PumpLoop()
     {
         while (true)
         {
-            PumpRequested.Wait();
+            lock (Gate)
+            {
+                // Spurious wakeups and pulses that arrive while a batch is
+                // mid-flight both land here: the loop re-enters the wait
+                // only when the queue is verifiably empty UNDER THE LOCK
+                // (the same lock every enqueue-and-pulse holds), so no
+                // request is ever left sleeping in the queue.
+                while (DrainRequests.IsEmpty)
+                {
+                    _ = Monitor.Wait(Gate);
+                }
+            }
 
             while (DrainRequests.TryDequeue(out var completion))
             {
@@ -151,8 +170,14 @@ internal static class AvaloniaDispatcherPump
     internal static async Task DrainAsync()
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        DrainRequests.Enqueue(completion);
-        PumpRequested.Release();
+        lock (Gate)
+        {
+            DrainRequests.Enqueue(completion);
+            // The pulse is bounded by nothing: a second concurrent drain
+            // pulses again harmlessly — the semaphore's maxCount made that
+            // same shape a SemaphoreFullException.
+            Monitor.Pulse(Gate);
+        }
 
         await completion.Task.WaitAsync(DrainTimeout);
     }
