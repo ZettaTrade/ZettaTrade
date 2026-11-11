@@ -160,7 +160,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-153 Status bar declutter: the message channel + the summary, the settings noise out | feat/status-bar | done | - |
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | done | - |
 | T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | done | - |
-| T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | in-progress | T-154 (soft) |
+| T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | done | T-154 (soft) |
 | T-157 Table grammar for positions and order history | feat/table-grammar | queued | T-154 (soft) |
 | T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | queued | - |
 | T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | queued | - |
@@ -242,27 +242,6 @@ discipline first (T-150, T-151, T-152 — the two parallel color systems and the
 systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
 (T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
-
-## T-156 — Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation
-
-- **Branch:** feat/order-ticket-ui, worktree zt-order-ticket-ui, based on develop@c9d5f9c (claimed 2026-11-11 as the seventh of the T-150…T-162 design-review batch; soft blocker T-154 — done, the kit's Chip/segment styles).
-- **Origin:** the ticket is the highest-stakes surface and reads like a neutral form: the side
-  hides in a ComboBox with no color semantics, Place/Cancel look identical, the parse/risk
-  failures surface only as a red line at the bottom, and the quantity field never says whether
-  it sizes in BASE or QUOTE.
-- **What:** the side becomes two large Buy/Sell segmented buttons in the state colors; the CTA
-  restyles as primary (filled) and its caption/tint follows the picked side; validation moves
-  inline per field with the summary line demoted to the flow failures; the qty/price captions
-  grow unit hints from the symbol (BASE/QUOTE); the sizer presets restyle as chips.
-- **Scope:** NewOrderDialogWindow + the ticket ViewModel exposing the unit captions; resx en+ru
-  for the unit/inline-error captions; the trading logic untouched — the parse → risk →
-  confirmation path stays exactly as is (the safety canon applies verbatim).
-- **Acceptance:** the picked side reads at a glance (color + control state), the primary CTA is
-  the visually dominant action, every field error lands next to its field, the trading path and
-  its validations unchanged.
-- **Tests:** the existing ticket tests stay green untouched (the behavior-parity proof); new pins
-  for the unit captions and the inline error wiring.
-- **Status:** in-progress
 
 ## T-157 — Table grammar for positions and order history
 
