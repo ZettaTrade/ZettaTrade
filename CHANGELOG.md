@@ -1,3 +1,33 @@
+## [0.1.0-alpha.120] - 2026-11-11
+
+Build of board task T-174 (branch `feat/strategy-catalog`): the standard
+pack grows the strategy catalog, filed from the user's ask - "add more
+strategy variants" - scoped by the supervisor's analytics to a small set
+of well-understood classics.
+
+### Added
+- The pack pin moves 0.2.0 -> 0.3.0: the Plugins satellite released the
+  three new drop-in strategies (the satellite-first rule; the tag
+  `v0.3.0` published the package, eleven lib assemblies now) -
+  `ZettaTrade.Plugins.EmaCross` (id `ema-cross`, the classic 12/26
+  fast/slow EMA cross, each EMA seeded from its own period's simple
+  average then walked with the classic `2/(N+1)` smoothing),
+  `ZettaTrade.Plugins.RsiReversion` (id `rsi-reversion`, the Wilder RSI
+  (14) reversion bands: at or below 30 stands long, at or above 70
+  stands flat, between holds) and `ZettaTrade.Plugins.BollingerBreakout`
+  (id `bollinger-breakout`, the classic 20/2.0 Bollinger bands as a long
+  breakout: a close above the upper band stands long, a close below the
+  mid band stands flat, the sigma computed in exact decimal arithmetic).
+  All three keep the SmaCross template shape - a pure per-candle walk, a
+  guarded constructor, an honest neutral warmup, replay-identical
+  windows - and the satellite's 38 new hand-countable facts pin the
+  walks.
+- The shipped-pack pin grows with the pack: the Strategies.Tests
+  pack-staging facts now walk the real loader over all four strategy
+  assemblies and pin the catalog's canonical id set (`sma-golden-cross`,
+  `ema-cross`, `rsi-reversion`, `bollinger-breakout`) - the backtest
+  picker's registration contract, staged from the copy-local lib assets.
+
 ## [0.1.0-alpha.119] - 2026-11-11
 
 Build of board task T-173 (branch `feat/book-detach-space`): the detached
