@@ -184,7 +184,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | done | T-112, T-172 |
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete | done | T-091 |
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | feat/tape-header-gap | done | T-103 |
-| T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | feat/theme-preview-mirror | in-progress | - |
+| T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | feat/theme-preview-mirror | done | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | fix/ticket-hover-response | planned | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
@@ -269,27 +269,6 @@ shipped palettes, the order ticket, the kit consumers and the small windows agai
 canon, plus the full test suite (2492 green). Three findings survive — two verified defects (the
 stale preview swatches in three theme files, the ticket's dead hover/pressed states) and one
 cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
-
-## T-180 - The theme preview swatches mirror the Accent again (dark, light, oled)
-
-- **Branch:** feat/theme-preview-mirror, worktree zt-theme-preview-mirror, based on develop@3c325e0 (claimed 2026-11-12; queued 2026-11-12 — the 2026-11-12 review findings batch).
-- **Origin:** the A11Y-audit convention makes the fourth preview swatch the Accent mirror
-  (trading-pro.json and midnight.json follow it), but the T-151 Accent re-tune never reached the
-  mirrors: dark.json advertises the retired hover blue `#0f3460` (Accent `#2563eb`), light.json a
-  grey `#dee2e6` (Accent `#3b82f6`), oled.json a near-black `#1a1a1a` (Accent `#2563eb`) — the
-  theme picker's swatch strip sells colors the theme no longer owns.
-- **What:** the three previewColors arrays mirror the shipped Accent values again; a pin battery
-  walks every shipped theme asserting the mirror convention (the A11Y audit's own rule, enforced
-  in the gate from now on).
-- **Scope:** themes/dark.json, themes/light.json, themes/oled.json, the UI.Tests pin battery;
-  alpha.125 + the CHANGELOG section.
-- **Acceptance:** the theme picker's swatches read the live Accent in every shipped theme; a
-  stale mirror fails the pin naming the file and the pair.
-- **Tests:** the preview-mirror pin battery over the real theme files (the negative fixture
-  included); the existing theme-identity pins stay green; the gate-blocking LogTail ring fact
-  stabilized mid-task (the recorded family's dice root pinned to the fact's own wait — the close
-  canon carries the shape).
-- **Status:** in-progress.
 
 ## T-181 - The order ticket's CTA and side segments answer hover and pressed
 
