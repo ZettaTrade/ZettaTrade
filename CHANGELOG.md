@@ -1,3 +1,21 @@
+## [0.1.0-alpha.113] - 2026-11-11
+
+Build of board task T-167 (branch `feat/titlebar-buttons`); the Livery
+0.1.10 satellite release rode first (the fix lands in the package, the
+consumer pin moves in the same series).
+
+### Fixed
+- The title-bar close button rides its own column (T-167, Livery 0.1.10):
+  the logo-slot addition shifted the strip's other buttons one column
+  right but left the close button on its old attribute, so the close and
+  maximize icons drew on top of each other on every full-chrome window
+  (the user-reported overlap). The close moves to the grid's last
+  column, the maximize/restore pair keeps its shared state slot by
+  design, and the satellite's style pin walks every strip button's
+  declared column.
+- The Livery consumer pin moves to 0.1.10 in the same series (the one
+  `LiveryVersion` line, the five consumers follow it).
+
 ## [0.1.0-alpha.112] - 2026-11-11
 
 Build of board task T-166 (branch `feat/demo-catalog-majors`); no
