@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.ConfirmationDialogWindow"
         Classes="chrome-compact"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:ConfirmationDialogViewModel"
         Title="{loc:Localized Trading.ConfirmationTitle}"
         Width="400" SizeToContent="Height"

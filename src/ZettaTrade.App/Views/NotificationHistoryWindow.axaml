@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.NotificationHistoryWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:NotificationHistoryViewModel"
         Title="{loc:Localized Notif.HistoryTitle}"
         Width="560" Height="640"

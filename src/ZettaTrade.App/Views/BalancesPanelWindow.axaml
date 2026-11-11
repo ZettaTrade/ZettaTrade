@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.BalancesPanelWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:BalancesPanelViewModel"
         Title="{loc:Localized Trading.BalancesTitle}"
         Width="800" Height="560"

@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.AlertsWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:AlertsViewModel"
         Title="{loc:Localized Alert.Title}"
         Width="860" Height="640"

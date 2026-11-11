@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
+        xmlns:livery="using:Livery.Controls"
         xmlns:charting="using:ZettaTrade.UI.Charting"
         xmlns:tools="using:ZettaTrade.Charting"
         xmlns:app="using:ZettaTrade.App"
@@ -9,12 +10,30 @@
         xmlns:svc="using:ZettaTrade.App.Services"
         x:Class="ZettaTrade.App.Views.MainWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:MainViewModel"
         Title="{loc:Localized Chrome.Title}"
         Width="1400" Height="900"
         MinWidth="1024" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Background}">
+
+    <!-- The strip's logomark (T-162): the palette-tinted twins of the
+         brand geometry (Assets/zettatrade-mark.svg, divided by four — the
+         14px tile centered in the slot's 16px reads the same inset) — the
+         Highlight tile with the Z in the derived readable caption ink, the
+         scored pairing. The slot is the kit's: hit-invisible by contract,
+         the strip keeps its drag surface. -->
+    <livery:WindowChrome.Logo>
+        <Panel Width="14" Height="14">
+            <Border CornerRadius="3" Background="{DynamicResource Highlight}" />
+            <Path Data="M4,4 H10 L4,10 H10"
+                  Stroke="{DynamicResource ChipForeground}"
+                  StrokeThickness="1.5"
+                  StrokeJoin="Round"
+                  StrokeLineCap="Round" />
+        </Panel>
+    </livery:WindowChrome.Logo>
 
     <!-- The watchlist row's color semantics (T-159): the change text tints
          by the 24h sign and the sparkline colors by the ring's direction —

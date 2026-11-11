@@ -3,6 +3,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.DetachedChartWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         Title="{loc:Localized Chrome.DetachChartTitle}"
         Width="1100" Height="680"
         MinWidth="640" MinHeight="420"

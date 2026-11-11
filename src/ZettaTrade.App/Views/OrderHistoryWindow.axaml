@@ -4,6 +4,7 @@
         xmlns:loc="using:Livery.Localization"
         x:Class="ZettaTrade.App.Views.OrderHistoryWindow"
         Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:OrderHistoryViewModel"
         Title="{loc:Localized History.Title}"
         Width="1000" Height="520"
