@@ -12,6 +12,7 @@ using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Demo;
 
 /// <summary>
 /// The watchlist feed facts (T-120, over the pulse seam): the quotes hold
@@ -144,6 +145,20 @@ public sealed class WatchlistFeedServiceTests
             row.Volume24h.Should().BeNull();
             row.Sparkline.Should().BeEmpty();
         }
+    }
+
+    [Fact]
+    public async Task TheDemoCatalog_CoversEveryStarterRow()
+    {
+        // The default first-run exchange is the demo adapter (T-166): every
+        // starter row must price there, or the row throws inside the ticker
+        // projection at every startup and stays unpriced forever.
+        var adapter = new DemoMarketDataAdapter(NullLogger<DemoMarketDataAdapter>.Instance);
+        var symbols = await adapter.GetSymbolsAsync();
+
+        StarterTexts.Should().OnlyContain(
+            starter => symbols.Any(symbol => symbol.Normalized == starter),
+            "the demo catalog is the default first-run exchange's tradable universe");
     }
 
     [Fact]

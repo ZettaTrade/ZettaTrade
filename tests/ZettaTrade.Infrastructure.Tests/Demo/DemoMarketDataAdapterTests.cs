@@ -56,6 +56,12 @@ public sealed class DemoMarketDataAdapterTests
             ["BTC/USDC"] = 67110m,
             ["XRP/USDT"] = 0.62m,
             ["ETH/BTC"] = 0.0522m,
+            ["ADA/USDT"] = 0.45m,
+            ["DOGE/USDT"] = 0.12m,
+            ["BNB/USDT"] = 580m,
+            ["LINK/USDT"] = 14m,
+            ["AVAX/USDT"] = 28m,
+            ["LTC/USDT"] = 66m,
         };
 
     private static Symbol BtcUsdt() => Symbol.Parse("BTC/USDT");
@@ -73,7 +79,23 @@ public sealed class DemoMarketDataAdapterTests
             "BTC/USDC",
             "XRP/USDT",
             "ETH/BTC",
+            "ADA/USDT",
+            "DOGE/USDT",
+            "BNB/USDT",
+            "LINK/USDT",
+            "AVAX/USDT",
+            "LTC/USDT",
         ]);
+    }
+
+    [Fact]
+    public async Task GetSymbolsAsync_TheAnchorTable_CoversExactlyTheCatalog()
+    {
+        var symbols = await _adapter.GetSymbolsAsync();
+
+        AnchorPrices.Keys.Should().BeEquivalentTo(
+            symbols.Select(symbol => symbol.Normalized),
+            "every tradable symbol seeds its walk from a documented anchor — and no anchor orphans a retired symbol");
     }
 
     [Fact]
@@ -149,7 +171,7 @@ public sealed class DemoMarketDataAdapterTests
     public async Task GetBarsAsync_UnknownSymbol_ThrowsInsteadOfDefaulting()
     {
         var act = async () => await _adapter.GetBarsAsync(
-            Symbol.Parse("DOGE/USDT"),
+            Symbol.Parse("PEPE/USDT"),
             TimeFrame.M1,
             M1Anchor,
             M1Anchor,
@@ -161,7 +183,7 @@ public sealed class DemoMarketDataAdapterTests
     [Fact]
     public void SubscribeOrderBook_UnknownSymbol_ThrowsSynchronously()
     {
-        var act = () => _adapter.SubscribeOrderBook(Symbol.Parse("DOGE/USDT"));
+        var act = () => _adapter.SubscribeOrderBook(Symbol.Parse("PEPE/USDT"));
 
         act.Should().Throw<ArgumentException>("unknown symbols are an error, not a default");
     }
@@ -220,9 +242,9 @@ public sealed class DemoMarketDataAdapterTests
     }
 
     /// <summary>
-    /// All six documented symbol cadences fire concurrently on pool threads:
-    /// every trade carries a GLOBALLY unique sequence number (the atomic
-    /// increment, BUG-031) and the side/price parity it encodes stays
+    /// All twelve documented symbol cadences fire concurrently on pool
+    /// threads: every trade carries a GLOBALLY unique sequence number (the
+    /// atomic increment, BUG-031) and the side/price parity it encodes stays
     /// consistent — a single lost increment would hand one sequence number to
     /// two trades and flip the parity of the trade that shared it.
     /// </summary>
