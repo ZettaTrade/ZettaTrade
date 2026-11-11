@@ -171,6 +171,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-164 Dev-side pack provisioning: the plugins directory fills from the package at build time | feat/plugin-provision | done | - |
 | T-165 Theme singleton hygiene: the ThemeManager Dispose clears the static Instance (the T-073 shape) | feat/theme-singleton-hygiene | done | - |
 | T-166 The demo catalog covers the watchlist's starter majors (the silent first-run failure: 6 of 10 rows never price) | feat/demo-catalog-majors | done | - |
+| T-167 The title-bar close button rides its own column (the user-reported overlap with maximize) | feat/titlebar-buttons | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -207,3 +208,15 @@ discipline first (T-150, T-151, T-152 — the two parallel color systems and the
 systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
 (T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
+
+---
+
+## T-167 — The title-bar close button rides its own column (the user-reported overlap)
+
+- **Branch:** feat/titlebar-buttons, worktree zt-titlebar-buttons, based on develop@ff2bcec (claimed 2026-11-11; filed from the user's report — "the close and maximize buttons pile onto each other").
+- **Origin:** the logo-slot addition (Livery 0.1.8, the T-162 consumer ride) prepended the logo column to the title-bar strip's grid and shifted the minimize/maximize/restore attributes one column right, but left the close button on its old attribute — the close button has ridden the maximize/restore column ever since, the two icons drawn on top of each other on every full-chrome window (the maximize icon hidden under the close one).
+- **What:** in the Livery satellite: the close button moves to the strip grid's own last column (the maximize/restore state pair keeps its shared slot by design — one hides with the other showing), and a style pin walks every strip button's declared column. Consumer side: the pin moves to Livery 0.1.10.
+- **Scope:** the Livery satellite repo (the one-attribute fix, its style pin, the package bump), then the consuming bump here; no app product code.
+- **Acceptance:** the strip buttons' columns are pinned by the satellite's suite (the close on its own column, the state pair shared); a visual pass shows the three window buttons side by side; the consumer restore resolves Livery/0.1.10.
+- **Tests:** the satellite's StylePins fact (every strip button occupies its own column or the state pair); the app suite stays green on the pinned package.
+- **Status:** in-progress.
