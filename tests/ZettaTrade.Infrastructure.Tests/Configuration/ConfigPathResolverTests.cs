@@ -111,4 +111,65 @@ public sealed class ConfigPathResolverTests
     }
 
     #endregion Windows Surface
+
+    #region The Profile Override (T-141)
+
+    /// <summary>
+    /// The profile-override rule itself, driven with the exact raw values an
+    /// environment could carry (the same matrix the XDG facts run): null,
+    /// empty and whitespace-only land on the given default.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BrokenValues))]
+    public void ApplyProfileRoot_ABrokenValue_LandsOnTheDefault(string? envValue)
+    {
+        var defaultRoot = Path.Combine("defaults", "here");
+
+        ConfigPathResolver.ApplyProfileRoot(envValue, defaultRoot).Should().Be(
+            Path.Combine("defaults", "here"),
+            "an unset, empty or whitespace-only override counts as absent");
+    }
+
+    [Fact]
+    public void ApplyProfileRoot_AValidDirectory_ReplacesTheRootWholesale()
+    {
+        ConfigPathResolver.ApplyProfileRoot(
+            Path.Combine("soak", "sandbox"),
+            Path.Combine("defaults", "here")).Should().Be(
+            Path.Combine("soak", "sandbox"),
+            "the sandbox IS the profile root: config, data and logs resolve as its children");
+    }
+
+    /// <summary>
+    /// The env leg the production roots themselves read: with the variable
+    /// set, every resolved directory lands inside the sandbox — the whole
+    /// profile (settings, secrets, databases, logs) is absorbed and the
+    /// user's real profile stays invisible to the process. The fact
+    /// restores the environment in its own finally, so the Windows-surface
+    /// fact above never observes a leak.
+    /// </summary>
+    [Fact]
+    public void ThePublicDirectories_TheOverrideVariableSet_ResolveInsideTheSandbox()
+    {
+        var sandbox = Path.Combine(Path.GetTempPath(), "t141-" + Guid.NewGuid().ToString("N"));
+        Environment.SetEnvironmentVariable(ConfigPathResolver.ProfileOverrideEnvironmentVariable, sandbox);
+        try
+        {
+            ConfigPathResolver.ConfigDirectory.Should().Be(
+                Path.Combine(sandbox, "config"),
+                "the pinned profile resolves its config (settings, themes) inside the sandbox");
+            ConfigPathResolver.DataDirectory.Should().Be(
+                Path.Combine(sandbox, "data"),
+                "the pinned profile resolves its data (secrets, databases, plugins) inside the sandbox");
+            ConfigPathResolver.LogDirectory.Should().Be(
+                Path.Combine(sandbox, "logs"),
+                "the pinned profile resolves its logs inside the sandbox");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(ConfigPathResolver.ProfileOverrideEnvironmentVariable, null);
+        }
+    }
+
+    #endregion The Profile Override (T-141)
 }

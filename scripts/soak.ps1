@@ -15,6 +15,19 @@
     0. Process hygiene: leftover ZettaTrade processes are killed before and
        after the run (zero-tolerance: a trading terminal never lingers).
     1. dotnet build of the solution (skippable when the caller built).
+    1b. Profile sandbox (T-141): the child runs against a per-run sandbox
+        profile - the app's own ZETTATRADE_PROFILE_DIR pin redirects every
+        profile root (config, data, state) into .soak/<stamp>/profile,
+        seeded with a pinned demo-adapter selection, so the run never rides
+        the user's persisted exchanges (nor sees their keys) and a soak can
+        run beside a live user instance (the single-instance lock and pipe
+        derive from the pinned profile). ZETTATRADE_ADAPTERS=demo keeps the
+        registered catalog demo-only: the palette warm-up and the balances
+        aggregation walk the facade's Registered catalog and fetch every
+        entry's symbol catalog at startup, so the adapter allowlist is what
+        makes the run network-free. A bare APPDATA override could not do
+        this: GetFolderPath resolves through SHGetKnownFolderPath on
+        desktop Windows and only falls back to the environment.
     2. Cold start: process spawn -> first main window (a wall-clock cap
        bounds unmeasurable starts; the summary then reports the gap).
     3. Sampling every SampleSeconds: working set, private memory, CPU
@@ -24,7 +37,11 @@
        invented.
     4. The Soak tool (src/ZettaTrade.Soak) reduces the samples into the
        summary and the budget verdicts (exit code carries the verdict).
-    5. OutDir samples-*.json / summary-*.json / soak-report-*.md.
+    4b. Isolation census (T-141): the run's own log inside the sandbox must
+        show the seeded demo restore and zero real-exchange host strings;
+        any leak fails the run (exit 1, a harness fault, not a budget).
+    5. OutDir samples-*.json / summary-*.json / soak-report-*.md; the
+       sandbox profile is discarded after the census.
 
     NOTES: ASCII-only file (Windows PowerShell 5.1 reads a BOM-less file as
     ANSI). Nothing but the app writes logs; this script's stdout is its
@@ -75,8 +92,10 @@ function Clear-AppProcesses {
     }
 }
 
-# The demo adapter's shortest tradable universe member; the engineer's
-# never-guessing shortcut to the app's window state under StrictMode.
+# The CPU share the soak samples: the process's CPU delta over the wall
+# window against the machine's TOTAL core count - a 0..100 share of the
+# whole machine's capacity, not of one core (the docs table carries the
+# same wording; the T-141 review folded the "one core-equivalent" nit).
 function Get-AppCpuPercent([System.Diagnostics.Process]$Proc, [double]$WallSeconds, [System.TimeSpan]$PreviousCpu, [int]$Cores) {
     if ($WallSeconds -le 0) { return $null }
     $cpuDelta = ($Proc.TotalProcessorTime - $PreviousCpu).TotalSeconds
@@ -84,6 +103,9 @@ function Get-AppCpuPercent([System.Diagnostics.Process]$Proc, [double]$WallSecon
 }
 
 try {
+    # StrictMode discipline: the catch-all touches these, so they exist
+    # from the first line even when the throw precedes their assignment.
+    $profileRoot = $null
     $root = Invoke-Git rev-parse --show-toplevel | Select-Object -First 1
     Set-Location $root
 
@@ -129,11 +151,36 @@ try {
     $summaryPath = Join-Path $OutDir "summary-$stamp.json"
     $reportPath = Join-Path $OutDir "soak-report-$stamp.md"
 
+    # ------------------------------------------------- 1.5 the profile sandbox (T-141)
+    # The child never sees the user's real profile: the app's own
+    # ZETTATRADE_PROFILE_DIR pin (ConfigPathResolver) redirects config, data
+    # and state into this per-run sandbox - a bare APPDATA override could
+    # not do it (GetFolderPath resolves through SHGetKnownFolderPath on
+    # desktop Windows). The seed pins the demo adapter; the profile is
+    # discarded after the census. The seed is written through .NET so no
+    # BOM lands in the JSON (PS 5.1 Set-Content would add one).
+    $profileRoot = Join-Path $OutDir 'profile'
+    $profileConfig = Join-Path $profileRoot 'config'
+    New-Item -ItemType Directory -Force -Path $profileConfig | Out-Null
+    [System.IO.File]::WriteAllText(
+        (Join-Path $profileConfig 'appsettings.json'),
+        '{"Workspace": {"ExchangeId": "demo"}}',
+        (New-Object System.Text.UTF8Encoding($false)))
+
     # ---------------------------------------------------------- 2. start + cold start
     # The .NET perf counters must be armed for the CHILD process (the
     # GC observation lane); lanes where the service is off fall back to
     # memory-only sampling and say so in the summary.
     $env:DOTNET_EnablePerfCounters = '1'
+
+    # The profile pin rides the same seam: the child inherits the driver's
+    # environment. Cleared again at the boundary and in the catch-all. The
+    # adapter allowlist rides with it: the palette warm-up and the balances
+    # aggregation walk the facade's Registered catalog and fetch every
+    # entry's symbol catalog at startup, so a demo-only catalog is what
+    # makes the run network-free (the persisted demo pin alone is not).
+    $env:ZETTATRADE_PROFILE_DIR = $profileRoot
+    $env:ZETTATRADE_ADAPTERS = 'demo'
 
     Say "START: ZettaTrade for $Minutes minute(s), sampling every $SampleSeconds s..."
     $spawned = Get-Date
@@ -232,6 +279,46 @@ try {
     Stop-Process -Id $proc.Id -Force
     Start-Sleep -Seconds 1
     Clear-AppProcesses
+
+    # ------------------------------------------------- 4.5 the isolation census (T-141)
+    # The run's own log (inside the sandbox - the first run there, so the
+    # file carries ONLY this run) must show the pinned state held: the
+    # sandbox settings loaded (the profile pin held, the seeded demo choice
+    # read), no fallback to a default or an unregistered choice, and zero
+    # real-exchange hosts anywhere in the run. A leak or a fallback is a
+    # harness fault (exit 1), never a budget. NOTE: the demo-only catalog
+    # makes a persisted demo restore a SILENT no-op (the facade starts on
+    # the catalog's first adapter) - the restore line is not expected; when
+    # it appears anyway, it must name 'Demo'.
+    $profileLogs = Join-Path $profileRoot 'logs'
+    $runLogs = @(Get-ChildItem -LiteralPath $profileLogs -Filter 'zettatrade-*.log' -ErrorAction SilentlyContinue)
+    if ($runLogs.Count -eq 0) {
+        throw 'the isolation census found no run log inside the sandbox profile (the app never started inside it)'
+    }
+    $censusText = [string]::Join("`n", @($runLogs | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
+    $hostLeaks = @(@('bybit.com', 'binance.com') | Where-Object { $censusText -match [regex]::Escape($_) })
+    if ($hostLeaks.Count -gt 0) {
+        throw ("the isolation census caught real-exchange traffic inside the run: {0}" -f ($hostLeaks -join ', '))
+    }
+    if (-not ($censusText -match [regex]::Escape("Settings loaded from $profileRoot"))) {
+        throw 'the isolation census did not find the sandbox settings load (the profile pin did not hold)'
+    }
+    $fallbackHits = @([regex]::Matches($censusText, 'is not registered|No persisted exchange choice'))
+    if ($fallbackHits.Count -gt 0) {
+        throw 'the isolation census found a fallback warning inside the run (the pinned choice did not hold)'
+    }
+    $restoreNames = @([regex]::Matches($censusText, "Restored persisted exchange '([^']+)'") | ForEach-Object { $_.Groups[1].Value })
+    if (@($restoreNames | Where-Object { $_ -ne 'Demo' }).Count -gt 0) {
+        throw ("the isolation census found a non-demo exchange restore inside the run: {0}" -f ($restoreNames -join ', '))
+    }
+    Say 'ISOLATION CENSUS: sandbox settings load confirmed; no fallback warnings; 0 real-exchange host hits in the sandbox log.'
+
+    # The sandbox is discarded after the census: the evidence lives in the
+    # report files, the profile never outlives the run.
+    Remove-Item -LiteralPath $profileRoot -Recurse -Force
+    Remove-Item Env:\ZETTATRADE_PROFILE_DIR -ErrorAction SilentlyContinue
+    Remove-Item Env:\ZETTATRADE_ADAPTERS -ErrorAction SilentlyContinue
+
     $doneRow = "DONE: {0} sample(s) over {1:N0} s; cleanup clean (zero ZettaTrade processes)." -f $samples.Count, ($deadline - $spawned).TotalSeconds
     Say $doneRow
     $runSeconds = [math]::Round(($deadline - $spawned).TotalSeconds, 1)
@@ -333,6 +420,11 @@ catch {
     # The catch-all: the app must never linger behind it, and a SOAK FAILED
     # (internal error) always means the harness itself broke, exit 1.
     Get-Process -Name 'ZettaTrade*' -ErrorAction SilentlyContinue | Stop-Process -Force
+    Remove-Item Env:\ZETTATRADE_PROFILE_DIR -ErrorAction SilentlyContinue
+    Remove-Item Env:\ZETTATRADE_ADAPTERS -ErrorAction SilentlyContinue
+    if ($profileRoot -and (Test-Path -LiteralPath $profileRoot)) {
+        Remove-Item -LiteralPath $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
     Say "SOAK FAILED (internal error): $($_.Exception.Message)"
     exit 1
 }

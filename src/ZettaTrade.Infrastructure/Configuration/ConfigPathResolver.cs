@@ -44,6 +44,45 @@ public static class ConfigPathResolver
     public static string McpConfigFile => Path.Combine(ConfigDirectory, "mcp.config.json");
 
     /// <summary>
+    /// The harness/sandbox profile pin (T-141): when this variable carries a
+    /// real directory, every profile root (config, data, state) resolves
+    /// INSIDE it — the whole profile (settings, secrets, databases, logs)
+    /// lands in the sandbox and the user's real profile stays invisible to
+    /// the process. The soak driver sets it for its child, so a run can
+    /// never ride the developer's persisted exchanges and never sees the
+    /// user's keys; the single-instance lock and pipe derive from the pinned
+    /// paths too, so a soak can run beside a live user instance. Unset,
+    /// empty and whitespace-only values count as absent — the same
+    /// discipline <see cref="ResolveXdgRoot"/> records (BUG-044). A bare
+    /// APPDATA/LOCALAPPDATA override could not serve this: on desktop
+    /// Windows <see cref="Environment.GetFolderPath"/> resolves through
+    /// SHGetKnownFolderPath and only falls back to those variables when
+    /// that call fails, so the pin is an application-owned seam.
+    /// </summary>
+    public const string ProfileOverrideEnvironmentVariable = "ZETTATRADE_PROFILE_DIR";
+
+    /// <summary>
+    /// The profile-override rule itself, driven with the exact raw values an
+    /// environment could carry: a real directory replaces the platform root
+    /// wholesale (the sandbox IS the root — config, data and state resolve
+    /// as its <c>config</c>, <c>data</c> and <c>logs</c> children), and
+    /// null, empty and whitespace-only land on the given default (the
+    /// BUG-044 discipline; a relative path is still rejected by counting as
+    /// unset). The parameter stands in for the process environment — the
+    /// facts matrix drives it directly, the production roots read
+    /// <see cref="ProfileOverrideEnvironmentVariable"/> first.
+    /// </summary>
+    internal static string ApplyProfileRoot(string? overrideDir, string defaultRoot) =>
+        string.IsNullOrWhiteSpace(overrideDir) ? defaultRoot : overrideDir;
+
+    /// <summary>The override value, or null when the variable is absent.</summary>
+    private static string? ProfileOverrideRoot()
+    {
+        var dir = Environment.GetEnvironmentVariable(ProfileOverrideEnvironmentVariable);
+        return string.IsNullOrWhiteSpace(dir) ? null : dir;
+    }
+
+    /// <summary>
     /// Path to the SQLite database holding the persistent order history
     /// (the trading adapters themselves never touch it; writes go through
     /// the Infrastructure persistence module).
@@ -87,6 +126,7 @@ public static class ConfigPathResolver
 
     private static string GetAppDataRoot()
     {
+        if (ProfileOverrideRoot() is { } configRoot) return configRoot;
         if (OperatingSystem.IsWindows())
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ApplicationConstants.ApplicationName);
         if (OperatingSystem.IsMacOS())
@@ -96,6 +136,7 @@ public static class ConfigPathResolver
 
     private static string GetDataRoot()
     {
+        if (ProfileOverrideRoot() is { } dataRoot) return dataRoot;
         if (OperatingSystem.IsWindows())
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), ApplicationConstants.ApplicationName);
         if (OperatingSystem.IsMacOS())
@@ -105,6 +146,9 @@ public static class ConfigPathResolver
 
     private static string GetStateRoot()
     {
+        // The Windows branch delegates to GetDataRoot, which re-checks the
+        // same override (idempotent: a deterministic environment read).
+        if (ProfileOverrideRoot() is { } stateRoot) return stateRoot;
         if (OperatingSystem.IsLinux())
         {
             return LinuxStateRoot(Environment.GetEnvironmentVariable("XDG_STATE_HOME"));

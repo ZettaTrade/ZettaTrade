@@ -63,6 +63,44 @@ public sealed class SingleInstanceDispatchTests
 
     #endregion The claim
 
+    /// <summary>
+    /// The fresh-profile leg (T-141): the claim acquires even when the lock
+    /// file's directory does not exist yet — a first-ever launch and every
+    /// soak sandbox carry no data directory — and the second acquire still
+    /// refuses. The pre-fix open threw DirectoryNotFoundException (an
+    /// IOException) and the gate read it as contention, redirect-exiting
+    /// every fresh-profile start with HandoffUnavailable (exit 2).
+    /// </summary>
+    [Fact]
+    public void TheClaimFile_AFreshProfileDirectory_IsCreatedAndAcquired()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "zettatrade-single-instance-tests",
+            Guid.NewGuid().ToString("N"));
+        var lockFilePath = Path.Combine(directory, "single-instance.lock");
+
+        try
+        {
+            Directory.Exists(directory).Should().BeFalse("the fact exercises the missing-directory leg");
+
+            var claim = SingleInstanceClaim.TryAcquire(lockFilePath);
+
+            claim.Should().NotBeNull("a fresh profile's claim belongs to the first claimer");
+            Directory.Exists(directory).Should().BeTrue(
+                "the claim layer created its own lock directory");
+
+            SingleInstanceClaim.TryAcquire(lockFilePath).Should().BeNull(
+                "the created lock still carries the exclusivity");
+
+            claim!.Dispose();
+        }
+        finally
+        {
+            TryCleanup(directory);
+        }
+    }
+
     #region The gate and the golden
 
     [Fact]

@@ -29,8 +29,15 @@ internal sealed class SingleInstanceClaim : IDisposable
 
     /// <summary>
     /// Try to acquire the claim on the given lock file: one exclusive open,
-    /// one decision. Whatever layer the OS rejects a double claim at, the
-    /// caller receives the same null and leaves without touching anything.
+    /// one decision. The lock file's directory is the claim layer's own
+    /// artifact and is created first: a fresh profile — a first-ever launch,
+    /// or the T-141 soak sandbox (every sandbox is fresh) — carries no data
+    /// directory yet, and the pre-fix open threw
+    /// <see cref="DirectoryNotFoundException"/> (an <see cref="IOException"/>),
+    /// which the catch below read as "a live instance owns the claim" —
+    /// every fresh-profile start redirect-exited with HandoffUnavailable.
+    /// Whatever layer the OS rejects a double claim at, the caller receives
+    /// the same null and leaves without touching anything.
     /// </summary>
     /// <param name="lockFilePath">The well-known lock file path.</param>
     /// <returns>The held claim, or null when a live instance owns it.</returns>
@@ -38,6 +45,12 @@ internal sealed class SingleInstanceClaim : IDisposable
     {
         try
         {
+            var directory = Path.GetDirectoryName(lockFilePath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
             var holder = new FileStream(
                 lockFilePath,
                 FileMode.OpenOrCreate,
