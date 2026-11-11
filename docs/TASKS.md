@@ -174,7 +174,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-167 The title-bar close button rides its own column (the user-reported overlap with maximize) | feat/titlebar-buttons | done | - |
 | T-168 The backtest picker offers the standard pack's first strategy (the strategy seam rides the SDK contract 2.1.0) | feat/strategy-pack | done | - |
 | T-169 Settings window polish pass: the pairs transfer buttons ride the icon kit, the indicators rows align on fixed columns, the tab content clears the scrollbar | feat/settings-polish | done | - |
-| T-170 Scroll surfaces audit: no window's content sits under the scrollbar (the user reports the overlap beyond the settings window) | feat/scroll-gutter | in-progress | - |
+| T-170 Scroll surfaces audit: no window's content sits under the scrollbar (the user reports the overlap beyond the settings window) | feat/scroll-gutter | done | - |
 | T-171 The license activation dialog opens again: the EULA surface resolves under its interface (the user-reported live ERR) | feat/license-di | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
@@ -214,14 +214,3 @@ systemic), the Livery shared-kit prep next (T-154, T-155), then the surface rede
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
 
 
----
-
-## T-170 — Scroll surfaces audit: no window's content sits under the scrollbar
-
-- **Branch:** feat/scroll-gutter, worktree zt-scroll-gutter, based on develop@8c752cb (claimed 2026-11-11; filed from the user's report — the scrollbars overlap content in every window, not just the settings).
-- **Origin:** the Fluent overlay scrollbar expands over the content when it appears; the settings window showed it riding over text and controls (T-169's scope), and the user reports the same pattern across the app — every scroll surface needs the audit, not just the settings tabs.
-- **What:** walk every ScrollViewer-bearing surface OUTSIDE the settings window (the assistant chat panel, the license activation terms, the main window's panels and overlays, the cheat sheet, any log/list surface with a built-in scroll viewport); where content can sit under the expanded scrollbar, give the scroll content the right gutter (the same shape T-169 gives the settings tabs); each audited surface lands in the test pins — either it proves it cannot overlap (fixed-size rows, custom-drawn scroll) or it gains the gutter.
-- **Scope:** the non-settings .axaml views + their App.Tests pins; alpha.117 + the CHANGELOG section; SettingsWindow.axaml is T-169's surface — do NOT touch it.
-- **Acceptance:** every audited scroll surface either proves it cannot overlap or gains the gutter; the pins walk the real views headlessly.
-- **Tests:** the App.Tests pins per fixed surface (the content's right edge clears the gutter at the shipped default size); the full gate stays green.
-- **Status:** in-progress.
