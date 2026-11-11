@@ -181,7 +181,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-174 The standard pack grows the strategy catalog: the classic swing/breakout/reversion set rides the package (the user ask, scoped by the supervisor's analytics) | feat/strategy-catalog | done | T-168 |
 | T-175 The startup binding sweep: the debug-output binding errors go silent and the menu gesture hints render (the user's debug log) | fix/binding-noise | done | - |
 | T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | done | - |
-| T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | in-progress | T-112, T-172 |
+| T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | done | T-112, T-172 |
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete-affordance | planned | T-091 |
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | fix/skia-header-padding | planned | T-103 |
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | fix/theme-preview-mirror | planned | - |
@@ -258,18 +258,6 @@ systemic), the Livery shared-kit prep next (T-154, T-155), then the surface rede
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
 
 
-
----
-
-## T-177 - The signal rail scrolls its overflow and drags its height
-
-- **Branch:** feat/rail-scroll-splitter, worktree zt-rail-scroll-splitter, based on develop@ea42b2e (claimed 2026-11-12; queued 2026-11-11 — filed from the user's ask: add a scrollbar to the signal rail and a splitter too).
-- **Origin:** the T-112 signal rail rides a fixed `MaxHeight="172"` cap inside the chart panel with its rows on a bare vertical StackPanel - no ScrollViewer, so a busy rail's older readings clip out of sight; and the cap is a hardcoded constant, the user cannot grow the rail when it matters (the workspace's other boundaries all drag since T-172).
-- **What:** the rows surface scrolls (the overflow reachable, the newest-first order preserved); the rail's boundary becomes draggable - the T-172 ColumnResizeHandle's row-wise sibling (a RowResizeHandle) writes a rail height that clamps sanely and persists through the settings pipeline (the T-038/T-172 persistence discipline); the chart above stays the star (the rail grows within its band, never eats the chart).
-- **Scope:** ChartPanelView.axaml (+ the rail height VM property and the persistence seam it rides), the App.Tests headless pins; alpha.122 + the CHANGELOG section.
-- **Acceptance:** a headless pin proves the overflow scrolls (rows beyond the viewport reachable) and a drag at the rail boundary resizes the persisted rail height (round-trip); the chart's hit area never loses its full band.
-- **Tests:** the App.Tests headless rail-lane pins (the scroll reachability, the drag round-trip); the full gate stays green.
-- **Status:** in-progress.
 
 ---
 
