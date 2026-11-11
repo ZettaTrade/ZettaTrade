@@ -163,7 +163,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | done | T-154 (soft) |
 | T-157 Table grammar for positions and order history | feat/table-grammar | done | T-154 (soft) |
 | T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | done | - |
-| T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | queued | - |
+| T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | in-progress | - |
 | T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | queued | T-154 (soft) |
 | T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | queued | - |
 | T-162 Product identity: the app icon and the title-bar brand | feat/branding | queued | - |
@@ -245,7 +245,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-159 — Watchlist and heatmap color semantics
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Branch:** feat/watchlist-polish, worktree zt-watchlist-polish, based on develop@ea757e2 (claimed 2026-11-11 as the tenth of the T-150…T-162 design-review batch).
 - **Origin:** the watchlist prints the 24h change as plain text and the sparkline always draws in
   Highlight — direction, the watchlist's whole point, rides parsing the digits; the heatmap tiles
   are the only direction-aware surface today.
@@ -258,6 +258,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   theme; the rows' identity churn pins stay green (the feed-paced update path unaffected).
 - **Tests:** VM state pins (the sign→brush mapping), contrast pins for the new pairs; the
   existing watchlist goldens.
+- **Status:** in-progress
 
 ## T-160 — Chart toolbar icon pass, export flyout, shared PanelHeader
 
