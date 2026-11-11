@@ -136,6 +136,36 @@ public sealed class PaletteContractTests
         }
     }
 
+    [Fact]
+    public void EveryShippedTheme_ServesTheChangeTintTextLeg()
+    {
+        // The change-tint text leg (T-159): the watchlist's 24h change text
+        // and the sparkline strokes ride CandleUp/CandleDown directly over
+        // the window Background — the candle keys took on a TEXT duty, so
+        // every shipped palette must read them at the WCAG AA text minimum
+        // (the T-151 battery pins the role pairs; this pins the tint's own
+        // leg by name, the rolled-back value fails by name).
+        foreach (var themeFile in Directory.GetFiles(ThemesDirectory, "*.json"))
+        {
+            var theme = ParseTheme(themeFile);
+
+            foreach (var role in new[] { "CandleUp", "CandleDown" })
+            {
+                var ratio = Contrast.Ratio(
+                    theme.Colors![role],
+                    theme.Colors["Background"]);
+
+                ratio.Should().BeGreaterThanOrEqualTo(
+                    PaletteContract.TextPairMinimum,
+                    "the '{0}' theme's {1} tint reads as text over its background ({2:F2} < {3:F1})",
+                    theme.Name,
+                    role,
+                    ratio,
+                    PaletteContract.TextPairMinimum);
+            }
+        }
+    }
+
     private static ThemeDefinition ParseTheme(string path) =>
         JsonSerializer.Deserialize<ThemeDefinition>(
             File.ReadAllText(path),
