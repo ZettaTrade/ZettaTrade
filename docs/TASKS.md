@@ -190,6 +190,36 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | planned | T-183 (soft) |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | planned | - |
+| T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | planned | - |
+| T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | planned | - |
+| T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | planned | - |
+| T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | planned | - |
+| T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/paper-tif | planned | - |
+| T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | planned | - |
+| T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | planned | - |
+| T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | planned | - |
+| T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | planned | - |
+| T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | planned | - |
+| T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | planned | - |
+| T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | planned | - |
+| T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | planned | - |
+| T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | planned | - |
+| T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/draw-tools-2 | planned | - |
+| T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | planned | - |
+| T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | planned | - |
+| T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | planned | - |
+| T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alert-mechanics | planned | - |
+| T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | planned | - |
+| T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | planned | - |
+| T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-providers | planned | - |
+| T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | planned | - |
+| T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | planned | - |
+| T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | planned | - |
+| T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | planned | - |
+| T-212 Backtest parameter optimization (backlog sweep 2026-11-12) | feat/backtest-optimize | planned | - |
+| T-213 Update checker (backlog sweep 2026-11-12) | feat/update-check | planned | - |
+| T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | planned | - |
+| T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | planned | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -450,6 +480,510 @@ each section below carries its own origin. All rows start `planned`.
   full test suite stay green.
 - **Tests:** the existing suite green untouched (the formatting-only proof — nothing
   behavioral moves); the gate's diff discipline.
+- **Status:** planned.
+
+
+---
+
+## Backlog sweep 2026-11-12 — gap analysis (source of T-186…T-215)
+
+The user's ask: analyze the repository and identify the functionality still missing. A
+read-only walk over the shipped inventory (the code, the board, the README, the CHANGELOG, the
+plugin SDK surface) surfaced 30 gaps, filed as T-186…T-215 — every gap verified against the
+code before filing (grep-level checks: no bracket orders, no SL/TP edit route from the
+positions panel, no daily-loss governor, no post-only/reduce-only flags, no paper-account
+reset, no tray icon, no streaming chat, the watchlist not user-editable, TIF recorded but not
+simulated in the paper engine). The batch shape: the trading half first (the widest hole —
+protective orders, risk, venues), then market data, the chart stack, alerts, AI/MCP, portfolio
+and reporting, and the platform tail. All rows start `planned`; the human prioritizes the
+lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by default. The
+parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
+
+---
+
+## T-186 — Bracket orders: entry + attached TP/SL
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the OCO either-or pair ships (T-074), but no route places an entry
+  and its protective exit in one shot; no bracket surface exists in the code.
+- **What:** a bracket mode in the order ticket — the entry (market or limit) plus an attached
+  take-profit limit leg and a stop-loss stop-limit leg, submitted as one validated request; the
+  exit legs ride the existing OCO machinery and arm on the entry's fill; the confirmation
+  dialog names all three legs; every leg passes `IRiskManager` and the bracket counts as ONE
+  confirmation, not three.
+- **Scope:** Core (`OrderRequest` extension + validation), Infrastructure (the paper adapter's
+  bracket assembly; the Bybit trading adapter refuses unimplementable shapes early with an
+  honest reason), the ticket + confirmation UI, resx en+ru, an optional bracket payload for the
+  MCP `place_order` tool follows only after the UI path is proven; the next free alpha bump +
+  the CHANGELOG section.
+- **Acceptance:** a bracket entry fills and arms the TP/SL pair; firing either leg cancels the
+  other (the OCO discipline); a risk rejection refuses all legs atomically; the confirmation
+  reads the three legs before submit.
+- **Tests:** the paper-adapter bracket battery (entry fill arms the pair, either-or, the atomic
+  refusal matrix); headless ticket pins for the bracket mode.
+- **Status:** planned.
+
+## T-187 — SL/TP management from the positions panel
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — positions carry SL/TP fields (the MCP `get_positions` tool returns
+  them) but the positions panel offers no edit route; no set/modify commands exist in the code.
+- **What:** set, change and clear the protective SL and TP levels per open position from the
+  positions panel; paper-first semantics (a touched level arms through the existing conditional
+  machinery); every change is a validated, confirmed operation under the standing risk rules.
+- **Scope:** Infrastructure (the paper adapter's protective-level mutation), the Core seam only
+  if a contract gap forces it (the supervisor gates the shared interfaces), the positions panel
+  columns + an edit dialog, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** an edit from the panel updates the position's protective state; an SL touch
+  closes the position through the normal fill path; clearing removes the protection; the panel
+  reads the levels it set.
+- **Tests:** the paper protective-level battery (set/change/clear × touch); the headless panel
+  pins.
+- **Status:** planned.
+
+## T-188 — Kill switch: cancel all + flatten all
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — no single panic route exists; the T-076 bulk cancel covers one
+  symbol's orders only.
+- **What:** one user action (a menu item + a remappable hotkey) that cancels every working
+  order and closes every open position across all armed trading adapters, behind ONE explicit
+  confirmation listing what will be cancelled and closed; per-item best effort with an honest
+  summary report (the T-076 discipline widened to positions and adapters).
+- **Scope:** App services (the aggregate command over the trading adapters), the menu + hotkey
+  registration, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** one confirmation covers the whole sweep; partial failures surface item by
+  item; the hotkey rides the hotkey manager (the cheat sheet reads it); nothing fires without
+  the confirmation.
+- **Tests:** the service-level battery (mixed adapters, the failure matrix); the hotkey
+  registration pin.
+- **Status:** planned.
+
+## T-189 — Daily loss limit in the risk governor
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the risk stack caps a single order's notional (the T-057 hard cap)
+  but nothing governs the cumulative day; no daily-loss keys exist.
+- **What:** a configurable daily loss threshold (realized + fees, per trading account) that
+  blocks new order placement once crossed; existing positions stay closable — a protective
+  block, never a trap; the block lifts at the day rollover or by an explicit user reset;
+  paper-first.
+- **Scope:** Infrastructure risk service + settings keys (`Risk.DailyLossLimit*`), the ticket
+  and confirmation surfaces read the blocked state honestly, resx en+ru, the next free alpha
+  bump + the CHANGELOG section.
+- **Acceptance:** crossing the threshold blocks further orders with an honest reason; closing
+  positions is never blocked; the rollover and the manual reset both lift the block; the off
+  state changes nothing.
+- **Tests:** the risk-governor battery (threshold math, the rollover, the reset, the
+  paper/live scoping).
+- **Status:** planned.
+
+## T-190 — Honest TIF simulation in the paper adapter
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the paper engine records GTC/IOC/FOK/GTD but only GTC is simulated.
+- **What:** IOC fills the immediately-crossing part and cancels the remainder; FOK fills fully
+  or rejects outright; GTD expires at its timestamp against the adapter's clock; the order
+  history records the honest terminal statuses.
+- **Scope:** the paper adapter's TIF handling, the order-history statuses, tests; no UI change
+  (the ticket already carries TIF); the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** each TIF behaves per its contract against the live ticker stream; expired and
+  cancelled-rest entries read truthfully in history.
+- **Tests:** the TIF matrix battery (each policy × crossing/not-crossing/partial).
+- **Status:** planned.
+
+## T-191 — Order flags: post-only, reduce-only
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — neither flag exists anywhere in the request pipeline.
+- **What:** the two flags in the order ticket (guarded by order type and position context),
+  validated and carried through the paper adapter (post-only never crosses immediately;
+  reduce-only refuses to grow the exposure) and through the Bybit trading adapter with honest
+  refusal semantics where the venue disagrees; the flags record in history.
+- **Scope:** Core `OrderRequest` fields + validation, Infrastructure (paper + Bybit handling),
+  the ticket UI, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a post-only order that would cross rejects with a clear reason; a reduce-only
+  order that would increase the exposure rejects; the flags read in the history columns.
+- **Tests:** the adapter flag batteries; the ticket validation pins.
+- **Status:** planned.
+
+## T-192 — Paper account management: reset, starting balance
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the paper engine carries a fixed starting balance with no reset and
+  no top-up route.
+- **What:** a settings/UI route to reset the paper account (balances, positions, working
+  orders, journal) to a chosen starting balance, behind an explicit confirmation that names the
+  scope; the reset never touches live/testnet data; the demo adapter's canonical balance stays
+  the shipped default.
+- **Scope:** Infrastructure paper state + settings keys (`Paper.*`), the reset route in the
+  settings window or the balances panel, resx en+ru, the next free alpha bump + the CHANGELOG
+  section.
+- **Acceptance:** a reset restores the chosen balance and empties the paper positions, orders
+  and journal; live/testnet surfaces are untouched; the confirmation names exactly what wipes.
+- **Tests:** the reset battery; the settings round-trip pin.
+- **Status:** planned.
+
+## T-193 — Binance spot testnet trading adapter
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — real (testnet) trading exists only for Bybit; Binance rides read-only
+  market data.
+- **What:** a `BinanceTradingAdapter` mirroring the Bybit trading adapter's shape: signed REST
+  order create/cancel/query on the Binance spot testnet, private WS fills where the venue
+  serves them; arming gated by the same three conditions (the adapter selected, the endpoint
+  record flagged testnet, the explicit testnet-trading toggle); credentials only from
+  `ISecretStore`; unsupported order types refuse before the venue with a clear reason.
+- **Scope:** Infrastructure adapter + the adapter-kit conformance coverage, settings keys, resx
+  en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** the conformance battery passes against the loopback stub; the arming gate
+  matches the Bybit adapter's discipline verbatim; no key ever reaches a log or an argument.
+- **Tests:** the adapter-kit battery for the new adapter; the arming-gate pins.
+- **Status:** planned.
+
+## T-194 — Third venue: OKX market data
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — Binance, Bybit and the demo adapter ship; a third venue exercises the
+  seam and widens the conformance kit.
+- **What:** an OKX spot `IMarketDataAdapter` (public REST catalog + klines, WS tickers, depth,
+  trades) riding the existing transport, reconnect and rate-limiter stack; the toolbar
+  switcher, the palette and the watchlist pick it up with no special-casing.
+- **Scope:** Infrastructure adapter, the settings endpoint pair (`Exchange/OKX`), the
+  adapter-kit battery extension, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** the conformance battery passes; the venue switcher lists OKX; the workspace
+  symbol flow (chart, book, tape) works end to end against it.
+- **Tests:** the adapter-kit battery; the e2e WS loopback pins (the T-020 harness shape).
+- **Status:** planned.
+
+## T-195 — Market screener panel
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the heatmap paints the majors but no ranked screen exists.
+- **What:** a screener panel over the active adapter's ticker stream: sortable columns (24h
+  change, quote volume, price), preset filters (top gainers / losers / volume), a row click
+  sets the workspace symbol through the existing apply path; the feed rides the shared catalog
+  and ticker streams — no extra REST polling beyond the limiter's budget.
+- **Scope:** App (the screener VM + a panel surface), resx en+ru, the next free alpha bump +
+  the CHANGELOG section.
+- **Acceptance:** the panel ranks live and sorts; a click routes the symbol; an adapter without
+  a catalog degrades honestly (a reason line, not a broken table).
+- **Tests:** the headless panel pins (sort, filter, click-through).
+- **Status:** planned.
+
+## T-196 — User-managed watchlists
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the watchlist is auto-composed (the starter majors + the workspace
+  symbol) and not user-editable.
+- **What:** user-created symbol lists (add via the palette, remove, reorder, rename, several
+  named lists), persisted in the settings schema (versioned); the shipped starter list stays
+  the default; import/export rides the settings port (T-100).
+- **Scope:** the App watchlist VM + the settings schema migration, the palette add route, resx
+  en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a user list survives restart and the language/theme switches; add, remove and
+  reorder are keyboard-accessible (the T-110 discipline); untouched installs keep today's list.
+- **Tests:** the settings schema migration battery; the headless panel pins.
+- **Status:** planned.
+
+## T-197 — Futures contour MVP: Bybit linear perps
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — every adapter is spot-only; derivatives stay out entirely.
+- **What:** Bybit linear perpetual market data as a new market-data category: instruments,
+  klines, tickers, depth, plus the read-only funding rate and open interest; the watchlist row
+  and the screener surface the funding rate; trading stays out of scope (the paper engine
+  covers the semantics first).
+- **Scope:** the Infrastructure Bybit adapter (category-aware requests), the settings keys, the
+  adapter-kit coverage for the perp category, resx en+ru, the next free alpha bump + the
+  CHANGELOG section.
+- **Acceptance:** a perp symbol loads the chart, book and tape; the funding rate reads in the
+  watchlist row; the spot flows are unchanged.
+- **Tests:** the adapter-kit coverage for the perp category; the funding-model contract tests.
+- **Status:** planned.
+
+## T-198 — Stocks MVP: a market-data adapter
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the product identity names "crypto + stocks", no stock venue exists.
+- **What:** a stock `IMarketDataAdapter` over a user-keyed provider (Alpaca market data as the
+  candidate: a free tier, keys ride `ISecretStore`); the symbol namespace disambiguates asset
+  classes (AAPL vs BTC-USDT); candles, tickers and whatever book depth the provider serves,
+  honestly; the demo adapter gains a small stock fixture for offline work.
+- **Scope:** Infrastructure adapter + the provider-key settings seam, Core symbol-namespace
+  rules only if a contract gap forces it (the supervisor gates the shared files), resx en+ru,
+  the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a stock symbol loads the chart and the watchlist row with the provider's
+  honest capability subset; keys never leave `ISecretStore`; the crypto flows are untouched.
+- **Tests:** the adapter battery over a canned-provider stub; the symbol-namespace pins.
+- **Status:** planned.
+
+## T-199 — Indicator panes: oscillator sub-charts
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — RSI and MACD draw on the price axis today; the overlay-only renderer
+  is wrong for oscillators.
+- **What:** indicators declare a pane kind (overlay vs oscillator) through the plugin
+  descriptor; oscillators render in their own sub-pane under the chart with their own Y scale
+  (0–100 for RSI), the pane resizing with the splitter discipline and persisting with the chart
+  indicators JSON; overlay indicators are untouched.
+- **Scope:** ZettaTrade.Charting (pane geometry), the CandlestickChart renderer, the SDK
+  descriptor's backward-compatible extension (`ZettaTrade.Plugins.Abstractions`), the Plugins
+  satellite's pane annotations ride its own package bump, resx en+ru, the next free alpha bump
+  + the CHANGELOG section.
+- **Acceptance:** RSI and MACD land in their own panes with correct scales; the pane resizes
+  and persists across restarts; the overlay shapes render exactly as before.
+- **Tests:** the renderer geometry pins; the pane-persistence battery.
+- **Status:** planned.
+
+## T-200 — Drawing tools wave 2: zone, text, measure ruler
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — exactly three drawing kinds ship (trend line, horizontal level, fib
+  retracement).
+- **What:** a rectangle/zone, a text annotation, and a measure tool — an entry-to-exit risk
+  ruler reading Δprice, Δ% and the R-multiple against the ticket's stop context; the T-091
+  store/layer/persistence discipline extends per kind; the T-178 delete affordance covers the
+  new kinds.
+- **Scope:** ZettaTrade.Charting (kinds, geometry), the chart layer, the drawing store schema
+  versioning, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** each kind draws, drags, persists per (adapter, symbol, interval) and deletes;
+  the measure tool's readout matches the ticket's stop math; the older three kinds are
+  untouched.
+- **Tests:** the geometry and persistence batteries per kind.
+- **Status:** planned.
+
+## T-201 — Multi-chart grid layout
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — one chart panel ships (detachable); no grid arrangement exists.
+- **What:** a workspace layout option rendering 1×2 and 2×2 chart slots with independent
+  symbols and timeframes; the boundaries ride the T-172 resize-handle discipline and persist; a
+  sync-crosshair toggle is optional polish, not scope-critical; the layout choice persists with
+  the workspace state.
+- **Scope:** App workspace composition (a chart-slot control generalizing the chart panel),
+  the settings persistence, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** each slot streams its own symbol; the splitters drag and persist; the
+  four-slot shape holds the pan budget (the perf HUD reads it).
+- **Tests:** the headless composition pins; a four-slot perf smoke.
+- **Status:** planned.
+
+## T-202 — Chart templates
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the chart face (type, indicators, scale) is per-symbol state; no
+  named presets exist.
+- **What:** save the current chart face (type, scale mode, indicators JSON, VWAP/volume-profile
+  toggles) as a named template; apply a template to the active symbol or as the default for new
+  symbols; templates live in the settings schema (versioned; export rides T-100).
+- **Scope:** the chart VM + the settings schema, a template manager in the chart toolbar's
+  flyout, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** save, apply, rename and delete round-trip; applying resets exactly the
+  template's facets and nothing else; the default-for-new-symbols rule holds.
+- **Tests:** the template round-trip battery; the toolbar pins.
+- **Status:** planned.
+
+## T-203 — Indicator-based alerts
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — alert kinds are Price and PercentMove only.
+- **What:** alert conditions over enabled indicator values — crosses above/below a level (RSI
+  70/30, a price cross of an MA) — evaluated on the ticker and candle-close streams the alerts
+  service already rides; the alert editor gains the indicator condition kind with honest
+  capability disclosure (only loaded plugin indicators qualify; a missing plugin pauses the
+  alert, it does not die).
+- **Scope:** the alerts engine + the editor UI, the roster schema versioning, resx en+ru, the
+  next free alpha bump + the CHANGELOG section.
+- **Acceptance:** an indicator alert fires on the crossing candle close exactly once per
+  definition; the editor lists only the loaded plugins' parameters; the disabled-plugin state
+  reads honestly in the roster.
+- **Tests:** the condition-evaluation battery over canned streams; the editor capability pins.
+- **Status:** planned.
+
+## T-204 — Alert mechanics 2.0: toasts, re-arm, sound
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — a fire today beeps and flips a status; no toast, no repeat semantics,
+  no sound choice.
+- **What:** a fired alert surfaces as a notification-center toast (the T-097 lane, respecting
+  DND and the source mutes); re-arm options beyond today's one-shot (per-cross re-arm, an
+  N-minute cooldown); an optional per-alert sound beyond the single beep, best-effort and never
+  blocking the trading thread.
+- **Scope:** the alerts service (fire semantics) + the notification bridge, the editor's
+  re-arm controls, settings keys, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a fire produces the toast unless DND/mutes swallow it; the re-arm modes
+  behave per contract; the sound path degrades honestly on platforms without it.
+- **Tests:** the fire-semantics matrix (one-shot/re-arm/cooldown × DND); the toast-bridge pins.
+- **Status:** planned. (The parked T-041 Telegram sink rides this event surface when opened.)
+
+## T-205 — Streaming AI chat
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the Ollama route is one-shot non-streaming; the Stop button aborts a
+  whole response.
+- **What:** SSE streaming from the chat endpoint (`stream: true`), tokens appended live into
+  the bubble; Stop cuts the stream mid-flight cleanly; a non-streaming fallback rides a
+  settings key for endpoints that cannot stream.
+- **Scope:** ZettaTrade.AI (the streaming reader), the bubble's incremental render, the
+  settings key, tests, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a streamed reply renders progressively; Stop leaves no partial-corrupt
+  state; the fallback path keeps today's behavior verbatim.
+- **Tests:** the loopback SSE stub battery (chunk order, abort, malformed chunks).
+- **Status:** planned.
+
+## T-206 — Persistent chat history
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the chat history lives in memory only and dies with the process.
+- **What:** conversations persist to SQLite; several named conversations with a session picker;
+  a conversation exports to Markdown; the market-context injection and the consent chip (T-114)
+  semantics are unchanged.
+- **Scope:** ZettaTrade.AI persistence + the App chat VM (the conversation list), resx en+ru,
+  the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** the history survives restart; a picked conversation restores its bubbles; the
+  export writes a readable Markdown file; the consent chip still gates the context injection.
+- **Tests:** the persistence round-trip battery; the export golden.
+- **Status:** planned.
+
+## T-207 — Second AI provider: OpenAI-compatible
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — Ollama is the only provider; the canon keeps local-first as the
+  default posture.
+- **What:** a provider seam in the AI chat: the shipped default stays Ollama; an
+  OpenAI-compatible base URL + model + API key becomes selectable (the key rides
+  `ISecretStore` — saved immediately, passed via stdin never argv); the request/response
+  mapping is honest per provider; no cloud-by-default posture change.
+- **Scope:** ZettaTrade.AI (the provider abstraction) + the settings keys (`AI.Provider`,
+  `AI.OpenAiCompatible.*`), the settings window's Integrations section, resx en+ru, the next
+  free alpha bump + the CHANGELOG section.
+- **Acceptance:** both providers answer over loopback stubs; the key never reaches a log,
+  stdout or an argument; the default configuration behaves exactly as today.
+- **Tests:** the provider stub batteries; the secret-handling pins.
+- **Status:** planned.
+
+## T-208 — MCP server expansion: resources, prompts, tools
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the built-in server registers five trading tools, no resources, no
+  prompts.
+- **What:** MCP resources (a read-only portfolio snapshot, the workspace state), prompt
+  templates (a market brief, a portfolio review), and new tools — `get_order_history`,
+  `get_indicators` (the enabled setups), `place_alert`/`cancel_alert`, `get_trade_stats`;
+  trading-adjacent tools ride the same risk/confirmation gates; the journaling-adapter
+  discipline (T-133) holds.
+- **Scope:** ZettaTrade.AI (the server host registrars), resx en+ru, the next free alpha bump
+  + the CHANGELOG section.
+- **Acceptance:** the JSON-RPC surface lists the new resources, prompts and tools; a client
+  (the app's own MCP client in tests) walks them; an alert placed via MCP appears in the
+  manager and fires normally.
+- **Tests:** the server e2e battery over the loopback transport (the T-020/T-050 harness
+  shape).
+- **Status:** planned.
+
+## T-209 — Portfolio value history
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the PnL engine (T-082) and the stats equity curve (T-083) ship; the
+  balances panel has no time dimension.
+- **What:** periodic portfolio-value snapshots per trading account (paper-first) persisted to
+  SQLite; the balances panel grows a value-over-time curve (the existing equity-curve widget)
+  and an allocation list by asset; the snapshot cadence is bounded and skips when nothing
+  changed materially.
+- **Scope:** Infrastructure (the snapshot service + store), the balances VM, resx en+ru, the
+  next free alpha bump + the CHANGELOG section.
+- **Acceptance:** the curve survives restart and reads the snapshot history; the allocation
+  sums to the portfolio value; the snapshots stay cheap (a bounded write cadence).
+- **Tests:** the snapshot cadence battery; the store migration pins.
+- **Status:** planned.
+
+## T-210 — Export parity: positions CSV + trade statement
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — orders, fills and candles export (T-084); positions and the portfolio
+  do not, and no full statement exists.
+- **What:** a positions CSV export and a one-shot trade statement bundle (orders + fills +
+  realized PnL + a balances snapshot, CSV plus a JSON manifest) from the trade statistics
+  window; the T-084 CSV writer is reused, never re-implemented.
+- **Scope:** Infrastructure CSV service extensions + the stats VM routes, resx en+ru, the next
+  free alpha bump + the CHANGELOG section.
+- **Acceptance:** both exports open cleanly in a spreadsheet; the statement honors the date
+  filter; an empty range exports nothing rather than a broken file.
+- **Tests:** the export goldens (header stability, encoding, the empty-range negative).
+- **Status:** planned.
+
+## T-211 — Trade notes and tags
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the journal records the what; nothing records the why.
+- **What:** user notes and tags on closed trades (the journal entities), editable from the
+  trade statistics and history surfaces; the stats filters gain tag lanes; the export includes
+  notes and tags (riding T-210's columns when both land).
+- **Scope:** the journal entities + the store migration, the stats/history VMs, resx en+ru,
+  the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** notes and tags survive restart; the tag filter narrows the stats honestly;
+  the CSV columns join the statement only with data present (the existing headers stay
+  stable).
+- **Tests:** the store migration battery; the filter pins.
+- **Status:** planned.
+
+## T-212 — Backtest parameter optimization
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the backtester runs one parameterization per run.
+- **What:** a grid sweep over a strategy's declared numeric parameters (the plugin descriptor's
+  settings shape), producing a ranked result table (net, drawdown, win rate, profit factor)
+  with a click-through to the single-run report; progress and cooperative cancel ride the
+  existing backtest events; walk-forward is explicitly out of scope (a later task).
+- **Scope:** ZettaTrade.Backtest (the sweep engine) + the window's results view, resx en+ru,
+  the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a two-parameter grid returns a ranked, deterministic table (the byte-stable
+  report discipline per row); cancel stops between parameterizations, never mid-run.
+- **Tests:** the sweep determinism battery; the cancel/progress pins.
+- **Status:** planned.
+
+## T-213 — Update checker
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — no updater and no version awareness beyond the status chip.
+- **What:** a periodic (and manual) check against the GitHub Releases API comparing the running
+  version; a newer release surfaces as a status-bar chip and a notification with the release
+  link; no auto-download, no auto-install — the alpha posture, documented.
+- **Scope:** App update service (offline-honest), the settings key (`App.UpdateCheck`), resx
+  en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a newer tag surfaces the chip and the link; an unreachable network degrades
+  silently to a logged warning; the off switch silences the check entirely.
+- **Tests:** the loopback releases-stub battery (parse, compare, the degraded states).
+- **Status:** planned.
+
+## T-214 — Tray icon
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — no tray presence exists.
+- **What:** a tray icon with a minimal menu (show/hide the main window, the DND toggle, exit);
+  an option to keep running in the tray on close (off by default); fired alerts route through
+  the tray when the window is hidden (Windows first; Linux/macOS ride the platform support
+  honestly or degrade to the notification center).
+- **Scope:** App tray service + the window-close policy, settings keys
+  (`App.TrayCloseBehavior`), resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** close-to-tray keeps the session alive and the single-instance hand-off
+  intact; exit from the tray fully exits; the off state changes nothing.
+- **Tests:** the close-policy headless pins; the single-instance interaction pin.
+- **Status:** planned.
+
+## T-215 — Profile backup and restore
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — settings import/export ships (T-100); the SQLite stores (orders, PnL,
+  drawings, candles) have no backup route.
+- **What:** a one-shot profile backup (settings + the SQLite stores + drawings, a versioned
+  archive) and a restore with a pre-restore summary; secrets stay on the machine by design —
+  the archive carries no `ISecretStore` content, documented in SECURITY.md.
+- **Scope:** Infrastructure backup service + the store paths, the settings window's
+  Integrations route, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a backup→restore round-trip restores the data stores; a corrupt archive
+  refuses honestly; a pin proves the archive never carries secret material.
+- **Tests:** the round-trip battery; the corrupt-archive negative; the no-secrets pin.
 - **Status:** planned.
 
 
