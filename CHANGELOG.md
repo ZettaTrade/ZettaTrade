@@ -1,3 +1,23 @@
+## [0.1.0-alpha.123] - 2026-11-12
+
+Build of board task T-178 (branch `feat/drawings-delete`): the drawings
+delete affordance, filed from the user's ask - how do you delete drawn
+lines from the chart, maybe a button should be added.
+
+### Added
+- The selected drawing's removal is discoverable: a trash button rides
+  the chart header's tool strip (after the Fib tool), armed only while a
+  drawing stands selected - with nothing selected it stays disabled, the
+  honest answer to "delete what?". Pressing it removes the selected
+  drawing through the same route the chart's Delete key names: the
+  selection clears and the layer saves. The removal semantics are the
+  T-091 ones, untouched.
+- The chart's own Delete/Escape keys surface where the user reads them:
+  the affordance's tooltip names the Delete key as the removal and Esc
+  as the placement-cancel or selection-clear. The hotkey registry keeps
+  its four window-level actions - the chart control's keys stay
+  control-local.
+
 ## [0.1.0-alpha.122] - 2026-11-12
 
 Build of board task T-177 (branch `feat/rail-scroll-splitter`): the

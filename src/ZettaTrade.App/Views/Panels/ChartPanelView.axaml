@@ -248,6 +248,25 @@
                           Stroke="{DynamicResource TextPrimary}"
                           Data="M 1 2 H 11 M 1 6 H 11 M 1 10 H 11" />
                 </Button>
+                <!-- The delete affordance (T-178): the selected drawing's
+                     removal is discoverable — the button rides the same
+                     route the chart's Delete key names (the selection
+                     clears, the layer saves), and its standing-selection
+                     gate leaves it disabled with nothing selected. The
+                     chart's own Delete/Escape keys surface in the tooltip:
+                     the hotkey registry carries only the window-level
+                     actions, the chart control's keys live here. -->
+                <Button Classes="icon"
+                        x:Name="DeleteDrawingButton"
+                        Command="{Binding DeleteSelectedDrawingCommand}"
+                        ToolTip.Tip="{loc:Localized Chart.Drawing.Delete.Tip}"
+                        AutomationProperties.Name="{loc:Localized Chart.Drawing.Delete}"
+                        Margin="8,2,0,2">
+                    <Path Stretch="None"
+                          StrokeThickness="1.5"
+                          Stroke="{DynamicResource TextPrimary}"
+                          Data="M 2.5 4.5 H 9.5 M 4.5 4.5 V 2.5 H 7.5 V 4.5 M 3.5 4.5 L 4.2 11.5 H 7.8 L 8.5 4.5" />
+                </Button>
             </WrapPanel>
         </Grid>
 

@@ -252,6 +252,21 @@ internal sealed record MainWorld(
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<ChartDrawing>>([]));
 
+        // The honest save echo (T-178): the real store's answer carries the
+        // layer back with its naming settled, so the save round-trip
+        // republishes the pushed layer as-is — the VM's fresh ChartDrawing
+        // already carries its identity at init, the echo keeps it. Without
+        // the echo the substitute's default null answer would blank the
+        // standing layer on every save. The async lambda keeps the store's
+        // Task shape without a Task.FromResult wrap.
+        drawingStore.SaveAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<IReadOnlyList<ChartDrawing>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(async ci => (IReadOnlyList<ChartDrawing>)ci[3]);
+
         return new(
             service,
             new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),

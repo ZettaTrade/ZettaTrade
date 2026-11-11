@@ -43,11 +43,12 @@ public sealed class ChartToolbarPinsTests
     {
         var source = ChartPanelXaml;
 
-        // The band carries exactly four icon buttons: the three drawing
-        // tools and the export flyout (the overlay toggles and the compare
-        // action stay text — they are outside the icon pass's named scope).
+        // The band carries exactly five icon buttons: the three drawing
+        // tools, the export flyout and the T-178 delete affordance (the
+        // overlay toggles and the compare action stay text — they are
+        // outside the icon pass's named scope).
         Regex.Matches(source, "Classes=\"icon\"")
-            .Should().HaveCount(4, "the three tools plus the export flyout are the band's icon family");
+            .Should().HaveCount(5, "the three tools, the export flyout and the delete affordance are the band's icon family");
 
         // Each tool rides the kit's armed class through the VM's own fact,
         // and its caption became the automation name — an icon-only
@@ -193,11 +194,12 @@ public sealed class ChartToolbarPinsTests
     {
         var source = ChartPanelXaml;
 
-        // The four icon controls: three tools + the export flyout, each
-        // with the localized automation name.
+        // The five icon controls: three tools, the export flyout and the
+        // T-178 delete affordance, each with the localized automation name.
         foreach (var key in new[]
                  {
                      "Chart.Tool.TrendLine", "Chart.Tool.Level", "Chart.Tool.Fib", "Chart.Export",
+                     "Chart.Drawing.Delete",
                  })
         {
             Regex.Matches(source, $"AutomationProperties.Name=\"{{loc:Localized {key}}}\"")
