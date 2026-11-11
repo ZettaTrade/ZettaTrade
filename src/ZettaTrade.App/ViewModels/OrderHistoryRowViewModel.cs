@@ -19,6 +19,18 @@ public sealed record OrderHistoryRowViewModel
     /// <summary>Localized side (Buy/Sell).</summary>
     public required string Side { get; init; }
 
+    /// <summary>
+    /// True for a buy order: drives the side chip's state class (T-157) —
+    /// the same long/short reading the localized side text carries.
+    /// </summary>
+    public required bool IsBuySide { get; init; }
+
+    /// <summary>
+    /// True for a sell order: the chip's other state class. OrderSide is
+    /// Buy/Sell only, so this is exactly the negation.
+    /// </summary>
+    public bool IsSellSide => !IsBuySide;
+
     /// <summary>Localized order type (Market/Limit/…).</summary>
     public required string Type { get; init; }
 

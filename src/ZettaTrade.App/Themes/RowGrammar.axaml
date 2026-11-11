@@ -1,0 +1,92 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+    The shared table row grammar (T-157): the positions panel's three
+    sections and the order-history window speak one scaffold — the
+    emphasized header row over a hairline, the hairline-separated rows,
+    the side chips in the state colors and the row-action hierarchy.
+    Every color rides the theme palette's keys, so a user theme retints
+    the grammar live; the readable captions ride the derived
+    ChipForeground the Livery chip class publishes (T-152). The windows
+    include this dictionary once (StyleInclude); the chip/testnet lane
+    vocabulary itself stays in the Livery kit (T-154) — buy/sell here are
+    table-side states, not lanes.
+    -->
+
+    <!-- The emphasized header row: the caption-weight text over a hairline
+         (the Xs step under the strip). -->
+    <Style Selector="Border.table-header-row">
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
+        <Setter Property="Padding" Value="0,0,0,4" />
+    </Style>
+    <Style Selector="Border.table-header-row TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- The data rows: the hairline separator carries down (the last one
+         closes the table); the vertical breathing (6) is the redesign's
+         own between-step tune; the cells center against the taller
+         action column. -->
+    <Style Selector="Border.table-row">
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
+        <Setter Property="Padding" Value="0,6" />
+    </Style>
+    <Style Selector="Border.table-row TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- The side chips (T-157): the Livery chip class carries the shape
+         and the caption treatment; the app-local state classes pick the
+         fills — the SAME state-color pair the ticket's segmented side
+         speaks, the ones the T-152 contrast publisher scores. -->
+    <Style Selector="Border.chip.buy">
+        <Setter Property="Background" Value="{DynamicResource CandleUp}" />
+    </Style>
+    <Style Selector="Border.chip.sell">
+        <Setter Property="Background" Value="{DynamicResource Error}" />
+    </Style>
+
+    <!-- The row actions (T-157): three weights. The default is the row's
+         main move (the Close, the Cancel, the bulk cancel) at the stock
+         filled look; the secondary is the quiet outlined sibling; the
+         destructive is the subdued ghost whose danger reads only on hover
+         — the existing confirmation gate stays its only loud moment, so
+         Reverse (the two-step gated flip) is never the busiest element on
+         its row. The transparent rest borders keep the T-110 focus ring
+         reachable: the :focus style re-arms the Highlight border. -->
+    <Style Selector="Button.row-action">
+        <Setter Property="MinWidth" Value="64" />
+        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.row-action:pointerover">
+        <Setter Property="Background" Value="{DynamicResource Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+    </Style>
+    <Style Selector="Button.row-action.secondary">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.row-action.destructive">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+    </Style>
+    <Style Selector="Button.row-action.destructive:pointerover">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Error}" />
+    </Style>
+    <Style Selector="Button.row-action.destructive:pressed">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Error}" />
+    </Style>
+    <Style Selector="Button.row-action.destructive:focus">
+        <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+    </Style>
+</Styles>

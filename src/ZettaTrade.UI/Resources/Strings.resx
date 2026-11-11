@@ -828,20 +828,20 @@ Estimated fee: {7}</value>
   <data name="Positions.Title" xml:space="preserve">
     <value>Positions and orders</value>
   </data>
-  <data name="Positions.PositionsHeader" xml:space="preserve">
-    <value>Open positions</value>
+  <data name="Positions.TabPositions" xml:space="preserve">
+    <value>Positions</value>
   </data>
   <data name="Positions.NoPositions" xml:space="preserve">
     <value>No open positions</value>
   </data>
-  <data name="Positions.OpenOrdersHeader" xml:space="preserve">
+  <data name="Positions.TabOpenOrders" xml:space="preserve">
     <value>Open orders</value>
   </data>
   <data name="Positions.NoOpenOrders" xml:space="preserve">
     <value>No open orders</value>
   </data>
-  <data name="Positions.RecentHeader" xml:space="preserve">
-    <value>Orders placed this session</value>
+  <data name="Positions.TabRecent" xml:space="preserve">
+    <value>This session</value>
   </data>
   <data name="Positions.NoRecent" xml:space="preserve">
     <value>Nothing placed in this session yet</value>

@@ -149,12 +149,13 @@ public sealed class PositionsPanelViewModelTests
         OrderType type = OrderType.Limit,
         string? ocoGroupId = null,
         decimal filled = decimal.Zero,
-        decimal? commission = null) => new()
+        decimal? commission = null,
+        OrderSide side = OrderSide.Buy) => new()
         {
             Id = id,
             ExchangeId = "paper",
             Symbol = Symbol.Parse(symbol),
-            Side = OrderSide.Buy,
+            Side = side,
             Type = type,
             Quantity = new Quantity(0.01m),
             Price = new Price(50_000m),
@@ -166,12 +167,12 @@ public sealed class PositionsPanelViewModelTests
             Commission = commission,
         };
 
-    private static Position BuildPosition(string symbol) => new()
+    private static Position BuildPosition(string symbol, OrderSide side = OrderSide.Buy) => new()
     {
         Id = "pos-1",
         ExchangeId = "paper",
         Symbol = Symbol.Parse(symbol),
-        Side = OrderSide.Buy,
+        Side = side,
         Quantity = new Quantity(0.01m),
         EntryPrice = new Price(50_000m),
         CurrentPrice = new Price(50_100m),
@@ -218,6 +219,42 @@ public sealed class PositionsPanelViewModelTests
         viewModel.RecentOrders[1].OrderId.Should().Be("paper-1");
         viewModel.RecentOrders[1].Status.Should().Be("[Positions.StatusFilled]");
         viewModel.HasRecentOrders.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The side chips' row state (T-157): the computed flags ride the row
+    /// exactly as the parent built it — one true per side, derived from the
+    /// order side itself, never re-parsed from the localized display text.
+    /// </summary>
+    [Fact]
+    public async Task LoadCommand_BuildsTheRowSideStateForTheChips()
+    {
+        // Arrange: one long and one short position, one order on each side.
+        _trading.GetPositionsAsync().Returns(
+        [
+            BuildPosition("BTC/USDT", OrderSide.Buy),
+            BuildPosition("ETH/USDT", OrderSide.Sell),
+        ]);
+        _trading.GetOpenOrdersAsync().Returns(
+        [
+            BuildOrder("paper-1", OrderStatus.Pending, side: OrderSide.Buy),
+            BuildOrder("paper-2", OrderStatus.Pending, "ETH/USDT", side: OrderSide.Sell),
+        ]);
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: exactly one computed flag is true per row.
+        viewModel.Positions[0].IsBuySide.Should().BeTrue();
+        viewModel.Positions[0].IsSellSide.Should().BeFalse();
+        viewModel.Positions[1].IsBuySide.Should().BeFalse();
+        viewModel.Positions[1].IsSellSide.Should().BeTrue();
+
+        viewModel.OpenOrders[0].IsBuySide.Should().BeTrue();
+        viewModel.OpenOrders[0].IsSellSide.Should().BeFalse();
+        viewModel.OpenOrders[1].IsBuySide.Should().BeFalse();
+        viewModel.OpenOrders[1].IsSellSide.Should().BeTrue();
     }
 
     /// <summary>

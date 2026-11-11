@@ -1,3 +1,29 @@
+## [0.1.0-alpha.102] - 2026-11-11
+
+Build of board task T-157 (branch `feat/table-grammar`); no satellite
+release rides it — the row grammar stays app-local over Livery 0.1.6.
+
+### Changed
+- The table grammar (T-157): the positions panel's three sections split by
+  tabs (Positions / Open orders / This session — `Positions.Tab*`, en + ru,
+  the three redundant in-tab section headers dropped), and every table —
+  the three panel sections plus the order-history window — speaks one
+  shared row scaffold (`Themes/RowGrammar.axaml`, included once per
+  window): an emphasized header row over a hairline, hairline-separated
+  rows, side chips (LONG/SHORT reading) in the same state colors the
+  ticket's segmented side speaks (CandleUp/Error, the keys the T-152
+  contrast publisher scores, captions through the derived readable
+  foreground), numeric columns right-aligned on the shared NumericFont
+  stack, and a three-weight row-action hierarchy — the row's main move at
+  the stock filled look, the quiet outlined secondary, and the subdued
+  destructive ghost (danger reads in the text tint on hover only; the
+  focus ring stays reachable over its transparent rest border) that only
+  the two-step gated Reverse carries. Row state rides the view models
+  (`IsBuySide` required + the `IsSellSide` negation on all three row
+  types, filled by the parents from the order side itself). The command
+  wiring is untouched: close/reduce/reverse, amend/cancel, bulk cancel
+  and every confirmation gate stay exactly as they were.
+
 ## [0.1.0-alpha.101] - 2026-11-11
 
 Build of board task T-156 (branch `feat/order-ticket-ui`); no satellite

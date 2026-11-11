@@ -828,20 +828,20 @@
   <data name="Positions.Title" xml:space="preserve">
     <value>Позиции и ордера</value>
   </data>
-  <data name="Positions.PositionsHeader" xml:space="preserve">
-    <value>Открытые позиции</value>
+  <data name="Positions.TabPositions" xml:space="preserve">
+    <value>Позиции</value>
   </data>
   <data name="Positions.NoPositions" xml:space="preserve">
     <value>Нет открытых позиций</value>
   </data>
-  <data name="Positions.OpenOrdersHeader" xml:space="preserve">
+  <data name="Positions.TabOpenOrders" xml:space="preserve">
     <value>Открытые ордера</value>
   </data>
   <data name="Positions.NoOpenOrders" xml:space="preserve">
     <value>Нет открытых ордеров</value>
   </data>
-  <data name="Positions.RecentHeader" xml:space="preserve">
-    <value>Ордера, размещённые в этой сессии</value>
+  <data name="Positions.TabRecent" xml:space="preserve">
+    <value>Текущая сессия</value>
   </data>
   <data name="Positions.NoRecent" xml:space="preserve">
     <value>В этой сессии ещё ничего не размещалось</value>
