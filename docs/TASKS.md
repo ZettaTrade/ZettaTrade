@@ -166,7 +166,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | done | - |
 | T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | done | T-154 (soft) |
 | T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | done | - |
-| T-162 Product identity: the app icon and the title-bar brand | feat/branding | queued | - |
+| T-162 Product identity: the app icon and the title-bar brand | feat/branding | in-progress | - |
 | T-163 The plugins consumption switch: the standard pack rides the package mechanics | feat/plugin-packages | done | - |
 | T-164 Dev-side pack provisioning: the plugins directory fills from the package at build time | feat/plugin-provision | done | - |
 
@@ -245,7 +245,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-162 — Product identity: the app icon and the title-bar brand
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch).
+- **Branch:** feat/branding, worktree zt-branding, based on develop@ba37463 (claimed 2026-11-11 as the thirteenth of the T-150…T-162 design-review batch).
 - **Origin:** the shell still ships the stock `avalonia-logo.ico` window/taskbar icon, and the
   custom strip carries no brand — the product is nameless in the one surface the user sees all
   session long.
@@ -258,3 +258,4 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   16px taskbar size; the strip keeps its drag/hit zones with the logo (the T-066 control's
   contract).
 - **Tests:** asset-presence pins; a source pin that the strip's hit zones survive the logo slot.
+- **Status:** in-progress
