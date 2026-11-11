@@ -135,6 +135,7 @@ public sealed class HeatmapViewModelTests
         var rail = new SignalRailViewModel(
             signals.Signals,
             Substitute.For<ILocalizationManager>(),
+            Substitute.For<ISettingsService>(),
             NullLogger<SignalRailViewModel>.Instance);
 
         // The drawings store rides silent in these facts: an empty layer

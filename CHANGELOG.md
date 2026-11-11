@@ -1,3 +1,28 @@
+## [0.1.0-alpha.122] - 2026-11-12
+
+Build of board task T-177 (branch `feat/rail-scroll-splitter`): the
+signal rail scrolls its overflow and drags its height, filed from the
+user's ask - add a scrollbar to the signal rail and a splitter too.
+
+### Added
+- The rail's rows surface scrolls: a busy rail's older readings stay
+  reachable - the overflow rides a scroller below the rail head, the
+  newest-first order is the rows ring's own and the scroller only
+  reveals its tail.
+- The rail's boundary drags: a row-wise sibling of the T-172 workspace
+  handles rides a thin track between the chart and the rail (the grip
+  hairline tints to the Accent on hover, the arrow keys step the
+  boundary when focused), the row's min/max clamps hold the drag inside
+  the 72-480 px band and the chart row keeps its star - the rail grows
+  within its band, never eats the chart.
+- The dragged height persists: the TwoWay row binding carries every
+  drag into the rail ViewModel, the settled burst writes the settings
+  file once (the T-038 drag-settle pipeline, row-wise), the startup
+  walk restores the stored height before the first frame, garbage-safe
+  out-of-range values fall back to the shipped default, and external
+  writers apply live without echoing. The rail ships at its old 172 px
+  cap, so a fresh install shows the layout every session saw.
+
 ## [0.1.0-alpha.121] - 2026-11-11
 
 Build of board task T-175 (branch `fix/binding-noise`): the startup

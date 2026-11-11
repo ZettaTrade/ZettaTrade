@@ -268,11 +268,14 @@ internal static class CompositionRoot
 
         // The signal rail (T-112): the coalescing streaming panel. The
         // chart exposes it as SignalRail for the workspace strip, the
-        // window owns the row-press route.
+        // window owns the row-press route. IAsyncInitializable (T-177):
+        // the startup walk restores the rail's persisted height before
+        // the first frame.
         services.AddSingleton<SignalRailViewModel>(sp =>
             new SignalRailViewModel(
                 sp.GetRequiredService<StrategySignalService>().Signals,
                 sp.GetRequiredService<ILocalizationManager>(),
+                sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<ILogger<SignalRailViewModel>>()));
 
         services.AddSingleton<ChartViewModel>(sp =>
