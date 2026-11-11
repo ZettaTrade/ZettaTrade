@@ -657,6 +657,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         {
             Symbol = position.Symbol.Normalized,
             Side = _localization.GetString($"Order.{position.Side}"),
+            IsBuySide = position.Side is OrderSide.Buy,
             Quantity = position.Quantity.Value.ToString(CultureInfo.InvariantCulture),
             EntryPrice = position.EntryPrice.Value.ToString("F8", CultureInfo.InvariantCulture),
             Opened = position.OpenedAt.ToLocalTime().ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
@@ -704,6 +705,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             OrderId = order.Id,
             Symbol = order.Symbol.Normalized,
             Side = _localization.GetString($"Order.{order.Side}"),
+            IsBuySide = order.Side is OrderSide.Buy,
             Quantity = order.Quantity.Value.ToString(CultureInfo.InvariantCulture),
             Price = order.Price.Value.ToString("F8", CultureInfo.InvariantCulture),
             Status = _localization.GetString($"Positions.Status{order.Status}"),

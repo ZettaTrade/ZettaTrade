@@ -47,12 +47,13 @@ public sealed class OrderHistoryViewModelTests
         string id,
         OrderStatus status,
         DateTimeOffset createdAt,
-        decimal? commission = null) => new()
+        decimal? commission = null,
+        OrderSide side = OrderSide.Sell) => new()
         {
             Id = id,
             ExchangeId = "paper",
             Symbol = Symbol.Parse("BTC/USDT"),
-            Side = OrderSide.Sell,
+            Side = side,
             Type = OrderType.Market,
             Quantity = new Quantity(0.02m),
             Price = new Price(50_100m),
@@ -95,6 +96,35 @@ public sealed class OrderHistoryViewModelTests
         viewModel.Rows[0].Status.Should().Be("[Positions.StatusCancelled]");
         viewModel.Rows[1].Opened.Should().Be("2026-01-01 12:00");
         viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    /// <summary>
+    /// The side chips' row state (T-157): the computed flags ride the row
+    /// exactly as the parent built it — one true per side, derived from the
+    /// order side itself, never re-parsed from the localized display text.
+    /// </summary>
+    [Fact]
+    public async Task LoadCommand_BuildsTheRowSideStateForTheChips()
+    {
+        // Arrange: a buy and a sell order, both through the store.
+        var localOffset = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 1, 1, 12, 5, 0));
+        _store.GetRecentAsync(Arg.Any<int>())
+            .Returns(
+            [
+                BuildOrder("paper-2", OrderStatus.Cancelled, new DateTimeOffset(2026, 1, 1, 12, 5, 0, localOffset), side: OrderSide.Buy),
+                BuildOrder("paper-1", OrderStatus.Filled, new DateTimeOffset(2026, 1, 1, 12, 0, 0, localOffset)),
+            ]);
+
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: exactly one computed flag is true per row.
+        viewModel.Rows[0].IsBuySide.Should().BeTrue();
+        viewModel.Rows[0].IsSellSide.Should().BeFalse();
+        viewModel.Rows[1].IsBuySide.Should().BeFalse();
+        viewModel.Rows[1].IsSellSide.Should().BeTrue();
     }
 
     [Fact]

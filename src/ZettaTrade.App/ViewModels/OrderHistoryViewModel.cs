@@ -8,6 +8,7 @@ using ReactiveUI;
 using ReactiveUI.Primitives;
 using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
@@ -252,6 +253,7 @@ public sealed class OrderHistoryViewModel : ReactiveObject
         Exchange = order.ExchangeId,
         Symbol = order.Symbol.Normalized,
         Side = _localization.GetString($"Order.{order.Side}"),
+        IsBuySide = order.Side is OrderSide.Buy,
         Type = _localization.GetString($"Order.{order.Type}"),
         Quantity = order.Quantity.Value.ToString(CultureInfo.InvariantCulture),
         Price = order.Price.Value.ToString("F8", CultureInfo.InvariantCulture),

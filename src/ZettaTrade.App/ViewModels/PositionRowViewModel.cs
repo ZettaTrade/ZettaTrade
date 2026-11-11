@@ -22,6 +22,18 @@ public sealed class PositionRowViewModel : ReactiveObject
     /// <summary>Localized side (Buy = long, Sell = short).</summary>
     public required string Side { get; init; }
 
+    /// <summary>
+    /// True for a bought (long) position: drives the side chip's state class
+    /// (T-157) — the same long/short reading the localized side text carries.
+    /// </summary>
+    public required bool IsBuySide { get; init; }
+
+    /// <summary>
+    /// True for a sold (short) position: the chip's other state class.
+    /// OrderSide is Buy/Sell only, so this is exactly the negation.
+    /// </summary>
+    public bool IsSellSide => !IsBuySide;
+
     /// <summary>Position quantity, invariant culture.</summary>
     public required string Quantity { get; init; }
 
