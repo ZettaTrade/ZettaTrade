@@ -181,6 +181,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-174 The standard pack grows the strategy catalog: the classic swing/breakout/reversion set rides the package (the user ask, scoped by the supervisor's analytics) | feat/strategy-catalog | done | T-168 |
 | T-175 The startup binding sweep: the debug-output binding errors go silent and the menu gesture hints render (the user's debug log) | fix/binding-noise | planned | - |
 | T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | planned | - |
+| T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | planned | T-112, T-172 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -242,6 +243,18 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 - **Scope:** a new tests/ZettaTrade.E2E.Tests project (xUnit + FluentAssertions, FlaUI.Core + FlaUI.UIA3 packages), AutomationId additions in views, no production behavior change; no alpha bump (tests-only).
 - **Acceptance:** the E2E lane launches the real app and passes the critical-flow scripts locally; the gate runs it behind the Windows trait; the headless pins keep their lane.
 - **Tests:** the E2E critical-flow scripts; the existing gate stays green.
+- **Status:** planned.
+
+---
+
+## T-177 - The signal rail scrolls its overflow and drags its height
+
+- **Branch:** queued 2026-11-11 (filed from the user's ask: add a scrollbar to the signal rail and a splitter too).
+- **Origin:** the T-112 signal rail rides a fixed `MaxHeight="172"` cap inside the chart panel with its rows on a bare vertical StackPanel - no ScrollViewer, so a busy rail's older readings clip out of sight; and the cap is a hardcoded constant, the user cannot grow the rail when it matters (the workspace's other boundaries all drag since T-172).
+- **What:** the rows surface scrolls (the overflow reachable, the newest-first order preserved); the rail's boundary becomes draggable - the T-172 ColumnResizeHandle's row-wise sibling (a RowResizeHandle) writes a rail height that clamps sanely and persists through the settings pipeline (the T-038/T-172 persistence discipline); the chart above stays the star (the rail grows within its band, never eats the chart).
+- **Scope:** ChartPanelView.axaml (+ the rail height VM property and the persistence seam it rides), the App.Tests headless pins; alpha.122 + the CHANGELOG section.
+- **Acceptance:** a headless pin proves the overflow scrolls (rows beyond the viewport reachable) and a drag at the rail boundary resizes the persisted rail height (round-trip); the chart's hit area never loses its full band.
+- **Tests:** the App.Tests headless rail-lane pins (the scroll reachability, the drag round-trip); the full gate stays green.
 - **Status:** planned.
 
 
