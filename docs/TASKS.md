@@ -177,7 +177,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-170 Scroll surfaces audit: no window's content sits under the scrollbar (the user reports the overlap beyond the settings window) | feat/scroll-gutter | done | - |
 | T-171 The license activation dialog opens again: the EULA surface resolves under its interface (the user-reported live ERR) | feat/license-di | done | - |
 | T-172 The workspace's resize handles: every boundary drags for real (the grabbed line follows the pointer) and shows a visible grip | feat/splitter-grips | done | - |
-| T-173 A detached order book frees its main-window column: no dead reserved width rides behind the detached window (the user report) | fix/book-detach-space | planned | - |
+| T-173 A detached order book frees its main-window column: no dead reserved width rides behind the detached window (the user report) | feat/book-detach-space | done | - |
 | T-174 The standard pack grows the strategy catalog: the classic swing/breakout/reversion set rides the package (the user ask, scoped by the supervisor's analytics) | feat/strategy-pack-expansion | planned | T-168 |
 | T-175 The startup binding sweep: the debug-output binding errors go silent and the menu gesture hints render (the user's debug log) | fix/binding-noise | planned | - |
 | T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | planned | - |
@@ -219,18 +219,6 @@ systemic), the Livery shared-kit prep next (T-154, T-155), then the surface rede
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
 
 
-
----
-
-## T-173 - A detached order book frees its main-window column
-
-- **Branch:** queued 2026-11-11 (filed from the user's ask: "if the order book is opened as a separate window, do not reserve its space in the main window").
-- **Origin:** T-103's detach moves the book panel into its own window, but the main window's book column keeps its persisted width - a dead reserved gutter rides behind the detached window and the layout reads wrong. The AI panel already solves the same problem: its splitter track and column collapse with the panel's visibility (`AiSplitterColumnWidth`, the "hidden panel never leaves a dead gutter" precedent).
-- **What:** the book column, its splitter track and the column widths collapse when `IsBookDetached` goes true - the workspace reclaims the space for the chart; on re-attach the persisted book width restores (the persistence keys ride untouched); the chart column keeps its star share.
-- **Scope:** WorkspaceLayoutViewModel (a book splitter-track sibling of the AI precedent), MainWindow.axaml (the book column + splitter bindings), the UI.Tests pins; alpha.119 + the CHANGELOG section.
-- **Acceptance:** headless pins prove the detached state leaves no reserved book gutter and the re-attached state restores the persisted width; the detach/attach cycle round-trips.
-- **Tests:** the UI.Tests headless detach-lane pins (column collapse per state, the restore round-trip); the full gate stays green.
-- **Status:** planned.
 
 ---
 
