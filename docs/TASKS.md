@@ -184,6 +184,9 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | planned | T-112, T-172 |
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete-affordance | planned | T-091 |
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | fix/skia-header-padding | planned | T-103 |
+| T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | fix/theme-preview-mirror | planned | - |
+| T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | fix/ticket-hover-response | planned | - |
+| T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -269,6 +272,82 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 - **Scope:** the two widget draw sites, the App.Tests geometry pin; alpha.124 + the CHANGELOG section.
 - **Acceptance:** the pin proves a visible gap between the column captions and the first row on both widgets; the tape's and the book's band heights stay untouched (no row-count change at a fixed panel size).
 - **Tests:** the App.Tests widget geometry pin (both widgets); the full gate stays green.
+- **Status:** planned.
+
+---
+
+## UI review 2026-11-12 — findings index (source of T-180…T-182)
+
+The read-only review pass that followed the 2026-11-10 design batch's landing (T-150…T-162 all
+implemented, the Livery and Plugins satellites split out, the board at T-179): a re-walk of the
+shipped palettes, the order ticket, the kit consumers and the small windows against the landed
+canon, plus the full test suite (2492 green). Three findings survive — two verified defects (the
+stale preview swatches in three theme files, the ticket's dead hover/pressed states) and one
+cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
+
+## T-180 - The theme preview swatches mirror the Accent again (dark, light, oled)
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 review findings batch).
+- **Origin:** the A11Y-audit convention makes the fourth preview swatch the Accent mirror
+  (trading-pro.json and midnight.json follow it), but the T-151 Accent re-tune never reached the
+  mirrors: dark.json advertises the retired hover blue `#0f3460` (Accent `#2563eb`), light.json a
+  grey `#dee2e6` (Accent `#3b82f6`), oled.json a near-black `#1a1a1a` (Accent `#2563eb`) — the
+  theme picker's swatch strip sells colors the theme no longer owns.
+- **What:** the three previewColors arrays mirror the shipped Accent values again; a pin battery
+  walks every shipped theme asserting the mirror convention (the A11Y audit's own rule, enforced
+  in the gate from now on).
+- **Scope:** themes/dark.json, themes/light.json, themes/oled.json, the UI.Tests pin battery;
+  alpha.125 + the CHANGELOG section.
+- **Acceptance:** the theme picker's swatches read the live Accent in every shipped theme; a
+  stale mirror fails the pin naming the file and the pair.
+- **Tests:** the preview-mirror pin battery over the real theme files (the negative fixture
+  included); the existing theme-identity pins stay green.
+- **Status:** planned.
+
+## T-181 - The order ticket's CTA and side segments answer hover and pressed
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 review findings batch).
+- **Origin:** NewOrderDialogWindow carries no `:pointerover`/`:pressed` styles at all, and its
+  window-scoped `Button.cta`/`Button.side` class styles set Background — applied after the app
+  styles they override Livery's generic `Button:pointerover`/`Button:pressed`
+  (Livery Controls.axaml:29/33). The primary CTA and the segmented Buy/Sell pair — the
+  highest-stakes buttons in the app — give zero visual response under the pointer; Livery's own
+  classed buttons (`.strip-icon`, `.icon`) set the pattern with explicit variants.
+- **What:** the ticket's window styles grow the interaction variants — `Button.cta:pointerover`
+  and `:pressed`, `Button.side:pointerover` and `:pressed` (+ the disabled treatment if the base
+  lacks one) — riding palette keys per the kit's strip-icon precedent; a fleet-wide source pin
+  enforces the shape (every window-scoped Button class style ships its interaction siblings),
+  so any other window with the same hole reports itself.
+- **Scope:** NewOrderDialogWindow.axaml styles (+ whatever windows the fleet pin reports);
+  alpha.126 + the CHANGELOG section. The ticket's trading path untouched (the safety canon
+  applies verbatim).
+- **Acceptance:** hovering and pressing the CTA and both side segments visibly shifts state in
+  dark and light; the hover deltas' contrast stays inside the T-151 battery's rules; behavior
+  parity — the existing ticket tests stay green untouched.
+- **Tests:** the fleet-wide source pin (class style → interaction siblings); the existing
+  ticket goldens.
+- **Status:** planned.
+
+## T-182 - The small-surface strays ride the scale and the palette
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 review findings batch).
+- **Origin:** the cosmetic strays the review swept up: off-scale spacing (the 6px margins and a
+  `Spacing="14"` in the small windows, BalancesPanelWindow first) outside the T-155 scale
+  (4/8/12/16/24), and bare `Opacity="0.65"` dimmers riding no palette key or state class — the
+  watchlist row's 24h volume (MainWindow.axaml), the chart toolbar's VWAP and VolumeProfile
+  toggles (ChartPanelView.axaml) whose on-state stays equally dimmed.
+- **What:** the off-scale margins map onto the nearest scale step (no layout ripple beyond the
+  stray's own pixel); each dimmer moves onto a named state class or palette-derived key
+  (the T-150 derived-key shape) so themes retint the rest state deliberately and the toggles'
+  on-state reads strong.
+- **Scope:** the named stray sites + whatever the grep sweep of off-scale margins and bare
+  opacity literals reports across the App views; Livery Tokens if a derived key lands there;
+  alpha.127 + the CHANGELOG section.
+- **Acceptance:** no off-scale margin or bare Opacity literal remains in the touched windows
+  (the source pin); the dimmed elements read in dark, light and oled (the contrast pins);
+  visual parity otherwise.
+- **Tests:** the source pins over the spacing literals and bare opacity values; the existing
+  headless bounds pins stay green.
 - **Status:** planned.
 
 
