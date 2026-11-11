@@ -12,8 +12,8 @@ using ReactiveUI;
 using ReactiveUI.Avalonia;
 using Serilog;
 using ZettaTrade.App.Services;
-using ZettaTrade.App.Views.Panels;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.App.Views.Panels;
 using ZettaTrade.UI.Extensions;
 // RxVoid rides an alias (not a plain ReactiveUI.Primitives import): plain both
 // imports would make every RxVoid Subscribe ambiguous against System's one.
