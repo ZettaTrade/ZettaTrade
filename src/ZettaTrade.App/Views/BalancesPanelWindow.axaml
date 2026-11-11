@@ -16,7 +16,9 @@
     <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto" RowSpacing="10">
 
         <ScrollViewer Grid.Row="0">
-            <StackPanel Spacing="14">
+            <!-- The section stack ends a strip short of the overlay bar's
+                 right edge (T-170). -->
+            <StackPanel Spacing="14" Margin="0,0,16,0">
 
                 <!-- Per-exchange sections: every active adapter shows exactly
                      what it serves — its rows, the explicit not-provided

@@ -34,9 +34,12 @@
                        FontWeight="SemiBold"
                        TextWrapping="Wrap" />
             <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
+                <!-- The EULA text wraps, so the overlay bar rides over the
+                     right strip when it appears: the text ends a strip
+                     short of the edge (the T-169 gutter shape). -->
                 <TextBlock Text="{Binding EulaText}"
                            TextWrapping="Wrap"
-                           />
+                           Margin="0,0,16,0" />
             </ScrollViewer>
             <CheckBox Content="{loc:Localized Settings.License.Eula.AcceptLabel}"
                       IsChecked="{Binding Accepted}" />

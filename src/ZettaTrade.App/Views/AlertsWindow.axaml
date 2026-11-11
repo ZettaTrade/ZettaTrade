@@ -39,10 +39,15 @@
             </Grid>
 
             <ScrollViewer Grid.Row="1">
+                <!-- The list rows clear the outer overlay bar's strip
+                     (T-170): the bar expands over the list's right edge
+                     when it appears, and the note column must not sit
+                     under it. -->
                 <ListBox Name="AlertRows"
                          ItemsSource="{Binding Rows}"
                          SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
-                         Background="Transparent">
+                         Background="Transparent"
+                         Margin="0,0,16,0">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:AlertsRowViewModel">
                             <Grid ColumnDefinitions="1.1*,1.5*,1.1*,1.1*,1.4*" ColumnSpacing="{StaticResource SpaceS}">

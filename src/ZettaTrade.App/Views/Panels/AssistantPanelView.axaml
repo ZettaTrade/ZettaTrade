@@ -126,9 +126,12 @@
              dropped the selection-free-list-as-ListBox shape; the messages
              are never selectable data rows, so the ItemsControl is the
              honest host); the bubble bounds the wrap (480), the rest of
-             the width stays the column's -->
+             the width stays the column's. The right inset carries the
+             overlay bar's 16 px strip on top of the InsetS token (T-170):
+             the bubbles end a strip short of the edge, never under the
+             bar. -->
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl ItemsSource="{Binding ChatMessages}" Margin="{StaticResource InsetS}">
+            <ItemsControl ItemsSource="{Binding ChatMessages}" Margin="8,8,24,8">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Spacing="{StaticResource SpaceXs}" />
