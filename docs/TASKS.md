@@ -186,7 +186,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | feat/tape-header-gap | done | T-103 |
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | feat/theme-preview-mirror | done | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | feat/ticket-cta-states | done | - |
-| T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
+| T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | feat/surface-strays | in-progress | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | planned | T-183 (soft) |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | planned | - |
@@ -337,7 +337,9 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
 
 ## T-182 - The small-surface strays ride the scale and the palette
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 review findings batch).
+- **Branch:** feat/surface-strays, worktree zt-surface-strays, based on develop@197300a
+  (claimed 2026-11-12 per standing directive 6 — the review findings batch, T-181 landed;
+  the queued branch name fix/surface-strays replaced by the real one).
 - **Origin:** the cosmetic strays the review swept up: off-scale spacing (the 6px margins and a
   `Spacing="14"` in the small windows, BalancesPanelWindow first) outside the T-155 scale
   (4/8/12/16/24), and bare `Opacity="0.65"` dimmers riding no palette key or state class — the
@@ -355,7 +357,7 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
   visual parity otherwise.
 - **Tests:** the source pins over the spacing literals and bare opacity values; the existing
   headless bounds pins stay green.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ---
 
