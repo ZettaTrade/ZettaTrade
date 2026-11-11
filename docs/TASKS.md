@@ -189,6 +189,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | planned | T-183 (soft) |
+| T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | planned | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -375,7 +376,10 @@ each section below carries its own origin. All rows start `planned`.
   offender; no hierarchy exists (the settings' "Open themes folder" and the ticket's "Place"
   read identically), and the corner radius is not tokenized at all (no Corner keys in
   Tokens.axaml). The approved variant A: quiet by default, tinted on hover, one primary per
-  window.
+  window. The 2026-11-12 main-window review adds the concrete consumer site: the toast rows
+  (MainWindow.axaml:545-577) are Buttons wrapping a Border card — the button's own chrome rides
+  behind the card, invisible at rest (Surface-on-Surface) and loud on hover (the solid Accent
+  fill lights around the card's corners).
 - **What:** the Livery button vocabulary grows the approved shape — the resting state goes
   transparent/barely-tinted over a hairline Border-family stroke; hover becomes a **soft Accent
   tint** (~12%, a published derived key, the T-150 derived-key shape), pressed a stronger tint,
@@ -383,17 +387,20 @@ each section below carries its own origin. All rows start `planned`.
   readable foreground the T-152 publisher scores) marks the ONE main action per window; corner
   radius and row-action sizing publish as tokens (CornerM = 4) and Button/ComboBox/TextBox
   adopt them for one consistent rounding. The windows then adopt: each window's main action
-  goes primary, the rest quiet.
+  goes primary, the rest quiet — and a Button that carries card chrome inside it (the toast
+  rows' Button-wrapping-a-Border shape) adopts the quiet treatment too: the chrome lives in
+  exactly one of the two layers.
 - **Scope:** Livery Themes (the Controls.axaml button family + the Tokens.axaml corner/padding
   keys) — the package change rides the satellite repo per the multi-repo rule (bump Livery
   there, land, then the one-line consuming bump); the App windows' class adoption in the
-  consuming bump's wake; resx untouched.
+  consuming bump's wake (the MainWindow toast template's quiet class included); resx untouched.
 - **Acceptance:** no button flashes a solid Accent fill on hover (source pin); every window
   carries at most one primary action; the hover pairs' contrast passes the T-151 battery; no
   bare corner-radius literals remain in the adopted surfaces.
 - **Tests:** the contrast pins for the new pairs (the hover tint vs Surface, primary vs its
-  foreground); source pins (the solid-Accent hover out, the radius literals onto the tokens);
-  Livery's own gate rides the satellite.
+  foreground); source pins (the solid-Accent hover out, the radius literals onto the tokens,
+  and the Button-as-card-container sites riding the quiet class); Livery's own gate rides the
+  satellite.
 - **Status:** planned.
 
 ## T-184 - The settings window rides the category rail and the section cards
@@ -423,6 +430,26 @@ each section below carries its own origin. All rows start `planned`.
 - **Tests:** the headless bounds pin (no scroll at the default size); the existing settings
   goldens stay green (behavior parity); a source pin that the section headers ride the shared
   style.
+- **Status:** planned.
+
+## T-185 - The MainWindow's XAML re-indents: the DockPanel block stops sitting flush with its parent
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 main-window review).
+- **Origin:** the main window's middle block — the DockPanel at MainWindow.axaml:117-527, about
+  410 lines carrying the menu, the status bar and the whole workspace grid — sits at the SAME
+  indent as its parent: the DockPanel's children lost one level, the closing tag lines up with
+  the opener, and the file's structural reading breaks exactly where the layout is densest.
+  Cosmetic only; the markup is untouched.
+- **What:** a whitespace-only re-indent of the block (the DockPanel's children one level deeper
+  than the DockPanel, the rest follows); no attribute, element or ordering change — the diff
+  shows whitespace pairs only.
+- **Scope:** MainWindow.axaml formatting alone; no style, binding or resx change; no alpha bump
+  (formatting-only).
+- **Acceptance:** the block's indentation reads its nesting (the DockPanel's children one level
+  under the DockPanel); a whitespace-ignoring diff shows no content change; the build and the
+  full test suite stay green.
+- **Tests:** the existing suite green untouched (the formatting-only proof — nothing
+  behavioral moves); the gate's diff discipline.
 - **Status:** planned.
 
 
