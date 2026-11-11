@@ -183,6 +183,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | planned | - |
 | T-177 The signal rail scrolls its overflow and drags its height (the user ask: a scrollbar and a splitter for the rail) | feat/rail-scroll-splitter | planned | T-112, T-172 |
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete-affordance | planned | T-091 |
+| T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | fix/skia-header-padding | planned | T-103 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -268,6 +269,18 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 - **Scope:** CandlestickChart (the affordance's anchor and the key routes), the drawings toolbar surface, the cheat-sheet/tooltip wording, the App.Tests headless pins; alpha.123 + the CHANGELOG section.
 - **Acceptance:** a headless pin selects a drawing, proves the affordance visible and wired to the same removal route the Delete key drives, and proves the chart's keys read where the user looks for them.
 - **Tests:** the App.Tests headless drawings-lane pins (the affordance presence + the route pairing); the full gate stays green.
+- **Status:** planned.
+
+---
+
+## T-179 - The Skia header bands breathe: the column headers stop sitting flush on their first rows
+
+- **Branch:** queued 2026-11-11 (filed from the user's ask: add padding between the table header and the data, and look for similar places).
+- **Origin:** the trade tape's column headers (Time/Price/Size, T-103) are drawn with their text baseline exactly on the header band's bottom edge - the first trade row starts at that same edge, so the caption glyphs touch the row glyphs with zero gap; the order book's column headers (Price/Cumulative volume) repeat the identical geometry. The user's screenshots are both defect sites.
+- **What:** a shared draw fix shape - the column-header baseline lifts to a named constant inside the band (the band height unchanged, no layout ripple) in `TradeTapeWidget` and `OrderBookWidget`; a render-geometry pin asserts baseline &lt; first-row top for both widgets; a sweep of the remaining Skia surfaces (DepthChart, Heatmap - no header bands) recorded so the pattern has no other hiding places.
+- **Scope:** the two widget draw sites, the App.Tests geometry pin; alpha.124 + the CHANGELOG section.
+- **Acceptance:** the pin proves a visible gap between the column captions and the first row on both widgets; the tape's and the book's band heights stay untouched (no row-count change at a fixed panel size).
+- **Tests:** the App.Tests widget geometry pin (both widgets); the full gate stays green.
 - **Status:** planned.
 
 
