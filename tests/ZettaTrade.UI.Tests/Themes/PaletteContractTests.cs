@@ -21,7 +21,9 @@ using ZettaTrade.UI.Tests.Support;
 /// a rolled-back value fails the gate by name, and the generated sample
 /// theme (the auto-created user theme the first run writes) answers the
 /// same contract — the "on load" path the review demanded the custom
-/// themes to hit.
+/// themes to hit. The battery grew a mirror lane (T-180): a theme that
+/// carries the fourth preview swatch must mirror its live Accent — the
+/// picker's strip never advertises a color the theme no longer owns.
 /// </summary>
 public sealed class PaletteContractTests
 {
@@ -72,6 +74,74 @@ public sealed class PaletteContractTests
         theme.Colors.Should().ContainKey("Accent").WhoseValue.Should().Be(
             AccentGoldens[themeName],
             "the '/{0}' accent is the interactive-strength golden — a rolled-back value fails by name", themeName);
+    }
+
+    /// <summary>
+    /// The A11Y audit's mirror rule (T-180): the fourth preview swatch
+    /// mirrors the theme's live Accent — the T-151 re-tune left the dark,
+    /// light and oled strips advertising retired colors. A theme with
+    /// fewer than four swatches (or no Accent) advertises nothing, so the
+    /// mirror binds only themes that carry the fourth chip.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AccentGoldenKeys))]
+    public void EveryShippedTheme_PreviewsTheAccentMirror(string themeName)
+    {
+        var theme = ParseTheme(Path.Combine(ThemesDirectory, $"{themeName}.json"));
+        var violations = PreviewMirrorViolations(themeName, theme);
+
+        violations.Should().BeEmpty(
+            "the '{0}' theme's fourth preview swatch must mirror its Accent (the picker's strip never sells a color the theme no longer owns): {1}",
+            themeName,
+            string.Join("; ", violations));
+    }
+
+    /// <summary>
+    /// The negative fixture: the pre-fix dark theme — its fourth swatch
+    /// advertised the retired hover blue while the Accent had moved on.
+    /// The pin must fail naming the file and the pair, so a stale mirror
+    /// cannot sneak through the gate again.
+    /// </summary>
+    [Fact]
+    public void TheStaleDarkMirror_FailsThePinNamingTheFileAndThePair()
+    {
+        var theme = ParseTheme(Path.Combine(ThemesDirectory, "dark.json"));
+        var stale = new ThemeDefinition
+        {
+            Name = theme.Name,
+            Colors = new Dictionary<string, string>(theme.Colors!),
+            PreviewColors = ["#0a0a0f", "#1a1a2e", "#16213e", "#0f3460"],
+        };
+
+        var violations = PreviewMirrorViolations("dark", stale);
+
+        violations.Should().ContainSingle().Which.Should().Contain("themes/dark.json")
+            .And.Contain("#0f3460")
+            .And.Contain("#2563eb");
+    }
+
+    /// <summary>The mirror rule itself: the fourth preview swatch equals
+    /// the Accent (case-insensitive — colors, not strings). Returns the
+    /// violation lines (empty when the theme carries no fourth chip, no
+    /// Accent, or an honest mirror) so the negative fixture can name the
+    /// file and the pair it caught.</summary>
+    private static IReadOnlyList<string> PreviewMirrorViolations(string themeName, ThemeDefinition theme)
+    {
+        var violations = new List<string>();
+        var accent = theme.Colors is null ? null : theme.Colors.GetValueOrDefault("Accent");
+        if (theme.PreviewColors is not { Length: >= 4 } previews || accent is null)
+        {
+            return violations;
+        }
+
+        var swatch = previews[3];
+        if (!string.Equals(swatch, accent, StringComparison.OrdinalIgnoreCase))
+        {
+            violations.Add(
+                $"themes/{themeName}.json: the fourth preview swatch '{swatch}' does not mirror the Accent '{accent}'");
+        }
+
+        return violations;
     }
 
     [Fact]
@@ -126,6 +196,11 @@ public sealed class PaletteContractTests
             violations.Should().BeEmpty(
                 "the auto-created sample must serve the whole role contract: {0}",
                 string.Join("; ", violations.Select(v => $"{v.Pair} ({v.Ratio:F2} < {v.Minimum:F1}: {v.Foreground} over {v.Background})")));
+
+            // The mirror lane rides the same promise (T-180): the sample's
+            // fourth preview swatch mirrors its live Accent.
+            PreviewMirrorViolations("sample-custom", theme).Should().BeEmpty(
+                "the auto-created sample must mirror its Accent in the fourth preview swatch");
         }
         finally
         {

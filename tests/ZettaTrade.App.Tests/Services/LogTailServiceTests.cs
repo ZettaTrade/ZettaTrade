@@ -312,7 +312,6 @@ public sealed class LogTailServiceTests
         await service.InitializeAsync();
 
         var evicted = new List<LogLine>();
-        using var settled = new ManualResetEventSlim(initialState: false);
         using var subscription = service.Slices.Subscribe(
             slice =>
             {
@@ -320,8 +319,6 @@ public sealed class LogTailServiceTests
                 {
                     evicted.Add(line);
                 }
-
-                settled.Set();
             });
 
         // Exactly the staging capacity in one burst: the channel stages the
@@ -330,9 +327,36 @@ public sealed class LogTailServiceTests
             .Select(i => Stub("WRN", "Burst", $"burst line {i}"));
         directory.Append(file, string.Concat(burst));
 
-        settled.Wait(PollDeliveryTimeout * 2).Should().BeTrue("the burst settles within a poll");
+        // The Slices lane publishes per drained batch (the streaming
+        // contract): a burst the producer pulled across two poll windows
+        // rides TWO slices, and the first slice is NOT the settled signal —
+        // the settled state is the ring holding the full burst (the
+        // capacity count with the burst's newest line at the tail). The
+        // pre-fix shape woke on the first slice and raced the snapshot
+        // against the remaining staging — it died on exactly that race
+        // under the parallel-suite load (SUPERVISOR STABILIZATION, T-180:
+        // four misses in two gates, the same fact both attempts). The wait
+        // polls the snapshot until the ring reads settled or the deadline
+        // expires — the final assertions then name the actual state.
+        var deadline = DateTime.UtcNow + PollDeliveryTimeout * 2;
+        var burstTail = $"burst line {LogTailService.BackpressureChannelCapacity - 1}";
+        IReadOnlyList<LogLine> snapshot;
+        while (true)
+        {
+            snapshot = await service.HistorySnapshotAsync();
+            if (snapshot.Count == LogTailService.MaxHistoryLines && snapshot[^1].Message == burstTail)
+            {
+                break;
+            }
 
-        var snapshot = await service.HistorySnapshotAsync();
+            if (DateTime.UtcNow >= deadline)
+            {
+                break;
+            }
+
+            await Task.Delay(TestPollInterval);
+        }
+
         snapshot.Count.Should().Be(LogTailService.MaxHistoryLines, "the ring holds exactly the capacity");
         snapshot[^1].Message.Should().Be(
             $"burst line {LogTailService.BackpressureChannelCapacity - 1}",
