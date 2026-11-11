@@ -387,6 +387,42 @@ public sealed class SettingsServiceTests
         }
     }
 
+    /// <summary>
+    /// The soak harness's (T-141) seed file: the driver pins the demo adapter
+    /// by writing exactly this JSON as the sandbox's appsettings.json. The
+    /// fact proves the loader reads it as the Workspace/ExchangeId string —
+    /// a seed format drift fails the gate instead of silently leaving the
+    /// child on its default adapter (which the run's own isolation census
+    /// would then catch as a missing demo restore).
+    /// </summary>
+    [Fact]
+    public async Task TheSoakSeedFile_ReadsAsThePersistedDemoChoice()
+    {
+        var directory = NewSettingsDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "appsettings.json");
+            WriteFile(path, """{ "Workspace": { "ExchangeId": "demo" } }""");
+
+            var service = new SettingsService(path, NullLogger<SettingsService>.Instance);
+            try
+            {
+                await service.InitializeAsync();
+
+                (await service.GetAsync<string>("Workspace", "ExchangeId"))
+                    .Should().Be("demo", "the harness's seeded demo pin is the persisted exchange id");
+            }
+            finally
+            {
+                service.Dispose();
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     #endregion
 
     #region Helpers

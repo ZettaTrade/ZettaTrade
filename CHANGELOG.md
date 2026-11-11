@@ -1,3 +1,35 @@
+## [0.1.0-alpha.108] - 2026-11-11
+
+Build of board task T-141 (branch `feat/soak-isolation`); no satellite
+release rides it.
+
+### Changed
+- The app learns the harness/sandbox profile pin (T-141):
+  `ConfigPathResolver` honors the `ZETTATRADE_PROFILE_DIR` environment
+  variable — when it carries a real directory, every profile root
+  (config, data, state) resolves inside it, so the whole profile
+  (settings, secrets, databases, logs) lands in the sandbox and the
+  user's real profile stays invisible to the process. A bare APPDATA
+  override could not serve this: on desktop Windows
+  `Environment.GetFolderPath` resolves through `SHGetKnownFolderPath`
+  and only falls back to the environment when that call fails, so the
+  pin is an application-owned seam.
+- The app learns the harness adapter allowlist (T-141):
+  `ZETTATRADE_ADAPTERS` keeps the facade's registered catalog to the
+  named adapters (unknown ids refuse the launch). The palette warm-up
+  and the balances aggregation walk that catalog and fetch every
+  entry's symbol catalog at startup, so a demo-only catalog is what
+  makes the soak's run network-free.
+- The soak driver (T-141) seeds the sandbox with the pinned demo
+  adapter, runs it demo-only, censuses the run's own log (the demo
+  restore present, zero real-exchange hosts), and discards the sandbox
+  after the run.
+- Fixed in flight (T-141): the single-instance claim read a missing
+  profile directory as contention (DirectoryNotFoundException is an
+  IOException), so every fresh-profile start — a first-ever launch
+  included — redirect-exited with HandoffUnavailable; the claim now
+  creates its own lock directory before the exclusive open.
+
 ## [0.1.0-alpha.107] - 2026-11-11
 
 Build of board task T-162 (branch `feat/branding`); the Livery 0.1.8

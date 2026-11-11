@@ -21,6 +21,35 @@ powershell -File scripts/soak.ps1 -Minutes 0          # the half-minute floor: a
 
 - The driver builds the solution first (`-SkipBuild` reuses a build the caller
   made — the gate does this).
+- **Profile sandbox (T-141):** the child never sees the real user profile. The
+  driver seeds a per-run sandbox under the output directory with a pinned
+  demo-adapter selection (`Workspace/ExchangeId = demo`) and starts the app with
+  the `ZETTATRADE_PROFILE_DIR` environment variable pointed at it — the app's
+  own pin (`ConfigPathResolver`): every profile root (config, data, state)
+  resolves inside the sandbox, so the run's settings, secrets, databases and
+  logs all land there and are discarded after the run. The user's appsettings
+  and API keys stay invisible to the run (the sandbox absorbs them — the run
+  holds no keys by construction), and the single-instance lock and pipe derive
+  from the pinned paths, so a soak can run beside a live user instance. A bare
+  `APPDATA` override could not do this: on desktop Windows
+  `Environment.GetFolderPath` resolves through `SHGetKnownFolderPath` and only
+  falls back to the environment when that call fails — hence the
+  application-owned seam.
+- **Adapter allowlist (T-141):** the same run sets `ZETTATRADE_ADAPTERS=demo` —
+  the composition keeps only the named adapters in the facade's registered
+  catalog (unknown ids refuse the launch; unset keeps the full catalog). The
+  palette warm-up and the balances aggregation walk that catalog and fetch
+  every entry's symbol catalog at startup, so the demo-only catalog is what
+  actually makes the run network-free — the persisted demo pin alone is not.
+- **Isolation census (T-141):** every run verifies its own isolation from the
+  run's own log inside the sandbox: the sandbox settings load must appear
+  (`Settings loaded from <profileRoot>`), no fallback warning
+  (`is not registered`, `No persisted exchange choice`) may appear, and no
+  real-exchange host string (`bybit.com`, `binance.com`) may appear anywhere
+  in the run. With the demo-only catalog a persisted demo restore is a silent
+  no-op (the facade starts on the catalog's first adapter), so the restore
+  line is not expected — when it appears anyway, it must name 'Demo'. A census
+  failure is a harness fault (exit 1), never a budget verdict.
 - **Process hygiene:** leftover `ZettaTrade*` processes are killed before the run
   and the post-run check demands zero survivors.
 - **Cold start** is measured as spawn → first main window (a 60 s cap bounds the
@@ -36,7 +65,7 @@ powershell -File scripts/soak.ps1 -Minutes 0          # the half-minute floor: a
 | `WorkingSetMb` / `PrivateMb` | the memory distributions: mean, max, P95, P99 over the run |
 | `WorkingSetSlopeMbPerHour` / `PrivateSlopeMbPerHour` | the least-squares growth slope — the leak indicator; a sloping private line is the one to chase (the working set flutters with paging) |
 | `Gc` | the per-generation GC tally over the run; `Sampled: false` means the lane could not observe the .NET perf counters (the legacy GUI counters do not cover .NET 10) — reported, never invented |
-| `CpuPercent` | the sampled CPU share of one core-equivalent (informational) |
+| `CpuPercent` | the sampled share of the machine's total CPU capacity across all cores (informational) |
 | `ColdStartMs` | the measured cold start |
 | `Verdicts` | one row per enforced budget |
 
