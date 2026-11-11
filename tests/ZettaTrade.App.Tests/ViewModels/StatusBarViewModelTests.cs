@@ -401,7 +401,17 @@ public sealed class StatusBarViewModelTests
             "Saved exchange unavailable",
             "the expired timer's refresh is posted to the dispatcher, not executed from the timer thread");
 
-        await AvaloniaDispatcherPump.DrainAsync();
+        // The expiry timer rides the thread pool: under the parallel
+        // full-suite load its fire can land after the drain above drained
+        // an already-empty queue, so the drain repeats bounded until the
+        // posted refresh executes (the pinned discipline stays: the
+        // refresh must arrive through the dispatcher, never inline).
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (viewModel.ConnectionStatus == "Saved exchange unavailable" && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(100);
+            await AvaloniaDispatcherPump.DrainAsync();
+        }
 
         viewModel.ConnectionStatus.Should().Be("Connected", "after expiry the regular chip text re-derives");
     }
