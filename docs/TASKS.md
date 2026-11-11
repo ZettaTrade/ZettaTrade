@@ -173,6 +173,8 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-166 The demo catalog covers the watchlist's starter majors (the silent first-run failure: 6 of 10 rows never price) | feat/demo-catalog-majors | done | - |
 | T-167 The title-bar close button rides its own column (the user-reported overlap with maximize) | feat/titlebar-buttons | done | - |
 | T-168 The backtest picker offers the standard pack's first strategy (the strategy seam rides the SDK contract 2.1.0) | feat/strategy-pack | done | - |
+| T-169 Settings window polish pass: the pairs transfer buttons ride the icon kit, the indicators rows align on fixed columns, the tab content clears the scrollbar | feat/settings-polish | in-progress | - |
+| T-170 Scroll surfaces audit: no window's content sits under the scrollbar (the user reports the overlap beyond the settings window) | feat/scroll-gutter | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -209,3 +211,28 @@ discipline first (T-150, T-151, T-152 — the two parallel color systems and the
 systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
 (T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
+
+
+---
+
+## T-169 — Settings window polish pass (the pairs transfer buttons, the indicators alignment, the scrollbar clearance)
+
+- **Branch:** feat/settings-polish, worktree zt-settings-polish, based on develop@8c752cb (claimed 2026-11-11; filed from the user's report with screenshots — three settings-window defects: "не нравится внешний вид кнопок стрелочек", "был бы отступ от скроллбара, а то он наезжает на текст и контролы", "тут так ничего и не изменилось, я просил выровнять" — the indicators).
+- **Origin:** three defects in one window. (1) The pairs tab's transfer buttons (hide/reveal a pair between the lists) are plain text `>` / `<` buttons (Width 34, Padding 0, no chevron affordance) — they read as placeholder chrome, not the shared kit's icon buttons. (2) The indicators tab lays every row's checkbox/info/period/box sequence inside a content-sized horizontal StackPanel, so the ragged canonical-name widths (SMA vs MACD/BOLL) shift the `Period` captions and the input boxes to a different x per row — the earlier alignment request never landed a structural fix. (3) The tab ScrollViewers' content carries no right margin, so the overlay scrollbar rides over the hotkeys' gesture boxes, the verdict messages and the pairs hint text.
+- **What:** the transfer buttons restyled as the Livery kit's icon buttons with chevron geometry (the automation names `Settings.Pairs.Hide/Reveal` and the tooltips survive — the glyphs alone never carry meaning); the indicators tab re-laid on fixed shared columns (a fixed name column, one aligned `Period` column, one box width) with the loaded-plugin row visibility discipline preserved (a row renders only for a plugin the scanned catalog actually loaded, the honest empty state keeps its branch); every settings tab's scroll content gains the right gutter so nothing sits under the scrollbar.
+- **Scope:** SettingsWindow.axaml + the window's test pins in UI.Tests; alpha.115 + the CHANGELOG section; no satellite change (the kit's styles consumed as-is), no ViewModel seams (the bindings ride untouched).
+- **Acceptance:** headless layout pins prove the indicators rows' `Period` captions and boxes share x-bounds and one box width; the transfer buttons render as icon buttons with chevrons while keeping their names and commands; every tab's content right edge clears the scrollbar gutter.
+- **Tests:** the UI.Tests headless settings-lane pins (the alignment bounds, the button names/commands intact); the full gate stays green.
+- **Status:** in-progress.
+
+---
+
+## T-170 — Scroll surfaces audit: no window's content sits under the scrollbar
+
+- **Branch:** feat/scroll-gutter, worktree zt-scroll-gutter, based on develop@8c752cb (claimed 2026-11-11; filed from the user's report — "скроллбары проверь во всех окнах, такое не только в настройках").
+- **Origin:** the Fluent overlay scrollbar expands over the content when it appears; the settings window showed it riding over text and controls (T-169's scope), and the user reports the same pattern across the app — every scroll surface needs the audit, not just the settings tabs.
+- **What:** walk every ScrollViewer-bearing surface OUTSIDE the settings window (the assistant chat panel, the license activation terms, the main window's panels and overlays, the cheat sheet, any log/list surface with a built-in scroll viewport); where content can sit under the expanded scrollbar, give the scroll content the right gutter (the same shape T-169 gives the settings tabs); each audited surface lands in the test pins — either it proves it cannot overlap (fixed-size rows, custom-drawn scroll) or it gains the gutter.
+- **Scope:** the non-settings .axaml views + their UI.Tests pins; alpha.116 + the CHANGELOG section; SettingsWindow.axaml is T-169's surface — do NOT touch it.
+- **Acceptance:** every audited scroll surface either proves it cannot overlap or gains the gutter; the pins walk the real views headlessly.
+- **Tests:** the UI.Tests pins per fixed surface (the content's right edge clears the gutter at the shipped default size); the full gate stays green.
+- **Status:** in-progress.
