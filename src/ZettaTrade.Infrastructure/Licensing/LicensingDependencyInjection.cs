@@ -19,7 +19,7 @@ public static class LicensingDependencyInjection
     public static IServiceCollection AddLicensingServices(this IServiceCollection services) => services
         .AddSingleton<ILicenseValidator, LicenseValidator>()
         .AddSingleton<ILicenseStore, SettingsLicenseStore>()
-        .AddSingleton(serviceProvider =>
+        .AddSingleton<ILicenseEulaService>(serviceProvider =>
         {
             var settings = serviceProvider.GetRequiredService<ISettingsService>();
             var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();

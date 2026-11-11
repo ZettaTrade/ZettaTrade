@@ -1,3 +1,22 @@
+## [0.1.0-alpha.115] - 2026-11-11
+
+Build of board task T-171 (branch `feat/license-di`), supervisor-solo
+(the wave's subagent lane died on the provider quota; the takeover rule
+applies).
+
+### Fixed
+- The license activation dialog opens again (T-171): the T-132 licensing
+  DI factory created the `LicenseEulaService` instance but registered it
+  under the concrete type — a factory `AddSingleton(sp => ...)` without
+  the generic service type — while the activation ViewModel depends on
+  the `ILicenseEulaService` interface, so clicking a license activation
+  entry logged `Failed to open the license activation dialog`
+  (`InvalidOperationException: unable to resolve ILicenseEulaService`)
+  and the dialog never appeared. The registration now answers the
+  interface; the new App.Tests registration facts pin the service type,
+  the factory shape and the licensing graph activation (the T-137 shape,
+  caught by the supervisor's functional probe reading the day log).
+
 ## [0.1.0-alpha.114] - 2026-11-11
 
 Build of board task T-168 (branch `feat/strategy-pack`); the Plugins
