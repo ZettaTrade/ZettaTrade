@@ -161,7 +161,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-154 Livery chrome kit: shared Chip, StateDot, ToggleButton.on, InfoIcon, IconButton | feat/livery-chrome-kit | done | - |
 | T-155 Type ramp + tabular numerals + the spacing scale, as tokens | feat/type-scale | done | - |
 | T-156 Order ticket redesign: segmented Buy/Sell, a primary CTA, inline validation | feat/order-ticket-ui | done | T-154 (soft) |
-| T-157 Table grammar for positions and order history | feat/table-grammar | queued | T-154 (soft) |
+| T-157 Table grammar for positions and order history | feat/table-grammar | in-progress | T-154 (soft) |
 | T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | queued | - |
 | T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | queued | - |
 | T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | queued | T-154 (soft) |
@@ -245,8 +245,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 
 ## T-157 — Table grammar for positions and order history
 
-- **Branch:** queued 2026-11-10 (part of the T-150…T-162 design-review batch); soft blocker
-  T-154 (the kit's Chip styles).
+- **Branch:** feat/table-grammar, worktree zt-table-grammar, based on develop@aaddda1 (claimed 2026-11-11 as the eighth of the T-150…T-162 design-review batch; soft blocker T-154 — done, the kit's Chip styles).
 - **Origin:** the positions/orders tables pin fixed pixel columns (125/50/75/150…), leave numbers
   proportional and left-aligned, print sides as plain text and give Reduce/Close/Reverse the same
   visual weight — Reverse, the destructive one, reads as a sibling button; three stacked sections
@@ -264,6 +263,7 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
   layout survives the T-144 headless bounds pin.
 - **Tests:** view pins for the alignment/chips/action classes; the existing action command
   goldens stay green.
+- **Status:** in-progress
 
 ## T-158 — Assistant chat bubbles: role styling, copy, stop
 
