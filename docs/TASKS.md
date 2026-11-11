@@ -178,7 +178,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-171 The license activation dialog opens again: the EULA surface resolves under its interface (the user-reported live ERR) | feat/license-di | done | - |
 | T-172 The workspace's resize handles: every boundary drags for real (the grabbed line follows the pointer) and shows a visible grip | feat/splitter-grips | done | - |
 | T-173 A detached order book frees its main-window column: no dead reserved width rides behind the detached window (the user report) | feat/book-detach-space | done | - |
-| T-174 The standard pack grows the strategy catalog: the classic swing/breakout/reversion set rides the package (the user ask, scoped by the supervisor's analytics) | feat/strategy-pack-expansion | planned | T-168 |
+| T-174 The standard pack grows the strategy catalog: the classic swing/breakout/reversion set rides the package (the user ask, scoped by the supervisor's analytics) | feat/strategy-catalog | done | T-168 |
 | T-175 The startup binding sweep: the debug-output binding errors go silent and the menu gesture hints render (the user's debug log) | fix/binding-noise | planned | - |
 | T-176 The user-action E2E lane: real-window UI tests ride FlaUI (the user's framework proposal, the Windows tier) | feat/e2e-flaui-lane | planned | - |
 
@@ -219,18 +219,6 @@ systemic), the Livery shared-kit prep next (T-154, T-155), then the surface rede
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
 
 
-
----
-
-## T-174 - The standard pack grows the strategy catalog
-
-- **Branch:** queued 2026-11-11 (filed from the user's ask: "add more strategy variants"; the satellite-first shape per the multi-repo rule).
-- **Origin:** T-168 landed the strategy seam and the pack ships one strategy (sma-golden-cross). The user asks for more variants but flags uncertainty about what actually helps trading ("not very good at trading, so this is up in the air") - the supervisor's analytics call: ship a small set of well-understood classics over exotic auto-tuned shapes; every signal stays inert (contract 2.1.0: a pure walk, deterministic, long/flat/neutral) and verifiable in the backtest picker.
-- **What:** three new strategies ride the Plugins package (0.2.0 -> 0.3.0), each modeled on the SmaCross template shape (a pure walk, a Neutral warmup, a guarded ctor, a stable id): EmaCross (the fast/slow EMA golden/death cross), RsiReversion (an oversold entry / overbought exit band logic), BollingerBreakout (a close outside the bands with a mid-band exit). The picker auto-discovers the pack (T-163's mechanics) - no consuming-side seam.
-- **Scope:** the satellite repo first (the three strategies + their unit facts + the package bump), then the one-line consuming bump in-tree (PluginsVersion) + the CHANGELOG section (alpha.120); platform-specific and trading code never move to the satellite; the Abstractions contract stays 2.1.0.
-- **Acceptance:** the satellite package tests prove each strategy's warmup neutrality, its entry/exit transitions and determinism (a second walk replays identical signals); in-tree the picker lists all four pack strategies.
-- **Tests:** the satellite xUnit facts per strategy (warmup neutrality, the transition matrix, determinism); in-tree the gate stays green.
-- **Status:** planned.
 
 ---
 
