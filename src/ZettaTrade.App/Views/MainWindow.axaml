@@ -599,7 +599,16 @@
                                 </ListBox.Styles>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:SymbolPaletteRow">
-                                        <StackPanel>
+                                        <!-- The row's automation name (T-143): a screen
+                                             reader reads a symbol entry ("BTC/USDT on
+                                             Bybit"), never the record's ToString dump.
+                                             The name is COMPOSED on the row (the
+                                             ViewModel-localized AutomationName,
+                                             re-composed when the rows re-publish on a
+                                             language switch) and rides the template's
+                                             root — the ListBox item's peer falls back to
+                                             the content root's own name. -->
+                                        <StackPanel AutomationProperties.Name="{Binding AutomationName}">
                                             <!-- The pool heads (T-161): the blank-query page
                                                  groups recents, favorites and other, and each
                                                  pool's first landed row prints the section

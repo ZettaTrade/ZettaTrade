@@ -540,6 +540,15 @@
   <data name="Chart.A11yWithCompare" xml:space="preserve">
     <value>{0} chart, compared with {1}</value>
   </data>
+  <data name="Chart.A11yPalette.RowFormat" xml:space="preserve">
+    <value>{0} on {1}</value>
+  </data>
+  <data name="Chart.A11yPalette.Favorite" xml:space="preserve">
+    <value>, favorite</value>
+  </data>
+  <data name="Chart.A11yPalette.Recent" xml:space="preserve">
+    <value>, recently applied</value>
+  </data>
   <data name="Chart.Type.Candles" xml:space="preserve">
     <value>Candles</value>
   </data>

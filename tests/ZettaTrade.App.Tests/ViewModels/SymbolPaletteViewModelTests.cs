@@ -2,6 +2,7 @@ namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -127,6 +128,65 @@ public sealed class SymbolPaletteViewModelTests
     /// <summary>The throttle fires on the default scheduler; the drain lands it. A comfortable margin over the threshold.</summary>
     private const int ThrottleSettleMarginMilliseconds = 80;
 
+    /// <summary>
+    /// The two-language localization fake (T-143): the row-name keys
+    /// resolve to the real en/ru strings, so the composed names assert
+    /// exactly like production, and the switch rides an exposed subject
+    /// the facts drain through the marshal.
+    /// </summary>
+    private sealed class FakeLocalization : ILocalizationManager
+    {
+        private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>
+        {
+            [SymbolPaletteViewModel.RowNameFormatKey] = "{0} on {1}",
+            [SymbolPaletteViewModel.RowNameFavoriteKey] = ", favorite",
+            [SymbolPaletteViewModel.RowNameRecentKey] = ", recently applied",
+        };
+
+        private static readonly IReadOnlyDictionary<string, string> Russian = new Dictionary<string, string>
+        {
+            [SymbolPaletteViewModel.RowNameFormatKey] = "{0} на {1}",
+            [SymbolPaletteViewModel.RowNameFavoriteKey] = ", избранная",
+            [SymbolPaletteViewModel.RowNameRecentKey] = ", применялась недавно",
+        };
+
+        private IReadOnlyDictionary<string, string> _catalog = English;
+
+        public Subject<string> Changes { get; } = new();
+
+        public string CurrentLanguage => _catalog == Russian ? "ru" : "en";
+
+        public IReadOnlyList<LanguageInfo> AvailableLanguages { get; } =
+        [
+            new LanguageInfo("en", "English", "English", true),
+            new LanguageInfo("ru", "Russian", "Русский", false),
+        ];
+
+        public Task SetLanguageAsync(string cultureCode, CancellationToken ct = default)
+        {
+            SwitchTo(cultureCode);
+            return Task.CompletedTask;
+        }
+
+        /// <summary>Swap the catalog and land the change exactly like the manager's language stream does.</summary>
+        public void SwitchTo(string cultureCode)
+        {
+            _catalog = cultureCode == "ru" ? Russian : English;
+            Changes.OnNext(cultureCode);
+        }
+
+        public string GetString(string key) => _catalog.GetValueOrDefault(key, "[" + key + "]");
+
+        public string GetString(string key, params object[] args) =>
+            string.Format(CultureInfo.InvariantCulture, GetString(key), args);
+
+        public IObservable<string> LanguageChanged => Changes;
+
+        public IObservable<string> GetObservable(string key) =>
+            Observable.Defer(() => Observable.Return(GetString(key)))
+                .Concat(Changes.Select(_ => GetString(key)));
+    }
+
     /// <summary>One scene: the facade, the chart, the source and the palette over fake adapters.</summary>
     private sealed class Scene
     {
@@ -134,6 +194,7 @@ public sealed class SymbolPaletteViewModelTests
         {
             Adapters = adapters;
             Changes = new Subject<SettingsChange>();
+            Localization = new FakeLocalization();
             Settings = Substitute.For<ISettingsService>();
             Settings.Changes.Returns(Changes);
             Settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
@@ -154,6 +215,7 @@ public sealed class SymbolPaletteViewModelTests
                 Source,
                 Settings,
                 Chart,
+                Localization,
                 NullLogger<SymbolPaletteViewModel>.Instance);
 
             Palette.FocusQueryRequested.RegisterHandler(context =>
@@ -183,6 +245,9 @@ public sealed class SymbolPaletteViewModelTests
         public SymbolPaletteSource Source { get; }
 
         public SymbolPaletteViewModel Palette { get; }
+
+        /// <summary>The row names' localization fake: the language facts switch through it.</summary>
+        public FakeLocalization Localization { get; }
 
         /// <summary>How often the open asked the window to focus the query box.</summary>
         public int FocusRequests { get; private set; }
@@ -647,6 +712,88 @@ public sealed class SymbolPaletteViewModelTests
     }
 
     #endregion The ranking
+
+    #region The row names
+
+    [Fact]
+    public async Task APlainRow_ReadsTheSymbolOnItsExchange()
+    {
+        var scene = new Scene(new FakeMarketData("beta", "Beta", "BTC/USDT"));
+        await scene.SettleAsync();
+        await scene.ToggleAsync();
+
+        scene.Palette.Rows.Single().AutomationName.Should().Be(
+            "BTC/USDT on Beta",
+            "a screen reader reads a symbol entry, never the record's ToString dump (T-143)");
+    }
+
+    [Fact]
+    public async Task AFavoriteRow_QualifiesItsName_AndAnAppliedRecentAddsItsOwn()
+    {
+        var scene = new Scene(
+            new FakeMarketData("beta", "Beta", "BTC/USDT"),
+            new FakeMarketData("alpha", "Alpha", "SOL/USDT"));
+        scene.WithFavorites("""{ "alpha": ["SOL/USDT"] }""");
+        await scene.SettleAsync();
+        await scene.ToggleAsync();
+
+        scene.Palette.Rows[0].AutomationName.Should().Be(
+            "SOL/USDT on Alpha, favorite",
+            "the favorite qualifier rides the name while the star holds");
+        scene.Palette.Rows[1].AutomationName.Should().Be(
+            "BTC/USDT on Beta",
+            "an unmarked row carries the plain symbol-on-exchange name");
+
+        await scene.ApplyAtAsync(scene.IndexOf("alpha", "SOL/USDT"));
+        await scene.ToggleAsync();
+
+        scene.Palette.Rows[0].AutomationName.Should().Be(
+            "SOL/USDT on Alpha, favorite, recently applied",
+            "the recents pool re-marks the applied pair and both qualifiers compose");
+        scene.Palette.Rows[1].AutomationName.Should().Be(
+            "BTC/USDT on Beta",
+            "the unmarked neighbor keeps its plain name");
+    }
+
+    [Fact]
+    public async Task ALanguageSwitch_ReComposesTheOpenRowsNames()
+    {
+        var scene = new Scene(new FakeMarketData("beta", "Beta", "SOL/USDT"));
+        await scene.SettleAsync();
+        await scene.ToggleAsync();
+        scene.Palette.Rows.Single().AutomationName.Should().Be(
+            "SOL/USDT on Beta",
+            "the name composes in the standing language first");
+
+        scene.Localization.SwitchTo("ru");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        scene.Palette.Rows.Single().AutomationName.Should().Be(
+            "SOL/USDT на Beta",
+            "an open palette re-publishes on a language switch and every name re-lands localized");
+    }
+
+    [Fact]
+    public async Task ALanguageSwitch_WhileClosed_WaitsForTheNextOpen()
+    {
+        var scene = new Scene(new FakeMarketData("beta", "Beta", "SOL/USDT"));
+        await scene.SettleAsync();
+        await scene.ToggleAsync();
+        await scene.ToggleAsync();
+        scene.Palette.IsOpen.Should().BeFalse("the closed palette stands down first");
+
+        scene.Localization.SwitchTo("ru");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        scene.Palette.IsOpen.Should().BeFalse("a closed palette never publishes on a language switch");
+        await scene.ToggleAsync();
+
+        scene.Palette.Rows.Single().AutomationName.Should().Be(
+            "SOL/USDT на Beta",
+            "the next open composes its names in the new language");
+    }
+
+    #endregion The row names
 
     #region The apply seam
 
