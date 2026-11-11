@@ -1,3 +1,24 @@
+## [0.1.0-alpha.101] - 2026-11-11
+
+Build of board task T-156 (branch `feat/order-ticket-ui`); no satellite
+release rides it — the vocabulary stays app-local over Livery 0.1.6.
+
+### Changed
+- The order ticket redesign (T-156): the side reads as two large segmented
+  Buy/Sell buttons in the state colors (the CandleUp/Error fills the T-152
+  contrast publisher scores, the captions through the derived readable
+  foreground — the ComboBox is gone), the CTA is the primary filled action
+  whose tint follows the picked side, the sizer presets are chips, and the
+  parse refusals render inline next to their fields (each line hides with
+  its own row) while the summary line is demoted to the flow lane — the
+  risk rejections, the market-relative sanity readings and the adapter
+  failures. `ErrorMessage` keeps its full-report contract (the
+  behavior-parity battery reads it verbatim); the routing is display-side.
+  The quantity/price captions grow unit hints from the parsed symbol's
+  BASE/QUOTE (`NewOrder.UnitHintFormat`, en + ru). The trading logic is
+  untouched: the parse → risk → confirmation path and every message stay
+  exactly as they were.
+
 ## [0.1.0-alpha.100] - 2026-11-11
 
 Build of board task T-155 (branch `feat/type-scale`); the tokens
