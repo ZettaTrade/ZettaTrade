@@ -176,7 +176,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-169 Settings window polish pass: the pairs transfer buttons ride the icon kit, the indicators rows align on fixed columns, the tab content clears the scrollbar | feat/settings-polish | done | - |
 | T-170 Scroll surfaces audit: no window's content sits under the scrollbar (the user reports the overlap beyond the settings window) | feat/scroll-gutter | done | - |
 | T-171 The license activation dialog opens again: the EULA surface resolves under its interface (the user-reported live ERR) | feat/license-di | done | - |
-| T-172 The layout splitters become discoverable grips: every resizable boundary shows a visible grab handle (the user cannot find the resize affordance) | feat/splitter-grips | in-progress | - |
+| T-172 The workspace's resize handles: every boundary drags for real (the grabbed line follows the pointer) and shows a visible grip | feat/splitter-grips | done | - |
 | T-173 A detached order book frees its main-window column: no dead reserved width rides behind the detached window (the user report) | fix/book-detach-space | planned | - |
 | T-174 The standard pack grows the strategy catalog: the classic swing/breakout/reversion set rides the package (the user ask, scoped by the supervisor's analytics) | feat/strategy-pack-expansion | planned | T-168 |
 | T-175 The startup binding sweep: the debug-output binding errors go silent and the menu gesture hints render (the user's debug log) | fix/binding-noise | planned | - |
@@ -219,17 +219,6 @@ systemic), the Livery shared-kit prep next (T-154, T-155), then the surface rede
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
 
 
----
-
-## T-172 - The layout splitters: prove the drags, then make the grips discoverable
-
-- **Branch:** feat/splitter-grips, worktree zt-splitter-grips, based on develop@e1060ec (claimed 2026-11-11; filed from the user's ask - "add a vertical slider to resize the pieces" - extended by the user's follow-up: "they don't seem to work, I never managed to resize anything").
-- **Origin:** T-038 shipped four GridSplitters (the assistant/book, chart/book, book/tape, tape/watchlist boundaries) riding dedicated 8px columns, with the persisted column widths bound TwoWay (BookColumnWidth, TapeColumnWidth, WatchlistColumnWidth, AiColumnWidth). The user cannot find them (no visual affordance survives the T-066 restyle) AND reports the drags never worked - the functional question comes first: whether a drag actually resizes anything (the hit area, or the splitter's write fighting the TwoWay-bound column width).
-- **What:** (1) a headless drag reproduction first: pointer-press/move/release scripts across each boundary prove the width deltas (or expose the defect - the T-144 harness lane's input injection); (2) the functional fix if a boundary fails the script (the splitter's write must win over or ride the TwoWay binding, the hit area stays honest); (3) the affordance: every splitter shows a visible grab handle - a thumb line discoverable at rest, a hover state on top (the design-tokens canon governs, no chrome noise).
-- **Scope:** MainWindow.axaml (+ any ViewModel seam the drag fix needs) + the UI.Tests headless interaction pins; alpha.118 + the CHANGELOG section.
-- **Acceptance:** the headless interaction scripts prove each boundary resizes under a simulated drag (width deltas before/after) and the widths persist across a settings round-trip; each splitter renders a discoverable grip with its hover state resolving.
-- **Tests:** the UI.Tests headless splitter-lane pins (the drag scripts per boundary, the persistence round-trip, grip presence); the full gate stays green.
-- **Status:** in-progress.
 
 ---
 
