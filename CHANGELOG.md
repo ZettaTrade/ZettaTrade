@@ -1,4 +1,26 @@
-## [0.1.0-alpha.105] - 2026-11-11
+## [0.1.0-alpha.106] - 2026-11-11
+
+Build of board task T-161 (branch `feat/small-surfaces`); no satellite
+release rides it (Livery 0.1.7 landed with the previous task).
+
+### Changed
+- The first-run wizard's theme picker (T-161) reuses the settings picker's
+  own swatch shape — the same preview-colors converter and the same 10x10
+  radius-2 chip — so the two pickers cannot disagree about what a theme
+  looks like, and the walk grows a localized step counter ("Step {0} of
+  {1}", en+ru) that reads the position without the captions.
+- The hotkey cheat sheet (T-161) renders its gestures as kbd-style keycap
+  chips: one chip per key part (the sheet row exposes the gesture's parts,
+  "Ctrl+K" reads as the two keys it is), a recessed palette shape — the
+  window's own backdrop fill inside a Border stroke on the Surface card.
+  The trailing-text shape is gone (pinned).
+- The palette's blank page (T-161) groups the session's recents, the
+  user's favorites and the other instruments with localized section
+  headers (en+ru): each pool's first landed row carries its group kind and
+  prints the caption above itself. The headers are the rows' own visuals —
+  they never occupy a selection index, so the T-095 keyboard route walks
+  the same flat list it always has; a typed query is one ranked pool, no
+  heads there.
 
 Build of board task T-160 (branch `feat/chart-toolbar-icons`); the Livery
 0.1.7 satellite release rode first (the two kit additions land in the

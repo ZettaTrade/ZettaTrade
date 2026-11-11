@@ -8,6 +8,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Livery.Extensions;
+using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
@@ -54,8 +55,11 @@ public sealed class FirstRunWizardViewModel : ReactiveObject
     /// <summary>The settings section the theme pick persists through.</summary>
     private const string ThemeSettingsSection = UiSettingsKeys.Section;
 
-    /// <summary>The settings key of the persisted theme pick.</summary>
+    /// <summary>The settings key the persisted theme pick lives under.</summary>
     private const string ThemeSettingKey = UiSettingsKeys.Theme;
+
+    /// <summary>The localized step counter's recipe ("Step {0} of {1}").</summary>
+    private const string StepCounterKey = "Wizard.Step.Counter";
 
     /// <summary>The settings section the workspace symbol preference lives in.</summary>
     private const string WorkspaceSection = UiSettingsKeys.WorkspaceSection;
@@ -127,6 +131,7 @@ public sealed class FirstRunWizardViewModel : ReactiveObject
                 this.RaisePropertyChanged(nameof(IsBackVisible));
                 this.RaisePropertyChanged(nameof(IsNextVisible));
                 this.RaisePropertyChanged(nameof(IsFinishVisible));
+                this.RaisePropertyChanged(nameof(StepCounter));
             }
         }
     }
@@ -148,6 +153,18 @@ public sealed class FirstRunWizardViewModel : ReactiveObject
 
     /// <summary>Whether the finish affordance is the step's own navigation (the last step's confirm).</summary>
     public bool IsFinishVisible => _selectedStepIndex == LastStepIndex;
+
+    /// <summary>
+    /// The localized step counter (T-161): "Step {0} of {1}" over the
+    /// 1-based walk — the count reads without the captions, above every
+    /// step body. Recomputed per read (the localizer's live recipe); the
+    /// step move raises it like the visibility chain.
+    /// </summary>
+    public string StepCounter => BuildStepCounter();
+
+    /// <summary>Build the counter string the current step index speaks.</summary>
+    private string BuildStepCounter() =>
+        _localization.GetString(StepCounterKey, _selectedStepIndex + 1, LastStepIndex + 1);
 
     #endregion Properties
 
@@ -174,6 +191,7 @@ public sealed class FirstRunWizardViewModel : ReactiveObject
     private readonly ISettingsService _settings;
     private readonly IThemeManager _themes;
     private readonly ActiveExchangeService _exchanges;
+    private readonly ILocalizationManager _localization;
     private readonly ILogger<FirstRunWizardViewModel> _logger;
 
     private IMarketDataAdapter? _selectedAdapter;
@@ -195,16 +213,19 @@ public sealed class FirstRunWizardViewModel : ReactiveObject
     /// <param name="settings">The settings store the picks persist through.</param>
     /// <param name="themeManager">The theme manager the pick applies through (already initialized — the startup walk ran).</param>
     /// <param name="exchanges">The active-exchange facade the adapter pick applies through.</param>
+    /// <param name="localization">The localizer the step counter speaks through (T-161).</param>
     /// <param name="logger">The wizard's logger (file-only — Serilog never writes to stdout).</param>
     public FirstRunWizardViewModel(
         ISettingsService settings,
         IThemeManager themeManager,
         ActiveExchangeService exchanges,
+        ILocalizationManager localization,
         ILogger<FirstRunWizardViewModel> logger)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _themes = themeManager ?? throw new ArgumentNullException(nameof(themeManager));
         _exchanges = exchanges ?? throw new ArgumentNullException(nameof(exchanges));
+        _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         ThemeOptions = themeManager.AvailableThemes;

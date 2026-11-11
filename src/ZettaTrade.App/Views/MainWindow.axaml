@@ -580,32 +580,58 @@
                                 </ListBox.Styles>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:SymbolPaletteRow">
-                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto"
-                                              ColumnSpacing="{StaticResource SpaceS}"
-                                              Margin="2">
-                                            <!-- The star: the favorites read-only mirror
-                                                 (the marks are made in the settings window's
-                                                 pairs tab, the same source the chart picker
-                                                 binds); the recent marker: the palette's own
-                                                 in-memory session list. -->
-                                            <TextBlock Grid.Column="0"
-                                                       Text="★"
-                                                       Foreground="{DynamicResource Highlight}"
-                                                       VerticalAlignment="Center"
-                                                       IsVisible="{Binding IsFavorite}" />
-                                            <TextBlock Grid.Column="1"
-                                                       Text="↺"
+                                        <StackPanel>
+                                            <!-- The pool heads (T-161): the blank-query page
+                                                 groups recents, favorites and other, and each
+                                                 pool's first landed row prints the section
+                                                 header above itself. The headers are the rows'
+                                                 own visuals — they never occupy a selection
+                                                 index, so the keyboard route (the T-095
+                                                 contract) walks the same flat list it always
+                                                 has; a typed query is one ranked pool, no
+                                                 heads there. -->
+                                            <TextBlock IsVisible="{Binding IsRecentsHead}"
+                                                       Text="{loc:Localized Palette.Group.Recents}"
+                                                       FontSize="{StaticResource CaptionFontSize}"
                                                        Foreground="{DynamicResource TextSecondary}"
-                                                       VerticalAlignment="Center"
-                                                       IsVisible="{Binding IsRecent}" />
-                                            <TextBlock Grid.Column="2"
-                                                       Text="{Binding Symbol.Normalized}"
-                                                       VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="3"
-                                                       Text="{Binding ExchangeName}"
+                                                       Margin="2" />
+                                            <TextBlock IsVisible="{Binding IsFavoritesHead}"
+                                                       Text="{loc:Localized Palette.Group.Favorites}"
+                                                       FontSize="{StaticResource CaptionFontSize}"
                                                        Foreground="{DynamicResource TextSecondary}"
-                                                       VerticalAlignment="Center" />
-                                        </Grid>
+                                                       Margin="2" />
+                                            <TextBlock IsVisible="{Binding IsOtherHead}"
+                                                       Text="{loc:Localized Palette.Group.Other}"
+                                                       FontSize="{StaticResource CaptionFontSize}"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       Margin="2" />
+                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto"
+                                                  ColumnSpacing="{StaticResource SpaceS}"
+                                                  Margin="2">
+                                                <!-- The star: the favorites read-only mirror
+                                                     (the marks are made in the settings window's
+                                                     pairs tab, the same source the chart picker
+                                                     binds); the recent marker: the palette's own
+                                                     in-memory session list. -->
+                                                <TextBlock Grid.Column="0"
+                                                           Text="★"
+                                                           Foreground="{DynamicResource Highlight}"
+                                                           VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsFavorite}" />
+                                                <TextBlock Grid.Column="1"
+                                                           Text="↺"
+                                                           Foreground="{DynamicResource TextSecondary}"
+                                                           VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsRecent}" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Symbol.Normalized}"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding ExchangeName}"
+                                                           Foreground="{DynamicResource TextSecondary}"
+                                                           VerticalAlignment="Center" />
+                                            </Grid>
+                                        </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
@@ -705,11 +731,32 @@
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding Name}"
                                                    VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding Gesture}"
-                                                   Foreground="{DynamicResource TextSecondary}"
-                                                   HorizontalAlignment="Right"
-                                                   />
+                                        <!-- The keycaps (T-161): the gesture reads as the
+                                             keys it is — one chip per part, a recessed
+                                             palette shape (the window's own backdrop fill
+                                             inside a Border stroke on the Surface card). -->
+                                        <ItemsControl Grid.Column="1"
+                                                      ItemsSource="{Binding GestureParts}"
+                                                      VerticalAlignment="Center">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" Spacing="3" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <Border Background="{DynamicResource Background}"
+                                                            BorderBrush="{DynamicResource Border}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="4"
+                                                            Padding="6,2">
+                                                        <TextBlock Text="{Binding}"
+                                                                   FontSize="{StaticResource CaptionFontSize}"
+                                                                   Foreground="{DynamicResource TextPrimary}" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
