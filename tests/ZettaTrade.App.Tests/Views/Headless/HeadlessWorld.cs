@@ -8,6 +8,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Markup.Xaml.Styling;
+using Avalonia.Skia;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
@@ -185,8 +186,18 @@ internal static class HeadlessWorld
                 app = Application.Current;
                 if (app is null)
                 {
+                    // The real Skia render pipeline (T-179): the headless
+                    // windows raster actual frames through the same Skia
+                    // backend the screen uses, so the pixel pins capture
+                    // what the widgets' custom draw operations really
+                    // paint (the headless drawing backend renders neither
+                    // of them).
                     AppBuilder.Configure<Application>()
-                        .UseHeadless(new AvaloniaHeadlessPlatformOptions())
+                        .UseHeadless(new AvaloniaHeadlessPlatformOptions
+                        {
+                            UseHeadlessDrawing = false,
+                        })
+                        .UseSkia()
                         .UseReactiveUI(rxui => { })
                         .SetupWithoutStarting();
                     app = Application.Current;

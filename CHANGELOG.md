@@ -1,3 +1,23 @@
+## [0.1.0-alpha.124] - 2026-11-12
+
+Build of board task T-179 (branch `feat/tape-header-gap`): the Skia header
+bands breathe, filed from the user's ask - add padding between the table
+header and the data.
+
+### Fixed
+- The trade tape's and the order book's column captions no longer sit
+  flush on their first data rows: the caption baseline moved from the
+  header band's bottom edge to a named constant that keeps background
+  rows of distance from the first row's ink on both widgets (the bar
+  tops included on the book).
+- Both header bands carry two text lines - the tape's paused hint and
+  the book's symbol/spread label ride the top line, the column captions
+  the line under it - and the pre-fix band held them squeezed together
+  with the second line glued to the band edge (the paused hint's
+  descenders crossed the size caption's tops even before this fix). The
+  band grew 22 -> 26 px so both lines keep their own air; at some panel
+  heights that costs at most one data row.
+
 ## [0.1.0-alpha.123] - 2026-11-12
 
 Build of board task T-178 (branch `feat/drawings-delete`): the drawings
