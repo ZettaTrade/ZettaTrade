@@ -1,3 +1,30 @@
+## [0.1.0-alpha.126] - 2026-11-12
+
+Build of board task T-181 (branch `feat/ticket-cta-states`): the order
+ticket's CTA and side segments answer hover and pressed, filed from the
+2026-11-12 UI review findings batch.
+
+### Fixed
+- The order ticket's primary CTA and the segmented Buy/Sell pair answer
+  the pointer again: the window-scoped class styles paint their state
+  fills after the app styles, which defeated Livery's generic
+  hover/pressed fills - the highest-stakes buttons in the app gave zero
+  visual response. The hover now rides the kit's emphasis ring (the row
+  grammar's own hover border), the press the strip's dim step; the state
+  fills never leave (a trading segment keeps its side under the
+  pointer).
+- The same hole closed where the fleet-wide source pin reported it: the
+  settings star brightens under the pointer (the armed star stays gold),
+  and the row grammar's quiet outlined sibling presses alive through an
+  explicit family pressed step (the destructive ghost's own pressed
+  keeps winning).
+
+### Added
+- The interaction-variant source pin: every window-scoped Button class
+  style that paints a Background must ship its `:pointerover` and
+  `:pressed` siblings - any window reintroducing the hole reports
+  itself, naming the family and the missing sibling.
+
 ## [0.1.0-alpha.125] - 2026-11-12
 
 Build of board task T-180 (branch `feat/theme-preview-mirror`): the theme
