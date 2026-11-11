@@ -145,7 +145,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-138 Stabilize the App.Tests dispatcher tally flake: one serialized dispatcher world | feat/flaky-pump-tally | done | - |
 | T-139 Board truthfulness: archive the lingering T-117/T-118 sections, restore the canonical archive order | feat/board-truth | done | - |
 | T-140 Review hygiene pass: async-void routes, MCP registry locking, non-English prose cleanup | feat/review-hygiene | done | - |
-| T-141 Soak isolation: pin the demo adapter so a run is network-free | feat/soak-isolation | in-progress | - |
+| T-141 Soak isolation: pin the demo adapter so a run is network-free | feat/soak-isolation | done | - |
 | T-142 Book timestamps: one clock discipline across adapters (the WS latency measures transport) | fix/book-timestamps | queued | - |
 | T-143 Palette suggestion rows carry automation names (not the record's ToString) | fix/palette-a11y-rows | queued | - |
 | T-144 UI test suite: a headless lane over the real windows (layout, tabs, flows) | feat/ui-tests | queued | - |
@@ -192,16 +192,6 @@ the end of that file, so no effort is duplicated.
 - **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
 - **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
 - **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-
-## T-141 — Soak isolation: pin the demo adapter so a run is network-free
-
-- **Branch:** feat/soak-isolation, worktree zt-soak-isolation, based on develop@9fb837e (claimed 2026-11-11 per standing directive 6; filed 2026-11-10 from the QA review of the T-108/T-102/T-124/T-110/T-109 landing batch: docs/SOAK.md advertises isolation the driver does not provide).
-- **Origin:** docs/SOAK.md promises the deterministic demo adapter with no network, but scripts/soak.ps1 launches the app with no adapter pin — the review's soak window logged `Restored persisted exchange 'Bybit'` plus live api.bybit.com requests (and one to binance) inside the run, so a local soak rides the user's persisted config. CI gets away with it only because runners carry no user profile.
-- **What:** the launch step pins the app away from the real profile: either a per-run config sandbox (a child-process environment override of APPDATA via `ProcessStartInfo`, PowerShell 5.1-compatible, seeded with a pinned demo-adapter selection, discarded after the run) or an equivalent app-side demo-adapter CLI/env argument. Fold the label nit found in the same review: `Get-AppCpuPercent` calls itself "share of one core-equivalent" while the math divides by the total core count — one wording survives.
-- **Scope:** scripts/soak.ps1 (launch, cleanup, report wording), docs/SOAK.md; product code only if the CLI/env pin route wins.
-- **Acceptance:** a soak run's app log keeps exchange HTTP/WebSocket traffic at zero outside the demo adapter on every lane; the user's appsettings stays invisible to the run (the sandbox copy absorbs it); the harness stays PowerShell 5.1-runnable and CI's weekly soak keeps the same machinery.
-- **Tests:** a `-Minutes 0` self-check in the driver that asserts the pinned demo state from the run's own log census; no goldens change shape.
-- **Status:** in-progress
 
 ## T-142 — Book timestamps: one clock discipline across adapters (the WS latency measures transport)
 
