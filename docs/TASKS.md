@@ -164,7 +164,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-157 Table grammar for positions and order history | feat/table-grammar | done | T-154 (soft) |
 | T-158 Assistant chat bubbles: role styling, copy, stop | feat/chat-bubbles | done | - |
 | T-159 Watchlist and heatmap color semantics | feat/watchlist-polish | done | - |
-| T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | in-progress | T-154 (soft) |
+| T-160 Chart toolbar icon pass, export flyout, shared PanelHeader | feat/chart-toolbar-icons | done | T-154 (soft) |
 | T-161 Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups | feat/small-surfaces | queued | - |
 | T-162 Product identity: the app icon and the title-bar brand | feat/branding | queued | - |
 | T-163 The plugins consumption switch: the standard pack rides the package mechanics | feat/plugin-packages | done | - |
@@ -242,26 +242,6 @@ discipline first (T-150, T-151, T-152 — the two parallel color systems and the
 systemic), the Livery shared-kit prep next (T-154, T-155), then the surface redesigns riding it
 (T-156, T-157, T-160), with the independent polishes spread alongside. All rows start `queued`;
 the human prioritizes the lanes (the filed quick wins were the token swap and the chip contrast).
-
-## T-160 — Chart toolbar icon pass, export flyout, shared PanelHeader
-
-- **Branch:** feat/chart-toolbar-icons, worktree zt-chart-toolbar-icons, based on develop@12ad0c4 (claimed 2026-11-11 as the eleventh of the T-150…T-162 design-review batch; soft blocker T-154 landed).
-- **Origin:** the chart band re-wraps text buttons (the three export buttons alone take ~300px),
-  the drawing tools print as text, and every panel caption + actions row is re-typed by hand
-  (the tape/book/rail headers at hand-tuned margins).
-- **What:** icon buttons (the title-bar strip-icon precedent) for the tool toggles + one Export
-  flyout gathering the three export actions; a PanelHeader scaffold (title left, actions right,
-  one padding grammar) adopted by the tape header, the book caption, the signal rail head and
-  the watchlist/heatmap tab captions.
-- **Scope:** ChartPanelView, the MainWindow panel headers, Livery (the IconButton if not landed
-  via T-154, the PanelHeader style); captions become automation names for the icon buttons —
-  a11y regressions free.
-- **Acceptance:** the band wraps at one more narrow step than today (measurable at min sizes in
-  the T-144 lane); every icon control keeps its automation name; the headers are uniform across
-  the panels.
-- **Tests:** the headless bounds fact, automation-name pins per icon control, source pins that
-  the per-panel copies are gone.
-- **Status:** in-progress
 
 ## T-161 — Small surfaces polish: wizard swatches + step counter, hotkey keycaps, palette groups
 
