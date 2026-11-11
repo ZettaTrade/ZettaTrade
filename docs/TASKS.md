@@ -185,7 +185,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-178 The drawings delete affordance: the selected drawing's removal is discoverable (the user ask: how do you delete a drawn line - a button) | feat/drawings-delete | done | T-091 |
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | feat/tape-header-gap | done | T-103 |
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | feat/theme-preview-mirror | done | - |
-| T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | feat/ticket-cta-states | in-progress | - |
+| T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | feat/ticket-cta-states | done | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | fix/surface-strays | planned | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | planned | T-183 (soft) |
@@ -294,7 +294,46 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
   parity — the existing ticket tests stay green untouched.
 - **Tests:** the fleet-wide source pin (class style → interaction siblings); the existing
   ticket goldens.
-- **Status:** in-progress.
+- **Status:** done. Canon: the claim `f5ad169`, the feat `2bb65a1`, this close commit follows;
+  ships as 0.1.0-alpha.126 with the matching CHANGELOG section. The window-scoped class styles
+  paint their state fills after the app styles, so Livery's generic `Button:pointerover`
+  (Accent) / `Button:pressed` (Border) never reach a classed button — the defect's mechanism,
+  confirmed by the kit's own precedents (the strip-icon/copy-pin discipline, the row grammar's
+  explicit variants, the review's own verification). The shipped shift language: hover = the
+  kit's emphasis ring (`BorderBrush = Highlight` — the row grammar's own hover border and the
+  T-110 focus language, identical rings), pressed = the strip's dim step (`Opacity = 0.8`).
+  The state fills NEVER leave — Buy == CandleUp and Sell == Error in every shipped theme (no
+  second state shade exists to shift to, so the variants ride BorderBrush/Opacity only; the
+  scored chip pairs stay exactly where the T-152 battery pinned them, the T-151 hover rules
+  hold by construction). The four ticket blocks: `Button.side:pointerover`/`:pressed` and
+  `Button.cta:pointerover`/`:pressed`, ordered after their family's state blocks. The disabled
+  treatment needed nothing (the task's conditional: no `:disabled` override exists anywhere in
+  the app or the kit — the Fluent base carries the disabled look, and the variants set no rest
+  Opacity to shadow it). The fleet pin reported exactly two more holes and both closed:
+  SettingsWindow's `Button.pair-star` (Background=Transparent defeated the generic hover —
+  the star now brightens TextSecondary → TextPrimary on hover and holds through the press,
+  the copy-pin's quiet-control language; the `.on` block rides AFTER the variants so the
+  armed star stays gold) and RowGrammar's `Button.row-action.secondary` (its Transparent
+  rest defeated the generic pressed — the family grew an explicit `Button.row-action:pressed`
+  = the generic Border fill, ordered after the secondary's rest and before the destructive
+  blocks so the ghost's own pressed keeps winning). The pin
+  (`InteractionVariantPinsTests`, 4 facts): the fleet walk over every axaml under
+  src/ZettaTrade.App (floor >20 files — a shrunk walk is a false green), the rule = a
+  classed Button style with no pseudo-class whose block paints Background demands the
+  family's (first class token) `:pointerover` and `:pressed` selectors somewhere in the file,
+  the negative fixture replays the ticket's pre-fix shape and the rule fails naming the
+  family and both missing siblings, the ticket's four variants pinned to the exact setters
+  (ring + 0.8 dim, never a Background setter), and the fleet fixes' ordering pinned (the
+  star's `.on` last, the row-action pressed after the secondary and before the destructive).
+  No inline Button Background exists in the fleet (the sweep — the class-style shape is the
+  only hole shape). Acceptance evidence: GATE PASSED on the feat content (`-AllowProtected`;
+  the known warnings trio, NO test retry; the HIGH-RISK flag on NewOrderDialogWindow.axaml
+  is the gate's Order-adjacent routing — styles only, the trading path untouched); the launch
+  smoke: `ProductVersion 0.1.0-alpha.126+2bb65a1...`, alive 15 s, closed cleanly, the day-log
+  slice (70 lines) carries ZERO ERR/FTL/Exception entries; the pins lane 64/64, App.Tests
+  1571/1571 first-try. Hazards: none new; the T-183 button-kit redesign (the satellite's
+  generic hover re-tune) will restyle the GENERIC language later — these window-scoped
+  variants stay local and palette-keyed, restyling with it.
 
 ## T-182 - The small-surface strays ride the scale and the palette
 
