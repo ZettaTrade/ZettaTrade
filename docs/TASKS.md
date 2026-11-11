@@ -175,6 +175,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-168 The backtest picker offers the standard pack's first strategy (the strategy seam rides the SDK contract 2.1.0) | feat/strategy-pack | done | - |
 | T-169 Settings window polish pass: the pairs transfer buttons ride the icon kit, the indicators rows align on fixed columns, the tab content clears the scrollbar | feat/settings-polish | in-progress | - |
 | T-170 Scroll surfaces audit: no window's content sits under the scrollbar (the user reports the overlap beyond the settings window) | feat/scroll-gutter | in-progress | - |
+| T-171 The license activation dialog opens again: the EULA surface resolves under its interface (the user-reported live ERR) | feat/license-di | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -235,4 +236,16 @@ the human prioritizes the lanes (the filed quick wins were the token swap and th
 - **Scope:** the non-settings .axaml views + their UI.Tests pins; alpha.116 + the CHANGELOG section; SettingsWindow.axaml is T-169's surface — do NOT touch it.
 - **Acceptance:** every audited scroll surface either proves it cannot overlap or gains the gutter; the pins walk the real views headlessly.
 - **Tests:** the UI.Tests pins per fixed surface (the content's right edge clears the gutter at the shipped default size); the full gate stays green.
+- **Status:** in-progress.
+
+---
+
+## T-171 — The license activation dialog opens again (the EULA surface resolves under its interface)
+
+- **Branch:** feat/license-di, worktree zt-license-di, based on develop@8c752cb (claimed 2026-11-11; filed from the supervisor's functional probe of the user's check-the-program request — the day log caught the user's live ERR at 14:47:43).
+- **Origin:** the user clicked a license activation entry in a live session and the dialog never opened: the log carries `[ERR] Failed to open the license activation dialog` with `InvalidOperationException: Unable to resolve service for type 'ZettaTrade.Infrastructure.Licensing.ILicenseEulaService' while attempting to activate 'ZettaTrade.App.ViewModels.LicenseActivation...'`. The T-132 licensing DI factory creates the `LicenseEulaService` instance but registers it under the CONCRETE type (a factory `.AddSingleton(sp => ...)` without the generic service type), while the activation ViewModel depends on the `ILicenseEulaService` INTERFACE — the container answers the interface with "unable to resolve", the window's catch logs, the dialog stays shut. The T-137 shape: a mis-shaped registration the suite cannot see because nothing resolved the contract.
+- **What:** one generic argument on the factory registration (`.AddSingleton<ILicenseEulaService>(...)`) so the EULA surface answers its interface; the registration facts keep the T-132 wiring honest — the interface registration exists under its service type, the concrete type is NOT registered bare, and the licensing graph activates the service (the exact user-reported failure becomes impossible).
+- **Scope:** `LicensingDependencyInjection.cs` (one line), the new App.Tests registration facts, alpha.115 + the CHANGELOG section; no contract, no satellite, no UI.
+- **Acceptance:** the licensing graph resolves `ILicenseEulaService`; the registration facts pin the service type + the factory shape.
+- **Tests:** the App.Tests `LicenseRegistrationTests` (the descriptor pin + the activation fact riding the T-137 harness shape).
 - **Status:** in-progress.
