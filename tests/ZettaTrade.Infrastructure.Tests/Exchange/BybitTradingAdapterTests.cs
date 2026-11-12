@@ -91,6 +91,12 @@ public sealed class BybitTradingAdapterTests
         {"retCode":0,"retMsg":"OK","result":{"list":[]},"retExtInfo":{},"time":1700000000000}
         """;
 
+    private const string PostOnlyOpenOrdersFrame = """
+        {"retCode":0,"retMsg":"OK","result":{"list":[
+          {"orderId":"venue-po","orderLinkId":"zt-link-po","symbol":"BTCUSDT","side":"Buy","orderStatus":"New","orderType":"Limit","timeInForce":"PostOnly","qty":"1","price":"45000.5","cumExecQty":"0","createdTime":"1700000000000","updatedTime":"1700000001000"}
+        ]},"retExtInfo":{},"time":1700000000000}
+        """;
+
     private const string MalformedOpenOrdersFrame = """
         {"retCode":0,"retMsg":"OK","result":{},"retExtInfo":{},"time":1700000000000}
         """;
@@ -167,6 +173,24 @@ public sealed class BybitTradingAdapterTests
         // the client order id holds the surface's own (prefix + GUID N-form).
         accepted.ClientOrderId.Should().StartWith("zt-");
         accepted.ClientOrderId.Should().HaveLength(35);
+
+        await stack.AcknowledgeSessionAsync();
+    }
+
+    [Fact]
+    public async Task PlaceOrder_PostOnlyLimit_SendsTheMakerOnlyTokenAndEchoesTheFlag()
+    {
+        await using var stack = await TestStack.StartAsync();
+        stack.Rest.SetResponse(BybitExchangeWirePaths.CreateOrder, PlaceAckFrame);
+
+        var accepted = await stack.Adapter.PlaceOrderAsync(
+            LimitRequest(OrderSide.Buy, 1.5m, 45000.5m) with { PostOnly = true });
+
+        // The wire body carries the venue's maker-only token; the Core echo
+        // keeps the plain GTC time-in-force with the flag riding beside it.
+        stack.Rest.LastBody.Should().Contain("\"timeInForce\":\"PostOnly\"");
+        accepted.TimeInForce.Should().Be(TimeInForce.GTC);
+        accepted.PostOnly.Should().BeTrue();
 
         await stack.AcknowledgeSessionAsync();
     }
@@ -363,6 +387,23 @@ public sealed class BybitTradingAdapterTests
         var orders = await stack.Adapter.GetOpenOrdersAsync();
 
         orders.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetOpenOrders_MapsThePostOnlyTokenOntoGtcWithTheFlag()
+    {
+        // The venue reports a maker-only limit as the "PostOnly" token; the
+        // model holds it as a GTC order carrying the post-only flag (T-191)
+        // — the row must map, never drop.
+        await using var stack = await TestStack.StartAsync();
+        stack.Rest.SetResponse(BybitExchangeWirePaths.OpenOrders, PostOnlyOpenOrdersFrame);
+
+        var orders = await stack.Adapter.GetOpenOrdersAsync();
+
+        var order = orders.Should().ContainSingle().Subject;
+        order.Id.Should().Be("zt-link-po");
+        order.TimeInForce.Should().Be(TimeInForce.GTC);
+        order.PostOnly.Should().BeTrue();
     }
 
     [Fact]

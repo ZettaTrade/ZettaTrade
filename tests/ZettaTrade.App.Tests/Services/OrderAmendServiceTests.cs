@@ -232,6 +232,36 @@ public sealed class OrderAmendServiceTests
     }
 
     [Fact]
+    public async Task AmendAsync_CarriesTheExecutionFlagsIntoTheReplacementRequest()
+    {
+        // Arrange: a fake adapter holding one working post-only reduce-only
+        // limit; the edit shrinks the quantity below the large-delta band.
+        var adapter = new FakeTradingAdapter();
+        var service = CreateService(adapter);
+
+        var original = await adapter.PlaceOrderAsync(
+            LimitOrder(OriginalQuantity, RestingLimitPrice) with { PostOnly = true, ReduceOnly = true });
+
+        var risked = (OrderRequest?)null;
+        _riskManager.CheckOrderAsync(Arg.Do<OrderRequest>(r => risked = r))
+            .Returns(RiskCheckResult.Approved());
+
+        // Act
+        var result = await service.AmendAsync(
+            new OrderAmendRequest { Working = original, NewQuantity = ShrunkQuantity });
+
+        // Assert: the replacement re-places under the SAME contracts — the
+        // amend never silently strips the maker-only or reduce-only intent
+        // (the T-189 hazard this rule closes).
+        result.Succeeded.Should().BeTrue();
+        risked.Should().NotBeNull();
+        risked!.Quantity.Value.Should().Be(ShrunkQuantity);
+        risked.Price!.Value.Should().Be(new Price(RestingLimitPrice));
+        risked.PostOnly.Should().BeTrue();
+        risked.ReduceOnly.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task AmendAsync_LargeShrinkingPriceEdit_ConfirmsThenCancelsAndReplaces()
     {
         // Arrange: re-pricing 49_000 → 36_500 shrinks the notional by 25.5%
@@ -861,6 +891,8 @@ public sealed class OrderAmendServiceTests
                 TrailDistance = request.TrailDistance,
                 OcoGroupId = request.OcoGroupId,
                 TimeInForce = request.TimeInForce,
+                ReduceOnly = request.ReduceOnly,
+                PostOnly = request.PostOnly,
                 Status = OrderStatus.Pending,
                 CreatedAt = DateTimeOffset.UtcNow,
             };

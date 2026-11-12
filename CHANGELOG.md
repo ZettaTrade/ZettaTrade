@@ -1,3 +1,28 @@
+## [0.1.0-alpha.135] - 2026-11-12
+
+Build of board task T-191 (branch `feat/order-flags`): the order flags —
+post-only and reduce-only — across the ticket, the adapters and the
+history.
+
+### Added
+- `OrderRequest` and `Order` carry the post-only flag beside
+  reduce-only: the maker-only contract is validated at the Core (limit
+  orders only, everything else refused, never degraded), and the paper
+  simulator refuses a crossing post-only limit — standalone or an OCO
+  leg — outright instead of filling it as a taker, while an away one
+  rests with the flag recorded.
+- The Bybit testnet surface now places post-only spot limits with the
+  venue's own maker-only time-in-force token and reads the token back
+  onto a GTC order carrying the flag; reduce-only stays refused on spot,
+  where the venue disagrees.
+- The order history journal records both flags (the migration backfills
+  the existing rows with `false`), the history window shows them in a
+  Flags column, and the trade ticket offers the two switches: post-only
+  for a plain limit, reduce-only while an opposite-side position exists.
+- The amend pipeline copies both flags into the replacement request —
+  a cancel+new amend can no longer silently strip the order's maker-only
+  or reduce-only intent.
+
 ## [0.1.0-alpha.134] - 2026-11-12
 
 Build of board task T-190 (branch `feat/tif-simulation`): honest TIF

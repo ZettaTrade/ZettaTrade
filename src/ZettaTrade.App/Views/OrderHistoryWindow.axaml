@@ -46,7 +46,7 @@
                      match their data cells (T-157). -->
                 <Border Classes="table-header-row"
                         IsVisible="{Binding HasRows}">
-                    <Grid ColumnDefinitions="130,90,*,80,100,90,110,120,90">
+                    <Grid ColumnDefinitions="130,90,*,80,100,90,110,120,80,90">
                         <TextBlock Grid.Column="0" TextAlignment="Right" Text="{loc:Localized History.ColOpened}" />
                         <TextBlock Grid.Column="1" Text="{loc:Localized History.ColExchange}" />
                         <TextBlock Grid.Column="2" Text="{loc:Localized History.ColSymbol}" />
@@ -55,7 +55,8 @@
                         <TextBlock Grid.Column="5" TextAlignment="Right" Text="{loc:Localized History.ColQuantity}" />
                         <TextBlock Grid.Column="6" TextAlignment="Right" Text="{loc:Localized History.ColPrice}" />
                         <TextBlock Grid.Column="7" Text="{loc:Localized History.ColStatus}" />
-                        <TextBlock Grid.Column="8" TextAlignment="Right" Text="{loc:Localized Fees.ColumnTitle}" />
+                        <TextBlock Grid.Column="8" Text="{loc:Localized History.ColFlags}" />
+                        <TextBlock Grid.Column="9" TextAlignment="Right" Text="{loc:Localized Fees.ColumnTitle}" />
                     </Grid>
                 </Border>
 
@@ -69,7 +70,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:OrderHistoryRowViewModel">
                             <Border Classes="table-row">
-                                <Grid ColumnDefinitions="130,90,*,80,100,90,110,120,90">
+                                <Grid ColumnDefinitions="130,90,*,80,100,90,110,120,80,90">
                                     <TextBlock Grid.Column="0" Text="{Binding Opened}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                     <TextBlock Grid.Column="1" Text="{Binding Exchange}" />
                                     <TextBlock Grid.Column="2" Text="{Binding Symbol}" />
@@ -85,7 +86,8 @@
                                     <TextBlock Grid.Column="5" Text="{Binding Quantity}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                     <TextBlock Grid.Column="6" Text="{Binding Price}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                     <TextBlock Grid.Column="7" Text="{Binding Status}" />
-                                    <TextBlock Grid.Column="8" Text="{Binding Fee}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="8" Text="{Binding Flags}" />
+                                    <TextBlock Grid.Column="9" Text="{Binding Fee}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                 </Grid>
                             </Border>
                         </DataTemplate>

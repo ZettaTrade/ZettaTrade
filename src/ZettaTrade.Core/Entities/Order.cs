@@ -76,6 +76,14 @@ public sealed record Order
     /// </summary>
     public bool ReduceOnly { get; init; }
 
+    /// <summary>
+    /// Post-only intent (T-191): the order rests as a maker only — it was
+    /// refused placement rather than crossed the book (or it never carries
+    /// the flag). Recorded so the history and the UI show the honest
+    /// maker-only contract the order was placed under.
+    /// </summary>
+    public bool PostOnly { get; init; }
+
     /// <summary>Rejection reason (if status is Rejected).</summary>
     public string? RejectReason { get; init; }
 

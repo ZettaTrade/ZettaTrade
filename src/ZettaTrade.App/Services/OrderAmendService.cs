@@ -440,6 +440,8 @@ public sealed class OrderAmendService
         TimeInForce = fresh.TimeInForce,
         Expiry = fresh.Expiry,
         ClientOrderId = fresh.ClientOrderId,
+        ReduceOnly = fresh.ReduceOnly,
+        PostOnly = fresh.PostOnly,
     };
 
     /// <summary>

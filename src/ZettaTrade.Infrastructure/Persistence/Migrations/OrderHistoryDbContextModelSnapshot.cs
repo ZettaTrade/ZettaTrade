@@ -44,6 +44,9 @@ namespace ZettaTrade.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("PostOnly")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Price")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -51,6 +54,9 @@ namespace ZettaTrade.Infrastructure.Persistence.Migrations
                     b.Property<string>("Quantity")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("ReduceOnly")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("RejectReason")
                         .HasColumnType("TEXT");

@@ -290,6 +290,23 @@
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource TextSecondary}" />
 
+        <!-- The execution flags row (T-191): the plain single-order modes
+             only. Post-only applies to a plain limit (the maker-only
+             contract); reduce-only applies while the adapter holds an
+             opposite-side position for the symbol — both gates own the
+             honest disabled state, and the adapter still owns the strict
+             contract at placement. -->
+        <StackPanel Orientation="Horizontal"
+                    Spacing="{StaticResource SpaceXs}"
+                    IsVisible="{Binding IsFlagsRowVisible}">
+            <CheckBox Content="{loc:Localized NewOrder.PostOnlyLabel}"
+                      IsChecked="{Binding IsPostOnly}"
+                      IsEnabled="{Binding IsPostOnlyEnabled}" />
+            <CheckBox Content="{loc:Localized NewOrder.ReduceOnlyLabel}"
+                      IsChecked="{Binding IsReduceOnly}"
+                      IsEnabled="{Binding IsReduceOnlyEnabled}" />
+        </StackPanel>
+
         <!-- Fee estimate (T-080): one line per leg the ticket would place,
              each naming the maker/taker role and the schedule-priced
              commission — a missing schedule or incomplete inputs render the
