@@ -2956,3 +2956,62 @@ the board and its section below.
   clean develop baseline too — it needs the big non-Headless battery prefix plus at least
   the OverlayRouting + RailResize + SettingsPolish facts; no small repro exists). Hazards:
   none (whitespace only; the trading paths untouched).
+
+## T-186 - Bracket orders: entry + attached TP/SL
+
+- **Branch:** feat/bracket-orders, worktree zt-bracket-orders, based on
+  develop@e74812c (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep,
+  first of the trading half).
+- **Origin:** the sweep — the OCO either-or pair ships (T-074), but no route places an entry
+  and its protective exit in one shot; no bracket surface exists in the code.
+- **What:** a bracket mode in the order ticket — the entry (market or limit) plus an attached
+  take-profit limit leg and a stop-loss stop-limit leg, submitted as one validated request; the
+  exit legs ride the existing OCO machinery and arm on the entry's fill; the confirmation
+  dialog names all three legs; every leg passes `IRiskManager` and the bracket counts as ONE
+  confirmation, not three.
+- **Scope:** Core (`OrderRequest` extension + validation), Infrastructure (the paper adapter's
+  bracket assembly; the Bybit trading adapter refuses unimplementable shapes early with an
+  honest reason), the ticket + confirmation UI, resx en+ru, an optional bracket payload for the
+  MCP `place_order` tool follows only after the UI path is proven; the next free alpha bump +
+  the CHANGELOG section.
+- **Acceptance:** a bracket entry fills and arms the TP/SL pair; firing either leg cancels the
+  other (the OCO discipline); a risk rejection refuses all legs atomically; the confirmation
+  reads the three legs before submit.
+- **Tests:** the paper-adapter bracket battery (entry fill arms the pair, either-or, the atomic
+  refusal matrix); headless ticket pins for the bracket mode.
+- **Status:** done. Canon: the claim `9c0fad7`, the feat `56f0fba`, this close commit follows;
+  alpha.129 → alpha.130; no satellite release rode it (Livery 0.1.11, Plugins 0.3.0
+  untouched). Lane: supervisor-solo (the subagent lane stays closed — quota deaths). Shipped:
+  Core `BracketLegs` (a take-profit limit and a stop-loss stop-limit sharing one OcoGroupId)
+  with the `OrderRequest.BracketLegs` payload and the `ValidateBracket` matrix — the entry is
+  a market or limit order and never an OCO member itself, the exits ride the OPPOSITE side
+  with the entry's own quantity under ONE shared group, the legs validate recursively, no
+  nesting; the paper adapter routes the bracket first — a market or crossing-limit entry
+  fills and arms its pair synchronously against the entry's OWN fill price (the extracted
+  `PlaceConditionalOrderLockedCore(request, Price?)` runs under the non-reentrant trading
+  lock with no market fetch at arm time), a resting limit entry parks in `_pendingBrackets`
+  until it fills (the `RecordFillLocked` hook holds the arm-on-fill invariant) or is
+  cancelled; the arm is all-or-nothing — a refused take-profit refuses the stop-loss with it,
+  a refused stop-loss cancels the working take-profit through the synthetic terminal leg;
+  Bybit refuses the bracket shape FIRST with an honest reason; the ticket grew the bracket
+  type (combo index 5), the entry-kind combo (market/limit), its own take-profit input with
+  the inline error, the reused trigger/SL-limit captions and the arms-on-fill hint; the
+  confirmation composer's `ForBracket` names all three legs with the venue economics (the
+  base and detailed templates, en and ru). Tests: the Core bracket region (12 shape-matrix
+  facts), the paper bracket battery (arm-on-fill market/crossing/resting, a cancel drops the
+  parked pair, either-or on the stream, the all-or-nothing arm refusal, the invalid shape
+  refusal, the balance refusal arms nothing), the Bybit early-refusal pin, the VM battery
+  (three risk reads / one confirmation / one adapter call / close once, the atomic one-leg
+  rejection, the three-leg fee estimates) and the ticket source pins. GATE PASSED on attempt
+  2 (attempt 1: `dotnet format` whitespace on the new battery's initializer helpers plus the
+  TokensPinsTests NumericFont count pin 6 → 7 — the ticket's take-profit input carries the
+  stack; both fixed in the feat commit, no flaky retry). SMOKE PASSED on the T-166
+  functional bar: title held through the 12 s watchlist hold, 0 ERR/FTL, 0 ticker failures,
+  palette refreshed, strategies and indicators provided, ProductVersion
+  0.1.0-alpha.130+56f0fba. Hazards (recorded, accepted): a bracket arm refusal LOGS
+  (LogError) instead of throwing — the entry stays filled while its protection is missing,
+  the log line is the only trace; the internally armed legs and teardowns write no
+  order-history records — the journal and the history store carry the entry request only;
+  the resting bracket limit entries never fill in the paper sim (no matching loop) —
+  parking until cancel is the designed honest behavior. The MCP `place_order` bracket
+  payload follows post-UI (the scope's own sequencing).
