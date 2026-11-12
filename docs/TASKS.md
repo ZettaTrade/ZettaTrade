@@ -191,7 +191,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | done | - |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | done | - |
 | T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | done | - |
-| T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | planned | - |
+| T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | in-progress | - |
 | T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | planned | - |
 | T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | planned | - |
 | T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/paper-tif | planned | - |
@@ -423,7 +423,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-187 — SL/TP management from the positions panel
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/position-sltp, worktree zt-position-sltp, based on
+  develop@fbf8f2e (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
 - **Origin:** the sweep — positions carry SL/TP fields (the MCP `get_positions` tool returns
   them) but the positions panel offers no edit route; no set/modify commands exist in the code.
 - **What:** set, change and clear the protective SL and TP levels per open position from the
@@ -437,7 +438,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   reads the levels it set.
 - **Tests:** the paper protective-level battery (set/change/clear × touch); the headless panel
   pins.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-188 — Kill switch: cancel all + flatten all
 
