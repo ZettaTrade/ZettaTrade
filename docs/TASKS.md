@@ -192,7 +192,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | done | - |
 | T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | done | - |
 | T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | done | - |
-| T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | planned | - |
+| T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | in-progress | - |
 | T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | planned | - |
 | T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/paper-tif | planned | - |
 | T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | planned | - |
@@ -423,7 +423,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-188 — Kill switch: cancel all + flatten all
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/kill-switch, worktree zt-kill-switch, based on
+  develop@57304cf (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
 - **Origin:** the sweep — no single panic route exists; the T-076 bulk cancel covers one
   symbol's orders only.
 - **What:** one user action (a menu item + a remappable hotkey) that cancels every working
@@ -437,7 +438,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   the confirmation.
 - **Tests:** the service-level battery (mixed adapters, the failure matrix); the hotkey
   registration pin.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-189 — Daily loss limit in the risk governor
 
