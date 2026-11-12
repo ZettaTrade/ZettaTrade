@@ -3146,3 +3146,82 @@ the board and its section below.
   position open and reported while the rest still flatten (the report names it loudly);
   a fresh-read fault reports that venue's planned positions NotAttempted while the
   other venues still flatten.
+
+## T-189 — Daily loss limit in the risk governor
+
+- **Branch:** feat/daily-loss-limit, worktree zt-daily-loss-limit, based on
+  develop@3ddd771 (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the risk stack caps a single order's notional (the T-057 hard cap)
+  but nothing governs the cumulative day; no daily-loss keys exist.
+- **What:** a configurable daily loss threshold (realized + fees, per trading account) that
+  blocks new order placement once crossed; existing positions stay closable — a protective
+  block, never a trap; the block lifts at the day rollover or by an explicit user reset;
+  paper-first.
+- **Scope:** Infrastructure risk service + settings keys (`Risk.DailyLossLimit*`), the ticket
+  and confirmation surfaces read the blocked state honestly, resx en+ru, the next free alpha
+  bump + the CHANGELOG section.
+- **Acceptance:** crossing the threshold blocks further orders with an honest reason; closing
+  positions is never blocked; the rollover and the manual reset both lift the block; the off
+  state changes nothing.
+- **Tests:** the risk-governor battery (threshold math, the rollover, the reset, the
+  paper/live scoping).
+- **Status:** done. Canon: the claim `3b26674`, the feat `8ea19e1`, this close commit
+  follows; alpha.132 -> alpha.133; no satellite release rode it (Livery 0.1.11, Plugins 0.3.0
+  untouched). Lane: supervisor-solo (the subagent lane stays closed). Shipped: NO Core
+  interface change (the `IDailyLossLimit` seam is App-level, so the ticket's unit battery
+  substitutes the facts without a ledger harness). Accounting: the PnL engine's realized rows
+  are already NET of commission (the ingest math nets them at row-build time — `realized =
+  gross - applied`), so the day loss is the PLAIN window sum of `RealizedAmount` per bucket;
+  no second commission subtraction ever happens (the research-phase note "Σ(RealizedAmount −
+  Commission)" was corrected during the build). Buckets never mix quote currencies:
+  `GetRealizedBucketsAsync` projects (Symbol, RealizedAmount) rows over the gate-serialized
+  window and buckets client-side by `Symbol.Parse(symbol).QuoteAsset ?? ""`. The gate:
+  `DefaultRiskManager` grows the optional `IDailyLossLimit` dep (the legacy one-arg battery
+  stays green), `CheckOrderAsync` is real async now; the loss gate rides AFTER the
+  unpriceable rejection + hard cap and BEFORE the threshold confirmation (a blocked order
+  never reaches a dialog), a reduce-only request is exempt BEFORE any read at all (closing
+  positions and the kill switch's flatten always stay allowed — the deletion-probe fact
+  proves the no-read exemption), and an engine fault lands fail-closed in the manager's own
+  catch (`Risk check error: ...`, never an approval on unknown state). Window: the local
+  calendar day (its local midnight as UTC bounds, end = start + 24h), tightened by the reset
+  marker (`Risk.DailyLossResetAt`, ISO-8601 UTC written at reset; an unparsable marker is
+  logged and ignored, never substituted); the block is `dayLoss <= -limit` (inclusive). The
+  off state (or a nonsense non-positive threshold) reads the settings only — no engine query
+  at all, so an off governor changes nothing even on an unreadable ledger. Quoteless orders
+  (stock symbols, no quote asset) PASS the gate unattributed with a hazard log — never a
+  fabricated currency, never a fabricated block. Ticket: the banner
+  (`IsDailyLossBlocked`/`DailyLossBanner`) rides a throttled symbol-driven read (the
+  fee-estimate precedent: `EstimateReferenceThrottle` + `Observable.FromAsync` + `.Switch()`
+  + `ObserveOnUiThread()`), refreshed `force: true` after every failed placement (the main
+  catch, the OCO pair abort, both risk-rejection sites, the bracket catch) and the reset (6
+  sites); the reset asks ONE confirmation (`Trading.ConfirmDailyLossReset`) then writes the
+  marker; a banner fault stays hidden — a display convenience, never a gate (the submit
+  pipeline re-checks the truth at every placement; a risk-rejected order shows the raw
+  English rejection reason on the error line, house style; the banner is the localized
+  surface). DI: `AddRiskLimitServices()` registers the typed service + the `IDailyLossLimit`
+  alias (both singletons; one line before the IRiskManager registration in
+  CompositionRoot). Settings keys `Risk.DailyLossLimitEnabled` (Switch, default OFF),
+  `Risk.DailyLossLimitAmount` (Number, default 1000), `Risk.DailyLossResetAt` (Text,
+  absence is the default) ship through the port registry (en + ru resx on the 4 keys).
+  Tests: the service battery (13: threshold math incl. the commission net, buckets, the
+  quoteless pass, the lane scoping, the off state, the nonsense threshold, the rollover,
+  the reset, the unparsable marker, the engine-fault propagation), the manager gate battery
+  (6: the honest reason, the blocked-large-never-confirmed, the reduce-only no-read
+  exemption, the off no-read bit-identity, the quoteless pass, the fail-closed fault), the
+  legacy manager battery (10, the one-arg factory untouched), the ticket VM batteries (the
+  `IDailyLossLimit` stubs, OFF posture), the DI pins (3), the port pins (4) and the surface
+  pins (6: the XAML banner + the AutomationId-once, the refresh sites, the
+  one-confirmation reset, the gate ordering in source, the composition ordering, the resx
+  parity); full App.Tests 1697 green. GATE PASSED (2 non-blocking warnings: the absent
+  agent-scope file, the local gitleaks skip; the veil `AvaloniaDispatcherPump` family
+  flaked twice under gate load and passed on the fresh run — recorded per the
+  known-families policy, not touched in-flight). SMOKE PASSED on the T-166 functional bar:
+  title held through the hold, 0 ERR/FTL, ticker clean, palette refreshed,
+  strategies+indicators provided, ProductVersion 0.1.0-alpha.133+8ea19e1. Hazards
+  (recorded, accepted): the AMEND path loses `ReduceOnly` — `BuildAmendedRequest` does not
+  copy the flag, so an amended reduce-only order could grow exposure (pre-existing,
+  flagged for the flags task T-191); quoteless orders pass the governor unattributed (the
+  empty-string bucket may mix currencies — the honest pass beats a fabricated block); the
+  24h window vs the DST boundary drifts by at most an hour and the next day's window
+  re-anchors at its own local midnight; a blocked LARGE order's rejection reason lands raw
+  English on the ticket error line (the banner is the localized surface).
