@@ -675,6 +675,18 @@
   <data name="Trading.KillSwitchAbortedFormat" xml:space="preserve">
     <value>The sweep stopped early: {0}</value>
   </data>
+  <data name="Trading.DailyLossBannerFormat" xml:space="preserve">
+    <value>Daily loss limit reached: {0} realized today against the {1} limit. New orders are blocked; closing positions stays allowed. The block lifts at the day rollover or by reset.</value>
+  </data>
+  <data name="Trading.DailyLossReset" xml:space="preserve">
+    <value>Reset limit</value>
+  </data>
+  <data name="Trading.ConfirmDailyLossReset" xml:space="preserve">
+    <value>Reset the daily loss limit? New orders become placeable again for the rest of today.</value>
+  </data>
+  <data name="NewOrder.DailyLossResetFailed" xml:space="preserve">
+    <value>The daily loss limit reset failed: {0}</value>
+  </data>
   <data name="Trading.Lane.Paper" xml:space="preserve">
     <value>Paper</value>
   </data>

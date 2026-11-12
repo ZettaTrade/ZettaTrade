@@ -42,6 +42,7 @@ public sealed class NewOrderDialogViewModelTests
     private readonly IOrderJournal _journal = new OrderJournal();
     private readonly IOrderHistoryStore _history = Substitute.For<IOrderHistoryStore>();
     private readonly Subject<SettingsChange> _settingsChanges = new();
+    private readonly IDailyLossLimit _dailyLoss = Substitute.For<IDailyLossLimit>();
 
     public NewOrderDialogViewModelTests()
     {
@@ -55,6 +56,11 @@ public sealed class NewOrderDialogViewModelTests
         // The default facade's single adapter IS the trading stub itself: with
         // the paper id the estimate goldens resolve the shipped schedule.
         _trading.Id.Returns(PaperTradingAdapter.ExchangeId);
+
+        // The daily loss governor answers its shipped OFF posture: the
+        // banner stays hidden unless a test arms it.
+        _dailyLoss.ReadStateAsync(Arg.Any<Core.ValueObjects.Symbol>(), Arg.Any<CancellationToken>())
+            .Returns(new DailyLossState(false, false, 0m, 1000m, "USDT", "paper"));
     }
 
     /// <summary>
@@ -120,7 +126,8 @@ public sealed class NewOrderDialogViewModelTests
                 Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionSizingService>>()),
             settings,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>(),
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderSizerRowViewModel>>());
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderSizerRowViewModel>>(),
+            _dailyLoss);
     }
 
     /// <summary>

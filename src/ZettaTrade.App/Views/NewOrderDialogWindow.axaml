@@ -364,6 +364,22 @@
                        TextWrapping="Wrap" />
         </StackPanel>
 
+        <!-- The daily loss governor's banner (T-189): the honest blocked
+             state with its reset beside it. A display fact only — the
+             submit pipeline re-checks the gate at every placement. -->
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceS}"
+              IsVisible="{Binding IsDailyLossBlocked}">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding DailyLossBanner}"
+                       Foreground="{DynamicResource Error}"
+                       TextWrapping="Wrap" />
+            <Button Grid.Column="1"
+                    Content="{loc:Localized Trading.DailyLossReset}"
+                    AutomationProperties.AutomationId="DailyLossResetButton"
+                    Command="{Binding ResetDailyLossCommand}"
+                    VerticalAlignment="Top" />
+        </Grid>
+
         <!-- Flow failures (risk rejection, market-relative sanity, adapter
              failure, OCO abort) — T-156 demoted the summary to the flow
              lane: a field's parse refusal renders next to its field. -->

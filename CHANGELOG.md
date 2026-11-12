@@ -1,3 +1,30 @@
+## [0.1.0-alpha.133] - 2026-11-12
+
+Build of board task T-189 (branch `feat/daily-loss-limit`): the daily loss
+limit in the risk governor.
+
+### Added
+- A configurable daily loss threshold (`Risk.DailyLossLimitEnabled`,
+  `Risk.DailyLossLimitAmount` — off by default, 1000 quote units when
+  armed) governs the cumulative day: once the current trading lane's net
+  realized result for the order's own quote currency crosses the
+  threshold, new order placements are blocked with an honest reason
+  naming the day loss against the limit. The realized rows are already
+  net of their commissions, so the loss is the plain window sum over the
+  PnL engine's realized history for the day (the local calendar day as
+  UTC bounds), and quote buckets never sum across currencies.
+- The block is protective, never a trap: reduce-only requests are exempt
+  before any read at all — closing positions, the kill switch's flatten
+  and every protective exit always stay allowed — and the block lifts at
+  the day rollover (the window re-anchors at the new local midnight) or
+  by an explicit reset.
+- The order ticket reads the blocked state honestly: a banner (with the
+  day loss against the limit) appears while the parsed symbol's quote
+  bucket is blocked, refreshed per settled symbol and after every failed
+  placement; a Reset button beside it asks ONE confirmation and lifts
+  the block for the rest of the day. The settings keys ship through the
+  settings port (import/export/reset), en + ru vocabulary included.
+
 ## [0.1.0-alpha.132] - 2026-11-12
 
 Build of board task T-188 (branch `feat/kill-switch`): the kill switch —

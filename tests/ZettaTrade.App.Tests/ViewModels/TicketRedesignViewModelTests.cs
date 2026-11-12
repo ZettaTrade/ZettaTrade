@@ -37,6 +37,7 @@ public sealed class TicketRedesignViewModelTests
     private readonly IOrderJournal _journal = new OrderJournal();
     private readonly IOrderHistoryStore _history = Substitute.For<IOrderHistoryStore>();
     private readonly Subject<SettingsChange> _settingsChanges = new();
+    private readonly IDailyLossLimit _dailyLoss = Substitute.For<IDailyLossLimit>();
 
     public TicketRedesignViewModelTests()
     {
@@ -48,6 +49,11 @@ public sealed class TicketRedesignViewModelTests
             $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
 
         _trading.Id.Returns(PaperTradingAdapter.ExchangeId);
+
+        // The daily loss governor answers its shipped OFF posture: the
+        // banner stays hidden unless a test arms it.
+        _dailyLoss.ReadStateAsync(Arg.Any<Symbol>(), Arg.Any<CancellationToken>())
+            .Returns(new DailyLossState(false, false, 0m, 1000m, "USDT", "paper"));
     }
 
     private NewOrderDialogViewModel CreateViewModel()
@@ -87,7 +93,8 @@ public sealed class TicketRedesignViewModelTests
                 Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionSizingService>>()),
             settings,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<NewOrderDialogViewModel>>(),
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderSizerRowViewModel>>());
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<OrderSizerRowViewModel>>(),
+            _dailyLoss);
     }
 
     private static void FillValidLimitOrder(NewOrderDialogViewModel viewModel)

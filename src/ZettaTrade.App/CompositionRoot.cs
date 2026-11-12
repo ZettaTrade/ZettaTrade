@@ -177,6 +177,7 @@ internal static class CompositionRoot
         services.AddSingleton<IMcpClientManager>(sp =>
             sp.GetRequiredService<McpClientManager>());
 
+        services.AddRiskLimitServices();
         services.AddSingleton<IRiskManager, DefaultRiskManager>();
         services.AddSingleton<IConfirmationService>(sp => new UiConfirmationService(
             sp.GetRequiredService<ILogger<UiConfirmationService>>(),
