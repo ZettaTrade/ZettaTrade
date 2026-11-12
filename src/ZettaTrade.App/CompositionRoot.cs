@@ -328,7 +328,7 @@ internal static class CompositionRoot
                 LogTailService.BackpressureChannelCapacity,
                 sp.GetRequiredService<ILogger<PerformanceHudService>>()));
         services.AddSingleton<PerformanceHudViewModel>();
-        services.AddWatchlistServices(); // T-120: the watchlist panel (feed + rows) over the same facade/selection pair above.
+        services.AddWatchlistServices(); // T-120/T-196: the watchlist panel (catalog + feed + rows) over the same facade/selection pair above.
         services.AddHeatmapServices(); // T-121: the heatmap panel (candidate pumps + ranked tile page) beside the watchlist rail above.
         services.AddScreenerServices(); // T-195: the screener panel (candidate pumps + the sortable table page) beside the heatmap rail above.
         // T-095: the global symbol palette — the Ctrl+K instrument picker

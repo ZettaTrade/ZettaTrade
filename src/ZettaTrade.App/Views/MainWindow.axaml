@@ -44,8 +44,9 @@
          states move OFF the stock brushes (T-150's swept family): Fluent
          paints the ListBoxItem hover/selection straight onto the template
          part with system brushes, so the overrides target that same part —
-         the hover affordance reads Surface over the window background, an
-         inert selection (the rows' click does nothing today) stays quiet. -->
+         the hover affordance reads Surface over the window background, and
+         the selection stays quiet too (T-196: the row actions live in the
+         toolbar above, so the rows themselves stay inert). -->
     <Window.Styles>
         <Style Selector="TextBlock.watch-change.up">
             <Setter Property="Foreground" Value="{DynamicResource CandleUp}" />
@@ -451,57 +452,201 @@
                                     <TextBlock Classes="panel-title"
                                                Text="{loc:Localized Watch.Title}" />
                                 </TabItem.Header>
-                                <!-- Watchlist panel: the feed-paced majors rows plus the
-                                     workspace selection's row; each row keeps a stable
-                                     identity (only its fields churn per pulse), the
-                                     sparkline rides the row's own price ring. -->
+                                <!-- Watchlist panel (T-196): the user's lists ride the catalog —
+                                     the list combo and its toolbar sit over the row toolbar,
+                                     the rows keep a stable identity (only their fields churn
+                                     per pulse), the sparkline rides the row's own price ring,
+                                     and the empty hint shows while the active list carries
+                                     no row. -->
                                 <Border BorderBrush="{DynamicResource Border}"
                                         BorderThickness="1,0,0,0">
-                                    <!-- The watch rows clear the list's own
-                                         overlay bar (T-170): the padding is
-                                         the list's internal gutter. -->
-                                    <ListBox ItemsSource="{Binding Rows}" Classes="watch-rows" Padding="0,0,16,0">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:WatchlistRowViewModel">
-                                                <Grid ColumnDefinitions="*,Auto" Margin="8,4,4,4">
-                                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding SymbolText}"
-                                                                   FontWeight="Bold" />
-                                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-                                                            <TextBlock Text="{Binding LastPriceText}" />
-                                                            <!-- T-159: the change text tints by
-                                                                 the 24h sign (the candle state
-                                                                 colors); a flat or unpriced row
-                                                                 keeps the plain ink -->
-                                                            <TextBlock Text="{Binding Change24hText}"
-                                                                       Classes="watch-change"
-                                                                       Classes.up="{Binding IsChangeUp}"
-                                                                       Classes.down="{Binding IsChangeDown}" />
-                                                            <TextBlock Text="{Binding Volume24hText}"
-                                                                       Foreground="{DynamicResource TextSecondary}" />
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                    <!-- The sparkline: the viewport's one
-                                                         synthetic shape, the row's price
-                                                         ring mapped onto the canvas (the
-                                                         ring itself lives in the feed);
-                                                         T-159 colors it by the ring's own
-                                                         oldest-to-newest direction, the
-                                                         Highlight line stays the
-                                                         no-signal state -->
-                                                    <Polyline Grid.Column="1"
-                                                              Width="96"
-                                                              Height="28"
-                                                              VerticalAlignment="Center"
-                                                              Classes="watch-spark"
-                                                              Classes.up="{Binding IsSparklineUp}"
-                                                              Classes.down="{Binding IsSparklineDown}"
-                                                              Points="{Binding SparklinePoints}"
-                                                              StrokeThickness="1.5" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
+                                    <Grid RowDefinitions="Auto,Auto,*">
+                                        <!-- Row 0: the list surface — the combo plus its three
+                                             actions, or the inline name editor while it
+                                             stands open. The editor's buttons carry no
+                                             IsDefault/IsCancel: the text box's own Enter and
+                                             Escape keys race the palette's window-level
+                                             route, so the buttons are the route. -->
+                                        <Panel Grid.Row="0"
+                                               Margin="8,8,8,4">
+                                            <Grid ColumnDefinitions="*,Auto,Auto,Auto"
+                                                  IsVisible="{Binding !IsListEditorOpen}">
+                                                <ComboBox Grid.Column="0"
+                                                          ItemsSource="{Binding Lists}"
+                                                          SelectedIndex="{Binding SelectedListIndex, Mode=TwoWay}"
+                                                          HorizontalAlignment="Stretch">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:WatchlistListOption">
+                                                            <TextBlock Text="{Binding DisplayName}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                                <Button Grid.Column="1"
+                                                        Classes="icon"
+                                                        Command="{Binding OpenNewListCommand}"
+                                                        ToolTip.Tip="{loc:Localized Watch.NewList}"
+                                                        AutomationProperties.Name="{loc:Localized Watch.NewList}"
+                                                        Margin="8,0,0,0">
+                                                    <Path Stretch="None"
+                                                          StrokeThickness="1.5"
+                                                          Stroke="{DynamicResource TextPrimary}"
+                                                          Data="M 6 2 V 10 M 2 6 H 10" />
+                                                </Button>
+                                                <Button Grid.Column="2"
+                                                        Classes="icon"
+                                                        Command="{Binding OpenRenameListCommand}"
+                                                        ToolTip.Tip="{loc:Localized Watch.RenameList}"
+                                                        AutomationProperties.Name="{loc:Localized Watch.RenameList}"
+                                                        Margin="8,0,0,0">
+                                                    <Path Stretch="None"
+                                                          StrokeThickness="1.5"
+                                                          Stroke="{DynamicResource TextPrimary}"
+                                                          Data="M 1 11 L 2.5 8 L 9 1.5 L 10.5 3 L 4 9.5 L 1 11 M 8 2.5 L 9.5 4" />
+                                                </Button>
+                                                <Button Grid.Column="3"
+                                                        Classes="icon"
+                                                        Command="{Binding DeleteListCommand}"
+                                                        ToolTip.Tip="{loc:Localized Watch.DeleteList}"
+                                                        AutomationProperties.Name="{loc:Localized Watch.DeleteList}"
+                                                        Margin="8,0,0,0">
+                                                    <Path Stretch="None"
+                                                          StrokeThickness="1.5"
+                                                          Stroke="{DynamicResource TextPrimary}"
+                                                          Data="M 2 4 H 10 M 4 4 V 2 H 8 V 4 M 3.5 4 L 4 11 H 8 L 8.5 4" />
+                                                </Button>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto,Auto"
+                                                  IsVisible="{Binding IsListEditorOpen}">
+                                                <TextBox Grid.Column="0"
+                                                         Text="{Binding ListEditorText}"
+                                                         PlaceholderText="{loc:Localized Watch.ListEditor.NamePlaceholder}"
+                                                         MaxLength="40" />
+                                                <Button Grid.Column="1"
+                                                        Classes="icon"
+                                                        Command="{Binding ConfirmListEditorCommand}"
+                                                        ToolTip.Tip="{loc:Localized Watch.ListEditor.Confirm}"
+                                                        AutomationProperties.Name="{loc:Localized Watch.ListEditor.Confirm}"
+                                                        Margin="8,0,0,0">
+                                                    <Path Stretch="None"
+                                                          StrokeThickness="1.5"
+                                                          Stroke="{DynamicResource TextPrimary}"
+                                                          Data="M 2 6 L 4.5 8.5 L 10 3" />
+                                                </Button>
+                                                <Button Grid.Column="2"
+                                                        Classes="icon"
+                                                        Command="{Binding CancelListEditorCommand}"
+                                                        ToolTip.Tip="{loc:Localized Watch.ListEditor.Cancel}"
+                                                        AutomationProperties.Name="{loc:Localized Watch.ListEditor.Cancel}"
+                                                        Margin="8,0,0,0">
+                                                    <Path Stretch="None"
+                                                          StrokeThickness="1.5"
+                                                          Stroke="{DynamicResource TextPrimary}"
+                                                          Data="M 3 3 L 9 9 M 9 3 L 3 9" />
+                                                </Button>
+                                            </Grid>
+                                        </Panel>
+                                        <!-- Row 1: the row actions (the toolbar hides while the
+                                             list carries nothing — the empty hint speaks). -->
+                                        <StackPanel Grid.Row="1"
+                                                    Orientation="Horizontal"
+                                                    Margin="8,0,8,4"
+                                                    IsVisible="{Binding HasRows}">
+                                            <Button Classes="icon"
+                                                    Command="{Binding AddSymbolCommand}"
+                                                    ToolTip.Tip="{loc:Localized Watch.AddSymbol}"
+                                                    AutomationProperties.Name="{loc:Localized Watch.AddSymbol}">
+                                                <Path Stretch="None"
+                                                      StrokeThickness="1.5"
+                                                      Stroke="{DynamicResource TextPrimary}"
+                                                      Data="M 6 2 V 10 M 2 6 H 10" />
+                                            </Button>
+                                            <Button Classes="icon"
+                                                    Command="{Binding MoveRowUpCommand}"
+                                                    ToolTip.Tip="{loc:Localized Watch.MoveRowUp}"
+                                                    AutomationProperties.Name="{loc:Localized Watch.MoveRowUp}"
+                                                    Margin="8,0,0,0">
+                                                <Path Stretch="None"
+                                                      StrokeThickness="1.5"
+                                                      Stroke="{DynamicResource TextPrimary}"
+                                                      Data="M 3 7.5 L 6 4.5 L 9 7.5" />
+                                            </Button>
+                                            <Button Classes="icon"
+                                                    Command="{Binding MoveRowDownCommand}"
+                                                    ToolTip.Tip="{loc:Localized Watch.MoveRowDown}"
+                                                    AutomationProperties.Name="{loc:Localized Watch.MoveRowDown}"
+                                                    Margin="8,0,0,0">
+                                                <Path Stretch="None"
+                                                      StrokeThickness="1.5"
+                                                      Stroke="{DynamicResource TextPrimary}"
+                                                      Data="M 3 4.5 L 6 7.5 L 9 4.5" />
+                                            </Button>
+                                            <Button Classes="icon"
+                                                    Command="{Binding RemoveRowCommand}"
+                                                    ToolTip.Tip="{loc:Localized Watch.RemoveRow}"
+                                                    AutomationProperties.Name="{loc:Localized Watch.RemoveRow}"
+                                                    Margin="8,0,0,0">
+                                                <Path Stretch="None"
+                                                      StrokeThickness="1.5"
+                                                      Stroke="{DynamicResource TextPrimary}"
+                                                      Data="M 2 4 H 10 M 4 4 V 2 H 8 V 4 M 3.5 4 L 4 11 H 8 L 8.5 4" />
+                                            </Button>
+                                        </StackPanel>
+                                        <!-- Row 2: the rows — the watch rows clear the list's own
+                                             overlay bar (T-170): the padding is the list's
+                                             internal gutter; the selection lands in the panel
+                                             VM two-way, and the empty hint centers while the
+                                             active list carries nothing. -->
+                                        <Panel Grid.Row="2">
+                                            <ListBox ItemsSource="{Binding Rows}" Classes="watch-rows" Padding="0,0,16,0"
+                                                     SelectedIndex="{Binding SelectedRowIndex, Mode=TwoWay}">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:WatchlistRowViewModel">
+                                                        <Grid ColumnDefinitions="*,Auto" Margin="8,4,4,4">
+                                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding SymbolText}"
+                                                                           FontWeight="Bold" />
+                                                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                                                                    <TextBlock Text="{Binding LastPriceText}" />
+                                                                    <!-- T-159: the change text tints by
+                                                                         the 24h sign (the candle state
+                                                                         colors); a flat or unpriced row
+                                                                         keeps the plain ink -->
+                                                                    <TextBlock Text="{Binding Change24hText}"
+                                                                               Classes="watch-change"
+                                                                               Classes.up="{Binding IsChangeUp}"
+                                                                               Classes.down="{Binding IsChangeDown}" />
+                                                                    <TextBlock Text="{Binding Volume24hText}"
+                                                                               Foreground="{DynamicResource TextSecondary}" />
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                            <!-- The sparkline: the viewport's one
+                                                                 synthetic shape, the row's price
+                                                                 ring mapped onto the canvas (the
+                                                                 ring itself lives in the feed);
+                                                                 T-159 colors it by the ring's own
+                                                                 oldest-to-newest direction, the
+                                                                 Highlight line stays the
+                                                                 no-signal state -->
+                                                            <Polyline Grid.Column="1"
+                                                                      Width="96"
+                                                                      Height="28"
+                                                                      VerticalAlignment="Center"
+                                                                      Classes="watch-spark"
+                                                                      Classes.up="{Binding IsSparklineUp}"
+                                                                      Classes.down="{Binding IsSparklineDown}"
+                                                                      Points="{Binding SparklinePoints}"
+                                                                      StrokeThickness="1.5" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                            <TextBlock IsVisible="{Binding !HasRows}"
+                                                       Text="{loc:Localized Watch.EmptyList}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextSecondary}" />
+                                        </Panel>
+                                    </Grid>
                                 </Border>
                             </TabItem>
                             <TabItem DataContext="{Binding Heatmap}">
@@ -661,15 +806,20 @@
                                  AutomationProperties.Name="{loc:Localized Chart.A11ySymbolPicker}"
                                  Text="{Binding Palette.Query}"
                                  PlaceholderText="{loc:Localized Palette.Placeholder}" />
-                        <!-- The compare-pick hint (T-124): while the palette
-                             rides the chart's compare action, the rows rank
-                             the current exchange only and Enter picks a
-                             series instead of switching the workspace. -->
+                        <!-- The pick hints (T-124 compare, T-196 watchlist): while the
+                             palette rides a pick, the rows rank the current exchange
+                             only and Enter completes the ride instead of switching
+                             the workspace. -->
                         <TextBlock Grid.Row="2"
                                    Text="{loc:Localized Palette.CompareHint}"
                                    Foreground="{DynamicResource Highlight}"
                                    FontSize="{StaticResource CaptionFontSize}"
                                    IsVisible="{Binding Palette.IsPickingCompare}" />
+                        <TextBlock Grid.Row="2"
+                                   Text="{loc:Localized Palette.WatchlistHint}"
+                                   Foreground="{DynamicResource Highlight}"
+                                   FontSize="{StaticResource CaptionFontSize}"
+                                   IsVisible="{Binding Palette.IsPickingWatchlist}" />
                         <Grid Grid.Row="3">
                             <ListBox x:Name="PaletteRows"
                                      IsVisible="{Binding Palette.HasRows}"

@@ -2,8 +2,10 @@ namespace ZettaTrade.App.Tests.Services;
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reactive.Subjects;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -12,15 +14,21 @@ using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Demo;
 
 /// <summary>
-/// The watchlist feed facts (T-120, over the pulse seam): the quotes hold
-/// until the first pulse beats (which always ships the starter row set,
-/// unpriced rows carrying null fields), a tick followed by a pulse lands
-/// the row's values, the row's price ring caps at its capacity keeping the
-/// newest prices, and a selection join retires the previous selection-only
-/// row once it leaves.
+/// The watchlist feed facts (T-120 over the pulse seam, the row set
+/// reworked in T-196 over a real catalog): the quotes hold until the first
+/// pulse beats (which always ships the row set, unpriced rows carrying
+/// null fields), a tick followed by a pulse lands the row's values, the
+/// row's price ring caps at its capacity keeping the newest prices, and a
+/// selection join retires the previous selection-only row once it leaves.
+/// The catalog-driven re-arms: a mutation's publish re-arms the row set in
+/// the list's stored order — an added symbol appends, a move reorders with
+/// the tick state surviving, a switch swaps the sets, and the selection's
+/// overlay re-pins across the switch while list rows never retire from
+/// selection moves.
 /// </summary>
 public sealed class WatchlistFeedServiceTests
 {
@@ -43,11 +51,23 @@ public sealed class WatchlistFeedServiceTests
 
     #region Fixtures
 
-    /// <summary>One feed over a substituted adapter, subject streams and the controllable pulse.</summary>
+    /// <summary>
+    /// One feed over a real catalog (a real store in a fresh temp
+    /// directory — the seeded read completes before the feed arms),
+    /// a substituted adapter, subject streams and the controllable pulse.
+    /// </summary>
     private sealed class Fixture : IDisposable
     {
         public Fixture()
         {
+            Directory = Path.Combine(Path.GetTempPath(), "t196-feed-" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(Directory);
+            Settings = new SettingsService(
+                Path.Combine(Directory, "settings.json"),
+                NullLogger<SettingsService>.Instance);
+            Catalog = new WatchlistCatalogService(
+                Settings,
+                NullLogger<WatchlistCatalogService>.Instance);
             Feeds = new Dictionary<string, Subject<Ticker>>(StringComparer.Ordinal);
             Adapter = Substitute.For<IMarketDataAdapter>();
             Adapter
@@ -58,9 +78,16 @@ public sealed class WatchlistFeedServiceTests
             Feed = new WatchlistFeedService(
                 Adapter,
                 Selections,
+                Catalog,
                 NullLogger<WatchlistFeedService>.Instance,
                 Pulse);
         }
+
+        public string Directory { get; }
+
+        public SettingsService Settings { get; }
+
+        public WatchlistCatalogService Catalog { get; }
 
         public IMarketDataAdapter Adapter { get; }
 
@@ -100,6 +127,17 @@ public sealed class WatchlistFeedServiceTests
         public void Dispose()
         {
             Feed.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            Catalog.Dispose();
+            try
+            {
+                System.IO.Directory.Delete(Directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // The store's file watcher can hold the directory a beat
+                // longer on some platforms — the temp directory dies with
+                // the OS cleanup either way.
+            }
         }
 
         /// <summary>The lane cache behind the substituted SubscribeTicker.</summary>
@@ -209,6 +247,82 @@ public sealed class WatchlistFeedServiceTests
 
         var after = fixture.SnapshotAfterPulse();
         after.Select(row => row.SymbolText).Should().Equal(StarterTexts);
+    }
+
+    [Fact]
+    public async Task AnAddedSymbol_AppendsToTheRowSet()
+    {
+        using var fixture = new Fixture();
+
+        await fixture.Catalog.AddSymbolAsync("Majors", "TRX/USDT");
+
+        var snapshot = fixture.SnapshotAfterPulse();
+        snapshot.Select(row => row.SymbolText)
+            .Should().Equal([.. StarterTexts, "TRX/USDT"], "the append lands at the list's end");
+    }
+
+    [Fact]
+    public async Task AMove_ReordersTheRows_WithTheTickStateSurviving()
+    {
+        using var fixture = new Fixture();
+        fixture.Tick("BTC/USDT", 65432.10m, 1.25m, 1_520_000m, 65400m, 65450m);
+
+        await fixture.Catalog.MoveSymbolAsync("Majors", "BTC/USDT", 1);
+
+        var snapshot = fixture.SnapshotAfterPulse();
+        snapshot.Select(row => row.SymbolText).Should().StartWith("ETH/USDT").And.Contain("BTC/USDT");
+        var btc = snapshot.Should().Contain(row => row.SymbolText == "BTC/USDT").Which;
+        btc.LastPrice.Should().Be(65432.10m, "the moved row keeps its own pricing state");
+        btc.Sparkline.Should().Equal(new decimal[] { 65432.10m });
+    }
+
+    [Fact]
+    public async Task AListSwitch_SwapsTheRowSet_InFull()
+    {
+        using var fixture = new Fixture();
+
+        await fixture.Catalog.CreateListAsync("Alts");
+        await fixture.Catalog.AddSymbolAsync("Alts", "TRX/USDT");
+
+        var alts = fixture.SnapshotAfterPulse();
+        alts.Select(row => row.SymbolText).Should().Equal(["TRX/USDT"], "the active list IS the row set");
+
+        await fixture.Catalog.SetActiveAsync("Majors");
+
+        var majors = fixture.SnapshotAfterPulse();
+        majors.Select(row => row.SymbolText).Should().Equal(StarterTexts);
+    }
+
+    [Fact]
+    public async Task TheOverlay_RePinsAcrossAListSwitch_AsTheTrailingRow()
+    {
+        using var fixture = new Fixture();
+        fixture.Selections.OnNext(Symbol.Parse("TRX/USDT"));
+
+        await fixture.Catalog.CreateListAsync("Alts");
+
+        var alts = fixture.SnapshotAfterPulse();
+        alts.Select(row => row.SymbolText)
+            .Should().Equal(["TRX/USDT"], "the empty list's set is the selection's overlay alone");
+
+        await fixture.Catalog.SetActiveAsync("Majors");
+
+        var majors = fixture.SnapshotAfterPulse();
+        majors.Select(row => row.SymbolText)
+            .Should().Equal([.. StarterTexts, "TRX/USDT"], "the overlay trails the list rows again");
+    }
+
+    [Fact]
+    public void ASelectionOntoListRows_RetiresNothing()
+    {
+        using var fixture = new Fixture();
+
+        fixture.Selections.OnNext(Symbol.Parse("BTC/USDT"));
+        fixture.Selections.OnNext(Symbol.Parse("ETH/USDT"));
+
+        var snapshot = fixture.SnapshotAfterPulse();
+        snapshot.Should().HaveCount(StarterTexts.Length, "list rows never retire from selection moves");
+        snapshot.Select(row => row.SymbolText).Should().Equal(StarterTexts);
     }
 
     #endregion

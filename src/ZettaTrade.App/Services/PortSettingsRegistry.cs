@@ -259,6 +259,13 @@ public static class PortSettingsRegistry
         // nothing (the shipped paper schedule is code-side), so absence is
         // the default.
         Text(FeeScheduleService.SettingsSection, FeeScheduleService.SettingsKey, PortValueKind.ScheduleMap),
+
+        // The user-managed watchlists (T-196): the whole document — the
+        // lists and the active name — rides ONE versioned codec payload in
+        // one string. A fresh install stores nothing (the starter majors
+        // list stands), so the default IS absence — a reset removes the
+        // stored document and the starter list returns.
+        Text(WatchlistSettingsKeys.Section, WatchlistSettingsKeys.DocumentKey),
     ];
 
     /// <summary>Expose the fixed key list (the port service iterates it; the tests pin it).</summary>

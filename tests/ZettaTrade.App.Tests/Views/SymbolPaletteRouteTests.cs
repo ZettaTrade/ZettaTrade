@@ -144,6 +144,9 @@ public sealed class SymbolPaletteRouteTests
                      "Palette.Empty",
                      "Palette.NoMatches",
                      "Palette.Hint",
+                     // The pick rides' hints (T-124 compare, T-196 watchlist).
+                     "Palette.CompareHint",
+                     "Palette.WatchlistHint",
                  })
         {
             Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)
@@ -157,6 +160,19 @@ public sealed class SymbolPaletteRouteTests
             Path.Combine(RepoRoot, "src", "ZettaTrade.UI", "Resources", "Strings.resx"));
         enCatalog.Should().Contain("Palette.Title", "the palette keys live under the Palette. prefix");
         enCatalog.Should().Contain("Palette.Hint", "the keyboard route is discoverable from the overlay");
+    }
+
+    [Fact]
+    public void TheWatchlistPickHint_BindsItsOwnOverlayLine()
+    {
+        var source = MainWindowXaml;
+
+        source.Should().Contain(
+            "IsVisible=\"{Binding Palette.IsPickingWatchlist}\"",
+            "the watchlist pick rides its own hint line (T-196), beside the compare one");
+        source.Should().Contain(
+            "Text=\"{loc:Localized Palette.WatchlistHint}\"",
+            "the hint's caption is localized");
     }
 
     /// <summary>

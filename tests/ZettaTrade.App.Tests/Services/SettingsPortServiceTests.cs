@@ -260,6 +260,44 @@ public sealed class SettingsPortServiceTests
 
     #endregion Schema validation rejects
 
+    #region The watchlist document's carriage
+
+    /// <summary>
+    /// The watchlist document rides the port in full (T-196): the tuned
+    /// export carries the codec payload as a plain text value, a fresh
+    /// store restoring the file reads back the same document, and a
+    /// malformed codec payload rejects the whole import (the Text kind's
+    /// kind-level gate — the codec's own fault surface stays the catalog's).
+    /// </summary>
+    [Fact]
+    public async Task TheWatchlistDocument_RoundTripsAsPlainText()
+    {
+        using var source = await CreatePortWithTunedStateAsync();
+        var exported = await source.Port.ExportAsync();
+
+        using var document = JsonDocument.Parse(exported);
+        var stored = document.RootElement
+            .GetProperty("settings")
+            .GetProperty(WatchlistSettingsKeys.Section)
+            .GetProperty(WatchlistSettingsKeys.DocumentKey)
+            .GetString();
+        stored.Should().NotBeNull("the tuned store carries the document");
+        WatchlistCodec.Decode(stored!).Document.ActiveList.Should().Be("Majors");
+
+        using var target = new SettingsPortKit();
+        var plan = await target.Port.DraftImportAsync(exported);
+        await target.Port.ApplyImportAsync(plan);
+
+        var restored = await target.Settings.GetAsync<string>(
+            WatchlistSettingsKeys.Section,
+            WatchlistSettingsKeys.DocumentKey);
+        restored.Should().Be(stored, "the payload crosses the file byte-exact");
+        WatchlistCodec.Decode(restored!).Document.Lists.Select(list => list.Name)
+            .Should().Equal(["Majors", "Alts"]);
+    }
+
+    #endregion The watchlist document's carriage
+
     #region Factories
 
     /// <summary>
@@ -324,6 +362,13 @@ public sealed class SettingsPortServiceTests
         var schedules = JsonDocument.Parse(
             """{ "demo": { "makerRateBps": 15, "takerRateBps": 25, "minimumFee": 0.1 } }""").RootElement;
         await settings.SetAsync(FeeScheduleService.SettingsSection, FeeScheduleService.SettingsKey, schedules.Clone());
+
+        // The watchlist document rides as one compact-JSON codec payload in
+        // a plain string (T-196, the Text kind).
+        await settings.SetAsync(
+            WatchlistSettingsKeys.Section,
+            WatchlistSettingsKeys.DocumentKey,
+            """{"version":1,"active":"Majors","lists":[{"name":"Majors","symbols":["BTC/USDT"]},{"name":"Alts","symbols":["TRX/USDT"]}]}""");
     }
 
     /// <summary>Wrap a settings payload into a full (schema, version, settings) document.</summary>

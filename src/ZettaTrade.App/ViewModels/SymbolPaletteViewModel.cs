@@ -214,22 +214,73 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     /// <summary>The pending compare pick's resolution sink (see <see cref="BeginComparePickAsync"/>); null while no pick stands.</summary>
     private TaskCompletionSource<Symbol?>? _comparePickTcs;
 
+    private bool _isPickingWatchlist;
+
+    /// <summary>
+    /// Whether the palette rides the watchlist's add pick (T-196): the
+    /// rows rank the CURRENT exchange only (the added symbol must be
+    /// priceable by the active adapter's pump), Enter completes the
+    /// pending pick with the highlighted row's symbol, and any close
+    /// completes it with null.
+    /// </summary>
+    public bool IsPickingWatchlist
+    {
+        get => _isPickingWatchlist;
+        private set => this.RaiseAndSetIfChanged(ref _isPickingWatchlist, value);
+    }
+
+    /// <summary>The pending watchlist pick's resolution sink (see <see cref="BeginWatchlistAddAsync"/>); null while no pick stands.</summary>
+    private TaskCompletionSource<Symbol?>? _watchlistPickTcs;
+
     /// <summary>
     /// Begin the chart's compare pick (T-124): the palette opens in
     /// compare mode and the returned task completes with the picked
     /// symbol, null on a close without a pick. A second pick while one
     /// stands resolves the first with null — at most one pending pick,
-    /// the newer wins.
+    /// the newer wins (the watchlist pick is retired the same way).
     /// </summary>
     public async Task<Symbol?> BeginComparePickAsync(CancellationToken ct = default)
     {
         _comparePickTcs?.TrySetResult(null);
+        EndWatchlistPick(null);
         _comparePickTcs = new TaskCompletionSource<Symbol?>(TaskCreationOptions.RunContinuationsAsynchronously);
         IsPickingCompare = true;
 
         await OpenCoreAsync(ct);
 
         return await _comparePickTcs.Task;
+    }
+
+    /// <summary>
+    /// Begin the watchlist's add pick (T-196): the palette opens in
+    /// watchlist mode and the returned task completes with the picked
+    /// symbol, null on a close without a pick — the same ride the compare
+    /// pick runs, pointed at the watchlist catalog. A second pick while
+    /// one stands resolves the first with null — the newer wins (a compare
+    /// pick retiring a pending watchlist pick first).
+    /// </summary>
+    public async Task<Symbol?> BeginWatchlistAddAsync(CancellationToken ct = default)
+    {
+        _watchlistPickTcs?.TrySetResult(null);
+        EndComparePick(null);
+        _watchlistPickTcs = new TaskCompletionSource<Symbol?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        IsPickingWatchlist = true;
+
+        await OpenCoreAsync(ct);
+
+        return await _watchlistPickTcs.Task;
+    }
+
+    /// <summary>
+    /// Resolve the pending watchlist pick (T-196): the apply answers with
+    /// the picked symbol, every close answers with null, and both clear
+    /// the ride mode — no pick survives its own resolution.
+    /// </summary>
+    private void EndWatchlistPick(Symbol? picked)
+    {
+        IsPickingWatchlist = false;
+        _watchlistPickTcs?.TrySetResult(picked);
+        _watchlistPickTcs = null;
     }
 
     #endregion Properties
@@ -433,6 +484,7 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
 
         IsOpen = false;
         EndComparePick(null);
+        EndWatchlistPick(null);
         await FocusReturnRequested.Handle(RxVoid.Default);
         return RxVoid.Default;
     }
@@ -476,6 +528,16 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
         if (_isPickingCompare)
         {
             EndComparePick(row.Symbol);
+            await CloseCoreAsync(ct);
+            return RxVoid.Default;
+        }
+
+        // The watchlist pick rides the same way (T-196): the row's symbol
+        // resolves the pending pick and the palette closes — the catalog
+        // mutation happens on the watchlist side of the ride, never here.
+        if (_isPickingWatchlist)
+        {
+            EndWatchlistPick(row.Symbol);
             await CloseCoreAsync(ct);
             return RxVoid.Default;
         }
@@ -593,11 +655,12 @@ public sealed class SymbolPaletteViewModel : ReactiveObject
     /// <summary>The current state's ranked page (pure over the snapshot, the query, the recents and the marks).</summary>
     private IReadOnlyList<SymbolPaletteRow> RankCurrent()
     {
-        // The compare mode (T-124) ranks the CURRENT exchange only: the
-        // compare fetch reads the workspace's standing adapter, so a
-        // foreign-exchange row could never serve a fetchable series. The
-        // standing mode keeps the cross-exchange palette whole.
-        var instruments = _isPickingCompare
+        // The pick modes (T-124 compare, T-196 watchlist) rank the CURRENT
+        // exchange only: the compare fetch reads the workspace's standing
+        // adapter and the added symbol must be priceable by the active
+        // adapter's pump, so a foreign-exchange row could never serve
+        // either. The standing mode keeps the cross-exchange palette whole.
+        var instruments = _isPickingCompare || _isPickingWatchlist
             ? _snapshot.Instruments
                 .Where(instrument => string.Equals(
                     instrument.ExchangeId,

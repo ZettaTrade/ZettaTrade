@@ -128,11 +128,17 @@ internal sealed record MainWorld(
             adapter,
             selections,
             NullLogger<TradeTapeViewModel>.Instance);
+        var watchlistCatalog = new WatchlistCatalogService(
+            settings,
+            NullLogger<WatchlistCatalogService>.Instance);
         var watchlist = new WatchlistViewModel(
             new WatchlistFeedService(
                 adapter,
                 selections,
+                watchlistCatalog,
                 NullLogger<WatchlistFeedService>.Instance),
+            watchlistCatalog,
+            localization,
             NullLogger<WatchlistViewModel>.Instance);
         var heatmap = new HeatmapViewModel(
             new HeatmapFeedService(activeExchanges, NullLogger<HeatmapFeedService>.Instance),

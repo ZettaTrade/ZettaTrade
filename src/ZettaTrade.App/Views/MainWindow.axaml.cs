@@ -293,6 +293,22 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             var symbol = await ViewModel!.Palette.BeginComparePickAsync();
             context.SetOutput(symbol);
         });
+
+        // The watchlist add's route (T-196): the watchlist's add button asks
+        // this window to open the palette in watchlist mode — the ride
+        // completes with the picked symbol and the panel's catalog mutation
+        // adds it to the active list (a null output is the user closing
+        // without a pick, never an error).
+        ViewModel?.Watchlist.AddSymbolRequested.RegisterHandler(async context =>
+        {
+            var symbol = await ViewModel!.Palette.BeginWatchlistAddAsync();
+            if (symbol is { })
+            {
+                await ViewModel.Watchlist.ApplyPickedAsync(symbol);
+            }
+
+            context.SetOutput(RxVoid.Default);
+        });
         // handledEventsToo is the point of the route: the query text box's
         // own caret handling marks Up/Down/PageUp/PageDown handled before
         // the event bubbles here, and the route must outrank it — inside the
