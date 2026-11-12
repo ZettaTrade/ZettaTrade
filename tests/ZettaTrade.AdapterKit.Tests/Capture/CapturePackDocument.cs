@@ -49,6 +49,24 @@ public sealed record CapturePackDocument
     /// <summary>A raw, unresolvable depth request the kit attaches to prove the rejection (explicit-set packs only).</summary>
     public int? RejectedDepthRequest { get; init; }
 
+    /// <summary>
+    /// The DELEGATE's served book depths (delegated packs only): the pack's
+    /// adapter carries no served-set surface of its own — its book face
+    /// delegates to another adapter — so the delegate's set is what the
+    /// resolution and rejection legs judge against.
+    /// </summary>
+    public int[]? DelegatedServedDepths { get; init; }
+
+    /// <summary>
+    /// The book topic TEMPLATE (an alternative to <see cref="BookTopicPrefix"/>
+    /// for dialects that place the symbol first): the placeholders
+    /// <c>{symbol}</c> (the exchange-format text verbatim),
+    /// <c>{symbolLower}</c> (the exchange format lowercased — the venue's
+    /// stream-name casing) and <c>{depth}</c> (the served depth) are
+    /// substituted by the battery.
+    /// </summary>
+    public string? BookTopicTemplate { get; init; }
+
     /// <summary>The wire prefix of the adapter's book topics (transcript packs only: transcripts ride this pack's dialect).</summary>
     public string BookTopicPrefix { get; init; } = string.Empty;
 

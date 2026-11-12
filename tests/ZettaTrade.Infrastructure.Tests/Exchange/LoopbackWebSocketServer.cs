@@ -112,6 +112,12 @@ public sealed class LoopbackWebSocketServer : IAsyncDisposable
         app.UseWebSockets();
         app.Map("/stream", HandleWebSocketRequestAsync);
 
+        // Subpath dials (T-193): the Binance trading shell composes the
+        // private-session URL as {PrivateWsUrl}/{listenKey}, so any subpath
+        // under /stream (and /ws) is a dialable session route.
+        app.Map("/stream/{*remainder}", HandleWebSocketRequestAsync);
+        app.Map("/ws/{*remainder}", HandleWebSocketRequestAsync);
+
         await app.StartAsync(ct);
 
         _app = app;

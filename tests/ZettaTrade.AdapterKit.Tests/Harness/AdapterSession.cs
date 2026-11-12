@@ -19,6 +19,14 @@ public sealed class AdapterSession : IAsyncDisposable
     /// <summary>The loopback rig a transcript pack dials, if this pack's stack needs one.</summary>
     private readonly KitLoopbackServer? _server;
 
+    /// <summary>
+    /// The additional owned disposable (the delegated pack's market-data
+    /// delegate): the battery shell does NOT dispose its container-owned
+    /// delegate, so the session owns the pair and disposes the delegate
+    /// right after the shell.
+    /// </summary>
+    private readonly IAsyncDisposable? _ownedExtra;
+
     /// <summary>Whether the adapter passed to DisposeAsync was already consumed (it is disposed exactly once).</summary>
     private bool _disposed;
 
@@ -29,11 +37,13 @@ public sealed class AdapterSession : IAsyncDisposable
     private AdapterSession(
         IMarketDataAdapter adapter,
         KitLoopbackServer? server,
-        ServiceProvider? restProvider)
+        ServiceProvider? restProvider,
+        IAsyncDisposable? ownedExtra)
     {
         Adapter = adapter;
         _server = server;
         _restProvider = restProvider;
+        _ownedExtra = ownedExtra;
     }
 
     #endregion
@@ -54,10 +64,16 @@ public sealed class AdapterSession : IAsyncDisposable
     /// <param name="adapter">The adapter under judgment.</param>
     /// <param name="server">The rig, when the pack has a transport leg.</param>
     /// <param name="restProvider">The canned-REST provider, when the pack's stack needs one.</param>
+    /// <param name="ownedExtra">
+    /// The delegate the session additionally owns (delegated packs: the
+    /// trading shell must not dispose its container-owned delegate, so the
+    /// rig owns the pair — the delegate dies right after the shell).
+    /// </param>
     public static AdapterSession Open(
         IMarketDataAdapter adapter,
         KitLoopbackServer? server = null,
-        ServiceProvider? restProvider = null) => new(adapter, server, restProvider);
+        ServiceProvider? restProvider = null,
+        IAsyncDisposable? ownedExtra = null) => new(adapter, server, restProvider, ownedExtra);
 
     #endregion
 
@@ -72,6 +88,11 @@ public sealed class AdapterSession : IAsyncDisposable
 
         _disposed = true;
         await Adapter.DisposeAsync();
+        if (_ownedExtra is not null)
+        {
+            await _ownedExtra.DisposeAsync();
+        }
+
         if (_server is not null)
         {
             await _server.DisposeAsync();

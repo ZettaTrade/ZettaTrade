@@ -31,6 +31,7 @@ public sealed class TradingModeServiceSurfaceTests
     private readonly Subject<SettingsChange> _changes = new();
     private readonly IMarketDataAdapter _paperMarket = Substitute.For<IMarketDataAdapter>();
     private readonly IMarketDataAdapter _venueMarket = Substitute.For<IMarketDataAdapter>();
+    private readonly IMarketDataAdapter _binanceMarket = Substitute.For<IMarketDataAdapter>();
     private readonly IConfirmationService _confirmation = Substitute.For<IConfirmationService>();
 
     /// <summary>The registry fixture: the Bybit record carries the testnet flag.</summary>
@@ -125,6 +126,7 @@ public sealed class TradingModeServiceSurfaceTests
 
         _paperMarket.Id.Returns("crypto-demo");
         _venueMarket.Id.Returns(BybitTradingAdapter.ExchangeId);
+        _binanceMarket.Id.Returns(BinanceTradingAdapter.ExchangeId);
 
         var bybitVenue = new BybitTradingAdapter(
             NullLogger<BybitTradingAdapter>.Instance,
@@ -133,8 +135,15 @@ public sealed class TradingModeServiceSurfaceTests
             new StubSecretStore(),
             new BybitTradingEndpoints("https://stub.local", "ws://127.0.0.1:9/stream"));
 
+        var binanceVenue = new BinanceTradingAdapter(
+            NullLogger<BinanceTradingAdapter>.Instance,
+            new StubHttpClientFactory(),
+            _binanceMarket,
+            new StubSecretStore(),
+            new BinanceTradingEndpoints("https://stub.local", "ws://127.0.0.1:9/ws"));
+
         var facade = new ActiveExchangeService(
-            [_paperMarket, _venueMarket],
+            [_paperMarket, _venueMarket, _binanceMarket],
             _settings,
             NullLogger<ActiveExchangeService>.Instance);
 
@@ -154,6 +163,7 @@ public sealed class TradingModeServiceSurfaceTests
             facade,
             paper,
             bybitVenue,
+            binanceVenue,
             _settings,
             registry,
             NullLogger<TradingSurfaceService>.Instance);

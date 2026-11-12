@@ -104,6 +104,11 @@ public sealed class KitLoopbackServer : IAsyncDisposable
         app.UseWebSockets();
         app.Map("/stream", HandleStreamRequestAsync);
 
+        // The delegated trading packs' private-session dial: the shell dials
+        // {PrivateWsUrl}/{listenKey}, so the route accepts any subpath — the
+        // same accept-and-capture behavior, one rig for both sockets.
+        app.Map("/ws/{*remainder}", HandleStreamRequestAsync);
+
         await app.StartAsync(ct);
 
         _app = app;

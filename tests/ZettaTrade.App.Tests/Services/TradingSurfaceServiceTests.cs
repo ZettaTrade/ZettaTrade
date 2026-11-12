@@ -17,10 +17,11 @@ using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Fees;
 
 /// <summary>
-/// Tests for the delegating traded surface (T-127): the shipped default
-/// parks on the paper adapter; the venue lane requires the operator's three
-/// gates TOGETHER (the settings toggle, the toolbar's Bybit pick and the
-/// endpoint record's testnet flag — any one missing keeps paper); a live
+/// Tests for the delegating traded surface (T-127, T-193): the shipped
+/// default parks on the paper adapter; a venue lane requires the operator's
+/// three gates TOGETHER (the settings toggle, the toolbar's venue pick and
+/// the picked venue's endpoint testnet flag — any one missing keeps paper,
+/// and a venue whose record is not the picked one's never arms); a live
 /// toggle or picker change re-runs the decision on the stream (no restart);
 /// and the surface's identity is always the delegated adapter's own (never
 /// a third id).
@@ -33,6 +34,7 @@ public sealed class TradingSurfaceServiceTests
     private readonly Subject<SettingsChange> _changes = new();
     private readonly IMarketDataAdapter _paperMarket = Substitute.For<IMarketDataAdapter>();
     private readonly IMarketDataAdapter _venueMarket = Substitute.For<IMarketDataAdapter>();
+    private readonly IMarketDataAdapter _binanceMarket = Substitute.For<IMarketDataAdapter>();
 
     /// <summary>The per-fact surface bundle: the delegating surface and its picker facade.</summary>
     private sealed record SurfaceBundle(
@@ -49,7 +51,8 @@ public sealed class TradingSurfaceServiceTests
     private async Task<SurfaceBundle> CreateSurfaceAsync(
         bool toggleArmed,
         string pickerExchangeId,
-        BybitEndpoints? bybitOverride)
+        BybitEndpoints? bybitOverride,
+        BinanceEndpoints? binanceOverride = null)
     {
         _settings
             .GetAsync<bool>(TradingSurfaceService.SettingsSection, TradingSurfaceService.TestnetTradingSettingKey, Arg.Any<bool>())
@@ -58,6 +61,7 @@ public sealed class TradingSurfaceServiceTests
 
         _paperMarket.Id.Returns("crypto-demo");
         _venueMarket.Id.Returns(BybitTradingAdapter.ExchangeId);
+        _binanceMarket.Id.Returns(BinanceTradingAdapter.ExchangeId);
 
         var bybitVenue = new BybitTradingAdapter(
             NullLogger<BybitTradingAdapter>.Instance,
@@ -66,8 +70,15 @@ public sealed class TradingSurfaceServiceTests
             new StubSecretStore(),
             new BybitTradingEndpoints("https://stub.local", "ws://127.0.0.1:9/stream"));
 
+        var binanceVenue = new BinanceTradingAdapter(
+            NullLogger<BinanceTradingAdapter>.Instance,
+            new StubHttpClientFactory(),
+            _binanceMarket,
+            new StubSecretStore(),
+            new BinanceTradingEndpoints("https://stub.local", "ws://127.0.0.1:9/ws"));
+
         var facade = new ActiveExchangeService(
-            [_paperMarket, _venueMarket],
+            [_paperMarket, _venueMarket, _binanceMarket],
             _settings,
             NullLogger<ActiveExchangeService>.Instance);
 
@@ -88,6 +99,14 @@ public sealed class TradingSurfaceServiceTests
             await registry.InitializeAsync(CancellationToken.None);
         }
 
+        if (binanceOverride is not null)
+        {
+            _settings
+                .GetAsync<BinanceEndpoints?>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<BinanceEndpoints?>())
+                .Returns(binanceOverride);
+            await registry.InitializeAsync(CancellationToken.None);
+        }
+
         var paper = new PaperTradingAdapter(
             _paperMarket,
             Substitute.For<IFeeScheduleProvider>(),
@@ -97,6 +116,7 @@ public sealed class TradingSurfaceServiceTests
             facade,
             paper,
             bybitVenue,
+            binanceVenue,
             _settings,
             registry,
             NullLogger<TradingSurfaceService>.Instance);
@@ -106,6 +126,9 @@ public sealed class TradingSurfaceServiceTests
     }
 
     private static BybitEndpoints TestnetRecord() =>
+        new("https://api.example/testnet", "wss://stream.example/testnet", true);
+
+    private static BinanceEndpoints BinanceTestnetRecord() =>
         new("https://api.example/testnet", "wss://stream.example/testnet", true);
 
     #endregion
@@ -152,6 +175,91 @@ public sealed class TradingSurfaceServiceTests
 
         // The paper source stays untouched while the venue surface stands.
         _ = _paperMarket.DidNotReceive().GetSymbolsAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// The Binance venue surface rides the same three-gate discipline
+    /// verbatim (T-193): the toggle, the toolbar's Binance pick and the
+    /// Binance record's testnet flag together — any one missing keeps paper.
+    /// </summary>
+    [Theory]
+    [InlineData(true, "binance", true, true)]
+    [InlineData(false, "binance", true, false)]
+    [InlineData(true, "crypto-demo", true, false)]
+    [InlineData(true, "binance", false, false)]
+    public async Task TheBinanceVenueLane_RequiresAllThreeGates(
+        bool toggleArmed,
+        string pickerExchangeId,
+        bool testnetFlag,
+        bool expectVenue)
+    {
+        await using var bundle = await CreateSurfaceAsync(
+            toggleArmed,
+            pickerExchangeId,
+            null,
+            testnetFlag ? BinanceTestnetRecord() : null);
+
+        bundle.Surface.Current.Id.Should().Be(expectVenue ? BinanceTradingAdapter.ExchangeId : PaperTradingAdapter.ExchangeId);
+    }
+
+    /// <summary>
+    /// The venue pick keys the venue: a Bybit pick arms (only) the Bybit
+    /// record's surface, a Binance pick arms (only) the Binance record's —
+    /// a testnet Binance record never arms the Bybit lane and vice versa
+    /// (T-193: the resolver maps the PICKER id to its own venue).
+    /// </summary>
+    [Theory]
+    [InlineData("bybit")]
+    [InlineData("binance")]
+    public async Task ThePickerId_KeysItsOwnVenueRecord(string pickerExchangeId)
+    {
+        // Both records carry the testnet flag; only the PICKED venue's
+        // surface may stand.
+        await using var bundle = await CreateSurfaceAsync(
+            true,
+            pickerExchangeId,
+            TestnetRecord(),
+            BinanceTestnetRecord());
+
+        var expectedId = string.Equals(pickerExchangeId, "bybit", StringComparison.Ordinal)
+            ? BybitTradingAdapter.ExchangeId
+            : BinanceTradingAdapter.ExchangeId;
+        bundle.Surface.Current.Id.Should().Be(expectedId);
+    }
+
+    [Fact]
+    public async Task ALiveToggleFlip_ArmsTheBinanceVenueWithoutARestart()
+    {
+        await using var bundle = await CreateSurfaceAsync(false, "binance", null, BinanceTestnetRecord());
+        bundle.Surface.Current.Id.Should().Be(PaperTradingAdapter.ExchangeId);
+
+        // The operator arms the toggle live: the Binance surface follows.
+        _changes.OnNext(new SettingsChange(
+            TradingSurfaceService.SettingsSection,
+            TradingSurfaceService.TestnetTradingSettingKey,
+            false,
+            true));
+        bundle.Surface.Current.Id.Should().Be(BinanceTradingAdapter.ExchangeId);
+
+        // The disarm flip (the operator's way back) re-arms paper.
+        _changes.OnNext(new SettingsChange(
+            TradingSurfaceService.SettingsSection,
+            TradingSurfaceService.TestnetTradingSettingKey,
+            true,
+            false));
+        bundle.Surface.Current.Id.Should().Be(PaperTradingAdapter.ExchangeId);
+    }
+
+    [Fact]
+    public async Task ALivePickerFlip_ToBinance_SteersTheDecision()
+    {
+        await using var bundle = await CreateSurfaceAsync(true, "crypto-demo", null, BinanceTestnetRecord());
+        bundle.Surface.Current.Id.Should().Be(PaperTradingAdapter.ExchangeId);
+
+        // The toolbar flips to Binance: the facade's adapter stream drives the decision.
+        await bundle.Facade.SwitchToAsync("binance");
+
+        bundle.Surface.Current.Id.Should().Be(BinanceTradingAdapter.ExchangeId);
     }
 
     #endregion
@@ -239,6 +347,8 @@ public sealed class TradingSurfaceServiceTests
         {
             BybitTradingAdapter.ApiKeySecretKey => Task.FromResult<string?>("sa-key"),
             BybitTradingAdapter.ApiSecretSecretKey => Task.FromResult<string?>("sa-secret"),
+            BinanceTradingAdapter.ApiKeySecretKey => Task.FromResult<string?>("ba-key"),
+            BinanceTradingAdapter.ApiSecretSecretKey => Task.FromResult<string?>("ba-secret"),
             _ => Task.FromResult<string?>(null),
         };
 
