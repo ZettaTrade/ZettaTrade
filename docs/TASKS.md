@@ -220,7 +220,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-213 Update checker (backlog sweep 2026-11-12) | feat/update-check | planned | - |
 | T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | planned | - |
 | T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | planned | - |
-| T-216 Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses (queued from the T-193/T-194 gate fights) | feat/flaky-theme-drain | in-progress | - |
+| T-216 Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses (queued from the T-193/T-194 gate fights) | feat/flaky-theme-drain | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -782,28 +782,5 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   refuses honestly; a pin proves the archive never carries secret material.
 - **Tests:** the round-trip battery; the corrupt-archive negative; the no-secrets pin.
 - **Status:** planned.
-
-## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
-
-- **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`).
-- **Origin:** the T-193 landing's recorded next-wave claim ("a tests-only task hardening
-  AvaloniaDispatcherPump — raise/jitter DrainTimeout, or drain-with-retry inside the
-  pump"); the family fired again in the T-194 landing gates — two consecutive gate runs
-  lost the same fact (`SurfaceStrayPinsTests.EveryShippedTheme_ServesTheVeilFromItsOwn
-  Background`, 1729/1730 on both passes) while the isolated rerun stayed green (433 ms;
-  the T-193 landing canon names the cause: `System.TimeoutException` at
-  `AvaloniaDispatcherPump.DrainAsync` — the drain exceeds the fixed 5 s `DrainTimeout`
-  under cross-assembly load / fresh-binary conditions while the pump is healthy).
-- **What:** harden the pump's drain against load-induced false hang verdicts without
-  weakening the real-wedge detection.
-- **Scope:** tests-only — the pump harness (`AvaloniaDispatcherPump` + the drain-path
-  facts); no product surface, no bump, no CHANGELOG (the T-135/T-138/T-148/T-149/T-144/
-  T-176 precedent).
-- **Acceptance:** the veil fact survives a full gate run; a genuinely dead pump still
-  fails bounded (no unbounded wait anywhere).
-- **Tests:** the evidence-driven shape decided at implementation: a raised bound, or an
-  in-pump drain retry that preserves the drain semantics (everything queued BEFORE the
-  drain lands on the owner thread, nothing after).
-- **Status:** in-progress.
 
 
