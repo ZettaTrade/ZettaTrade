@@ -40,7 +40,8 @@ $ModulePrefixes = @(
     'Alert.',
     'Log.',
     'Watch.',
-    'Heatmap.'
+    'Heatmap.',
+    'Screener.'
 )
 
 function Get-ResxKeys([string]$Path) {

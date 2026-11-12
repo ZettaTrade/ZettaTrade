@@ -63,6 +63,9 @@
   <data name="Menu.Trading.OrderHistory" xml:space="preserve">
     <value>Order History</value>
   </data>
+  <data name="Menu.Trading.Screener" xml:space="preserve">
+    <value>Screener</value>
+  </data>
   <data name="Menu.AI" xml:space="preserve">
     <value>AI</value>
   </data>
@@ -1361,6 +1364,45 @@ Estimated fee: {10}</value>
   </data>
   <data name="Heatmap.Metric.Change" xml:space="preserve">
     <value>24h change</value>
+  </data>
+  <data name="Screener.Title" xml:space="preserve">
+    <value>Market screener</value>
+  </data>
+  <data name="Screener.Preset" xml:space="preserve">
+    <value>View</value>
+  </data>
+  <data name="Screener.Preset.All" xml:space="preserve">
+    <value>All symbols</value>
+  </data>
+  <data name="Screener.Preset.Gainers" xml:space="preserve">
+    <value>Top gainers</value>
+  </data>
+  <data name="Screener.Preset.Losers" xml:space="preserve">
+    <value>Top losers</value>
+  </data>
+  <data name="Screener.Preset.Volume" xml:space="preserve">
+    <value>Top volume</value>
+  </data>
+  <data name="Screener.ColSymbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="Screener.ColPrice" xml:space="preserve">
+    <value>Price</value>
+  </data>
+  <data name="Screener.ColChange" xml:space="preserve">
+    <value>24h change</value>
+  </data>
+  <data name="Screener.ColVolume" xml:space="preserve">
+    <value>24h volume</value>
+  </data>
+  <data name="Screener.WaitingTicks" xml:space="preserve">
+    <value>Waiting for ticker data</value>
+  </data>
+  <data name="Screener.NoCatalog" xml:space="preserve">
+    <value>The active exchange serves no symbol catalog — the screener stays empty until the catalog loads</value>
+  </data>
+  <data name="Screener.Close" xml:space="preserve">
+    <value>Close</value>
   </data>
   <data name="Tape.NoDataMessage" xml:space="preserve">
     <value>No trades yet</value>

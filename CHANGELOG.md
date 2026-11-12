@@ -1,3 +1,58 @@
+## [0.1.0-alpha.139] - 2026-11-13
+
+Build of board task T-195 (branch `feat/screener`): the market screener
+panel — a sortable, filterable table over the active adapter's ticker
+streams.
+
+### Added
+- The `ScreenerFeedService`: the adapter's tradable universe fetched once
+  through the active-exchange facade and capped to a bounded candidate
+  window (64 subscriptions, the heatmap feed's discipline), one ticker
+  pump per candidate, and the candidates' latest tick state coalesced
+  into ONE table page per 500 ms pulse — a wire ticker storm stays inside
+  the service while the panel sees one page. An exchange switch re-fetches
+  the universe (the `AdapterChanges` kick with the ticket-based
+  `Observable.FromAsync` + epoch guard) and drops the previous exchange's
+  ticker state in full. No extra REST polling: the feed rides the shared
+  catalog and ticker streams within the existing limiter budget.
+- Honest page states (`ScreenerSnapshot`): live rows, the armed-but-unpriced
+  waiting state, and a missing-or-failed catalog state whose reason line
+  replaces the table — an adapter without a catalog degrades honestly,
+  never a broken table.
+- The `ScreenerViewModel` + `ScreenerWindow` (Trading menu → "Screener"):
+  the preset views (all / top gainers / top losers / top volume), the
+  manual column sorts (price, 24h change, 24h volume) with a direction
+  flip and an ordinal tie-break, and a row click that routes the
+  workspace symbol through the chart's apply path (the heatmap tile
+  route's precedent — an unparsable row text is refused, never
+  substituted). A preset or sort flip rebuilds the rows immediately from
+  the held page. Row formatting reuses the shared watchlist helpers; the
+  change column tints by the 24h sign (T-159, the candle state colors).
+- The menu item rides the Trading menu after Order History. The stray
+  heatmap debug log line (`PROBE comp finally released`) left the feed's
+  refresh path.
+
+### Tests
+- The screener feed's behavioral pins: the window caps at the budget in
+  the adapter's own order, a tick surfaces on the next pulse with its raw
+  numbers, the rows keep the adapter's order, unticked pairs own no row,
+  an unpriced window ships the waiting state, a faulting (or empty)
+  fetch ships the catalog-unavailable state, a refresh swap drops the
+  previous state in full, and a stale-epoch composition publishes
+  nothing — every wait delivery-ordered via an already-subscribed
+  promise (the T-135 lesson), no wall-clock budgets.
+- The panel ViewModel's pins: a page and its state move as one, the
+  presets filter and sort (gainers keep the positive change descending,
+  losers the negative one ascending, volume sorts descending), a column
+  press retires the preset to All and flips direction on a repeat press,
+  the sort rebuilds from the held page immediately, and the row route
+  writes the workspace symbol (or refuses an unparsable text without a
+  substitute).
+- The composition pins: the feed and its panel ride factory singletons in
+  that order, both stay startup-walk candidates. The menu routes through
+  its interaction; the numeric-surface token pin adopts the new table's
+  three numeric columns.
+
 ## [0.1.0-alpha.138] - 2026-11-13
 
 Build of board task T-194 (branch `feat/okx-adapter`): the OKX spot

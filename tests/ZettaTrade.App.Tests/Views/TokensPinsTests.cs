@@ -67,6 +67,7 @@ public sealed class TokensPinsTests
         var amend = File.ReadAllText(Path.Combine(RepoRoot, "src", "ZettaTrade.App", "Views", "AmendOrderDialogWindow.axaml")).Replace("\r\n", "\n");
         var main = File.ReadAllText(Path.Combine(RepoRoot, "src", "ZettaTrade.App", "Views", "MainWindow.axaml")).Replace("\r\n", "\n");
         var backtest = File.ReadAllText(Path.Combine(RepoRoot, "src", "ZettaTrade.App", "Views", "BacktestWindow.axaml")).Replace("\r\n", "\n");
+        var screener = File.ReadAllText(Path.Combine(RepoRoot, "src", "ZettaTrade.App", "Views", "ScreenerWindow.axaml")).Replace("\r\n", "\n");
 
         Regex.Matches(stats, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(10, "all ten stats tiles set their values in the tabular stack");
@@ -82,6 +83,8 @@ public sealed class TokensPinsTests
             .Should().HaveCount(1, "the HUD's readout dedupes onto the token (its precedent)");
         Regex.Matches(backtest, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(1, "the backtest report dedupes onto the token");
+        Regex.Matches(screener, "FontFamily=\"{StaticResource NumericFont}\"")
+            .Should().HaveCount(3, "the screener table's price/change/volume columns hold their digits (T-195)");
 
         // The stack lives once: no view re-types the font family literal.
         foreach (var source in ViewSources)
