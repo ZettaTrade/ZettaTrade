@@ -3489,6 +3489,40 @@ the board and its section below.
   no special-casing. No resx keys were added: the adapter name stays hardcoded like
   Binance/Bybit (the T-193/T-127 precedent) and no new user-facing UI string was introduced.
 
+## T-195 — Market screener panel
+
+- **Branch:** `feat/screener` off `develop` (base `2711cd1`; claim commit `8bd8cec`).
+- **Origin:** the sweep — the heatmap paints the majors but no ranked screen exists.
+- **What:** a screener panel over the active adapter's ticker stream: sortable columns (24h
+  change, quote volume, price), preset filters (top gainers / losers / volume), a row click
+  sets the workspace symbol through the existing apply path; the feed rides the shared catalog
+  and ticker streams — no extra REST polling beyond the limiter's budget.
+- **Scope:** App (the screener VM + a panel surface), resx en+ru, the next free alpha bump +
+  the CHANGELOG section.
+- **Acceptance:** the panel ranks live and sorts; a click routes the symbol; an adapter without
+  a catalog degrades honestly (a reason line, not a broken table).
+- **Tests:** the headless panel pins (sort, filter, click-through).
+- **Status:** done — 0.1.0-alpha.139. Chain: claim `8bd8cec` -> feat `36e8148` -> close. The
+  feed mirrors the heatmap's candidate discipline (a 64-subscription window, the 500 ms pulse
+  coalescing, the epoch-guarded adapter re-fetch) and ships honest page states (Live /
+  NoTicksYet / CatalogUnavailable — a faulting or empty universe fetch owns the reason line,
+  never a broken table); the ranking moved to the panel VM: the presets (All / top gainers /
+  top losers / top volume) and the manual column sorts rebuild the rows immediately from the
+  held page (sorting is free — the deliberate divergence from the heatmap's metric shim,
+  recorded in canon), a manual column press retires the preset to All, ties resolve by the
+  ordinal symbol text. The row click routes through the chart's apply path (the heatmap tile
+  route's precedent: an unparsable row text is refused, never substituted); the window rides
+  the shared RowGrammar + the T-159 change tint. resx: `Screener.*` (13 keys) +
+  `Menu.Trading.Screener`, en+ru; the resx checker's known-prefix list gained `Screener.`
+  (the T-121 `Heatmap.` precedent — a supervisor-surface edit alongside the sanctioned alpha
+  bump, both under `-AllowProtected`). Gate round 1 failed on exactly that pair (the
+  PROTECTED version bump + the unknown prefix) and passed on round 2; one deliberate
+  `Task.FromResult` warning stays (the NSubstitute drawing-store config — `ReturnsAsync` is
+  unavailable in this wiring, the heatmap kit carries the same shape). Drive-by: the stray
+  `PROBE comp finally released` log line left the heatmap feed's refresh path. Smoke
+  PASSED: a clean boot on the demo venue, 0 ERR/FTL, no screener feed warnings, the palette
+  refreshed, ProductVersion 0.1.0-alpha.139+36e8148f.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).

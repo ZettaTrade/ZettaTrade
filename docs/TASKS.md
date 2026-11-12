@@ -199,7 +199,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | done | - |
 | T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | done | - |
 | T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | done | - |
-| T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | in-progress | - |
+| T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | done | - |
 | T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | planned | - |
 | T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | planned | - |
 | T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | planned | - |
@@ -452,21 +452,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
   were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
   new user-facing UI string was introduced.
-
-## T-195 — Market screener panel
-
-- **Branch:** `feat/screener` off `develop` (base `2711cd1`).
-- **Origin:** the sweep — the heatmap paints the majors but no ranked screen exists.
-- **What:** a screener panel over the active adapter's ticker stream: sortable columns (24h
-  change, quote volume, price), preset filters (top gainers / losers / volume), a row click
-  sets the workspace symbol through the existing apply path; the feed rides the shared catalog
-  and ticker streams — no extra REST polling beyond the limiter's budget.
-- **Scope:** App (the screener VM + a panel surface), resx en+ru, the next free alpha bump +
-  the CHANGELOG section.
-- **Acceptance:** the panel ranks live and sorts; a click routes the symbol; an adapter without
-  a catalog degrades honestly (a reason line, not a broken table).
-- **Tests:** the headless panel pins (sort, filter, click-through).
-- **Status:** in-progress.
 
 ## T-196 — User-managed watchlists
 
