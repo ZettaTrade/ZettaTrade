@@ -2804,3 +2804,61 @@ the board and its section below.
   for the human (gate-flagged): NewOrderDialogWindow, AmendOrderDialogWindow,
   ConfirmationDialogWindow and OrderHistoryWindow touched in markup only (spacing/opacity
   swaps; the trading path untouched). Hazards: none new.
+## T-183 - The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens
+
+- **Branch:** feat/button-kit, worktree zt-button-kit, based on develop@7b2fc14 (claimed
+  2026-11-12 per standing directive 6 — the 2026-11-12 design pass, variant A approved by the
+  user; the satellite Livery lands first per the multi-repo rule).
+- **Origin:** every button rests as a Surface fill + hairline border and flashes a **solid
+  Accent fill on hover** (Livery Controls.axaml:29-35) — the flash the user names as the main
+  offender; no hierarchy exists (the settings' "Open themes folder" and the ticket's "Place"
+  read identically), and the corner radius is not tokenized at all (no Corner keys in
+  Tokens.axaml). The approved variant A: quiet by default, tinted on hover, one primary per
+  window. The 2026-11-12 main-window review adds the concrete consumer site: the toast rows
+  (MainWindow.axaml:545-577) are Buttons wrapping a Border card — the button's own chrome rides
+  behind the card, invisible at rest (Surface-on-Surface) and loud on hover (the solid Accent
+  fill lights around the card's corners).
+- **What:** the Livery button vocabulary grows the approved shape — the resting state goes
+  transparent/barely-tinted over a hairline Border-family stroke; hover becomes a **soft Accent
+  tint** (~12%, a published derived key, the T-150 derived-key shape), pressed a stronger tint,
+  keyboard focus keeps the Highlight border; a `.primary` class (solid Accent fill, the
+  readable foreground the T-152 publisher scores) marks the ONE main action per window; corner
+  radius and row-action sizing publish as tokens (CornerM = 4) and Button/ComboBox/TextBox
+  adopt them for one consistent rounding. The windows then adopt: each window's main action
+  goes primary, the rest quiet — and a Button that carries card chrome inside it (the toast
+  rows' Button-wrapping-a-Border shape) adopts the quiet treatment too: the chrome lives in
+  exactly one of the two layers.
+- **Scope:** Livery Themes (the Controls.axaml button family + the Tokens.axaml corner/padding
+  keys) — the package change rides the satellite repo per the multi-repo rule (bump Livery
+  there, land, then the one-line consuming bump); the App windows' class adoption in the
+  consuming bump's wake (the MainWindow toast template's quiet class included); resx untouched.
+- **Acceptance:** no button flashes a solid Accent fill on hover (source pin); every window
+  carries at most one primary action; the hover pairs' contrast passes the T-151 battery; no
+  bare corner-radius literals remain in the adopted surfaces.
+- **Tests:** the contrast pins for the new pairs (the hover tint vs Surface, primary vs its
+  foreground); source pins (the solid-Accent hover out, the radius literals onto the tokens,
+  and the Button-as-card-container sites riding the quiet class); Livery's own gate rides the
+  satellite.
+- **Status:** done. Canon: the claim `4f4a405`, the feat `7bae660`, this close commit follows;
+  ships as 0.1.0-alpha.128 with the matching CHANGELOG section, riding the Livery 0.1.11
+  satellite release (landed and tagged in the satellite repo first per the multi-repo rule —
+  51/51 satellite tests green; the consuming pin is this task's one-line props bump). The
+  satellite work: the kit lives in the package — the button family's quiet rest (transparent
+  over the hairline stroke), the derived soft-tint hover/press (ButtonHoverTint /
+  ButtonPressedTint, the 12%/22% Accent-over-Surface steps, opaque so the window ground never
+  shows through a fill), the scored PrimaryForeground, the CornerM/CornerL corner tokens, the
+  `.primary`/`.quiet` classes, the PaletteContract's derived rows and the 1.05 tint-step
+  existence floor (SubtleTintStepMinimum). The consumer work: the 8-window primary adoption
+  set (the confirmation gate pinned primary-free by design, the ticket's CTA and the
+  workspace excluded), the toast rows on the quiet carrier with the chrome moved into the
+  window's card lanes (the hover/press tints, the focus ring on the card), the row-action
+  family declaring its filled rest explicitly, the ButtonKitPinsTests (4 facts) and the
+  refreshed RowGrammar pins. The count badge's bare radius 6 stays the documented T-152
+  badge shape — the toast template's only radius literal, pinned so. GATE PASSED attempt 1
+  (`-AllowProtected`; the known warnings trio — SCOPE, the uncommitted-work reminder,
+  gitleaks). Smoke PASSED on the T-166 functional bar: title held through the 12 s watchlist
+  hold, 0 ERR/FTL, 0 ticker failures, ProductVersion 0.1.0-alpha.128+4f4a405…, palette
+  refreshed, strategies+indicators provided, no leftovers, sandbox deleted. HIGH-RISK
+  reviewer note for the human (gate-flagged): AmendOrderDialogWindow touched in markup only
+  (the Amend button's class adoption; the trading path untouched). Hazards: none new.
+
