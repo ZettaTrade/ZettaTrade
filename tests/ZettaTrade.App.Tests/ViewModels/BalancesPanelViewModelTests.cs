@@ -22,12 +22,16 @@ using ZettaTrade.Core.ValueObjects;
 /// exactly what its adapter serves — provided rows, the explicit
 /// not-provided state, or the localized fault of a failed query — never a
 /// zero figure; the aggregate sums per asset; a refresh follows the live
-/// balances; and a whole-snapshot fault surfaces as the localized error
-/// line.
+/// balances; a whole-snapshot fault surfaces as the localized error line;
+/// and the paper reset flow (T-192) hands the dialog's parsed choice to the
+/// reset service, reports the finished summary, reloads the figures, and
+/// stays silent on a declined dialog or a refused confirmation while a
+/// fault rides the localized failure line.
 /// </summary>
 public sealed class BalancesPanelViewModelTests
 {
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
+    private readonly IPaperResetService _paperReset = Substitute.For<IPaperResetService>();
 
     public BalancesPanelViewModelTests()
     {
@@ -178,6 +182,100 @@ public sealed class BalancesPanelViewModelTests
         viewModel.Aggregated.Single(row => row.Asset == "BTC").Amount.Should().Be("0.01");
     }
 
+    [Fact]
+    public async Task ResetPaperCommand_WithAnAppliedChoice_RunsTheResetReloadsAndReportsTheOutcome()
+    {
+        // Arrange: the dialog hands the parsed starting balance back; the
+        // service reports the finished summary. The post-reset reload reads
+        // the wiped-and-reseeded surface.
+        var paper = CreatePaperTrader(("USDT", 25_000m));
+        _paperReset.GetStartingBalanceAsync(Arg.Any<CancellationToken>()).Returns(100_000m);
+        _paperReset.ResetAsync(25_000m, Arg.Any<CancellationToken>())
+            .Returns(PaperResetOutcome.Finished("[Trading.PaperResetDoneFormat:25000|0]"));
+        var viewModel = CreateViewModel([], paper);
+        using var dialog = viewModel.ResetRequested.RegisterHandler(context =>
+            context.SetOutput(25_000m));
+
+        // Act
+        await viewModel.ResetPaperCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the service ran with the dialog's choice, the outcome line
+        // carries the summary, and the figures reloaded through the shared
+        // load pipeline.
+        await _paperReset.Received(1).ResetAsync(25_000m, Arg.Any<CancellationToken>());
+        viewModel.OutcomeMessage.Should().Be("[Trading.PaperResetDoneFormat:25000|0]");
+        viewModel.HasOutcomeMessage.Should().BeTrue();
+        viewModel.HasErrorMessage.Should().BeFalse();
+        viewModel.Sources.Should().ContainSingle("the flow reloaded the figures");
+        viewModel.Sources[0].Rows.Single(row => row.Asset == "USDT").Amount.Should().Be("25000");
+    }
+
+    [Fact]
+    public async Task ResetPaperCommand_WhenTheDialogClosesWithoutAChoice_NothingTouchedAndSilent()
+    {
+        // Arrange: the dialog closed without a parsed choice (a cancel).
+        var paper = CreatePaperTrader(("USDT", 100_000m));
+        _paperReset.GetStartingBalanceAsync(Arg.Any<CancellationToken>()).Returns(100_000m);
+        var viewModel = CreateViewModel([], paper);
+        using var dialog = viewModel.ResetRequested.RegisterHandler(context =>
+            context.SetOutput(null));
+
+        // Act
+        await viewModel.ResetPaperCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the account stays exactly as it was, nothing is reported,
+        // the panel is not reloaded.
+        await _paperReset.DidNotReceive().ResetAsync(Arg.Any<decimal>(), Arg.Any<CancellationToken>());
+        viewModel.OutcomeMessage.Should().BeNull();
+        viewModel.HasErrorMessage.Should().BeFalse();
+        viewModel.Sources.Should().BeEmpty("a closed dialog never reloads the panel");
+    }
+
+    [Fact]
+    public async Task ResetPaperCommand_WhenTheConfirmationIsRefused_SilentUntouched()
+    {
+        // Arrange: the dialog handed a choice, the service reports the
+        // declined outcome — the confirmation refused, so nothing changed.
+        var paper = CreatePaperTrader(("USDT", 100_000m));
+        _paperReset.GetStartingBalanceAsync(Arg.Any<CancellationToken>()).Returns(100_000m);
+        _paperReset.ResetAsync(25_000m, Arg.Any<CancellationToken>())
+            .Returns(PaperResetOutcome.Declined());
+        var viewModel = CreateViewModel([], paper);
+        using var dialog = viewModel.ResetRequested.RegisterHandler(context =>
+            context.SetOutput(25_000m));
+
+        // Act
+        await viewModel.ResetPaperCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.OutcomeMessage.Should().BeNull("a refused confirmation stays silent");
+        viewModel.HasErrorMessage.Should().BeFalse();
+        viewModel.Sources.Should().BeEmpty("a refused confirmation never reloads the panel");
+    }
+
+    [Fact]
+    public async Task ResetPaperCommand_WhenTheResetFaults_ShowsTheLocalizedFailureLine()
+    {
+        // Arrange: the service faults mid-flow (a network/adaptor error).
+        var paper = CreatePaperTrader(("USDT", 100_000m));
+        _paperReset.GetStartingBalanceAsync(Arg.Any<CancellationToken>()).Returns(100_000m);
+        _paperReset.ResetAsync(25_000m, Arg.Any<CancellationToken>())
+            .Returns<Task<PaperResetOutcome>>(callInfo =>
+                throw new InvalidOperationException("socket boom"));
+        var viewModel = CreateViewModel([], paper);
+        using var dialog = viewModel.ResetRequested.RegisterHandler(context =>
+            context.SetOutput(25_000m));
+
+        // Act
+        await viewModel.ResetPaperCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the fault rides the existing error lane, no outcome line.
+        viewModel.HasErrorMessage.Should().BeTrue();
+        viewModel.ErrorMessage.Should().StartWith("[Trading.PaperResetFailedFormat:");
+        viewModel.ErrorMessage.Should().EndWith("]", "the fault detail rides the localized line");
+        viewModel.OutcomeMessage.Should().BeNull();
+    }
+
     private static BalancesAggregationService CreateService(
         IReadOnlyList<IMarketDataAdapter> registered,
         ITradingAdapter trading) =>
@@ -191,6 +289,7 @@ public sealed class BalancesPanelViewModelTests
         ITradingAdapter trading) =>
         new(
             CreateService(registered, trading),
+            _paperReset,
             _localization,
             Substitute.For<ILogger<BalancesPanelViewModel>>());
 

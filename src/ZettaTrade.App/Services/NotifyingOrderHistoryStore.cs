@@ -114,6 +114,10 @@ public sealed class NotifyingOrderHistoryStore(
     public Task<IReadOnlyList<Order>> GetRecentAsync(int limit, CancellationToken cancellationToken = default) =>
         _inner.GetRecentAsync(limit, cancellationToken);
 
+    /// <inheritdoc/>
+    public Task<int> DeleteExchangeAsync(string exchangeId, CancellationToken cancellationToken = default) =>
+        _inner.DeleteExchangeAsync(exchangeId, cancellationToken);
+
     #endregion Journal Writes
 
     #region Initialization

@@ -71,4 +71,31 @@ public sealed class OrderJournalTests
         var act = () => journal.RecordPlaced(null!);
         act.Should().Throw<ArgumentNullException>();
     }
+
+    [Fact]
+    public void RemoveVenue_DrainsOnlyThatExchangesRows_KeepsTheOthersOrder()
+    {
+        // Arrange: paper rows interleaved with live rows in placement order.
+        var journal = new OrderJournal();
+        journal.RecordPlaced(BuildOrder("paper-1"));
+        journal.RecordPlaced(BuildOrder("live-1") with { ExchangeId = "binance" });
+        journal.RecordPlaced(BuildOrder("paper-2"));
+        journal.RecordPlaced(BuildOrder("live-2") with { ExchangeId = "binance" });
+
+        // Act
+        journal.RemoveVenue("paper");
+
+        // Assert: the session journal keeps only the other venues' rows, in
+        // their placement order (so the newest-first reads never tear).
+        var recent = journal.GetRecent();
+        recent.Select(order => order.Id).Should().Equal("live-2", "live-1");
+    }
+
+    [Fact]
+    public void RemoveVenue_WithBlankExchangeId_Throws()
+    {
+        var journal = new OrderJournal();
+        var act = () => journal.RemoveVenue(" ");
+        act.Should().Throw<ArgumentException>();
+    }
 }

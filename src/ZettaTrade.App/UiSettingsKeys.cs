@@ -376,4 +376,29 @@ public static class UiSettingsKeys
     /// every action rides its registry default on a fresh install.
     /// </summary>
     public const string DefaultHotkeyOverrides = "{}";
+
+    /// <summary>
+    /// Settings section holding the paper trading account preferences
+    /// (T-192): the simulation's persisted starting balance lives apart
+    /// from the daily-use UI section, so an account reset never touches
+    /// unrelated keys.
+    /// </summary>
+    public const string PaperSection = "Paper";
+
+    /// <summary>
+    /// Settings key of the persisted paper starting balance (a decimal,
+    /// T-192): written when a confirmed reset finishes, read as the next
+    /// reset dialog's prefill. The demo adapter's own canonical balance
+    /// stays the shipped default — this is the reset dialog's choice.
+    /// </summary>
+    public const string PaperStartingBalance = "StartingBalance";
+
+    /// <summary>
+    /// The paper starting balance applied until a stored value is loaded:
+    /// the adapter's canonical simulation balance, the figure a fresh
+    /// install resets to (const-const with
+    /// <see cref="ZettaTrade.Infrastructure.Exchange.PaperTradingAdapter.InitialQuoteAmount"/>).
+    /// </summary>
+    public const decimal DefaultPaperStartingBalance =
+        ZettaTrade.Infrastructure.Exchange.PaperTradingAdapter.InitialQuoteAmount;
 }

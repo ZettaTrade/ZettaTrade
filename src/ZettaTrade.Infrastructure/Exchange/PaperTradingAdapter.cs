@@ -1559,6 +1559,59 @@ public sealed class PaperTradingAdapter : ITradingAdapter
 
     #endregion
 
+    #region Reset (T-192)
+
+    /// <summary>
+    /// Wipe the simulation and restart it at the given starting balance
+    /// (T-192): every working order, open position, parked bracket,
+    /// conditional and OCO registry entry leaves, the price-stream
+    /// subscriptions the conditionals rode dispose with them, and the quote
+    /// balance seeds fresh at the chosen amount. The wrapped market data
+    /// adapter keeps its own lifetime. A non-positive balance is an
+    /// explicit refusal — never a defaulted one.
+    /// </summary>
+    public async Task ResetSimulationAsync(
+        decimal startingQuoteAmount,
+        CancellationToken cancellationToken = default)
+    {
+        if (startingQuoteAmount <= decimal.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(startingQuoteAmount),
+                startingQuoteAmount,
+                "The paper starting balance must be strictly positive.");
+        }
+
+        await _tradingLock.WaitAsync(cancellationToken);
+        try
+        {
+            foreach (var subscription in _priceStreams.Values)
+            {
+                subscription.Dispose();
+            }
+
+            _priceStreams.Clear();
+            _conditionals.Clear();
+            _ocoLegs.Clear();
+            _pendingBrackets.Clear();
+            _orders.Clear();
+            _positions.Clear();
+            _balances.Clear();
+            _balances[QuoteCurrency] = startingQuoteAmount;
+
+            _logger.LogInformation(
+                "Paper simulation: reset to a starting balance of {StartingQuoteAmount} {QuoteCurrency}",
+                startingQuoteAmount,
+                QuoteCurrency);
+        }
+        finally
+        {
+            _tradingLock.Release();
+        }
+    }
+
+    #endregion
+
     #region IAsyncDisposable
 
     public ValueTask DisposeAsync()

@@ -1,3 +1,22 @@
+## [0.1.0-alpha.136] - 2026-11-12
+
+Build of board task T-192 (branch `feat/paper-account`): the paper
+account reset — wipe the simulation back to a chosen starting balance.
+
+### Added
+- The balances panel grows a "Reset paper account…" route: the dialog
+  prefills the persisted starting balance, refuses non-positive or
+  unparsable input inline, and the confirmed reset wipes the paper
+  simulation's balances, open positions and working orders, restarts it
+  at the chosen balance, and reloads the panel's figures. A declined
+  confirmation stays silent; live and testnet venues are never touched,
+  and the demo adapter's canonical balance stays the shipped default.
+- One confirmation names the reset's whole scope: the chosen balance and
+  the working-order and open-position counts the fresh plan read counted,
+  plus the paper venue's journal wipe.
+- The chosen starting balance persists (the `Paper` settings section) and
+  prefills the next reset.
+
 ## [0.1.0-alpha.135] - 2026-11-12
 
 Build of board task T-191 (branch `feat/order-flags`): the order flags —

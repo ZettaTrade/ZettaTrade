@@ -23,12 +23,14 @@ public sealed class BalancesPanelViewModel : ReactiveObject
 
     private const string LoadFailedKey = "Trading.BalancesLoadFailedFormat";
     private const string FetchFailedKey = "Trading.BalancesFetchFailedFormat";
+    private const string ResetFailedKey = "Trading.PaperResetFailedFormat";
 
     #endregion Resx Keys
 
     #region Private Fields
 
     private readonly BalancesAggregationService _balances;
+    private readonly IPaperResetService _paperReset;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<BalancesPanelViewModel> _logger;
 
@@ -93,8 +95,45 @@ public sealed class BalancesPanelViewModel : ReactiveObject
     /// <summary>True while <see cref="ErrorMessage"/> holds text; drives the error line visibility.</summary>
     public bool HasErrorMessage => _errorMessage is not null;
 
+    private string? _outcomeMessage;
+
+    /// <summary>
+    /// The finished paper reset's summary line (T-192): the reload's fresh
+    /// figures sit beside it. Rides until the next reset flow or the panel
+    /// close — an ordinary refresh neither confirms nor clears it.
+    /// </summary>
+    public string? OutcomeMessage
+    {
+        get => _outcomeMessage;
+        private set
+        {
+            if (OutcomeMessage == value)
+            {
+                return;
+            }
+
+            _outcomeMessage = value;
+            this.RaisePropertyChanged(nameof(OutcomeMessage));
+            this.RaisePropertyChanged(nameof(HasOutcomeMessage));
+        }
+    }
+
+    /// <summary>True while <see cref="OutcomeMessage"/> holds text; drives the outcome line visibility.</summary>
+    public bool HasOutcomeMessage => _outcomeMessage is not null;
+
     /// <summary>Builds and applies one aggregation snapshot (panel opening and manual refresh share it).</summary>
     public ReactiveCommand<RxVoid, RxVoid> LoadCommand { get; }
+
+    /// <summary>Runs the paper reset flow (T-192): prefill, dialog, service, outcome.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ResetPaperCommand { get; }
+
+    /// <summary>
+    /// The dialog handoff of the reset flow: the input is the persisted
+    /// starting balance (the prefill), the output the parsed choice — null
+    /// when the dialog closed without one (a cancel is a silent untouched
+    /// account, never a reported fault).
+    /// </summary>
+    public Interaction<decimal, decimal?> ResetRequested { get; }
 
     #endregion Properties
 
@@ -106,19 +145,75 @@ public sealed class BalancesPanelViewModel : ReactiveObject
     /// </summary>
     public BalancesPanelViewModel(
         BalancesAggregationService balances,
+        IPaperResetService paperReset,
         ILocalizationManager localization,
         ILogger<BalancesPanelViewModel> logger)
     {
         _balances = balances ?? throw new ArgumentNullException(nameof(balances));
+        _paperReset = paperReset ?? throw new ArgumentNullException(nameof(paperReset));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         LoadCommand = ReactiveCommand.CreateFromTask(HandleLoadAsync);
+        ResetPaperCommand = ReactiveCommand.CreateFromTask(HandleResetPaperAsync);
+        ResetRequested = new Interaction<decimal, decimal?>();
     }
 
     #endregion Constructor
 
     #region Private Methods
+
+    private async Task HandleResetPaperAsync(CancellationToken ct)
+    {
+        // A fresh flow replaces whatever a previous one reported.
+        ErrorMessage = null;
+        OutcomeMessage = null;
+
+        try
+        {
+            var prefill = await _paperReset.GetStartingBalanceAsync(ct);
+
+            // The dialog handoff: a closed-without-choice dialog (cancel,
+            // title bar X) declines the flow silently — the account stays
+            // exactly as it was, nothing is reported.
+            var chosen = await ResetRequested.Handle(prefill);
+            if (chosen is null)
+            {
+                _logger.LogInformation(
+                    "Balances panel: the reset dialog closed without a choice; nothing touched");
+                return;
+            }
+
+            var outcome = await _paperReset.ResetAsync(chosen.Value, ct);
+            if (!outcome.Done)
+            {
+                // A refused confirmation stays silent (the reset changed
+                // nothing).
+                _logger.LogInformation(
+                    "Balances panel: the reset confirmation was refused; nothing touched");
+                return;
+            }
+
+            OutcomeMessage = outcome.Summary;
+
+            // The fresh figures: the shared load pipeline re-queries every
+            // source (the reset already reported its own faults).
+            await HandleLoadAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            if (ex is OperationCanceledException)
+            {
+                _logger.LogInformation(ex, "Balances panel: the paper reset was cancelled before completing");
+            }
+            else
+            {
+                _logger.LogError(ex, "Balances panel: the paper reset failed");
+            }
+
+            ErrorMessage = _localization.GetString(ResetFailedKey, ex.Message);
+        }
+    }
 
     private async Task HandleLoadAsync(CancellationToken ct)
     {

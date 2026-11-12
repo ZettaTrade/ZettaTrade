@@ -16,14 +16,17 @@ public static class BalancesDependencyInjection
     /// <summary>
     /// Register the balances aggregation service (the registered adapters
     /// ride the active-exchange facade, the trading face is the single
-    /// <see cref="ITradingAdapter"/>) and the transient panel view model:
-    /// every panel open re-queries the adapters, so a stale snapshot never
-    /// leaks into a new open.
+    /// <see cref="ITradingAdapter"/>), the paper reset service (T-192: the
+    /// simulation wipe rides the paper adapter's concrete type) and the
+    /// transient panel view model: every panel open re-queries the
+    /// adapters, so a stale snapshot never leaks into a new open.
     /// </summary>
     public static IServiceCollection AddBalancesServices(this IServiceCollection services) => services
         .AddSingleton<BalancesAggregationService>(sp => new BalancesAggregationService(
             sp.GetRequiredService<ActiveExchangeService>().Registered,
             sp.GetRequiredService<ITradingAdapter>(),
             sp.GetRequiredService<ILogger<BalancesAggregationService>>()))
-        .AddTransient<BalancesPanelViewModel>();
+        .AddSingleton<IPaperResetService, PaperResetService>()
+        .AddTransient<BalancesPanelViewModel>()
+        .AddTransient<PaperResetDialogViewModel>();
 }
