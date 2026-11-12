@@ -124,7 +124,7 @@ public sealed class TicketRedesignPinsTests
 
         source.Should().Contain("<Run Text=\"{Binding QuantityUnitHint, Mode=OneWay}\" />");
         (source.Split(["{Binding PriceUnitHint, Mode=OneWay}"], StringSplitOptions.None).Length - 1)
-            .Should().Be(2, "the plain and the OCO price captions carry the same unit hint");
+            .Should().Be(3, "the plain, the OCO and the bracket entry captions carry the same unit hint");
 
         foreach (var resource in new[] { "Strings.resx", "Strings.ru.resx" })
         {
@@ -133,6 +133,38 @@ public sealed class TicketRedesignPinsTests
             resx.Should().Contain(
                 "NewOrder.UnitHintFormat",
                 "the shared unit-hint format ships in both cultures");
+        }
+    }
+
+    [Fact]
+    public void TheBracketMode_CarriesItsEntryKindItsOwnTakeProfitFieldAndItsInlineError()
+    {
+        var source = TicketXaml;
+
+        source.Should().Contain(
+            "<ComboBoxItem AutomationProperties.AutomationId=\"OrderTypeBracketItem\">",
+            "the type combo lists the bracket mode");
+        source.Should().Contain(
+            "<ComboBox AutomationProperties.AutomationId=\"BracketEntryKindComboBox\"\n                  SelectedIndex=\"{Binding BracketEntryKindIndex}\"",
+            "the entry kind combo rides the view model's index");
+        source.Should().Contain(
+            "<TextBox Text=\"{Binding BracketTakeProfitInput}\"\n                 AutomationProperties.AutomationId=\"BracketTakeProfitInput\"",
+            "the take-profit leg prices from its own field");
+        source.Should().Contain("Text=\"{Binding BracketTakeProfitError}\"",
+            "the take-profit parse refusal renders inline");
+        source.Should().Contain("IsVisible=\"{Binding IsBracketTakeProfitErrorVisible}\"",
+            "the take-profit error line hides with its row");
+
+        foreach (var resource in new[] { "Strings.resx", "Strings.ru.resx" })
+        {
+            var resx = File.ReadAllText(
+                Path.Combine(RepoRoot, "src", "ZettaTrade.UI", "Resources", resource));
+            resx.Should().Contain(
+                "Order.Bracket",
+                "the bracket mode's combo caption ships in both cultures");
+            resx.Should().Contain(
+                "NewOrder.BracketEntryPrice",
+                "the bracket limit entry's caption ships in both cultures");
         }
     }
 

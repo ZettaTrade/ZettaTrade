@@ -675,6 +675,9 @@
   <data name="Order.Oco" xml:space="preserve">
     <value>OCO (тейк-профит / стоп-лосс)</value>
   </data>
+  <data name="Order.Bracket" xml:space="preserve">
+    <value>Брекет (вход + тейк-профит / стоп-лосс)</value>
+  </data>
   <data name="Trading.ConfirmPlaceOrderFormat" xml:space="preserve">
     <value>Ордер {1}: {0} {2} {3} — {4}?</value>
   </data>
@@ -695,6 +698,15 @@
   </data>
   <data name="Trading.ConfirmFeeUnknownFormat" xml:space="preserve">
     <value>Неизвестна — тариф не ответил</value>
+  </data>
+  <data name="Trading.ConfirmPlaceBracketFormat" xml:space="preserve">
+    <value>Брекет: вход {1} {0} {2} {3} — {4}, тейк-профит {5}, стоп-лосс {6} (лимит {7})?</value>
+  </data>
+  <data name="Trading.ConfirmPlaceBracketDetailedFormat" xml:space="preserve">
+    <value>Площадка: {8}
+Брекет: вход {1} {0} {2} {3} — {4}, тейк-профит {5}, стоп-лосс {6} (лимит {7})?
+Расчётная стоимость: {9}
+Расчётная комиссия: {10}</value>
   </data>
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>по рыночной цене</value>
@@ -786,6 +798,15 @@
   <data name="NewOrder.OcoStopLimitPrice" xml:space="preserve">
     <value>Лимит стоп-лосса</value>
   </data>
+  <data name="NewOrder.BracketEntryKind" xml:space="preserve">
+    <value>Тип входа</value>
+  </data>
+  <data name="NewOrder.BracketEntryPrice" xml:space="preserve">
+    <value>Лимит цены входа</value>
+  </data>
+  <data name="NewOrder.BracketArmsOnFill" xml:space="preserve">
+    <value>Тейк-профит и стоп-лосс встанут в работу после исполнения входа.</value>
+  </data>
   <data name="NewOrder.TriggerRequired" xml:space="preserve">
     <value>Триггерная цена обязательна</value>
   </data>
@@ -824,6 +845,9 @@
   </data>
   <data name="NewOrder.OcoAborted" xml:space="preserve">
     <value>Размещение OCO прервано: размещённое плечо отменено.</value>
+  </data>
+  <data name="NewOrder.BracketPlaced" xml:space="preserve">
+    <value>Брекет размещён: вход {0} (защитные плечи встанут после его исполнения).</value>
   </data>
   <data name="NewOrder.UnitHintFormat" xml:space="preserve">
     <value>· {0}</value>

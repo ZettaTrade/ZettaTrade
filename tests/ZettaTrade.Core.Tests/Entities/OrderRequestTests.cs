@@ -283,4 +283,189 @@ public sealed class OrderRequestTests
 
         request.Invoking(r => r.Validate()).Should().NotThrow();
     }
+
+    #region Bracket Shape (T-186)
+
+    /// <summary>A valid bracket payload for a Buy entry: opposite-side exits
+    /// (a Sell take-profit limit, a Sell stop-loss stop-limit), the entry's
+    /// quantity, one shared group id.</summary>
+    private static BracketLegs ValidBracket() => new()
+    {
+        TakeProfit = new OrderRequest
+        {
+            Symbol = new Symbol("BTC", "USDT", AssetClass.Crypto),
+            Side = OrderSide.Sell,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(1m),
+            Price = new Price(52_000m),
+            OcoGroupId = "oco-bracket",
+        },
+        StopLoss = new OrderRequest
+        {
+            Symbol = new Symbol("BTC", "USDT", AssetClass.Crypto),
+            Side = OrderSide.Sell,
+            Type = OrderType.StopLimit,
+            Quantity = new Quantity(1m),
+            Price = new Price(48_900m),
+            StopPrice = new Price(49_000m),
+            OcoGroupId = "oco-bracket",
+        },
+    };
+
+    [Fact]
+    public void Validate_BracketMarketEntryWithOppositeExits_ShouldNotThrow()
+    {
+        var request = ValidOrder() with { BracketLegs = ValidBracket() };
+
+        request.Invoking(r => r.Validate()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_BracketLimitEntryWithOppositeExits_ShouldNotThrow()
+    {
+        var request = ValidOrder() with
+        {
+            Type = OrderType.Limit,
+            Price = new Price(50_000m),
+            BracketLegs = ValidBracket(),
+        };
+
+        request.Invoking(r => r.Validate()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_BracketEntryConditionalShape_ShouldThrow()
+    {
+        var request = ValidOrder() with
+        {
+            Type = OrderType.StopLimit,
+            Price = new Price(50_000m),
+            StopPrice = new Price(49_000m),
+            BracketLegs = ValidBracket(),
+        };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*market or limit*");
+    }
+
+    [Fact]
+    public void Validate_BracketEntryCarryingOcoGroup_ShouldThrow()
+    {
+        var request = ValidOrder() with
+        {
+            OcoGroupId = "oco-entry",
+            BracketLegs = ValidBracket(),
+        };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*OCO group*");
+    }
+
+    [Fact]
+    public void Validate_BracketTakeProfitNotALimit_ShouldThrow()
+    {
+        var bracket = ValidBracket() with
+        {
+            TakeProfit = ValidBracket().TakeProfit with { Type = OrderType.StopMarket, Price = null, StopPrice = new Price(52_000m) },
+        };
+        var request = ValidOrder() with { BracketLegs = bracket };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*take-profit*Limit*");
+    }
+
+    [Fact]
+    public void Validate_BracketStopLossNotAStopLimit_ShouldThrow()
+    {
+        var bracket = ValidBracket() with
+        {
+            StopLoss = ValidBracket().StopLoss with { Type = OrderType.Limit, StopPrice = null },
+        };
+        var request = ValidOrder() with { BracketLegs = bracket };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*stop-loss*StopLimit*");
+    }
+
+    [Fact]
+    public void Validate_BracketExitsSameSide_ShouldThrow()
+    {
+        var bracket = ValidBracket() with
+        {
+            TakeProfit = ValidBracket().TakeProfit with { Side = OrderSide.Buy },
+        };
+        var request = ValidOrder() with { BracketLegs = bracket };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*exits must be Sell orders*same-side exits*");
+    }
+
+    [Fact]
+    public void Validate_BracketExitQuantityMismatch_ShouldThrow()
+    {
+        var bracket = ValidBracket() with
+        {
+            StopLoss = ValidBracket().StopLoss with { Quantity = new Quantity(2m) },
+        };
+        var request = ValidOrder() with { BracketLegs = bracket };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*quantity*");
+    }
+
+    [Fact]
+    public void Validate_BracketExitsGroupMismatch_ShouldThrow()
+    {
+        var bracket = ValidBracket() with
+        {
+            StopLoss = ValidBracket().StopLoss with { OcoGroupId = "oco-other" },
+        };
+        var request = ValidOrder() with { BracketLegs = bracket };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*share one*OCO group*");
+    }
+
+    [Fact]
+    public void Validate_BracketExitWithoutGroup_ShouldThrow()
+    {
+        var bracket = ValidBracket() with
+        {
+            TakeProfit = ValidBracket().TakeProfit with { OcoGroupId = null },
+        };
+        var request = ValidOrder() with { BracketLegs = bracket };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*share one*OCO group*");
+    }
+
+    [Fact]
+    public void Validate_BracketNestedLeg_ShouldThrow()
+    {
+        var bracket = ValidBracket() with
+        {
+            TakeProfit = ValidBracket().TakeProfit with { BracketLegs = ValidBracket() },
+        };
+        var request = ValidOrder() with { BracketLegs = bracket };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*cannot itself carry a bracket*");
+    }
+
+    [Fact]
+    public void Validate_BracketExitMissingPrice_ShouldThrow()
+    {
+        var bracket = ValidBracket() with
+        {
+            TakeProfit = ValidBracket().TakeProfit with { Price = null },
+        };
+        var request = ValidOrder() with { BracketLegs = bracket };
+
+        // The leg's own validation rides the entry's: a limit without its
+        // price is refused with the leg's own reason.
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*Price*Limit*");
+    }
+
+    #endregion
 }

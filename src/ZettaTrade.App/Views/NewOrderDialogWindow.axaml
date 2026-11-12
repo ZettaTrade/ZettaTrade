@@ -178,22 +178,46 @@
                 <ComboBoxItem AutomationProperties.AutomationId="OrderTypeOcoItem">
                     <TextBlock Text="{loc:Localized Order.Oco}" />
                 </ComboBoxItem>
+                <ComboBoxItem AutomationProperties.AutomationId="OrderTypeBracketItem">
+                    <TextBlock Text="{loc:Localized Order.Bracket}" />
+                </ComboBoxItem>
             </ComboBox>
         </Grid>
 
+        <!-- Bracket entry kind (T-186): market places the entry at the
+             market, limit prices it — the kind decides the entry price row
+             below and the fee-estimate entry line. -->
+        <TextBlock Text="{loc:Localized NewOrder.BracketEntryKind}"
+                   IsVisible="{Binding IsBracketMode}" />
+        <ComboBox AutomationProperties.AutomationId="BracketEntryKindComboBox"
+                  SelectedIndex="{Binding BracketEntryKindIndex}"
+                  IsVisible="{Binding IsBracketMode}">
+            <ComboBoxItem AutomationProperties.AutomationId="BracketEntryMarketItem">
+                <TextBlock Text="{loc:Localized Order.Market}" />
+            </ComboBoxItem>
+            <ComboBoxItem AutomationProperties.AutomationId="BracketEntryLimitItem">
+                <TextBlock Text="{loc:Localized Order.Limit}" />
+            </ComboBoxItem>
+        </ComboBox>
+
         <!-- Limit price: limit and stop-limit orders; in the OCO mode the
-             SAME field prices the take-profit leg, so its caption follows
-             the mode. Both captions are static localized strings — the
+             SAME field prices the take-profit leg, in the bracket mode the
+             entry itself (a limit entry only), so its caption follows the
+             mode. Both captions are static localized strings — the
              caption FOLLOWS via visibility, never a view model property;
              the unit hint (T-156) rides the parsed symbol's quote asset.
              The parse refusal renders inline (T-156) and hides with the
              row itself. -->
-        <TextBlock IsVisible="{Binding !IsOcoMode}">
+        <TextBlock IsVisible="{Binding IsPlainPriceCaption}">
             <Run Text="{loc:Localized NewOrder.Price}" />
             <Run Text="{Binding PriceUnitHint, Mode=OneWay}" />
         </TextBlock>
         <TextBlock IsVisible="{Binding IsOcoMode}">
             <Run Text="{loc:Localized NewOrder.OcoLimitPrice}" />
+            <Run Text="{Binding PriceUnitHint, Mode=OneWay}" />
+        </TextBlock>
+        <TextBlock IsVisible="{Binding IsBracketMode}">
+            <Run Text="{loc:Localized NewOrder.BracketEntryPrice}" />
             <Run Text="{Binding PriceUnitHint, Mode=OneWay}" />
         </TextBlock>
         <TextBox Text="{Binding PriceInput}"
@@ -205,12 +229,27 @@
                    Text="{Binding PriceError}"
                    IsVisible="{Binding IsPriceErrorVisible}" />
 
-        <!-- Stop trigger: the stop-limit's own trigger, or the OCO pair's
-             stop-loss leg's trigger in the OCO mode (caption follows). -->
+        <!-- The bracket's take-profit leg (T-186): its own limit price —
+             the OCO pair's take-profit caption names the same shape. -->
+        <TextBlock Text="{loc:Localized NewOrder.OcoLimitPrice}"
+                   IsVisible="{Binding IsBracketTakeProfitVisible}" />
+        <TextBox Text="{Binding BracketTakeProfitInput}"
+                 AutomationProperties.AutomationId="BracketTakeProfitInput"
+                 FontFamily="{StaticResource NumericFont}"
+                 PlaceholderText="52000"
+                 IsVisible="{Binding IsBracketTakeProfitVisible}" />
+        <TextBlock Classes="field-error"
+                   Text="{Binding BracketTakeProfitError}"
+                   IsVisible="{Binding IsBracketTakeProfitErrorVisible}" />
+
+        <!-- Stop trigger: the stop-limit's own trigger, the OCO pair's
+             stop-loss leg's trigger, or the bracket's stop-loss leg's
+             trigger — the caption follows (the stop-loss label for the
+             leg modes). -->
         <TextBlock Text="{loc:Localized NewOrder.TriggerPrice}"
-                   IsVisible="{Binding !IsOcoMode}" />
+                   IsVisible="{Binding !IsOcoStopTriggerCaption}" />
         <TextBlock Text="{loc:Localized NewOrder.OcoStopTrigger}"
-                   IsVisible="{Binding IsOcoMode}" />
+                   IsVisible="{Binding IsOcoStopTriggerCaption}" />
         <TextBox Text="{Binding StopTriggerInput}"
                  FontFamily="{StaticResource NumericFont}"
                  PlaceholderText="49000"
@@ -231,7 +270,8 @@
                    IsVisible="{Binding IsTrailErrorVisible}" />
 
         <!-- OCO stop-loss leg's own limit price (its protective cap at
-             trigger time) — the OCO mode only. -->
+             trigger time) — the OCO mode and the bracket mode (the same
+             stop-limit shape). -->
         <TextBlock Text="{loc:Localized NewOrder.OcoStopLimitPrice}"
                    IsVisible="{Binding IsOcoStopLimitVisible}" />
         <TextBox Text="{Binding OcoStopLimitInput}"
@@ -241,6 +281,14 @@
         <TextBlock Classes="field-error"
                    Text="{Binding OcoStopLimitError}"
                    IsVisible="{Binding IsOcoStopLimitErrorVisible}" />
+
+        <!-- The bracket's arm-on-fill note (T-186): the exits are not
+             working orders yet — they arm when the entry fills, so a
+             resting entry keeps the pair parked until then. -->
+        <TextBlock Text="{loc:Localized NewOrder.BracketArmsOnFill}"
+                   IsVisible="{Binding IsBracketMode}"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondary}" />
 
         <!-- Fee estimate (T-080): one line per leg the ticket would place,
              each naming the maker/taker role and the schedule-priced

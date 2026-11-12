@@ -20,8 +20,9 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
 /// New Order dialog view model. Collects the order inputs (market, limit,
-/// stop-limit, trailing stop orders and OCO pairs placed as two either-or
-/// legs) and routes every request through the mandatory pipeline:
+/// stop-limit, trailing stop orders, OCO pairs placed as two either-or
+/// legs and brackets placed as one entry carrying its exits, T-186) and
+/// routes every request through the mandatory pipeline:
 /// <c>OrderRequest.Validate</c> → <see cref="IRiskManager"/> (rejection stops
 /// here and never opens the confirmation dialog) →
 /// <see cref="IConfirmationService"/> — the pre-submit gate: its content
@@ -29,7 +30,10 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// confirmation policy (T-078), except where the risk engine demands
 /// confirmation itself → <see cref="ITradingAdapter"/>. A
 /// partially-placed OCO pair is aborted best-effort — the placed leg is
-/// cancelled, the pair never goes half-working. Window plumbing (close on
+/// cancelled, the pair never goes half-working. The bracket (T-186)
+/// checks every leg through the risk manager BEFORE anything is submitted
+/// (one rejection refuses the whole bracket atomically) and confirms ONCE
+/// naming all three legs. Window plumbing (close on
 /// success or on Cancel) stays in the View via <see cref="CloseRequested"/>.
 /// The header names the active exchange: the behavioral facade stream
 /// bootstraps <see cref="ActiveExchangeName"/> on subscribe and keeps it
@@ -74,6 +78,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private const string OrderPlacedKey = "NewOrder.OrderPlaced";
     private const string OcoPlacedKey = "NewOrder.OcoPlaced";
     private const string OcoAbortedKey = "NewOrder.OcoAborted";
+    private const string BracketPlacedKey = "NewOrder.BracketPlaced";
     private const string UnitHintFormatKey = "NewOrder.UnitHintFormat";
     private const string FeeEstimateMakerKey = "Fees.EstimateMakerFormat";
     private const string FeeEstimateTakerKey = "Fees.EstimateTakerFormat";
@@ -97,6 +102,15 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// dialog is unsafe from here on (index 4 aliases TrailingStop).
     /// </summary>
     private const int OcoTypeIndex = 4;
+
+    /// <summary>
+    /// Combo index of the bracket entry (T-186): an entry (market or limit)
+    /// carrying its protective exits — a take-profit limit and a stop-loss
+    /// stop-limit — as ONE validated request. Like the OCO slot, the combo
+    /// selection is a dialog mode the pair builder assembles, never an
+    /// index-to-enum cast.
+    /// </summary>
+    private const int BracketTypeIndex = 5;
 
     /// <summary>Prefix of the either-or group id the OCO legs share.</summary>
     private const string OcoGroupIdPrefix = "oco-";
@@ -187,6 +201,8 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private string _stopTriggerInput = string.Empty;
     private string _trailDistanceInput = string.Empty;
     private string _ocoStopLimitInput = string.Empty;
+    private string _bracketTakeProfitInput = string.Empty;
+    private int _bracketEntryKindIndex;
     private int _selectedSideIndex;
     private int _selectedTypeIndex;
     private string? _errorMessage;
@@ -197,6 +213,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private string? _triggerError;
     private string? _trailError;
     private string? _ocoStopLimitError;
+    private string? _bracketTakeProfitError;
     private string _activeExchangeName = string.Empty;
     private IReadOnlyList<string> _feeEstimates = [];
     private bool _isTestnetLane;
@@ -269,11 +286,42 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     }
 
     /// <summary>Stop-loss limit price text of the OCO pair's stop leg,
-    /// parsed with the invariant culture.</summary>
+    /// parsed with the invariant culture. In the bracket mode the SAME
+    /// field prices the bracket's stop-loss leg (the same stop-limit
+    /// shape).</summary>
     public string OcoStopLimitInput
     {
         get => _ocoStopLimitInput;
         set => this.RaiseAndSetIfChanged(ref _ocoStopLimitInput, value);
+    }
+
+    /// <summary>The bracket's take-profit leg limit price text, parsed with
+    /// the invariant culture (T-186).</summary>
+    public string BracketTakeProfitInput
+    {
+        get => _bracketTakeProfitInput;
+        set => this.RaiseAndSetIfChanged(ref _bracketTakeProfitInput, value);
+    }
+
+    /// <summary>The bracket entry's kind combo index (T-186): 0 = Market
+    /// (places at the market), 1 = Limit (prices the entry). The kind
+    /// decides the entry price row and the fee-estimate entry line.</summary>
+    public int BracketEntryKindIndex
+    {
+        get => _bracketEntryKindIndex;
+        set
+        {
+            if (_bracketEntryKindIndex == value)
+            {
+                return;
+            }
+
+            _bracketEntryKindIndex = value;
+            this.RaisePropertyChanged(nameof(BracketEntryKindIndex));
+            this.RaisePropertyChanged(nameof(IsBracketEntryLimit));
+            this.RaisePropertyChanged(nameof(IsPriceRequired));
+            this.RaisePropertyChanged(nameof(IsPriceErrorVisible));
+        }
     }
 
     /// <summary>
@@ -307,10 +355,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
     /// <summary>
     /// Type combo box index: 0 = Market, 1 = Limit, 2 = StopLimit, 3 =
-    /// TrailingStop, 4 = the OCO pair mode (a UI mode, NOT an
-    /// <see cref="OrderType"/> — the legs it maps to are a limit and a
-    /// stop-limit sharing an either-or group). Raises every visibility the
-    /// input rows follow.
+    /// TrailingStop, 4 = the OCO pair mode, 5 = the bracket mode (both UI
+    /// modes, NOT <see cref="OrderType"/> values — the OCO pair places two
+    /// either-or legs, the bracket places one entry carrying its exits).
+    /// Raises every visibility the input rows follow.
     /// </summary>
     public int SelectedTypeIndex
     {
@@ -329,6 +377,12 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             this.RaisePropertyChanged(nameof(IsTrailVisible));
             this.RaisePropertyChanged(nameof(IsOcoMode));
             this.RaisePropertyChanged(nameof(IsOcoStopLimitVisible));
+            this.RaisePropertyChanged(nameof(IsBracketMode));
+            this.RaisePropertyChanged(nameof(IsBracketEntryLimit));
+            this.RaisePropertyChanged(nameof(IsBracketTakeProfitVisible));
+            this.RaisePropertyChanged(nameof(IsBracketTakeProfitErrorVisible));
+            this.RaisePropertyChanged(nameof(IsPlainPriceCaption));
+            this.RaisePropertyChanged(nameof(IsOcoStopTriggerCaption));
             this.RaisePropertyChanged(nameof(IsPriceErrorVisible));
             this.RaisePropertyChanged(nameof(IsTriggerErrorVisible));
             this.RaisePropertyChanged(nameof(IsTrailErrorVisible));
@@ -336,20 +390,25 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         }
     }
 
-    /// <summary>The order type the combo selection maps to; null in the OCO mode (the pair builder decides the leg types).</summary>
+    /// <summary>The order type the combo selection maps to; null in the OCO
+    /// and bracket modes (their builders decide the request shapes).</summary>
     private OrderType? SelectedType =>
         _selectedTypeIndex >= 0 && _selectedTypeIndex < TypeValues.Length
             && _selectedTypeIndex != OcoTypeIndex
+            && _selectedTypeIndex != BracketTypeIndex
             ? TypeValues[_selectedTypeIndex]
             : null;
 
     /// <summary>True when the selection carries an explicit limit price:
-    /// limit, stop-limit orders, and the OCO mode (its take-profit leg).</summary>
-    public bool IsPriceRequired => SelectedType is OrderType.Limit or OrderType.StopLimit || IsOcoMode;
+    /// limit and stop-limit orders, the OCO mode (its take-profit leg), and
+    /// the bracket mode with a limit entry (the entry's own price).</summary>
+    public bool IsPriceRequired =>
+        SelectedType is OrderType.Limit or OrderType.StopLimit || IsOcoMode || IsBracketEntryLimit;
 
-    /// <summary>True when the stop trigger row applies: the stop-limit order
-    /// and the OCO mode (whose stop leg carries the trigger).</summary>
-    public bool IsTriggerVisible => SelectedType == OrderType.StopLimit || IsOcoMode;
+    /// <summary>True when the stop trigger row applies: the stop-limit
+    /// order, the OCO mode (its stop leg), and the bracket mode (the same
+    /// stop-loss leg shape).</summary>
+    public bool IsTriggerVisible => SelectedType == OrderType.StopLimit || IsOcoMode || IsBracketMode;
 
     /// <summary>True when the trailing-distance row applies.</summary>
     public bool IsTrailVisible => SelectedType == OrderType.TrailingStop;
@@ -359,9 +418,32 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// together).</summary>
     public bool IsOcoMode => _selectedTypeIndex == OcoTypeIndex;
 
+    /// <summary>True when the type combo selects the bracket mode (T-186):
+    /// an entry carrying its attached take-profit/stop-loss exits as ONE
+    /// validated request.</summary>
+    public bool IsBracketMode => _selectedTypeIndex == BracketTypeIndex;
+
+    /// <summary>True while the bracket entry is a limit order pricing its
+    /// own entry (T-186); a market entry places at the market.</summary>
+    public bool IsBracketEntryLimit => IsBracketMode && _bracketEntryKindIndex == 1;
+
+    /// <summary>True when the bracket's take-profit leg row applies (the
+    /// bracket mode only).</summary>
+    public bool IsBracketTakeProfitVisible => IsBracketMode;
+
     /// <summary>True when the stop-loss leg's limit price row applies
-    /// (the OCO mode only).</summary>
-    public bool IsOcoStopLimitVisible => IsOcoMode;
+    /// (the OCO mode and the bracket mode — the same stop-limit shape).</summary>
+    public bool IsOcoStopLimitVisible => IsOcoMode || IsBracketMode;
+
+    /// <summary>Whether the price field's caption is the plain limit-price
+    /// label: every mode except the OCO pair (its take-profit caption) and
+    /// the bracket (its entry-price caption).</summary>
+    public bool IsPlainPriceCaption => !IsOcoMode && !IsBracketMode;
+
+    /// <summary>Whether the trigger field's caption is the stop-loss leg's
+    /// label: the OCO pair and the bracket share the same stop-leg
+    /// semantics.</summary>
+    public bool IsOcoStopTriggerCaption => IsOcoMode || IsBracketMode;
 
     /// <summary>Whether the price field's inline error applies to the
     /// visible ticket (T-156): the line hides with its own row, so a type
@@ -376,6 +458,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
     /// <summary>Whether the OCO stop-limit field's inline error applies to the visible ticket (T-156).</summary>
     public bool IsOcoStopLimitErrorVisible => HasOcoStopLimitError && IsOcoStopLimitVisible;
+
+    /// <summary>Whether the bracket take-profit field's inline error applies to the visible ticket (T-186).</summary>
+    public bool IsBracketTakeProfitErrorVisible => HasBracketTakeProfitError && IsBracketTakeProfitVisible;
 
     /// <summary>The attempt's full report (parse failure, risk rejection,
     /// adapter failure) — the contract the behavior-parity battery reads
@@ -418,7 +503,8 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         || PriceError is not null
         || TriggerError is not null
         || TrailError is not null
-        || OcoStopLimitError is not null;
+        || OcoStopLimitError is not null
+        || BracketTakeProfitError is not null;
 
     /// <summary>The symbol field's inline parse refusal (T-156): missing or unparsable text.</summary>
     public string? SymbolError
@@ -540,6 +626,26 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// <summary>True while the OCO stop-limit field shows its inline error (T-156).</summary>
     public bool HasOcoStopLimitError => _ocoStopLimitError is not null;
 
+    /// <summary>The bracket take-profit field's inline parse refusal (T-186): the exit leg's own limit price.</summary>
+    public string? BracketTakeProfitError
+    {
+        get => _bracketTakeProfitError;
+        private set
+        {
+            if (_bracketTakeProfitError == value)
+            {
+                return;
+            }
+
+            _bracketTakeProfitError = value;
+            this.RaisePropertyChanged(nameof(BracketTakeProfitError));
+            this.RaisePropertyChanged(nameof(HasBracketTakeProfitError));
+        }
+    }
+
+    /// <summary>True while the bracket take-profit field shows its inline error (T-186).</summary>
+    public bool HasBracketTakeProfitError => _bracketTakeProfitError is not null;
+
     /// <summary>
     /// Route the attempt's build failure to its display surface (T-156): a
     /// field-tagged error lands next to its field and clears every other
@@ -555,12 +661,14 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         TriggerError = field == TicketField.Trigger ? error : null;
         TrailError = field == TicketField.Trail ? error : null;
         OcoStopLimitError = field == TicketField.OcoStopLimit ? error : null;
+        BracketTakeProfitError = field == TicketField.BracketTakeProfit ? error : null;
         this.RaisePropertyChanged(nameof(HasFieldError));
         this.RaisePropertyChanged(nameof(HasSummaryError));
         this.RaisePropertyChanged(nameof(IsPriceErrorVisible));
         this.RaisePropertyChanged(nameof(IsTriggerErrorVisible));
         this.RaisePropertyChanged(nameof(IsTrailErrorVisible));
         this.RaisePropertyChanged(nameof(IsOcoStopLimitErrorVisible));
+        this.RaisePropertyChanged(nameof(IsBracketTakeProfitErrorVisible));
     }
 
     /// <summary>Text of a successfully placed order (before the dialog closes).</summary>
@@ -781,7 +889,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                     x => x.SelectedSideIndex,
                     x => x.PriceInput,
                     x => x.StopTriggerInput,
-                    x => x.TrailDistanceInput)
+                    x => x.TrailDistanceInput,
+                    x => x.BracketEntryKindIndex,
+                    x => x.BracketTakeProfitInput)
                 .Subscribe(_ => UpdateSizerOrderShape()));
 
         // The header mirrors the active exchange on the same behavioral
@@ -816,7 +926,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                     x => x.QuantityInput,
                     x => x.PriceInput,
                     x => x.OcoStopLimitInput,
-                    x => x.SelectedTypeIndex)
+                    x => x.BracketTakeProfitInput,
+                    x => x.SelectedTypeIndex,
+                    x => x.BracketEntryKindIndex)
                 .Subscribe(_ => RefreshFeeEstimates()));
 
         // The price-less types (market, trailing) price their notional with
@@ -893,9 +1005,26 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             ? null
             : _feeSchedules.GetSchedule(_activeExchangeId);
 
-        var legs = SelectedTypeIndex == OcoTypeIndex
-            ? new[] { (OrderType.Limit, PriceInput), (OrderType.StopLimit, OcoStopLimitInput) }
-            : new[] { SingleEstimateOrder() };
+        // The OCO pair estimates its two legs, the bracket its three (the
+        // entry prices by its kind), every single selection one order.
+        var legs = SelectedTypeIndex switch
+        {
+            OcoTypeIndex => new[] { (OrderType.Limit, PriceInput), (OrderType.StopLimit, OcoStopLimitInput) },
+            BracketTypeIndex => IsBracketEntryLimit
+                ? new[]
+                {
+                    (OrderType.Limit, PriceInput),
+                    (OrderType.Limit, BracketTakeProfitInput),
+                    (OrderType.StopLimit, OcoStopLimitInput),
+                }
+                : new[]
+                {
+                    (OrderType.Market, string.Empty),
+                    (OrderType.Limit, BracketTakeProfitInput),
+                    (OrderType.StopLimit, OcoStopLimitInput),
+                },
+            _ => new[] { SingleEstimateOrder() },
+        };
 
         FeeEstimates = legs
             .Select(leg => FormatEstimateLeg(schedule, leg.Item1, leg.Item2))
@@ -1121,6 +1250,19 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// substitutes a default for a field the user has not finished
     /// entering.
     /// </summary>
+    /// <summary>
+    /// Push the ticket's current order shape to the sizing row: the side,
+    /// the execution price the type carries (the limit price for limit,
+    /// stop-limit and the OCO take-profit leg), and the type's stop
+    /// distance when it anchors one — a stop-limit's |limit − trigger|, a
+    /// trailing stop's trail. Market and plain-limit orders (and the OCO
+    /// pair) carry none: the risk mode stays hidden for exactly those. The
+    /// bracket (T-186) anchors its distance on a LIMIT entry against its
+    /// stop-loss trigger; a market entry prices no entry, so the risk mode
+    /// stays hidden for it too. Unparsable or empty fields contribute
+    /// nothing — no sizing input substitutes a default for a field the user
+    /// has not finished entering.
+    /// </summary>
     private void UpdateSizerOrderShape()
     {
         var side = (OrderSide)SelectedSideIndex;
@@ -1137,6 +1279,18 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             OrderType.TrailingStop => TryParsePositiveOrNull(TrailDistanceInput),
             _ => null,
         };
+
+        if (IsBracketMode)
+        {
+            var bracketEntryPrice = IsBracketEntryLimit ? TryParsePositiveOrNull(PriceInput) : null;
+            decimal? bracketStopDistance = bracketEntryPrice is { } entryLimit
+                && TryParsePositiveOrNull(StopTriggerInput) is { } stopTrigger
+                    ? Math.Abs(entryLimit - stopTrigger)
+                    : null;
+
+            _sizer.UpdateOrderShape(side, null, bracketEntryPrice, bracketStopDistance);
+            return;
+        }
 
         _sizer.UpdateOrderShape(side, type, entryPrice, stopDistance);
     }
@@ -1309,6 +1463,16 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 return;
             }
 
+            if (build.IsBracket)
+            {
+                // The bracket submits as ONE request (T-186): the entry
+                // carries its exits to the adapter, so the per-request loop
+                // below never runs — there is no partial pair to tear down,
+                // the exits are never placed separately.
+                await PlaceBracketAsync(build.Requests[0]);
+                return;
+            }
+
             foreach (var request in build.Requests)
             {
                 var order = await PlaceSingleAsync(request);
@@ -1366,6 +1530,109 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             ErrorMessage = single
                 ? _localization.GetString(PlaceFailedKey, ex.Message)
                 : _localization.GetString(OcoAbortedKey);
+        }
+    }
+
+    /// <summary>
+    /// The bracket's atomic submit (T-186): the entry validates WITH its
+    /// exits (one validated request), EVERY leg passes the risk manager
+    /// before anything is submitted — one rejected leg refuses the whole
+    /// bracket, nothing has been sent anywhere — and ONE confirmation names
+    /// all three legs (the ask decision rides any leg's mandated gate plus
+    /// the policy's reading of the entry, the operation's dominant leg).
+    /// The placement is ONE adapter call: the surface assembles the whole
+    /// shape or refuses it before anything registers. A refusal reports
+    /// through the error line and keeps the dialog open.
+    /// </summary>
+    private async Task PlaceBracketAsync(OrderRequest entry)
+    {
+        try
+        {
+            // The intrinsic request matrix runs here ahead of any other
+            // gate: the final shape guard an unparsable bracket cannot slip
+            // past (the legs validate with the entry).
+            entry.Validate();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Order dialog: the built bracket request is invalid and was never sent to a gate");
+            ErrorMessage = _localization.GetString(InvalidParametersKey, ex.Message);
+            return;
+        }
+
+        var legs = new[] { entry, entry.BracketLegs!.TakeProfit, entry.BracketLegs.StopLoss };
+        var riskResults = new List<RiskCheckResult>(legs.Length);
+        foreach (var leg in legs)
+        {
+            var legRisk = await _riskManager.CheckOrderAsync(leg);
+            if (!legRisk.IsApproved)
+            {
+                _logger.LogWarning(
+                    "Order dialog: risk manager rejected the bracket's {Type} {Side} leg {Quantity} {Symbol}: {Reason}",
+                    leg.Type, leg.Side, leg.Quantity.Value, leg.Symbol.Normalized, legRisk.Reason);
+                ErrorMessage = _localization.GetString(OrderRejectedKey, legRisk.Reason ?? string.Empty);
+                return;
+            }
+
+            riskResults.Add(legRisk);
+        }
+
+        var isPaper = IsPaperVenue();
+        var facts = new OrderPlaceFacts(
+            IsPaper: isPaper,
+            LiveVenueName: _trading.Name,
+            EstimatedNotionalUsd: OrderNotional.EstimateUsd(entry, _referenceClose),
+            EstimatedFee: EstimateScheduleFee(entry));
+        var asksConfirmation = riskResults.Any(legRisk => legRisk.RequiresConfirmation)
+            || await _confirmPolicy.ShouldConfirmAsync(isPaper, entry.Type, facts.EstimatedNotionalUsd);
+
+        var confirmed = !asksConfirmation
+            || await _confirmation.RequestConfirmationAsync(_composer.ForBracket(entry, entry.BracketLegs!, facts));
+        if (!confirmed)
+        {
+            _logger.LogInformation("Order dialog: user cancelled the bracket confirmation; nothing placed");
+            return;
+        }
+
+        try
+        {
+            var order = await _trading.PlaceOrderAsync(entry);
+            _orderJournal.RecordPlaced(order);
+
+            // Persist the placed entry into the SQLite journal. Best effort:
+            // the adapter accepted the bracket already, so a persistence
+            // fault must never turn a successful placement into a dialog
+            // error.
+            try
+            {
+                await _orderHistory.RecordPlacedAsync(order);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Order dialog: failed to persist {OrderId} to the order history",
+                    order.Id);
+            }
+
+            ResultMessage = _localization.GetString(BracketPlacedKey, order.Id);
+            _logger.LogInformation(
+                "Order dialog: placed bracket entry {OrderId} ({Status})",
+                order.Id,
+                order.Status);
+            await CloseRequested.Handle(RxVoid.Default);
+        }
+        catch (Exception ex)
+        {
+            // The adapter assembles the bracket from the ONE request: a
+            // refusal (an unsupported surface, an unparsable shape) leaves
+            // NOTHING on the surface — the error line reports the reason and
+            // the dialog stays open (BUG-017 discipline: never a silent
+            // unplaced order).
+            _logger.LogError(ex, "Order dialog: bracket placement failed");
+            ErrorMessage = _localization.GetString(PlaceFailedKey, ex.Message);
         }
     }
 
@@ -1492,6 +1759,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         Trigger,
         Trail,
         OcoStopLimit,
+        BracketTakeProfit,
     }
 
     /// <summary>Whether an order-building attempt produced requests at all.</summary>
@@ -1506,8 +1774,20 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         /// <summary>True when the inputs failed to build requests.</summary>
         public bool Failed => Error is not null;
 
+        /// <summary>
+        /// True when the single request is a bracket entry (T-186): the
+        /// entry carries its exits to the adapter, so the submit pipeline
+        /// runs the bracket's own atomic gate instead of the per-request
+        /// loop (there is no partial pair to tear down — the exits are
+        /// never placed separately).
+        /// </summary>
+        public bool IsBracket { get; private init; }
+
         /// <summary>A successful attempt over the given requests.</summary>
         public static RequestBuild Ok(IReadOnlyList<OrderRequest> requests) => new(requests, null);
+
+        /// <summary>A successful bracket attempt: the ONE entry request carrying its exits (T-186).</summary>
+        public static RequestBuild OkBracket(OrderRequest entry) => new([entry], null) { IsBracket = true };
 
         /// <summary>A failed attempt with its localized error.</summary>
         public static RequestBuild Fail(string error) => new([], error);
@@ -1519,7 +1799,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// <summary>
     /// Parse the dialog inputs into the order requests: ONE request for every
     /// single type, TWO either-or legs in the OCO mode (a take-profit limit
-    /// and a stop-loss stop-limit sharing a fresh group id). Conditional
+    /// and a stop-loss stop-limit sharing a fresh group id), and ONE bracket
+    /// entry in the bracket mode (T-186: the entry carries its protective
+    /// exits). Conditional
     /// shapes resolve a market reference rate first: the trailing stop derives
     /// its trigger seed from it, every stop trigger and take-profit level is
     /// checked against the market direction it must sit at. Every unparsable
@@ -1562,6 +1844,11 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         if (typeIndex == OcoTypeIndex)
         {
             return await BuildOcoPairAsync(symbol, side, quantity);
+        }
+
+        if (typeIndex == BracketTypeIndex)
+        {
+            return await BuildBracketAsync(symbol, side, quantity);
         }
 
         if (typeIndex < 0 || typeIndex >= TypeValues.Length)
@@ -1829,6 +2116,99 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             OcoLimitLeg(symbol, side, quantity, new Price(takeProfit), groupId),
             OcoStopLimitLeg(symbol, side, quantity, new Price(stopTrigger), new Price(stopLimitPrice), groupId),
         ]);
+    }
+
+    /// <summary>
+    /// The bracket parse (T-186): the entry kind decides whether the entry
+    /// prices itself (a limit entry, the shared price field) or places at
+    /// the market; the take-profit limit, the stop trigger and the
+    /// stop-loss limit price the exits from their fields; both exits are
+    /// checked against the market reference on THEIR OWN side (they are the
+    /// opposite side of the entry — the take-profit rests beyond the market
+    /// it exits into, the stop trigger arms strictly beyond it). The exits
+    /// share a fresh either-or group id and ride the entry as ONE request;
+    /// the take-profit leg is listed first (the pair order).
+    /// </summary>
+    private async Task<RequestBuild> BuildBracketAsync(Symbol symbol, OrderSide side, decimal quantity)
+    {
+        decimal? entryPrice = null;
+        if (IsBracketEntryLimit)
+        {
+            if (!TryParsePositiveDecimal(
+                    PriceInput,
+                    PriceRequiredKey,
+                    PriceNotANumberKey,
+                    out var entryLimit,
+                    out var entryError))
+            {
+                return RequestBuild.Fail(entryError, TicketField.Price);
+            }
+
+            entryPrice = entryLimit;
+        }
+
+        if (!TryParsePositiveDecimal(
+                BracketTakeProfitInput,
+                PriceRequiredKey,
+                PriceNotANumberKey,
+                out var takeProfit,
+                out var takeProfitError))
+        {
+            return RequestBuild.Fail(takeProfitError, TicketField.BracketTakeProfit);
+        }
+
+        if (!TryParsePositiveDecimal(
+                StopTriggerInput,
+                TriggerRequiredKey,
+                TriggerNotANumberKey,
+                out var stopTrigger,
+                out var stopTriggerError))
+        {
+            return RequestBuild.Fail(stopTriggerError, TicketField.Trigger);
+        }
+
+        if (!TryParsePositiveDecimal(
+                OcoStopLimitInput,
+                PriceRequiredKey,
+                PriceNotANumberKey,
+                out var stopLimitPrice,
+                out var stopLimitError))
+        {
+            return RequestBuild.Fail(stopLimitError, TicketField.OcoStopLimit);
+        }
+
+        var referenceClose = await MarketReference.GetLatestCloseAsync(_trading, symbol, CancellationToken.None);
+
+        // The exits close the entry: they ride the OPPOSITE side, so the
+        // market-relative sanity readings run on the exit's own side — the
+        // same readings the OCO pair takes.
+        var exitSide = side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+
+        var triggerError = CheckStopTriggerDirection(exitSide, new Price(stopTrigger), referenceClose);
+        if (triggerError is not null)
+        {
+            return RequestBuild.Fail(triggerError);
+        }
+
+        var limitError = CheckTakeProfitDirection(exitSide, new Price(takeProfit), referenceClose);
+        if (limitError is not null)
+        {
+            return RequestBuild.Fail(limitError);
+        }
+
+        var groupId = $"{OcoGroupIdPrefix}{Guid.NewGuid().ToString("N")}";
+        var entry = entryPrice is { } entryLimitValue
+            ? LimitRequest(symbol, side, quantity, new Price(entryLimitValue))
+            : Request(symbol, side, OrderType.Market, quantity);
+
+        return RequestBuild.OkBracket(entry with
+        {
+            BracketLegs = new BracketLegs
+            {
+                TakeProfit = OcoLimitLeg(symbol, exitSide, quantity, new Price(takeProfit), groupId),
+                StopLoss = OcoStopLimitLeg(symbol, exitSide, quantity, new Price(stopTrigger), new Price(stopLimitPrice), groupId),
+            },
+        });
     }
 
     /// <summary>

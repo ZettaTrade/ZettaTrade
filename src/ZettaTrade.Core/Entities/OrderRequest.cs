@@ -69,7 +69,17 @@ public sealed record OrderRequest
     public bool ReduceOnly { get; init; }
 
     /// <summary>
-    /// Validate the order request.
+    /// The bracket payload (T-186): the attached protective exits the entry
+    /// carries to the adapter as one validated request. Null for every
+    /// standalone order — only the ENTRY of a bracket carries the legs; a
+    /// leg itself never does. An adapter that cannot hold the shape must
+    /// reject the request instead of degrading.
+    /// </summary>
+    public BracketLegs? BracketLegs { get; init; }
+
+    /// <summary>
+    /// Validate the order request. A bracket entry validates WITH its
+    /// attached exits: one validated request, never a half protection.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown if validation fails.</exception>
     public void Validate()
@@ -138,5 +148,81 @@ public sealed record OrderRequest
                         : $"at or below the stop trigger (limit {limitPrice.Value}, trigger {triggerPrice.Value})."));
             }
         }
+
+        if (BracketLegs is { } bracket)
+        {
+            ValidateBracket(bracket);
+        }
+    }
+
+    /// <summary>
+    /// The bracket shape matrix (T-186): the entry is a market or limit
+    /// order that belongs to no OCO group itself, the exits are a limit
+    /// (the take-profit) and a stop-limit (the stop-loss) on the OPPOSITE
+    /// side with the SAME quantity, sharing ONE non-empty either-or group
+    /// id. The exits validate as whole requests too, so an unparsable leg
+    /// is refused with its own reason; a bracket inside a bracket is
+    /// unparsable by shape.
+    /// </summary>
+    private void ValidateBracket(BracketLegs bracket)
+    {
+        if (Type is not (OrderType.Market or OrderType.Limit))
+        {
+            throw new InvalidOperationException(
+                $"A bracket entry must be a market or limit order; {Type} cannot carry attached exits.");
+        }
+
+        if (OcoGroupId is not null)
+        {
+            throw new InvalidOperationException(
+                "A bracket entry cannot itself join an OCO group; its exits form the pair.");
+        }
+
+        ValidateBracketLeg(bracket.TakeProfit, "take-profit", OrderType.Limit);
+        ValidateBracketLeg(bracket.StopLoss, "stop-loss", OrderType.StopLimit);
+
+        var exitSide = Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+        if (bracket.TakeProfit.Side != exitSide || bracket.StopLoss.Side != exitSide)
+        {
+            throw new InvalidOperationException(
+                $"The bracket exits must be {exitSide} orders (they close a {Side} entry); " +
+                "same-side exits would extend the position instead of protecting it.");
+        }
+
+        var quantity = Quantity.Value;
+        if (bracket.TakeProfit.Quantity.Value != quantity || bracket.StopLoss.Quantity.Value != quantity)
+        {
+            throw new InvalidOperationException(
+                "The bracket exits must carry the entry's quantity so the position closes whole.");
+        }
+
+        var groupId = bracket.TakeProfit.OcoGroupId;
+        if (string.IsNullOrWhiteSpace(groupId) || bracket.StopLoss.OcoGroupId != groupId)
+        {
+            throw new InvalidOperationException(
+                "The bracket exits must share one non-empty OCO group id: " +
+                "the first exit that ends takes the other down.");
+        }
+    }
+
+    /// <summary>One bracket exit's shape: the expected type, no nested
+    /// bracket, and the leg's own full request validation.</summary>
+    private void ValidateBracketLeg(OrderRequest leg, string legName, OrderType expectedType)
+    {
+        ArgumentNullException.ThrowIfNull(leg);
+
+        if (leg.BracketLegs is not null)
+        {
+            throw new InvalidOperationException(
+                "A bracket leg cannot itself carry a bracket; the exits are plain orders.");
+        }
+
+        if (leg.Type != expectedType)
+        {
+            throw new InvalidOperationException(
+                $"The bracket's {legName} leg must be a {expectedType} order; {leg.Type} is refused.");
+        }
+
+        leg.Validate();
     }
 }

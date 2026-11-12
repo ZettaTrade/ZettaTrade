@@ -20,6 +20,8 @@ public sealed class OrderConfirmationComposer
 
     private const string ConfirmPlaceOrderKey = "Trading.ConfirmPlaceOrderFormat";
     private const string ConfirmPlaceOrderDetailedKey = "Trading.ConfirmPlaceOrderDetailedFormat";
+    private const string ConfirmPlaceBracketKey = "Trading.ConfirmPlaceBracketFormat";
+    private const string ConfirmPlaceBracketDetailedKey = "Trading.ConfirmPlaceBracketDetailedFormat";
     private const string ConfirmNotionalKey = "Trading.ConfirmNotionalFormat";
     private const string ConfirmNotionalUnknownKey = "Trading.ConfirmNotionalUnknownFormat";
     private const string ConfirmFeeKey = "Trading.ConfirmFeeFormat";
@@ -127,6 +129,33 @@ public sealed class OrderConfirmationComposer
         string typeText,
         string priceText)
     {
+        var (venueText, notionalLine, feeLine) = ComposeEconomics(facts);
+
+        return new ConfirmationRequest
+        {
+            MessageKey = ConfirmPlaceOrderDetailedKey,
+            Arguments =
+            [
+                sideText,
+                typeText,
+                request.Quantity.Value.ToString(CultureInfo.InvariantCulture),
+                request.Symbol.Normalized,
+                priceText,
+                venueText,
+                notionalLine,
+                feeLine,
+            ],
+        };
+    }
+
+    /// <summary>
+    /// The economics lines every detailed place summary closes with: the
+    /// venue tag (the paper tag or the live venue's name), the notional
+    /// against the hard cap's headroom, the estimated fee. Unknown estimates
+    /// render their own honest unknown lines, never fabricated numbers.
+    /// </summary>
+    private (string VenueText, string NotionalLine, string FeeLine) ComposeEconomics(OrderPlaceFacts facts)
+    {
         var venueText = facts.IsPaper
             ? _localization.GetString(TagPaperKey)
             : facts.LiveVenueName;
@@ -145,16 +174,79 @@ public sealed class OrderConfirmationComposer
             ? _localization.GetString(ConfirmFeeKey, FormatNotional(fee))
             : _localization.GetString(ConfirmFeeUnknownKey);
 
+        return (venueText, notionalLine, feeLine);
+    }
+
+    /// <summary>
+    /// Confirmation summary shown before a bracket is placed (T-186): ONE
+    /// confirmation naming all three legs — the entry (its side, type,
+    /// quantity, symbol and price-or-market anchor), the take-profit limit
+    /// and the stop-loss trigger with its protective limit. The bracket is
+    /// ONE validated operation, so its refusal leaves nothing on the
+    /// surface.
+    /// </summary>
+    /// <remarks>
+    /// With facts the detailed shape keeps the same argument order as the
+    /// single-order detailed summary: the three-leg question leads on
+    /// arguments 0–7, the venue tag line and the entry's economics lines
+    /// (the notional headroom, the estimated fee — priced from the entry,
+    /// the operation's dominant leg) follow on 8–10.
+    /// </remarks>
+    /// <param name="entry">The entry request carrying the bracket payload.</param>
+    /// <param name="legs">The attached exits the entry validates with.</param>
+    /// <param name="facts">
+    /// The placement's submit-time facts, or null for the compact base
+    /// summary.
+    /// </param>
+    public ConfirmationRequest ForBracket(
+        OrderRequest entry,
+        BracketLegs legs,
+        OrderPlaceFacts? facts = null)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(legs);
+
+        var sideText = _localization.GetString($"Order.{entry.Side}");
+        var typeText = _localization.GetString($"Order.{entry.Type}");
+        var anchor = entry.Price ?? entry.StopPrice;
+        var entryPriceText = anchor is { } price
+            ? price.Value.ToString("F8", CultureInfo.InvariantCulture)
+            : _localization.GetString(MarketLabelKey);
+
+        var baseArguments = new object[]
+        {
+            sideText,
+            typeText,
+            entry.Quantity.Value.ToString(CultureInfo.InvariantCulture),
+            entry.Symbol.Normalized,
+            entryPriceText,
+
+            // The exits' own anchors (the request is validated: a bracket
+            // take-profit always carries its limit price, a stop-loss its
+            // trigger and limit). The nullable prices unwrap through their
+            // struct's own Value.
+            legs.TakeProfit.Price!.Value.Value.ToString("F8", CultureInfo.InvariantCulture),
+            legs.StopLoss.StopPrice!.Value.Value.ToString("F8", CultureInfo.InvariantCulture),
+            legs.StopLoss.Price!.Value.Value.ToString("F8", CultureInfo.InvariantCulture),
+        };
+
+        if (facts is null)
+        {
+            return new ConfirmationRequest
+            {
+                MessageKey = ConfirmPlaceBracketKey,
+                Arguments = baseArguments,
+            };
+        }
+
+        var (venueText, notionalLine, feeLine) = ComposeEconomics(facts);
+
         return new ConfirmationRequest
         {
-            MessageKey = ConfirmPlaceOrderDetailedKey,
+            MessageKey = ConfirmPlaceBracketDetailedKey,
             Arguments =
             [
-                sideText,
-                typeText,
-                request.Quantity.Value.ToString(CultureInfo.InvariantCulture),
-                request.Symbol.Normalized,
-                priceText,
+                .. baseArguments,
                 venueText,
                 notionalLine,
                 feeLine,

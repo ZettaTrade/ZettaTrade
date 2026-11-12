@@ -675,6 +675,9 @@
   <data name="Order.Oco" xml:space="preserve">
     <value>OCO (take-profit / stop-loss)</value>
   </data>
+  <data name="Order.Bracket" xml:space="preserve">
+    <value>Bracket (entry + take-profit / stop-loss)</value>
+  </data>
   <data name="Trading.ConfirmPlaceOrderFormat" xml:space="preserve">
     <value>Place {0} {1} order {2} {3} at {4}?</value>
   </data>
@@ -695,6 +698,15 @@ Estimated fee: {7}</value>
   </data>
   <data name="Trading.ConfirmFeeUnknownFormat" xml:space="preserve">
     <value>Unknown — no fee schedule answered</value>
+  </data>
+  <data name="Trading.ConfirmPlaceBracketFormat" xml:space="preserve">
+    <value>Place bracket: {0} {1} entry {2} {3} at {4}, take-profit limit {5}, stop-loss trigger {6} (limit {7})?</value>
+  </data>
+  <data name="Trading.ConfirmPlaceBracketDetailedFormat" xml:space="preserve">
+    <value>Venue: {8}
+Place bracket: {0} {1} entry {2} {3} at {4}, take-profit limit {5}, stop-loss trigger {6} (limit {7})?
+Estimated notional: {9}
+Estimated fee: {10}</value>
   </data>
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>market price</value>
@@ -786,6 +798,15 @@ Estimated fee: {7}</value>
   <data name="NewOrder.OcoStopLimitPrice" xml:space="preserve">
     <value>Stop-loss limit price</value>
   </data>
+  <data name="NewOrder.BracketEntryKind" xml:space="preserve">
+    <value>Entry type</value>
+  </data>
+  <data name="NewOrder.BracketEntryPrice" xml:space="preserve">
+    <value>Entry limit price</value>
+  </data>
+  <data name="NewOrder.BracketArmsOnFill" xml:space="preserve">
+    <value>The take-profit and stop-loss legs arm when the entry fills.</value>
+  </data>
   <data name="NewOrder.TriggerRequired" xml:space="preserve">
     <value>Trigger price is required</value>
   </data>
@@ -824,6 +845,9 @@ Estimated fee: {7}</value>
   </data>
   <data name="NewOrder.OcoAborted" xml:space="preserve">
     <value>OCO placement aborted: the placed leg was cancelled.</value>
+  </data>
+  <data name="NewOrder.BracketPlaced" xml:space="preserve">
+    <value>Bracket placed: entry {0} (the exits arm on its fill).</value>
   </data>
   <data name="NewOrder.UnitHintFormat" xml:space="preserve">
     <value>· {0}</value>

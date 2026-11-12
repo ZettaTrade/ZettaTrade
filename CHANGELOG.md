@@ -1,3 +1,34 @@
+## [0.1.0-alpha.130] - 2026-11-12
+
+Build of board task T-186 (branch `feat/bracket-orders`): bracket orders
+in the order ticket — the entry with its attached take-profit and
+stop-loss exits.
+
+### Added
+- The bracket mode in the order ticket: an entry (market, or a limit
+  priced from the shared price field) carries a take-profit limit leg
+  and a stop-loss stop-limit leg as ONE request. The exits ride the
+  opposite side with the entry's own quantity under one either-or group
+  id; the ticket validates the whole shape, runs all three legs through
+  the risk manager atomically (any rejection submits nothing), asks for
+  ONE confirmation naming every leg, and sends ONE adapter call.
+- The paper exchange assembles the bracket on the entry's fill: a
+  market or crossing-limit entry arms its pair synchronously against
+  the entry's own fill price, a resting limit entry parks until it
+  fills or is cancelled. The arm is all-or-nothing — a refused leg
+  takes the working sibling down with it, a half-armed bracket never
+  stays working.
+- The bracket's confirmation summary (`Trading.ConfirmPlaceBracket*`,
+  en and ru) names the entry and both exits with the venue's fee
+  economics; the fee estimates price all three legs in their expected
+  roles (the entry by its kind, the take-profit as maker, the
+  stop-loss as taker).
+
+### Changed
+- The Bybit adapter refuses the bracket shape up front with an honest
+  reason — the bracket ships paper-first; live venues follow once the
+  venue's own bracket API is wired.
+
 ## [0.1.0-alpha.129] - 2026-11-12
 
 Build of board task T-184 (branch `feat/settings-rail-cards`): the

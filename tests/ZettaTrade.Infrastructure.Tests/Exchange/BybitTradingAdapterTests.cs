@@ -266,6 +266,26 @@ public sealed class BybitTradingAdapterTests
         var reduceRefusal = await reduceOnly.Should().ThrowAsync<InvalidOperationException>();
         reduceRefusal.Which.Message.Should().Contain("reduce-only");
 
+        // Bracket entry: refused on the bracket gate (T-186) — an entry
+        // carrying its attached take-profit/stop-loss exits; the surface
+        // places single orders only. The gate precedes the request's own
+        // validation, so the payload's leg shapes are not exercised here.
+        var bracket = async () => await stack.Adapter.PlaceOrderAsync(
+            LimitRequest(OrderSide.Buy, 1m, 100m) with
+            {
+                BracketLegs = new BracketLegs
+                {
+                    TakeProfit = LimitRequest(OrderSide.Sell, 1m, 110m) with { OcoGroupId = "oco-bracket" },
+                    StopLoss = LimitRequest(OrderSide.Sell, 1m, 90m) with
+                    {
+                        OcoGroupId = "oco-bracket",
+                        StopPrice = new Price(95m),
+                    },
+                },
+            });
+        var bracketRefusal = await bracket.Should().ThrowAsync<InvalidOperationException>();
+        bracketRefusal.Which.Message.Should().Contain("bracket orders");
+
         stack.Rest.RequestCount.Should().Be(0, "the refusals precede any venue traffic");
         stack.Rest.RequestCount.Should().Be(0, "the refusals precede any venue traffic");
     }

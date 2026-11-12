@@ -1082,6 +1082,124 @@ public sealed class NewOrderDialogViewModelTests
         _journal.GetRecent().Should().ContainSingle(order => order.Id == "paper-tp");
     }
 
+    [Fact]
+    public async Task PlaceOrderCommand_BracketMarketEntry_RiskChecksAllThreeLegsPlacesOneRequestAndClosesOnce()
+    {
+        // Arrange: the bracket places the market entry carrying its two
+        // exits as ONE request — every leg still passes the risk manager
+        // (three reads in the entry, take-profit, stop-loss order), the
+        // ticket asks ONCE naming all three legs, and the dialog closes
+        // once on the adapter's single accepted order.
+        StubReferenceClose(50_000m);
+        var viewModel = CreateViewModel(confirmPaper: true);
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.2";
+        viewModel.SelectedSideIndex = 0; // Buy
+        viewModel.SelectedTypeIndex = BracketModeIndex;
+        viewModel.BracketEntryKindIndex = 0; // the market entry
+        viewModel.BracketTakeProfitInput = "52000"; // the sell take-profit limit beyond the market
+        viewModel.StopTriggerInput = "48000"; // the sell stop trigger strictly below the market
+        viewModel.OcoStopLimitInput = "47900"; // the stop-loss limit under its trigger
+
+        var riskRequests = new List<OrderRequest>();
+        _riskManager.CheckOrderAsync(Arg.Do<OrderRequest>(riskRequests.Add))
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: false));
+        var confirmation = (ConfirmationRequest?)null;
+        _confirmation.RequestConfirmationAsync(Arg.Do<ConfirmationRequest>(c => confirmation = c))
+            .Returns(true);
+
+        var placed = (OrderRequest?)null;
+        _trading.PlaceOrderAsync(Arg.Do<OrderRequest>(r => placed = r))
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+
+        var closes = 0;
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref closes);
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the exits ride the OPPOSITE side with the entry's own
+        // quantity under one either-or group; the entry itself is not a
+        // group member.
+        riskRequests.Should().HaveCount(3);
+        riskRequests[0].Type.Should().Be(OrderType.Market);
+        riskRequests[0].Side.Should().Be(OrderSide.Buy);
+        riskRequests[0].OcoGroupId.Should().BeNull("the entry itself is not an either-or leg");
+        riskRequests[1].Type.Should().Be(OrderType.Limit);
+        riskRequests[1].Side.Should().Be(OrderSide.Sell);
+        riskRequests[1].Price!.Value.Value.Should().Be(52_000m);
+        riskRequests[1].Quantity.Value.Should().Be(riskRequests[0].Quantity.Value);
+        riskRequests[2].Type.Should().Be(OrderType.StopLimit);
+        riskRequests[2].Side.Should().Be(OrderSide.Sell);
+        riskRequests[2].StopPrice!.Value.Value.Should().Be(48_000m);
+        riskRequests[2].Price!.Value.Value.Should().Be(47_900m);
+        riskRequests[1].OcoGroupId.Should().NotBeNullOrEmpty();
+        riskRequests[2].OcoGroupId.Should().Be(riskRequests[1].OcoGroupId);
+
+        await _riskManager.Received(3).CheckOrderAsync(Arg.Any<OrderRequest>());
+        await _confirmation.Received(1).RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+        confirmation!.MessageKey.Should().Be("Trading.ConfirmPlaceBracketDetailedFormat");
+        confirmation!.Arguments.Should().HaveCount(11, "three legs plus the venue/notional/fee economics");
+
+        placed.Should().NotBeNull();
+        placed!.BracketLegs.Should().NotBeNull("the adapter receives the whole bracket as one request");
+        placed!.BracketLegs!.TakeProfit.Price!.Value.Value.Should().Be(52_000m);
+        placed!.BracketLegs!.StopLoss.StopPrice!.Value.Value.Should().Be(48_000m);
+
+        closes.Should().Be(1);
+        viewModel.ErrorMessage.Should().BeNull();
+        viewModel.ResultMessage.Should().Be("[NewOrder.BracketPlaced:paper-test]");
+    }
+
+    [Fact]
+    public async Task PlaceOrderCommand_BracketWithOneRejectedLeg_PlacesNothingAtomically()
+    {
+        // Arrange: the stop-loss leg's risk check refuses — the WHOLE
+        // bracket stays off the wire: no placement call, no confirmation
+        // ask, the rejection named on the summary line, the dialog stays
+        // open with an empty journal.
+        StubReferenceClose(50_000m);
+        var viewModel = CreateViewModel(confirmPaper: true);
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.2";
+        viewModel.SelectedSideIndex = 0; // Buy
+        viewModel.SelectedTypeIndex = BracketModeIndex;
+        viewModel.BracketEntryKindIndex = 0;
+        viewModel.BracketTakeProfitInput = "52000";
+        viewModel.StopTriggerInput = "48000";
+        viewModel.OcoStopLimitInput = "47900";
+
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(call => call.Arg<OrderRequest>().Type == OrderType.StopLimit
+                ? RiskCheckResult.Rejected("stop leg refused")
+                : RiskCheckResult.Approved(requiresConfirmation: false));
+
+        var closes = 0;
+        viewModel.CloseRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref closes);
+            context.SetOutput(ReactiveUI.Primitives.RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: three risk reads (entry, take-profit, stop-loss — the
+        // loop stops at the refusal), nothing else reaches the surface.
+        await _riskManager.Received(3).CheckOrderAsync(Arg.Any<OrderRequest>());
+        await _trading.DidNotReceive().PlaceOrderAsync(Arg.Any<OrderRequest>());
+        await _confirmation.DidNotReceive().RequestConfirmationAsync(Arg.Any<ConfirmationRequest>());
+        viewModel.ErrorMessage.Should().Be("[NewOrder.OrderRejected:stop leg refused]");
+        closes.Should().Be(0, "a refused bracket keeps the dialog open");
+        _journal.GetRecent().Should().BeEmpty();
+    }
+
     private static string FormatArgs(object[] args) => string.Join("|", args);
 
     /// <summary>The fake fetch of the disposal test: it parks forever on the caller's token.</summary>
@@ -1445,6 +1563,9 @@ public sealed class NewOrderDialogViewModelTests
     /// <summary>The combo index of the OCO pair mode (a pair builder, never an OrderType).</summary>
     private const int OcoModeIndex = 4;
 
+    /// <summary>The combo index of the bracket mode (an entry plus its attached exits).</summary>
+    private const int BracketModeIndex = 5;
+
     /// <summary>The type combo's StopLimit slot: the combo skips stop-market, so its indexes never equal the enum's raw values.</summary>
     private const int StopLimitTypeIndex = 2;
 
@@ -1537,6 +1658,29 @@ public sealed class NewOrderDialogViewModelTests
             "[Fees.EstimateMakerFormat:0.50000000]",
             "the take-profit limit leg is expected to rest as maker");
         viewModel.FeeEstimates[1].Should().Be(
+            "[Fees.EstimateTakerFormat:0.96000000]",
+            "the stop-loss leg crosses once it triggers (0.01 × 48 000 at the 20 bps taker rate)");
+    }
+
+    [Fact]
+    public void FeeEstimates_BracketTicket_PricesAllThreeLegsInTheirExpectedRoles()
+    {
+        using var viewModel = CreateViewModel();
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.QuantityInput = "0.01";
+        viewModel.SelectedTypeIndex = BracketModeIndex;
+        viewModel.BracketEntryKindIndex = 0; // the market entry prices at the market reference
+        viewModel.BracketTakeProfitInput = "50000"; // the take-profit limit leg
+        viewModel.OcoStopLimitInput = "48000"; // the stop-loss leg's limit
+
+        viewModel.FeeEstimates.Should().HaveCount(3);
+        viewModel.FeeEstimates[0].Should().Be(
+            "[Fees.EstimateTakerFormat:[Fees.Unknown]]",
+            "the market entry crosses, and the reference is absent offline — the honest dash");
+        viewModel.FeeEstimates[1].Should().Be(
+            "[Fees.EstimateMakerFormat:0.50000000]",
+            "the take-profit limit leg is expected to rest as maker");
+        viewModel.FeeEstimates[2].Should().Be(
             "[Fees.EstimateTakerFormat:0.96000000]",
             "the stop-loss leg crosses once it triggers (0.01 × 48 000 at the 20 bps taker rate)");
     }
