@@ -202,7 +202,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | done | - |
 | T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | done | - |
 | T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | done | - |
-| T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | planned | - |
+| T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | in-progress | - |
 | T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | planned | - |
 | T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/draw-tools-2 | planned | - |
 | T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | planned | - |
@@ -455,7 +455,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-198 — Stocks MVP: a market-data adapter
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** `feat/stocks-mvp` off `develop` (base `b0a35a8`).
 - **Origin:** the sweep — the product identity names "crypto + stocks", no stock venue exists.
 - **What:** a stock `IMarketDataAdapter` over a user-keyed provider (Alpaca market data as the
   candidate: a free tier, keys ride `ISecretStore`); the symbol namespace disambiguates asset
@@ -467,7 +467,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** a stock symbol loads the chart and the watchlist row with the provider's
   honest capability subset; keys never leave `ISecretStore`; the crypto flows are untouched.
 - **Tests:** the adapter battery over a canned-provider stub; the symbol-namespace pins.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-199 — Indicator panes: oscillator sub-charts
 
