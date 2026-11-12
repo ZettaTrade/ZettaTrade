@@ -3015,3 +3015,60 @@ the board and its section below.
   the resting bracket limit entries never fill in the paper sim (no matching loop) —
   parking until cancel is the designed honest behavior. The MCP `place_order` bracket
   payload follows post-UI (the scope's own sequencing).
+
+## T-187 - SL/TP management from the positions panel
+
+- **Branch:** feat/position-sltp, worktree zt-position-sltp, based on
+  develop@fbf8f2e (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — positions carry SL/TP fields (the MCP `get_positions` tool returns
+  them) but the positions panel offers no edit route; no set/modify commands exist in the code.
+- **What:** set, change and clear the protective SL and TP levels per open position from the
+  positions panel; paper-first semantics (a touched level arms through the existing conditional
+  machinery); every change is a validated, confirmed operation under the standing risk rules.
+- **Scope:** Infrastructure (the paper adapter's protective-level mutation), the Core seam only
+  if a contract gap forces it (the supervisor gates the shared interfaces), the positions panel
+  columns + an edit dialog, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** an edit from the panel updates the position's protective state; an SL touch
+  closes the position through the normal fill path; clearing removes the protection; the panel
+  reads the levels it set.
+- **Tests:** the paper protective-level battery (set/change/clear × touch); the headless panel
+  pins.
+- **Status:** done. Canon: the claim `c4f3792`, the feat `2e34b89`, this close commit follows;
+  alpha.130 -> alpha.131; no satellite release rode it (Livery 0.1.11, Plugins 0.3.0
+  untouched). Lane: supervisor-solo (the subagent lane stays closed). Shipped: NO Core
+  interface change — `Order.ReduceOnly` joins the entity, and the paper adapter honors it
+  (`ClampReduceOnlyFillLocked` caps the fill at the opposite-side position the venue reports,
+  a nothing-to-close fill refuses, so a stale protective pair self-cleans on its first
+  trigger instead of flipping into fresh exposure). The protective pair rides the EXISTING
+  conditional machinery as an OCO either-or group of reduce-only legs (TP = a reduce-only
+  limit, SL = a reduce-only stop-limit whose limit equals its trigger) placed through
+  `ProtectiveLevelsService`: the head freshness read, the strict direction matrix against
+  the position's current price (AT-market refuses; an undefined side derives no rule and
+  falls to the honest exit-side refusal), the working-leg scan (reduce-only + opposite side
+  + OCO group), a clear with nothing protected = the localized nothing WITHOUT a
+  confirmation, both legs intrinsically validated and risk-checked ATOMICALLY before any
+  mutation, ONE confirmation (`ForProtect` — the neutral "any existing protective orders on
+  this position will be cancelled" covers set/rewrite/clear), the post-confirmation
+  freshness re-read, cancel-then-place with the already-terminal best-effort cancel, a
+  refused second leg cancelling the placed one and reporting the unprotected state
+  (`ProtectAbortedFormat`), then `ProtectSetFormat`/`ProtectLevelCleared`. The panel grew
+  the SL/TP numeric columns (F8 display, an unprotected cell stays empty) on the widened
+  `*,80,90,110,95,95,140,380` plan and the secondary per-row SL/TP action (the Reverse
+  keeps the single destructive weight); the dialog prefills via `0.00########`, parses
+  invariant, refuses unparsable/non-positive/misdirected input inline (an empty field is
+  the explicit cleared level), and an undefined side never opens it; `get_positions` reads
+  the levels off the working legs (`ProtectiveLevelsForLocked`). Tests: the paper battery
+  (7 facts), the service battery (21: the placement goldens run against the REAL paper
+  adapter — long, short mirrored, rewrite cancel-then-place, clear, the no-op clear, the
+  partial-set rewrite — plus 8 direction theory rows and the gate paths), the dialog VM
+  battery (18) and the surface pins (4: the columns/action/AutomationIds/code-behind
+  handoff + the resx en+ru parity on the 21 keys). GATE PASSED (13 non-blocking warnings:
+  the sequenced `Task.FromResult` stub idioms in the service battery). SMOKE PASSED on the
+  T-166 functional bar: title held through the hold, 0 ERR/FTL, 0 ticker failures, palette
+  refreshed, strategies+indicators provided, ProductVersion 0.1.0-alpha.131+2e34b89.
+  Hazards (recorded, accepted): the cancel-then-place rewrite keeps a brief unprotected gap
+  between its halves — the confirmation names the rewrite and the abort path reports the
+  unprotected state loudly; the battery's stable form stubs `SubscribeTicker` with a real
+  silent subject (an unstubbed substitute lane made two service tests order-dependent —
+  the TP leg was observed Filled between placements; the stub matches the infra battery's
+  precedent and three full-class runs held green).

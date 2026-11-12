@@ -191,7 +191,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | done | - |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | done | - |
 | T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | done | - |
-| T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | in-progress | - |
+| T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | done | - |
 | T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | planned | - |
 | T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | planned | - |
 | T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/paper-tif | planned | - |
@@ -420,25 +420,6 @@ lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by de
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
 
 ---
-
-## T-187 — SL/TP management from the positions panel
-
-- **Branch:** feat/position-sltp, worktree zt-position-sltp, based on
-  develop@fbf8f2e (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
-- **Origin:** the sweep — positions carry SL/TP fields (the MCP `get_positions` tool returns
-  them) but the positions panel offers no edit route; no set/modify commands exist in the code.
-- **What:** set, change and clear the protective SL and TP levels per open position from the
-  positions panel; paper-first semantics (a touched level arms through the existing conditional
-  machinery); every change is a validated, confirmed operation under the standing risk rules.
-- **Scope:** Infrastructure (the paper adapter's protective-level mutation), the Core seam only
-  if a contract gap forces it (the supervisor gates the shared interfaces), the positions panel
-  columns + an edit dialog, resx en+ru, the next free alpha bump + the CHANGELOG section.
-- **Acceptance:** an edit from the panel updates the position's protective state; an SL touch
-  closes the position through the normal fill path; clearing removes the protection; the panel
-  reads the levels it set.
-- **Tests:** the paper protective-level battery (set/change/clear × touch); the headless panel
-  pins.
-- **Status:** in-progress.
 
 ## T-188 — Kill switch: cancel all + flatten all
 
