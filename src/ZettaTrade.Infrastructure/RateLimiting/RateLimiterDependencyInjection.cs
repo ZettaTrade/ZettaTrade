@@ -25,8 +25,9 @@ public static class RateLimiterDependencyInjection
     /// Register the per-adapter REST limiters up front (the adapter factory
     /// lambdas resolve theirs by key during the same registration chain).
     /// Keys are the adapters' named HttpClient identities:
-    /// <see cref="BinanceAdapter.HttpClientName"/> and
-    /// <see cref="BybitAdapter.HttpClientName"/>.
+    /// <see cref="BinanceAdapter.HttpClientName"/>,
+    /// <see cref="BybitAdapter.HttpClientName"/> and
+    /// <see cref="OkxAdapter.HttpClientName"/>.
     /// </summary>
     /// <param name="services">The registration collection.</param>
     public static IServiceCollection AddRestRateLimiters(this IServiceCollection services) =>
@@ -40,5 +41,10 @@ public static class RateLimiterDependencyInjection
                 BybitAdapter.HttpClientName,
                 (sp, _) => new RestRateLimiter(
                     BybitAdapter.DefaultRestLimits,
+                    sp.GetService<ISettingsService>()))
+            .AddKeyedSingleton<IRestRateLimiter>(
+                OkxAdapter.HttpClientName,
+                (sp, _) => new RestRateLimiter(
+                    OkxAdapter.DefaultRestLimits,
                     sp.GetService<ISettingsService>()));
 }

@@ -1,3 +1,49 @@
+## [0.1.0-alpha.138] - 2026-11-13
+
+Build of board task T-194 (branch `feat/okx-adapter`): the OKX spot
+market data adapter — a third live venue beside Binance and Bybit.
+
+### Added
+- The `OkxAdapter`: the OKX v5 public market-data surface on the
+  existing transport stack. One multiplexed WebSocket subscribes the
+  three channel args per symbol (tickers, books, trades) in a single
+  frame; the REST catalog (`/api/v5/public/instruments`, SPOT, one
+  page, `state == "live"` filter) and the candles endpoint
+  (`/api/v5/market/candles`, newest-first all-string rows, confirmed
+  rows only, page walk back through `after=` with the venue's 300-row
+  cap and the shipped five-page bound) ride the same named-client +
+  rate-limiter discipline. The wire instId (`BTC-USDT`) is mapped
+  adapter-locally; Core's Symbol table stays untouched.
+- The depth-free `books` channel: OKX maintains one continuously-updated
+  book (snapshot-then-update with a monotonic `seq`, quantity `0`
+  deletes a level) and carries no depth parameter on the wire — the
+  adapter serves the venue-truthful explicit set `{400}`: deeper
+  requests reject, shallower resolve up through the T-072 resolver.
+  The sequenced book assembler is renamed venue-neutral
+  (`SequencedOrderBookAssembler`) and serves both venues.
+- The 24 h change is computed from the venue's own last/open24h with a
+  zero-open guard; tickers carry the top-of-book (`bidPx`/`askPx`).
+- Control frames (`event` acks and errors), the venue's 30 s literal
+  pings (answered with the literal `pong`) and the adapter-owned 25 s
+  keepalive follow the Bybit discipline.
+- The toolbar's venue switcher, the palette and the watchlist pick the
+  third venue up with no special-casing: the facade catalog gains the
+  OKX entry, the trading-mode lane resolves it to paper automatically,
+  and the endpoint pair (`Exchange/OKX`) joins the settings port.
+
+### Tests
+- The adapter-kit battery rides a new OKX pack (canned REST catalog +
+  two transcript sessions): 8/8 legs; the kit suite is 32/32. The
+  battery's third-depth check now skips packs whose book-topic text
+  encodes no depth (a depth-free wire cannot carry a third depth).
+- The Infrastructure suite adds 29 OKX facts: the REST parsing surface
+  (19: envelope code gate, newest-first ascending candles, confirmed
+  rows only, page walk, page cap, venue page clamp, timeframe grammar,
+  limit guard) and the WS e2e family (10: subscribe-args pin,
+  snapshot/update book, gap recovery, reconnect re-subscribe, control
+  error logging, literal ping/pong, depth contract) over the in-process
+  loopback rig.
+
 ## [0.1.0-alpha.137] - 2026-11-12
 
 Build of board task T-193 (branch `feat/binance-trading`): the Binance

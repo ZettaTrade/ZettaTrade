@@ -44,6 +44,7 @@ public static class ExchangeAdaptersDependencyInjection
             .AddRestRateLimiters()
             .AddBinanceAdapter()
             .AddBybitAdapter()
+            .AddOkxAdapter()
             .AddDemoAdapter();
     }
 
@@ -129,6 +130,37 @@ public static class ExchangeAdaptersDependencyInjection
                 sp.GetRequiredService<ExchangeEndpointRegistry>().Bybit,
                 reconnectSupervisor: sp.GetService<ReconnectSupervisor>(),
                 restLimiter: sp.GetRequiredKeyedService<IRestRateLimiter>(BybitAdapter.HttpClientName)));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Register the OKX market data adapter (mirrored on the Bybit
+    /// registration: adapter-owned timeout, transparent decompression,
+    /// endpoints from the <see cref="ExchangeEndpointRegistry"/> snapshot).
+    /// Concrete-type registration: the App-side active-exchange wiring owns
+    /// the single <c>IMarketDataAdapter</c> entry point, so the adapter
+    /// itself must not claim the interface descriptor.
+    /// </summary>
+    public static IServiceCollection AddOkxAdapter(this IServiceCollection services)
+    {
+        services.AddHttpClient(OkxAdapter.HttpClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(OkxAdapter.RequestTimeoutSeconds);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip
+                | DecompressionMethods.Deflate
+                | DecompressionMethods.Brotli,
+        });
+        services.AddSingleton<OkxAdapter>(sp =>
+            new OkxAdapter(
+                sp.GetRequiredService<ILogger<OkxAdapter>>(),
+                sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetRequiredService<ExchangeEndpointRegistry>().Okx,
+                reconnectSupervisor: sp.GetService<ReconnectSupervisor>(),
+                restLimiter: sp.GetRequiredKeyedService<IRestRateLimiter>(OkxAdapter.HttpClientName)));
 
         return services;
     }

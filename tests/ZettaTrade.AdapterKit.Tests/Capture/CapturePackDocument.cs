@@ -63,7 +63,10 @@ public sealed record CapturePackDocument
     /// <c>{symbol}</c> (the exchange-format text verbatim),
     /// <c>{symbolLower}</c> (the exchange format lowercased — the venue's
     /// stream-name casing) and <c>{depth}</c> (the served depth) are
-    /// substituted by the battery.
+    /// substituted by the battery. A template may be a literal (no
+    /// placeholders) for depth-free wire dialects — OKX's books channel
+    /// carries no depth parameter — and then the battery's third-depth check
+    /// is skipped for this pack (there is no third depth on such a wire).
     /// </summary>
     public string? BookTopicTemplate { get; init; }
 

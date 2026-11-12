@@ -11,20 +11,20 @@ using Infrastructure.Exchange;
 using Xunit;
 
 /// <summary>
-/// Tests for the <see cref="BybitOrderBookAssembler"/> state machine: a
+/// Tests for the <see cref="SequencedOrderBookAssembler"/> state machine: a
 /// snapshot rebuilds, a delta applies only when the sequence continues
 /// (quantity "0" deletes a level), a stale sequence is skipped without a
 /// state change, and a gap discards the state (the adapter re-subscribes and
 /// the next snapshot rebuilds). Depth is capped best-priced-first.
 /// </summary>
-public sealed class BybitOrderBookAssemblerTests
+public sealed class SequencedOrderBookAssemblerTests
 {
     private static readonly Symbol BtcUsdt = new("btc", "usdt", AssetClass.Crypto);
 
     private static readonly DateTimeOffset Timestamp =
         DateTimeOffset.FromUnixTimeMilliseconds(1700000000100);
 
-    private static BybitOrderBookAssembler CreateAssembler(int maxDepth = 50) =>
+    private static SequencedOrderBookAssembler CreateAssembler(int maxDepth = 50) =>
         new(BtcUsdt, maxDepth);
 
     private static List<PriceLevel> Levels(params (decimal Price, decimal Quantity)[] pairs) =>
@@ -41,7 +41,7 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((102m, 1m), (101.5m, 3m)),
             Timestamp);
 
-        apply.Outcome.Should().Be(BybitOrderBookOutcome.Applied);
+        apply.Outcome.Should().Be(SequencedBookOutcome.Applied);
         apply.Book!.Symbol.Should().Be(BtcUsdt);
         apply.Book.Timestamp.Should().Be(Timestamp);
         apply.Book.Bids.Should().Equal(Levels((101m, 2m), (100m, 1m)));
@@ -79,7 +79,7 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((101.5m, 5m)),
             Timestamp);
 
-        apply.Outcome.Should().Be(BybitOrderBookOutcome.Applied);
+        apply.Outcome.Should().Be(SequencedBookOutcome.Applied);
         apply.Book!.Bids.Should().Equal(Levels((100m, 1m), (99m, 4m)));
         apply.Book.Asks.Should().Equal(Levels((101m, 3m), (101.5m, 5m)));
     }
@@ -100,7 +100,7 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((101m, 0m)),
             Timestamp);
 
-        apply.Outcome.Should().Be(BybitOrderBookOutcome.Applied);
+        apply.Outcome.Should().Be(SequencedBookOutcome.Applied);
         apply.Book!.Bids.Should().Equal(Levels((99m, 2m)));
         apply.Book.Asks.Should().BeEmpty();
     }
@@ -120,7 +120,7 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((90m, 9m)),
             Levels((110m, 9m)),
             Timestamp);
-        stale.Outcome.Should().Be(BybitOrderBookOutcome.StaleSkipped);
+        stale.Outcome.Should().Be(SequencedBookOutcome.StaleSkipped);
 
         // A duplicate of an already-applied sequence is stale too.
         var older = assembler.ApplyDelta(
@@ -128,7 +128,7 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((95m, 9m)),
             Levels((115m, 9m)),
             Timestamp);
-        older.Outcome.Should().Be(BybitOrderBookOutcome.StaleSkipped);
+        older.Outcome.Should().Be(SequencedBookOutcome.StaleSkipped);
 
         // The next continuing delta publishes the untouched state.
         var alive = assembler.ApplyDelta(
@@ -136,7 +136,7 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((99m, 4m)),
             Levels((101.5m, 5m)),
             Timestamp);
-        alive.Outcome.Should().Be(BybitOrderBookOutcome.Applied);
+        alive.Outcome.Should().Be(SequencedBookOutcome.Applied);
         alive.Book!.Bids.Should().Equal(Levels((100m, 1m), (99m, 4m)));
         alive.Book.Asks.Should().Equal(Levels((101m, 3m), (101.5m, 5m)));
     }
@@ -152,7 +152,7 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((101m, 3m)),
             Timestamp);
 
-        apply.Outcome.Should().Be(BybitOrderBookOutcome.GapDetected);
+        apply.Outcome.Should().Be(SequencedBookOutcome.GapDetected);
 
         // After the gap the state is gone: only a snapshot restarts it.
         var restart = assembler.ApplySnapshot(
@@ -160,14 +160,14 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((100m, 1m)),
             Levels((101m, 3m)),
             Timestamp);
-        restart.Outcome.Should().Be(BybitOrderBookOutcome.Applied);
+        restart.Outcome.Should().Be(SequencedBookOutcome.Applied);
 
         var continued = assembler.ApplyDelta(
             8,
             Levels((100m, 2m)),
             [],
             Timestamp);
-        continued.Outcome.Should().Be(BybitOrderBookOutcome.Applied);
+        continued.Outcome.Should().Be(SequencedBookOutcome.Applied);
         continued.Book!.Bids.Should().Equal(Levels((100m, 2m)));
     }
 
@@ -187,7 +187,7 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((110m, 9m)),
             Timestamp);
 
-        gap.Outcome.Should().Be(BybitOrderBookOutcome.GapDetected);
+        gap.Outcome.Should().Be(SequencedBookOutcome.GapDetected);
         gap.Book.Should().BeNull();
 
         // The state must not silently revive from the gap frame: the next
@@ -197,6 +197,6 @@ public sealed class BybitOrderBookAssemblerTests
             Levels((100m, 1m)),
             Levels((101m, 3m)),
             Timestamp);
-        afterGap.Outcome.Should().Be(BybitOrderBookOutcome.GapDetected);
+        afterGap.Outcome.Should().Be(SequencedBookOutcome.GapDetected);
     }
 }

@@ -155,7 +155,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     private readonly SemaphoreSlim _sendGate = new(1, 1);
 
     /// <summary>Order book state machines keyed by the normalized symbol.</summary>
-    private readonly ConcurrentDictionary<string, BybitOrderBookAssembler> _bookAssemblers = new();
+    private readonly ConcurrentDictionary<string, SequencedOrderBookAssembler> _bookAssemblers = new();
 
     /// <summary>Currently subscribed symbols keyed by the exchange-format name (the reconnect re-subscribe set).</summary>
     private readonly ConcurrentDictionary<string, Symbol> _subscribedSymbols = new();
@@ -757,7 +757,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
         var assembler = _bookAssemblers.GetOrAdd(
             symbol.Normalized,
-            _ => new BybitOrderBookAssembler(symbol, DepthLevelCount));
+            _ => new SequencedOrderBookAssembler(symbol, DepthLevelCount));
 
         var apply = type == FrameTypes.Snapshot
             ? assembler.ApplySnapshot(sequence, bids, asks, receivedAt)
@@ -765,15 +765,15 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
         switch (apply.Outcome)
         {
-            case BybitOrderBookOutcome.Applied:
+            case SequencedBookOutcome.Applied:
                 PublishOrderBook(apply.Book!);
                 break;
 
-            case BybitOrderBookOutcome.StaleSkipped:
+            case SequencedBookOutcome.StaleSkipped:
                 // A benign server race; the state is untouched.
                 break;
 
-            case BybitOrderBookOutcome.GapDetected:
+            case SequencedBookOutcome.GapDetected:
                 Logger.LogWarning(
                     "Bybit order book gap for {Symbol} at u={Sequence}; the state is discarded and the topic re-subscribed",
                     symbol.Normalized,

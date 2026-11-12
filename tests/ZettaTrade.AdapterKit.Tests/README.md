@@ -43,8 +43,12 @@ the kit asserts — the battery refuses to guess:
   `rejectedDepthRequest` the rejection leg attaches) or `clamped` (with the
   `clampedServedDepth` anchor); `depthProbeRequests` are the raw requests
   the T-072 resolution leg probes.
-- `bookTopicPrefix` / `subscribeMarker` — the wire dialect facts the
-  transcript legs need.
+- `bookTopicPrefix` / `bookTopicTemplate` / `subscribeMarker` — the wire
+  dialect facts the transcript legs need. A template carries the
+  `{symbol}`, `{symbolLower}` and `{depth}` placeholders; a literal
+  template (no placeholders, e.g. OKX's depth-free books channel) is
+  legitimate, and the battery then skips the third-depth check — such a
+  wire cannot carry a third depth.
 - `reconnectMode` — `transcript` (recorded sessions, see below) or
   `always-on` (nothing drops).
 - `transcriptSessions` — the recorded session files with the expected

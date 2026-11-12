@@ -87,6 +87,7 @@ public static class ActiveExchangeDependencyInjection
                 sp.GetRequiredService<DemoMarketDataAdapter>(),
                 sp.GetRequiredService<BinanceAdapter>(),
                 sp.GetRequiredService<BybitAdapter>(),
+                sp.GetRequiredService<OkxAdapter>(),
             ];
             return new ActiveExchangeService(
                 ApplyAdapterAllowlist(

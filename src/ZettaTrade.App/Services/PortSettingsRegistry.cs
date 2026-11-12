@@ -229,6 +229,7 @@ public static class PortSettingsRegistry
         // endpoint registry overrides its shipped production pairs with.
         UrlPairs(ExchangeEndpointRegistry.SettingsSection, ExchangeEndpointRegistry.BinanceKey, BinanceEndpoints.Production),
         UrlPairs(ExchangeEndpointRegistry.SettingsSection, ExchangeEndpointRegistry.BybitKey, BybitEndpoints.Production),
+        UrlPairs(ExchangeEndpointRegistry.SettingsSection, ExchangeEndpointRegistry.OkxKey, OkxEndpoints.Production),
 
         // The AI module (Ollama endpoint + model tag, the local-first chat).
         Text(AiSettingsKeys.Section, AiSettingsKeys.OllamaUrl, json: Json(AiSettingsKeys.DefaultOllamaUrl)),
