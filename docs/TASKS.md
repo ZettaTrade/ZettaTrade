@@ -198,7 +198,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | done | - |
 | T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | done | - |
 | T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | done | - |
-| T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | in-progress | - |
+| T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | done | - |
 | T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | planned | - |
 | T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | planned | - |
 | T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | planned | - |
@@ -451,21 +451,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
   were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
   new user-facing UI string was introduced.
-
-## T-194 — Third venue: OKX market data
-
-- **Branch:** `zt-okx-adapter` off `develop` (the 2026-11-12 backlog sweep; base `bbc927c`).
-- **Origin:** the sweep — Binance, Bybit and the demo adapter ship; a third venue exercises the
-  seam and widens the conformance kit.
-- **What:** an OKX spot `IMarketDataAdapter` (public REST catalog + klines, WS tickers, depth,
-  trades) riding the existing transport, reconnect and rate-limiter stack; the toolbar
-  switcher, the palette and the watchlist pick it up with no special-casing.
-- **Scope:** Infrastructure adapter, the settings endpoint pair (`Exchange/OKX`), the
-  adapter-kit battery extension, resx en+ru, the next free alpha bump + the CHANGELOG section.
-- **Acceptance:** the conformance battery passes; the venue switcher lists OKX; the workspace
-  symbol flow (chart, book, tape) works end to end against it.
-- **Tests:** the adapter-kit battery; the e2e WS loopback pins (the T-020 harness shape).
-- **Status:** in-progress.
 
 ## T-195 — Market screener panel
 
