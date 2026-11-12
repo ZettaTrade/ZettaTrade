@@ -197,7 +197,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/tif-simulation | done | - |
 | T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | done | - |
 | T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | done | - |
-| T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | planned | - |
+| T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | in-progress | - |
 | T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | planned | - |
 | T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | planned | - |
 | T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | planned | - |
@@ -436,7 +436,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** the conformance battery passes against the loopback stub; the arming gate
   matches the Bybit adapter's discipline verbatim; no key ever reaches a log or an argument.
 - **Tests:** the adapter-kit battery for the new adapter; the arming-gate pins.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-194 — Third venue: OKX market data
 
