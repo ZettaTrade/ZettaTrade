@@ -3456,3 +3456,35 @@ the board and its section below.
   e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
   were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
   new user-facing UI string was introduced.
+
+## T-194 — Third venue: OKX market data
+
+- **Branch:** `zt-okx-adapter` off `develop` (the 2026-11-12 backlog sweep; claim commit
+  `df7d5e5`, base `bbc927c`).
+- **Origin:** the sweep — Binance, Bybit and the demo adapter ship; a third venue exercises the
+  seam and widens the conformance kit.
+- **What:** an OKX spot `IMarketDataAdapter` (public REST catalog + klines, WS tickers, depth,
+  trades) riding the existing transport, reconnect and rate-limiter stack; the toolbar
+  switcher, the palette and the watchlist pick it up with no special-casing.
+- **Scope:** Infrastructure adapter, the settings endpoint pair (`Exchange/OKX`), the
+  adapter-kit battery extension, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** the conformance battery passes; the venue switcher lists OKX; the workspace
+  symbol flow (chart, book, tape) works end to end against it.
+- **Tests:** the adapter-kit battery; the e2e WS loopback pins (the T-020 harness shape).
+- **Status:** done — shipped as 0.1.0-alpha.138. The adapter mirrors the Bybit structure on
+  the OKX v5 public wire: one multiplexed WebSocket with the three channel args per symbol
+  (tickers, books, trades), control frames on the `event` member, the venue's 30 s literal
+  pings answered with the literal `pong`, the adapter-owned 25 s keepalive, the REST catalog
+  (`/api/v5/public/instruments`, SPOT, one page, `state == "live"`) and the candles page walk
+  (`/api/v5/market/candles`, newest-first all-string rows, confirmed rows only, the `after=`
+  cursor, the venue's 300-row cap under the shipped five-page bound). The depth-free `books`
+  channel serves the venue-truthful explicit set `{400}` (deeper requests reject, shallower
+  resolve up through the T-072 resolver); the sequenced book assembler is renamed
+  venue-neutral (`SequencedOrderBookAssembler`) and serves both venues; the wire instId
+  (`BTC-USDT`) is mapped adapter-locally so Core stays untouched. Kit battery 8/8 (kit suite
+  32/32; the battery's third-depth check now skips packs whose book-topic text encodes no
+  depth — such a wire cannot carry a third depth); Infrastructure 29 facts (19 REST parsing
+  + 10 WS e2e); the endpoint pair (`Exchange/OKX`) joined the registry and the settings port,
+  the facade catalog grew the OKX entry, and the trading-mode lane resolves it to paper with
+  no special-casing. No resx keys were added: the adapter name stays hardcoded like
+  Binance/Bybit (the T-193/T-127 precedent) and no new user-facing UI string was introduced.
