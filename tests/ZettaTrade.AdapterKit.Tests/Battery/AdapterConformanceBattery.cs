@@ -273,7 +273,7 @@ public abstract class AdapterConformanceBattery
                              frame.Contains(expectedTopic, StringComparison.Ordinal),
                     EventWait);
 
-                if (probe != resolved)
+                if (probe != resolved && TopicTextEncodesDepth())
                 {
                     server.SnapshotFrames().Should().NotContain(
                         frame => frame.Contains(ExpectedBookTopic(probe), StringComparison.Ordinal),
@@ -299,7 +299,7 @@ public abstract class AdapterConformanceBattery
                              frame.Contains(expectedTopic, StringComparison.Ordinal),
                     EventWait);
 
-                if (probe != resolved)
+                if (probe != resolved && TopicTextEncodesDepth())
                 {
                     server.SnapshotFrames().Should().NotContain(
                         frame => frame.Contains(ExpectedBookTopic(probe), StringComparison.Ordinal),
@@ -566,6 +566,20 @@ public abstract class AdapterConformanceBattery
                 .Replace("{depth}", depth.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
             : $"{_pack.BookTopicPrefix}{depth}.{symbolText}";
     }
+
+    /// <summary>
+    /// Whether this pack's matched book-topic text ENCODES the served depth:
+    /// the prefix dialect always does (<c>prefix{depth}.{symbol}</c>), a
+    /// template only when it carries the <c>{depth}</c> placeholder. A
+    /// depth-free template is a legitimate wire dialect (OKX's books channel
+    /// carries no depth parameter) — and there the "the raw request is never
+    /// a third depth" check is vacuous by construction: every subscribe
+    /// frame looks identical for every depth, and the wire cannot carry a
+    /// third one.
+    /// </summary>
+    private bool TopicTextEncodesDepth() =>
+        _pack.BookTopicTemplate is null ||
+        _pack.BookTopicTemplate.Contains("{depth}", StringComparison.Ordinal);
 
     /// <summary>The pack's served set text exactly as the adapter's own rejection strings it.</summary>
     private string ServedDepthsText() => string.Join(", ", ServedDepthSet()!.OrderBy(depth => depth));

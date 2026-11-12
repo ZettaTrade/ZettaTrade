@@ -1,0 +1,23 @@
+{
+  "adapterId": "okx",
+  "adapterName": "OKX",
+  "capabilities": "MarketData | OrderBook | HistoricalData",
+  "connectsAtConstruction": false,
+  "symbols": [ "BTC/USDT", "ETH/USDT" ],
+  "strangerSymbol": "DOGE/GBP",
+  "clientSideGuards": [ "blank-endpoints", "bars-limit" ],
+  "depthProfile": "explicit-set",
+  "servedBookDepths": [ 400 ],
+  "depthProbeRequests": [ 20, 400 ],
+  "rejectedDepthRequest": 500,
+  "bookTopicTemplate": "\"channel\":\"books\",\"instId\":\"BTC-USDT\"",
+  "subscribeMarker": "\"op\":\"subscribe\"",
+  "reconnectMode": "transcript",
+  "transcriptSessions": [
+    { "script": "Session1.json", "tickerPrice": 50000.5 },
+    { "script": "Session2.json", "tickerPrice": 50001.5 }
+  ],
+  "cannedRest": {
+    "/api/v5/public/instruments": "RestCatalog.json"
+  }
+}

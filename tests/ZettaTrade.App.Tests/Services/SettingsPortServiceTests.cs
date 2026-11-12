@@ -158,6 +158,16 @@ public sealed class SettingsPortServiceTests
             .Should().BeTrue("the pre-lane two-string shape keeps importing (older exports stay valid)");
         PortSettingsRegistry.IsValueValid(key, foreign.RootElement)
             .Should().BeFalse("only the isTestnet member may ride a boolean");
+
+        // The OKX pair shares the exact same record shape under its own key.
+        var okxKey = PortSettingsRegistry.TryGet(
+            ExchangeEndpointRegistry.SettingsSection,
+            ExchangeEndpointRegistry.OkxKey)!;
+        okxKey.Should().NotBeNull();
+        PortSettingsRegistry.IsValueValid(okxKey, identity.RootElement)
+            .Should().BeTrue("the OKX record carries the same shipped shape as its siblings");
+        PortSettingsRegistry.IsValueValid(okxKey, foreign.RootElement)
+            .Should().BeFalse("the shape gate stays narrow on every vendor key");
     }
 
     #endregion Endpoint records' shape
@@ -303,6 +313,10 @@ public sealed class SettingsPortServiceTests
             ExchangeEndpointRegistry.SettingsSection,
             ExchangeEndpointRegistry.BybitKey,
             new BybitEndpoints("https://rest.bybit-test.example", "wss://ws.bybit-test.example"));
+        await settings.SetAsync(
+            ExchangeEndpointRegistry.SettingsSection,
+            ExchangeEndpointRegistry.OkxKey,
+            new OkxEndpoints("https://rest.okx-test.example", "wss://ws.okx-test.example"));
 
         await settings.SetAsync(RestRateLimiterOptions.SettingsSection, RestRateLimiter.EnabledKey, false);
         await settings.SetAsync(RestRateLimiterOptions.SettingsSection, RestRateLimiter.BackgroundShareKey, 0.5);

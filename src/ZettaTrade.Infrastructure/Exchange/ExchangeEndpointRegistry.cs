@@ -32,6 +32,9 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
     /// <summary>Settings key carrying the Bybit endpoint record.</summary>
     public const string BybitKey = "Bybit";
 
+    /// <summary>Settings key carrying the OKX endpoint record.</summary>
+    public const string OkxKey = "OKX";
+
     private readonly ILogger<ExchangeEndpointRegistry> _logger;
     private readonly ISettingsService _settings;
 
@@ -60,11 +63,18 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
     /// </summary>
     public BybitEndpoints Bybit { get; private set; } = BybitEndpoints.Production;
 
+    /// <summary>
+    /// OKX adapter endpoints: shipped production defaults until an
+    /// initialized settings override (same semantics as <see cref="Binance"/>).
+    /// </summary>
+    public OkxEndpoints Okx { get; private set; } = OkxEndpoints.Production;
+
     /// <inheritdoc/>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
         ReadBinanceEndpoints(await _settings.GetAsync<BinanceEndpoints?>(SettingsSection, BinanceKey));
         ReadBybitEndpoints(await _settings.GetAsync<BybitEndpoints?>(SettingsSection, BybitKey));
+        ReadOkxEndpoints(await _settings.GetAsync<OkxEndpoints?>(SettingsSection, OkxKey));
     }
 
     /// <summary>
@@ -117,6 +127,32 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
         }
 
         Bybit = configured;
+        _logger.LogInformation(
+            "Exchange endpoints configured: rest {RestBaseUrl}, ws {WsUrl}",
+            configured.RestBaseUrl,
+            configured.WsUrl);
+    }
+
+    /// <summary>
+    /// Apply the OKX override under the same semantics as the Binance one.
+    /// </summary>
+    private void ReadOkxEndpoints(OkxEndpoints? configured)
+    {
+        if (configured is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(configured.RestBaseUrl) ||
+            string.IsNullOrWhiteSpace(configured.WsUrl))
+        {
+            _logger.LogWarning(
+                "Exchange:{Key} endpoint override is incomplete; the shipped production endpoints stay in use",
+                OkxKey);
+            return;
+        }
+
+        Okx = configured;
         _logger.LogInformation(
             "Exchange endpoints configured: rest {RestBaseUrl}, ws {WsUrl}",
             configured.RestBaseUrl,

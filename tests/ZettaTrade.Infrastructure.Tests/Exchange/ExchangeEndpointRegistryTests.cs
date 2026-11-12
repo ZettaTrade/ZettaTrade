@@ -140,6 +140,86 @@ public sealed class ExchangeEndpointRegistryTests
         new(_settings, NullLogger<ExchangeEndpointRegistry>.Instance);
 
     [Fact]
+    public async Task InitializeAsync_OkxOverrideComplete_ServesTheOverrideAndLeavesSiblingsAlone()
+    {
+        // Arrange: a complete OKX override while Binance and Bybit stay
+        // unconfigured — each vendor's entry resolves independently.
+        var configured = new OkxEndpoints(
+            "https://okx.stub.tld",
+            "wss://ws.okx.stub.tld:8443/ws/v5/public");
+        _settings.GetAsync<OkxEndpoints?>(Arg.Any<string>(), Arg.Any<string>())
+            .Returns(configured);
+        _settings.GetAsync<BinanceEndpoints?>(Arg.Any<string>(), Arg.Any<string>())
+            .Returns((BinanceEndpoints?)null);
+        _settings.GetAsync<BybitEndpoints?>(Arg.Any<string>(), Arg.Any<string>())
+            .Returns((BybitEndpoints?)null);
+        var registry = CreateRegistry();
+
+        // Act
+        await registry.InitializeAsync();
+
+        // Assert
+        registry.Okx.Should().Be(
+            configured,
+            "a complete override replaces the shipped defaults");
+        registry.Binance.Should().Be(
+            BinanceEndpoints.Production,
+            "an unconfigured sibling vendor keeps its shipped defaults silently");
+        registry.Bybit.Should().Be(
+            BybitEndpoints.Production,
+            "an unconfigured sibling vendor keeps its shipped defaults silently");
+    }
+
+    [Fact]
+    public async Task InitializeAsync_OkxOverrideIncomplete_WarnsAndKeepsProductionEndpoints()
+    {
+        // Arrange: a partial override (blank members) — hidden-safe degradation.
+        var configured = new OkxEndpoints(string.Empty, "wss://ws.stub.tld:8443/ws/v5/public");
+        _settings.GetAsync<OkxEndpoints?>(Arg.Any<string>(), Arg.Any<string>())
+            .Returns(configured);
+        var registry = CreateRegistry();
+
+        // Act
+        await registry.InitializeAsync();
+
+        // Assert
+        registry.Okx.Should().Be(
+            OkxEndpoints.Production,
+            "an incomplete override is a warning plus the shipped defaults");
+    }
+
+    [Fact]
+    public async Task InitializeAsync_OkxRealSettingsFile_ServesTheConfiguredOverride()
+    {
+        // Arrange: a REAL SettingsService bound to a real temp JSON file in
+        // the exact shape the app writes it — the file-backed pass for the
+        // OKX record (the NSub stub above skips real deserialization).
+        var path = Path.Combine(Path.GetTempPath(), $"t194-{Guid.NewGuid():N}.json");
+        try
+        {
+            await File.WriteAllTextAsync(path,
+                "{\"Exchange\":{\"OKX\":{\"restBaseUrl\":\"https://real.okx.tld\",\"wsUrl\":\"wss://real.okx.tld:8443/ws/v5/public\"}}}");
+            var settings = new SettingsService(path, NullLogger<SettingsService>.Instance);
+            await settings.InitializeAsync();
+
+            var registry = new ExchangeEndpointRegistry(settings, NullLogger<ExchangeEndpointRegistry>.Instance);
+
+            // Act
+            await registry.InitializeAsync();
+
+            // Assert
+            registry.Okx.RestBaseUrl.Should().Be(
+                "https://real.okx.tld",
+                "an end-to-end file-backed read must serve the override");
+            registry.Okx.WsUrl.Should().Be("wss://real.okx.tld:8443/ws/v5/public");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task InitializeAsync_WithoutConfiguredSection_KeepsProductionEndpoints()
     {
         // Arrange: no Exchange section in the settings file — the common case.
@@ -154,6 +234,8 @@ public sealed class ExchangeEndpointRegistryTests
         registry.Binance.Should().Be(
             BinanceEndpoints.Production,
             "a missing section is hidden-safe: shipped defaults win silently");
+        registry.Bybit.Should().Be(BybitEndpoints.Production);
+        registry.Okx.Should().Be(OkxEndpoints.Production);
     }
 
     [Fact]

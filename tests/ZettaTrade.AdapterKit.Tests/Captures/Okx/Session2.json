@@ -1,0 +1,5 @@
+[
+  "{\"arg\":{\"channel\":\"tickers\",\"instId\":\"BTC-USDT\"},\"data\":[{\"instId\":\"BTC-USDT\",\"last\":\"50001.5\",\"bidPx\":\"50001\",\"askPx\":\"50002\",\"vol24h\":\"13.5\",\"open24h\":\"47620\",\"ts\":\"1900000011000\"}]}",
+  "{\"arg\":{\"channel\":\"books\",\"instId\":\"BTC-USDT\"},\"data\":[{\"action\":\"snapshot\",\"asks\":[[\"50002\",\"2.0\",\"0\",\"1\"]],\"bids\":[[\"50001\",\"1.0\",\"0\",\"1\"]],\"checksum\":0,\"prevSeq\":199,\"seq\":200,\"ts\":\"1900000012000\"}]}",
+  "{\"arg\":{\"channel\":\"trades\",\"instId\":\"BTC-USDT\"},\"data\":[{\"instId\":\"BTC-USDT\",\"tradeId\":\"trade-2\",\"px\":\"50001.5\",\"sz\":\"0.06\",\"side\":\"sell\",\"ts\":\"1900000013000\"}]}"
+]

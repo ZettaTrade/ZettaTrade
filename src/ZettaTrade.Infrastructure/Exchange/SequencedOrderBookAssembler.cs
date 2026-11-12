@@ -6,9 +6,9 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
-/// Outcome of an <see cref="BybitOrderBookAssembler"/> apply.
+/// Outcome of an <see cref="SequencedOrderBookAssembler"/> apply.
 /// </summary>
-internal enum BybitOrderBookOutcome
+internal enum SequencedBookOutcome
 {
     /// <summary>The frame applied and the rebuilt book is published.</summary>
     Applied,
@@ -20,25 +20,26 @@ internal enum BybitOrderBookOutcome
     GapDetected,
 }
 
-/// <summary>An apply outcome plus the rebuilt book (<see cref="BybitOrderBookOutcome.Applied"/> only).</summary>
-internal sealed record BybitOrderBookApply(
-    BybitOrderBookOutcome Outcome,
+/// <summary>An apply outcome plus the rebuilt book (<see cref="SequencedBookOutcome.Applied"/> only).</summary>
+internal sealed record SequencedBookApply(
+    SequencedBookOutcome Outcome,
     OrderBook? Book);
 
 /// <summary>
-/// Order book state machine for the Bybit v5 <c>orderbook.{depth}</c> stream
-/// over ONE symbol: a <c>snapshot</c> frame replaces the whole state, a
-/// <c>delta</c> frame applies only when its sequence number continues the
-/// previous one (<c>u == last + 1</c>; each level carries the new full
-/// quantity, quantity <c>"0"</c> deletes the price level), and a detected gap
-/// discards the state — the adapter then re-subscribes the topic and the
-/// server's fresh snapshot rebuilds from scratch. Every applied frame
-/// publishes the FULL rebuilt depth, capped at the subscribed depth (the
-/// best-priced levels win: highest bids, lowest asks).
+/// Order book state machine for a sequenced, snapshot-then-delta depth
+/// stream over ONE symbol (the shape Bybit v5's <c>orderbook.{depth}</c> and
+/// OKX v5's <c>books</c> channel share): a <c>snapshot</c> frame replaces the
+/// whole state, a <c>delta</c> frame applies only when its sequence number
+/// continues the previous one (<c>seq == last + 1</c>; each level carries the
+/// new full quantity, quantity <c>"0"</c> deletes the price level), and a
+/// detected gap discards the state — the adapter then re-subscribes the
+/// topic and the server's fresh snapshot rebuilds from scratch. Every
+/// applied frame publishes the FULL rebuilt depth, capped at the subscribed
+/// depth (the best-priced levels win: highest bids, lowest asks).
 /// </summary>
 /// <param name="Symbol">The symbol this state machine belongs to.</param>
 /// <param name="MaxDepth">Published level cap per side.</param>
-internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
+internal sealed class SequencedOrderBookAssembler(Symbol symbol, int maxDepth)
 {
     private readonly SortedDictionary<decimal, decimal> _bids = new(DescendingComparer);
     private readonly SortedDictionary<decimal, decimal> _asks = new(Comparer<decimal>.Default);
@@ -59,7 +60,7 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
     /// <param name="receivedAt">The frame's local receive moment at the
     /// adapter's ingestion point (T-142) — carried verbatim into the
     /// rebuilt book's <see cref="OrderBook.Timestamp"/>.</param>
-    public BybitOrderBookApply ApplySnapshot(
+    public SequencedBookApply ApplySnapshot(
         long sequence,
         IReadOnlyList<PriceLevel> bids,
         IReadOnlyList<PriceLevel> asks,
@@ -95,13 +96,13 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
     /// Apply a <c>delta</c> frame: only when the sequence continues the
     /// previous frame. A stale sequence is skipped silently (a server race,
     /// far too frequent to log), a gap discards the state and reports
-    /// <see cref="BybitOrderBookOutcome.GapDetected"/> so the adapter can
+    /// <see cref="SequencedBookOutcome.GapDetected"/> so the adapter can
     /// re-subscribe the topic.
     /// </summary>
     /// <param name="receivedAt">The frame's local receive moment at the
     /// adapter's ingestion point (T-142) — carried verbatim into the
     /// rebuilt book's <see cref="OrderBook.Timestamp"/>.</param>
-    public BybitOrderBookApply ApplyDelta(
+    public SequencedBookApply ApplyDelta(
         long sequence,
         IReadOnlyList<PriceLevel> bids,
         IReadOnlyList<PriceLevel> asks,
@@ -110,12 +111,12 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
         if (!_hasSnapshot || sequence > _lastSequence + 1)
         {
             Reset();
-            return new(BybitOrderBookOutcome.GapDetected, null);
+            return new(SequencedBookOutcome.GapDetected, null);
         }
 
         if (sequence <= _lastSequence)
         {
-            return new(BybitOrderBookOutcome.StaleSkipped, null);
+            return new(SequencedBookOutcome.StaleSkipped, null);
         }
 
         // Quantity 0 is Bybit's "delete this price level"; every other value
@@ -159,7 +160,7 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
         }
     }
 
-    private BybitOrderBookApply BuildApplied(DateTimeOffset receivedAt)
+    private SequencedBookApply BuildApplied(DateTimeOffset receivedAt)
     {
         Cap(_bids);
         Cap(_asks);
@@ -177,7 +178,7 @@ internal sealed class BybitOrderBookAssembler(Symbol symbol, int maxDepth)
         }
 
         return new(
-            BybitOrderBookOutcome.Applied,
+            SequencedBookOutcome.Applied,
             new OrderBook
             {
                 Symbol = symbol,
