@@ -1,3 +1,80 @@
+## [0.1.0-alpha.140] - 2026-11-13
+
+Build of board task T-196 (branch `feat/watchlist-edit`): the watchlist
+panel's lists become user-managed — create, rename, delete, switch, and
+edit each list's symbols in place.
+
+### Added
+- The `WatchlistCodec` over the new `Watchlists / Document` settings key:
+  one versioned JSON payload (`version`, the active list's name, the
+  lists with their symbol texts) in the alerts codec's discipline —
+  all-or-nothing at the root (a malformed or foreign-version payload
+  throws, the caller answers with the starter), per-entry skip counting,
+  symbol texts carried raw (the feed parse-guards). The starter document
+  (the majors under the localized-anchor name) is the fresh-install and
+  factory-reset state — the key's absence restores it.
+- The `WatchlistCatalogService`: the document's in-memory owner — a
+  seeded read applies the stored payload (duplicates drop, an emptied
+  roster or a dangling active name normalize, the starter stays under
+  any fault), and every mutation (`Add`/`Remove`/`Move` symbol,
+  `Create`/`Rename`/`Delete` list, `SetActive`) writes the store first
+  and publishes the fresh immutable document after. Names stay unique
+  case-insensitively; the starter list is the document's anchor (never
+  deletable, renamable and editable); deleting the active list falls
+  back to the starter, else the first list; no-op mutations write
+  nothing.
+- The `WatchlistFeedService` rides the catalog's document stream: the
+  row set is the active list's stored order (survivors keep their
+  pricing state, moves re-stamp the order), the workspace selection's
+  symbol re-pins as the trailing overlay row when the list does not
+  carry it, and list rows never retire from selection moves. The
+  hardcoded majors starter left the feed — the starter document is the
+  codec's.
+- The `WatchlistViewModel` panel surface: the list combo (two-way index
+  shim with the screener preset's echo-guard, the starter's display
+  name localized and re-inked on a language switch), the inline list
+  name editor (create/rename with blank-and-uniqueness gating), the
+  delete action (starter-exempt), and the row toolbar — add (the
+  palette's watchlist pick lands in the active list), remove, move
+  up/down, all gated off the exact selection bounds. The rows diff
+  snapshots with a move-based order pass (the list's stored order IS
+  the panel's), and the row selection rides the symbol text — a retire
+  or reorder re-points the two-way index instead of stranding it.
+- The symbol palette's watchlist pick: the compare pick's ride in a
+  second flavor (newer pick wins either direction, a close resolves
+  null, the rows rank the current exchange only so the added symbol is
+  priceable by the standing adapter's pump), hinted by its own overlay
+  line while the ride stands.
+- Watchlist localization (en + ru): the list actions, the row actions,
+  the inline editor, the empty hint, the starter's display name and the
+  palette's watchlist hint.
+
+### Tests
+- The codec battery: starter-shape equality, encode/decode round trip,
+  the uniform root fault (malformed JSON, wrong shape, absent or
+  foreign version), per-entry skips (blank names, non-string symbols,
+  missing members), and the raw symbol carriage.
+- The catalog battery over a real store: the fresh-install starter, the
+  stored payload's normalization (duplicates, dangling active, empty
+  roster, unreadable payload), every mutation's accept/refuse/no-op
+  shape, the starter's deletion refusal, the active-list deletion's
+  fallback, and the pre-seed mutation gate.
+- The feed's re-arms over the catalog stream: the seed re-arms the row
+  set, an added symbol appends, a move reorders with tick state
+  survival, a switch swaps the sets, the overlay re-pins across the
+  switch, and list rows survive selection moves.
+- The panel ViewModel's pins: the reorder's identity stability and
+  selection re-point, the picker shim's echo-guard and switch routing,
+  the editor's gates and create/rename routing, the delete gate's
+  rename re-arm, the row commands' routing, and the starter display
+  name's language re-ink.
+- The palette pick's pins: the newer-pick-wins pairing, the watchlist
+  apply's resolution without a workspace write, the close's null, and
+  the current-exchange-only ranking in the pick mode.
+- The port's round trip carries the new key; the composition pins the
+  three registrations; the route and accessibility pins adopt the new
+  surfaces.
+
 ## [0.1.0-alpha.139] - 2026-11-13
 
 Build of board task T-195 (branch `feat/screener`): the market screener

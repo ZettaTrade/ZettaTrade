@@ -1350,6 +1350,42 @@
   <data name="Watch.Title" xml:space="preserve">
     <value>Список наблюдения</value>
   </data>
+  <data name="Watch.DefaultListName" xml:space="preserve">
+    <value>Основные</value>
+  </data>
+  <data name="Watch.NewList" xml:space="preserve">
+    <value>Новый список</value>
+  </data>
+  <data name="Watch.RenameList" xml:space="preserve">
+    <value>Переименовать список</value>
+  </data>
+  <data name="Watch.DeleteList" xml:space="preserve">
+    <value>Удалить список</value>
+  </data>
+  <data name="Watch.ListEditor.NamePlaceholder" xml:space="preserve">
+    <value>Название списка</value>
+  </data>
+  <data name="Watch.ListEditor.Confirm" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
+  <data name="Watch.ListEditor.Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
+  <data name="Watch.AddSymbol" xml:space="preserve">
+    <value>Добавить символ</value>
+  </data>
+  <data name="Watch.MoveRowUp" xml:space="preserve">
+    <value>Переместить строку вверх</value>
+  </data>
+  <data name="Watch.MoveRowDown" xml:space="preserve">
+    <value>Переместить строку вниз</value>
+  </data>
+  <data name="Watch.RemoveRow" xml:space="preserve">
+    <value>Убрать строку</value>
+  </data>
+  <data name="Watch.EmptyList" xml:space="preserve">
+    <value>Символов пока нет — добавьте кнопкой «+»</value>
+  </data>
   <data name="Heatmap.Title" xml:space="preserve">
     <value>Карта рынка</value>
   </data>
@@ -1604,6 +1640,9 @@
   </data>
   <data name="Palette.CompareHint" xml:space="preserve">
     <value>Выбор для сравнения: строки текущей биржи, Enter добавит ряд, Esc отменит</value>
+  </data>
+  <data name="Palette.WatchlistHint" xml:space="preserve">
+    <value>Выбор для списка: строки текущей биржи, Enter добавит символ в список, Esc отменит</value>
   </data>
   <data name="Palette.Hint" xml:space="preserve">
     <value>Up/Down выбрать — Enter применить — Esc закрыть</value>

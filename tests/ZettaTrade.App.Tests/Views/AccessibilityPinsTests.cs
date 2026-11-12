@@ -68,6 +68,25 @@ public sealed class AccessibilityPinsTests
     }
 
     [Fact]
+    public void TheWatchlistIconControls_CarryTheirNames()
+    {
+        // The watchlist's icon-only controls (T-196): every toolbar button
+        // carries its caption as the automation name — the icon-only
+        // controls' names never ride their tooltips.
+        foreach (var key in new[]
+                 {
+                     "Watch.NewList", "Watch.RenameList", "Watch.DeleteList",
+                     "Watch.ListEditor.Confirm", "Watch.ListEditor.Cancel",
+                     "Watch.AddSymbol", "Watch.MoveRowUp", "Watch.MoveRowDown", "Watch.RemoveRow",
+                 })
+        {
+            MainWindowXaml.Should().Contain(
+                $"AutomationProperties.Name=\"{{loc:Localized {key}}}\"",
+                "'{0}' names an icon-only watchlist control", key);
+        }
+    }
+
+    [Fact]
     public void TheCatalog_CarriesEveryA11yKeyInBothCultures()
     {
         foreach (var key in new[]
@@ -87,6 +106,11 @@ public sealed class AccessibilityPinsTests
                      // the automation names — the icon-only controls' names
                      // never ride their tooltips.
                      "Chart.Tool.TrendLine", "Chart.Tool.Level", "Chart.Tool.Fib", "Chart.Export",
+                     // The watchlist's icon-only controls (T-196): the list
+                     // toolbar, the inline editor and the row toolbar.
+                     "Watch.NewList", "Watch.RenameList", "Watch.DeleteList",
+                     "Watch.ListEditor.Confirm", "Watch.ListEditor.Cancel",
+                     "Watch.AddSymbol", "Watch.MoveRowUp", "Watch.MoveRowDown", "Watch.RemoveRow",
                  })
         {
             Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)

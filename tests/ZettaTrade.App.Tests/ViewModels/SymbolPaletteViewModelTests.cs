@@ -951,4 +951,93 @@ public sealed class SymbolPaletteViewModelTests
     }
 
     #endregion The keyboard selection
+
+    #region The watchlist pick
+
+    [Fact]
+    public async Task TheWatchlistPick_OpensTheOverlay_AndANewerPickRetiresItBothWays()
+    {
+        var scene = new Scene(new FakeMarketData("beta", "Beta", "BTC/USDT"));
+        await scene.SettleAsync();
+
+        var watchlistPick = scene.Palette.BeginWatchlistAddAsync();
+        scene.Palette.IsOpen.Should().BeTrue("the pick opens the palette");
+        scene.Palette.IsPickingWatchlist.Should().BeTrue();
+        scene.Palette.IsPickingCompare.Should().BeFalse();
+
+        var comparePick = scene.Palette.BeginComparePickAsync();
+        (await watchlistPick).Should().BeNull("the newer compare pick retired the pending watchlist one");
+        scene.Palette.IsPickingWatchlist.Should().BeFalse();
+        scene.Palette.IsPickingCompare.Should().BeTrue();
+
+        var newerWatchlistPick = scene.Palette.BeginWatchlistAddAsync();
+        (await comparePick).Should().BeNull("the newer watchlist pick retired the pending compare one");
+        scene.Palette.IsPickingCompare.Should().BeFalse();
+        scene.Palette.IsPickingWatchlist.Should().BeTrue();
+
+        await scene.Palette.CloseCommand.Execute(RxVoid.Default);
+        (await newerWatchlistPick).Should().BeNull("the close resolved the ride with null");
+        scene.Palette.IsPickingWatchlist.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task TheWatchlistPickApply_ResolvesTheRide_LeavingTheWorkspaceUntouched()
+    {
+        var scene = new Scene(
+            new FakeMarketData("beta", "Beta", "BTC/USDT", "ETH/BTC"),
+            new FakeMarketData("alpha", "Alpha", "SOL/USDT"));
+        await scene.SettleAsync();
+
+        var pick = scene.Palette.BeginWatchlistAddAsync();
+        var standingSymbol = scene.Chart.SelectedSymbol;
+
+        var workspaceWrites = new List<(string Section, string Key, string Value)>();
+        scene.Settings
+            .WhenForAnyArgs(settings => settings.SetAsync<string>(null!, null!, null!))
+            .Do(call => workspaceWrites.Add((
+                call.ArgAt<string>(0),
+                call.ArgAt<string>(1),
+                call.ArgAt<string>(2)!)));
+
+        await scene.ApplyAtAsync(scene.IndexOf("beta", "BTC/USDT"));
+
+        var picked = await pick;
+        picked.Should().Be(Symbol.Parse("BTC/USDT"), "the ride resolved with the row's own symbol");
+        workspaceWrites.Should().BeEmpty("the pick is watchlist-layer state, never a workspace preference");
+        scene.Exchange.Current.Id.Should().Be("beta", "no exchange switch either");
+        scene.Chart.SelectedSymbol.Should().Be(standingSymbol, "the chart's context stayed untouched");
+
+        scene.Palette.IsOpen.Should().BeFalse("the pick closed the palette");
+        scene.Palette.IsPickingWatchlist.Should().BeFalse();
+        scene.FocusReturns.Should().Be(1, "the close landed the focus return");
+
+        // The pick never applied as a session preference: no recents pool
+        // opens, and no row carries the recent qualifier.
+        await scene.SettleAsync();
+        await scene.ToggleAsync();
+        scene.Palette.Rows.Should().NotContain(row => row.IsRecent, "the pick recorded no session recent");
+        scene.Palette.Rows[0].IsRecentsHead.Should().BeFalse("no recents pool opened with the pick");
+    }
+
+    [Fact]
+    public async Task TheWatchlistPick_RanksTheCurrentExchangeOnly()
+    {
+        var scene = new Scene(
+            new FakeMarketData("beta", "Beta", "BTC/USDT", "ETH/BTC"),
+            new FakeMarketData("alpha", "Alpha", "SOL/USDT"));
+        await scene.SettleAsync();
+
+        var pick = scene.Palette.BeginWatchlistAddAsync();
+
+        scene.RowNames().Should().Equal(
+            ["beta:BTC/USDT", "beta:ETH/BTC"],
+            "the added symbol must be priceable by the standing adapter's pump");
+        scene.Palette.IsPickingWatchlist.Should().BeTrue();
+
+        await scene.ApplyAtAsync(0);
+
+        (await pick).Should().Be(Symbol.Parse("BTC/USDT"));
+    }
+
+    #endregion The watchlist pick
 }
