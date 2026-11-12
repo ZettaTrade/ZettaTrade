@@ -53,14 +53,18 @@
     </Style>
 
     <!-- The row actions (T-157): three weights. The default is the row's
-         main move (the Close, the Cancel, the bulk cancel) at the stock
-         filled look; the secondary is the quiet outlined sibling; the
-         destructive is the subdued ghost whose danger reads only on hover
-         — the existing confirmation gate stays its only loud moment, so
-         Reverse (the two-step gated flip) is never the busiest element on
-         its row. The transparent rest borders keep the T-110 focus ring
-         reachable: the :focus style re-arms the Highlight border. -->
+         main move (the Close, the Cancel, the bulk cancel) at the filled
+         look — the Surface fill declared explicitly since T-183, when the
+         generic family's rest went quiet-transparent (the window-scoped
+         setter keeps the weight hierarchy honest); the secondary is the
+         quiet outlined sibling; the destructive is the subdued ghost whose
+         danger reads only on hover — the existing confirmation gate stays
+         its only loud moment, so Reverse (the two-step gated flip) is
+         never the busiest element on its row. The transparent rest borders
+         keep the T-110 focus ring reachable: the :focus style re-arms the
+         Highlight border. -->
     <Style Selector="Button.row-action">
+        <Setter Property="Background" Value="{DynamicResource Surface}" />
         <Setter Property="MinWidth" Value="64" />
         <Setter Property="MinHeight" Value="26" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -77,7 +81,10 @@
          outlined sibling pressed dead (the default rode the generic by
          its absence of a Background setter, the destructive ships its
          own). The block rides after the .secondary rest and before the
-         destructive blocks, so the ghost's own pressed keeps winning. -->
+         destructive blocks, so the ghost's own pressed keeps winning.
+         T-183 note: the family's pressed step stays the planar Border
+         fill — the generic kit's pressed moved to the derived tint, and
+         the window-scoped step keeps the family's own look. -->
     <Style Selector="Button.row-action:pressed">
         <Setter Property="Background" Value="{DynamicResource Border}" />
     </Style>

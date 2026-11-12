@@ -47,6 +47,7 @@
                 </StackPanel>
                 <StackPanel VerticalAlignment="Bottom">
                     <Button Content="{loc:Localized Stats.Apply}"
+                            Classes="primary"
                             Command="{Binding ApplyCommand}"
                             MinWidth="90" />
                 </StackPanel>

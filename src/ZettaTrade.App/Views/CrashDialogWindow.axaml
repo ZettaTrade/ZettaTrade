@@ -35,6 +35,7 @@
                    Foreground="{DynamicResource TextSecondary}" />
 
         <Button Content="{loc:Localized Log.Crash.Dismiss}"
+                Classes="primary"
                 HorizontalAlignment="Right"
                 MinWidth="100"
                 Click="OnDismissClick" />
