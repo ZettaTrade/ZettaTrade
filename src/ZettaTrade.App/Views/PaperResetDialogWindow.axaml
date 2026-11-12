@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.PaperResetDialogWindow"
+        Classes="chrome-compact"
+        Icon="/Assets/ZettaTrade.ico"
+        x:DataType="vm:PaperResetDialogViewModel"
+        AutomationProperties.AutomationId="PaperResetDialogWindow"
+        Title="{loc:Localized Trading.PaperResetTitle}"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceM}">
+        <!-- What the reset does: the scope named once, precomputed by the
+             view model at initialize time -->
+        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+
+        <TextBlock Text="{loc:Localized Trading.PaperResetBalanceLabel}" />
+        <TextBox Text="{Binding BalanceInput, Mode=TwoWay}"
+                 AutomationProperties.AutomationId="PaperResetBalanceInput"
+                 FontFamily="{StaticResource NumericFont}"
+                 PlaceholderText="100000" />
+
+        <!-- The scope spelled out once (the quiet hint ink): live and
+             testnet venues stay untouched -->
+        <TextBlock Text="{loc:Localized Trading.PaperResetHint}"
+                   Foreground="{DynamicResource TextSecondary}"
+                   TextWrapping="Wrap" />
+
+        <!-- Parse errors, never a defaulted field -->
+        <TextBlock Text="{Binding ErrorMessage}"
+                   AutomationProperties.AutomationId="PaperResetErrorLine"
+                   Foreground="{DynamicResource Error}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasErrorMessage}" />
+
+        <UniformGrid Columns="2" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Click="OnApplyClick"
+                    AutomationProperties.AutomationId="PaperResetApplyButton"
+                    Classes="primary"
+                    Content="{loc:Localized Trading.PaperResetApply}"
+                    MinWidth="120" Margin="0,0,8,0" />
+            <Button Content="{loc:Localized Trading.Cancel}"
+                    AutomationProperties.AutomationId="PaperResetCancelButton"
+                    Click="OnCancelClick"
+                    MinWidth="90" />
+        </UniformGrid>
+    </StackPanel>
+</Window>

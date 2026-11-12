@@ -34,6 +34,7 @@ public sealed class OrderConfirmationComposer
     private const string ProtectLevelNoneKey = "Positions.ProtectLevelNone";
     private const string ConfirmBulkCancelKey = "Positions.ConfirmBulkCancelFormat";
     private const string ConfirmKillSwitchKey = "Trading.ConfirmKillSwitchFormat";
+    private const string ConfirmPaperResetKey = "Trading.ConfirmPaperResetFormat";
     private const string KillSwitchPlanVenueKey = "Trading.KillSwitchPlanVenueFormat";
     private const string KillSwitchPlanPositionKey = "Trading.KillSwitchPlanPositionFormat";
     private const string KillSwitchPlanNoneKey = "Trading.KillSwitchPlanNone";
@@ -452,6 +453,37 @@ public sealed class OrderConfirmationComposer
             plan.Orders.Count,
             plan.Positions.Count,
             positions);
+    }
+
+    /// <summary>
+    /// Confirmation summary shown before a paper account reset runs
+    /// (T-192): ONE mandatory summary naming the chosen starting balance
+    /// and the scope the reset wipes — the working orders and open
+    /// positions the fresh plan read counted. A refusal leaves the whole
+    /// account untouched.
+    /// </summary>
+    /// <param name="startingBalance">The balance the account restarts at.</param>
+    /// <param name="orderCount">How many working orders the reset will wipe.</param>
+    /// <param name="positionCount">How many open positions the reset will wipe.</param>
+    public ConfirmationRequest ForPaperReset(
+        decimal startingBalance,
+        int orderCount,
+        int positionCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(startingBalance, decimal.Zero);
+        ArgumentOutOfRangeException.ThrowIfNegative(orderCount);
+        ArgumentOutOfRangeException.ThrowIfNegative(positionCount);
+
+        return new ConfirmationRequest
+        {
+            MessageKey = ConfirmPaperResetKey,
+            Arguments =
+            [
+                startingBalance.ToString(CultureInfo.InvariantCulture),
+                orderCount.ToString(CultureInfo.InvariantCulture),
+                positionCount.ToString(CultureInfo.InvariantCulture),
+            ],
+        };
     }
 
     /// <summary>

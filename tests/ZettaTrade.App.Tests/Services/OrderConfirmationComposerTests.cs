@@ -476,6 +476,32 @@ public sealed class OrderConfirmationComposerTests
         act.Should().Throw<ArgumentNullException>();
     }
 
+    [Fact]
+    public void ForPaperReset_NamesTheBalanceAndTheScopeCounts()
+    {
+        // Arrange
+        var composer = new OrderConfirmationComposer(_localization);
+
+        // Act
+        var confirmation = composer.ForPaperReset(25_000m, 1, 2);
+
+        // Assert: the chosen balance leads (invariant text), then the
+        // working-order count, then the open-position count.
+        confirmation.MessageKey.Should().Be("Trading.ConfirmPaperResetFormat");
+        confirmation.Arguments.Should().HaveCount(3);
+        confirmation.Arguments[0].Should().Be("25000");
+        confirmation.Arguments[1].Should().Be("1");
+        confirmation.Arguments[2].Should().Be("2");
+    }
+
+    [Fact]
+    public void ForPaperReset_WithNonPositiveBalance_Throws()
+    {
+        var composer = new OrderConfirmationComposer(_localization);
+        var act = () => composer.ForPaperReset(0m, 0, 0);
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
     private static Position BuildPosition(string symbol, OrderSide side, decimal quantity) => new()
     {
         Id = $"pos-{symbol}",

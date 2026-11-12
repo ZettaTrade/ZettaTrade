@@ -675,6 +675,36 @@
   <data name="Trading.KillSwitchAbortedFormat" xml:space="preserve">
     <value>The sweep stopped early: {0}</value>
   </data>
+  <data name="Trading.PaperResetButton" xml:space="preserve">
+    <value>Reset paper account…</value>
+  </data>
+  <data name="Trading.PaperResetTitle" xml:space="preserve">
+    <value>Reset paper account</value>
+  </data>
+  <data name="Trading.PaperResetSummary" xml:space="preserve">
+    <value>Reset the paper trading simulation: its balances, open positions and working orders are wiped, and the account restarts at the chosen starting balance.</value>
+  </data>
+  <data name="Trading.PaperResetBalanceLabel" xml:space="preserve">
+    <value>Starting balance</value>
+  </data>
+  <data name="Trading.PaperResetNotANumber" xml:space="preserve">
+    <value>Enter a positive number: "{0}" is not one.</value>
+  </data>
+  <data name="Trading.PaperResetHint" xml:space="preserve">
+    <value>Only the paper simulation is wiped. Live and testnet venues stay untouched.</value>
+  </data>
+  <data name="Trading.PaperResetApply" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="Trading.ConfirmPaperResetFormat" xml:space="preserve">
+    <value>Reset the paper account to a starting balance of {0}? Its {1} working order(s) and {2} open position(s) will be wiped, and the paper venue's order journal is cleared. Live and testnet venues stay untouched.</value>
+  </data>
+  <data name="Trading.PaperResetDoneFormat" xml:space="preserve">
+    <value>Paper account reset: the simulation restarts at {0} USDT; the paper venue's order journal was wiped ({1} row(s)).</value>
+  </data>
+  <data name="Trading.PaperResetFailedFormat" xml:space="preserve">
+    <value>The paper account reset failed: {0}</value>
+  </data>
   <data name="Trading.DailyLossBannerFormat" xml:space="preserve">
     <value>Daily loss limit reached: {0} realized today against the {1} limit. New orders are blocked; closing positions stays allowed. The block lifts at the day rollover or by reset.</value>
   </data>

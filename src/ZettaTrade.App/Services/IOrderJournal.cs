@@ -19,4 +19,11 @@ public interface IOrderJournal
 
     /// <summary>Snapshot of the recent orders, newest first.</summary>
     IReadOnlyList<Order> GetRecent();
+
+    /// <summary>
+    /// Drain the session journal of one venue's rows (the paper account
+    /// reset's session half, T-192): only the named exchange's placements
+    /// leave, the other venues' rows keep their order.
+    /// </summary>
+    void RemoveVenue(string exchangeId);
 }

@@ -101,9 +101,20 @@
                        Foreground="{DynamicResource Error}"
                        TextWrapping="Wrap"
                        IsVisible="{Binding HasErrorMessage}" />
+            <!-- The finished paper reset's summary line (T-192) -->
+            <TextBlock Text="{Binding OutcomeMessage}"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasOutcomeMessage}" />
         </StackPanel>
 
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto">
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto">
+            <Button Grid.Column="0"
+                    HorizontalAlignment="Left"
+                    Content="{loc:Localized Trading.PaperResetButton}"
+                    Command="{Binding ResetPaperCommand}"
+                    AutomationProperties.AutomationId="ResetPaperButton"
+                    MinWidth="90" />
             <Button Grid.Column="1"
                     Content="{loc:Localized Trading.BalancesRefresh}"
                     Command="{Binding LoadCommand}"

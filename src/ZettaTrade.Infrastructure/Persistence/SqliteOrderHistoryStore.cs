@@ -215,6 +215,25 @@ public sealed class SqliteOrderHistoryStore(
         return entries.Select(ToOrder).ToArray();
     }
 
+    /// <inheritdoc/>
+    public async Task<int> DeleteExchangeAsync(string exchangeId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(exchangeId);
+        await using var dbContext = new OrderHistoryDbContext(options);
+
+        // ONE statement decides the wipe on the database side (the same
+        // server-side discipline the upsert holds): exactly the named
+        // exchange's rows leave, the rest of the journal of record stays.
+        var deleted = await dbContext.Orders
+            .Where(entry => entry.ExchangeId == exchangeId)
+            .ExecuteDeleteAsync(cancellationToken);
+        logger.LogInformation(
+            "Order history: {DeletedCount} row(s) of {ExchangeId} deleted",
+            deleted,
+            exchangeId);
+        return deleted;
+    }
+
     #endregion Public Methods
 
     #region Private Methods

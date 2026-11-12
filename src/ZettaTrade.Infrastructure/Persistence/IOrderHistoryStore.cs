@@ -29,4 +29,12 @@ public interface IOrderHistoryStore
 
     /// <summary>The most recent journal rows, newest first.</summary>
     Task<IReadOnlyList<Order>> GetRecentAsync(int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Delete every journal row recorded for one exchange id and return how
+    /// many rows left (the paper account reset's persistence half, T-192):
+    /// only the named venue's rows leave, every other exchange's journal of
+    /// record stays untouched.
+    /// </summary>
+    Task<int> DeleteExchangeAsync(string exchangeId, CancellationToken cancellationToken = default);
 }

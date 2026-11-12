@@ -675,6 +675,36 @@
   <data name="Trading.KillSwitchAbortedFormat" xml:space="preserve">
     <value>Проход остановился раньше времени: {0}</value>
   </data>
+  <data name="Trading.PaperResetButton" xml:space="preserve">
+    <value>Сбросить бумажный счёт…</value>
+  </data>
+  <data name="Trading.PaperResetTitle" xml:space="preserve">
+    <value>Сброс бумажного счёта</value>
+  </data>
+  <data name="Trading.PaperResetSummary" xml:space="preserve">
+    <value>Сбросить бумажную симуляцию: её балансы, открытые позиции и рабочие ордера будут очищены, а счёт стартует заново с выбранного начального баланса.</value>
+  </data>
+  <data name="Trading.PaperResetBalanceLabel" xml:space="preserve">
+    <value>Начальный баланс</value>
+  </data>
+  <data name="Trading.PaperResetNotANumber" xml:space="preserve">
+    <value>Введите положительное число: «{0}» им не является.</value>
+  </data>
+  <data name="Trading.PaperResetHint" xml:space="preserve">
+    <value>Очищается только бумажная симуляция. Реальные и тестовые площадки останутся нетронутыми.</value>
+  </data>
+  <data name="Trading.PaperResetApply" xml:space="preserve">
+    <value>Сбросить</value>
+  </data>
+  <data name="Trading.ConfirmPaperResetFormat" xml:space="preserve">
+    <value>Сбросить бумажный счёт до начального баланса {0}? Его рабочие ордера ({1}) и открытые позиции ({2}) будут очищены, а журнал ордеров бумажной площадки удалён. Реальные и тестовые площадки останутся нетронутыми.</value>
+  </data>
+  <data name="Trading.PaperResetDoneFormat" xml:space="preserve">
+    <value>Бумажный счёт сброшен: симуляция стартует заново с {0} USDT; журнал ордеров бумажной площадки удалён ({1} стр.).</value>
+  </data>
+  <data name="Trading.PaperResetFailedFormat" xml:space="preserve">
+    <value>Сброс бумажного счёта не удался: {0}</value>
+  </data>
   <data name="Trading.DailyLossBannerFormat" xml:space="preserve">
     <value>Достигнут дневной лимит убытка: {0} реализованного убытка сегодня против лимита {1}. Новые ордера заблокированы; закрытие позиций остаётся доступным. Блокировка снимется при смене дня или по сбросу.</value>
   </data>

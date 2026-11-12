@@ -265,6 +265,35 @@ public sealed class SqliteOrderHistoryStoreTests
 
     #endregion Restart
 
+    #region The Reset Wipe
+
+    [Fact]
+    public async Task DeleteExchangeAsync_RemovesOnlyThatExchangeRows()
+    {
+        // The paper reset's persistence half (T-192): exactly the named
+        // exchange's rows leave; every other venue's journal of record stays.
+        await WithTempDatabaseAsync(async (_, store) =>
+        {
+            await store.InitializeAsync();
+            await store.RecordPlacedAsync(BuildOrder("paper-1", createdAt: BaseTime));
+            await store.RecordPlacedAsync(BuildOrder("binance-1", createdAt: BaseTime.AddMinutes(1)) with
+            {
+                ExchangeId = "binance",
+            });
+            await store.RecordPlacedAsync(BuildOrder("paper-2", createdAt: BaseTime.AddMinutes(2)));
+
+            var deleted = await store.DeleteExchangeAsync("paper");
+
+            deleted.Should().Be(2, "both paper rows left");
+            var orders = await store.GetRecentAsync(50);
+            orders.Select(order => order.Id).Should().Equal(
+                ["binance-1"],
+                "the other exchange's journal of record stays");
+        });
+    }
+
+    #endregion The Reset Wipe
+
     #region Concurrency
 
     /// <summary>

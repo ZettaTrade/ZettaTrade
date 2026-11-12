@@ -77,4 +77,28 @@ public sealed class OrderJournal : IOrderJournal
         Array.Reverse(snapshot);
         return snapshot;
     }
+
+    /// <inheritdoc/>
+    public void RemoveVenue(string exchangeId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(exchangeId);
+
+        // Drain-filter-requeue in one pass: the kept rows re-enqueue in
+        // their original FIFO order. A placement racing the drain lands
+        // after the requeue — a newer row than every kept one anyway, so
+        // the newest-first reads never tear.
+        var kept = new List<Order>(_orders.Count);
+        while (_orders.TryDequeue(out var order))
+        {
+            if (!string.Equals(order.ExchangeId, exchangeId, StringComparison.Ordinal))
+            {
+                kept.Add(order);
+            }
+        }
+
+        foreach (var order in kept)
+        {
+            _orders.Enqueue(order);
+        }
+    }
 }
