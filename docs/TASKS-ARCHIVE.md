@@ -3425,3 +3425,34 @@ the board and its section below.
   cancel landing between the plan read and the wipe is still wiped (the wipe is
   unconditional once confirmed); the confirmation's counts are the honest read of the moment
   it was composed, not a hold on the surface.
+
+## T-193 — Binance spot testnet trading adapter
+
+- **Branch:** `zt-binance-trading` off `develop` (the 2026-11-12 backlog sweep; claim commit
+  `3c0190a`, base `2440250`).
+- **Origin:** the sweep — real (testnet) trading exists only for Bybit; Binance rides read-only
+  market data.
+- **What:** a `BinanceTradingAdapter` mirroring the Bybit trading adapter's shape: signed REST
+  order create/cancel/query on the Binance spot testnet, private WS fills where the venue
+  serves them; arming gated by the same three conditions (the adapter selected, the endpoint
+  record flagged testnet, the explicit testnet-trading toggle); credentials only from
+  `ISecretStore`; unsupported order types refuse before the venue with a clear reason.
+- **Scope:** Infrastructure adapter + the adapter-kit conformance coverage, settings keys, resx
+  en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** the conformance battery passes against the loopback stub; the arming gate
+  matches the Bybit adapter's discipline verbatim; no key ever reaches a log or an argument.
+- **Tests:** the adapter-kit battery for the new adapter; the arming-gate pins.
+- **Status:** done — shipped as 0.1.0-alpha.137. The adapter rides a delegated market-data face
+  (the venue's own `BinanceAdapter`), a listen-key private stream (issue → dial
+  `{PrivateWsUrl}/{listenKey}` → receive-only → the 30-minute keepalive loop), HMAC-SHA256
+  hex over the exact query string (`X-MBX-APIKEY` header), LIMIT GTC only with post-only on
+  the venue's `GTX` token (`LIMIT_MAKER` reads back onto GTC+flag), strict status mapping
+  (transitional statuses refuse), honest-empty positions, free+locked balances, arming via the
+  generic venue resolver in `TradingSurfaceService` (no new settings keys), the venue journal
+  merged over both venues' streams, the kill-switch sweep extended to the new venue. Kit
+  battery 24/24 through the new delegated depth profile + symbol-first book-topic template
+  (the honest pack declares blank-endpoints guards only — `BinanceAdapter` has no
+  unknown-symbol/bars-limit guards); Infrastructure 22 signed-wire facts + 4 private-stream
+  e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
+  were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
+  new user-facing UI string was introduced.
