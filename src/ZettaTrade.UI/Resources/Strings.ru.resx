@@ -708,6 +708,9 @@
 Расчётная стоимость: {9}
 Расчётная комиссия: {10}</value>
   </data>
+  <data name="Trading.ConfirmProtectFormat" xml:space="preserve">
+    <value>Применить защитные уровни: {1} {2} {0} по рынку {3}, стоп-лосс {4}, тейк-профит {5}. Существующие защитные ордера по этой позиции будут отменены. Подтвердить?</value>
+  </data>
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>по рыночной цене</value>
   </data>
@@ -1085,6 +1088,66 @@
   </data>
   <data name="Positions.ReverseLeg2FailedFormat" xml:space="preserve">
     <value>Ордер закрытия {0} размещён, но повторный вход не удался: {1}</value>
+  </data>
+  <data name="Positions.ColStopLoss" xml:space="preserve">
+    <value>Стоп-лосс</value>
+  </data>
+  <data name="Positions.ColTakeProfit" xml:space="preserve">
+    <value>Тейк-профит</value>
+  </data>
+  <data name="Positions.ActionProtect" xml:space="preserve">
+    <value>SL/TP…</value>
+  </data>
+  <data name="Positions.ProtectTitle" xml:space="preserve">
+    <value>Защитные уровни</value>
+  </data>
+  <data name="Positions.ProtectSummary" xml:space="preserve">
+    <value>Защита позиции {0} {1} {2} по рынку {3}</value>
+  </data>
+  <data name="Positions.ProtectStopLoss" xml:space="preserve">
+    <value>Стоп-лосс</value>
+  </data>
+  <data name="Positions.ProtectTakeProfit" xml:space="preserve">
+    <value>Тейк-профит</value>
+  </data>
+  <data name="Positions.ProtectHint" xml:space="preserve">
+    <value>Пустое поле снимает уровень; оба пустых поля снимают пару.</value>
+  </data>
+  <data name="Positions.ProtectApply" xml:space="preserve">
+    <value>Применить</value>
+  </data>
+  <data name="Positions.ProtectStopNotANumber" xml:space="preserve">
+    <value>Стоп-лосс {0} — не число.</value>
+  </data>
+  <data name="Positions.ProtectTakeProfitNotANumber" xml:space="preserve">
+    <value>Тейк-профит {0} — не число.</value>
+  </data>
+  <data name="Positions.ProtectLevelNone" xml:space="preserve">
+    <value>не задан</value>
+  </data>
+  <data name="Positions.ProtectNothingToClear" xml:space="preserve">
+    <value>По {0} защитные уровни не заданы; снимать нечего.</value>
+  </data>
+  <data name="Positions.ProtectLevelCleared" xml:space="preserve">
+    <value>Защитные уровни по {0} сняты.</value>
+  </data>
+  <data name="Positions.ProtectStopMustBeBelowMarket" xml:space="preserve">
+    <value>Стоп-лосс должен быть ниже текущей рыночной цены {0} для длинной позиции.</value>
+  </data>
+  <data name="Positions.ProtectStopMustBeAboveMarket" xml:space="preserve">
+    <value>Стоп-лосс должен быть выше текущей рыночной цены {0} для короткой позиции.</value>
+  </data>
+  <data name="Positions.ProtectTakeProfitMustBeAboveMarket" xml:space="preserve">
+    <value>Тейк-профит должен быть выше текущей рыночной цены {0} для длинной позиции.</value>
+  </data>
+  <data name="Positions.ProtectTakeProfitMustBeBelowMarket" xml:space="preserve">
+    <value>Тейк-профит должен быть ниже текущей рыночной цены {0} для короткой позиции.</value>
+  </data>
+  <data name="Positions.ProtectSetFormat" xml:space="preserve">
+    <value>Защитные уровни по {0} заданы: стоп-лосс {1}, тейк-профит {2}.</value>
+  </data>
+  <data name="Positions.ProtectAbortedFormat" xml:space="preserve">
+    <value>Перезапись защиты прервана: тейк-профит {0} размещён, но стоп-лосс не удался: {1}. Тейк-профит отменён (best effort) — позиция может остаться без защиты.</value>
   </data>
   <data name="Positions.ActionBulkCancel" xml:space="preserve">
     <value>Отменить всё…</value>

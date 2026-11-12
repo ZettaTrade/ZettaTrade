@@ -708,6 +708,9 @@ Place bracket: {0} {1} entry {2} {3} at {4}, take-profit limit {5}, stop-loss tr
 Estimated notional: {9}
 Estimated fee: {10}</value>
   </data>
+  <data name="Trading.ConfirmProtectFormat" xml:space="preserve">
+    <value>Apply protective levels: {1} {2} {0} at market {3}, stop-loss {4}, take-profit {5}. Any existing protective orders on this position will be cancelled. Confirm?</value>
+  </data>
   <data name="Trading.PriceMarket" xml:space="preserve">
     <value>market price</value>
   </data>
@@ -1085,6 +1088,66 @@ Estimated fee: {10}</value>
   </data>
   <data name="Positions.ReverseLeg2FailedFormat" xml:space="preserve">
     <value>The exit order {0} was placed but the re-entry failed: {1}</value>
+  </data>
+  <data name="Positions.ColStopLoss" xml:space="preserve">
+    <value>Stop loss</value>
+  </data>
+  <data name="Positions.ColTakeProfit" xml:space="preserve">
+    <value>Take profit</value>
+  </data>
+  <data name="Positions.ActionProtect" xml:space="preserve">
+    <value>SL/TP…</value>
+  </data>
+  <data name="Positions.ProtectTitle" xml:space="preserve">
+    <value>Protective levels</value>
+  </data>
+  <data name="Positions.ProtectSummary" xml:space="preserve">
+    <value>Protecting the {0} position of {1} {2} at market {3}</value>
+  </data>
+  <data name="Positions.ProtectStopLoss" xml:space="preserve">
+    <value>Stop loss</value>
+  </data>
+  <data name="Positions.ProtectTakeProfit" xml:space="preserve">
+    <value>Take profit</value>
+  </data>
+  <data name="Positions.ProtectHint" xml:space="preserve">
+    <value>Empty a field to clear that level; both fields empty clear the pair.</value>
+  </data>
+  <data name="Positions.ProtectApply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Positions.ProtectStopNotANumber" xml:space="preserve">
+    <value>Stop loss {0} is not a number.</value>
+  </data>
+  <data name="Positions.ProtectTakeProfitNotANumber" xml:space="preserve">
+    <value>Take profit {0} is not a number.</value>
+  </data>
+  <data name="Positions.ProtectLevelNone" xml:space="preserve">
+    <value>not set</value>
+  </data>
+  <data name="Positions.ProtectNothingToClear" xml:space="preserve">
+    <value>No protective levels are set on {0}; nothing to clear.</value>
+  </data>
+  <data name="Positions.ProtectLevelCleared" xml:space="preserve">
+    <value>Protective levels cleared on {0}.</value>
+  </data>
+  <data name="Positions.ProtectStopMustBeBelowMarket" xml:space="preserve">
+    <value>Stop loss must be below the current market price {0} for a long position.</value>
+  </data>
+  <data name="Positions.ProtectStopMustBeAboveMarket" xml:space="preserve">
+    <value>Stop loss must be above the current market price {0} for a short position.</value>
+  </data>
+  <data name="Positions.ProtectTakeProfitMustBeAboveMarket" xml:space="preserve">
+    <value>Take profit must be above the current market price {0} for a long position.</value>
+  </data>
+  <data name="Positions.ProtectTakeProfitMustBeBelowMarket" xml:space="preserve">
+    <value>Take profit must be below the current market price {0} for a short position.</value>
+  </data>
+  <data name="Positions.ProtectSetFormat" xml:space="preserve">
+    <value>Protective levels set on {0}: stop-loss {1}, take-profit {2}.</value>
+  </data>
+  <data name="Positions.ProtectAbortedFormat" xml:space="preserve">
+    <value>The protective rewrite aborted: the take-profit order {0} was placed but the stop-loss failed: {1}. The take-profit was cancelled (best effort) — the position may be left unprotected.</value>
   </data>
   <data name="Positions.ActionBulkCancel" xml:space="preserve">
     <value>Cancel All…</value>

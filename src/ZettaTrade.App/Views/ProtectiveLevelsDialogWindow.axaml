@@ -1,0 +1,61 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.ProtectiveLevelsDialogWindow"
+        Classes="chrome-compact"
+        Icon="/Assets/ZettaTrade.ico"
+        x:DataType="vm:ProtectiveLevelsDialogViewModel"
+        AutomationProperties.AutomationId="ProtectiveLevelsDialogWindow"
+        Title="{loc:Localized Positions.ProtectTitle}"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceM}">
+        <!-- The editing target: side, quantity, symbol and the current
+             market price, precomputed by the view model at initialize time -->
+        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+
+        <!-- Each level is optional: an empty field clears that level, both
+             empty clear the pair (the honest absent state, never a
+             fabricated number) -->
+        <TextBlock Text="{loc:Localized Positions.ProtectStopLoss}" />
+        <TextBox Text="{Binding StopLossInput, Mode=TwoWay}"
+                 AutomationProperties.AutomationId="ProtectStopLossInput"
+                 FontFamily="{StaticResource NumericFont}"
+                 PlaceholderText="49000" />
+
+        <TextBlock Text="{loc:Localized Positions.ProtectTakeProfit}" />
+        <TextBox Text="{Binding TakeProfitInput, Mode=TwoWay}"
+                 AutomationProperties.AutomationId="ProtectTakeProfitInput"
+                 FontFamily="{StaticResource NumericFont}"
+                 PlaceholderText="51000" />
+
+        <!-- The clear semantics, spelled out once (the quiet hint ink) -->
+        <TextBlock Text="{loc:Localized Positions.ProtectHint}"
+                   Foreground="{DynamicResource TextSecondary}"
+                   TextWrapping="Wrap" />
+
+        <!-- Parse and direction errors, never a defaulted field -->
+        <TextBlock Text="{Binding ErrorMessage}"
+                   AutomationProperties.AutomationId="ProtectErrorLine"
+                   Foreground="{DynamicResource Error}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasErrorMessage}" />
+
+        <UniformGrid Columns="2" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Click="OnApplyClick"
+                    AutomationProperties.AutomationId="ProtectApplyButton"
+                    Classes="primary"
+                    Content="{loc:Localized Positions.ProtectApply}"
+                    MinWidth="120" Margin="0,0,8,0" />
+            <Button Content="{loc:Localized Trading.Cancel}"
+                    AutomationProperties.AutomationId="ProtectCancelButton"
+                    Click="OnCancelClick"
+                    MinWidth="90" />
+        </UniformGrid>
+    </StackPanel>
+</Window>

@@ -111,6 +111,17 @@ public sealed class PositionsPanelViewModelTests
         _localization,
         Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionActionsService>>());
 
+    /// <summary>The protective-levels service the panel rows ride, over the same trading substitute.</summary>
+    private ProtectiveLevelsService CreateProtectService() => new(
+        _trading,
+        new DefaultRiskManager(Substitute.For<Microsoft.Extensions.Logging.ILogger<DefaultRiskManager>>()),
+        _confirmation,
+        new OrderConfirmationComposer(_localization),
+        _journal,
+        _history,
+        _localization,
+        Substitute.For<Microsoft.Extensions.Logging.ILogger<ProtectiveLevelsService>>());
+
     /// <summary>The bulk pass the panel's Cancel All command rides.</summary>
     private BulkCancelService CreateBulkCancelService() => new(
         _trading,
@@ -138,6 +149,7 @@ public sealed class PositionsPanelViewModelTests
                 _localization,
                 NullLogger<OrderAmendService>.Instance),
             CreateActionsService(),
+            CreateProtectService(),
             CreateBulkCancelService(),
             _localization,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<PositionsPanelViewModel>>());

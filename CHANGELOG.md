@@ -1,3 +1,37 @@
+## [0.1.0-alpha.131] - 2026-11-12
+
+Build of board task T-187 (branch `feat/position-sltp`): stop-loss and
+take-profit management from the positions panel.
+
+### Added
+- The positions panel's positions table carries stop-loss and
+  take-profit columns reading the levels the position reports (an
+  unprotected cell stays empty) and a secondary SL/TP action per row.
+  The protective-levels dialog prefills the levels the position holds,
+  and each optional field parses in the invariant culture: an empty
+  field clears that level, both empty clear the whole pair.
+- The protective rewrite rides the existing conditional machinery as an
+  either-or pair of reduce-only opposite-side legs placed through the
+  normal order pipeline: the fresh position re-read, the direction
+  check against the current price (a level on the wrong side is an
+  explicit localized refusal, never a reinterpretation), both legs
+  risk-checked atomically before anything moves, ONE confirmation
+  naming the rewrite, then cancel-then-place — a refused second leg
+  cancels the placed one and reports the unprotected state loudly.
+- The protective pair's rewrite and clear work through the same one
+  confirmation; a clear with nothing protected is an explicit localized
+  nothing without a dialog.
+- The paper exchange honors reduce-only fills: a protective fill caps
+  at the opposite-side position the venue reports (a fill with nothing
+  to close is refused), so a stale protective pair self-cleans on its
+  first trigger instead of flipping into fresh exposure. The positions
+  surface (`get_positions`) reads the working legs' levels back.
+
+### Changed
+- The positions table's column plan widens for the two numeric columns;
+  the reverse keeps its single destructive weight in the row-action
+  hierarchy.
+
 ## [0.1.0-alpha.130] - 2026-11-12
 
 Build of board task T-186 (branch `feat/bracket-orders`): bracket orders

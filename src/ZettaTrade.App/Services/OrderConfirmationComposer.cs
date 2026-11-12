@@ -30,6 +30,8 @@ public sealed class OrderConfirmationComposer
     private const string ConfirmAmendPriceKey = "Positions.ConfirmAmend";
     private const string ConfirmAmendQuantityKey = "Positions.ConfirmAmendQuantityOnly";
     private const string ConfirmReverseKey = "Positions.ConfirmReverseFormat";
+    private const string ConfirmProtectKey = "Trading.ConfirmProtectFormat";
+    private const string ProtectLevelNoneKey = "Positions.ProtectLevelNone";
     private const string ConfirmBulkCancelKey = "Positions.ConfirmBulkCancelFormat";
     private const string TagPaperKey = "Positions.BulkTagPaper";
     private const string MarketLabelKey = "Trading.PriceMarket";
@@ -287,6 +289,51 @@ public sealed class OrderConfirmationComposer
             ],
         };
     }
+
+    /// <summary>
+    /// Confirmation summary shown before a protective-level rewrite runs
+    /// (T-187): ONE compact confirmation naming the position it rewrites
+    /// (side, quantity, symbol, current market price) and the levels it
+    /// applies — the stop-loss and the take-profit, each its level's price
+    /// or the localized "not set" for a cleared one. The template names the
+    /// rewrite's mechanics honestly (the existing protective orders cancel
+    /// whether or not the new pair places), so the same summary covers the
+    /// set, the rewrite and the clear; a refusal leaves the existing
+    /// protection untouched.
+    /// </summary>
+    /// <param name="position">The position the rewrite targets, as freshly read.</param>
+    /// <param name="stopLoss">The stop-loss level to apply, or null to clear it.</param>
+    /// <param name="takeProfit">The take-profit level to apply, or null to clear it.</param>
+    public ConfirmationRequest ForProtect(
+        Position position,
+        decimal? stopLoss,
+        decimal? takeProfit)
+    {
+        ArgumentNullException.ThrowIfNull(position);
+
+        var sideText = _localization.GetString($"Order.{position.Side}");
+        var stopText = LevelText(stopLoss);
+        var takeProfitText = LevelText(takeProfit);
+
+        return new ConfirmationRequest
+        {
+            MessageKey = ConfirmProtectKey,
+            Arguments =
+            [
+                position.Symbol.Normalized,
+                sideText,
+                position.Quantity.Value.ToString(CultureInfo.InvariantCulture),
+                position.CurrentPrice.Value.ToString("F8", CultureInfo.InvariantCulture),
+                stopText,
+                takeProfitText,
+            ],
+        };
+    }
+
+    /// <summary>The F8 text of a protective level, or the localized "not set".</summary>
+    private string LevelText(decimal? level) => level is { } value
+        ? value.ToString("F8", CultureInfo.InvariantCulture)
+        : _localization.GetString(ProtectLevelNoneKey);
 
     /// <summary>
     /// Confirmation summary shown before an order is cancelled: side,
