@@ -194,7 +194,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | done | - |
 | T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | done | - |
 | T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | done | - |
-| T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/paper-tif | planned | - |
+| T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/tif-simulation | in-progress | - |
 | T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | planned | - |
 | T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | planned | - |
 | T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | planned | - |
@@ -423,7 +423,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-190 — Honest TIF simulation in the paper adapter
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/tif-simulation, worktree zt-tif-simulation, based on
+  develop@00bcdec (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
 - **Origin:** the sweep — the paper engine records GTC/IOC/FOK/GTD but only GTC is simulated.
 - **What:** IOC fills the immediately-crossing part and cancels the remainder; FOK fills fully
   or rejects outright; GTD expires at its timestamp against the adapter's clock; the order
@@ -433,7 +434,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** each TIF behaves per its contract against the live ticker stream; expired and
   cancelled-rest entries read truthfully in history.
 - **Tests:** the TIF matrix battery (each policy × crossing/not-crossing/partial).
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-191 — Order flags: post-only, reduce-only
 
