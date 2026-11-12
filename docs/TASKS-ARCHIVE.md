@@ -3523,6 +3523,43 @@ the board and its section below.
   PASSED: a clean boot on the demo venue, 0 ERR/FTL, no screener feed warnings, the palette
   refreshed, ProductVersion 0.1.0-alpha.139+36e8148f.
 
+## T-196 — User-managed watchlists
+
+- **Branch:** `feat/watchlist-edit` off `develop` (base `b427c83`).
+- **Origin:** the sweep — the watchlist is auto-composed (the starter majors + the workspace
+  symbol) and not user-editable.
+- **What:** user-created symbol lists (add via the palette, remove, reorder, rename, several
+  named lists), persisted in the settings schema (versioned); the shipped starter list stays
+  the default; import/export rides the settings port (T-100).
+- **Scope:** the App watchlist VM + the settings schema migration, the palette add route, resx
+  en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a user list survives restart and the language/theme switches; add, remove and
+  reorder are keyboard-accessible (the T-110 discipline); untouched installs keep today's list.
+- **Tests:** the settings schema migration battery; the headless panel pins.
+- **Status:** done — 0.1.0-alpha.140. Chain: claim `81b2fa5` -> feat `2339011` -> fix `2a8a83d` ->
+  close. The `Watchlists/Document` settings key carries one versioned codec payload (the port
+  registry entry gained it, the tuned-state seed carries the codec, a plain-text round-trip
+  fact pins the factory-reset promise); the new `WatchlistCatalogService` owns the document
+  (seeded read, normalized apply, write-then-publish mutations — writers never ride their own
+  echo). The feed rides the catalog's active list (survivors keep their pricing state, moved
+  rows re-stamp in place) and re-pins the workspace selection as the trailing overlay row;
+  the panel VM grows the list combo (in-place positional diff + the echo-guard index shim),
+  the inline name editor (create/rename), the delete gate (starter-exempt, rename re-arms
+  it), the row toolbar (remove/move up/down) and the palette's watchlist pick route (the
+  picked symbol joins the active list, duplicates no-op). Accessibility: 9
+  `AutomationProperties.Name` pins over the toolbar (`Watch.*` resx keys, en+ru, the
+  BothCultures catalog + the palette pick hints gained their lines). Tests: the new 12-fact
+  `WatchlistViewModelTests` battery (the real feed over a substituted adapter — the feed is
+  sealed; every publish lands through the dispatcher pump), the +3 palette pick facts, the
+  port round-trip fact and the 9 automation pins; the suite stands 1829 green. Gate round 1
+  failed on the lint quartet (2 LOCK — the feed's `lock` gate, 2 FIRE-FORGET) and passed on
+  round 2: the row-set gate rides a `SemaphoreSlim`, the two mutators run awaited (the house
+  `SubscribeAsync` discipline) and the list shim's setter is a pure store-and-raise with the
+  switch stream in the constructor; the `Task.FromResult` NSubstitute warning stays
+  deliberate (`ReturnsAsync` is unavailable in this wiring — the T-215 precedent). Smoke
+  PASSED: a clean boot on the demo venue, 0 ERR/FTL, ticker+screener+watchlist clean,
+  ProductVersion 0.1.0-alpha.140+2a8a83d.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).

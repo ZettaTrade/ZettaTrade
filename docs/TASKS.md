@@ -200,7 +200,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | done | - |
 | T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | done | - |
 | T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | done | - |
-| T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | in-progress | - |
+| T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | done | - |
 | T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | planned | - |
 | T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | planned | - |
 | T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | planned | - |
@@ -452,21 +452,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
   were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
   new user-facing UI string was introduced.
-
-## T-196 — User-managed watchlists
-
-- **Branch:** `feat/watchlist-edit` off `develop` (base `b427c83`).
-- **Origin:** the sweep — the watchlist is auto-composed (the starter majors + the workspace
-  symbol) and not user-editable.
-- **What:** user-created symbol lists (add via the palette, remove, reorder, rename, several
-  named lists), persisted in the settings schema (versioned); the shipped starter list stays
-  the default; import/export rides the settings port (T-100).
-- **Scope:** the App watchlist VM + the settings schema migration, the palette add route, resx
-  en+ru, the next free alpha bump + the CHANGELOG section.
-- **Acceptance:** a user list survives restart and the language/theme switches; add, remove and
-  reorder are keyboard-accessible (the T-110 discipline); untouched installs keep today's list.
-- **Tests:** the settings schema migration battery; the headless panel pins.
-- **Status:** in-progress.
 
 ## T-197 — Futures contour MVP: Bybit linear perps
 
