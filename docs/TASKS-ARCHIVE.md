@@ -3362,7 +3362,66 @@ the board and its section below.
   absorbed, then clean). SMOKE PASSED on the T-166 functional bar: title held through the
   hold, 0 ERR/FTL, ticker clean, palette refreshed, strategies+indicators provided,
   ProductVersion 0.1.0-alpha.135+cf227c6. Hazards (recorded, accepted): the ticket's
-  reduce-only enablement is advisory UI context — the strict contracts stay at the
+  reduce-only enablement is advisory UI context - the strict contracts stay at the
   adapters and the Core (a stale context can offer the switch, the placement still
   enforces the truth); the post-only maker-only reading prices against the paper
   simulator's reference close (the live-venue contract stays the venue's own).
+
+## T-192 - Paper account management: reset, starting balance
+
+- **Branch:** feat/paper-account, worktree zt-paper-account, based on
+  develop@49de4b4 (claimed 2026-11-12 off the synced board - the 2026-11-12 backlog sweep).
+- **Origin:** the sweep - the paper engine carries a fixed starting balance with no reset and
+  no top-up route.
+- **What:** a settings/UI route to reset the paper account (balances, positions, working
+  orders, journal) to a chosen starting balance, behind an explicit confirmation that names the
+  scope; the reset never touches live/testnet data; the demo adapter's canonical balance stays
+  the shipped default.
+- **Scope:** Infrastructure paper state + settings keys (`Paper.*`), the reset route in the
+  settings window or the balances panel, resx en+ru, the next free alpha bump + the CHANGELOG
+  section.
+- **Acceptance:** a reset restores the chosen balance and empties the paper positions, orders
+  and journal; live/testnet surfaces are untouched; the confirmation names exactly what wipes.
+- **Tests:** the reset battery; the settings round-trip pin.
+- **Status:** done. Canon: the claim `7ed2a53`, the feat `48db441`, this close commit
+  follows; alpha.135 -> alpha.136; no satellite release rode it (Livery 0.1.11, Plugins 0.3.0
+  untouched). Lane: supervisor-solo (the subagent lane stays closed). Shipped: the paper
+  adapter's concrete `ResetSimulationAsync` (under the trading lock: the price-stream
+  subscriptions disposed, the conditionals/OCO/parked-bracket registries, the working orders,
+  positions and balances wiped, the quote balance re-seeded at the chosen amount; a
+  non-positive balance refuses - never a default), `IOrderHistoryStore.DeleteExchangeAsync`
+  (the Infrastructure interface - Core contracts stay untouched) as one server-side
+  `ExecuteDeleteAsync` scoped to the named exchange, and the session journal's
+  `IOrderJournal.RemoveVenue` drain-filter-requeue. The reset route lives in the balances
+  panel footer: the dialog prefills the persisted starting balance, refuses non-positive or
+  unparsable input inline, the confirmed flow runs ONE confirmation
+  (`ForPaperReset` - the chosen balance plus the working-order and open-position counts the
+  fresh plan read counted, naming the journal wipe and the live/testnet-untouched scope), the
+  adapter resets, the journal wipes, the chosen balance persists best-effort
+  (the `Paper`/`StartingBalance` settings key; a settings fault logs and never undoes), and
+  the panel reloads through the shared load pipeline with the localized outcome line; a
+  declined dialog or a refused confirmation is silent. Journal reading canon: the "journal"
+  the acceptance wipes is BOTH journals - the session journal's paper rows and the persisted
+  paper rows in the SQLite order history; the realized-PnL history is deliberately NOT wiped
+  (outside the named scope - the T-189 loss governor resets its own counters), and the demo
+  adapter's canonical `InitialQuoteAmount` stays the shipped default while the reset's own
+  default prefill rides the same constant. resx en+ru: 10 `Trading.*` keys
+  (`PaperResetButton/Title/Summary/BalanceLabel/NotANumber/Hint/Apply`,
+  `ConfirmPaperResetFormat`, `PaperResetDoneFormat`, `PaperResetFailedFormat`). Tests:
+  `PaperResetTests` (7 facts: the balance re-seed, the orders/positions wipe, the parked stop
+  and the parked bracket entry never arm after the reset, the non-positive refusal matrix
+  leaving state intact, life after the reset - a fresh conditional arms and fills again on
+  the re-subscribed stream, and a double reset), `PaperResetServiceTests` (5: the declined
+  confirmation touching nothing, the confirmed wipe commanding only the paper exchange's
+  journals, the ONE confirmation naming the balance and the counts, the balance persisting,
+  the prefill read), the store's delete-scoped fact, the journal's drain facts (2), the
+  composer pair, the panel flow facts (4) and `BalancesResetPinsTests` (6 surface pins).
+  Infrastructure targeted 24 green, App targeted 47 green. GATE PASSED (3 non-blocking
+  warnings: the absent agent-scope file, the local gitleaks skip, the App.Tests flaky-retry
+  note - the load-timing family absorbed by the settle+retry). SMOKE PASSED on the T-166
+  functional bar: title held through the hold, 0 ERR/FTL, ticker clean, palette 12 rows,
+  strategies+indicators provided, ProductVersion 0.1.0-alpha.136+48db441. Hazard (recorded,
+  accepted): the reset counts the scope off the paper adapter's own fresh reads - a fill or
+  cancel landing between the plan read and the wipe is still wiped (the wipe is
+  unconditional once confirmed); the confirmation's counts are the honest read of the moment
+  it was composed, not a hold on the surface.
