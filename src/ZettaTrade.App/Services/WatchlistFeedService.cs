@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.UI.Extensions;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
@@ -39,8 +40,10 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// single atomic reference write; the pulse builder only reads those. The
 /// row-SET transitions (list apply and selection pin) are the two
 /// mutators' shared critical section — they run on different streams, so
-/// they serialize through one small gate; a row's own tick state never
-/// crosses it. The optional <c>pulse</c> seam injects a controllable
+/// each stream serializes its own runs (the awaited-subscription
+/// discipline) and the two serialize against each other through one small
+/// async semaphore; a row's own tick state never crosses it. The optional
+/// <c>pulse</c> seam injects a controllable
 /// interval source for the deterministic facts (the default is the plain
 /// Rx interval clock — exists per-byte for the test seam, nothing
 /// speculative).
@@ -68,10 +71,12 @@ public sealed class WatchlistFeedService : IAsyncInitializable
     /// <summary>
     /// The row-set mutators' shared gate: the document apply and the
     /// selection pin ride different streams, and the set transition is a
-    /// multi-step retire/join/restamp — one small critical section keeps
-    /// every transition all-or-nothing against the other.
+    /// multi-step retire/join/restamp — one small async semaphore keeps
+    /// every transition all-or-nothing against the other (the awaited
+    /// critical section: no lock, the mutators hold it across their
+    /// awaits).
     /// </summary>
-    private readonly object _rowSetGate = new();
+    private readonly SemaphoreSlim _rowSetGate = new(1, 1);
 
     /// <summary>The next free row stamp: written after each list apply, read by a mid-stream overlay join.</summary>
     private long _nextRowSequence;
@@ -151,12 +156,12 @@ public sealed class WatchlistFeedService : IAsyncInitializable
 
         _listSubscription = catalog.Changes
             .StartWith(catalog.Current)
-            .Subscribe(
-                OnListDocument,
+            .SubscribeAsync(
+                ApplyListDocumentAsync,
                 ex => _logger.LogError(ex, "The watchlist document stream stopped unexpectedly"));
 
-        _selectionSubscription = workspaceSelections.Subscribe(
-            OnSelection,
+        _selectionSubscription = workspaceSelections.SubscribeAsync(
+            ApplySelectionAsync,
             ex => _logger.LogError(ex, "The watchlist's workspace symbol stream stopped unexpectedly"));
     }
 
@@ -190,6 +195,7 @@ public sealed class WatchlistFeedService : IAsyncInitializable
 
         _tickerSubscriptions.Clear();
         _dataTick.Dispose();
+        _rowSetGate.Dispose();
         return ValueTask.CompletedTask;
     }
 
@@ -206,7 +212,7 @@ public sealed class WatchlistFeedService : IAsyncInitializable
     /// trailing overlay row otherwise. An identical re-publish (the seed
     /// echoing the already-armed starter) re-arms nothing.
     /// </summary>
-    private void OnListDocument(WatchlistDocument document)
+    private async Task ApplyListDocumentAsync(WatchlistDocument document)
     {
         if (ReferenceEquals(_appliedDocument, document))
         {
@@ -221,7 +227,8 @@ public sealed class WatchlistFeedService : IAsyncInitializable
         var wanted = active?.Symbols ?? (IReadOnlyList<string>)Array.Empty<string>();
         var listed = new HashSet<string>(wanted, StringComparer.Ordinal);
 
-        lock (_rowSetGate)
+        await _rowSetGate.WaitAsync();
+        try
         {
             // Pass 1: retire what the new list dropped. The standing
             // selection's row survives every list edit — it re-pins below.
@@ -278,6 +285,10 @@ public sealed class WatchlistFeedService : IAsyncInitializable
             Volatile.Write(ref _nextRowSequence, sequence);
             _dataTick.OnNext(RxVoid.Default);
         }
+        finally
+        {
+            _rowSetGate.Release();
+        }
     }
 
     /// <summary>
@@ -287,9 +298,10 @@ public sealed class WatchlistFeedService : IAsyncInitializable
     /// selection move. Runs under the row-set gate, so a list edit racing
     /// the move converges on one writer's answer.
     /// </summary>
-    private void OnSelection(Symbol selection)
+    private async Task ApplySelectionAsync(Symbol selection)
     {
-        lock (_rowSetGate)
+        await _rowSetGate.WaitAsync();
+        try
         {
             _selection = selection;
             var previous = _selectionRow;
@@ -304,6 +316,10 @@ public sealed class WatchlistFeedService : IAsyncInitializable
             {
                 RetireRow(retiring);
             }
+        }
+        finally
+        {
+            _rowSetGate.Release();
         }
     }
 

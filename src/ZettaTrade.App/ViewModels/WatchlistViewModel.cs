@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.UI.Extensions;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
@@ -152,11 +153,13 @@ public sealed class WatchlistViewModel : ReactiveObject
 
     /// <summary>
     /// The active list's index shim (two-way over the combo, the screener
-    /// preset's precedent): the catalog publish writes the field and raises
-    /// — a write of the applied name's index is that publish's echo and
-    /// never re-issues the switch; a write of another name's index switches
-    /// the active list. A failed switch stays re-issuable: the echo-guard
-    /// only marks the names the publishes actually applied.
+    /// preset's precedent): a pure store-and-raise — the switch routing
+    /// rides the constructor's stream. The catalog publish writes the
+    /// field and raises — a write of the applied name's index is that
+    /// publish's echo and never re-issues the switch; a write of another
+    /// name's index switches the active list. A failed switch stays
+    /// re-issuable: the echo-guard only marks the names the publishes
+    /// actually applied.
     /// </summary>
     public int SelectedListIndex
     {
@@ -170,21 +173,6 @@ public sealed class WatchlistViewModel : ReactiveObject
 
             _selectedListIndex = value;
             this.RaisePropertyChanged(nameof(SelectedListIndex));
-
-            if (value < 0 || value >= _lists.Count)
-            {
-                // The control's transient reset (the items swap) — the
-                // publish re-points immediately after; never an apply.
-                return;
-            }
-
-            var name = _lists[value].Name;
-            if (string.Equals(name, _appliedListName, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            _ = ApplyListSwitchAsync(name);
         }
     }
 
@@ -289,6 +277,22 @@ public sealed class WatchlistViewModel : ReactiveObject
             .Subscribe(
                 _ => RepublishListOptions(),
                 ex => _logger.LogError(ex, "The watchlist language stream stopped unexpectedly"));
+
+        // The list shim's switch route (the property stays a pure
+        // store-and-raise): every write of another list's index issues the
+        // catalog switch, serialized in emission order. The publish's
+        // re-point raises echo through the guard (the applied name is
+        // already updated when the raise happens), and the control's
+        // transient reset never applies — the bounds filter drops it.
+        // A failed switch stays re-issuable: the guard only knows the
+        // names the publishes actually applied.
+        this.WhenAnyValue(x => x.SelectedListIndex)
+            .Where(index => index >= 0 && index < _lists.Count)
+            .Select(index => _lists[index].Name)
+            .Where(name => !string.Equals(name, _appliedListName, StringComparison.OrdinalIgnoreCase))
+            .SubscribeAsync(
+                ApplyListSwitchAsync,
+                ex => _logger.LogError(ex, "The watchlist list-switch stream stopped unexpectedly"));
 
         var rowBounds = this.WhenAnyValue(
             x => x.SelectedRowIndex,

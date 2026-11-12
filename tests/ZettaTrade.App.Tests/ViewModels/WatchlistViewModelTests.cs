@@ -454,7 +454,7 @@ public sealed class WatchlistViewModelTests
         await panel.OpenNewListCommand.Execute(RxVoid.Default);
         panel.IsListEditorOpen.Should().BeTrue();
 
-        _ = fixture.Catalog.AddSymbolAsync("Majors", "TRX/USDT");
+        await fixture.Catalog.AddSymbolAsync("Majors", "TRX/USDT");
         await AvaloniaDispatcherPump.DrainAsync();
 
         panel.IsListEditorOpen.Should().BeTrue("a publish re-points the surface, the editor stays");
