@@ -3488,3 +3488,41 @@ the board and its section below.
   the facade catalog grew the OKX entry, and the trading-mode lane resolves it to paper with
   no special-casing. No resx keys were added: the adapter name stays hardcoded like
   Binance/Bybit (the T-193/T-127 precedent) and no new user-facing UI string was introduced.
+
+## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
+
+- **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
+- **Origin:** the T-193 landing's recorded next-wave claim ("a tests-only task hardening
+  AvaloniaDispatcherPump — raise/jitter DrainTimeout, or drain-with-retry inside the
+  pump"); the family fired again in the T-194 landing gates — two consecutive gate runs
+  lost the same fact (`SurfaceStrayPinsTests.EveryShippedTheme_ServesTheVeilFromItsOwn
+  Background`, 1729/1730 on both passes) while the isolated rerun stayed green (433 ms;
+  the T-193 landing canon names the cause: `System.TimeoutException` at
+  `AvaloniaDispatcherPump.DrainAsync` — the drain exceeds the fixed 5 s `DrainTimeout`
+  under cross-assembly load / fresh-binary conditions while the pump is healthy).
+- **What:** harden the pump's drain against load-induced false hang verdicts without
+  weakening the real-wedge detection.
+- **Scope:** tests-only — the pump harness (`AvaloniaDispatcherPump` + the drain-path
+  facts); no product surface, no bump, no CHANGELOG (the T-135/T-138/T-148/T-149/T-144/
+  T-176 precedent).
+- **Acceptance:** the veil fact survives a full gate run; a genuinely dead pump still
+  fails bounded (no unbounded wait anywhere).
+- **Tests:** the evidence-driven shape decided at implementation: a raised bound, or an
+  in-pump drain retry that preserves the drain semantics (everything queued BEFORE the
+  drain lands on the owner thread, nothing after).
+- **Status:** done — tests-only (no bump, no CHANGELOG). Chain: claim `1a99309` -> fix
+  `c2a775e` -> close. The raised bound won: `DrainTimeout` 5 s -> 20 s (4x the observed
+  exceedance; the constant's comment carries the family profile). The in-pump drain retry
+  was REJECTED with the reason recorded — a retry drain would execute jobs queued after
+  the first drain request, violating the pump's documented "everything queued before the
+  drain, nothing after" semantics; the jitter idea dropped — the slow case is
+  deterministic (a first-load assembly scan), not a distribution to jitter. The new fact
+  `DrainAsync_CompletesThroughASlowJobAndThePumpKeepsServing` parks the pump thread 5.5 s
+  inside a job (the Defender first-load-scan shape, above the legacy bound) and proves the
+  drain completes and the pump keeps serving. The negative (a truly hung pump fails
+  bounded) rides `WaitAsync(finite)` by construction — pinning it behaviorally would burn
+  the full bound on every suite run; recorded, not faked. Verification: the pump class 2/2
+  green standalone; GATE PASSED — the veil fact survived the first pass under the new
+  bound (the gate's flaky retry fired once for the KNOWN LogTail-family victim
+  `LogViewerViewModelTests.ADeadLaneStopsTheSurface`, clean on retry, recorded, not fixed
+  in-flight). Launch smoke not needed (tests-only; the T-144/T-176 precedent).
