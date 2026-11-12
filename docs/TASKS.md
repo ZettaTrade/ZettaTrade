@@ -190,7 +190,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | done | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | done | - |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | done | - |
-| T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | planned | - |
+| T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | in-progress | - |
 | T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | planned | - |
 | T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | planned | - |
 | T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | planned | - |
@@ -423,7 +423,9 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-186 — Bracket orders: entry + attached TP/SL
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/bracket-orders, worktree zt-bracket-orders, based on
+  develop@e74812c (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep,
+  first of the trading half).
 - **Origin:** the sweep — the OCO either-or pair ships (T-074), but no route places an entry
   and its protective exit in one shot; no bracket surface exists in the code.
 - **What:** a bracket mode in the order ticket — the entry (market or limit) plus an attached
@@ -441,7 +443,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   reads the three legs before submit.
 - **Tests:** the paper-adapter bracket battery (entry fill arms the pair, either-or, the atomic
   refusal matrix); headless ticket pins for the bracket mode.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-187 — SL/TP management from the positions panel
 
