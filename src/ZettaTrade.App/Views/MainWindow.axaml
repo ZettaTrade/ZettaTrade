@@ -142,427 +142,427 @@
          workspace's own key surface strictly apart. -->
     <Grid>
         <DockPanel>
-        <!-- Top menu bar -->
-        <Menu DockPanel.Dock="Top" DataContext="{Binding Menu}">
-            <MenuItem Header="{loc:Localized Menu.File}"
-                      AutomationProperties.AutomationId="FileMenu">
-                <MenuItem Header="{loc:Localized Menu.File.Settings}" Command="{Binding OpenSettingsCommand}" InputGesture="{Binding Hotkeys.SettingsGesture}"
-                          AutomationProperties.AutomationId="FileSettingsMenuItem" />
-                <Separator />
-                <MenuItem Header="{loc:Localized Menu.File.Exit}" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
-            </MenuItem>
-            <MenuItem Header="{loc:Localized Menu.Trading}"
-                      AutomationProperties.AutomationId="TradingMenu">
-                <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="{Binding Hotkeys.NewOrderGesture}"
-                          AutomationProperties.AutomationId="TradingNewOrderMenuItem" />
-                <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
-                <MenuItem Header="{loc:Localized Menu.Trading.Balances}" Command="{Binding ShowBalancesCommand}" />
-                <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
-                <MenuItem Header="{loc:Localized Menu.Trading.Stats}" Command="{Binding ShowTradeStatsCommand}" />
-                <MenuItem Header="{loc:Localized Menu.Trading.Backtest}" Command="{Binding ShowBacktestCommand}" />
-                <MenuItem Header="{loc:Localized Menu.Trading.Notifications}" Command="{Binding ShowNotificationsCommand}" />
-                <MenuItem Header="{loc:Localized Menu.Trading.Alerts}" Command="{Binding ShowAlertsCommand}" />
-            </MenuItem>
-            <MenuItem Header="{loc:Localized Menu.AI}">
-                <MenuItem Header="{loc:Localized Menu.AI.Chat}"
-                          Command="{Binding ToggleAiChatCommand}"
-                          ToggleType="CheckBox"
-                          IsChecked="{Binding IsAiChatVisible, Mode=OneWay}"
-                          InputGesture="{Binding Hotkeys.AiChatGesture}" />
-                <MenuItem Header="{loc:Localized Menu.AI.Servers}" Command="{Binding ManageMcpServersCommand}" />
-            </MenuItem>
-            <!-- View: the detachable panel windows (T-103) — one checkable
-                 item per panel; the checked state mirrors the panel living
-                 in its own window, and the flip rides the layout ViewModel's
-                 toggle command through the window-routed binding (the same
-                 $parent[Window] shape the chart's HUD gate keeps). -->
-            <MenuItem Header="{loc:Localized Menu.View}"
-                      AutomationProperties.AutomationId="ViewMenu">
-                <MenuItem Header="{loc:Localized Menu.View.Chart}"
-                          AutomationProperties.AutomationId="ViewChartMenuItem"
-                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.ToggleDetachCommand}"
-                          CommandParameter="{x:Static svc:PanelDetachId.Chart}"
-                          ToggleType="CheckBox"
-                          IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.IsChartDetached, Mode=OneWay}" />
-                <MenuItem Header="{loc:Localized Menu.View.Book}"
-                          AutomationProperties.AutomationId="ViewBookMenuItem"
-                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.ToggleDetachCommand}"
-                          CommandParameter="{x:Static svc:PanelDetachId.Book}"
-                          ToggleType="CheckBox"
-                          IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.IsBookDetached, Mode=OneWay}" />
-                <MenuItem Header="{loc:Localized Menu.View.Assistant}"
-                          AutomationProperties.AutomationId="ViewAssistantMenuItem"
-                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.ToggleDetachCommand}"
-                          CommandParameter="{x:Static svc:PanelDetachId.Assistant}"
-                          ToggleType="CheckBox"
-                          IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.IsAssistantDetached, Mode=OneWay}" />
-            </MenuItem>
-            <!-- Help: the log viewer (T-101) — the file-only Serilog sinks are
-                 otherwise reachable only through a text editor — and the
-                 disclaimer re-show path ("About / Disclaimer"): the SAME
-                 dialog the first run shows, so the alpha wording stays
-                 discoverable after the acknowledgment lives in the settings. -->
-            <MenuItem Header="{loc:Localized Menu.Help}">
-                <MenuItem Header="{loc:Localized Menu.Help.LogViewer}" Command="{Binding ShowLogViewerCommand}" />
-                <!-- The performance HUD (T-108): the checkable dev-mode
-                     readout (chart fps, book rate and latency, memory,
-                     backpressure gauge) — off by default, the flip
-                     persists into Diagnostics.HudEnabled. -->
-                <MenuItem Header="{loc:Localized Menu.Help.PerformanceHud}"
-                          Command="{Binding ToggleHudCommand}"
-                          ToggleType="CheckBox"
-                          IsChecked="{Binding IsHudVisible, Mode=OneWay}" />
-                <!-- The hotkey cheat sheet (T-102): the checkable "?" that
-                     lists the live gesture map — the overlay is a palette
-                     sibling below, and the press routes the sheet's own
-                     toggle command (the checkbox mirrors OneWay). -->
-                <MenuItem Header="{loc:Localized Menu.Help.Hotkeys}"
-                          Command="{Binding Hotkeys.ToggleSheetCommand}"
-                          ToggleType="CheckBox"
-                          IsChecked="{Binding Hotkeys.IsSheetVisible, Mode=OneWay}" />
-                <Separator />
-                <MenuItem Header="{loc:Localized Menu.Help.AboutDisclaimer}" Command="{Binding ShowDisclaimerCommand}" />
-                <MenuItem Header="{loc:Localized Menu.Help.LicenseActivation}" Command="{Binding ShowLicenseActivationCommand}" />
-            </MenuItem>
-        </Menu>
+            <!-- Top menu bar -->
+            <Menu DockPanel.Dock="Top" DataContext="{Binding Menu}">
+                <MenuItem Header="{loc:Localized Menu.File}"
+                          AutomationProperties.AutomationId="FileMenu">
+                    <MenuItem Header="{loc:Localized Menu.File.Settings}" Command="{Binding OpenSettingsCommand}" InputGesture="{Binding Hotkeys.SettingsGesture}"
+                              AutomationProperties.AutomationId="FileSettingsMenuItem" />
+                    <Separator />
+                    <MenuItem Header="{loc:Localized Menu.File.Exit}" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
+                </MenuItem>
+                <MenuItem Header="{loc:Localized Menu.Trading}"
+                          AutomationProperties.AutomationId="TradingMenu">
+                    <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="{Binding Hotkeys.NewOrderGesture}"
+                              AutomationProperties.AutomationId="TradingNewOrderMenuItem" />
+                    <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
+                    <MenuItem Header="{loc:Localized Menu.Trading.Balances}" Command="{Binding ShowBalancesCommand}" />
+                    <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
+                    <MenuItem Header="{loc:Localized Menu.Trading.Stats}" Command="{Binding ShowTradeStatsCommand}" />
+                    <MenuItem Header="{loc:Localized Menu.Trading.Backtest}" Command="{Binding ShowBacktestCommand}" />
+                    <MenuItem Header="{loc:Localized Menu.Trading.Notifications}" Command="{Binding ShowNotificationsCommand}" />
+                    <MenuItem Header="{loc:Localized Menu.Trading.Alerts}" Command="{Binding ShowAlertsCommand}" />
+                </MenuItem>
+                <MenuItem Header="{loc:Localized Menu.AI}">
+                    <MenuItem Header="{loc:Localized Menu.AI.Chat}"
+                              Command="{Binding ToggleAiChatCommand}"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding IsAiChatVisible, Mode=OneWay}"
+                              InputGesture="{Binding Hotkeys.AiChatGesture}" />
+                    <MenuItem Header="{loc:Localized Menu.AI.Servers}" Command="{Binding ManageMcpServersCommand}" />
+                </MenuItem>
+                <!-- View: the detachable panel windows (T-103) — one checkable
+                     item per panel; the checked state mirrors the panel living
+                     in its own window, and the flip rides the layout ViewModel's
+                     toggle command through the window-routed binding (the same
+                     $parent[Window] shape the chart's HUD gate keeps). -->
+                <MenuItem Header="{loc:Localized Menu.View}"
+                          AutomationProperties.AutomationId="ViewMenu">
+                    <MenuItem Header="{loc:Localized Menu.View.Chart}"
+                              AutomationProperties.AutomationId="ViewChartMenuItem"
+                              Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.ToggleDetachCommand}"
+                              CommandParameter="{x:Static svc:PanelDetachId.Chart}"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.IsChartDetached, Mode=OneWay}" />
+                    <MenuItem Header="{loc:Localized Menu.View.Book}"
+                              AutomationProperties.AutomationId="ViewBookMenuItem"
+                              Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.ToggleDetachCommand}"
+                              CommandParameter="{x:Static svc:PanelDetachId.Book}"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.IsBookDetached, Mode=OneWay}" />
+                    <MenuItem Header="{loc:Localized Menu.View.Assistant}"
+                              AutomationProperties.AutomationId="ViewAssistantMenuItem"
+                              Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.ToggleDetachCommand}"
+                              CommandParameter="{x:Static svc:PanelDetachId.Assistant}"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.IsAssistantDetached, Mode=OneWay}" />
+                </MenuItem>
+                <!-- Help: the log viewer (T-101) — the file-only Serilog sinks are
+                     otherwise reachable only through a text editor — and the
+                     disclaimer re-show path ("About / Disclaimer"): the SAME
+                     dialog the first run shows, so the alpha wording stays
+                     discoverable after the acknowledgment lives in the settings. -->
+                <MenuItem Header="{loc:Localized Menu.Help}">
+                    <MenuItem Header="{loc:Localized Menu.Help.LogViewer}" Command="{Binding ShowLogViewerCommand}" />
+                    <!-- The performance HUD (T-108): the checkable dev-mode
+                         readout (chart fps, book rate and latency, memory,
+                         backpressure gauge) — off by default, the flip
+                         persists into Diagnostics.HudEnabled. -->
+                    <MenuItem Header="{loc:Localized Menu.Help.PerformanceHud}"
+                              Command="{Binding ToggleHudCommand}"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding IsHudVisible, Mode=OneWay}" />
+                    <!-- The hotkey cheat sheet (T-102): the checkable "?" that
+                         lists the live gesture map — the overlay is a palette
+                         sibling below, and the press routes the sheet's own
+                         toggle command (the checkbox mirrors OneWay). -->
+                    <MenuItem Header="{loc:Localized Menu.Help.Hotkeys}"
+                              Command="{Binding Hotkeys.ToggleSheetCommand}"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding Hotkeys.IsSheetVisible, Mode=OneWay}" />
+                    <Separator />
+                    <MenuItem Header="{loc:Localized Menu.Help.AboutDisclaimer}" Command="{Binding ShowDisclaimerCommand}" />
+                    <MenuItem Header="{loc:Localized Menu.Help.LicenseActivation}" Command="{Binding ShowLicenseActivationCommand}" />
+                </MenuItem>
+            </Menu>
 
-        <!-- Status bar (T-153): the strip carries exactly five groups — the
-             message channel (a transient event message over the Ready idle
-             text), the exchange picker, the active exchange + lane chip,
-             the connection state and the health dots. The theme, language
-             and version facts moved out: the first two switch in the
-             settings, the version lives in Help/About — every removed
-             label stays reachable in one action. -->
-        <Border DockPanel.Dock="Bottom"
-                Background="{DynamicResource Surface}"
-                BorderThickness="0,1,0,0"
-                BorderBrush="{DynamicResource Border}"
-                Padding="8,4"
-                DataContext="{Binding StatusBar}">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
-                <!-- The message channel (T-153): the Ready idle text between
-                     notification events, a transient event message while the
-                     view model holds one (it vanishes back to the idle text
-                     after its quiet period). -->
-                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center" />
-                <!-- One concept, one control (T-016 anti-confusion rules): the
-                     exchange picker renders only when two or more adapters are
-                     registered; the trading mode never folds into the picker —
-                     exchange and mode are two different decisions. -->
-                <ComboBox Grid.Column="1"
-                          IsVisible="{Binding HasExchangeChoice}"
-                          ItemsSource="{Binding ExchangeNames}"
-                          SelectedItem="{Binding SelectedExchangeName, Mode=TwoWay}"
-                          MinWidth="96"
-                          Margin="16,0"
-                          VerticalAlignment="Center"
-                          ToolTip.Tip="{loc:Localized Status.ExchangePicker}" />
-                <!-- The trading lane chip (T-123): the always-visible
-                     PAPER/TESTNET/LIVE pill next to the active exchange
-                     name. The lane is a property of the TRADED surface (the
-                     trading-mode service's stream), never of the market
-                     data picker (T-016: exchange and mode are two
-                     different decisions). The pill is the Livery chip class
-                     (T-154): the shape, the three state fills and the
-                     readable derived caption treatment live there; the
-                     colors reuse the palette keys the adapter health dots
-                     already speak — calm CandleUp, prompt Highlight,
-                     danger Error — and re-tint live on theme switches; the
-                     caption and tooltip are dynamic localized data from
-                     the view model. -->
-                <StackPanel Grid.Column="2"
-                            Orientation="Horizontal"
-                            Spacing="{StaticResource SpaceS}"
-                            Margin="16,0"
-                            VerticalAlignment="Center">
-                    <TextBlock VerticalAlignment="Center">
-                        <Run Text="{Binding ActiveExchangeName}" />
-                    </TextBlock>
-                    <Border Classes="chip"
-                            VerticalAlignment="Center"
-                            ToolTip.Tip="{Binding TradingLaneTooltip}"
-                            Classes.paper="{Binding IsPaperLane}"
-                            Classes.testnet="{Binding IsTestnetLane}"
-                            Classes.live="{Binding IsLiveLane}">
-                        <TextBlock Text="{Binding TradingLaneLabel}" />
-                    </Border>
-                </StackPanel>
-                <TextBlock Grid.Column="3" Text="{Binding ConnectionStatus}" Margin="16,0" VerticalAlignment="Center" />
-                <!-- The adapter health strip (T-098): one dot per registered
-                     adapter. The dots ride the Livery StateDot classes
-                     (T-154): the state fills live in the kit over the same
-                     palette keys the chips speak — connected / reconnecting
-                     / down / unsupervised — and re-tint live on theme
-                     switches (DynamicResource); the localized tooltip
-                     carries the last event moment and the failure counter. -->
-                <ItemsControl Grid.Column="4"
-                              ItemsSource="{Binding AdapterHealthRows}"
-                              Margin="8,0"
-                              VerticalAlignment="Center">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Ellipse Width="9"
-                                     Height="9"
-                                     VerticalAlignment="Center"
-                                     ToolTip.Tip="{Binding Tooltip}"
-                                     Classes="dot"
-                                     Classes.connected="{Binding IsConnected}"
-                                     Classes.reconnecting="{Binding IsReconnecting}"
-                                     Classes.down="{Binding IsDown}"
-                                     Classes.unsupervised="{Binding IsUnsupervised}" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Grid>
-        </Border>
-
-        <!-- Main content area: the workspace column is the flexible star; the
-             book and assistant columns carry the persisted widths the
-             draggable splitters write (T-038). The assistant-side splitter
-             track and its column collapse with the panel's visibility, and
-             the book side collapses with its detach (T-173) so a hidden or
-             away panel never leaves a dead gutter. -->
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="{Binding Layout.AiSplitterColumnWidth}" />
-                <ColumnDefinition Width="{Binding Layout.AiColumnWidth, Mode=TwoWay}"
-                                  MinWidth="{Binding Layout.AiColumnMinWidth}" />
-            </Grid.ColumnDefinitions>
-
-            <!-- Book/assistant handle: drags resize the persisted assistant
-                 column (the star workspace absorbs the difference); hidden
-                 with the panel so the collapsed geometry stays grab-free. -->
-            <controls:ColumnResizeHandle Grid.Column="1"
-                                         IsVisible="{Binding Chat.IsAiChatVisible}" />
-
-            <!-- Left: Trading workspace (charts, order book, etc.) -->
-            <Border Grid.Column="0" Padding="{StaticResource InsetS}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="{Binding Layout.BookSplitterColumnWidth}" />
-                        <ColumnDefinition Width="{Binding Layout.BookColumnWidth, Mode=TwoWay}"
-                                          MinWidth="{Binding Layout.BookColumnMinWidth}" />
-                        <ColumnDefinition Width="{Binding Layout.BookSplitterColumnWidth}" />
-                        <ColumnDefinition Width="{Binding Layout.TapeColumnWidth, Mode=TwoWay}"
-                                          MinWidth="{x:Static app:UiSettingsKeys.MinTapePanelWidth}" />
-                        <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="{Binding Layout.WatchlistColumnWidth, Mode=TwoWay}"
-                                          MinWidth="{x:Static app:UiSettingsKeys.MinWatchlistPanelWidth}" />
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Chart/book handle: drags resize the persisted book
-                         column; the chart keeps its flexible star. Hidden
-                         with the panel so a detached book never leaves a
-                         dead grab handle parked in an empty gutter (the
-                         collapsed tracks ride BookSplitterColumnWidth). -->
-                    <controls:ColumnResizeHandle Grid.Column="1"
-                                                 AutomationProperties.AutomationId="BookResizeHandle"
-                                                 IsVisible="{Binding !Layout.IsBookDetached}" />
-
-                    <!-- Depth panel (T-103): the book panel's ONE control
-                         instance hosts here inline and moves into the
-                         detached book window on detach (the code-behind
-                         routes its level presses through this same
-                         instance on either host). The border is the swap
-                         host: detached, it carries the note. The panel
-                         itself is created in the code-behind (T-175): it
-                         carries its view model as a LocalValue from its
-                         own construction, ahead of its subtree's first
-                         binding pass. -->
-                    <Border x:Name="BookPanelHost"
-                            AutomationProperties.AutomationId="BookPanelHost"
-                            Grid.Column="2"
-                            Margin="8,0,0,0"
-                            BorderBrush="{DynamicResource Border}"
-                            BorderThickness="1,0,0,0" />
-
-                    <!-- Book/tape handle: drags move the boundary — the
-                         book pays what the tape takes (the stock GridSplitter
-                         never moved this fixed-to-fixed seam). Its track
-                         collapses with the book too: detached, the tape's
-                         left neighbor is gone, and a drag here could only
-                         resurrect a phantom column. -->
-                    <controls:ColumnResizeHandle Grid.Column="3"
-                                                 IsVisible="{Binding !Layout.IsBookDetached}" />
-
-                    <!-- Trade tape panel: the newest trades on top (side
-                         coloring on the aggressor), pauses on hover, clears
-                         on the button; a switched symbol clears the old
-                         symbol's rows in the widget. -->
-                    <Border Grid.Column="4"
-                            Margin="8,0,0,0"
-                            BorderBrush="{DynamicResource Border}"
-                            BorderThickness="1,0,0,0"
-                            DataContext="{Binding TradeTape}">
-                        <Grid RowDefinitions="Auto,*">
-                            <!-- The tape head rides the kit's panel-header
-                                 scaffold (T-160): the padding grammar and
-                                 the title treatment live in the kit, the
-                                 Clear action right-docks into it — no
-                                 hand-typed margins or type copies. -->
-                            <DockPanel Grid.Row="0" Classes="panel-header">
-                                <Button x:Name="TapeClearButton"
-                                        DockPanel.Dock="Right"
-                                        Content="{loc:Localized Tape.Clear}"
-                                        Click="OnTapeClearClick"
-                                        MinWidth="72" />
-                                <TextBlock Text="{loc:Localized Tape.Title}" />
-                            </DockPanel>
-                            <charting:TradeTapeWidget x:Name="TapeWidget" Grid.Row="1" Trades="{Binding Updates}" />
-                        </Grid>
-                    </Border>
-
-                    <!-- Tape/watchlist handle: drags move the boundary —
-                         the tape pays what the watchlist takes. -->
-                    <controls:ColumnResizeHandle Grid.Column="5" />
-
-                    <!-- Right rail: the watchlist (T-120) and the market
-                         heatmap (T-121) share the persisted column as tabs —
-                         neighbors by composition; the strip's splitter
-                         geometry above stays untouched. The heat tab's
-                         metric switch appears only when ranked data exists
-                         (nothing fabricated for a missing feed); the field
-                         re-inks on every feed page, the tile presses route
-                         into the workspace symbol. -->
-                    <TabControl Grid.Column="6"
-                                Margin="8,0,0,0">
-                        <!-- The tab captions ride the kit's panel-title
-                             treatment (T-160): bold, the ramp's
-                             SubtitleStrong step — the tab chrome keeps
-                             its own geometry, the title treatment is
-                             what the panels' heads share. -->
-                        <TabItem DataContext="{Binding Watchlist}">
-                            <TabItem.Header>
-                                <TextBlock Classes="panel-title"
-                                           Text="{loc:Localized Watch.Title}" />
-                            </TabItem.Header>
-                            <!-- Watchlist panel: the feed-paced majors rows plus the
-                                 workspace selection's row; each row keeps a stable
-                                 identity (only its fields churn per pulse), the
-                                 sparkline rides the row's own price ring. -->
-                            <Border BorderBrush="{DynamicResource Border}"
-                                    BorderThickness="1,0,0,0">
-                                <!-- The watch rows clear the list's own
-                                     overlay bar (T-170): the padding is
-                                     the list's internal gutter. -->
-                                <ListBox ItemsSource="{Binding Rows}" Classes="watch-rows" Padding="0,0,16,0">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:WatchlistRowViewModel">
-                                            <Grid ColumnDefinitions="*,Auto" Margin="8,4,4,4">
-                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding SymbolText}"
-                                                               FontWeight="Bold" />
-                                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-                                                        <TextBlock Text="{Binding LastPriceText}" />
-                                                        <!-- T-159: the change text tints by
-                                                             the 24h sign (the candle state
-                                                             colors); a flat or unpriced row
-                                                             keeps the plain ink -->
-                                                        <TextBlock Text="{Binding Change24hText}"
-                                                                   Classes="watch-change"
-                                                                   Classes.up="{Binding IsChangeUp}"
-                                                                   Classes.down="{Binding IsChangeDown}" />
-                                                        <TextBlock Text="{Binding Volume24hText}"
-                                                                   Foreground="{DynamicResource TextSecondary}" />
-                                                    </StackPanel>
-                                                </StackPanel>
-                                                <!-- The sparkline: the viewport's one
-                                                     synthetic shape, the row's price
-                                                     ring mapped onto the canvas (the
-                                                     ring itself lives in the feed);
-                                                     T-159 colors it by the ring's own
-                                                     oldest-to-newest direction, the
-                                                     Highlight line stays the
-                                                     no-signal state -->
-                                                <Polyline Grid.Column="1"
-                                                          Width="96"
-                                                          Height="28"
-                                                          VerticalAlignment="Center"
-                                                          Classes="watch-spark"
-                                                          Classes.up="{Binding IsSparklineUp}"
-                                                          Classes.down="{Binding IsSparklineDown}"
-                                                          Points="{Binding SparklinePoints}"
-                                                          StrokeThickness="1.5" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </Border>
-                        </TabItem>
-                        <TabItem DataContext="{Binding Heatmap}">
-                            <TabItem.Header>
-                                <TextBlock Classes="panel-title"
-                                           Text="{loc:Localized Heatmap.Title}" />
-                            </TabItem.Header>
-                            <Grid RowDefinitions="Auto,*">
-                                <!-- The metric switch: static localized items bound
-                                     by index (the chart type selector's shim), and
-                                     the whole row only exists when the feed carries
-                                     ranked pairs — an empty venue owns no switch. -->
-                                <StackPanel Grid.Row="0"
-                                            Orientation="Horizontal"
-                                            Spacing="{StaticResource SpaceXs}"
-                                            Margin="8,4,0,4"
-                                            IsVisible="{Binding HasData}">
-                                    <TextBlock Text="{loc:Localized Heatmap.Metric}"
-                                               VerticalAlignment="Center" />
-                                    <ComboBox MinWidth="92"
-                                              SelectedIndex="{Binding SelectedMetricIndex}">
-                                        <TextBlock Text="{loc:Localized Heatmap.Metric.QuoteVolume}" />
-                                        <TextBlock Text="{loc:Localized Heatmap.Metric.Change}" />
-                                    </ComboBox>
-                                </StackPanel>
-                                <!-- The tile field: the feed's ranked page drawn as
-                                      the squarified treemap, colored by the 24h
-                                      change palette, pressed tiles routed through
-                                      the window to the workspace symbol. -->
-                                <charting:HeatmapWidget x:Name="HeatmapWidget"
-                                                        Grid.Row="1"
-                                                        Tiles="{Binding Tiles}" />
-                            </Grid>
-                        </TabItem>
-                    </TabControl>
-
-                    <!-- Chart workspace (T-103): the chart panel's ONE control
-                         instance hosts here inline and moves into the detached
-                         chart window on detach — the code-behind's HUD and
-                         export routes ride the same instance on either host.
-                         The border is the swap host: detached, it carries the
-                         note. The panel itself is created in the code-behind
-                         (T-175), carrying its view model as a LocalValue from
-                         its own construction; the HUD frame-tap gate (T-108)
-                         rides the panel's own attach hook (a detached chart
-                         freezes the HUD's tap readout — the HUD overlay is a
-                         main-window citizen; the detached window carries
-                         none). -->
-                    <Border x:Name="ChartPanelHost" Grid.Column="0"
-                            AutomationProperties.AutomationId="ChartPanelHost" />
+            <!-- Status bar (T-153): the strip carries exactly five groups — the
+                 message channel (a transient event message over the Ready idle
+                 text), the exchange picker, the active exchange + lane chip,
+                 the connection state and the health dots. The theme, language
+                 and version facts moved out: the first two switch in the
+                 settings, the version lives in Help/About — every removed
+                 label stays reachable in one action. -->
+            <Border DockPanel.Dock="Bottom"
+                    Background="{DynamicResource Surface}"
+                    BorderThickness="0,1,0,0"
+                    BorderBrush="{DynamicResource Border}"
+                    Padding="8,4"
+                    DataContext="{Binding StatusBar}">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                    <!-- The message channel (T-153): the Ready idle text between
+                         notification events, a transient event message while the
+                         view model holds one (it vanishes back to the idle text
+                         after its quiet period). -->
+                    <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center" />
+                    <!-- One concept, one control (T-016 anti-confusion rules): the
+                         exchange picker renders only when two or more adapters are
+                         registered; the trading mode never folds into the picker —
+                         exchange and mode are two different decisions. -->
+                    <ComboBox Grid.Column="1"
+                              IsVisible="{Binding HasExchangeChoice}"
+                              ItemsSource="{Binding ExchangeNames}"
+                              SelectedItem="{Binding SelectedExchangeName, Mode=TwoWay}"
+                              MinWidth="96"
+                              Margin="16,0"
+                              VerticalAlignment="Center"
+                              ToolTip.Tip="{loc:Localized Status.ExchangePicker}" />
+                    <!-- The trading lane chip (T-123): the always-visible
+                         PAPER/TESTNET/LIVE pill next to the active exchange
+                         name. The lane is a property of the TRADED surface (the
+                         trading-mode service's stream), never of the market
+                         data picker (T-016: exchange and mode are two
+                         different decisions). The pill is the Livery chip class
+                         (T-154): the shape, the three state fills and the
+                         readable derived caption treatment live there; the
+                         colors reuse the palette keys the adapter health dots
+                         already speak — calm CandleUp, prompt Highlight,
+                         danger Error — and re-tint live on theme switches; the
+                         caption and tooltip are dynamic localized data from
+                         the view model. -->
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                Spacing="{StaticResource SpaceS}"
+                                Margin="16,0"
+                                VerticalAlignment="Center">
+                        <TextBlock VerticalAlignment="Center">
+                            <Run Text="{Binding ActiveExchangeName}" />
+                        </TextBlock>
+                        <Border Classes="chip"
+                                VerticalAlignment="Center"
+                                ToolTip.Tip="{Binding TradingLaneTooltip}"
+                                Classes.paper="{Binding IsPaperLane}"
+                                Classes.testnet="{Binding IsTestnetLane}"
+                                Classes.live="{Binding IsLiveLane}">
+                            <TextBlock Text="{Binding TradingLaneLabel}" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Grid.Column="3" Text="{Binding ConnectionStatus}" Margin="16,0" VerticalAlignment="Center" />
+                    <!-- The adapter health strip (T-098): one dot per registered
+                         adapter. The dots ride the Livery StateDot classes
+                         (T-154): the state fills live in the kit over the same
+                         palette keys the chips speak — connected / reconnecting
+                         / down / unsupervised — and re-tint live on theme
+                         switches (DynamicResource); the localized tooltip
+                         carries the last event moment and the failure counter. -->
+                    <ItemsControl Grid.Column="4"
+                                  ItemsSource="{Binding AdapterHealthRows}"
+                                  Margin="8,0"
+                                  VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Ellipse Width="9"
+                                         Height="9"
+                                         VerticalAlignment="Center"
+                                         ToolTip.Tip="{Binding Tooltip}"
+                                         Classes="dot"
+                                         Classes.connected="{Binding IsConnected}"
+                                         Classes.reconnecting="{Binding IsReconnecting}"
+                                         Classes.down="{Binding IsDown}"
+                                         Classes.unsupervised="{Binding IsUnsupervised}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </Grid>
             </Border>
 
-            <!-- Right: AI Chat panel (T-103): the assistant panel's ONE
-                 control instance hosts here inline and moves into the
-                 detached assistant window on detach. The border is the swap
-                 host: detached, it carries the note; the persisted chat
-                 visibility binding stays on it. The panel itself is created
-                 in the code-behind (T-175): it carries its view model as a
-                 LocalValue from its own construction, ahead of its subtree's
-                 first binding pass (a markup binding would re-resolve
-                 against the new window and unbind the moved control). -->
-            <Border x:Name="AssistantPanelHost"
-                    AutomationProperties.AutomationId="AssistantPanelHost"
-                    Grid.Column="2"
-                    IsVisible="{Binding Chat.IsAiChatVisible}"
-                    BorderBrush="{DynamicResource Border}"
-                    BorderThickness="1,0,0,0" />
-        </Grid>
+            <!-- Main content area: the workspace column is the flexible star; the
+                 book and assistant columns carry the persisted widths the
+                 draggable splitters write (T-038). The assistant-side splitter
+                 track and its column collapse with the panel's visibility, and
+                 the book side collapses with its detach (T-173) so a hidden or
+                 away panel never leaves a dead gutter. -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="{Binding Layout.AiSplitterColumnWidth}" />
+                    <ColumnDefinition Width="{Binding Layout.AiColumnWidth, Mode=TwoWay}"
+                                      MinWidth="{Binding Layout.AiColumnMinWidth}" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Book/assistant handle: drags resize the persisted assistant
+                     column (the star workspace absorbs the difference); hidden
+                     with the panel so the collapsed geometry stays grab-free. -->
+                <controls:ColumnResizeHandle Grid.Column="1"
+                                             IsVisible="{Binding Chat.IsAiChatVisible}" />
+
+                <!-- Left: Trading workspace (charts, order book, etc.) -->
+                <Border Grid.Column="0" Padding="{StaticResource InsetS}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="{Binding Layout.BookSplitterColumnWidth}" />
+                            <ColumnDefinition Width="{Binding Layout.BookColumnWidth, Mode=TwoWay}"
+                                              MinWidth="{Binding Layout.BookColumnMinWidth}" />
+                            <ColumnDefinition Width="{Binding Layout.BookSplitterColumnWidth}" />
+                            <ColumnDefinition Width="{Binding Layout.TapeColumnWidth, Mode=TwoWay}"
+                                              MinWidth="{x:Static app:UiSettingsKeys.MinTapePanelWidth}" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="{Binding Layout.WatchlistColumnWidth, Mode=TwoWay}"
+                                              MinWidth="{x:Static app:UiSettingsKeys.MinWatchlistPanelWidth}" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Chart/book handle: drags resize the persisted book
+                             column; the chart keeps its flexible star. Hidden
+                             with the panel so a detached book never leaves a
+                             dead grab handle parked in an empty gutter (the
+                             collapsed tracks ride BookSplitterColumnWidth). -->
+                        <controls:ColumnResizeHandle Grid.Column="1"
+                                                     AutomationProperties.AutomationId="BookResizeHandle"
+                                                     IsVisible="{Binding !Layout.IsBookDetached}" />
+
+                        <!-- Depth panel (T-103): the book panel's ONE control
+                             instance hosts here inline and moves into the
+                             detached book window on detach (the code-behind
+                             routes its level presses through this same
+                             instance on either host). The border is the swap
+                             host: detached, it carries the note. The panel
+                             itself is created in the code-behind (T-175): it
+                             carries its view model as a LocalValue from its
+                             own construction, ahead of its subtree's first
+                             binding pass. -->
+                        <Border x:Name="BookPanelHost"
+                                AutomationProperties.AutomationId="BookPanelHost"
+                                Grid.Column="2"
+                                Margin="8,0,0,0"
+                                BorderBrush="{DynamicResource Border}"
+                                BorderThickness="1,0,0,0" />
+
+                        <!-- Book/tape handle: drags move the boundary — the
+                             book pays what the tape takes (the stock GridSplitter
+                             never moved this fixed-to-fixed seam). Its track
+                             collapses with the book too: detached, the tape's
+                             left neighbor is gone, and a drag here could only
+                             resurrect a phantom column. -->
+                        <controls:ColumnResizeHandle Grid.Column="3"
+                                                     IsVisible="{Binding !Layout.IsBookDetached}" />
+
+                        <!-- Trade tape panel: the newest trades on top (side
+                             coloring on the aggressor), pauses on hover, clears
+                             on the button; a switched symbol clears the old
+                             symbol's rows in the widget. -->
+                        <Border Grid.Column="4"
+                                Margin="8,0,0,0"
+                                BorderBrush="{DynamicResource Border}"
+                                BorderThickness="1,0,0,0"
+                                DataContext="{Binding TradeTape}">
+                            <Grid RowDefinitions="Auto,*">
+                                <!-- The tape head rides the kit's panel-header
+                                     scaffold (T-160): the padding grammar and
+                                     the title treatment live in the kit, the
+                                     Clear action right-docks into it — no
+                                     hand-typed margins or type copies. -->
+                                <DockPanel Grid.Row="0" Classes="panel-header">
+                                    <Button x:Name="TapeClearButton"
+                                            DockPanel.Dock="Right"
+                                            Content="{loc:Localized Tape.Clear}"
+                                            Click="OnTapeClearClick"
+                                            MinWidth="72" />
+                                    <TextBlock Text="{loc:Localized Tape.Title}" />
+                                </DockPanel>
+                                <charting:TradeTapeWidget x:Name="TapeWidget" Grid.Row="1" Trades="{Binding Updates}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Tape/watchlist handle: drags move the boundary —
+                             the tape pays what the watchlist takes. -->
+                        <controls:ColumnResizeHandle Grid.Column="5" />
+
+                        <!-- Right rail: the watchlist (T-120) and the market
+                             heatmap (T-121) share the persisted column as tabs —
+                             neighbors by composition; the strip's splitter
+                             geometry above stays untouched. The heat tab's
+                             metric switch appears only when ranked data exists
+                             (nothing fabricated for a missing feed); the field
+                             re-inks on every feed page, the tile presses route
+                             into the workspace symbol. -->
+                        <TabControl Grid.Column="6"
+                                    Margin="8,0,0,0">
+                            <!-- The tab captions ride the kit's panel-title
+                                 treatment (T-160): bold, the ramp's
+                                 SubtitleStrong step — the tab chrome keeps
+                                 its own geometry, the title treatment is
+                                 what the panels' heads share. -->
+                            <TabItem DataContext="{Binding Watchlist}">
+                                <TabItem.Header>
+                                    <TextBlock Classes="panel-title"
+                                               Text="{loc:Localized Watch.Title}" />
+                                </TabItem.Header>
+                                <!-- Watchlist panel: the feed-paced majors rows plus the
+                                     workspace selection's row; each row keeps a stable
+                                     identity (only its fields churn per pulse), the
+                                     sparkline rides the row's own price ring. -->
+                                <Border BorderBrush="{DynamicResource Border}"
+                                        BorderThickness="1,0,0,0">
+                                    <!-- The watch rows clear the list's own
+                                         overlay bar (T-170): the padding is
+                                         the list's internal gutter. -->
+                                    <ListBox ItemsSource="{Binding Rows}" Classes="watch-rows" Padding="0,0,16,0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:WatchlistRowViewModel">
+                                                <Grid ColumnDefinitions="*,Auto" Margin="8,4,4,4">
+                                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding SymbolText}"
+                                                                   FontWeight="Bold" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                                                            <TextBlock Text="{Binding LastPriceText}" />
+                                                            <!-- T-159: the change text tints by
+                                                                 the 24h sign (the candle state
+                                                                 colors); a flat or unpriced row
+                                                                 keeps the plain ink -->
+                                                            <TextBlock Text="{Binding Change24hText}"
+                                                                       Classes="watch-change"
+                                                                       Classes.up="{Binding IsChangeUp}"
+                                                                       Classes.down="{Binding IsChangeDown}" />
+                                                            <TextBlock Text="{Binding Volume24hText}"
+                                                                       Foreground="{DynamicResource TextSecondary}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                    <!-- The sparkline: the viewport's one
+                                                         synthetic shape, the row's price
+                                                         ring mapped onto the canvas (the
+                                                         ring itself lives in the feed);
+                                                         T-159 colors it by the ring's own
+                                                         oldest-to-newest direction, the
+                                                         Highlight line stays the
+                                                         no-signal state -->
+                                                    <Polyline Grid.Column="1"
+                                                              Width="96"
+                                                              Height="28"
+                                                              VerticalAlignment="Center"
+                                                              Classes="watch-spark"
+                                                              Classes.up="{Binding IsSparklineUp}"
+                                                              Classes.down="{Binding IsSparklineDown}"
+                                                              Points="{Binding SparklinePoints}"
+                                                              StrokeThickness="1.5" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </TabItem>
+                            <TabItem DataContext="{Binding Heatmap}">
+                                <TabItem.Header>
+                                    <TextBlock Classes="panel-title"
+                                               Text="{loc:Localized Heatmap.Title}" />
+                                </TabItem.Header>
+                                <Grid RowDefinitions="Auto,*">
+                                    <!-- The metric switch: static localized items bound
+                                         by index (the chart type selector's shim), and
+                                         the whole row only exists when the feed carries
+                                         ranked pairs — an empty venue owns no switch. -->
+                                    <StackPanel Grid.Row="0"
+                                                Orientation="Horizontal"
+                                                Spacing="{StaticResource SpaceXs}"
+                                                Margin="8,4,0,4"
+                                                IsVisible="{Binding HasData}">
+                                        <TextBlock Text="{loc:Localized Heatmap.Metric}"
+                                                   VerticalAlignment="Center" />
+                                        <ComboBox MinWidth="92"
+                                                  SelectedIndex="{Binding SelectedMetricIndex}">
+                                            <TextBlock Text="{loc:Localized Heatmap.Metric.QuoteVolume}" />
+                                            <TextBlock Text="{loc:Localized Heatmap.Metric.Change}" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <!-- The tile field: the feed's ranked page drawn as
+                                          the squarified treemap, colored by the 24h
+                                          change palette, pressed tiles routed through
+                                          the window to the workspace symbol. -->
+                                    <charting:HeatmapWidget x:Name="HeatmapWidget"
+                                                            Grid.Row="1"
+                                                            Tiles="{Binding Tiles}" />
+                                </Grid>
+                            </TabItem>
+                        </TabControl>
+
+                        <!-- Chart workspace (T-103): the chart panel's ONE control
+                             instance hosts here inline and moves into the detached
+                             chart window on detach — the code-behind's HUD and
+                             export routes ride the same instance on either host.
+                             The border is the swap host: detached, it carries the
+                             note. The panel itself is created in the code-behind
+                             (T-175), carrying its view model as a LocalValue from
+                             its own construction; the HUD frame-tap gate (T-108)
+                             rides the panel's own attach hook (a detached chart
+                             freezes the HUD's tap readout — the HUD overlay is a
+                             main-window citizen; the detached window carries
+                             none). -->
+                        <Border x:Name="ChartPanelHost" Grid.Column="0"
+                                AutomationProperties.AutomationId="ChartPanelHost" />
+                    </Grid>
+                </Border>
+
+                <!-- Right: AI Chat panel (T-103): the assistant panel's ONE
+                     control instance hosts here inline and moves into the
+                     detached assistant window on detach. The border is the swap
+                     host: detached, it carries the note; the persisted chat
+                     visibility binding stays on it. The panel itself is created
+                     in the code-behind (T-175): it carries its view model as a
+                     LocalValue from its own construction, ahead of its subtree's
+                     first binding pass (a markup binding would re-resolve
+                     against the new window and unbind the moved control). -->
+                <Border x:Name="AssistantPanelHost"
+                        AutomationProperties.AutomationId="AssistantPanelHost"
+                        Grid.Column="2"
+                        IsVisible="{Binding Chat.IsAiChatVisible}"
+                        BorderBrush="{DynamicResource Border}"
+                        BorderThickness="1,0,0,0" />
+            </Grid>
         </DockPanel>
 
         <!-- T-097: the notification toast stack, a sibling above the

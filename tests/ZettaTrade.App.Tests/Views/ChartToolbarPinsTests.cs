@@ -155,10 +155,10 @@ public sealed class ChartToolbarPinsTests
         // The tab captions ride the title treatment alone: the tab chrome
         // keeps its own geometry.
         MainWindowXaml.Should().Contain(
-            "<TextBlock Classes=\"panel-title\"\n                                           Text=\"{loc:Localized Watch.Title}\" />",
+            "<TextBlock Classes=\"panel-title\"\n                                               Text=\"{loc:Localized Watch.Title}\" />",
             "the watch tab caption rides the shared title treatment");
         MainWindowXaml.Should().Contain(
-            "<TextBlock Classes=\"panel-title\"\n                                           Text=\"{loc:Localized Heatmap.Title}\" />",
+            "<TextBlock Classes=\"panel-title\"\n                                               Text=\"{loc:Localized Heatmap.Title}\" />",
             "the heat tab caption rides the shared title treatment");
         MainWindowXaml.Should().NotContain(
             "Header=\"{loc:Localized Watch.Title}\"",
