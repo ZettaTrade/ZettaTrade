@@ -1,3 +1,24 @@
+## [0.1.0-alpha.134] - 2026-11-12
+
+Build of board task T-190 (branch `feat/tif-simulation`): honest TIF
+simulation in the paper adapter.
+
+### Added
+- IOC and FOK now live at the placement moment in the paper simulator: a
+  market or crossing order satisfies them whole (the fill is the
+  answer), an IOC resting away records the terminal Cancelled and never
+  rests or arms, and a FOK that cannot fill whole refuses outright with
+  no order ever existing — the same refusal shape the
+  immediately-triggering stop already had.
+- GTD rests or arms like a GTC and expires at its own timestamp against
+  the adapter's injectable clock: the sweep rides the reads, the ticker
+  ticks (before any trigger evaluation) and the placements, and the
+  teardown mirrors the cancel path exactly — the conditional state, the
+  price stream, the OCO siblings, the parked bracket pair — so expired
+  and cancelled-rest entries read truthfully in the order history.
+- A bracket entry ended by the TIF immediacy at placement (an IOC-away
+  entry cancelled, a pre-passed GTD expired) never parks its exits.
+
 ## [0.1.0-alpha.133] - 2026-11-12
 
 Build of board task T-189 (branch `feat/daily-loss-limit`): the daily loss
