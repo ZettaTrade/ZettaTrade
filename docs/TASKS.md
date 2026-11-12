@@ -186,7 +186,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-179 The Skia header bands breathe: the tape's and the book's column headers stop sitting flush on their first rows (the user ask: padding between the table header and the data) | feat/tape-header-gap | done | T-103 |
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | feat/theme-preview-mirror | done | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | feat/ticket-cta-states | done | - |
-| T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | feat/surface-strays | in-progress | - |
+| T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | feat/surface-strays | done | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | planned | T-183 (soft) |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | planned | - |
@@ -357,7 +357,36 @@ cosmetic strays sweep — filed as T-180…T-182; all rows start `planned`.
   visual parity otherwise.
 - **Tests:** the source pins over the spacing literals and bare opacity values; the existing
   headless bounds pins stay green.
-- **Status:** in-progress.
+- **Status:** done. Canon: the claim `dee72cb` (the dead session's pre-death commit, adopted
+  by the takeover), the feat `77450f6`, this close commit follows; ships as 0.1.0-alpha.127
+  with the matching CHANGELOG section. The takeover adopted the dead session's uncommitted
+  draft (19 views + CompositionRoot + two new files) and reconciled it: the draft carried
+  CP-1251 mojibake (em-dashes, arrows, the star misread — the recorded PowerShell route) in
+  8 views, repaired byte-exactly by reversing the round trip (chars → CP-1251 bytes → UTF-8
+  decode; LogViewerWindow and PositionsPanelWindow were double-layered and needed a second
+  pass); every repaired line matches HEAD byte-for-byte. The mapping: off-scale margins
+  onto the nearest T-155 step (the overlay-drop anchors, the log viewer's clearance and the
+  pair-star's glyph nudge documented as position, not spacing); the dimmers onto named keys
+  — the palette's TextSecondary ink (the watchlist volume, the ticket's sizer support
+  texts), the chart toolbar's quiet `overlay-toggle` class with its own armed `.on` sibling
+  (the T-181 mechanism; no Background setter, so the generic hover/focus stay alive), and
+  the workspace scrims onto the derived `ScrimBrush` (ScrimBrushPublisher, IAsyncInitializable —
+  the applied Background's RGB under the veil alpha 191 = the 0.75 wash, republished on
+  every theme apply, the T-150 derived-key shape; the palette still carries no translucent
+  key). The pin battery (SurfaceStrayPinsTests, 7 facts, first-try green): the spacing walk
+  over every shipped view (the anchors documented by role, a shrunk walk is a false green),
+  the bare-opacity sweep, the dimmer-site pins (the toggles' rest/armed blocks and their
+  ordering), the scrim-site pins, the shipped-theme contrast battery (TextSecondary ≥ 4.5:1
+  over background and surface in all five themes — pre-checked 5.49–7.60:1), the veil
+  derivation math, and the real-apply-path fact (every theme serves the veil from its own
+  Background). GATE PASSED attempt 1 (`-AllowProtected`; the known warnings trio — SCOPE,
+  gitleaks, the App.Tests load-sensitive family ate its flaky retry, recorded, not fixed).
+  Smoke PASSED on the T-166 functional bar: title held through the 12 s watchlist hold,
+  0 ERR/FTL, 0 ticker failures, ProductVersion 0.1.0-alpha.127+77450f65…, palette refreshed,
+  strategies+indicators provided, no leftovers, sandbox deleted. HIGH-RISK reviewer note
+  for the human (gate-flagged): NewOrderDialogWindow, AmendOrderDialogWindow,
+  ConfirmationDialogWindow and OrderHistoryWindow touched in markup only (spacing/opacity
+  swaps; the trading path untouched). Hazards: none new.
 
 ---
 

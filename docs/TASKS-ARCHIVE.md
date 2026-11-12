@@ -2751,3 +2751,56 @@ the board and its section below.
   1571/1571 first-try. Hazards: none new; the T-183 button-kit redesign (the satellite's
   generic hover re-tune) will restyle the GENERIC language later — these window-scoped
   variants stay local and palette-keyed, restyling with it.
+
+## T-182 - The small-surface strays ride the scale and the palette
+
+- **Branch:** feat/surface-strays, worktree zt-surface-strays, based on develop@197300a
+  (claimed 2026-11-12 per standing directive 6 — the review findings batch, T-181 landed;
+  the queued branch name fix/surface-strays replaced by the real one).
+- **Origin:** the cosmetic strays the review swept up: off-scale spacing (the 6px margins and a
+  `Spacing="14"` in the small windows, BalancesPanelWindow first) outside the T-155 scale
+  (4/8/12/16/24), and bare `Opacity="0.65"` dimmers riding no palette key or state class — the
+  watchlist row's 24h volume (MainWindow.axaml), the chart toolbar's VWAP and VolumeProfile
+  toggles (ChartPanelView.axaml) whose on-state stays equally dimmed.
+- **What:** the off-scale margins map onto the nearest scale step (no layout ripple beyond the
+  stray's own pixel); each dimmer moves onto a named state class or palette-derived key
+  (the T-150 derived-key shape) so themes retint the rest state deliberately and the toggles'
+  on-state reads strong.
+- **Scope:** the named stray sites + whatever the grep sweep of off-scale margins and bare
+  opacity literals reports across the App views; Livery Tokens if a derived key lands there;
+  alpha.127 + the CHANGELOG section.
+- **Acceptance:** no off-scale margin or bare Opacity literal remains in the touched windows
+  (the source pin); the dimmed elements read in dark, light and oled (the contrast pins);
+  visual parity otherwise.
+- **Tests:** the source pins over the spacing literals and bare opacity values; the existing
+  headless bounds pins stay green.
+- **Status:** done. Canon: the claim `dee72cb` (the dead session's pre-death commit, adopted
+  by the takeover), the feat `77450f6`, this close commit follows; ships as 0.1.0-alpha.127
+  with the matching CHANGELOG section. The takeover adopted the dead session's uncommitted
+  draft (19 views + CompositionRoot + two new files) and reconciled it: the draft carried
+  CP-1251 mojibake (em-dashes, arrows, the star misread — the recorded PowerShell route) in
+  8 views, repaired byte-exactly by reversing the round trip (chars → CP-1251 bytes → UTF-8
+  decode; LogViewerWindow and PositionsPanelWindow were double-layered and needed a second
+  pass); every repaired line matches HEAD byte-for-byte. The mapping: off-scale margins
+  onto the nearest T-155 step (the overlay-drop anchors, the log viewer's clearance and the
+  pair-star's glyph nudge documented as position, not spacing); the dimmers onto named keys
+  — the palette's TextSecondary ink (the watchlist volume, the ticket's sizer support
+  texts), the chart toolbar's quiet `overlay-toggle` class with its own armed `.on` sibling
+  (the T-181 mechanism; no Background setter, so the generic hover/focus stay alive), and
+  the workspace scrims onto the derived `ScrimBrush` (ScrimBrushPublisher, IAsyncInitializable —
+  the applied Background's RGB under the veil alpha 191 = the 0.75 wash, republished on
+  every theme apply, the T-150 derived-key shape; the palette still carries no translucent
+  key). The pin battery (SurfaceStrayPinsTests, 7 facts, first-try green): the spacing walk
+  over every shipped view (the anchors documented by role, a shrunk walk is a false green),
+  the bare-opacity sweep, the dimmer-site pins (the toggles' rest/armed blocks and their
+  ordering), the scrim-site pins, the shipped-theme contrast battery (TextSecondary ≥ 4.5:1
+  over background and surface in all five themes — pre-checked 5.49–7.60:1), the veil
+  derivation math, and the real-apply-path fact (every theme serves the veil from its own
+  Background). GATE PASSED attempt 1 (`-AllowProtected`; the known warnings trio — SCOPE,
+  gitleaks, the App.Tests load-sensitive family ate its flaky retry, recorded, not fixed).
+  Smoke PASSED on the T-166 functional bar: title held through the 12 s watchlist hold,
+  0 ERR/FTL, 0 ticker failures, ProductVersion 0.1.0-alpha.127+77450f65…, palette refreshed,
+  strategies+indicators provided, no leftovers, sandbox deleted. HIGH-RISK reviewer note
+  for the human (gate-flagged): NewOrderDialogWindow, AmendOrderDialogWindow,
+  ConfirmationDialogWindow and OrderHistoryWindow touched in markup only (spacing/opacity
+  swaps; the trading path untouched). Hazards: none new.
