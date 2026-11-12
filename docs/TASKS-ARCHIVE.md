@@ -3225,3 +3225,75 @@ the board and its section below.
   24h window vs the DST boundary drifts by at most an hour and the next day's window
   re-anchors at its own local midnight; a blocked LARGE order's rejection reason lands raw
   English on the ticket error line (the banner is the localized surface).
+
+## T-190 - Honest TIF simulation in the paper adapter
+
+- **Branch:** feat/tif-simulation, worktree zt-tif-simulation, based on
+  develop@00bcdec (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the paper engine records GTC/IOC/FOK/GTD but only GTC is simulated.
+- **What:** IOC fills the immediately-crossing part and cancels the remainder; FOK fills fully
+  or rejects outright; GTD expires at its timestamp against the adapter's clock; the order
+  history records the honest terminal statuses.
+- **Scope:** the paper adapter's TIF handling, the order-history statuses, tests; no UI change
+  (the ticket already carries TIF); the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** each TIF behaves per its contract against the live ticker stream; expired and
+  cancelled-rest entries read truthfully in history.
+- **Tests:** the TIF matrix battery (each policy × crossing/not-crossing/partial).
+- **Status:** done. Canon: the claim `754d714`, the feat `e286d5c`, this close commit
+  follows; alpha.133 -> alpha.134; no satellite release rode it (Livery 0.1.11, Plugins 0.3.0
+  untouched). Lane: supervisor-solo (the subagent lane stays closed). Shipped: NO Core change
+  (`OrderRequest.Validate` already required a future GTD expiry, `Order.Expiry` already
+  existed, `CreateOrder` already copied `TimeInForce`/`Expiry` — the adapter only ever
+  recorded the enums without simulating them), no UI change (the ticket already carries
+  TIF), no resx (no new strings). Uniform placement-moment immediacy: a market or
+  market-crossing order satisfies IOC/FOK whole (the fill is the answer); an IOC that
+  crosses nothing — a resting-away limit, an armed stop, an away OCO limit leg — records the
+  terminal Cancelled and never rests or arms (stored in `_orders` like cancels, no
+  conditional state, no price stream, no OCO membership — nothing it never created needs
+  tearing down); a FOK that cannot fill whole throws the explicit refusal with no order ever
+  existing — the same shape the immediately-triggering stop refusal already had. The
+  immediacy applies at the arm path too — the strict TIF contract gives the arm no future
+  to promise — and it applies AFTER the pre-existing immediate-trigger refusal (a stop that
+  would fire now keeps its sharper reason). GTD rests or arms like a GTC and expires at its
+  timestamp against the adapter's own clock: the ctor grew the optional
+  `TimeProvider? clock = null` (production DI passes nothing — the 3-arg factory is
+  unchanged; tests inject a settable fake through the 4-arg ctor), only the NEW terminal
+  stamps (`UpdatedAt` on the TIF terminal records and the sweep's Expired transitions) read
+  it — every pre-existing `DateTimeOffset.UtcNow` site stays untouched. The sweep
+  (`ExpireDueWorkingOrdersLocked`) mirrors the cancel-path teardown exactly: the conditional
+  state, the price stream, `CancelOcoSiblingsLocked` (an expired OCO leg ends its pair), the
+  parked-bracket drop; it re-fetches and re-checks the working status per order (a sibling
+  may already be terminal mid-sweep). The sweep rides the reads (`GetOpenOrdersAsync` now
+  takes the trading lock, sweeps, then filters — the pre-acquisition await outside the try,
+  the BUG-035 discipline) and the ticks (`EvaluateTickAsync` sweeps before any trigger
+  evaluation — the honest Expired precedes the fill decision a due trigger would have
+  fired); a GTD resting limit has no ticker stream, so its expiry promptness rides the
+  reads. A GTD whose expiry already passed against the adapter's clock (clock skew vs the
+  wall-clock validation) never rests: the honest Expired is the placement answer, on the
+  limit path and in the arm switch alike. The bracket guard: `PlaceBracketEntryAsync` parks
+  the exits only when the entry is still working — an IOC-away entry (Cancelled) or a
+  pre-passed GTD (Expired) never parks; and the sweep drops the parked pair when a resting
+  GTD entry expires (a pair whose entry never filled never arms). Tests: the TIF matrix
+  battery `PaperTifOrderTests` (17 facts: IOC market/crossing fills, IOC-away limit
+  Cancelled never resting, IOC armed stop Cancelled never arming, IOC away OCO leg
+  Cancelled with the sibling still arming, FOK market/crossing fills, FOK-away limit and
+  armed stop refused outright with no order ever existing, GTD crossing fill, GTD resting
+  limit expiry on read with the Expiry preserved, GTD armed stop expiry on read, GTD armed
+  stop expiry riding the tick BEFORE the trigger (settled on the conditional store, never
+  on a read that sweeps itself), GTD pre-passed expiry at placement, GTD OCO leg expiry
+  taking the working sibling with it, GTD bracket resting entry expiry dropping the parked
+  pair, and the GTC regression guard resting untouched after the clock moves); full
+  Infrastructure.Tests 505 green (488 pre-existing + 17 new), full solution build clean.
+  GATE PASSED (2 non-blocking warnings: the absent agent-scope file, the local gitleaks
+  skip; the first run also flagged the lint's `Task.FromResult` rule on the test file —
+  fixed to an async settle lambda and amended before the shipped gate). SMOKE PASSED on the
+  T-166 functional bar: title held through the hold, 0 ERR/FTL, ticker clean, palette
+  refreshed, strategies+indicators provided, ProductVersion 0.1.0-alpha.134+e286d5c.
+  Hazards (recorded, accepted): the TIF immediacy is the adapter's own strict contract —
+  an IOC/FOK conditional that would arm never gets a trigger-moment TIF evaluation (the
+  paper sim fills triggers whole); GTD expiry is observable on reads and ticks only — a
+  resting GTD limit on a symbol nobody ticks and nobody reads expires the next time
+  anything asks (no background timer — the adapter keeps no threads); the pre-passed
+  placement check reads the adapter's clock while `OrderRequest.Validate` reads the wall
+  clock, so a clock skewed INTO THE PAST would reject a live GTD at validation — the skew
+  direction the sim tolerates is ahead-only (the honest direction for expiry).
