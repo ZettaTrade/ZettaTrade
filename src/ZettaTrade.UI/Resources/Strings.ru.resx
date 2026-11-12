@@ -105,8 +105,14 @@
   <data name="Settings.Tab.Appearance" xml:space="preserve">
     <value>Оформление</value>
   </data>
+  <data name="Settings.Section.Appearance" xml:space="preserve">
+    <value>ОФОРМЛЕНИЕ</value>
+  </data>
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Индикаторы</value>
+  </data>
+  <data name="Settings.Section.Indicators" xml:space="preserve">
+    <value>ИНДИКАТОРЫ</value>
   </data>
   <data name="Settings.Indicators.Empty" xml:space="preserve">
     <value>Плагины индикаторов в каталоге plugins папки данных приложения не найдены (пропуски сканирования фиксируются в журнале)</value>
@@ -115,6 +121,9 @@
     <value>Интеграции</value>
   </data>
   <data name="Settings.Tab.Mcp" xml:space="preserve">
+    <value>MCP</value>
+  </data>
+  <data name="Settings.Section.Mcp" xml:space="preserve">
     <value>MCP</value>
   </data>
   <data name="Settings.Mcp.Enable" xml:space="preserve">
@@ -195,6 +204,9 @@
   <data name="Settings.Tab.Pairs" xml:space="preserve">
     <value>Пары</value>
   </data>
+  <data name="Settings.Section.Pairs" xml:space="preserve">
+    <value>ПАРЫ</value>
+  </data>
   <data name="Settings.Pairs.All" xml:space="preserve">
     <value>Все пары</value>
   </data>
@@ -236,6 +248,9 @@
   </data>
   <data name="Settings.Tab.Port" xml:space="preserve">
     <value>Импорт / экспорт</value>
+  </data>
+  <data name="Settings.Section.Port" xml:space="preserve">
+    <value>ИМПОРТ / ЭКСПОРТ</value>
   </data>
   <data name="Port.Export" xml:space="preserve">
     <value>Экспортировать настройки…</value>
@@ -1805,6 +1820,9 @@
   </data>
   <data name="Settings.Tab.Hotkeys" xml:space="preserve">
     <value>Горячие клавиши</value>
+  </data>
+  <data name="Settings.Section.Hotkeys" xml:space="preserve">
+    <value>ГОРЯЧИЕ КЛАВИШИ</value>
   </data>
   <data name="Menu.Help.Hotkeys" xml:space="preserve">
     <value>Шпаргалка горячих клавиш</value>

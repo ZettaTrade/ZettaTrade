@@ -1,3 +1,42 @@
+## [0.1.0-alpha.129] - 2026-11-12
+
+Build of board task T-184 (branch `feat/settings-rail-cards`): the
+settings window's category rail and section cards.
+
+### Changed
+- The settings tab strip becomes the category rail: the four tab items
+  ride the left placement at a fixed 190 px width, the quiet secondary
+  ink at rest, the soft tint under the pointer and the selection, the
+  keyboard focus on the Highlight ring, and the selected item holding
+  the 3 px Accent tick (the theme's own left-pipe part, re-shaped). The
+  arrow keys walk the rail and the selection follows the directional
+  focus (the TabItem/TabControl focus-selection contract) — no custom
+  keyboard code; the rail item states restyle the theme internals via
+  the `/template/` selectors, the template itself stays untouched.
+- Every settings page speaks the section-card shape (new
+  `Themes/SectionCards.axaml`, included once and consumed by class):
+  the Surface panel with the hairline border and the CornerL step
+  (the T-183 ramp — the task's original CornerM predates it), the 3 px
+  Accent tick and the tracked uppercase caption (the new
+  `Settings.Section.*` keys, en and ru) over it. Appearance carries one
+  card, Indicators one, Integrations two (the MCP server card and the
+  import/export card — the port availability flag moved onto the port
+  card), Workspace two (pairs and hotkeys); the inner viewport caps
+  (theme errors, MCP clients, the import preview, the hotkeys rows)
+  and the body scroll viewers stay as the small machines' safety net.
+- The settings window rides the roomier default (880 x 720, min
+  720 x 560) so the rail and the cards breathe at the default size,
+  and no page scrolls at the default window bounds (the headless
+  bounds pin). Settings behavior is untouched — the bindings, the
+  commands and the persistence keep their shapes; the rail selection
+  is view state only and never persisted.
+
+### Added
+- The `SelectedTabIndex` view-state property on the settings view
+  model (RaiseAndSetIfChanged, never persisted) and the headless
+  no-scroll pins over the four pages' body scroll viewers plus the
+  rail's arrow-key selection fact.
+
 ## [0.1.0-alpha.128] - 2026-11-12
 
 Build of board task T-183 (branch `feat/button-kit`): the button kit —

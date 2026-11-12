@@ -108,6 +108,11 @@ public sealed class SettingsViewModel : ReactiveObject
 
     /// <summary>Selected time format index (0 = 24-hour, 1 = 12-hour); <see cref="NoSelection"/> while the initial read has not landed.</summary>
     private int _selectedTimeFormatIndex = NoSelection;
+
+    /// <summary>The category rail's selected index (T-184): view state only —
+    /// the rail and the TabControl's content host ride this one property, the
+    /// window opens on the first category and never persists the choice.</summary>
+    private int _selectedTabIndex;
     private IReadOnlyList<ThemeFileLoadError> _themeFileErrors = Array.Empty<ThemeFileLoadError>();
 
     private bool _isSmaEnabled;
@@ -149,6 +154,16 @@ public sealed class SettingsViewModel : ReactiveObject
     {
         get => _selectedTimeFormatIndex;
         set => this.RaiseAndSetIfChanged(ref _selectedTimeFormatIndex, value);
+    }
+
+    /// <summary>The category rail's selected index (0 = Appearance … 3 = Workspace):
+    /// the T-184 rail and the TabControl's index binding share this one state —
+    /// the window opens on the first category; the choice is view state and is
+    /// never persisted (no settings seam moves).</summary>
+    public int SelectedTabIndex
+    {
+        get => _selectedTabIndex;
+        set => this.RaiseAndSetIfChanged(ref _selectedTabIndex, value);
     }
 
     /// <summary>

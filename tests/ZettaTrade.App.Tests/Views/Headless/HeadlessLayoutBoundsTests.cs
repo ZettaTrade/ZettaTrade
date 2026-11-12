@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using FluentAssertions;
 using Livery.Localization;
 using Xunit;
@@ -19,8 +20,11 @@ using ZettaTrade.App.Views.Panels;
 /// source-pinned — the acceptance fact is exactly the one the pre-T-145
 /// toolbar overflow would have failed (the one-line header's auto-sum
 /// spilling past the chart column onto the book panel), and the settings
-/// facts pin the folded tab strip and the Save/Close row staying inside
-/// the minimum window. Every window touch rides the world's
+/// facts pin the folded tab strip, the Save/Close row staying inside
+/// the minimum window, the T-184 pages fitting their body viewport at
+/// the default size (no whole-window scroll) and the T-184 rail riding
+/// the keyboard (the arrows walk it, the selection follows the
+/// directional focus). Every window touch rides the world's
 /// user-interface lane (an off-thread constructor dies on VerifyAccess).
 /// The facts share the LocalizationManager singleton with the chart-layout
 /// family, so the class rides the LocalizationManagerSingleton collection:
@@ -145,6 +149,106 @@ public sealed class HeadlessLayoutBoundsTests
     }
 
     /// <summary>
+    /// The T-184 no-scroll pin: at the shipped default size every settings
+    /// page fits its body viewport — the whole-window scroll stays the
+    /// small machines' safety net only (each long list keeps its own
+    /// scrollport instead). The body viewer is the selected tab content's
+    /// own ScrollViewer; the inner viewport caps ride their own facts.
+    /// </summary>
+    [Fact]
+    public async Task TheSettingsPages_FitTheirBodyViewport_AtTheDefaultSize()
+    {
+        var world = await MainWorld.CreateAsync();
+        var window = await ShowSettingsWindowAsync(world.Main.Settings);
+        try
+        {
+            foreach (var key in new[]
+                     {
+                         "Settings.Tab.Appearance", "Settings.Tab.Indicators",
+                         "Settings.Tab.Integrations", "Settings.Tab.Workspace",
+                     })
+            {
+                await SelectTabAsync(window, key);
+                await HeadlessWorld.OnUi(() =>
+                {
+                    var body = HeadlessWorld.Descendants<TabItem>(window)
+                        .Single(tab => tab.IsSelected)
+                        .Content.Should().BeAssignableTo<ScrollViewer>().Which;
+                    body.Extent.Height.Should().BeLessThanOrEqualTo(
+                        body.Viewport.Height + 0.5,
+                        "at the default size the '{0}' page fits - the body scroll is the safety net, not the shape", key);
+                    body.Extent.Width.Should().BeLessThanOrEqualTo(
+                        body.Viewport.Width + 0.5,
+                        "at the default size the '{0}' page never overflows horizontally", key);
+                });
+            }
+        }
+        finally
+        {
+            await HeadlessWorld.CloseAndSettleAsync(window);
+        }
+    }
+
+    /// <summary>
+    /// The T-184 rail keyboard fact: the rail is reachable and operable
+    /// without a mouse — the Down/Up arrows walk the categories through the
+    /// window's own keyboard navigation, and the selection follows the
+    /// directional focus (the TabItem/TabControl focus-selection contract,
+    /// no custom keyboard code).
+    /// </summary>
+    [Fact]
+    public async Task TheSettingsRail_ArrowKeysWalkTheCategories()
+    {
+        var world = await MainWorld.CreateAsync();
+        var window = await ShowSettingsWindowAsync(world.Main.Settings);
+        try
+        {
+            await HeadlessWorld.OnUi(() =>
+            {
+                var tabs = HeadlessWorld.Descendants<TabItem>(window).ToList();
+                tabs.Should().HaveCount(4, "the rail carries the four categories");
+                tabs[0].IsSelected.Should().BeTrue("the window opens on the first category");
+
+                tabs[0].Focus();
+                tabs[0].RaiseEvent(new KeyEventArgs
+                {
+                    RoutedEvent = InputElement.KeyDownEvent,
+                    Key = Key.Down,
+                    KeyModifiers = KeyModifiers.None,
+                });
+            });
+            await AvaloniaDispatcherPump.DrainAsync();
+            await HeadlessWorld.OnUi(() =>
+            {
+                HeadlessWorld.Descendants<TabItem>(window).ToList()[1].IsSelected.Should().BeTrue(
+                    "the Down arrow walks the rail and the selection follows the directional focus");
+            });
+
+            await HeadlessWorld.OnUi(() =>
+            {
+                var tabs = HeadlessWorld.Descendants<TabItem>(window).ToList();
+                tabs[1].Focus();
+                tabs[1].RaiseEvent(new KeyEventArgs
+                {
+                    RoutedEvent = InputElement.KeyDownEvent,
+                    Key = Key.Up,
+                    KeyModifiers = KeyModifiers.None,
+                });
+            });
+            await AvaloniaDispatcherPump.DrainAsync();
+            await HeadlessWorld.OnUi(() =>
+            {
+                HeadlessWorld.Descendants<TabItem>(window).ToList()[0].IsSelected.Should().BeTrue(
+                    "the Up arrow walks the rail back");
+            });
+        }
+        finally
+        {
+            await HeadlessWorld.CloseAndSettleAsync(window);
+        }
+    }
+
+    /// <summary>
     /// The band's geometry contract: the header's controls fold inside the
     /// chart column — no control may paint past the column's right edge,
     /// and none may cross into the book panel the old auto-sum covered.
@@ -193,6 +297,30 @@ public sealed class HeadlessLayoutBoundsTests
         });
         await HeadlessWorld.ShowAndSettleAsync(window);
         return window;
+    }
+
+    /// <summary>Materialize the settings window at its shipped default size and land its open.</summary>
+    private static async Task<SettingsWindow> ShowSettingsWindowAsync(SettingsViewModel settings)
+    {
+        var window = await HeadlessWorld.OnUi(() => new SettingsWindow { DataContext = settings });
+        await HeadlessWorld.ShowAndSettleAsync(window);
+        return window;
+    }
+
+    /// <summary>
+    /// Select one category by its localization key and land the switch on
+    /// the serialized dispatcher — the selected tab's content materializes
+    /// only in its lane, so the drain is what makes the facts measurable.
+    /// </summary>
+    private static async Task SelectTabAsync(SettingsWindow window, string headerKey)
+    {
+        await HeadlessWorld.OnUi(() =>
+        {
+            var expected = LocalizationManager.Instance.GetString(headerKey);
+            HeadlessWorld.Descendants<TabItem>(window)
+                .Single(tab => tab.Header as string == expected)
+                .IsSelected = true;
+        });
     }
 
     /// <summary>The control's bounds in window coordinates.</summary>
