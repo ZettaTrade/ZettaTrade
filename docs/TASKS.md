@@ -195,7 +195,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | done | - |
 | T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | done | - |
 | T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/tif-simulation | done | - |
-| T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | planned | - |
+| T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | in-progress | - |
 | T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | planned | - |
 | T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | planned | - |
 | T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | planned | - |
@@ -423,7 +423,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-191 — Order flags: post-only, reduce-only
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/order-flags, worktree zt-order-flags, based on
+  develop@7f9f7ca (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
 - **Origin:** the sweep — neither flag exists anywhere in the request pipeline.
 - **What:** the two flags in the order ticket (guarded by order type and position context),
   validated and carried through the paper adapter (post-only never crosses immediately;
@@ -434,7 +435,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** a post-only order that would cross rejects with a clear reason; a reduce-only
   order that would increase the exposure rejects; the flags read in the history columns.
 - **Tests:** the adapter flag batteries; the ticket validation pins.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-192 — Paper account management: reset, starting balance
 
