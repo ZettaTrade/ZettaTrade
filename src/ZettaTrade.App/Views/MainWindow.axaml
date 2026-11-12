@@ -100,6 +100,32 @@
             <Setter Property="CornerRadius" Value="1.5" />
             <Setter Property="Background" Value="{DynamicResource Accent}" />
         </Style>
+
+        <!-- The toast card (T-183): the row's chrome lives in the card —
+             the Button rides the kit's quiet carrier (chrome-free at every
+             state, so the chrome never renders twice and the hover never
+             leaks around the card's corners) and the card answers the
+             pointer itself: the soft derived tint on hover, the stronger
+             step on press, the Highlight ring on keyboard focus (the T-110
+             marker the chrome-free button cannot draw itself). The rest
+             chrome rides here so the state lanes can win it; the rounding
+             is the tokens' CornerL card step. -->
+        <Style Selector="Border.toast-card">
+            <Setter Property="Background" Value="{DynamicResource Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource CornerL}" />
+            <Setter Property="Padding" Value="12,4" />
+        </Style>
+        <Style Selector="Button.quiet:pointerover > Border.toast-card">
+            <Setter Property="Background" Value="{DynamicResource ButtonHoverTint}" />
+        </Style>
+        <Style Selector="Button.quiet:pressed > Border.toast-card">
+            <Setter Property="Background" Value="{DynamicResource ButtonPressedTint}" />
+        </Style>
+        <Style Selector="Button.quiet:focus > Border.toast-card">
+            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
+        </Style>
     </Window.Styles>
 
     <!-- The global hotkeys (T-102): no static KeyBindings remain — the
@@ -555,15 +581,12 @@
                       MaxHeight="400">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:NotificationRow">
-                    <Button Margin="0,0,0,4"
+                    <Button Classes="quiet"
+                            Margin="0,0,0,4"
                             Command="{Binding OpenCommand}"
                             ToolTip.Tip="{loc:Localized Notif.ToastHint}"
                             HorizontalContentAlignment="Stretch">
-                        <Border Background="{DynamicResource Surface}"
-                                BorderBrush="{DynamicResource Border}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="12,4">
+                        <Border Classes="toast-card">
                             <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding Moment}"

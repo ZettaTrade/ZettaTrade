@@ -893,6 +893,7 @@
              scrolled away. -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource SpaceM}" HorizontalAlignment="Right">
             <Button x:Name="SaveButton"
+                    Classes="primary"
                     AutomationProperties.AutomationId="SaveButton"
                     Content="{loc:Localized Settings.Save}"
                     MinWidth="90"

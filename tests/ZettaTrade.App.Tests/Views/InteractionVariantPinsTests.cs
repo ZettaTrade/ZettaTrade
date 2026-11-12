@@ -158,7 +158,7 @@ public sealed class InteractionVariantPinsTests
             Path.Combine(AppProjectDirectory, "Themes", "RowGrammar.axaml"));
         rowGrammar.Should().Contain(
             "<Style Selector=\"Button.row-action:pressed\">\n        <Setter Property=\"Background\" Value=\"{DynamicResource Border}\"",
-            "the row-action family's pressed step is the generic kit fill, stated explicitly");
+            "the row-action family's pressed step is its own planar Border fill, stated explicitly (the generic kit's pressed moved to the derived tint in T-183)");
         rowGrammar.IndexOf(BlockOf(rowGrammar, "Button.row-action:pressed"), StringComparison.Ordinal)
             .Should().BeGreaterThan(
                 rowGrammar.IndexOf(BlockOf(rowGrammar, "Button.row-action.secondary"), StringComparison.Ordinal),

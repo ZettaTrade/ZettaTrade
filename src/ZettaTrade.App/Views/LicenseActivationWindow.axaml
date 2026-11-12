@@ -45,6 +45,7 @@
                       IsChecked="{Binding Accepted}" />
         </StackPanel>
         <Button Content="{loc:Localized Settings.License.Activate}"
+                Classes="primary"
                 Command="{Binding ActivateCommand}"
                 MinWidth="140"
                 HorizontalAlignment="Left"

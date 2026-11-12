@@ -1,3 +1,44 @@
+## [0.1.0-alpha.128] - 2026-11-12
+
+Build of board task T-183 (branch `feat/button-kit`): the button kit —
+quiet resting, a soft-tint hover, one primary per window, the corner
+tokens — riding the Livery 0.1.11 satellite release.
+
+### Changed
+- The generic button family goes quiet (Livery 0.1.11): the resting
+  button is transparent over its hairline Border stroke, the pointer
+  answers with the soft Accent tint the theme derivation publishes
+  (`ButtonHoverTint`, a 12% Accent step over the theme's own Surface —
+  never the solid Accent flash), the press a stronger step of the same
+  tint. The rounding rides the new CornerM corner token across the
+  button/text/combo family, and the row cards ride CornerL.
+- The `.primary` class marks each window's ONE main action (solid Accent,
+  the derivation's scored readable foreground, the emphasis ring on
+  hover, the strip's dim step on press): the settings Save, the backtest
+  Start, the stats Apply, the ticket's Amend, the wizard Finish, the
+  disclaimer Acknowledge, the crash dialog Dismiss and the license
+  Activate. The confirmation gate keeps its equal-weight buttons by
+  design (a safety gate never steers), and the ticket's state-filled CTA
+  keeps its own trading vocabulary.
+- The toast rows adopt the kit's quiet carrier: the Button is
+  chrome-free at every state and the chrome lives in the card — the
+  card's own states answer the pointer (the soft tint on hover, the
+  stronger step on press) and the keyboard focus ring lands on the card,
+  so the hover no longer leaks around the card's corners and the chrome
+  never renders twice. The card rounding rides the CornerL token.
+- The row-action family declares its filled rest explicitly (the generic
+  rest went quiet) and its pressed step stays the planar Border fill.
+
+### Added
+- The button-kit pins: at most one `.primary` button per window (the
+  adopted set pinned by name, the confirmation gate pinned
+  primary-free), the toast rows riding the quiet carrier with the card
+  carrying the chrome, the card state lanes present, and no bare corner
+  radius literal left in the toast row template (the card rides the
+  CornerL token). The theme battery walks the derived button-tint rows
+  over every shipped palette (the soft tint's text legs, the primary's
+  scored foreground and the tint's state-existence floor).
+
 ## [0.1.0-alpha.127] - 2026-11-12
 
 Build of board task T-182 (branch `feat/surface-strays`): the small-surface

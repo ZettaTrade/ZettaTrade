@@ -40,6 +40,7 @@
             <TextBlock Text="{Binding VersionText}" />
         </StackPanel>
         <Button Content="{loc:Localized Trading.Disclaimer.Acknowledge}"
+                Classes="primary"
                 Command="{Binding AcknowledgeCommand}"
                 MinWidth="140"
                 HorizontalAlignment="Center"
