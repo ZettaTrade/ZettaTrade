@@ -34,8 +34,18 @@ using Avalonia.Threading;
 /// </summary>
 internal static class AvaloniaDispatcherPump
 {
-    /// <summary>How long a fact's drain may stay unexecuted before the pump is deemed hung.</summary>
-    private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// How long a fact's drain may stay unexecuted before the pump is deemed hung.
+    /// The 20 s bound is the T-216 evidence profile: under fresh-binary conditions
+    /// (Defender scanning lazily-loaded assemblies) a healthy drain's RunJobs
+    /// exceeded the legacy 5 s bound and false-failed the theme-pin facts
+    /// (SurfaceStrayPinsTests.EveryShippedTheme_ServesTheVeilFromItsOwnBackground —
+    /// the T-193 landing lost 5 of 8 gate runs to it; the T-194 landing lost two
+    /// consecutive gate runs) while the isolated rerun stayed green every time. A
+    /// genuinely hung pump still fails bounded here — the bound only widens the
+    /// false-positive margin, never removes the failure.
+    /// </summary>
+    private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(20);
 
     /// <summary>
     /// The wake path between the fact threads and the pump thread: an
