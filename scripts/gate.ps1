@@ -70,6 +70,7 @@ function Test-AnyLike([string]$Text, [string[]]$Patterns) {
 # build skips the wait because the newest binary is already old.
 function Wait-BuildSettle([string]$Root, [int]$MinAgeSeconds, [int]$MaxWaitSeconds) {
     $deadline = (Get-Date).AddSeconds($MaxWaitSeconds)
+    $announced = $false
     while ($true) {
         $newest = $null
         foreach ($dir in @('tests', 'src')) {
