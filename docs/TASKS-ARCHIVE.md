@@ -3297,3 +3297,72 @@ the board and its section below.
   placement check reads the adapter's clock while `OrderRequest.Validate` reads the wall
   clock, so a clock skewed INTO THE PAST would reject a live GTD at validation — the skew
   direction the sim tolerates is ahead-only (the honest direction for expiry).
+
+## T-191 — Order flags: post-only, reduce-only
+
+- **Branch:** feat/order-flags, worktree zt-order-flags, based on
+  develop@1a8bdd2 (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep;
+  the claim re-based onto the landed gate-settle fix before the feat).
+- **Origin:** the sweep — neither flag exists anywhere in the request pipeline.
+- **What:** the two flags in the order ticket (guarded by order type and position context),
+  validated and carried through the paper adapter (post-only never crosses immediately;
+  reduce-only refuses to grow the exposure) and through the Bybit trading adapter with honest
+  refusal semantics where the venue disagrees; the flags record in history.
+- **Scope:** Core `OrderRequest` fields + validation, Infrastructure (paper + Bybit handling),
+  the ticket UI, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a post-only order that would cross rejects with a clear reason; a reduce-only
+  order that would increase the exposure rejects; the flags read in the history columns.
+- **Tests:** the adapter flag batteries; the ticket validation pins.
+- **Status:** done. Canon: the claim `be932b4`, the feat `0d6851a`, the gate-lint fixes
+  `88d5086` (the fire-and-forget rule — the ticket's opposite-position read moved from a
+  detached task into the constructor's subscription block: `WhenAnyValue(SymbolInput,
+  SelectedSideIndex)` -> `Observable.FromAsync` -> `Switch` with an error handler, the
+  internal sequence guard kept) and `cf227c6` (the charset rule — the EF generator emitted
+  the main migration file with a UTF-8 BOM, the shipped migrations carry none; the working
+  tree also needed the EF CRLF stripped to LF for the end-of-line lint), this close commit
+  follows; alpha.134 -> alpha.135; no satellite release rode it (Livery 0.1.11, Plugins 0.3.0
+  untouched). Lane: supervisor-solo (the subagent lane stays closed). Shipped: Core
+  `OrderRequest` and `Order` carry `PostOnly` beside `ReduceOnly`; `Validate` refuses
+  post-only on any non-limit shape with the maker-only reason (a bracket's stop-loss leg
+  carrying it is refused through its own leg validation), reduce-only carries no type
+  restriction of its own. Paper: `CreateOrder` copies both flags; a post-only limit priced
+  through the reference close — standalone or an OCO leg — throws the maker-only refusal
+  with no order ever existing, an away one rests with the flag recorded (the reduce-only
+  honor already rode in from T-187: `ClampReduceOnlyFillLocked` caps a protective fill at
+  the opposite position and throws when there is nothing to close — the acceptance's
+  grow-exposure refusal was pre-existing). Bybit: placement maps post-only onto the venue's
+  `timeInForce:"PostOnly"` token (the Core order reads back as plain GTC carrying the
+  flag); the read-back parse (`TryParseVenueTimeInForce`, REST rows and WS updates alike)
+  maps the token onto GTC + flag — a maker-only row never drops; reduce-only stays refused
+  on spot (`AssertSupportedRequest` unchanged — the venue disagrees). Persistence: the
+  `Orders` journal grew `ReduceOnly`/`PostOnly` (migration `20261112143527_AddOrderFlags`,
+  INTEGER NOT NULL DEFAULT 0 — existing rows backfill false), the store's upsert and the
+  stats query carry both. Ticket: the flags row rides the plain single-order modes only
+  (the OCO pair and the bracket shape hide it); post-only enables on a plain limit and
+  auto-clears on leaving the type; reduce-only rides the opposite-position context — one
+  adapter read per settled symbol/side, unparsable text parks the switch, a failed read
+  parks it rather than pretending. History: the window grew a Flags column (the localized
+  list joined with a comma; an empty cell is the honest no-flags, never a dash). Amend:
+  `BuildAmendedRequest` copies both flags from the fresh order — a cancel+new amend can no
+  longer silently strip the maker-only or reduce-only intent. resx en+ru:
+  `NewOrder.PostOnlyLabel`/`NewOrder.ReduceOnlyLabel`, `History.ColFlags`,
+  `Order.FlagPostOnly`/`Order.FlagReduceOnly`. Tests: the Core flags battery (5 facts),
+  `PaperPostOnlyOrderTests` (6: crossing buy/sell refused with nothing recorded, away
+  rests with the flag, both flags on one request, the OCO leg crossing refused / away
+  arms), the Bybit payload + read-back pair with the `PostOnlyOpenOrdersFrame` row, the
+  history flags round-trip (the schema white-list grown to 20 columns), the ticket flags
+  region (5 facts: the limit-only gating with auto-clear, OCO/bracket hiding, the
+  opposite-context enable/park, the placed limit carrying both switches) and the
+  amend-flags carry test (the fake adapter now copies the flags); Core.Tests 41 green,
+  Infrastructure.Tests 514 green, E2E 6 green; App.Tests 1703 with the known veil-family
+  Defender flake absorbed by the gate's settle+retry (green on a settled direct run).
+  GATE PASSED (3 non-blocking warnings: the absent agent-scope file, the local gitleaks
+  skip, the flaky-retry note; the run history: the fire-and-forget lint error fixed to the
+  Switch subscription, the charset lint error fixed by the BOM strip, one veil flake
+  absorbed, then clean). SMOKE PASSED on the T-166 functional bar: title held through the
+  hold, 0 ERR/FTL, ticker clean, palette refreshed, strategies+indicators provided,
+  ProductVersion 0.1.0-alpha.135+cf227c6. Hazards (recorded, accepted): the ticket's
+  reduce-only enablement is advisory UI context — the strict contracts stay at the
+  adapters and the Core (a stale context can offer the switch, the placement still
+  enforces the truth); the post-only maker-only reading prices against the paper
+  simulator's reference close (the live-venue contract stays the venue's own).
