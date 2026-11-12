@@ -2917,3 +2917,42 @@ the board and its section below.
   12 s hold, 0 ERR/FTL, 0 ticker failures, ProductVersion 0.1.0-alpha.129+bf18b91…, palette
   refreshed, strategies+indicators provided, no leftovers, sandbox deleted. Hazards: none
   new (markup + view-state only, the trading paths untouched).
+## T-185 - The MainWindow's XAML re-indents: the DockPanel block stops sitting flush with its parent
+
+- **Branch:** refactor/main-xaml-indent, worktree zt-main-xaml-indent, based on
+  develop@8984654 (claimed 2026-11-12 off the synced board — the T-184 landing unblocked
+  this lane).
+- **Origin:** the main window's middle block — the DockPanel at MainWindow.axaml:117-527, about
+  410 lines carrying the menu, the status bar and the whole workspace grid — sits at the SAME
+  indent as its parent: the DockPanel's children lost one level, the closing tag lines up with
+  the opener, and the file's structural reading breaks exactly where the layout is densest.
+  Cosmetic only; the markup is untouched.
+- **What:** a whitespace-only re-indent of the block (the DockPanel's children one level deeper
+  than the DockPanel, the rest follows); no attribute, element or ordering change — the diff
+  shows whitespace pairs only.
+- **Scope:** MainWindow.axaml formatting alone; no style, binding or resx change; no alpha bump
+  (formatting-only).
+- **Acceptance:** the block's indentation reads its nesting (the DockPanel's children one level
+  under the DockPanel); a whitespace-ignoring diff shows no content change; the build and the
+  full test suite stay green.
+- **Tests:** the existing suite green untouched (the formatting-only proof — nothing
+  behavioral moves); the gate's diff discipline.
+- **Status:** done. Canon: the claim `fbe9859`, the refactor `da07eb1`, this close commit
+  follows; no alpha bump and no smoke (formatting-only scope). The work: the whole DockPanel
+  subtree re-indents uniformly one level deeper (+4 spaces over 408 lines — the opener and
+  the closer stay at their own 8); the shift was proven safe first by a tag-lexer walk (the
+  pre-shift block: 138 element lines uniformly one level shallow, opener/closer already
+  correct; post-shift: 0 offending lines, whole-file tag balance 0 errors / 0 unclosed) and
+  by the acceptance's whitespace-ignoring diff — `git diff -w -U0` over the file shows 0
+  lines, so the change is pure formatting. The build stays clean (0 warnings / 0 errors).
+  One companion fix rides the same truth: the ChartToolbarPinsTests source pins embed the
+  `panel-title` continuation indent and read the new geometry (the two pins 43 to 47
+  spaces). GATE PASSED on attempt 6: attempt 1 failed on that pin (fixed here) plus the
+  known App.Tests veil drain-timeout flake; the flake then ate every retry through a
+  load window (11 consecutive battery failures, suspected the freshly opened devenv's
+  background indexing — recorded, never fixed in-flight; it passed solo and in every
+  smaller filtered run throughout), and the full battery went green 1594/1594 at the
+  passing window (diagnosis trail for the future fixing task: the flake reproduces on the
+  clean develop baseline too — it needs the big non-Headless battery prefix plus at least
+  the OverlayRouting + RailResize + SettingsPolish facts; no small repro exists). Hazards:
+  none (whitespace only; the trading paths untouched).
