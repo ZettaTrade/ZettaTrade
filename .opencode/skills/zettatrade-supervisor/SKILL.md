@@ -57,6 +57,19 @@ policy until the user retracts it:
    dead subagent lane only changes WHO executes (worker dispatch vs
    supervisor-solo takeover), never WHETHER the next task starts.
 
+7. A report is never a stopping point (user, 2026-11-12): the
+   supervisor's default posture is CONTINUOUS EXECUTION — while
+   `docs/TASKS.md` lists any executable task, the board keeps moving
+   without waiting for the human to return, reply, or approve. After
+   every report (including one the user reads mid-wave) the next task
+   starts immediately; the human's arrival, absence or silence changes
+   nothing about the cadence, and a progress report must be WRITTEN, not
+   WAITED ON — the moment it exists, the next task's work begins. The
+   only legitimate stops are a board with no executable tasks left, or
+   a hard external blocker (missing credentials, an unresolved
+   trading-safety question) — and a stop is always reported with its
+   exact reason and the resume plan.
+
 While reasoning internally, in all outage-sensitive scratch files and in
 reports back to the user, think in English but reply to the user in Russian
 (token economy per AGENTS.md). Everything shipped to the repo stays English —
