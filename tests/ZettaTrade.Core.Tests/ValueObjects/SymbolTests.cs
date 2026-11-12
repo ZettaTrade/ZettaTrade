@@ -79,4 +79,64 @@ public sealed class SymbolTests
         symbol.QuoteAsset.Should().BeNull();
         symbol.Normalized.Should().Be("AAPL");
     }
+
+    #region Perpetual symbols (T-197)
+
+    [Fact]
+    public void Parse_SettleMarkedPair_ParsesThePerpetual()
+    {
+        var symbol = Symbol.Parse("BTC/USDT:USDT");
+
+        symbol.AssetClass.Should().Be(AssetClass.Crypto);
+        symbol.BaseAsset.Should().Be("BTC");
+        symbol.QuoteAsset.Should().Be("USDT");
+        symbol.SettleAsset.Should().Be("USDT");
+        symbol.IsPerpetual.Should().BeTrue("the settlement asset carries the category");
+        symbol.Normalized.Should().Be("BTC/USDT:USDT");
+    }
+
+    [Fact]
+    public void Parse_SettleMarkedPair_RoundTripsThroughItsNormalizedText()
+    {
+        Symbol.Parse(Symbol.Parse("ETH/USDT:USDT").Normalized).Normalized.Should().Be("ETH/USDT:USDT");
+    }
+
+    [Fact]
+    public void Parse_SpotPair_IsNeverAPerpetual()
+    {
+        Symbol.Parse("BTC/USDT").IsPerpetual.Should().BeFalse();
+        Symbol.Parse("AAPL").IsPerpetual.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("BTC/USDT:")]
+    [InlineData("BTC/:USDT")]
+    [InlineData("BTC:")]
+    [InlineData("BTC:USDT")]
+    [InlineData("BTC/USDT:USDT:USDT")]
+    public void Parse_MalformedSettleMarks_ThrowInsteadOfDefaulting(string malformed)
+    {
+        FluentActions.Invoking(() => Symbol.Parse(malformed))
+            .Should().ThrowExactly<ArgumentException>();
+    }
+
+    [Fact]
+    public void Ctor_SettleAssetWithoutQuoteAsset_Throws()
+    {
+        FluentActions.Invoking(() => new Symbol("BTC", null, AssetClass.Crypto, "USDT"))
+            .Should().ThrowExactly<ArgumentException>()
+            .WithParameterName("settleAsset");
+    }
+
+    [Fact]
+    public void GetExchangeFormat_PerpetualBybitWire_CarriesTheConcatenatedPair()
+    {
+        // The v5 category rides the request, not the symbol text: the perp's
+        // wire text is the same concatenated pair its spot twin speaks.
+        var perp = Symbol.Parse("BTC/USDT:USDT");
+
+        perp.GetExchangeFormat("bybit").Should().Be("BTCUSDT");
+    }
+
+    #endregion
 }

@@ -21,9 +21,9 @@ each one a sentence of the shared `IMarketDataAdapter` contract:
 | `DepthRequests_ResolveThroughTheT072Resolver` | Every request resolves exactly through `ExchangeAdapterBase.ResolveBookDepth` (the T-072 resolver): the resolved depth is what lands on the wire, the raw unresolvable request never rides it, a no-declaration profile passes through. |
 | `SubscribedFeeds_RestoreDataAcrossTheReconnect` | Ticker, book and trade feeds take one event per session across the pack's reconnect semantics; the transcript story joins a fresh subscriber (shared subject), the always-on story survives the adapter's own connect cycle; session count stays pinned (no churn). |
 
-A battery run is `leg × pack`: the kit currently proves the **demo** and
-**Bybit** adapters (16 conformance verdicts) and grows for free with every
-new capture pack.
+A battery run is `leg × pack`: the kit currently proves the **demo**, the
+**Bybit** spot face and the **BybitLinear** perpetual face (24 conformance
+verdicts) and grows for free with every new capture pack.
 
 ## The capture pack
 
@@ -59,7 +59,11 @@ the kit asserts — the battery refuses to guess:
 The Bybit pack's wire captures (`Session1.json`, `Session2.json`,
 `RestCatalog.json`) are real Bybit v5 public-frame shapes, replayed through
 the kit's in-process loopback rig — no network, no keys (never real keys:
-testnet and canned captures only).
+testnet and canned captures only). The BybitLinear pack (T-197) mirrors
+that shape for the linear-perp face: a perp-only universe (the canned spot
+catalog answers an empty list), the funding-bearing linear tickers, and a
+two-rig session — the linear rig is the session's server, the spot rig an
+owned extra.
 
 ## Onboarding a new adapter
 

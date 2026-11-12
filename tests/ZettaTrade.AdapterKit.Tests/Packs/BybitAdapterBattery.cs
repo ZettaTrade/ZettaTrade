@@ -10,7 +10,7 @@ using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
 /// The Bybit adapter's conformance battery run: the pack rides the kit's own
-/// loopback rig (the transcript sessions replay through it) and a canned
+/// loopback rigs (the transcript sessions replay through them) and a canned
 /// REST disguise (the catalog capture answers the symbols leg with zero
 /// network). The rest base URL is deliberately unresolvable: if the canned
 /// disguise were ever mis-wired, the kit fails loudly instead of quietly
@@ -78,7 +78,15 @@ public sealed class BybitAdapterBattery : AdapterConformanceBattery
     /// <inheritdoc/>
     protected override async ValueTask<AdapterSession> OpenSessionAsync(CancellationToken ct)
     {
-        var server = await KitLoopbackServer.StartAsync(ct);
+        // TWO rigs (T-197): this pack's universe is the spot face — every
+        // subscribed symbol dials the SPOT rig, which is the session's
+        // server — while the linear rig stays an owned extra no leg ever
+        // dials (the adapter's ConnectAsync reaches BOTH category sockets,
+        // each on its own rig). The endpoints are honest loopback URLs: the
+        // unresolvable REST host fails loudly on any unplanned dial, and no
+        // wire ever reaches the internet.
+        var spotServer = await KitLoopbackServer.StartAsync(ct);
+        var linearServer = await KitLoopbackServer.StartAsync(ct);
 
         var services = new ServiceCollection();
         var canned = new KitCannedRestHandler(Pack.RestCannedRoutes);
@@ -91,9 +99,10 @@ public sealed class BybitAdapterBattery : AdapterConformanceBattery
             restProvider.GetRequiredService<IHttpClientFactory>(),
             new BybitEndpoints(
                 RestBaseUrl: CannedRestBaseUrl,
-                WsUrl: server.StreamUrl));
+                WsUrl: spotServer.StreamUrl,
+                LinearWsUrl: linearServer.StreamUrl));
 
-        return AdapterSession.Open(adapter, server, restProvider);
+        return AdapterSession.Open(adapter, spotServer, restProvider, ownedExtra: linearServer);
     }
 
     #endregion

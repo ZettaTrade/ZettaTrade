@@ -251,6 +251,9 @@ public sealed class ScreenerViewModel : ReactiveObject
         Price = WatchlistRowPresentation.FormatPrice(row.LastPrice, CultureInfo.CurrentCulture),
         Change = WatchlistRowPresentation.FormatSignedPercent(row.Change24hPercent, CultureInfo.CurrentCulture),
         Volume = WatchlistRowPresentation.FormatVolume(row.Volume24h, CultureInfo.CurrentCulture),
+        Funding = row.FundingRate is { } funding
+            ? WatchlistRowPresentation.FormatFundingRate(funding, CultureInfo.CurrentCulture)
+            : string.Empty,
         IsChangeUp = row.Change24hPercent > 0m,
         IsChangeDown = row.Change24hPercent < 0m,
     };

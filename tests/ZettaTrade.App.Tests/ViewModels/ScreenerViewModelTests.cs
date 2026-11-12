@@ -270,6 +270,31 @@ public sealed class ScreenerViewModelTests
         scene.Panel.IsLive.Should().BeFalse();
     }
 
+    /// <summary>
+    /// The funding cell formats through the shared helper at the panel's
+    /// own culture (T-197): a derivative row shows the wire fraction as a
+    /// signed percent, a spot row leaves the cell empty — the honest null,
+    /// never a fabricated zero.
+    /// </summary>
+    [Fact]
+    public void TheFundingCell_FormatsTheFraction_AndKeepsTheSpotNullEmpty()
+    {
+        var scene = new Scene();
+
+        scene.Panel.ApplySnapshot(new ScreenerSnapshot(
+            [
+                new ScreenerRow("PPP/USDT:USDT", 100m, 10m, 2m, 0.0001m),
+                new ScreenerRow("SSS/USDT", 25m, 20m, 5m),
+            ],
+            ScreenerFeedState.Live));
+
+        scene.Panel.Rows[0].Funding.Should().Be(
+            WatchlistRowPresentation.FormatFundingRate(0.0001m, CultureInfo.CurrentCulture),
+            "the row formats the fraction through the shared helper at the panel's culture");
+        scene.Panel.Rows[0].Funding.Should().StartWith("+", "a positive rate keeps its explicit plus");
+        scene.Panel.Rows[1].Funding.Should().BeEmpty("a spot row's absent funding is never a fabricated zero");
+    }
+
     /// <summary>The catalog-unavailable page owns the reason line, never the waiting one.</summary>
     [Fact]
     public void TheCatalogUnavailablePage_OwnsTheReasonLine()
@@ -441,6 +466,7 @@ public sealed class ScreenerViewModelTests
             Price = string.Empty,
             Change = string.Empty,
             Volume = string.Empty,
+            Funding = string.Empty,
             IsChangeUp = false,
             IsChangeDown = false,
         });
@@ -462,6 +488,7 @@ public sealed class ScreenerViewModelTests
             Price = string.Empty,
             Change = string.Empty,
             Volume = string.Empty,
+            Funding = string.Empty,
             IsChangeUp = false,
             IsChangeDown = false,
         });
@@ -471,6 +498,7 @@ public sealed class ScreenerViewModelTests
             Price = string.Empty,
             Change = string.Empty,
             Volume = string.Empty,
+            Funding = string.Empty,
             IsChangeUp = false,
             IsChangeDown = false,
         });

@@ -84,7 +84,7 @@ public sealed class TokensPinsTests
         Regex.Matches(backtest, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(1, "the backtest report dedupes onto the token");
         Regex.Matches(screener, "FontFamily=\"{StaticResource NumericFont}\"")
-            .Should().HaveCount(3, "the screener table's price/change/volume columns hold their digits (T-195)");
+            .Should().HaveCount(4, "the screener table's price/change/volume/funding columns hold their digits (T-195; T-197 adds the funding cell)");
 
         // The stack lives once: no view re-types the font family literal.
         foreach (var source in ViewSources)

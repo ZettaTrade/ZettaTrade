@@ -62,7 +62,11 @@ public sealed record OrderBook
 }
 
 /// <summary>
-/// Real-time ticker update.
+/// Real-time ticker update. The three funding members (T-197) ride the
+/// derivatives wires: a perpetual ticker carries the venue's funding rate,
+/// the open interest and the next funding moment exactly as served; a spot
+/// or stock ticker keeps the honest nulls — the absent fact is never a
+/// fabricated zero.
 /// </summary>
 public readonly record struct Ticker(
     Symbol Symbol,
@@ -71,4 +75,7 @@ public readonly record struct Ticker(
     decimal Ask,
     decimal Volume24h,
     decimal PriceChange24hPercent,
-    DateTimeOffset Timestamp);
+    DateTimeOffset Timestamp,
+    decimal? FundingRate = null,
+    decimal? OpenInterest = null,
+    DateTimeOffset? NextFundingTime = null);

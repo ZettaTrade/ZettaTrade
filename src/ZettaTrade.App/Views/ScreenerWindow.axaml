@@ -95,9 +95,11 @@
 
                 <!-- Column headers: the emphasized header row over the
                      grammar's hairline; the numeric columns are the sort
-                     buttons and right-align to match their data cells. -->
+                     buttons and right-align to match their data cells. The
+                     funding caption is display-only (T-197): the rate rides
+                     the ticker's honest null and owns no sort shim yet. -->
                 <Border Classes="table-header-row" IsVisible="{Binding HasRows}">
-                    <Grid ColumnDefinitions="140,*,110,110">
+                    <Grid ColumnDefinitions="140,*,110,110,110">
                         <TextBlock Grid.Column="0" Text="{loc:Localized Screener.ColSymbol}" />
                         <Button Grid.Column="1" Classes="column-sort" HorizontalContentAlignment="Right"
                                 Content="{loc:Localized Screener.ColPrice}" Command="{Binding SortByPriceCommand}" />
@@ -105,6 +107,8 @@
                                 Content="{loc:Localized Screener.ColChange}" Command="{Binding SortByChangeCommand}" />
                         <Button Grid.Column="3" Classes="column-sort" HorizontalContentAlignment="Right"
                                 Content="{loc:Localized Screener.ColVolume}" Command="{Binding SortByVolumeCommand}" />
+                        <TextBlock Grid.Column="4" Text="{loc:Localized Screener.ColFunding}"
+                                   HorizontalAlignment="Right" />
                     </Grid>
                 </Border>
 
@@ -118,7 +122,7 @@
                             <Button Classes="screener-row"
                                     Command="{Binding $parent[Window].((vm:ScreenerViewModel)DataContext).RouteRowCommand}"
                                     CommandParameter="{Binding}">
-                                <Grid ColumnDefinitions="140,*,110,110">
+                                <Grid ColumnDefinitions="140,*,110,110,110">
                                     <TextBlock Grid.Column="0" Text="{Binding Symbol}" />
                                     <TextBlock Grid.Column="1" Text="{Binding Price}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                     <TextBlock Grid.Column="2" Text="{Binding Change}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right"
@@ -126,6 +130,7 @@
                                                Classes.up="{Binding IsChangeUp}"
                                                Classes.down="{Binding IsChangeDown}" />
                                     <TextBlock Grid.Column="3" Text="{Binding Volume}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Funding}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                 </Grid>
                             </Button>
                         </DataTemplate>

@@ -54,6 +54,18 @@ public static class WatchlistRowPresentation
         changePercent.ToString("+0.00'%';-0.00'%';0.00'%'", culture);
 
     /// <summary>
+    /// Format a funding rate as a signed percent (T-197): the wire carries
+    /// the per-interval rate as a FRACTION (0.0001 = 0.01%), so the display
+    /// multiplies into the percent basis and keeps four decimals — a
+    /// typical funding rate lives below the two-decimal resolution.
+    /// </summary>
+    /// <param name="fundingRate">The funding rate as the wire serves it (a fraction).</param>
+    /// <param name="culture">The culture to format with (the panel uses the UI culture).</param>
+    /// <returns>The formatted signed percent text.</returns>
+    public static string FormatFundingRate(decimal fundingRate, IFormatProvider culture) =>
+        (fundingRate * 100m).ToString("+0.0000'%';-0.0000'%';0.0000'%'", culture);
+
+    /// <summary>
     /// Format a 24h volume compactly: a metric suffix above the thousand
     /// range, three significant digits kept.
     /// </summary>

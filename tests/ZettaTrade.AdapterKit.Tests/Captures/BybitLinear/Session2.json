@@ -1,0 +1,5 @@
+[
+  "{\"topic\":\"tickers.BTCUSDT\",\"ts\":1900000011000,\"type\":\"snapshot\",\"data\":{\"symbol\":\"BTCUSDT\",\"lastPrice\":\"50001.5\",\"volume24h\":\"12.5\",\"price24hPcnt\":\"0.0500\",\"fundingRate\":\"0.0002\"}}",
+  "{\"topic\":\"orderbook.50.BTCUSDT\",\"ts\":1900000012000,\"type\":\"snapshot\",\"data\":{\"s\":\"BTCUSDT\",\"b\":[[\"49000\",\"3.0\"]],\"a\":[[\"49001\",\"4.0\"]],\"u\":110,\"seq\":110}}",
+  "{\"topic\":\"publicTrade.BTCUSDT\",\"ts\":1900000013000,\"data\":[{\"T\":1900000013000,\"S\":\"Sell\",\"p\":\"49000.5\",\"v\":\"0.10\",\"i\":\"trade-2\"}]}"
+]

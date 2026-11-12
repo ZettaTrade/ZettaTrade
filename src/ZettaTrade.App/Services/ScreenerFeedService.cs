@@ -309,7 +309,8 @@ public sealed class ScreenerFeedService : IAsyncInitializable
                     candidate.Apply(new CandidateTick(
                         ticker.LastPrice,
                         ticker.Volume24h,
-                        ticker.PriceChange24hPercent));
+                        ticker.PriceChange24hPercent,
+                        ticker.FundingRate));
                     _dataTick.OnNext(RxVoid.Default);
                 },
                 error => _logger.LogWarning(
@@ -385,17 +386,20 @@ public sealed class ScreenerFeedService : IAsyncInitializable
         {
             return Latest is not { } tick
                 ? null
-                : new ScreenerRow(SymbolText, tick.LastPrice, tick.Volume24h, tick.Change24hPercent);
+                : new ScreenerRow(SymbolText, tick.LastPrice, tick.Volume24h, tick.Change24hPercent, tick.FundingRate);
         }
     }
 
     /// <summary>
     /// One ticker arrival's full candidate state (immutable, swapped atomically).
+    /// The funding rate rides the derivatives wires (T-197); a spot tick
+    /// keeps the null.
     /// </summary>
     private sealed record CandidateTick(
         decimal LastPrice,
         decimal Volume24h,
-        decimal Change24hPercent);
+        decimal Change24hPercent,
+        decimal? FundingRate);
 
     #endregion Candidate State
 }
