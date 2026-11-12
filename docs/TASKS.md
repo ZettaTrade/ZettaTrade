@@ -189,7 +189,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | feat/surface-strays | done | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | done | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | done | - |
-| T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | planned | - |
+| T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | in-progress | - |
 | T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | planned | - |
 | T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | planned | - |
 | T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | planned | - |
@@ -405,7 +405,9 @@ each section below carries its own origin. All rows start `planned`.
 
 ## T-185 - The MainWindow's XAML re-indents: the DockPanel block stops sitting flush with its parent
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 main-window review).
+- **Branch:** refactor/main-xaml-indent, worktree zt-main-xaml-indent, based on
+  develop@8984654 (claimed 2026-11-12 off the synced board — the T-184 landing unblocked
+  this lane).
 - **Origin:** the main window's middle block — the DockPanel at MainWindow.axaml:117-527, about
   410 lines carrying the menu, the status bar and the whole workspace grid — sits at the SAME
   indent as its parent: the DockPanel's children lost one level, the closing tag lines up with
@@ -421,7 +423,7 @@ each section below carries its own origin. All rows start `planned`.
   full test suite stay green.
 - **Tests:** the existing suite green untouched (the formatting-only proof — nothing
   behavioral moves); the gate's diff discipline.
-- **Status:** planned.
+- **Status:** in-progress.
 
 
 ---
