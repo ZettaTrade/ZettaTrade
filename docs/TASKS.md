@@ -193,7 +193,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | done | - |
 | T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | done | - |
 | T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | done | - |
-| T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | in-progress | - |
+| T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | done | - |
 | T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/paper-tif | planned | - |
 | T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | planned | - |
 | T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | planned | - |
@@ -420,26 +420,6 @@ lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by de
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
 
 ---
-
-## T-189 — Daily loss limit in the risk governor
-
-- **Branch:** feat/daily-loss-limit, worktree zt-daily-loss-limit, based on
-  develop@3ddd771 (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
-- **Origin:** the sweep — the risk stack caps a single order's notional (the T-057 hard cap)
-  but nothing governs the cumulative day; no daily-loss keys exist.
-- **What:** a configurable daily loss threshold (realized + fees, per trading account) that
-  blocks new order placement once crossed; existing positions stay closable — a protective
-  block, never a trap; the block lifts at the day rollover or by an explicit user reset;
-  paper-first.
-- **Scope:** Infrastructure risk service + settings keys (`Risk.DailyLossLimit*`), the ticket
-  and confirmation surfaces read the blocked state honestly, resx en+ru, the next free alpha
-  bump + the CHANGELOG section.
-- **Acceptance:** crossing the threshold blocks further orders with an honest reason; closing
-  positions is never blocked; the rollover and the manual reset both lift the block; the off
-  state changes nothing.
-- **Tests:** the risk-governor battery (threshold math, the rollover, the reset, the
-  paper/live scoping).
-- **Status:** in-progress.
 
 ## T-190 — Honest TIF simulation in the paper adapter
 
