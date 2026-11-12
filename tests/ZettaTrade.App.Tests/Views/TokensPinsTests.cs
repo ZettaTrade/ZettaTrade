@@ -75,7 +75,7 @@ public sealed class TokensPinsTests
         Regex.Matches(history, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(4, "the history table's opened/quantity/price/fee columns hold their digits");
         Regex.Matches(ticket, "FontFamily=\"{StaticResource NumericFont}\"")
-            .Should().HaveCount(6, "the ticket's quantity/price/trigger/trail/OCO-cap/risk fields carry the stack");
+            .Should().HaveCount(7, "the ticket's quantity/price/trigger/trail/OCO-cap/risk fields and the bracket's take-profit input carry the stack");
         Regex.Matches(amend, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(2, "the amend dialog's quantity and price fields carry the stack");
         Regex.Matches(main, "FontFamily=\"{StaticResource NumericFont}\"")

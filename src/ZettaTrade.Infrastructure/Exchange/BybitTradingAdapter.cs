@@ -458,13 +458,20 @@ public sealed class BybitTradingAdapter : ITradingAdapter
 
     /// <summary>
     /// The surface trades LIMIT GTC spot orders only: every other family
-    /// (market, conditional, OCO, reduce-only, non-GTC) is an explicit error
-    /// before anything touches the venue — no degraded execution, no
-    /// substituted execution shape. The limit price requirement rides the
-    /// request's own validation below.
+    /// (market, conditional, OCO, bracket, reduce-only, non-GTC) is an
+    /// explicit error before anything touches the venue — no degraded
+    /// execution, no substituted execution shape. The limit price
+    /// requirement rides the request's own validation below.
     /// </summary>
     private static void AssertSupportedRequest(OrderRequest request)
     {
+        if (request.BracketLegs is not null)
+        {
+            throw new InvalidOperationException(
+                "The Bybit testnet trading surface does not carry bracket orders " +
+                "(an entry with attached take-profit/stop-loss exits); the request is refused, not degraded.");
+        }
+
         if (request.Type != OrderType.Limit)
         {
             throw new InvalidOperationException(

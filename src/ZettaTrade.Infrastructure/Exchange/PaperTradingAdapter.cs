@@ -19,7 +19,11 @@ using ZettaTrade.Infrastructure.Fees;
 /// and evaluate their triggers against the wrapped adapter's live price stream
 /// (the ticker feed). OCO legs additionally share an either-or group: the
 /// first leg that fills or is cancelled takes the remaining legs down with
-/// it, so no half pair keeps working. A stop-side order that would trigger
+/// it, so no half pair keeps working. A bracket entry (T-186) carries its
+/// protective exits as one request: the take-profit limit and the
+/// stop-loss stop-limit arm AT the entry's fill, against the entry's own
+/// fill price, and the arm is all-or-nothing — a half-armed bracket never
+/// stays working. A stop-side order that would trigger
 /// immediately, and a leg joining an OCO group whose partner already ended,
 /// are rejected with an explicit error instead of a degraded execution.
 /// In-memory balances and netted positions are maintained for every fill,
@@ -92,6 +96,14 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     /// torn group.
     /// </summary>
     private readonly ConcurrentDictionary<string, List<string>> _ocoLegs = new();
+
+    /// <summary>
+    /// Bracket entries resting away from the market (T-186): entry order id
+    /// → the attached exits. The pair arms the moment the entry fills (see
+    /// the fill record) and dies with the entry when the entry is cancelled
+    /// — it never arms half-way. All mutations run under the trading lock.
+    /// </summary>
+    private readonly Dictionary<string, BracketLegs> _pendingBrackets = new();
 
     /// <summary>One live ticker subscription per symbol that holds working conditionals.</summary>
     private readonly ConcurrentDictionary<string, IDisposable> _priceStreams = new();
@@ -176,6 +188,13 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         await _tradingLock.WaitAsync(ct);
         try
         {
+            if (request.BracketLegs is { } bracket)
+            {
+                // The bracket entry carries its exits: the placement assembles
+                // the whole shape (T-186) — the exits arm at the entry's fill.
+                return await PlaceBracketEntryAsync(request, bracket, ct);
+            }
+
             if (request.Type == OrderType.Limit && request.OcoGroupId is null)
             {
                 return await PlaceLimitOrderCoreAsync(request, ct);
@@ -257,6 +276,19 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             ? await ResolveReferenceCloseAsync(request, ct)
             : (Price?)null;
 
+        return PlaceConditionalOrderLockedCore(request, referenceClose);
+    }
+
+    /// <summary>
+    /// The conditional placement core, once the reference price is resolved
+    /// (null when the shape prices none): the arming check, the either-or
+    /// open check, the crossing-limit fill at placement, the working-order
+    /// arm. The bracket's exits reuse this core at arm time with the ENTRY's
+    /// own fill price as the reference (T-186) — the protection is measured
+    /// from where the entry actually executed. Runs under the trading lock.
+    /// </summary>
+    private Order PlaceConditionalOrderLockedCore(OrderRequest request, Price? referenceClose)
+    {
         // Arming check: a stop-side order must sit beyond the market, exactly
         // like an exchange would refuse an immediately-triggering stop.
         if (referenceClose is { } close && request.StopPrice is { } trigger)
@@ -356,6 +388,118 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     }
 
     /// <summary>
+    /// The bracket entry (T-186): the entry places exactly like its
+    /// standalone shape — a market entry fills at the reference price, a
+    /// crossing limit fills at its own limit price, a resting limit parks —
+    /// and the attached exits arm AT THE FILL. A market or crossing entry
+    /// arms its pair synchronously before the placement answers; a resting
+    /// entry parks the pair until a fill arrives (the paper sim's resting
+    /// limit fills on no matching loop, so the park lasts until the entry is
+    /// cancelled — the parked pair dies with it, never arms half-way). The
+    /// exits arm against the entry's own fill price. Runs under the trading
+    /// lock; the entry request is validated (the bracket shape with it).
+    /// </summary>
+    private async Task<Order> PlaceBracketEntryAsync(OrderRequest request, BracketLegs bracket, CancellationToken ct)
+    {
+        switch (request.Type)
+        {
+            case OrderType.Market:
+                {
+                    var fillPrice = await ResolveFillPriceAsync(request, ct);
+                    var filled = RecordFillLocked(FillOrder(request, fillPrice), fillPrice, FeeRole.Taker);
+                    ArmBracketLegsLocked(bracket, fillPrice);
+                    return filled;
+                }
+
+            case OrderType.Limit:
+                {
+                    var entry = await PlaceLimitOrderCoreAsync(request, ct);
+                    if (entry.Status == OrderStatus.Filled)
+                    {
+                        // The request is validated: a filled limit carries
+                        // its (fill) price.
+                        ArmBracketLegsLocked(bracket, entry.Price!);
+                    }
+                    else
+                    {
+                        _pendingBrackets[entry.Id] = bracket;
+                        _logger.LogInformation(
+                            "Bracket park: entry {OrderId} rests; the take-profit/stop-loss pair arms when the entry fills",
+                            entry.Id);
+                    }
+
+                    return entry;
+                }
+
+            default:
+                throw new InvalidOperationException(
+                    $"A bracket entry must be a market or limit order; {request.Type} is refused, not degraded.");
+        }
+    }
+
+    /// <summary>
+    /// Arm the bracket's exits against the entry's fill price (T-186), under
+    /// the trading lock. The take-profit leg places first (the ticket's pair
+    /// order), the stop-loss second. The protection is ALL-OR-NOTHING: a
+    /// refused take-profit refuses the stop-loss with it, a refused
+    /// stop-loss cancels the working take-profit — a half-armed bracket
+    /// never stays working. A refusal logs loudly and leaves the entry
+    /// filled: the entry's outcome is real, and the missing protection is
+    /// the honest report the operator reads (the entry never silently
+    /// un-happens after a fill).
+    /// </summary>
+    private void ArmBracketLegsLocked(BracketLegs bracket, Price reference)
+    {
+        try
+        {
+            PlaceConditionalOrderLockedCore(bracket.TakeProfit, reference);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Bracket arm: the take-profit leg was refused; the stop-loss leg is refused with it (all-or-nothing protection)");
+            return;
+        }
+
+        try
+        {
+            PlaceConditionalOrderLockedCore(bracket.StopLoss, reference);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Bracket arm: the stop-loss leg was refused; the working take-profit leg cancels with it (all-or-nothing protection)");
+            if (bracket.TakeProfit.OcoGroupId is { } groupId)
+            {
+                CancelBracketWorkingLegsLocked(bracket.TakeProfit, groupId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tear the bracket's still-working take-profit leg down after its
+    /// stop-loss was refused at arm time: the either-or teardown runs against
+    /// a synthetic cancelled terminal leg carrying the group id, so every
+    /// still-working leg of the group cancels — an already-terminal leg (the
+    /// take-profit may have filled at placement) is skipped by the shared
+    /// contract.
+    /// </summary>
+    private void CancelBracketWorkingLegsLocked(OrderRequest takeProfitLeg, string groupId)
+    {
+        // The request is validated: a take-profit limit always carries its
+        // limit price.
+        var synthetic = CreateOrder(
+            takeProfitLeg,
+            OrderStatus.Cancelled,
+            takeProfitLeg.Price!.Value,
+            Quantity.Zero);
+
+        CancelOcoSiblingsLocked(synthetic);
+    }
+
+    /// <summary>
     /// An OCO leg may only join a group every leg of which still works: a
     /// partner that already filled or was cancelled cannot be resurrected by
     /// a new leg, so the placement is an explicit error (the either-or pairing
@@ -438,6 +582,15 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         // A filled leg of an OCO pair takes every remaining leg down with it.
         CancelOcoSiblingsLocked(filled);
 
+        // A parked bracket entry that fills arms its exits at the fill
+        // (T-186): the pair rides the entry's own fill price. The paper sim
+        // never fills a resting limit on its own (no matching loop), so this
+        // hook holds the arm-on-fill invariant for every fill path.
+        if (_pendingBrackets.Remove(filled.Id, out var parked))
+        {
+            ArmBracketLegsLocked(parked, fillPrice);
+        }
+
         return filled;
     }
 
@@ -502,6 +655,15 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             // legs cannot outlive their partner without degrading into
             // orphans.
             CancelOcoSiblingsLocked(order with { Status = OrderStatus.Cancelled });
+
+            // A cancelled bracket entry takes its parked exits with it
+            // (T-186): a pair whose entry never filled must never arm.
+            if (_pendingBrackets.Remove(orderId, out var parked))
+            {
+                _logger.LogInformation(
+                    "Bracket drop: the cancelled entry {OrderId} takes its parked take-profit/stop-loss pair with it",
+                    orderId);
+            }
         }
         finally
         {
@@ -1088,6 +1250,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         _priceStreams.Clear();
         _conditionals.Clear();
         _ocoLegs.Clear();
+        _pendingBrackets.Clear();
         _tradingLock.Dispose();
         _orders.Clear();
         _positions.Clear();
