@@ -3560,6 +3560,57 @@ the board and its section below.
   PASSED: a clean boot on the demo venue, 0 ERR/FTL, ticker+screener+watchlist clean,
   ProductVersion 0.1.0-alpha.140+2a8a83d.
 
+## T-197 — Futures contour MVP: Bybit linear perps
+
+- **Branch:** `feat/futures-mvp` off `develop` (base `299521a`).
+- **Origin:** the sweep — every adapter is spot-only; derivatives stay out entirely.
+- **What:** Bybit linear perpetual market data as a new market-data category: instruments,
+  klines, tickers, depth, plus the read-only funding rate and open interest; the watchlist row
+  and the screener surface the funding rate; trading stays out of scope (the paper engine
+  covers the semantics first).
+- **Scope:** the Infrastructure Bybit adapter (category-aware requests), the settings keys, the
+  adapter-kit coverage for the perp category, resx en+ru, the next free alpha bump + the
+  CHANGELOG section.
+- **Acceptance:** a perp symbol loads the chart, book and tape; the funding rate reads in the
+  watchlist row; the spot flows are unchanged.
+- **Tests:** the adapter-kit coverage for the perp category; the funding-model contract tests.
+- **Status:** done — 0.1.0-alpha.141. Chain: claim `865cd8a` -> feat `5f03b3e` -> close. The
+  `Symbol` gained the settlement asset (the ccxt-style "BTC/USDT:USDT" normalized text;
+  `IsPerpetual` reads off the settle, a settle without a quote throws, `Parse` hardens the
+  shape — a settle-marked single asset, an empty settle or a second marker throw) while the
+  Bybit exchange format keeps the concatenated wire text; the `Ticker` grew the three funding
+  members as honest nullables. The Bybit adapter rides the two-category discipline: one shared
+  REST host, TWO WebSocket category contexts (the v5 spot and linear streams live on distinct
+  hosts) — the catalog loads both categories off the same instruments-info endpoint
+  (`LinearPerpetual` gates the perps, `settleCoin` names the settlement, the dated futures
+  stay out, malformed rows count into the aggregated drop warning), klines route by the
+  symbol's own category, each category socket reconnects its own tracked set, and
+  `BybitEndpoints` grew the explicit `LinearWsUrl` (blank derives the spot URL's `/spot` tail,
+  else the production linear host). The linear tickers are delta-typed: the linear context
+  merges each frame into the per-symbol state (funding rate, open interest, next funding
+  moment) and publishes the merged result — an absent field keeps its previous value, nothing
+  publishes before the wire ever said a last price, and a perp frame for an unsubscribed
+  symbol drops with a warning (the wire text cannot carry the category; a guessed one is never
+  honest). The display: the watchlist row shows the fraction as a signed percent (four
+  decimals) gated on the quote's own null — a spot row stays hidden with no empty gap
+  (`Watch.FundingRateTip`, en+ru) — and the screener gained the display-only fifth funding
+  column (`Screener.ColFunding`, en+ru; the rate owns no sort shim yet — recorded: the column
+  reads, never sorts, and a sort shim is a future wave's candidate). Tests: the Core perp
+  `Symbol` battery + the `Ticker` funding contract (53 green); the Bybit parsing battery's
+  two-category pins (spot first, linear second, the per-category page cap, the spot category
+  pin, the perpetual kline's linear route) + three WS E2E linear facts (the delta merge, the
+  pre-price silence, the unsubscribed drop) + the rate hook's two-acquire pin with a
+  fresh-response stub (585 green); the kit's new `BybitLinear` pack — two rigs (the linear rig
+  is the session's server, the spot rig an owned extra), a perp-only universe (the canned spot
+  catalog answers an empty list), category-fragment canned REST routes and the linear ticker
+  family through the transcript restore (40 green; the Bybit spot pack rides two rigs too);
+  App +funding format pins, the screener fifth-column token pin, both row-press initializers
+  carrying the required `Funding` (1831 green); UI 364 green. Gate round 1: GATE PASSED (the
+  Infrastructure family took the flaky retry — the standing WS E2E load family; the
+  `Task.FromResult` lint warning stays deliberate — `HttpMessageHandler` mandates the task
+  shape). Smoke PASSED: a clean boot on the demo venue, 0 ERR/FTL, ticker+screener+watchlist
+  clean, ProductVersion 0.1.0-alpha.141+5f03b3e.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
