@@ -187,7 +187,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | feat/theme-preview-mirror | done | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | feat/ticket-cta-states | done | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | feat/surface-strays | done | - |
-| T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | in-progress | - |
+| T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | done | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | planned | T-183 (soft) |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | planned | - |
 | T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | planned | - |
@@ -402,43 +402,6 @@ that day), whose live hover let the user feel the resting/hover/primary states i
 looking at a static picture. The approved shape files as T-183 (the button/kit half, riding the
 Livery satellite) and T-184 (the settings window's rail + cards); no separate findings doc —
 each section below carries its own origin. All rows start `planned`.
-
-## T-183 - The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens
-
-- **Branch:** feat/button-kit, worktree zt-button-kit, based on develop@7b2fc14 (claimed
-  2026-11-12 per standing directive 6 — the 2026-11-12 design pass, variant A approved by the
-  user; the satellite Livery lands first per the multi-repo rule).
-- **Origin:** every button rests as a Surface fill + hairline border and flashes a **solid
-  Accent fill on hover** (Livery Controls.axaml:29-35) — the flash the user names as the main
-  offender; no hierarchy exists (the settings' "Open themes folder" and the ticket's "Place"
-  read identically), and the corner radius is not tokenized at all (no Corner keys in
-  Tokens.axaml). The approved variant A: quiet by default, tinted on hover, one primary per
-  window. The 2026-11-12 main-window review adds the concrete consumer site: the toast rows
-  (MainWindow.axaml:545-577) are Buttons wrapping a Border card — the button's own chrome rides
-  behind the card, invisible at rest (Surface-on-Surface) and loud on hover (the solid Accent
-  fill lights around the card's corners).
-- **What:** the Livery button vocabulary grows the approved shape — the resting state goes
-  transparent/barely-tinted over a hairline Border-family stroke; hover becomes a **soft Accent
-  tint** (~12%, a published derived key, the T-150 derived-key shape), pressed a stronger tint,
-  keyboard focus keeps the Highlight border; a `.primary` class (solid Accent fill, the
-  readable foreground the T-152 publisher scores) marks the ONE main action per window; corner
-  radius and row-action sizing publish as tokens (CornerM = 4) and Button/ComboBox/TextBox
-  adopt them for one consistent rounding. The windows then adopt: each window's main action
-  goes primary, the rest quiet — and a Button that carries card chrome inside it (the toast
-  rows' Button-wrapping-a-Border shape) adopts the quiet treatment too: the chrome lives in
-  exactly one of the two layers.
-- **Scope:** Livery Themes (the Controls.axaml button family + the Tokens.axaml corner/padding
-  keys) — the package change rides the satellite repo per the multi-repo rule (bump Livery
-  there, land, then the one-line consuming bump); the App windows' class adoption in the
-  consuming bump's wake (the MainWindow toast template's quiet class included); resx untouched.
-- **Acceptance:** no button flashes a solid Accent fill on hover (source pin); every window
-  carries at most one primary action; the hover pairs' contrast passes the T-151 battery; no
-  bare corner-radius literals remain in the adopted surfaces.
-- **Tests:** the contrast pins for the new pairs (the hover tint vs Surface, primary vs its
-  foreground); source pins (the solid-Accent hover out, the radius literals onto the tokens,
-  and the Button-as-card-container sites riding the quiet class); Livery's own gate rides the
-  satellite.
-- **Status:** in-progress.
 
 ## T-184 - The settings window rides the category rail and the section cards
 
