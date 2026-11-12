@@ -20,7 +20,7 @@
          nav row always stays in place (the wizard never moves its controls —
          a step is a panel flip, not a window shuffle). Every step's pick is
          a draft: nothing applies before the finish button's task lands. -->
-    <StackPanel Margin="20" Spacing="{StaticResource SpaceM}">
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceM}">
 
         <!-- The step counter (T-161): the walk's position reads without the
              captions — "Step 2 of 3" above every step body, the drafts and
@@ -31,7 +31,7 @@
                    FontSize="{StaticResource CaptionFontSize}" />
 
         <!-- Step one: the theme pick. -->
-        <StackPanel IsVisible="{Binding IsThemeStepVisible}" Spacing="10">
+        <StackPanel IsVisible="{Binding IsThemeStepVisible}" Spacing="{StaticResource SpaceM}">
             <TextBlock Text="{loc:Localized Wizard.Theme.Header}"
                        FontWeight="Bold"
                        FontSize="{StaticResource TitleFontSize}" />
@@ -58,7 +58,7 @@
                                           ItemsSource="{Binding PreviewColors, Converter={x:Static themes:PreviewColorsToBrushesConverter.Instance}}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="3" />
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
@@ -78,7 +78,7 @@
 
         <!-- Step two: the adapter pick. Demo stays the default lane; the
              keys note is text only — the wizard never collects secrets. -->
-        <StackPanel IsVisible="{Binding IsAdapterStepVisible}" Spacing="10">
+        <StackPanel IsVisible="{Binding IsAdapterStepVisible}" Spacing="{StaticResource SpaceM}">
             <TextBlock Text="{loc:Localized Wizard.Adapter.Header}"
                        FontWeight="Bold"
                        FontSize="{StaticResource TitleFontSize}" />
@@ -104,7 +104,7 @@
 
         <!-- Step three: the first symbol pick, refilled on every draft-adapter
              selection; the list scrolls inside its own viewport. -->
-        <StackPanel IsVisible="{Binding IsSymbolStepVisible}" Spacing="10">
+        <StackPanel IsVisible="{Binding IsSymbolStepVisible}" Spacing="{StaticResource SpaceM}">
             <TextBlock Text="{loc:Localized Wizard.Symbol.Header}"
                        FontWeight="Bold"
                        FontSize="{StaticResource TitleFontSize}" />

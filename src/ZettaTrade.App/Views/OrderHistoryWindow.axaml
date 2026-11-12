@@ -21,7 +21,7 @@
         <StyleInclude Source="avares://ZettaTrade.App/Themes/RowGrammar.axaml" />
     </Window.Styles>
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <ScrollViewer Grid.Row="0">
             <!-- The history stack ends a strip short of the overlay bar's

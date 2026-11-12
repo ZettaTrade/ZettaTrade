@@ -22,12 +22,12 @@
         </Style>
     </Window.Styles>
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <!-- Filters: the min-level picker and the source-contains text;
              both rebuild the bound surface synchronously out of the ring
              mirror (a filter flip never re-reads the disk). -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10">
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="{StaticResource SpaceM}">
             <TextBlock Text="{loc:Localized Log.Filter.Level}"
                        VerticalAlignment="Center"
                        FontWeight="Bold"
@@ -82,9 +82,9 @@
                                     Classes.continuation="{Binding Line.IsContinuation}"
                                     BorderBrush="{DynamicResource Border}"
                                     BorderThickness="0,0,0,1"
-                                    Padding="0,3,0,3">
+                                    Padding="0,4,0,4">
                                 <Grid ColumnDefinitions="Auto,Auto,Auto,*"
-                                      ColumnSpacing="10">
+                                      ColumnSpacing="{StaticResource SpaceM}">
                                     <TextBlock Grid.Column="0"
                                                Text="{Binding Moment}"
                                                MinWidth="160"

@@ -429,11 +429,11 @@
                                 <ListBox ItemsSource="{Binding Rows}" Classes="watch-rows" Padding="0,0,16,0">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="vm:WatchlistRowViewModel">
-                                            <Grid ColumnDefinitions="*,Auto" Margin="8,3,4,3">
+                                            <Grid ColumnDefinitions="*,Auto" Margin="8,4,4,4">
                                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding SymbolText}"
                                                                FontWeight="Bold" />
-                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                                                         <TextBlock Text="{Binding LastPriceText}" />
                                                         <!-- T-159: the change text tints by
                                                              the 24h sign (the candle state
@@ -444,7 +444,7 @@
                                                                    Classes.up="{Binding IsChangeUp}"
                                                                    Classes.down="{Binding IsChangeDown}" />
                                                         <TextBlock Text="{Binding Volume24hText}"
-                                                                   Opacity="0.65" />
+                                                                   Foreground="{DynamicResource TextSecondary}" />
                                                     </StackPanel>
                                                 </StackPanel>
                                                 <!-- The sparkline: the viewport's one
@@ -482,7 +482,7 @@
                                      ranked pairs — an empty venue owns no switch. -->
                                 <StackPanel Grid.Row="0"
                                             Orientation="Horizontal"
-                                            Spacing="6"
+                                            Spacing="{StaticResource SpaceXs}"
                                             Margin="8,4,0,4"
                                             IsVisible="{Binding HasData}">
                                     <TextBlock Text="{loc:Localized Heatmap.Metric}"
@@ -549,13 +549,13 @@
              digest's count; a no-route row's click only dismisses it. -->
         <ItemsControl HorizontalAlignment="Right"
                       VerticalAlignment="Top"
-                      Margin="0,44,10,0"
+                      Margin="0,44,12,0"
                       IsVisible="{Binding ToastHost.HasToasts}"
                       ItemsSource="{Binding ToastHost.Toasts}"
                       MaxHeight="400">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:NotificationRow">
-                    <Button Margin="0,0,0,6"
+                    <Button Margin="0,0,0,4"
                             Command="{Binding OpenCommand}"
                             ToolTip.Tip="{loc:Localized Notif.ToastHint}"
                             HorizontalContentAlignment="Stretch">
@@ -563,7 +563,7 @@
                                 BorderBrush="{DynamicResource Border}"
                                 BorderThickness="1"
                                 CornerRadius="8"
-                                Padding="10,6">
+                                Padding="12,4">
                             <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding Moment}"
@@ -573,7 +573,7 @@
                                 <Border Grid.Column="1"
                                         CornerRadius="6"
                                         Background="{DynamicResource Highlight}"
-                                        Padding="5,1"
+                                        Padding="4,4"
                                         IsVisible="{Binding HasCountBadge}"
                                         VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Count}"
@@ -607,8 +607,7 @@
         <Grid x:Name="PaletteOverlay"
               IsVisible="{Binding Palette.IsOpen}">
             <Border x:Name="PaletteScrim"
-                    Background="{DynamicResource Background}"
-                    Opacity="0.75"
+                    Background="{DynamicResource ScrimBrush}"
                     PointerPressed="OnPaletteScrimPressed" />
             <Panel HorizontalAlignment="Center"
                    VerticalAlignment="Top"
@@ -620,8 +619,8 @@
                         CornerRadius="10"
                         ClipToBounds="True">
                     <Grid RowDefinitions="Auto,Auto,Auto,*,Auto"
-                          RowSpacing="10"
-                          Margin="14,12,14,10">
+                          RowSpacing="{StaticResource SpaceM}"
+                          Margin="16,12,16,12">
                         <TextBlock Grid.Row="0"
                                    Text="{loc:Localized Palette.Title}"
                                    FontWeight="Bold"
@@ -678,20 +677,20 @@
                                                        Text="{loc:Localized Palette.Group.Recents}"
                                                        FontSize="{StaticResource CaptionFontSize}"
                                                        Foreground="{DynamicResource TextSecondary}"
-                                                       Margin="2" />
+                                                       Margin="{StaticResource SpaceXs}" />
                                             <TextBlock IsVisible="{Binding IsFavoritesHead}"
                                                        Text="{loc:Localized Palette.Group.Favorites}"
                                                        FontSize="{StaticResource CaptionFontSize}"
                                                        Foreground="{DynamicResource TextSecondary}"
-                                                       Margin="2" />
+                                                       Margin="{StaticResource SpaceXs}" />
                                             <TextBlock IsVisible="{Binding IsOtherHead}"
                                                        Text="{loc:Localized Palette.Group.Other}"
                                                        FontSize="{StaticResource CaptionFontSize}"
                                                        Foreground="{DynamicResource TextSecondary}"
-                                                       Margin="2" />
+                                                       Margin="{StaticResource SpaceXs}" />
                                             <Grid ColumnDefinitions="Auto,Auto,*,Auto"
                                                   ColumnSpacing="{StaticResource SpaceS}"
-                                                  Margin="2">
+                                                  Margin="{StaticResource SpaceXs}">
                                                 <!-- The star: the favorites read-only mirror
                                                      (the marks are made in the settings window's
                                                      pairs tab, the same source the chart picker
@@ -764,7 +763,7 @@
                     BorderBrush="{DynamicResource Border}"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="12,9"
+                    Padding="12,8"
                     ClipToBounds="True"
                     BoxShadow="0 4 16 0 #40000000">
                 <ItemsControl ItemsSource="{Binding Hud.Lines}">
@@ -790,8 +789,7 @@
              and a press on it closes the sheet too. -->
         <Grid x:Name="HotkeysSheetOverlay"
               IsVisible="{Binding Hotkeys.IsSheetVisible}">
-            <Border Background="{DynamicResource Background}"
-                    Opacity="0.75"
+            <Border Background="{DynamicResource ScrimBrush}"
                     PointerPressed="OnHotkeysSheetScrimPressed" />
             <Panel HorizontalAlignment="Center"
                    VerticalAlignment="Top"
@@ -803,7 +801,7 @@
                         CornerRadius="10"
                         ClipToBounds="True"
                         Padding="16,12">
-                    <StackPanel Spacing="10">
+                    <StackPanel Spacing="{StaticResource SpaceM}">
                         <TextBlock Text="{loc:Localized Hotkeys.Sheet.Title}"
                                    FontWeight="Bold"
                                    FontSize="{StaticResource SubtitleStrongFontSize}" />
@@ -811,7 +809,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:HotkeySheetRow">
                                     <Grid ColumnDefinitions="*,Auto"
-                                          Margin="0,2">
+                                          Margin="0,4">
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding Name}"
                                                    VerticalAlignment="Center" />
@@ -824,7 +822,7 @@
                                                       VerticalAlignment="Center">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
-                                                    <StackPanel Orientation="Horizontal" Spacing="3" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}" />
                                                 </ItemsPanelTemplate>
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
@@ -833,7 +831,7 @@
                                                             BorderBrush="{DynamicResource Border}"
                                                             BorderThickness="1"
                                                             CornerRadius="4"
-                                                            Padding="6,2">
+                                                            Padding="4,4">
                                                         <TextBlock Text="{Binding}"
                                                                    FontSize="{StaticResource CaptionFontSize}"
                                                                    Foreground="{DynamicResource TextPrimary}" />

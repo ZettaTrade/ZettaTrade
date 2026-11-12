@@ -13,9 +13,9 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <StackPanel Margin="20" Spacing="15">
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceL}">
         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="{StaticResource SpaceM}">
             <Button x:Name="ConfirmButton"
                     Content="{loc:Localized Trading.Confirm}"
                     MinWidth="100"

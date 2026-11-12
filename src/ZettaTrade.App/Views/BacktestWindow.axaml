@@ -14,7 +14,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <!-- The run form: strategy over the T-111 seam, the active venue's
              cached series identity, the seed and the execution policy. Every
@@ -22,35 +22,35 @@
              refused start with its own line, never a substituted default). -->
         <WrapPanel Grid.Row="0">
             <StackPanel Margin="0,0,16,8">
-                <TextBlock Text="{loc:Localized Backtest.Strategy}" Margin="0,0,0,2" />
+                <TextBlock Text="{loc:Localized Backtest.Strategy}" Margin="0,0,0,4" />
                 <ComboBox Width="190"
                           ItemsSource="{Binding StrategyIds}"
                           SelectedItem="{Binding StrategyId}" />
             </StackPanel>
             <StackPanel Margin="0,0,16,8">
-                <TextBlock Text="{loc:Localized Backtest.Symbol}" Margin="0,0,0,2" />
+                <TextBlock Text="{loc:Localized Backtest.Symbol}" Margin="0,0,0,4" />
                 <TextBox Width="120" Text="{Binding SymbolText}" />
             </StackPanel>
             <StackPanel Margin="0,0,16,8">
-                <TextBlock Text="{loc:Localized Backtest.Interval}" Margin="0,0,0,2" />
+                <TextBlock Text="{loc:Localized Backtest.Interval}" Margin="0,0,0,4" />
                 <ComboBox Width="100"
                           ItemsSource="{Binding TimeFrames}"
                           SelectedItem="{Binding SelectedTimeFrame}" />
             </StackPanel>
             <StackPanel Margin="0,0,16,8">
-                <TextBlock Text="{loc:Localized Backtest.Bars}" Margin="0,0,0,2" />
+                <TextBlock Text="{loc:Localized Backtest.Bars}" Margin="0,0,0,4" />
                 <TextBox Width="110" Text="{Binding BarsText}" />
             </StackPanel>
             <StackPanel Margin="0,0,16,8">
-                <TextBlock Text="{loc:Localized Backtest.Seed}" Margin="0,0,0,2" />
+                <TextBlock Text="{loc:Localized Backtest.Seed}" Margin="0,0,0,4" />
                 <TextBox Width="110" Text="{Binding SeedText}" />
             </StackPanel>
             <StackPanel Margin="0,0,16,8">
-                <TextBlock Text="{loc:Localized Backtest.Slippage}" Margin="0,0,0,2" />
+                <TextBlock Text="{loc:Localized Backtest.Slippage}" Margin="0,0,0,4" />
                 <TextBox Width="110" Text="{Binding SlippageText}" />
             </StackPanel>
             <StackPanel Margin="0,0,16,8">
-                <TextBlock Text="{loc:Localized Backtest.LongFraction}" Margin="0,0,0,2" />
+                <TextBlock Text="{loc:Localized Backtest.LongFraction}" Margin="0,0,0,4" />
                 <TextBox Width="110" Text="{Binding LongFractionText}" />
             </StackPanel>
         </WrapPanel>
@@ -58,7 +58,7 @@
         <!-- The run surface: the phase line, the progress bar and the
              refusal/failure line. The cancelled run surfaces no report. -->
         <StackPanel Grid.Row="1" Spacing="{StaticResource SpaceXs}">
-            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceM}">
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontWeight="SemiBold" />
                 <ProgressBar Grid.Column="1"
                              Minimum="0" Maximum="1"
@@ -109,7 +109,7 @@
                  FontFamily="{StaticResource NumericFont}"
                  IsVisible="{Binding HasReport}" />
 
-        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceM}">
             <Button Grid.Column="1"
                     Content="{loc:Localized Backtest.Start}"
                     Command="{Binding StartCommand}"

@@ -14,7 +14,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <StackPanel Margin="20" Spacing="14">
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceL}">
 
         <TextBlock Text="{loc:Localized Log.Crash.Title}"
                    FontWeight="Bold"

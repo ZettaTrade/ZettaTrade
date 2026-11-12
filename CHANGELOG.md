@@ -1,3 +1,37 @@
+## [0.1.0-alpha.127] - 2026-11-12
+
+Build of board task T-182 (branch `feat/surface-strays`): the small-surface
+strays ride the scale and the palette, filed from the 2026-11-12 UI review
+findings batch.
+
+### Fixed
+- The off-scale spacing strays map onto the T-155 scale steps: the 6px
+  margins, the `Spacing="14"` stacks and the `Margin="20"` window frames
+  (BalancesPanelWindow first, then the dialog fleet, the settings tabs,
+  the stats tiles, the wizard and the log viewer) now ride the published
+  tokens or their nearest step - the small surfaces stop drifting off the
+  spacing canon one pixel at a time.
+- The bare `Opacity` dimmers ride named keys again: the watchlist row's
+  24h volume and the ticket's sizer support texts read through the
+  palette's TextSecondary ink (a theme retints its dim text
+  deliberately), the chart toolbar's VWAP and VolumeProfile toggles carry
+  a named quiet class whose armed state answers in the kit's on-ink (the
+  armed state no longer stays equally dimmed), and the palette's and the
+  hotkeys sheet's workspace scrims ride a derived ScrimBrush - the
+  applied Background's RGB under the veil alpha, republished on every
+  theme apply (the T-150 derived-key shape; the palette itself still
+  carries no translucent key).
+
+### Added
+- The surface-stray source pins: the spacing walk over every shipped
+  view (no off-scale margin, padding or spacing literal outside the
+  documented overlay-drop anchors), the bare-opacity sweep (no numeric
+  Opacity literal in any view), the shipped-theme contrast battery (the
+  dim ink reads at or above 4.5:1 over background and surface in every
+  theme), and the scrim-veil facts (the derivation keeps the source RGB
+  under the veil alpha; every shipped theme serves the veil from its own
+  Background on the real apply path).
+
 ## [0.1.0-alpha.126] - 2026-11-12
 
 Build of board task T-181 (branch `feat/ticket-cta-states`): the order

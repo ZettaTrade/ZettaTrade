@@ -17,7 +17,7 @@
          the verdict line is dynamic (the ViewModel's mapping through the
          localization manager). A stored activation closes the window from
          the code-behind; a refusal keeps it open with the verdict shown. -->
-    <StackPanel Margin="20" Spacing="{StaticResource SpaceM}">
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceM}">
         <TextBlock Text="{loc:Localized Settings.License.Hint}"
                    TextWrapping="Wrap" />
         <TextBox PlaceholderText="{loc:Localized Settings.License.PluginLabel}"
@@ -29,7 +29,7 @@
         <!-- The EULA leg: a module carrying EULA text surfaces it at the
              first activation (the wording ships in the module's package,
              never in this repo); the store waits for the accept tick. -->
-        <StackPanel IsVisible="{Binding HasEula}" Spacing="6">
+        <StackPanel IsVisible="{Binding HasEula}" Spacing="{StaticResource SpaceXs}">
             <TextBlock Text="{loc:Localized Settings.License.Eula.Caption}"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap" />

@@ -13,7 +13,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <!-- Do-Not-Disturb: the mirrored flag (read-only) takes its truth
              from the reactive settings stream; the toggle writes through
@@ -34,7 +34,7 @@
             <ItemsControl ItemsSource="{Binding MuteRows}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="10" />
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceM}" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
@@ -61,7 +61,7 @@
                         <DataTemplate x:DataType="vm:NotificationRow">
                             <Border BorderBrush="{DynamicResource Border}"
                                     BorderThickness="0,0,0,1"
-                                    Padding="0,5,0,5">
+                                    Padding="0,4,0,4">
                                 <Grid ColumnDefinitions="Auto,Auto,*"
                                       ColumnSpacing="{StaticResource SpaceS}">
                                     <TextBlock Grid.Column="0"
@@ -72,7 +72,7 @@
                                     <Border Grid.Column="1"
                                             CornerRadius="6"
                                             Background="{DynamicResource Highlight}"
-                                            Padding="5,1"
+                                            Padding="4,4"
                                             IsVisible="{Binding HasCountBadge}"
                                             VerticalAlignment="Top">
                                         <TextBlock Text="{Binding Count}"
