@@ -51,6 +51,9 @@
   <data name="Menu.Trading" xml:space="preserve">
     <value>Торговля</value>
   </data>
+  <data name="Menu.Trading.KillSwitch" xml:space="preserve">
+    <value>Аварийный останов — отменить всё и закрыть всё</value>
+  </data>
   <data name="Menu.Trading.NewOrder" xml:space="preserve">
     <value>Новый ордер...</value>
   </data>
@@ -635,6 +638,42 @@
   </data>
   <data name="Trading.Cancel" xml:space="preserve">
     <value>Отмена</value>
+  </data>
+  <data name="Trading.ConfirmKillSwitchFormat" xml:space="preserve">
+    <value>Аварийный останов: отменить {0} рабочих ордеров и закрыть {1} открытых позиций на всех торговых площадках. {2} Подтвердить?</value>
+  </data>
+  <data name="Trading.KillSwitchPlanVenueFormat" xml:space="preserve">
+    <value>{0}: ордеров к отмене: {1}, позиций к закрытию: {2} {3}.</value>
+  </data>
+  <data name="Trading.KillSwitchPlanPositionFormat" xml:space="preserve">
+    <value>{0} {1} {2}</value>
+  </data>
+  <data name="Trading.KillSwitchPlanNone" xml:space="preserve">
+    <value>нет</value>
+  </data>
+  <data name="Trading.KillSwitchReportTitle" xml:space="preserve">
+    <value>Отчёт аварийного останова</value>
+  </data>
+  <data name="Trading.KillSwitchNothing" xml:space="preserve">
+    <value>Нечего отменять и закрывать: нет рабочих ордеров и открытых позиций.</value>
+  </data>
+  <data name="Trading.KillSwitchVenueUnreachableFormat" xml:space="preserve">
+    <value>{0}: недоступна — {1}</value>
+  </data>
+  <data name="Trading.KillSwitchVenueDoneFormat" xml:space="preserve">
+    <value>{0}: отменено ордеров: {1}, закрыто позиций: {2}{3}, уже закрыто: {4}, не обработано: {5}{6}</value>
+  </data>
+  <data name="Trading.KillSwitchClosedTailFormat" xml:space="preserve">
+    <value> ({0})</value>
+  </data>
+  <data name="Trading.KillSwitchClosedItemFormat" xml:space="preserve">
+    <value>{0} (ордер {1})</value>
+  </data>
+  <data name="Trading.KillSwitchFailedItemsFormat" xml:space="preserve">
+    <value>. Не удалось: {0}.</value>
+  </data>
+  <data name="Trading.KillSwitchAbortedFormat" xml:space="preserve">
+    <value>Проход остановился раньше времени: {0}</value>
   </data>
   <data name="Trading.Lane.Paper" xml:space="preserve">
     <value>Симулятор</value>
@@ -1922,6 +1961,9 @@
   </data>
   <data name="Hotkeys.Action.NewOrder" xml:space="preserve">
     <value>Новый ордер</value>
+  </data>
+  <data name="Hotkeys.Action.KillSwitch" xml:space="preserve">
+    <value>Аварийный останов (отменить все ордера, закрыть все позиции)</value>
   </data>
   <data name="Hotkeys.Action.ToggleAiChat" xml:space="preserve">
     <value>Панель ассистента</value>

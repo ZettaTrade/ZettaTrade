@@ -38,7 +38,11 @@ public sealed class HotkeyViewModelTests
 
         kit.ViewModel.Rows.Should().HaveCount(HotkeyRegistry.Actions.Count);
         kit.ViewModel.Rows.Select(row => row.Action.Id).Should().BeEquivalentTo(
-            ["Settings.Open", "Order.New", "AiChat.Toggle", "Palette.Toggle"]);
+            ["Settings.Open", "Order.New", "Trading.KillSwitch", "AiChat.Toggle", "Palette.Toggle"]);
+        kit.ViewModel.Rows[2].Action.Id.Should().Be(HotkeyRegistry.KillSwitch,
+            "the panic action sits between the everyday order and chat rows in the display order");
+        kit.ViewModel.Rows[2].GestureText.Should().Be("Ctrl+Shift+X",
+            "the seed gesture is the live map's own truth");
         kit.ViewModel.Rows[0].Name.Should().Be("Hotkeys.Action.OpenSettings",
             "the echoing localizer answers the display name as the resource key");
         kit.ViewModel.Rows[0].GestureText.Should().Be("Ctrl+OemComma",
@@ -60,6 +64,8 @@ public sealed class HotkeyViewModelTests
             .Which.ToString().Should().Be("Ctrl+N");
         kit.ViewModel.AiChatGesture.Should().BeOfType<KeyGesture>()
             .Which.ToString().Should().Be("Ctrl+Shift+A");
+        kit.ViewModel.KillSwitchGesture.Should().BeOfType<KeyGesture>()
+            .Which.ToString().Should().Be("Ctrl+Shift+X", "the menu prints the live map's kill-switch chord");
         kit.ViewModel.PaletteGesture.Should().BeOfType<KeyGesture>()
             .Which.ToString().Should().Be("Ctrl+K");
     }
@@ -86,9 +92,9 @@ public sealed class HotkeyViewModelTests
 
         kit.ViewModel.Sheet.Should().HaveCount(HotkeyRegistry.Actions.Count);
         kit.ViewModel.Sheet.Select(row => row.Name).Should().BeEquivalentTo(
-            ["Hotkeys.Action.OpenSettings", "Hotkeys.Action.NewOrder", "Hotkeys.Action.ToggleAiChat", "Hotkeys.Action.TogglePalette"]);
+            ["Hotkeys.Action.OpenSettings", "Hotkeys.Action.NewOrder", "Hotkeys.Action.KillSwitch", "Hotkeys.Action.ToggleAiChat", "Hotkeys.Action.TogglePalette"]);
         kit.ViewModel.Sheet.Select(row => row.Gesture).Should().BeEquivalentTo(
-            ["Ctrl+OemComma", "Ctrl+N", "Ctrl+Shift+A", "Ctrl+K"]);
+            ["Ctrl+OemComma", "Ctrl+N", "Ctrl+Shift+X", "Ctrl+Shift+A", "Ctrl+K"]);
     }
 
     [Fact]

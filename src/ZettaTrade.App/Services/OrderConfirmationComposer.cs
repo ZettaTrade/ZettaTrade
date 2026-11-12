@@ -33,6 +33,10 @@ public sealed class OrderConfirmationComposer
     private const string ConfirmProtectKey = "Trading.ConfirmProtectFormat";
     private const string ProtectLevelNoneKey = "Positions.ProtectLevelNone";
     private const string ConfirmBulkCancelKey = "Positions.ConfirmBulkCancelFormat";
+    private const string ConfirmKillSwitchKey = "Trading.ConfirmKillSwitchFormat";
+    private const string KillSwitchPlanVenueKey = "Trading.KillSwitchPlanVenueFormat";
+    private const string KillSwitchPlanPositionKey = "Trading.KillSwitchPlanPositionFormat";
+    private const string KillSwitchPlanNoneKey = "Trading.KillSwitchPlanNone";
     private const string TagPaperKey = "Positions.BulkTagPaper";
     private const string MarketLabelKey = "Trading.PriceMarket";
 
@@ -401,6 +405,53 @@ public sealed class OrderConfirmationComposer
                 isPaper ? _localization.GetString(TagPaperKey) : liveVenueName,
             ],
         };
+    }
+
+    /// <summary>
+    /// Confirmation summary shown before a kill-switch sweep runs (T-188):
+    /// ONE mandatory summary over the whole plan — the totals (working
+    /// orders to cancel, open positions to close) and the per-venue listing
+    /// the plan read serves. A refusal of this single summary must leave
+    /// every venue untouched.
+    /// </summary>
+    /// <param name="plans">The per-venue plans the sweep read, in sweep order.</param>
+    public ConfirmationRequest ForKillSwitch(IReadOnlyList<KillSwitchVenuePlan> plans)
+    {
+        ArgumentNullException.ThrowIfNull(plans);
+
+        return new ConfirmationRequest
+        {
+            MessageKey = ConfirmKillSwitchKey,
+            Arguments =
+            [
+                plans.Sum(plan => plan.Orders.Count).ToString(CultureInfo.InvariantCulture),
+                plans.Sum(plan => plan.Positions.Count).ToString(CultureInfo.InvariantCulture),
+                string.Join(" ", plans.Select(ComposeKillSwitchVenueLine)),
+            ],
+        };
+    }
+
+    /// <summary>
+    /// One venue's plan line: the venue name, its counts, and the open
+    /// positions named (side, quantity, symbol) — the dangerous part of the
+    /// sweep reads in full; an empty listing reads the localized none.
+    /// </summary>
+    private string ComposeKillSwitchVenueLine(KillSwitchVenuePlan plan)
+    {
+        var positions = plan.Positions.Count == 0
+            ? _localization.GetString(KillSwitchPlanNoneKey)
+            : string.Join(", ", plan.Positions.Select(position => _localization.GetString(
+                KillSwitchPlanPositionKey,
+                _localization.GetString($"Order.{position.Side}"),
+                position.Quantity.Value.ToString(CultureInfo.InvariantCulture),
+                position.Symbol.Normalized)));
+
+        return _localization.GetString(
+            KillSwitchPlanVenueKey,
+            plan.VenueName,
+            plan.Orders.Count,
+            plan.Positions.Count,
+            positions);
     }
 
     /// <summary>

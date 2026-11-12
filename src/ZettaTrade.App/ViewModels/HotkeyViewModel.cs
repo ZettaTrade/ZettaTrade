@@ -66,6 +66,9 @@ public sealed class HotkeyViewModel : ReactiveObject
     /// <summary>The menu item's advertised gesture (palette), typed for the InputGesture binding (T-175).</summary>
     private KeyGesture? _paletteGesture;
 
+    /// <summary>The menu item's advertised gesture (kill switch), typed for the InputGesture binding (T-175).</summary>
+    private KeyGesture? _killSwitchGesture;
+
     /// <summary>
     /// Create a new HotkeyViewModel instance.
     /// </summary>
@@ -159,6 +162,9 @@ public sealed class HotkeyViewModel : ReactiveObject
     /// <summary>Gets the palette item's advertised gesture, typed for the menu's <c>InputGesture</c> binding (T-175); null when the map's text does not parse.</summary>
     public KeyGesture? PaletteGesture => _paletteGesture;
 
+    /// <summary>Gets the kill-switch item's advertised gesture, typed for the menu's <c>InputGesture</c> binding (T-175); null when the map's text does not parse.</summary>
+    public KeyGesture? KillSwitchGesture => _killSwitchGesture;
+
     /// <summary>Gets the sheet overlay's toggle (the menu's "?" item).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleSheetCommand { get; }
 
@@ -249,6 +255,7 @@ public sealed class HotkeyViewModel : ReactiveObject
 
         this.RaiseAndSetIfChanged(ref _settingsGesture, MenuGesture(map[HotkeyRegistry.OpenSettings]), nameof(SettingsGesture));
         this.RaiseAndSetIfChanged(ref _newOrderGesture, MenuGesture(map[HotkeyRegistry.NewOrder]), nameof(NewOrderGesture));
+        this.RaiseAndSetIfChanged(ref _killSwitchGesture, MenuGesture(map[HotkeyRegistry.KillSwitch]), nameof(KillSwitchGesture));
         this.RaiseAndSetIfChanged(ref _aiChatGesture, MenuGesture(map[HotkeyRegistry.ToggleAiChat]), nameof(AiChatGesture));
         this.RaiseAndSetIfChanged(ref _paletteGesture, MenuGesture(map[HotkeyRegistry.TogglePalette]), nameof(PaletteGesture));
         RebuildSheet(map);

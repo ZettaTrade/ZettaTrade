@@ -150,6 +150,9 @@ public sealed class MainViewModel : ReactiveObject
             case HotkeyRegistry.NewOrder:
                 DispatchHotkey(Menu.NewOrderCommand, actionId);
                 break;
+            case HotkeyRegistry.KillSwitch:
+                DispatchHotkey(Menu.KillSwitchCommand, actionId);
+                break;
             case HotkeyRegistry.ToggleAiChat:
                 DispatchHotkey(Menu.ToggleAiChatCommand, actionId);
                 break;

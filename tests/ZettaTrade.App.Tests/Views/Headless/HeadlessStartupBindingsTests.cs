@@ -56,8 +56,8 @@ public sealed class HeadlessStartupBindingsTests
                 .Where(gesture => gesture is not null)
                 .ToList());
             gestures.Should().BeEquivalentTo(
-                ["Alt+F4", "Ctrl+OemComma", "Ctrl+N", "Ctrl+Shift+A"],
-                "the menu renders the effective gesture hints - the static exit hint and the three typed hotkey hints");
+                ["Alt+F4", "Ctrl+OemComma", "Ctrl+N", "Ctrl+Shift+X", "Ctrl+Shift+A"],
+                "the menu renders the effective gesture hints - the static exit hint and the typed hotkey hints, the kill switch chord included");
 
             var panels = await HeadlessWorld.OnUi(() => (
                 Chart: HeadlessWorld.Descendants<ChartPanelView>(window).Single().DataContext,
