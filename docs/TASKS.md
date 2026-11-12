@@ -189,7 +189,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | feat/surface-strays | done | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | done | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | done | - |
-| T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | in-progress | - |
+| T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | done | - |
 | T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | planned | - |
 | T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | planned | - |
 | T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | planned | - |
@@ -402,29 +402,6 @@ that day), whose live hover let the user feel the resting/hover/primary states i
 looking at a static picture. The approved shape files as T-183 (the button/kit half, riding the
 Livery satellite) and T-184 (the settings window's rail + cards); no separate findings doc —
 each section below carries its own origin. All rows start `planned`.
-
-## T-185 - The MainWindow's XAML re-indents: the DockPanel block stops sitting flush with its parent
-
-- **Branch:** refactor/main-xaml-indent, worktree zt-main-xaml-indent, based on
-  develop@8984654 (claimed 2026-11-12 off the synced board — the T-184 landing unblocked
-  this lane).
-- **Origin:** the main window's middle block — the DockPanel at MainWindow.axaml:117-527, about
-  410 lines carrying the menu, the status bar and the whole workspace grid — sits at the SAME
-  indent as its parent: the DockPanel's children lost one level, the closing tag lines up with
-  the opener, and the file's structural reading breaks exactly where the layout is densest.
-  Cosmetic only; the markup is untouched.
-- **What:** a whitespace-only re-indent of the block (the DockPanel's children one level deeper
-  than the DockPanel, the rest follows); no attribute, element or ordering change — the diff
-  shows whitespace pairs only.
-- **Scope:** MainWindow.axaml formatting alone; no style, binding or resx change; no alpha bump
-  (formatting-only).
-- **Acceptance:** the block's indentation reads its nesting (the DockPanel's children one level
-  under the DockPanel); a whitespace-ignoring diff shows no content change; the build and the
-  full test suite stay green.
-- **Tests:** the existing suite green untouched (the formatting-only proof — nothing
-  behavioral moves); the gate's diff discipline.
-- **Status:** in-progress.
-
 
 ---
 
