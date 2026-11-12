@@ -26,6 +26,11 @@ using ZettaTrade.Infrastructure.Fees;
 /// stays working. A stop-side order that would trigger
 /// immediately, and a leg joining an OCO group whose partner already ended,
 /// are rejected with an explicit error instead of a degraded execution.
+/// Time-in-force is simulated honestly (T-190): an IOC that crosses nothing
+/// at placement records the terminal Cancelled and never rests, a FOK that
+/// cannot fill whole refuses outright, and a GTD rests or arms like a GTC
+/// and expires against the adapter's own clock — the order history keeps
+/// every terminal status truthful.
 /// In-memory balances and netted positions are maintained for every fill,
 /// and every fill stamps its computed commission (T-080): the schedule is
 /// resolved per fill from the fee registry, a missing schedule leaves the
@@ -75,6 +80,13 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     private readonly IFeeScheduleProvider _feeSchedules;
     private readonly ILogger<PaperTradingAdapter> _logger;
 
+    /// <summary>
+    /// The simulation clock the TIF honesty rides (T-190): GTD expiry
+    /// checks and every TIF terminal stamp read it, so tests advance time
+    /// without sleeping. Defaults to the system clock.
+    /// </summary>
+    private readonly TimeProvider _clock;
+
     /// <summary>Serializes order placement / cancellation; positions are mutated under it.</summary>
     private readonly SemaphoreSlim _tradingLock = new(1, 1);
 
@@ -118,14 +130,17 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     /// <param name="marketData">The market data adapter that supplies reference prices.</param>
     /// <param name="feeSchedules">The per-adapter fee registry the fills stamp commissions from (T-080).</param>
     /// <param name="logger">The adapter's logger.</param>
+    /// <param name="clock">The simulation clock (T-190): tests inject a fake, production keeps the system time.</param>
     public PaperTradingAdapter(
         IMarketDataAdapter marketData,
         IFeeScheduleProvider feeSchedules,
-        ILogger<PaperTradingAdapter> logger)
+        ILogger<PaperTradingAdapter> logger,
+        TimeProvider? clock = null)
     {
         _marketData = marketData ?? throw new ArgumentNullException(nameof(marketData));
         _feeSchedules = feeSchedules ?? throw new ArgumentNullException(nameof(feeSchedules));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _clock = clock ?? TimeProvider.System;
     }
 
     #endregion
@@ -237,6 +252,35 @@ public sealed class PaperTradingAdapter : ITradingAdapter
 
         if (!crosses)
         {
+            // The placement-moment immediacy contract (T-190): IOC and FOK
+            // live entirely at placement — nothing crossed now, so nothing
+            // may rest and pretend it could still fill. An IOC records the
+            // honest terminal Cancelled; a FOK refuses outright, no order
+            // ever existing. GTC and GTD rest; a GTD expires by the sweep
+            // on reads and ticks against the adapter's own clock.
+            switch (request.TimeInForce)
+            {
+                case TimeInForce.IOC:
+                    return RecordTifTerminalLocked(
+                        request,
+                        OrderStatus.Cancelled,
+                        $"IOC crossed nothing at placement (reference close {referenceClose.Value}); the order never rests");
+
+                case TimeInForce.FOK:
+                    throw new InvalidOperationException(
+                        $"FOK {request.Side} {request.Quantity.Value} {request.Symbol.Normalized} limit {limitPrice.Value} crosses nothing at placement (reference close {referenceClose.Value}); the order is refused outright rather than degraded.");
+            }
+
+            // A GTD whose expiry already passed against the adapter's own
+            // clock never rests: the honest Expired is the placement answer.
+            if (request.TimeInForce == TimeInForce.GTD && request.Expiry <= _clock.GetUtcNow())
+            {
+                return RecordTifTerminalLocked(
+                    request,
+                    OrderStatus.Expired,
+                    $"GTD expiry {request.Expiry:O} already passed against the adapter clock {_clock.GetUtcNow():O}");
+            }
+
             var resting = CreateRestingOrder(request);
             _orders[resting.Id] = resting;
 
@@ -356,6 +400,32 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             }
         }
 
+        // The placement-moment immediacy contract holds for the arm path
+        // too (T-190): an IOC/FOK conditional with nothing immediately
+        // executable at placement never arms — the strict TIF contract
+        // gives the arm no future to promise. (The immediate-trigger
+        // refusal above already spoke first for stops that would fire
+        // now.) A GTD whose expiry already passed never arms; a live GTD
+        // arms and expires by the sweep on reads and ticks.
+        switch (request.TimeInForce)
+        {
+            case TimeInForce.IOC:
+                return RecordTifTerminalLocked(
+                    request,
+                    OrderStatus.Cancelled,
+                    $"IOC has nothing immediately executable at placement (reference close {referenceClose!.Value}); the order never arms");
+
+            case TimeInForce.FOK:
+                throw new InvalidOperationException(
+                    $"FOK {request.Side} {request.Quantity.Value} {request.Symbol.Normalized} has nothing immediately executable at placement (reference close {referenceClose!.Value}); the order is refused outright rather than armed.");
+
+            case TimeInForce.GTD when request.Expiry <= _clock.GetUtcNow():
+                return RecordTifTerminalLocked(
+                    request,
+                    OrderStatus.Expired,
+                    $"GTD expiry {request.Expiry:O} already passed against the adapter clock {_clock.GetUtcNow():O}");
+        }
+
         var working = CreateWorkingOrder(request);
         _orders[working.Id] = working;
 
@@ -420,12 +490,24 @@ public sealed class PaperTradingAdapter : ITradingAdapter
                         // its (fill) price.
                         ArmBracketLegsLocked(bracket, entry.Price!);
                     }
-                    else
+                    else if (entry.Status is OrderStatus.Pending or OrderStatus.Submitted)
                     {
                         _pendingBrackets[entry.Id] = bracket;
                         _logger.LogInformation(
                             "Bracket park: entry {OrderId} rests; the take-profit/stop-loss pair arms when the entry fills",
                             entry.Id);
+                    }
+                    else
+                    {
+                        // The TIF immediacy (T-190) can end the entry at
+                        // placement itself: an IOC-away entry records
+                        // Cancelled, a pre-passed GTD records Expired. A
+                        // terminal entry has no future to promise its exits
+                        // — the pair never parks.
+                        _logger.LogInformation(
+                            "Bracket skip: entry {OrderId} ended {Status} at placement; the take-profit/stop-loss pair never parks",
+                            entry.Id,
+                            entry.Status);
                     }
 
                     return entry;
@@ -729,13 +811,28 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     }
 
     /// <inheritdoc/>
-    public Task<IReadOnlyList<Order>> GetOpenOrdersAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Order>> GetOpenOrdersAsync(CancellationToken ct = default)
     {
-        var open = _orders.Values
-            .Where(o => o.Status is OrderStatus.Pending or OrderStatus.Submitted or OrderStatus.PartiallyFilled)
-            .ToArray();
+        // The GTD sweep rides the reads (T-190): a due order reports the
+        // honest Expired, never a stale working status. The read takes the
+        // trading lock so the sweep never races a placement, a fill or a
+        // cancellation (the pre-acquisition await stays outside the try —
+        // a cancelled read never releases an un-acquired semaphore).
+        await _tradingLock.WaitAsync(ct);
+        try
+        {
+            ExpireDueWorkingOrdersLocked();
 
-        return Task.FromResult<IReadOnlyList<Order>>(open);
+            var open = _orders.Values
+                .Where(o => o.Status is OrderStatus.Pending or OrderStatus.Submitted or OrderStatus.PartiallyFilled)
+                .ToArray();
+
+            return open;
+        }
+        finally
+        {
+            _tradingLock.Release();
+        }
     }
 
     /// <inheritdoc/>
@@ -753,6 +850,106 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             kv => new Money(kv.Value, kv.Key));
 
         return Task.FromResult(balances);
+    }
+
+    #endregion
+
+    #region Time-in-Force Simulation (T-190)
+
+    /// <summary>
+    /// Record a TIF terminal state at placement (T-190) — the IOC cancel
+    /// and the pre-passed GTD expiry: the order enters the history with
+    /// its honest terminal status and never rests, arms or subscribes a
+    /// price stream (nothing it never created needs tearing down). The
+    /// record's display price mirrors the working factory: a trailing
+    /// stop carries no limit price, so its trigger seed shows. Runs under
+    /// the trading lock.
+    /// </summary>
+    private Order RecordTifTerminalLocked(
+        OrderRequest request,
+        OrderStatus terminalStatus,
+        string reason)
+    {
+        var displayPrice = request.Type == OrderType.TrailingStop
+            ? request.StopPrice!.Value
+            : request.Price!.Value;
+
+        var terminal = CreateOrder(request, terminalStatus, displayPrice, Quantity.Zero) with
+        {
+            UpdatedAt = _clock.GetUtcNow(),
+        };
+
+        _orders[terminal.Id] = terminal;
+        _logger.LogInformation(
+            "Paper TIF: {OrderId} ({Tif} {Type} {Side} {Quantity} {Symbol}) is terminal {Status} at placement: {Reason}",
+            terminal.Id,
+            terminal.TimeInForce,
+            terminal.Type,
+            terminal.Side,
+            terminal.Quantity.Value,
+            terminal.Symbol.Normalized,
+            terminal.Status,
+            reason);
+
+        return terminal;
+    }
+
+    /// <summary>
+    /// Expire every working order whose GTD timestamp has passed against
+    /// the adapter's own clock (T-190), under the trading lock: the honest
+    /// Expired replaces the working status and the teardown mirrors the
+    /// cancel path exactly — the conditional state, the price stream, the
+    /// OCO siblings, the parked bracket pair — so an expired order leaves
+    /// the same clean simulation surface a cancelled one does. The sweep
+    /// rides the reads and the ticks; a resting limit without a stream
+    /// still expires on the next read.
+    /// </summary>
+    private void ExpireDueWorkingOrdersLocked()
+    {
+        var now = _clock.GetUtcNow();
+        var due = _orders.Values
+            .Where(order => order.Expiry is { } expiry
+                && expiry <= now
+                && order.Status is OrderStatus.Pending or OrderStatus.Submitted or OrderStatus.PartiallyFilled)
+            .Select(order => order.Id)
+            .ToArray();
+
+        foreach (var orderId in due)
+        {
+            // Re-fetch and re-check: a sibling's teardown earlier in this
+            // very sweep may already have ended this order (an OCO partner
+            // of another due leg, a bracket pair ride-along).
+            if (!_orders.TryGetValue(orderId, out var order)
+                || order.Status is not (OrderStatus.Pending or OrderStatus.Submitted or OrderStatus.PartiallyFilled))
+            {
+                continue;
+            }
+
+            var expired = order with
+            {
+                Status = OrderStatus.Expired,
+                UpdatedAt = _clock.GetUtcNow(),
+            };
+
+            _orders[order.Id] = expired;
+            _conditionals.TryRemove(order.Id, out _);
+            MaybeTearDownPriceStreamLocked(order.Symbol);
+            _logger.LogInformation(
+                "Paper GTD expiry: {OrderId} reached its expiry against the adapter clock",
+                order.Id);
+
+            // An expired OCO leg ends its pair, like any terminal leg.
+            CancelOcoSiblingsLocked(expired);
+
+            // An expired bracket entry takes its parked exits with it
+            // (T-186): a pair whose entry never filled must never arm.
+            if (_pendingBrackets.Remove(order.Id, out _))
+            {
+                _logger.LogInformation(
+                    "Bracket drop: the expired entry {OrderId} takes its parked take-profit/stop-loss pair with it",
+                    order.Id);
+            }
+        }
     }
 
     #endregion
@@ -1046,6 +1243,12 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         try
         {
             var key = symbol.Normalized;
+
+            // The GTD expiry rides the tick's lock first (T-190): an order
+            // whose timestamp has passed never evaluates its trigger — the
+            // honest Expired precedes any fill decision.
+            ExpireDueWorkingOrdersLocked();
+
             var working = _conditionals.Values
                 .Where(state => state.Order.Symbol.Normalized == key)
                 .ToArray();
