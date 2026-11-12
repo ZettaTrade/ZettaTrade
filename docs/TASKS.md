@@ -187,7 +187,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-180 The theme preview swatches mirror the Accent again: dark, light and oled stop advertising the retired colors (the review finding) | feat/theme-preview-mirror | done | - |
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | feat/ticket-cta-states | done | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | feat/surface-strays | done | - |
-| T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | planned | - |
+| T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | in-progress | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | planned | T-183 (soft) |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | planned | - |
 | T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | planned | - |
@@ -405,7 +405,9 @@ each section below carries its own origin. All rows start `planned`.
 
 ## T-183 - The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 design pass, variant A approved by the user).
+- **Branch:** feat/button-kit, worktree zt-button-kit, based on develop@7b2fc14 (claimed
+  2026-11-12 per standing directive 6 — the 2026-11-12 design pass, variant A approved by the
+  user; the satellite Livery lands first per the multi-repo rule).
 - **Origin:** every button rests as a Surface fill + hairline border and flashes a **solid
   Accent fill on hover** (Livery Controls.axaml:29-35) — the flash the user names as the main
   offender; no hierarchy exists (the settings' "Open themes folder" and the ticket's "Place"
@@ -436,7 +438,7 @@ each section below carries its own origin. All rows start `planned`.
   foreground); source pins (the solid-Accent hover out, the radius literals onto the tokens,
   and the Button-as-card-container sites riding the quiet class); Livery's own gate rides the
   satellite.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-184 - The settings window rides the category rail and the section cards
 
