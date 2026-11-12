@@ -83,6 +83,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private const string FeeEstimateMakerKey = "Fees.EstimateMakerFormat";
     private const string FeeEstimateTakerKey = "Fees.EstimateTakerFormat";
     private const string FeeUnknownKey = "Fees.Unknown";
+    private const string DailyLossBannerKey = "Trading.DailyLossBannerFormat";
+    private const string DailyLossResetKey = "Trading.DailyLossReset";
+    private const string DailyLossResetConfirmKey = "Trading.ConfirmDailyLossReset";
+    private const string DailyLossResetFailedKey = "NewOrder.DailyLossResetFailed";
 
     #endregion Resx Keys
 
@@ -144,6 +148,18 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private readonly PositionSizingService _sizing;
     private readonly ISettingsService _settings;
     private readonly ILogger<NewOrderDialogViewModel> _logger;
+
+    /// <summary>The daily loss governor's state seam (T-189): the banner reads it, the reset writes through it.</summary>
+    private readonly IDailyLossLimit _dailyLoss;
+
+    /// <summary>The normalized symbol the banner's last read attributed (null = nothing read yet / nothing attributed).</summary>
+    private string? _dailyLossBannerSymbol;
+
+    /// <summary>The banner's visibility backing field.</summary>
+    private bool _isDailyLossBlocked;
+
+    /// <summary>The banner's line backing field (empty while not blocked).</summary>
+    private string _dailyLossBanner = string.Empty;
 
     /// <summary>The ticket-local quick-size row (T-079): proposes quantities, places nothing.</summary>
     private readonly OrderSizerRowViewModel _sizer;
@@ -506,6 +522,30 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         || OcoStopLimitError is not null
         || BracketTakeProfitError is not null;
 
+    /// <summary>
+    /// Whether the daily loss governor currently blocks new orders for the
+    /// ticket's parsed symbol's quote bucket (T-189): the banner's
+    /// visibility. A display fact only — the placement pipeline re-checks
+    /// the gate at every submit, so a stale banner can never let a blocked
+    /// order through (and an exempt reduce-only exit never sees the block).
+    /// </summary>
+    public bool IsDailyLossBlocked
+    {
+        get => _isDailyLossBlocked;
+        private set => this.RaiseAndSetIfChanged(ref _isDailyLossBlocked, value);
+    }
+
+    /// <summary>
+    /// The banner's honest line (T-189): the day loss against the limit,
+    /// with the closing nuance and the block's own lift terms. Empty while
+    /// not blocked.
+    /// </summary>
+    public string DailyLossBanner
+    {
+        get => _dailyLossBanner;
+        private set => this.RaiseAndSetIfChanged(ref _dailyLossBanner, value);
+    }
+
     /// <summary>The symbol field's inline parse refusal (T-156): missing or unparsable text.</summary>
     public string? SymbolError
     {
@@ -792,6 +832,14 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// </summary>
     public ReactiveCommand<RxVoid, RxVoid> InitializeSizingCommand { get; }
 
+    /// <summary>
+    /// The daily loss limit's operator reset (T-189): ONE confirmation, then
+    /// the marker write lifts the block until the day rolls over. Enabled
+    /// only while the banner shows (the command rides the banner's own
+    /// visibility in the view).
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> ResetDailyLossCommand { get; }
+
     /// <summary>Picks the buy side (T-156): the segmented control's buy half.</summary>
     public ReactiveCommand<RxVoid, RxVoid> SelectBuySideCommand { get; }
 
@@ -832,7 +880,8 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         PositionSizingService sizing,
         ISettingsService settings,
         ILogger<NewOrderDialogViewModel> logger,
-        ILogger<OrderSizerRowViewModel> sizerLogger)
+        ILogger<OrderSizerRowViewModel> sizerLogger,
+        IDailyLossLimit dailyLoss)
     {
         _trading = trading ?? throw new ArgumentNullException(nameof(trading));
         _symbolList = symbolList ?? throw new ArgumentNullException(nameof(symbolList));
@@ -848,11 +897,13 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         _sizing = sizing ?? throw new ArgumentNullException(nameof(sizing));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _dailyLoss = dailyLoss ?? throw new ArgumentNullException(nameof(dailyLoss));
 
         CloseRequested = new Interaction<RxVoid, RxVoid>();
         LoadSymbolsCommand = ReactiveCommand.CreateFromTask(HandleLoadSymbolsAsync);
         PlaceOrderCommand = ReactiveCommand.CreateFromTask(HandlePlaceOrderAsync);
         InitializeSizingCommand = ReactiveCommand.CreateFromTask(HandleInitializeSizingAsync);
+        ResetDailyLossCommand = ReactiveCommand.CreateFromTask(HandleResetDailyLossAsync);
         SelectBuySideCommand = ReactiveCommand.Create<RxVoid, RxVoid>(_ =>
         {
             SelectedSideIndex = (int)OrderSide.Buy;
@@ -954,6 +1005,25 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                     error => _logger.LogWarning(
                         error,
                         "Order dialog: the fee-estimate reference stream stopped unexpectedly")));
+
+        // The daily loss banner (T-189): a throttled state read per settled
+        // symbol — the same quiet-window discipline the fee estimate's
+        // reference read rides (the bootstrapping initial emission prices
+        // the banner at dialog open). The read is tolerated to fail inside
+        // the refresh itself: a banner whose state is unknown stays hidden
+        // — the submit pipeline's own gate re-checks the truth at every
+        // placement.
+        _subscriptions.Add(
+            this.WhenAnyValue(x => x.SymbolInput)
+                .Throttle(EstimateReferenceThrottle)
+                .Select(_ => Observable.FromAsync(() => RefreshDailyLossBannerAsync(force: false)))
+                .Switch()
+                .ObserveOnUiThread()
+                .Subscribe(
+                    _ => { },
+                    error => _logger.LogWarning(
+                        error,
+                        "Order dialog: the daily loss banner stream stopped unexpectedly")));
     }
 
     #endregion Constructor
@@ -1180,6 +1250,94 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             _logger.LogWarning(
                 ex,
                 "Order dialog: the sizing default load failed; the hardcoded default stays");
+        }
+    }
+
+    /// <summary>
+    /// The daily loss banner read (T-189): the parsed symbol's quote
+    /// bucket's honest state on the current lane. A symbol change skips
+    /// when the parse didn't move (the throttle already coalesced the
+    /// keystrokes); a forced read re-reads the same symbol (a failed
+    /// placement or a reset may have moved the state). Tolerated to fail:
+    /// the banner stays hidden on a fault — a display convenience, never a
+    /// gate, and never a dialog error.
+    /// </summary>
+    private async Task RefreshDailyLossBannerAsync(bool force)
+    {
+        Symbol? symbol = null;
+        var raw = SymbolInput.Trim();
+        if (raw.Length > 0)
+        {
+            try
+            {
+                symbol = Symbol.Parse(raw);
+            }
+            catch (ArgumentException)
+            {
+                // Unparsable text owns no quote bucket to attribute.
+            }
+        }
+
+        if (!force && symbol?.Normalized == _dailyLossBannerSymbol)
+        {
+            return;
+        }
+
+        if (symbol is null)
+        {
+            _dailyLossBannerSymbol = null;
+            IsDailyLossBlocked = false;
+            DailyLossBanner = string.Empty;
+            return;
+        }
+
+        try
+        {
+            var state = await _dailyLoss.ReadStateAsync(symbol);
+            _dailyLossBannerSymbol = symbol.Normalized;
+            IsDailyLossBlocked = state.Enabled && state.IsBlocked;
+            DailyLossBanner = IsDailyLossBlocked
+                ? _localization.GetString(
+                    DailyLossBannerKey,
+                    $"{Math.Abs(state.DayLoss).ToString("F2", CultureInfo.InvariantCulture)} {state.Quote}",
+                    $"{state.Limit.ToString("F2", CultureInfo.InvariantCulture)} {state.Quote}")
+                : string.Empty;
+        }
+        catch (OperationCanceledException)
+        {
+            // The dialog closed while the read ran: nothing user-visible remains.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Order dialog: the daily loss banner read failed; the banner stays hidden");
+        }
+    }
+
+    /// <summary>
+    /// The operator's daily loss reset (T-189): ONE confirmation names what
+    /// the reset does, then the marker write lifts the block until the day
+    /// rolls over, and the banner re-reads the fresh state.
+    /// </summary>
+    private async Task HandleResetDailyLossAsync()
+    {
+        try
+        {
+            var confirmed = await _confirmation.RequestConfirmationAsync(
+                new ConfirmationRequest { MessageKey = DailyLossResetConfirmKey });
+            if (!confirmed)
+            {
+                return;
+            }
+
+            await _dailyLoss.ResetAsync();
+            await RefreshDailyLossBannerAsync(force: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Order dialog: the daily loss reset failed");
+            ErrorMessage = _localization.GetString(DailyLossResetFailedKey, ex.Message);
         }
     }
 
@@ -1500,6 +1658,9 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                     ErrorMessage ??= _localization.GetString(OcoAbortedKey);
                 }
 
+                // An aborted pair may have moved the day's loss: the banner
+                // re-reads its state honestly (T-189).
+                await RefreshDailyLossBannerAsync(force: true);
                 return;
             }
 
@@ -1530,6 +1691,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             ErrorMessage = single
                 ? _localization.GetString(PlaceFailedKey, ex.Message)
                 : _localization.GetString(OcoAbortedKey);
+
+            // A failed placement may have moved the day's loss: the banner
+            // re-reads its state honestly (T-189).
+            await RefreshDailyLossBannerAsync(force: true);
         }
     }
 
@@ -1573,6 +1738,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                     "Order dialog: risk manager rejected the bracket's {Type} {Side} leg {Quantity} {Symbol}: {Reason}",
                     leg.Type, leg.Side, leg.Quantity.Value, leg.Symbol.Normalized, legRisk.Reason);
                 ErrorMessage = _localization.GetString(OrderRejectedKey, legRisk.Reason ?? string.Empty);
+
+                // A risk rejection may be the daily loss governor's own
+                // block (T-189): the banner re-reads its state honestly.
+                await RefreshDailyLossBannerAsync(force: true);
                 return;
             }
 
@@ -1633,6 +1802,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             // unplaced order).
             _logger.LogError(ex, "Order dialog: bracket placement failed");
             ErrorMessage = _localization.GetString(PlaceFailedKey, ex.Message);
+
+            // A failed bracket may have moved the day's loss: the banner
+            // re-reads its state honestly (T-189).
+            await RefreshDailyLossBannerAsync(force: true);
         }
     }
 
@@ -1668,6 +1841,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                 "Order dialog: risk manager rejected {Side} {Quantity} {Symbol}: {Reason}",
                 request.Side, request.Quantity.Value, request.Symbol.Normalized, risk.Reason);
             ErrorMessage = _localization.GetString(OrderRejectedKey, risk.Reason ?? string.Empty);
+
+            // A risk rejection may be the daily loss governor's own block
+            // (T-189): the banner re-reads its state honestly.
+            await RefreshDailyLossBannerAsync(force: true);
             return null;
         }
 

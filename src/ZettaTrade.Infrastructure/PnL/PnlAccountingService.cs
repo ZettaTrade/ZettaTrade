@@ -195,6 +195,54 @@ public sealed class PnlAccountingService(
     }
 
     /// <summary>
+    /// The realized net sums per quote currency for one exchange over a UTC
+    /// window ([fromUtc, toUtc)): the daily loss governor's facts (T-189).
+    /// Each row's stored amount is already net of its commission (the
+    /// ingest math nets them at row-build time), so a bucket's sum is the
+    /// plain window sum — never a second commission subtraction. Buckets
+    /// never mix quote currencies: a quoteless ledger symbol owns the
+    /// empty-string bucket (the consumers never attribute a quoteless
+    /// order against it — see the governor's own remarks).
+    /// </summary>
+    /// <param name="exchangeId">The exchange the rows belong to (part of the realized history's key).</param>
+    /// <param name="fromUtc">Inclusive window start (UTC).</param>
+    /// <param name="toUtc">Exclusive window end (UTC).</param>
+    /// <param name="cancellationToken">Cooperative cancellation.</param>
+    public async Task<IReadOnlyDictionary<string, decimal>> GetRealizedBucketsAsync(
+        string exchangeId,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(exchangeId);
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            await using var context = new PnlDbContext(options);
+            var rows = await context.Realized
+                .Where(entry => entry.ExchangeId == exchangeId
+                    && entry.RealizedAt >= fromUtc
+                    && entry.RealizedAt < toUtc)
+                .Select(entry => new { entry.Symbol, entry.RealizedAmount })
+                .ToListAsync(cancellationToken);
+
+            var buckets = new Dictionary<string, decimal>(StringComparer.Ordinal);
+            foreach (var row in rows)
+            {
+                var quote = Symbol.Parse(row.Symbol).QuoteAsset ?? string.Empty;
+                buckets[quote] = buckets.GetValueOrDefault(quote) + row.RealizedAmount;
+            }
+
+            return buckets;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
     /// Feed the latest market price for a symbol into the unrealized side.
     /// Who observes the feed decides what is real: a non-positive price is
     /// garbage data and changes nothing (no fabrication, no exception) —

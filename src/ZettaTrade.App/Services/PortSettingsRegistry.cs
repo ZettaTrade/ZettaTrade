@@ -217,6 +217,14 @@ public static class PortSettingsRegistry
         // The position sizing helper's default risk percent.
         Number(SizerSettingsKeys.Section, SizerSettingsKeys.DefaultRiskPercent, SizerSettingsKeys.DefaultRiskPercentValue),
 
+        // The daily loss governor (T-189): the master switch and the loss
+        // threshold, plus the manual reset marker (an ISO timestamp
+        // string; absence is the default — the window then spans the whole
+        // local day).
+        Switch(RiskSettingsKeys.Section, RiskSettingsKeys.DailyLossLimitEnabled, RiskSettingsKeys.DailyLossLimitEnabledValue),
+        Number(RiskSettingsKeys.Section, RiskSettingsKeys.DailyLossLimitAmount, RiskSettingsKeys.DailyLossLimitAmountValue),
+        Text(RiskSettingsKeys.Section, RiskSettingsKeys.DailyLossResetAt),
+
         // The exchange transport endpoints (T-015): the URL pairs the
         // endpoint registry overrides its shipped production pairs with.
         UrlPairs(ExchangeEndpointRegistry.SettingsSection, ExchangeEndpointRegistry.BinanceKey, BinanceEndpoints.Production),

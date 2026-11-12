@@ -675,6 +675,18 @@
   <data name="Trading.KillSwitchAbortedFormat" xml:space="preserve">
     <value>Проход остановился раньше времени: {0}</value>
   </data>
+  <data name="Trading.DailyLossBannerFormat" xml:space="preserve">
+    <value>Достигнут дневной лимит убытка: {0} реализованного убытка сегодня против лимита {1}. Новые ордера заблокированы; закрытие позиций остаётся доступным. Блокировка снимется при смене дня или по сбросу.</value>
+  </data>
+  <data name="Trading.DailyLossReset" xml:space="preserve">
+    <value>Сбросить лимит</value>
+  </data>
+  <data name="Trading.ConfirmDailyLossReset" xml:space="preserve">
+    <value>Сбросить дневной лимит убытка? Новые ордера снова станут доступны до конца дня.</value>
+  </data>
+  <data name="NewOrder.DailyLossResetFailed" xml:space="preserve">
+    <value>Не удалось сбросить дневной лимит убытка: {0}</value>
+  </data>
   <data name="Trading.Lane.Paper" xml:space="preserve">
     <value>Симулятор</value>
   </data>
