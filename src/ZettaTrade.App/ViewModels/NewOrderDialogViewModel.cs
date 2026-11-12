@@ -271,7 +271,6 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             this.RaisePropertyChanged(nameof(SymbolInput));
             RefreshSymbolSuggestions();
             UpdateUnitHints();
-            RefreshPositionContext();
         }
     }
 
@@ -365,7 +364,6 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             this.RaiseAndSetIfChanged(ref _selectedSideIndex, value);
             this.RaisePropertyChanged(nameof(IsBuySide));
             this.RaisePropertyChanged(nameof(IsSellSide));
-            RefreshPositionContext();
         }
     }
 
@@ -1074,6 +1072,23 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
                     error => _logger.LogWarning(
                         error,
                         "Order dialog: the daily loss banner stream stopped unexpectedly")));
+
+        // The reduce-only switch's position context (T-191): one read per
+        // settled symbol/side pair — the latest input wins (Switch), the
+        // refresh's own sequence guard keeps a straggling stale read from
+        // overwriting a fresher context, and a stream fault only logs: the
+        // switch parks on its last honest answer instead of pretending.
+        _subscriptions.Add(
+            this.WhenAnyValue(
+                    x => x.SymbolInput,
+                    x => x.SelectedSideIndex)
+                .Select(_ => Observable.FromAsync(RefreshOppositePositionAsync))
+                .Switch()
+                .Subscribe(
+                    _ => { },
+                    error => _logger.LogWarning(
+                        error,
+                        "Order dialog: the reduce-only position-context stream stopped unexpectedly")));
     }
 
     #endregion Constructor
@@ -1451,16 +1466,11 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// Refresh the reduce-only switch's position context: whether the
     /// adapter currently holds an opposite-side position for the ticket's
     /// symbol. A unparsable or empty symbol parks the switch (no context is
-    /// derived from garbage input); the read runs per symbol/side change
+    /// derived from garbage input); the read rides the symbol/side stream
     /// with a sequence guard so a stale response never overwrites a fresher
     /// context, and a failed read parks the switch rather than pretending
     /// the context exists.
     /// </summary>
-    private void RefreshPositionContext()
-    {
-        _ = RefreshOppositePositionAsync();
-    }
-
     private async Task RefreshOppositePositionAsync()
     {
         var raw = SymbolInput.Trim();
