@@ -90,7 +90,7 @@
         </Style>
     </Window.Styles>
 
-    <StackPanel Margin="{StaticResource InsetL}" Spacing="10">
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceM}">
         <!-- Header: the localized title plus the live active-exchange name —
              the dialog's price/context source; mirrors the status-bar chip
              and follows toolbar switches while the dialog is open. The
@@ -144,7 +144,7 @@
                     Command="{Binding SelectSellSideCommand}" />
         </Grid>
 
-        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="{StaticResource SpaceXs}">
+        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceM}" RowSpacing="{StaticResource SpaceXs}">
             <TextBlock Grid.Row="0" Grid.Column="0">
                 <Run Text="{loc:Localized NewOrder.Quantity}" />
                 <Run Text="{Binding QuantityUnitHint, Mode=OneWay}" />
@@ -261,7 +261,7 @@
              captured snapshots and the ticket's own inputs: zero network
              calls at sizing time, and the plain capture line says when
              the reference was taken. The presets restyle as chips (T-156). -->
-        <StackPanel IsVisible="{Binding Sizer.IsRowVisible}" Spacing="6">
+        <StackPanel IsVisible="{Binding Sizer.IsRowVisible}" Spacing="{StaticResource SpaceXs}">
             <TextBlock Text="{loc:Localized NewOrder.SizerBalanceCaption}" />
             <UniformGrid Columns="3">
                 <Button Classes="chip-action"
@@ -290,7 +290,7 @@
                  row hides the mode for exactly those. -->
             <StackPanel IsVisible="{Binding Sizer.IsRiskModeAvailable}" Spacing="{StaticResource SpaceXs}">
                 <TextBlock Text="{loc:Localized NewOrder.SizerRiskCaption}" />
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                     <TextBox Text="{Binding Sizer.RiskPercentText}"
                              FontFamily="{StaticResource NumericFont}"
                              PlaceholderText="1"
@@ -300,15 +300,17 @@
                             MinWidth="110" />
                 </StackPanel>
                 <TextBlock Text="{loc:Localized NewOrder.SizerRiskHint}"
-                           TextWrapping="Wrap" Opacity="0.7" />
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondary}" />
             </StackPanel>
 
             <TextBlock Text="{loc:Localized NewOrder.SizerSnapshotAbsent}"
                        IsVisible="{Binding Sizer.IsSnapshotMissing}"
-                       Opacity="0.7" />
+                       Foreground="{DynamicResource TextSecondary}" />
             <TextBlock Text="{Binding Sizer.SnapshotDetail}"
                        IsVisible="{Binding Sizer.IsSnapshotAvailable}"
-                       TextWrapping="Wrap" Opacity="0.85" />
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondary}" />
             <TextBlock Text="{Binding Sizer.ProposalState}"
                        IsVisible="{Binding Sizer.HasProposalState}"
                        TextWrapping="Wrap" />

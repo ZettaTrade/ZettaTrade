@@ -13,7 +13,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <StackPanel Margin="{StaticResource InsetL}" Spacing="10">
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceM}">
         <!-- The editing target: side, quantity, symbol, price and status,
              precomputed by the view model at initialize time -->
         <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />

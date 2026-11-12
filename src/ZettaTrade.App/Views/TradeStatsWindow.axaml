@@ -14,23 +14,23 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <!-- Filters: text fields, the paper-live tag and the date range -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*" >
             <WrapPanel Grid.Column="1">
                 <StackPanel Margin="0,0,16,8">
-                    <TextBlock Text="{loc:Localized Stats.FilterSymbol}" Margin="0,0,0,2" />
+                    <TextBlock Text="{loc:Localized Stats.FilterSymbol}" Margin="0,0,0,4" />
                     <TextBox Width="120" Text="{Binding SymbolFilterText}"
                              PlaceholderText="{loc:Localized Stats.FilterSymbolHint}" />
                 </StackPanel>
                 <StackPanel Margin="0,0,16,8">
-                    <TextBlock Text="{loc:Localized Stats.FilterExchange}" Margin="0,0,0,2" />
+                    <TextBlock Text="{loc:Localized Stats.FilterExchange}" Margin="0,0,0,4" />
                     <TextBox Width="130" Text="{Binding ExchangeFilterText}"
                              PlaceholderText="{loc:Localized Stats.FilterExchangeAny}" />
                 </StackPanel>
                 <StackPanel Margin="0,0,16,8">
-                    <TextBlock Text="{loc:Localized Stats.FilterVenue}" Margin="0,0,0,2" />
+                    <TextBlock Text="{loc:Localized Stats.FilterVenue}" Margin="0,0,0,4" />
                     <ComboBox Width="150" SelectedIndex="{Binding VenueIndex}">
                         <ComboBoxItem Content="{loc:Localized Stats.VenueAll}" />
                         <ComboBoxItem Content="{loc:Localized Stats.VenuePaper}" />
@@ -38,11 +38,11 @@
                     </ComboBox>
                 </StackPanel>
                 <StackPanel Margin="0,0,16,8">
-                    <TextBlock Text="{loc:Localized Stats.FilterFrom}" Margin="0,0,0,2" />
+                    <TextBlock Text="{loc:Localized Stats.FilterFrom}" Margin="0,0,0,4" />
                     <DatePicker Width="165" SelectedDate="{Binding FromDate}" />
                 </StackPanel>
                 <StackPanel Margin="0,0,16,8">
-                    <TextBlock Text="{loc:Localized Stats.FilterTo}" Margin="0,0,0,2" />
+                    <TextBlock Text="{loc:Localized Stats.FilterTo}" Margin="0,0,0,4" />
                     <DatePicker Width="165" SelectedDate="{Binding ToDate}" />
                 </StackPanel>
                 <StackPanel VerticalAlignment="Bottom">
@@ -58,43 +58,43 @@
              zero/dash baselines while nothing is scanned yet. -->
         <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource SpaceS}">
             <UniformGrid Grid.Row="0" Columns="5" Rows="2" Margin="0,4,0,0">
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Trades}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding TradesText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Wins}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding WinsText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Losses}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding LossesText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.WinRate}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding WinRateText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.ProfitFactor}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding ProfitFactorText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.AverageWinner}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding AverageWinnerText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.AverageLoser}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding AverageLoserText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.MaxDrawdown}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding MaxDrawdownText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Realized}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding RealizedText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Spacing="2" Margin="0,0,8,4">
+                <StackPanel Spacing="{StaticResource SpaceXs}" Margin="0,0,8,4">
                     <TextBlock Text="{loc:Localized Stats.Volume}" Foreground="{DynamicResource TextSecondary}" />
                     <TextBlock Text="{Binding VolumeText}" FontFamily="{StaticResource NumericFont}" FontSize="{StaticResource TitleFontSize}" FontWeight="SemiBold" />
                 </StackPanel>

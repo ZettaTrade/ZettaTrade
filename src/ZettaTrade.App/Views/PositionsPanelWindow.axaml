@@ -21,7 +21,7 @@
         <StyleInclude Source="avares://ZettaTrade.App/Themes/RowGrammar.axaml" />
     </Window.Styles>
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <!-- Testnet lane badge (T-127): top-right, mirrors the
              status-bar chip; visible only while the traded surface
@@ -245,7 +245,7 @@
 
         </TabControl>
 
-        <StackPanel Grid.Row="2" Spacing="6">
+        <StackPanel Grid.Row="2" Spacing="{StaticResource SpaceXs}">
             <!-- Flow errors (load failure, cancel/amend failure) -->
             <TextBlock Text="{Binding ErrorMessage}"
                        Foreground="{DynamicResource Error}"

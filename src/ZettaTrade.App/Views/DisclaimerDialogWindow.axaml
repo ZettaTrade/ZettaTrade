@@ -17,7 +17,7 @@
          ViewModel state): the educational/not-investment-advice statement
          mirrors the README Disclaimer, the rest mirrors its alpha posture
          (alpha wording, paper-first, testnet-first, key hygiene). -->
-    <StackPanel Margin="20" Spacing="{StaticResource SpaceM}">
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceM}">
         <TextBlock Text="{loc:Localized Trading.Disclaimer.NotAdvice}"
                    FontWeight="Bold"
                    TextWrapping="Wrap" />
@@ -35,7 +35,7 @@
         <!-- The version line (T-153): the version left the status strip —
              the About dialog (this one) is its one-action home. The caption
              is static localized text, the value rides the view model. -->
-        <StackPanel Orientation="Horizontal" Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <TextBlock Text="{loc:Localized Trading.Disclaimer.Version}" />
             <TextBlock Text="{Binding VersionText}" />
         </StackPanel>

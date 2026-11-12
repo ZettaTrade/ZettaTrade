@@ -37,6 +37,19 @@
             <Setter Property="CornerRadius" Value="1.5" />
             <Setter Property="Background" Value="{DynamicResource Accent}" />
         </Style>
+        <!-- The overlay toggles (T-182): the chart's quiet overlay switches
+             read dim ink at rest — the palette's own secondary role, so a
+             theme retints the rest state deliberately — and the armed state
+             answers in the kit's on-ink. The window-scoped rest would defeat
+             the app-scoped .on (the T-181 mechanism), so the class ships its
+             own .on sibling explicitly; no Background setter rides the
+             class, so the generic hover/focus stay alive. -->
+        <Style Selector="Button.overlay-toggle">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+        </Style>
+        <Style Selector="Button.overlay-toggle.on">
+            <Setter Property="Foreground" Value="{DynamicResource Highlight}" />
+        </Style>
     </UserControl.Styles>
 
     <!-- The chart workspace panel (T-103): the exact content the main
@@ -92,7 +105,7 @@
                          mark (rebuilt on every change), so the
                          template binds within its own data type. -->
                     <DataTemplate x:DataType="vm:SymbolRow">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                             <TextBlock Text="★"
                                        Foreground="{DynamicResource Highlight}"
                                        FontSize="{StaticResource SubtitleStrongFontSize}"
@@ -107,7 +120,7 @@
             <WrapPanel Grid.Row="1">
                 <TextBlock Text="{loc:Localized Chart.TimeFrame}"
                            VerticalAlignment="Center"
-                           Margin="0,0,6,0" />
+                           Margin="0,0,4,0" />
                 <ComboBox MinWidth="72"
                           ItemsSource="{Binding TimeFrames}"
                           SelectedItem="{Binding SelectedTimeFrame}" />
@@ -117,7 +130,7 @@
                      ViewModel, and the language switch re-inks them live. -->
                 <TextBlock Text="{loc:Localized Chart.Type}"
                            VerticalAlignment="Center"
-                           Margin="12,0,6,0" />
+                           Margin="12,0,4,0" />
                 <ComboBox MinWidth="92"
                           SelectedIndex="{Binding SelectedChartTypeIndex}"
                           ToolTip.Tip="{loc:Localized Chart.Type.Tip}">
@@ -134,7 +147,7 @@
                      re-inks them live. -->
                 <TextBlock Text="{loc:Localized Chart.ScaleMode}"
                            VerticalAlignment="Center"
-                           Margin="12,0,6,0" />
+                           Margin="12,0,4,0" />
                 <ComboBox MinWidth="92"
                           SelectedIndex="{Binding SelectedScaleModeIndex}"
                           ToolTip.Tip="{loc:Localized Chart.ScaleMode.Tip}">
@@ -147,15 +160,15 @@
                         ToolTip.Tip="{loc:Localized Chart.Vwap.Tip}"
                         Classes.on="{Binding ShowVwap}"
                         MinWidth="72"
-                        Margin="8,2,0,2"
-                        Opacity="0.65" />
+                        Margin="8,4,0,4"
+                        Classes="overlay-toggle" />
                 <Button Content="{loc:Localized Chart.VolumeProfile}"
                         Command="{Binding ToggleVolumeProfileCommand}"
                         ToolTip.Tip="{loc:Localized Chart.VolumeProfile.Tip}"
                         Classes.on="{Binding ShowVolumeProfile}"
                         MinWidth="92"
-                        Margin="8,2,0,2"
-                        Opacity="0.65" />
+                        Margin="8,4,0,4"
+                        Classes="overlay-toggle" />
                 <!-- The export flyout (T-160): the three export actions
                      gather under one icon — the band's narrowest step
                      wins without hiding any action. Each item keeps its
@@ -167,7 +180,7 @@
                 <Button Classes="icon"
                         ToolTip.Tip="{loc:Localized Chart.Export}"
                         AutomationProperties.Name="{loc:Localized Chart.Export}"
-                        Margin="8,2,0,2">
+                        Margin="8,4,0,4">
                     <Button.Flyout>
                         <MenuFlyout>
                             <MenuItem Header="{loc:Localized Chart.ExportCandlesCsv}"
@@ -200,7 +213,7 @@
                         Command="{Binding CompareCommand}"
                         ToolTip.Tip="{loc:Localized Chart.Compare.Tip}"
                         MinWidth="92"
-                        Margin="8,2,0,2" />
+                        Margin="8,4,0,4" />
                 <!-- The drawing tools palette (T-091, T-160): each toggle
                      arms its tool on the chart control (a same-tool
                      press stands it down); the controls speak the kit's
@@ -218,7 +231,7 @@
                         CommandParameter="{x:Static tools:ChartDrawingTool.TrendLine}"
                         ToolTip.Tip="{loc:Localized Chart.Tool.TrendLine.Tip}"
                         AutomationProperties.Name="{loc:Localized Chart.Tool.TrendLine}"
-                        Margin="8,2,0,2">
+                        Margin="8,4,0,4">
                     <Path Stretch="None"
                           StrokeThickness="1.5"
                           Stroke="{DynamicResource TextPrimary}"
@@ -230,7 +243,7 @@
                         CommandParameter="{x:Static tools:ChartDrawingTool.HorizontalLevel}"
                         ToolTip.Tip="{loc:Localized Chart.Tool.Level.Tip}"
                         AutomationProperties.Name="{loc:Localized Chart.Tool.Level}"
-                        Margin="8,2,0,2">
+                        Margin="8,4,0,4">
                     <Path Stretch="None"
                           StrokeThickness="1.5"
                           Stroke="{DynamicResource TextPrimary}"
@@ -242,7 +255,7 @@
                         CommandParameter="{x:Static tools:ChartDrawingTool.FibRetracement}"
                         ToolTip.Tip="{loc:Localized Chart.Tool.Fib.Tip}"
                         AutomationProperties.Name="{loc:Localized Chart.Tool.Fib}"
-                        Margin="8,2,0,2">
+                        Margin="8,4,0,4">
                     <Path Stretch="None"
                           StrokeThickness="1.5"
                           Stroke="{DynamicResource TextPrimary}"
@@ -261,7 +274,7 @@
                         Command="{Binding DeleteSelectedDrawingCommand}"
                         ToolTip.Tip="{loc:Localized Chart.Drawing.Delete.Tip}"
                         AutomationProperties.Name="{loc:Localized Chart.Drawing.Delete}"
-                        Margin="8,2,0,2">
+                        Margin="8,4,0,4">
                     <Path Stretch="None"
                           StrokeThickness="1.5"
                           Stroke="{DynamicResource TextPrimary}"
@@ -383,10 +396,10 @@
                                             ToolTip.Tip="{Binding Tooltip}"
                                             HorizontalAlignment="Stretch"
                                             HorizontalContentAlignment="Left"
-                                            Padding="8,1"
+                                            Padding="8,4"
                                             Background="Transparent"
                                             BorderThickness="0">
-                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
                                             <Ellipse Width="8"
                                                      Height="8"
                                                      VerticalAlignment="Center"

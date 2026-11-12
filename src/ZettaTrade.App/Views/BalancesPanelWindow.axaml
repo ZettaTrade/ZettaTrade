@@ -13,17 +13,17 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <ScrollViewer Grid.Row="0">
             <!-- The section stack ends a strip short of the overlay bar's
                  right edge (T-170). -->
-            <StackPanel Spacing="14" Margin="0,0,16,0">
+            <StackPanel Spacing="{StaticResource SpaceL}" Margin="0,0,16,0">
 
                 <!-- Per-exchange sections: every active adapter shows exactly
                      what it serves — its rows, the explicit not-provided
                      state, or the fault detail; never a zero figure. -->
-                <StackPanel Spacing="6">
+                <StackPanel Spacing="{StaticResource SpaceXs}">
                     <TextBlock Text="{loc:Localized Trading.BalancesPerExchangeHeader}" FontWeight="Bold" />
                     <ItemsControl ItemsSource="{Binding Sources}">
                         <ItemsControl.ItemTemplate>
@@ -31,7 +31,7 @@
                                 <StackPanel Spacing="{StaticResource SpaceXs}">
                                     <TextBlock Text="{Binding AdapterName}"
                                                FontWeight="Bold"
-                                               Margin="0,6,0,0" />
+                                               Margin="0,4,0,0" />
                                     <Grid ColumnDefinitions="150,150"
                                           IsVisible="{Binding HasRows}">
                                         <TextBlock Grid.Column="0" Text="{loc:Localized Trading.BalancesAsset}" />
@@ -66,7 +66,7 @@
 
                 <!-- Aggregated view: the per-asset sums across the sources
                      that actually provide balances. -->
-                <StackPanel Spacing="6">
+                <StackPanel Spacing="{StaticResource SpaceXs}">
                     <TextBlock Text="{loc:Localized Trading.BalancesAggregatedHeader}" FontWeight="Bold" />
                     <Grid ColumnDefinitions="150,150"
                           IsVisible="{Binding HasAggregated}">
@@ -92,7 +92,7 @@
             </StackPanel>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="1" Spacing="6">
+        <StackPanel Grid.Row="1" Spacing="{StaticResource SpaceXs}">
             <!-- Loading state of the aggregation handshake -->
             <TextBlock Text="{loc:Localized Trading.BalancesLoading}"
                        IsVisible="{Binding IsLoading}" />

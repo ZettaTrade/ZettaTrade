@@ -80,6 +80,13 @@ internal static class CompositionRoot
         // subscription.
         services.AddSingleton<ChipForegroundPublisher>();
 
+        // The scrim veil derivation (T-182): every theme apply serves the
+        // overlay scrims a translucent Background wash (the palette carries
+        // no translucent key — the derivation is arithmetic over the applied
+        // Background, never a scored pick). IAsyncInitializable: the startup
+        // walk owns the subscription.
+        services.AddSingleton<ScrimBrushPublisher>();
+
         services.AddSingleton<IShellUtils>(new ShellUtils());
 
         services.AddSingleton<ILocalizationManager>(sp =>

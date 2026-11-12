@@ -13,11 +13,11 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto,Auto" RowSpacing="10">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <!-- The manager table: the engine's roster, one row per alert. Every
              text re-renders live on roster events and language switches. -->
-        <Grid Grid.Row="0" RowDefinitions="Auto,*" RowSpacing="6">
+        <Grid Grid.Row="0" RowDefinitions="Auto,*" RowSpacing="{StaticResource SpaceXs}">
             <Grid Grid.Row="0"
                   ColumnDefinitions="1.1*,1.5*,1.1*,1.1*,1.4*"
                   ColumnSpacing="{StaticResource SpaceS}">
