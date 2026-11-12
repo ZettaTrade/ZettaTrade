@@ -1,5 +1,6 @@
 namespace ZettaTrade.AdapterKit.Tests.Battery;
 
+using System.Globalization;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using FluentAssertions;
@@ -159,7 +160,7 @@ public abstract class AdapterConformanceBattery
     /// <summary>
     /// The depth profile the pack declares shows on the adapter surface: a
     /// declared served set on an explicit-set adapter, and honestly no set
-    /// on a clamped one.
+    /// where none exists (a clamped adapter or a delegated shell).
     /// </summary>
     [Fact]
     public async Task TheDepthProfile_MatchesTheAdapterSurface()
@@ -176,15 +177,18 @@ public abstract class AdapterConformanceBattery
         else
         {
             session.Adapter.Should().NotBeAssignableTo<ExchangeAdapterBase>(
-                "the clamped profile does not carry a served-set surface: the pack is honest about that, too");
+                _pack.DepthProfile == CaptureDepthProfile.Delegated
+                    ? "the delegated profile's trading shell carries no served-set surface of its own: the pack is honest about that, too"
+                    : "the clamped profile does not carry a served-set surface: the pack is honest about that, too");
         }
     }
 
     /// <summary>
     /// Outside the served set the request is the pack-declared path: on an
-    /// explicit-set adapter the rejection (an error handed to the
-    /// subscriber, never a silently served other depth — BUG-032), on a
-    /// clamped adapter the deterministic shape of its own capacity.
+    /// explicit-set adapter and through a delegated shell the rejection (an
+    /// error handed to the subscriber, never a silently served other depth —
+    /// BUG-032), on a clamped adapter the deterministic shape of its own
+    /// capacity.
     /// </summary>
     [Fact]
     public async Task UnsupportedDepths_FollowThePackDeclaredContract()
@@ -193,7 +197,7 @@ public abstract class AdapterConformanceBattery
         var adapter = session.Adapter;
         var symbol = TheConformanceSymbol();
 
-        if (_pack.DepthProfile == CaptureDepthProfile.ExplicitSet)
+        if (_pack.DepthProfile is CaptureDepthProfile.ExplicitSet or CaptureDepthProfile.Delegated)
         {
             var rejectedDepth = _pack.RejectedDepthRequest!.Value;
             var source = adapter.SubscribeOrderBook(symbol, rejectedDepth);
@@ -242,8 +246,10 @@ public abstract class AdapterConformanceBattery
     /// <summary>
     /// Depth requests resolve exactly through the T-072 resolver: on an
     /// explicit-set adapter the resolved depth is what lands on the wire
-    /// (and the raw unresolvable request never rides it), on a clamped pack
-    /// the no-declaration profile passes every request through untouched.
+    /// (and the raw unresolvable request never rides it), through a
+    /// delegated shell the pack's delegate set resolves the same way, and on
+    /// a clamped pack the no-declaration profile passes every request
+    /// through untouched.
     /// </summary>
     [Fact]
     public async Task DepthRequests_ResolveThroughTheT072Resolver()
@@ -259,6 +265,32 @@ public abstract class AdapterConformanceBattery
             foreach (var probe in _pack.DepthProbeRequests)
             {
                 var resolved = ExchangeAdapterBase.ResolveBookDepth(baseAdapter.ServedBookDepths, probe);
+                var expectedTopic = ExpectedBookTopic(resolved);
+
+                using var subscription = adapter.SubscribeOrderBook(symbol, resolved).Subscribe(_ => { });
+                await server!.WaitForFrameAsync(
+                    frame => frame.Contains(_pack.SubscribeMarker, StringComparison.Ordinal) &&
+                             frame.Contains(expectedTopic, StringComparison.Ordinal),
+                    EventWait);
+
+                if (probe != resolved)
+                {
+                    server.SnapshotFrames().Should().NotContain(
+                        frame => frame.Contains(ExpectedBookTopic(probe), StringComparison.Ordinal),
+                        $"the kit serves depth {resolved} for request {probe}: the raw request is never a third depth");
+                }
+
+                subscription.Dispose();
+            }
+        }
+        else if (_pack.DepthProfile == CaptureDepthProfile.Delegated)
+        {
+            // The delegated shell carries no served-set surface: the
+            // resolution reads the pack's delegate declaration, and the wire
+            // must carry exactly the resolved topic — never the raw request.
+            foreach (var probe in _pack.DepthProbeRequests)
+            {
+                var resolved = ExchangeAdapterBase.ResolveBookDepth(_pack.DelegatedServedDepths, probe);
                 var expectedTopic = ExpectedBookTopic(resolved);
 
                 using var subscription = adapter.SubscribeOrderBook(symbol, resolved).Subscribe(_ => { });
@@ -332,11 +364,8 @@ public abstract class AdapterConformanceBattery
         var sessions = _pack.TranscriptSessions;
         sessions.Should().HaveCount(TranscriptSessionCount, "the kit restores one session into the next");
 
-        var baseAdapter = (ExchangeAdapterBase)session.Adapter;
         var adapter = session.Adapter;
-        var bookDepth = ExchangeAdapterBase.ResolveBookDepth(
-            baseAdapter.ServedBookDepths,
-            _pack.DepthProbeRequests[^1]);
+        var bookDepth = ResolveTranscriptBookDepth(session);
 
         var tickerFeed = CollectTickerAsync(adapter, symbol, ticks: 2, RestoreWait);
         var bookFeed = CollectBooksAsync(adapter, symbol, bookDepth, snapshots: 2, RestoreWait);
@@ -495,6 +524,19 @@ public abstract class AdapterConformanceBattery
     /// <summary>The pack's own conformance probe symbol: the first captured symbol is the battery's subject, per the recipe.</summary>
     private Symbol TheConformanceSymbol() => _pack.Symbols[0];
 
+    /// <summary>
+    /// The depth declaration the transcript restore resolves against: the
+    /// explicit-set adapter's own surface, the delegated pack's delegate
+    /// declaration (the shell carries none of its own).
+    /// </summary>
+    /// <param name="session">The open conformance session.</param>
+    private int ResolveTranscriptBookDepth(AdapterSession session) =>
+        _pack.DepthProfile == CaptureDepthProfile.Delegated
+            ? ExchangeAdapterBase.ResolveBookDepth(_pack.DelegatedServedDepths, _pack.DepthProbeRequests[^1])
+            : ExchangeAdapterBase.ResolveBookDepth(
+                ((ExchangeAdapterBase)session.Adapter).ServedBookDepths,
+                _pack.DepthProbeRequests[^1]);
+
     /// <summary>The count a clamped pack answers a depth request with, computed from the pack's own clamp anchor.</summary>
     /// <param name="requestedDepth">The raw depth request.</param>
     private int ServedLevelCount(int requestedDepth) =>
@@ -514,11 +556,24 @@ public abstract class AdapterConformanceBattery
 
     /// <summary>The resolved-depth book topic text for this pack's dialect.</summary>
     /// <param name="depth">The served depth the topic carries.</param>
-    private string ExpectedBookTopic(int depth) =>
-        $"{_pack.BookTopicPrefix}{depth}.{TheConformanceSymbol().GetExchangeFormat(_pack.AdapterId)}";
+    private string ExpectedBookTopic(int depth)
+    {
+        var symbolText = TheConformanceSymbol().GetExchangeFormat(_pack.AdapterId);
+        return _pack.BookTopicTemplate is { } template
+            ? template
+                .Replace("{symbol}", symbolText, StringComparison.Ordinal)
+                .Replace("{symbolLower}", symbolText.ToLowerInvariant(), StringComparison.Ordinal)
+                .Replace("{depth}", depth.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            : $"{_pack.BookTopicPrefix}{depth}.{symbolText}";
+    }
 
     /// <summary>The pack's served set text exactly as the adapter's own rejection strings it.</summary>
-    private string ServedDepthsText() => string.Join(", ", _pack.ServedBookDepths!.OrderBy(depth => depth));
+    private string ServedDepthsText() => string.Join(", ", ServedDepthSet()!.OrderBy(depth => depth));
+
+    /// <summary>The served set the pack's profile judges against (delegated: the delegate's declaration).</summary>
+    private IReadOnlySet<int>? ServedDepthSet() => _pack.DepthProfile == CaptureDepthProfile.Delegated
+        ? _pack.DelegatedServedDepths
+        : _pack.ServedBookDepths;
 
     /// <summary>Bar-guard anchor (an already-on M1 boundary; the anchor content is immaterial to the guards).</summary>
     private static DateTimeOffset Anchor() => DateTimeOffset.FromUnixTimeSeconds(AnchorUnixSeconds);

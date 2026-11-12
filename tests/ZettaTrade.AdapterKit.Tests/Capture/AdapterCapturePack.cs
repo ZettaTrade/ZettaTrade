@@ -23,6 +23,8 @@ using ZettaTrade.Core.ValueObjects;
 /// <param name="ClampedServedDepth">The clamp anchor the pack declares (clamped packs).</param>
 /// <param name="DepthProbeRequests">The raw requests the resolution leg probes.</param>
 /// <param name="RejectedDepthRequest">The raw request the rejection leg attaches (explicit-set packs).</param>
+/// <param name="DelegatedServedDepths">The delegate's served depths the pack judges against (delegated packs).</param>
+/// <param name="BookTopicTemplate">The topic template for symbol-first dialects (transcript packs; alternative to the prefix).</param>
 /// <param name="BookTopicPrefix">The wire prefix of this pack's book topics.</param>
 /// <param name="SubscribeMarker">The wire marker naming a subscribe operation in this pack's dialect.</param>
 /// <param name="ReconnectMode">The restore semantics declaration.</param>
@@ -41,6 +43,8 @@ public sealed record AdapterCapturePack(
     int? ClampedServedDepth,
     IReadOnlyList<int> DepthProbeRequests,
     int? RejectedDepthRequest,
+    IReadOnlySet<int>? DelegatedServedDepths,
+    string? BookTopicTemplate,
     string BookTopicPrefix,
     string SubscribeMarker,
     CaptureReconnectMode ReconnectMode,
@@ -52,6 +56,13 @@ public sealed record AdapterCapturePack(
 
     /// <summary>The depth contract accepts any request and shapes the answer to its own capacity.</summary>
     public const string Clamped = "clamped";
+
+    /// <summary>
+    /// The book face delegates to another adapter (a trading shell over a
+    /// market-data adapter): no served-set surface of its own; the delegate's
+    /// set is the pack's declaration.
+    /// </summary>
+    public const string Delegated = "delegated";
 
     /// <summary>The stream surface never drops, so nothing needs a reconnect protocol.</summary>
     public const string AlwaysOn = "always-on";
@@ -143,6 +154,8 @@ public sealed record AdapterCapturePack(
             document.ClampedServedDepth,
             document.DepthProbeRequests,
             document.RejectedDepthRequest,
+            document.DelegatedServedDepths is null ? null : new HashSet<int>(document.DelegatedServedDepths),
+            document.BookTopicTemplate,
             document.BookTopicPrefix,
             document.SubscribeMarker,
             MapReconnectMode(document.ReconnectMode, packName),
@@ -167,10 +180,10 @@ public sealed record AdapterCapturePack(
 
     private static void AssertDepthProfile(CapturePackDocument document, string packName)
     {
-        if (document.DepthProfile is not (ExplicitSet or Clamped))
+        if (document.DepthProfile is not (ExplicitSet or Clamped or Delegated))
         {
             throw new InvalidOperationException(
-                $"The {packName} pack declares '{document.DepthProfile}' depth profile: neither is a kit profile.");
+                $"The {packName} pack declares '{document.DepthProfile}' depth profile: none of them is a kit profile.");
         }
 
         if (document.DepthProfile == ExplicitSet &&
@@ -188,6 +201,23 @@ public sealed record AdapterCapturePack(
         {
             throw new InvalidOperationException($"The clamped {packName} pack must not enumerate a served set.");
         }
+
+        if (document.DepthProfile == Delegated &&
+            (document.DelegatedServedDepths is null || document.DelegatedServedDepths.Length == 0))
+        {
+            throw new InvalidOperationException($"The delegated {packName} pack must enumerate its delegate's served book depths.");
+        }
+
+        if (document.DepthProfile == Delegated && document.ServedBookDepths is not null)
+        {
+            throw new InvalidOperationException(
+                $"The delegated {packName} pack must not enumerate an adapter-surface served set (the shell carries none).");
+        }
+
+        if (document.DepthProfile == Delegated && document.ClampedServedDepth is not null)
+        {
+            throw new InvalidOperationException($"The delegated {packName} pack must not declare a clamp anchor.");
+        }
     }
 
     private static void AssertTranscript(
@@ -196,11 +226,11 @@ public sealed record AdapterCapturePack(
         string packName)
     {
         if (document.ReconnectMode == Transcript &&
-            (sessions.Count == 0 || string.IsNullOrEmpty(document.BookTopicPrefix) ||
-             string.IsNullOrEmpty(document.SubscribeMarker)))
+            (sessions.Count == 0 || string.IsNullOrEmpty(document.SubscribeMarker) ||
+             (string.IsNullOrEmpty(document.BookTopicPrefix) && string.IsNullOrEmpty(document.BookTopicTemplate))))
         {
             throw new InvalidOperationException(
-                $"The transcript {packName} pack must record at least one session and declare its book topic prefix.");
+                $"The transcript {packName} pack must record at least one session and declare its book topic text.");
         }
 
         if (document.ReconnectMode == AlwaysOn && sessions.Count > 0)
@@ -222,6 +252,7 @@ public sealed record AdapterCapturePack(
     {
         ExplicitSet => CaptureDepthProfile.ExplicitSet,
         Clamped => CaptureDepthProfile.Clamped,
+        Delegated => CaptureDepthProfile.Delegated,
         _ => throw new InvalidOperationException($"The {packName} pack carries an unparsable depth profile '{profile}'."),
     };
 
@@ -250,6 +281,9 @@ public enum CaptureDepthProfile
 
     /// <summary>Any depth is accepted and shaped to the adapter's capacity.</summary>
     Clamped,
+
+    /// <summary>The book face delegates to another adapter; the delegate's served set is the declaration.</summary>
+    Delegated,
 }
 
 /// <summary>The reconnect semantics declaration of a capture pack.</summary>

@@ -9,8 +9,9 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
-/// The venue order transitions' persistent reflector (T-127): every order
-/// update the Bybit testnet adapter's private stream publishes is recorded
+/// The venue order transitions' persistent reflector (T-127, T-193): every
+/// order update the testnet venues' private streams publish (the Bybit and
+/// Binance adapters' <c>OrderUpdates</c>, merged at composition) is recorded
 /// into the persistent order journal as an insert-or-update upsert, so the
 /// venue lifecycle (working → partial → filled/cancelled) lands in the
 /// history panel without re-writing the session list (the dialog and the
@@ -45,13 +46,13 @@ public sealed class VenueOrderLedger : IAsyncDisposable
     #region Constructor
 
     /// <summary>
-    /// Create the ledger over the Bybit testnet adapter's order-update
+    /// Create the ledger over the testnet venues' merged order-update
     /// stream and the persistent journal. Subscribing is construction-time
-    /// — the adapter is an application-lifetime singleton, so the ledger's
+    /// — the adapters are application-lifetime singletons, so the ledger's
     /// tap lives and dies with the application.
     /// </summary>
     /// <param name="venueOrderUpdates">
-    /// The venue order transitions' stream (the Bybit testnet adapter's
+    /// The venue order transitions' stream (the testnet adapters' merged
     /// <c>OrderUpdates</c>; wired at composition so the ledger owns no
     /// adapter reference — the seam tests stand up with a subject).
     /// </param>

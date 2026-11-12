@@ -15,23 +15,23 @@ using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
-/// The workspace's traded surface (T-127): the one <see cref="ITradingAdapter"/>
+/// The workspace's traded surface (T-127, T-193): the one <see cref="ITradingAdapter"/>
 /// registration every consumer resolves, delegating between the paper
-/// simulator and the Bybit testnet venue. The shipped default stays the
-/// paper lane (bit-identical to the pre-T-127 behavior); the venue surface
+/// simulator and the testnet venues. The shipped default stays the
+/// paper lane (bit-identical to the pre-T-127 behavior); a venue surface
 /// activates ONLY when all three of the operator's deliberate choices line
-/// up: the toolbar picks the Bybit exchange, the endpoint snapshot marks the
-/// Bybit record testnet, and the settings toggle
+/// up: the toolbar picks a venue exchange (Bybit or Binance), the endpoint
+/// snapshot marks THAT venue's record testnet, and the settings toggle
 /// <c>Exchange/TestnetTradingEnabled</c> is armed (default off). Every
 /// order still rides the unchanged upstream pipeline
 /// (<see cref="IRiskManager"/> then <see cref="IConfirmationService"/>) —
 /// this service is the lane PICKER, never a second safety gate to bypass.
 /// </summary>
 /// <remarks>
-/// The surface identity is deliberately the two delegated adapters' own ids
-/// ("paper" / "bybit", the trading-mode resolver's known set); a flip
-/// re-points every member forward, so an open dialog, the MCP tool lane and
-/// the trading-mode chip follow the new surface transparently
+/// The surface identity is deliberately the delegated adapters' own ids
+/// ("paper" / "bybit" / "binance", the trading-mode resolver's known set); a
+/// flip re-points every member forward, so an open dialog, the MCP tool lane
+/// and the trading-mode chip follow the new surface transparently
 /// (<see cref="SurfaceChanges"/> carries the stream). Nothing to dispose is
 /// owned by the delegated adapters themselves — they are app-lifetime
 /// singletons owned by the container.
@@ -52,7 +52,8 @@ public sealed class TradingSurfaceService : ITradingAdapter, IAsyncInitializable
 
     private readonly ActiveExchangeService _activeExchanges;
     private readonly PaperTradingAdapter _paper;
-    private readonly BybitTradingAdapter _testnetVenue;
+    private readonly BybitTradingAdapter _bybitVenue;
+    private readonly BinanceTradingAdapter _binanceVenue;
     private readonly ISettingsService _settings;
     private readonly ExchangeEndpointRegistry _endpoints;
     private readonly ILogger<TradingSurfaceService> _logger;
@@ -97,21 +98,24 @@ public sealed class TradingSurfaceService : ITradingAdapter, IAsyncInitializable
     /// </summary>
     /// <param name="activeExchanges">The active-exchange facade (the exchange id the venue surface keys on).</param>
     /// <param name="paper">The paper simulator (the shipped default surface).</param>
-    /// <param name="testnetVenue">The Bybit testnet venue trading adapter.</param>
+    /// <param name="bybitVenue">The Bybit testnet venue trading adapter.</param>
+    /// <param name="binanceVenue">The Binance testnet venue trading adapter.</param>
     /// <param name="settings">The settings service (the toggle's read and its live stream).</param>
-    /// <param name="endpoints">The endpoint snapshot (the Bybit record's testnet flag).</param>
+    /// <param name="endpoints">The endpoint snapshot (each venue record's testnet flag).</param>
     /// <param name="logger">Logger.</param>
     public TradingSurfaceService(
         ActiveExchangeService activeExchanges,
         PaperTradingAdapter paper,
-        BybitTradingAdapter testnetVenue,
+        BybitTradingAdapter bybitVenue,
+        BinanceTradingAdapter binanceVenue,
         ISettingsService settings,
         ExchangeEndpointRegistry endpoints,
         ILogger<TradingSurfaceService> logger)
     {
         _activeExchanges = activeExchanges ?? throw new ArgumentNullException(nameof(activeExchanges));
         _paper = paper ?? throw new ArgumentNullException(nameof(paper));
-        _testnetVenue = testnetVenue ?? throw new ArgumentNullException(nameof(testnetVenue));
+        _bybitVenue = bybitVenue ?? throw new ArgumentNullException(nameof(bybitVenue));
+        _binanceVenue = binanceVenue ?? throw new ArgumentNullException(nameof(binanceVenue));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _endpoints = endpoints ?? throw new ArgumentNullException(nameof(endpoints));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -184,23 +188,23 @@ public sealed class TradingSurfaceService : ITradingAdapter, IAsyncInitializable
     };
 
     /// <summary>
-    /// Decide the standing surface from the armed inputs: the Bybit testnet
-    /// venue requires the operator's settings toggle AND the toolbar's Bybit
-    /// pick AND the endpoint snapshot's testnet flag (all three together —
-    /// any one missing keeps the shipped paper lane). A change logs the flip
-    /// exactly once, at the behavioral stream (the chip follows).
+    /// Decide the standing surface from the armed inputs: a testnet venue
+    /// requires the operator's settings toggle AND the toolbar's pick of that
+    /// venue AND the endpoint snapshot's testnet flag for the same venue
+    /// (all three together — any one missing keeps the shipped paper lane;
+    /// a picker id no venue surface keys on resolves no venue at all). A
+    /// change logs the flip exactly once, at the behavioral stream (the chip
+    /// follows).
     /// </summary>
     private void Recompute()
     {
         var picker = _activeExchanges.Current;
+        var (venueAdapter, endpointIsTestnet) = ResolveVenue(picker.Id);
         var venueWanted = _testnetTradingEnabled
-            && string.Equals(
-                picker.Id,
-                BybitTradingAdapter.ExchangeId,
-                StringComparison.OrdinalIgnoreCase)
-            && _endpoints.Bybit.IsTestnet;
+            && venueAdapter is not null
+            && endpointIsTestnet;
 
-        var venue = venueWanted ? (ITradingAdapter)_testnetVenue : _paper;
+        var venue = venueWanted && venueAdapter is not null ? venueAdapter : _paper;
         if (ReferenceEquals(venue, Current))
         {
             return;
@@ -211,9 +215,24 @@ public sealed class TradingSurfaceService : ITradingAdapter, IAsyncInitializable
             venue.Name,
             _testnetTradingEnabled,
             picker.Id,
-            _endpoints.Bybit.IsTestnet);
+            endpointIsTestnet);
         _surface.OnNext(venue);
     }
+
+    /// <summary>
+    /// Map the toolbar picker's exchange id onto the venue surface it keys
+    /// (the adapter, the endpoint registry record whose testnet flag the
+    /// decision reads). An id no venue surface carries (paper, an unknown
+    /// adapter) resolves NO venue — the paper lane stands regardless of the
+    /// other gates.
+    /// </summary>
+    private (ITradingAdapter? Adapter, bool EndpointIsTestnet) ResolveVenue(string pickerId) =>
+        pickerId.ToLowerInvariant() switch
+        {
+            BybitTradingAdapter.ExchangeId => (_bybitVenue, _endpoints.Bybit.IsTestnet),
+            BinanceTradingAdapter.ExchangeId => (_binanceVenue, _endpoints.Binance.IsTestnet),
+            _ => (null, false),
+        };
 
     #endregion Initialization
 

@@ -1,3 +1,38 @@
+## [0.1.0-alpha.137] - 2026-11-12
+
+Build of board task T-193 (branch `feat/binance-trading`): the Binance
+spot testnet trading adapter — real (testnet) trading on the Binance
+venue beside the existing Bybit surface.
+
+### Added
+- The `BinanceTradingAdapter`: signed REST order placement/cancel and
+  the open-orders, balances and positions queries on the Binance spot
+  testnet (HMAC-SHA256 over the exact query string, the signature member
+  appended last, the `X-MBX-APIKEY` header carrying the key), and the
+  private user-data stream over a listen-key session (issue → dial
+  `{PrivateWsUrl}/{listenKey}` → receive-only fills → the 30-minute
+  keepalive loop). Market data delegates to the venue's own
+  `BinanceAdapter` — one socket set apiece.
+- The strict order families: LIMIT GTC only, with post-only riding the
+  venue's `GTX` token (the `LIMIT_MAKER` type reads back onto a GTC
+  order carrying the flag); market, OCO, reduce-only, bracket and
+  non-GTC requests refuse before the venue with a clear reason. Venue
+  statuses map strictly — the transitional ones refuse rather than
+  default.
+- The arming gate matches the Bybit discipline verbatim: the toolbar
+  picks the venue, that venue's endpoint record is flagged testnet, and
+  the testnet-trading toggle is armed — all three together, else the
+  paper lane stands. The venue order journal now reflects both venues'
+  private streams, and the kill-switch sweep covers the new venue.
+- Credentials come only from `ISecretStore` (the
+  `binance.testnet.api-key`/`binance.testnet.api-secret` pair, fetched
+  per operation); no key reaches a log or a command line.
+- The adapter-kit conformance battery covers the new adapter through a
+  new delegated depth profile (the shell rides a real delegate) and a
+  symbol-first book-topic template; the Infrastructure suite adds the
+  signed-wire facts (22) and the private-stream e2e facts (4) against
+  the in-process loopback rig.
+
 ## [0.1.0-alpha.136] - 2026-11-12
 
 Build of board task T-192 (branch `feat/paper-account`): the paper
