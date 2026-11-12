@@ -190,7 +190,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | done | - |
 | T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | done | - |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | done | - |
-| T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | in-progress | - |
+| T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | done | - |
 | T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | planned | - |
 | T-188 Kill switch: cancel all + flatten all (backlog sweep 2026-11-12) | feat/kill-switch | planned | - |
 | T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | planned | - |
@@ -420,30 +420,6 @@ lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by de
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
 
 ---
-
-## T-186 — Bracket orders: entry + attached TP/SL
-
-- **Branch:** feat/bracket-orders, worktree zt-bracket-orders, based on
-  develop@e74812c (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep,
-  first of the trading half).
-- **Origin:** the sweep — the OCO either-or pair ships (T-074), but no route places an entry
-  and its protective exit in one shot; no bracket surface exists in the code.
-- **What:** a bracket mode in the order ticket — the entry (market or limit) plus an attached
-  take-profit limit leg and a stop-loss stop-limit leg, submitted as one validated request; the
-  exit legs ride the existing OCO machinery and arm on the entry's fill; the confirmation
-  dialog names all three legs; every leg passes `IRiskManager` and the bracket counts as ONE
-  confirmation, not three.
-- **Scope:** Core (`OrderRequest` extension + validation), Infrastructure (the paper adapter's
-  bracket assembly; the Bybit trading adapter refuses unimplementable shapes early with an
-  honest reason), the ticket + confirmation UI, resx en+ru, an optional bracket payload for the
-  MCP `place_order` tool follows only after the UI path is proven; the next free alpha bump +
-  the CHANGELOG section.
-- **Acceptance:** a bracket entry fills and arms the TP/SL pair; firing either leg cancels the
-  other (the OCO discipline); a risk rejection refuses all legs atomically; the confirmation
-  reads the three legs before submit.
-- **Tests:** the paper-adapter bracket battery (entry fill arms the pair, either-or, the atomic
-  refusal matrix); headless ticket pins for the bracket mode.
-- **Status:** in-progress.
 
 ## T-187 — SL/TP management from the positions panel
 
