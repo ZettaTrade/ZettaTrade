@@ -30,6 +30,9 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to show order history view.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowOrderHistoryCommand { get; }
 
+    /// <summary>Command to show the market screener window (T-195).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ShowScreenerCommand { get; }
+
     /// <summary>Command to show the trade statistics window.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowTradeStatsCommand { get; }
 
@@ -98,6 +101,13 @@ public sealed class MenuViewModel : ReactiveObject
     /// <see cref="ShowPositionsRequested"/>).
     /// </summary>
     public Interaction<RxVoid, RxVoid> ShowOrderHistoryRequested { get; }
+
+    /// <summary>
+    /// Interaction that routes the show-screener request to the View, which
+    /// hosts the panel window (same pattern as
+    /// <see cref="ShowOrderHistoryRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowScreenerRequested { get; }
 
     /// <summary>
     /// Interaction that routes the show-trade-statistics request to the
@@ -182,6 +192,7 @@ public sealed class MenuViewModel : ReactiveObject
         KillSwitchRequested = new Interaction<RxVoid, RxVoid>();
         ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
         ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
+        ShowScreenerRequested = new Interaction<RxVoid, RxVoid>();
         ShowTradeStatsRequested = new Interaction<RxVoid, RxVoid>();
         ShowNotificationsRequested = new Interaction<RxVoid, RxVoid>();
         ShowAlertsRequested = new Interaction<RxVoid, RxVoid>();
@@ -195,6 +206,7 @@ public sealed class MenuViewModel : ReactiveObject
         KillSwitchCommand = ReactiveCommand.CreateFromTask(HandleKillSwitchAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
+        ShowScreenerCommand = ReactiveCommand.CreateFromTask(HandleShowScreenerAsync);
         ShowTradeStatsCommand = ReactiveCommand.CreateFromTask(HandleShowTradeStatsAsync);
         ShowNotificationsCommand = ReactiveCommand.CreateFromTask(HandleShowNotificationsAsync);
         ShowAlertsCommand = ReactiveCommand.CreateFromTask(HandleShowAlertsAsync);
@@ -296,6 +308,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// stays out of the ViewModel, same as the positions panel).
     /// </summary>
     private Task HandleShowOrderHistoryAsync() => ShowOrderHistoryRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the show-screener request to the View (window plumbing stays
+    /// out of the ViewModel, same as the order history window).
+    /// </summary>
+    private Task HandleShowScreenerAsync() => ShowScreenerRequested.Handle(RxVoid.Default);
 
     /// <summary>
     /// Route the show-trade-statistics request to the View (window plumbing

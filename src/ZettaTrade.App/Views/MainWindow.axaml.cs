@@ -132,6 +132,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.KillSwitchRequested.RegisterHandler(RunKillSwitchAsync);
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
+        ViewModel?.Menu.ShowScreenerRequested.RegisterHandler(OpenScreenerAsync);
         ViewModel?.Menu.ShowTradeStatsRequested.RegisterHandler(OpenTradeStatsAsync);
         ViewModel?.Menu.ShowBacktestRequested.RegisterHandler(OpenBacktestAsync);
         ViewModel?.Menu.ShowAlertsRequested.RegisterHandler(OpenAlertsAsync);
@@ -752,6 +753,29 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the order history window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenScreenerAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The screener view model is the workspace singleton: the
+            // window surfaces its live page — every open shows the standing
+            // snapshot, never a re-armed feed.
+            var window = new ScreenerWindow
+            {
+                DataContext = App.Services.GetRequiredService<ViewModels.ScreenerViewModel>(),
+            };
+            await window.ShowDialog<object>(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the screener window");
         }
         finally
         {

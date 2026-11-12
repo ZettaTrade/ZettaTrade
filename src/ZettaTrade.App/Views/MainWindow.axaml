@@ -165,6 +165,7 @@
                     <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
                     <MenuItem Header="{loc:Localized Menu.Trading.Balances}" Command="{Binding ShowBalancesCommand}" />
                     <MenuItem Header="{loc:Localized Menu.Trading.OrderHistory}" Command="{Binding ShowOrderHistoryCommand}" />
+                    <MenuItem Header="{loc:Localized Menu.Trading.Screener}" Command="{Binding ShowScreenerCommand}" />
                     <MenuItem Header="{loc:Localized Menu.Trading.Stats}" Command="{Binding ShowTradeStatsCommand}" />
                     <MenuItem Header="{loc:Localized Menu.Trading.Backtest}" Command="{Binding ShowBacktestCommand}" />
                     <MenuItem Header="{loc:Localized Menu.Trading.Notifications}" Command="{Binding ShowNotificationsCommand}" />

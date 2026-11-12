@@ -280,7 +280,6 @@ public sealed class HeatmapFeedService : IAsyncInitializable
         finally
         {
             _gate.Release();
-            _logger.LogInformation("PROBE comp finally released");
         }
     }
 

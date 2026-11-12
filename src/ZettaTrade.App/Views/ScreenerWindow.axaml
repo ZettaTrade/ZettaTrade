@@ -1,0 +1,147 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.ScreenerWindow"
+        Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
+        x:DataType="vm:ScreenerViewModel"
+        Title="{loc:Localized Screener.Title}"
+        Width="860" Height="560"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <Window.Styles>
+        <!-- T-195: the screener table rides the shared RowGrammar dictionary
+             (the emphasized header row, the hairline rows) — the same
+             scaffold the history window speaks; the window carries no table
+             style copy. -->
+        <StyleInclude Source="avares://ZettaTrade.App/Themes/RowGrammar.axaml" />
+
+        <!-- The column-sort headers: the quiet caption buttons over the
+             header row's hairline. No Background rest — the generic kit's
+             hover and focus stay alive; the press rides the strip's dim
+             step (the T-181 kit language). -->
+        <Style Selector="Button.column-sort">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="20" />
+        </Style>
+        <Style Selector="Button.column-sort:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+        </Style>
+        <Style Selector="Button.column-sort:pressed">
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
+
+        <!-- The row press target: the whole row is one button (a click
+             routes the symbol into the workspace). The hover affordance
+             reads Surface over the window background — the watchlist rows'
+             hover language. -->
+        <Style Selector="Button.screener-row">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.screener-row:pointerover">
+            <Setter Property="Background" Value="{DynamicResource Surface}" />
+        </Style>
+        <Style Selector="Button.screener-row:pressed">
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
+
+        <!-- T-159: the change text tints by the 24h sign (the candle state
+             colors); a flat change keeps the plain ink. -->
+        <Style Selector="TextBlock.screener-change.up">
+            <Setter Property="Foreground" Value="{DynamicResource CandleUp}" />
+        </Style>
+        <Style Selector="TextBlock.screener-change.down">
+            <Setter Property="Foreground" Value="{DynamicResource CandleDown}" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource SpaceM}">
+
+        <!-- The preset picker: the static localized items bind by index (the
+             chart type selector's precedent); the picker shows only over
+             live data — a switch with nothing to screen is fabricated
+             chrome over a missing feed. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}" IsVisible="{Binding IsLive}">
+            <TextBlock Text="{loc:Localized Screener.Preset}" VerticalAlignment="Center" />
+            <ComboBox MinWidth="150" SelectedIndex="{Binding SelectedPresetIndex}">
+                <ComboBoxItem Content="{loc:Localized Screener.Preset.All}" />
+                <ComboBoxItem Content="{loc:Localized Screener.Preset.Gainers}" />
+                <ComboBoxItem Content="{loc:Localized Screener.Preset.Losers}" />
+                <ComboBoxItem Content="{loc:Localized Screener.Preset.Volume}" />
+            </ComboBox>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1">
+            <!-- The table ends a strip short of the overlay bar's right
+                 edge (T-170). -->
+            <StackPanel Spacing="{StaticResource SpaceS}" Margin="0,0,16,0">
+
+                <!-- The honest states: the reason line replaces a broken
+                     table, the waiting line replaces an unpriced one. -->
+                <TextBlock Text="{loc:Localized Screener.NoCatalog}"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding IsCatalogUnavailable}" />
+                <TextBlock Text="{loc:Localized Screener.WaitingTicks}"
+                           IsVisible="{Binding IsWaitingTicks}" />
+
+                <!-- Column headers: the emphasized header row over the
+                     grammar's hairline; the numeric columns are the sort
+                     buttons and right-align to match their data cells. -->
+                <Border Classes="table-header-row" IsVisible="{Binding HasRows}">
+                    <Grid ColumnDefinitions="140,*,110,110">
+                        <TextBlock Grid.Column="0" Text="{loc:Localized Screener.ColSymbol}" />
+                        <Button Grid.Column="1" Classes="column-sort" HorizontalContentAlignment="Right"
+                                Content="{loc:Localized Screener.ColPrice}" Command="{Binding SortByPriceCommand}" />
+                        <Button Grid.Column="2" Classes="column-sort" HorizontalContentAlignment="Right"
+                                Content="{loc:Localized Screener.ColChange}" Command="{Binding SortByChangeCommand}" />
+                        <Button Grid.Column="3" Classes="column-sort" HorizontalContentAlignment="Right"
+                                Content="{loc:Localized Screener.ColVolume}" Command="{Binding SortByVolumeCommand}" />
+                    </Grid>
+                </Border>
+
+                <!-- The live rows, in the standing sort; the whole row is
+                     the press target (the route command rides the window's
+                     DataContext). -->
+                <ItemsControl ItemsSource="{Binding Rows}"
+                              IsVisible="{Binding HasRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ScreenerRowViewModel">
+                            <Button Classes="screener-row"
+                                    Command="{Binding $parent[Window].((vm:ScreenerViewModel)DataContext).RouteRowCommand}"
+                                    CommandParameter="{Binding}">
+                                <Grid ColumnDefinitions="140,*,110,110">
+                                    <TextBlock Grid.Column="0" Text="{Binding Symbol}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Price}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Change}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right"
+                                               Classes="screener-change"
+                                               Classes.up="{Binding IsChangeUp}"
+                                               Classes.down="{Binding IsChangeDown}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Volume}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+            <Button Grid.Column="1"
+                    Content="{loc:Localized Screener.Close}"
+                    Click="OnCloseClick"
+                    MinWidth="90"
+                    HorizontalAlignment="Right" />
+        </Grid>
+
+    </Grid>
+</Window>
