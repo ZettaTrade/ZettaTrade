@@ -102,13 +102,13 @@ public sealed class HeadlessSettingsPolishTests
                 boxes.Select(box => box.Bounds.Width)
                     .Distinct().Should().HaveCount(1, "the period boxes hold one shared width");
 
-                // The section caption rides its own header line above the
+                // The section card header speaks for the section above the
                 // rows — not the tab header's own text block.
                 var section = HeadlessWorld.Descendants<TextBlock>(window)
-                    .Where(text => text.Text == LocalizationManager.Instance.GetString("Chart.Indicators"))
+                    .Where(text => text.Text == LocalizationManager.Instance.GetString("Settings.Section.Indicators"))
                     .Where(text => text.GetVisualAncestors().All(ancestor => ancestor is not TabItem))
                     .Single();
-                IsEffectivelyVisible(section).Should().BeTrue("the caption reads above the rows whatever the catalog holds");
+                IsEffectivelyVisible(section).Should().BeTrue("the header reads above the rows whatever the catalog holds");
             });
         }
         finally

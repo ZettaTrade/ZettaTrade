@@ -1,0 +1,45 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+    The section card grammar (T-184): the settings pages' shared panel
+    shape. Every page speaks the same voice — the Surface panel with the
+    hairline border and the CornerL card step, the 3 px Accent tick plus
+    the tracked uppercase caption over it. The colors and steps ride the
+    theme palette's keys, so a user theme retints the cards live; the
+    windows include this dictionary once (StyleInclude) and consume the
+    classes (section-card, section-tick, section-header).
+    -->
+
+    <!-- The panel: the Surface fill, the hairline border, the CornerL
+         step (the cards' radius ramp, T-183) and the InsetM padding —
+         the content breathes the same inset everywhere. -->
+    <Style Selector="Border.section-card">
+        <Setter Property="Background" Value="{DynamicResource Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource CornerL}" />
+        <Setter Property="Padding" Value="{StaticResource InsetM}" />
+    </Style>
+
+    <!-- The header tick: the 3 px Accent bar (the rail's selected item
+         speaks the same mark; the section repeats it at its own level). -->
+    <Style Selector="Border.section-tick">
+        <Setter Property="Width" Value="3" />
+        <Setter Property="Height" Value="12" />
+        <Setter Property="CornerRadius" Value="1.5" />
+        <Setter Property="Background" Value="{DynamicResource Accent}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- The header caption: the tracked uppercase caption (the resx
+         values ship uppercase — Avalonia has no text-transform), the
+         secondary ink so the content's own text leads the page. -->
+    <Style Selector="TextBlock.section-header">
+        <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+        <Setter Property="LetterSpacing" Value="0.8" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+</Styles>

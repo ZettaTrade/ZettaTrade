@@ -105,8 +105,14 @@
   <data name="Settings.Tab.Appearance" xml:space="preserve">
     <value>Appearance</value>
   </data>
+  <data name="Settings.Section.Appearance" xml:space="preserve">
+    <value>APPEARANCE</value>
+  </data>
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Indicators</value>
+  </data>
+  <data name="Settings.Section.Indicators" xml:space="preserve">
+    <value>INDICATORS</value>
   </data>
   <data name="Settings.Indicators.Empty" xml:space="preserve">
     <value>No indicator plugins found in the app data directory's plugins folder (scan skips are reported in the log)</value>
@@ -115,6 +121,9 @@
     <value>Integrations</value>
   </data>
   <data name="Settings.Tab.Mcp" xml:space="preserve">
+    <value>MCP</value>
+  </data>
+  <data name="Settings.Section.Mcp" xml:space="preserve">
     <value>MCP</value>
   </data>
   <data name="Settings.Mcp.Enable" xml:space="preserve">
@@ -195,6 +204,9 @@
   <data name="Settings.Tab.Pairs" xml:space="preserve">
     <value>Pairs</value>
   </data>
+  <data name="Settings.Section.Pairs" xml:space="preserve">
+    <value>PAIRS</value>
+  </data>
   <data name="Settings.Pairs.All" xml:space="preserve">
     <value>All pairs</value>
   </data>
@@ -236,6 +248,9 @@
   </data>
   <data name="Settings.Tab.Port" xml:space="preserve">
     <value>Import / Export</value>
+  </data>
+  <data name="Settings.Section.Port" xml:space="preserve">
+    <value>IMPORT / EXPORT</value>
   </data>
   <data name="Port.Export" xml:space="preserve">
     <value>Export settings…</value>
@@ -1805,6 +1820,9 @@ Estimated fee: {7}</value>
   </data>
   <data name="Settings.Tab.Hotkeys" xml:space="preserve">
     <value>Hotkeys</value>
+  </data>
+  <data name="Settings.Section.Hotkeys" xml:space="preserve">
+    <value>HOTKEYS</value>
   </data>
   <data name="Menu.Help.Hotkeys" xml:space="preserve">
     <value>Hotkey cheat sheet</value>
