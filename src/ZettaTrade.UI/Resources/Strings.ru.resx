@@ -861,6 +861,12 @@
   <data name="NewOrder.BracketArmsOnFill" xml:space="preserve">
     <value>Тейк-профит и стоп-лосс встанут в работу после исполнения входа.</value>
   </data>
+  <data name="NewOrder.PostOnlyLabel" xml:space="preserve">
+    <value>Пост-онли</value>
+  </data>
+  <data name="NewOrder.ReduceOnlyLabel" xml:space="preserve">
+    <value>Только закрытие</value>
+  </data>
   <data name="NewOrder.TriggerRequired" xml:space="preserve">
     <value>Триггерная цена обязательна</value>
   </data>
@@ -1253,6 +1259,15 @@
   </data>
   <data name="History.ColStatus" xml:space="preserve">
     <value>Статус</value>
+  </data>
+  <data name="History.ColFlags" xml:space="preserve">
+    <value>Флаги</value>
+  </data>
+  <data name="Order.FlagPostOnly" xml:space="preserve">
+    <value>Пост-онли</value>
+  </data>
+  <data name="Order.FlagReduceOnly" xml:space="preserve">
+    <value>Только закрытие</value>
   </data>
   <data name="History.LoadFailed" xml:space="preserve">
     <value>Не удалось загрузить историю ордеров: {0}</value>

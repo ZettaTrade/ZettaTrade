@@ -221,6 +221,10 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     private int _bracketEntryKindIndex;
     private int _selectedSideIndex;
     private int _selectedTypeIndex;
+    private bool _isPostOnly;
+    private bool _isReduceOnly;
+    private bool _hasOppositePosition;
+    private int _oppositePositionRefreshSeq;
     private string? _errorMessage;
     private string? _resultMessage;
     private string? _symbolError;
@@ -267,6 +271,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             this.RaisePropertyChanged(nameof(SymbolInput));
             RefreshSymbolSuggestions();
             UpdateUnitHints();
+            RefreshPositionContext();
         }
     }
 
@@ -360,6 +365,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             this.RaiseAndSetIfChanged(ref _selectedSideIndex, value);
             this.RaisePropertyChanged(nameof(IsBuySide));
             this.RaisePropertyChanged(nameof(IsSellSide));
+            RefreshPositionContext();
         }
     }
 
@@ -403,6 +409,17 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             this.RaisePropertyChanged(nameof(IsTriggerErrorVisible));
             this.RaisePropertyChanged(nameof(IsTrailErrorVisible));
             this.RaisePropertyChanged(nameof(IsOcoStopLimitErrorVisible));
+            this.RaisePropertyChanged(nameof(IsFlagsRowVisible));
+            this.RaisePropertyChanged(nameof(IsPostOnlyEnabled));
+
+            // The maker-only contract is limit-only: leaving the limit type
+            // releases the post-only switch — a disabled checkbox never
+            // keeps a checked state no request would carry.
+            if (SelectedType != OrderType.Limit && _isPostOnly)
+            {
+                _isPostOnly = false;
+                this.RaisePropertyChanged(nameof(IsPostOnly));
+            }
         }
     }
 
@@ -442,6 +459,39 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     /// <summary>True while the bracket entry is a limit order pricing its
     /// own entry (T-186); a market entry places at the market.</summary>
     public bool IsBracketEntryLimit => IsBracketMode && _bracketEntryKindIndex == 1;
+
+    /// <summary>The post-only switch (T-191): the order must rest as a maker
+    /// and never cross the book at placement — a crossing limit is refused,
+    /// never degraded into a taker fill.</summary>
+    public bool IsPostOnly
+    {
+        get => _isPostOnly;
+        set => this.RaiseAndSetIfChanged(ref _isPostOnly, value);
+    }
+
+    /// <summary>The reduce-only switch (T-187's UI face): the order may only
+    /// shrink an existing opposite-side position.</summary>
+    public bool IsReduceOnly
+    {
+        get => _isReduceOnly;
+        set => this.RaiseAndSetIfChanged(ref _isReduceOnly, value);
+    }
+
+    /// <summary>True while the post-only contract applies: the selected
+    /// shape is a plain limit order (the maker-only contract is limit-only,
+    /// and the OCO/bracket legs stay outside the switches).</summary>
+    public bool IsPostOnlyEnabled => SelectedType == OrderType.Limit;
+
+    /// <summary>True while an opposite-side position the reduce-only order
+    /// could shrink is known for the ticket's symbol: the switch's position
+    /// context (the adapter still owns the strict contract at placement).</summary>
+    public bool IsReduceOnlyEnabled => _hasOppositePosition;
+
+    /// <summary>True while the flags row applies: the plain single-order
+    /// modes (market, limit, stop-limit, trailing stop). The OCO pair and
+    /// the bracket shape carry no flag switches — their legs' contracts
+    /// refuse or honor the flags at the adapter, with no special matrix.</summary>
+    public bool IsFlagsRowVisible => !IsOcoMode && !IsBracketMode;
 
     /// <summary>True when the bracket's take-profit leg row applies (the
     /// bracket mode only).</summary>
@@ -1398,6 +1448,95 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
     }
 
     /// <summary>
+    /// Refresh the reduce-only switch's position context: whether the
+    /// adapter currently holds an opposite-side position for the ticket's
+    /// symbol. A unparsable or empty symbol parks the switch (no context is
+    /// derived from garbage input); the read runs per symbol/side change
+    /// with a sequence guard so a stale response never overwrites a fresher
+    /// context, and a failed read parks the switch rather than pretending
+    /// the context exists.
+    /// </summary>
+    private void RefreshPositionContext()
+    {
+        _ = RefreshOppositePositionAsync();
+    }
+
+    private async Task RefreshOppositePositionAsync()
+    {
+        var raw = SymbolInput.Trim();
+        Symbol? symbol = null;
+        if (raw.Length > 0)
+        {
+            try
+            {
+                symbol = Symbol.Parse(raw);
+            }
+            catch (ArgumentException)
+            {
+                // Unparsable text parks the switch; no position context is
+                // derived from garbage input.
+            }
+        }
+
+        if (symbol is null || _selectedSideIndex < 0)
+        {
+            SetOppositePosition(false);
+            return;
+        }
+
+        var sequence = ++_oppositePositionRefreshSeq;
+        IReadOnlyList<Position> positions;
+        try
+        {
+            positions = await _trading.GetPositionsAsync(CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                ex,
+                "The ticket's position-context read failed; the reduce-only switch stays parked");
+            if (sequence == _oppositePositionRefreshSeq)
+            {
+                SetOppositePosition(false);
+            }
+
+            return;
+        }
+
+        // A newer refresh owns the switch: a stale response never flips it.
+        if (sequence != _oppositePositionRefreshSeq)
+        {
+            return;
+        }
+
+        var oppositeSide = (OrderSide)_selectedSideIndex == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+        var hasOpposite = false;
+        foreach (var position in positions)
+        {
+            if (position.Symbol.Normalized == symbol.Normalized &&
+                position.Side == oppositeSide &&
+                position.Quantity.Value != 0)
+            {
+                hasOpposite = true;
+                break;
+            }
+        }
+
+        SetOppositePosition(hasOpposite);
+    }
+
+    private void SetOppositePosition(bool hasOpposite)
+    {
+        if (_hasOppositePosition == hasOpposite)
+        {
+            return;
+        }
+
+        _hasOppositePosition = hasOpposite;
+        this.RaisePropertyChanged(nameof(IsReduceOnlyEnabled));
+    }
+
+    /// <summary>
     /// Push the ticket's current order shape to the sizing row: the side,
     /// the execution price the type carries (the limit price for limit,
     /// stop-limit and the OCO take-profit leg), and the type's stop
@@ -2035,7 +2174,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
 
         return TypeValues[typeIndex] switch
         {
-            OrderType.Market => RequestBuild.Ok([Request(symbol, side, OrderType.Market, quantity)]),
+            OrderType.Market => RequestBuild.Ok([Request(symbol, side, OrderType.Market, quantity, IsReduceOnly)]),
 
             OrderType.Limit => BuildLimitCore(symbol, side, quantity),
 
@@ -2052,26 +2191,34 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         Symbol symbol,
         OrderSide side,
         OrderType type,
-        decimal quantity) => new()
+        decimal quantity,
+        bool isReduceOnly) => new()
         {
             Symbol = symbol,
             Side = side,
             Type = type,
             Quantity = new Quantity(quantity),
+            ReduceOnly = isReduceOnly,
         };
 
-    /// <summary>A limit-order request: the limit price is part of the shape.</summary>
+    /// <summary>A limit-order request: the limit price is part of the shape;
+    /// the ticket's execution flags ride it (post-only is limit-only by the
+    /// core contract).</summary>
     private static OrderRequest LimitRequest(
         Symbol symbol,
         OrderSide side,
         decimal quantity,
-        Price limit) => new()
+        Price limit,
+        bool isReduceOnly,
+        bool isPostOnly) => new()
         {
             Symbol = symbol,
             Side = side,
             Type = OrderType.Limit,
             Quantity = new Quantity(quantity),
             Price = limit,
+            ReduceOnly = isReduceOnly,
+            PostOnly = isPostOnly,
         };
 
     /// <summary>A stop-limit request: the trigger arms it, the limit protects it.</summary>
@@ -2153,7 +2300,7 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
             return RequestBuild.Fail(error, TicketField.Price);
         }
 
-        return RequestBuild.Ok([LimitRequest(symbol, side, quantity, new Price(price))]);
+        return RequestBuild.Ok([LimitRequest(symbol, side, quantity, new Price(price), IsReduceOnly, IsPostOnly)]);
     }
 
     /// <summary>
@@ -2374,9 +2521,13 @@ public sealed class NewOrderDialogViewModel : ReactiveObject, IDisposable
         }
 
         var groupId = $"{OcoGroupIdPrefix}{Guid.NewGuid().ToString("N")}";
+        // The bracket entry carries no flag switches (the row stays hidden
+        // in the bracket mode): the entry opens or extends a position, and
+        // the exits' own contracts refuse or honor their flags at the
+        // adapter — no special matrix.
         var entry = entryPrice is { } entryLimitValue
-            ? LimitRequest(symbol, side, quantity, new Price(entryLimitValue))
-            : Request(symbol, side, OrderType.Market, quantity);
+            ? LimitRequest(symbol, side, quantity, new Price(entryLimitValue), false, false)
+            : Request(symbol, side, OrderType.Market, quantity, false);
 
         return RequestBuild.OkBracket(entry with
         {

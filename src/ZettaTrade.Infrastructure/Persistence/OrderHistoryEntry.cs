@@ -38,6 +38,12 @@ public sealed class OrderHistoryEntry
     /// <summary>Time-in-force policy.</summary>
     public required TimeInForce TimeInForce { get; set; }
 
+    /// <summary>Whether the order is a reduce-only order (T-187).</summary>
+    public required bool ReduceOnly { get; set; }
+
+    /// <summary>Whether the order is a post-only (maker-only) order (T-191).</summary>
+    public required bool PostOnly { get; set; }
+
     /// <summary>Order creation timestamp.</summary>
     public required DateTimeOffset CreatedAt { get; set; }
 

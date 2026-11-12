@@ -119,6 +119,31 @@ public sealed class SqliteOrderHistoryStoreTests
     }
 
     [Fact]
+    public async Task RecordPlacedAsync_RoundTripsTheExecutionFlags()
+    {
+        await WithTempDatabaseAsync(async (_, store) =>
+        {
+            await store.InitializeAsync();
+            var placed = BuildOrder() with { ReduceOnly = true, PostOnly = true };
+            await store.RecordPlacedAsync(placed);
+
+            var orders = await store.GetRecentAsync(50);
+            orders.Should().ContainSingle();
+            var restored = orders[0];
+
+            restored.ReduceOnly.Should().BeTrue();
+            restored.PostOnly.Should().BeTrue();
+
+            // The unflagged default round-trips as false (the migration's
+            // backfilled rows read the same way).
+            await store.RecordPlacedAsync(BuildOrder("paper-2"));
+            var plain = (await store.GetRecentAsync(50)).Single(order => order.Id == "paper-2");
+            plain.ReduceOnly.Should().BeFalse();
+            plain.PostOnly.Should().BeFalse();
+        });
+    }
+
+    [Fact]
     public async Task RecordPlacedAsync_TwiceForSameExchangeAndOrderId_UpsertsOneRow()
     {
         await WithTempDatabaseAsync(async (_, store) =>
@@ -316,7 +341,7 @@ public sealed class SqliteOrderHistoryStoreTests
             "ExchangeId", "OrderId", "Symbol", "Side", "Type", "Quantity", "Price",
             "Status", "TimeInForce", "CreatedAt", "UpdatedAt", "FilledQuantity",
             "ClientOrderId", "StopPrice", "ExchangeOrderId", "RejectReason", "Expiry",
-            "Commission",
+            "Commission", "ReduceOnly", "PostOnly",
         };
 
         await WithTempDatabaseAsync(async (file, store) =>

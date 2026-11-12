@@ -305,6 +305,8 @@ public sealed class BybitTradingAdapter : ITradingAdapter
             await EnsurePrivateSessionAsync(ct);
 
             var orderLinkId = request.ClientOrderId ?? NewOrderLinkId();
+            // Post-only spot limits (T-191) ride the venue's own maker-only
+            // time-in-force token; a plain GTC limit keeps its token.
             var body = new OrderCreateRequest(
                 SpotCategory,
                 request.Symbol.GetExchangeFormat(ExchangeId),
@@ -312,7 +314,7 @@ public sealed class BybitTradingAdapter : ITradingAdapter
                 OrderTypeNames.Limit,
                 request.Quantity.Value.ToString(CultureInfo.InvariantCulture),
                 request.Price!.Value.Value.ToString(CultureInfo.InvariantCulture),
-                TimeInForceNames.Gtc,
+                request.PostOnly ? TimeInForceNames.PostOnly : TimeInForceNames.Gtc,
                 orderLinkId);
 
             var result = await SendRestAsync(
@@ -336,6 +338,7 @@ public sealed class BybitTradingAdapter : ITradingAdapter
                 Quantity = request.Quantity,
                 Price = request.Price.Value,
                 TimeInForce = TimeInForce.GTC,
+                PostOnly = request.PostOnly,
                 ClientOrderId = orderLinkId,
                 Status = OrderStatus.Submitted,
                 FilledQuantity = Quantity.Zero,
@@ -921,7 +924,7 @@ public sealed class BybitTradingAdapter : ITradingAdapter
             return false;
         }
 
-        if (!Enum.TryParse<TimeInForce>(timeInForceStr, false, out var parsedTimeInForce))
+        if (!TryParseVenueTimeInForce(timeInForceStr, out var parsedTimeInForce, out var rowPostOnly))
         {
             skipReason = $"the time-in-force '{timeInForceStr}' is not parsable";
             return false;
@@ -962,6 +965,7 @@ public sealed class BybitTradingAdapter : ITradingAdapter
                 ? new Price(trigger)
                 : null,
             TimeInForce = parsedTimeInForce,
+            PostOnly = rowPostOnly,
             ClientOrderId = orderLinkId,
             Status = mapped,
             FilledQuantity = new Quantity(filledValue),
@@ -1204,7 +1208,7 @@ public sealed class BybitTradingAdapter : ITradingAdapter
             return false;
         }
 
-        if (!Enum.TryParse<TimeInForce>(timeInForceStr, false, out var parsedTimeInForce))
+        if (!TryParseVenueTimeInForce(timeInForceStr, out var parsedTimeInForce, out var updatePostOnly))
         {
             skipReason = $"the time-in-force '{timeInForceStr}' is not parsable";
             return false;
@@ -1242,6 +1246,7 @@ public sealed class BybitTradingAdapter : ITradingAdapter
             Quantity = new Quantity(qtyValue),
             Price = new Price(priceValue),
             TimeInForce = parsedTimeInForce,
+            PostOnly = updatePostOnly,
             ClientOrderId = orderLinkId,
             Status = mapped,
             FilledQuantity = new Quantity(filledValue),
@@ -1327,6 +1332,26 @@ public sealed class BybitTradingAdapter : ITradingAdapter
     private static bool TryParseDecimalString(string? text, out decimal value) =>
         decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
 
+    /// <summary>
+    /// Map the venue's time-in-force token onto the model (T-191): the spot
+    /// surface reports a maker-only limit as the token "PostOnly", which the
+    /// model holds as a GTC order carrying the post-only flag — the venue
+    /// token is an execution instruction, not a distinct time-in-force. Any
+    /// other token parses as the enum; an unparsable one refuses the row.
+    /// </summary>
+    private static bool TryParseVenueTimeInForce(string? timeInForceStr, out TimeInForce parsed, out bool postOnly)
+    {
+        postOnly = false;
+        if (timeInForceStr == TimeInForceNames.PostOnly)
+        {
+            parsed = TimeInForce.GTC;
+            postOnly = true;
+            return true;
+        }
+
+        return Enum.TryParse(timeInForceStr, false, out parsed);
+    }
+
     /// <summary>Read one venue millisecond timestamp; absent or unparsable yields null (the caller default-covers).</summary>
     private static DateTimeOffset? TryParseTimestampMillis(string? text)
     {
@@ -1368,6 +1393,9 @@ public sealed class BybitTradingAdapter : ITradingAdapter
     private static class TimeInForceNames
     {
         public const string Gtc = "GTC";
+
+        /// <summary>The venue's maker-only token for spot limit orders (T-191).</summary>
+        public const string PostOnly = "PostOnly";
     }
 
     private static class WalletAccountType

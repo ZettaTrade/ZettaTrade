@@ -250,6 +250,15 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             ? limitPrice.Value >= referenceClose.Value
             : limitPrice.Value <= referenceClose.Value;
 
+        // Post-only (T-191): a maker-only limit must not cross the book at
+        // placement. Refused outright, exactly like a FOK that cannot honor
+        // its contract — the order never degrades into a taker fill.
+        if (request.PostOnly && crosses)
+        {
+            throw new InvalidOperationException(
+                $"Post-only {request.Side} {request.Quantity.Value} {request.Symbol.Normalized} limit {limitPrice.Value} crosses the reference close {referenceClose.Value}; the maker-only contract refuses the taker fill instead of degrading.");
+        }
+
         if (!crosses)
         {
             // The placement-moment immediacy contract (T-190): IOC and FOK
@@ -369,6 +378,15 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             var crosses = request.Side == OrderSide.Buy
                 ? limitPrice.Value >= crossingClose.Value
                 : limitPrice.Value <= crossingClose.Value;
+
+            // Post-only (T-191): an OCO limit leg under the maker-only
+            // contract is refused exactly like a standalone crossing
+            // post-only limit — never degraded into a taker fill.
+            if (request.PostOnly && crosses)
+            {
+                throw new InvalidOperationException(
+                    $"Post-only {request.Side} {request.Quantity.Value} {request.Symbol.Normalized} limit {limitPrice.Value} crosses the reference close {crossingClose.Value}; the maker-only contract refuses the taker fill instead of degrading.");
+            }
 
             if (crosses)
             {
@@ -1056,6 +1074,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             Expiry = request.Expiry,
             ClientOrderId = request.ClientOrderId,
             ReduceOnly = request.ReduceOnly,
+            PostOnly = request.PostOnly,
             Status = status,
             FilledQuantity = filledQuantity,
             CreatedAt = now,

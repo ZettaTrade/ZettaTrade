@@ -69,6 +69,15 @@ public sealed record OrderRequest
     public bool ReduceOnly { get; init; }
 
     /// <summary>
+    /// Post-only intent (T-191): the limit order must rest on the book as a
+    /// maker and never cross it at placement. If the limit price would
+    /// immediately match the opposite best bid/ask, the adapter refuses the
+    /// request instead of degrading it to a taker fill. Defined for Limit
+    /// orders only; anything else is refused at validation.
+    /// </summary>
+    public bool PostOnly { get; init; }
+
+    /// <summary>
     /// The bracket payload (T-186): the attached protective exits the entry
     /// carries to the adapter as one validated request. Null for every
     /// standalone order — only the ENTRY of a bracket carries the legs; a
@@ -101,6 +110,13 @@ public sealed record OrderRequest
 
         if (Expiry != null && Expiry <= DateTimeOffset.UtcNow)
             throw new InvalidOperationException("Expiry must be in the future.");
+
+        // Post-only (T-191): the maker-only contract is defined for limit
+        // orders only. A non-limit request that claims post-only is
+        // unparsable, never silently degraded to a plain order.
+        if (PostOnly && Type != OrderType.Limit)
+            throw new InvalidOperationException(
+                $"PostOnly is only supported for Limit orders; {Type} is refused.");
 
         if ((Type == OrderType.Limit || Type == OrderType.StopLimit) && Price == null)
             throw new InvalidOperationException($"Price is required for {Type} orders.");

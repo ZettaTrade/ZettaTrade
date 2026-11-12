@@ -861,6 +861,12 @@ Estimated fee: {10}</value>
   <data name="NewOrder.BracketArmsOnFill" xml:space="preserve">
     <value>The take-profit and stop-loss legs arm when the entry fills.</value>
   </data>
+  <data name="NewOrder.PostOnlyLabel" xml:space="preserve">
+    <value>Post-only</value>
+  </data>
+  <data name="NewOrder.ReduceOnlyLabel" xml:space="preserve">
+    <value>Reduce-only</value>
+  </data>
   <data name="NewOrder.TriggerRequired" xml:space="preserve">
     <value>Trigger price is required</value>
   </data>
@@ -1253,6 +1259,15 @@ Estimated fee: {10}</value>
   </data>
   <data name="History.ColStatus" xml:space="preserve">
     <value>Status</value>
+  </data>
+  <data name="History.ColFlags" xml:space="preserve">
+    <value>Flags</value>
+  </data>
+  <data name="Order.FlagPostOnly" xml:space="preserve">
+    <value>Post-only</value>
+  </data>
+  <data name="Order.FlagReduceOnly" xml:space="preserve">
+    <value>Reduce-only</value>
   </data>
   <data name="History.LoadFailed" xml:space="preserve">
     <value>Could not load the order history: {0}</value>

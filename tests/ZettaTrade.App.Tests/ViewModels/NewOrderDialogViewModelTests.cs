@@ -1546,6 +1546,144 @@ public sealed class NewOrderDialogViewModelTests
 
     #endregion The Ticket-Local Sizing Row (T-079)
 
+    #region The Execution Flags (T-191)
+
+    /// <summary>One paper position on the BTC/USDT pair.</summary>
+    private static Position BuildPosition(OrderSide side, decimal quantity = 0.5m) => new()
+    {
+        Id = $"pos-{Guid.NewGuid():N}",
+        ExchangeId = PaperTradingAdapter.ExchangeId,
+        Symbol = Symbol.Parse("BTC/USDT"),
+        Side = side,
+        Quantity = new Quantity(quantity),
+        EntryPrice = new Price(50_000m),
+        CurrentPrice = new Price(50_000m),
+        OpenedAt = DateTimeOffset.UtcNow,
+    };
+
+    private static async Task WaitUntilAsync(Func<bool> condition, string because)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(25);
+        }
+
+        condition().Should().BeTrue(because);
+    }
+
+    [Fact]
+    public void Flags_PostOnlySwitch_AppliesToPlainLimitOnly()
+    {
+        using var viewModel = CreateViewModel();
+
+        // Market: the maker-only contract does not apply.
+        viewModel.SelectedTypeIndex = 0; // Market
+        viewModel.IsPostOnlyEnabled.Should().BeFalse();
+        viewModel.IsPostOnly.Should().BeFalse();
+
+        // Limit: the switch enables and records the picked state.
+        viewModel.SelectedTypeIndex = 1; // Limit
+        viewModel.IsPostOnlyEnabled.Should().BeTrue();
+        viewModel.IsPostOnly = true;
+        viewModel.IsPostOnly.Should().BeTrue();
+
+        // Leaving the limit type releases the switch: a disabled checkbox
+        // never keeps a checked state no request would carry.
+        viewModel.SelectedTypeIndex = 0;
+        viewModel.IsPostOnlyEnabled.Should().BeFalse();
+        viewModel.IsPostOnly.Should().BeFalse("a disabled post-only switch never keeps a stale check");
+    }
+
+    [Fact]
+    public void Flags_OcoAndBracketModes_HideTheRow()
+    {
+        using var viewModel = CreateViewModel();
+
+        viewModel.SelectedTypeIndex = OcoModeIndex;
+        viewModel.IsFlagsRowVisible.Should().BeFalse();
+
+        viewModel.SelectedTypeIndex = BracketModeIndex;
+        viewModel.IsFlagsRowVisible.Should().BeFalse();
+
+        viewModel.SelectedTypeIndex = 1; // Limit
+        viewModel.IsFlagsRowVisible.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Flags_ReduceOnlySwitch_RidesTheOppositePositionContext()
+    {
+        // Arrange: the adapter holds a SHORT BTC/USDT position; the picked
+        // buy side could shrink it.
+        _trading.GetPositionsAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<Position> { BuildPosition(OrderSide.Sell) });
+        using var viewModel = CreateViewModel();
+
+        // The unparsable text parks the switch: no context from garbage.
+        viewModel.SymbolInput = "garbage";
+        await WaitUntilAsync(() => !viewModel.IsReduceOnlyEnabled, "the parked switch");
+        viewModel.IsReduceOnlyEnabled.Should().BeFalse();
+
+        // Act: a real symbol with the picked buy side opposite the held short.
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.SelectedSideIndex = (int)OrderSide.Buy;
+
+        await WaitUntilAsync(() => viewModel.IsReduceOnlyEnabled, "the opposite-side context");
+
+        // The switch enables and records the picked state.
+        await WaitUntilAsync(() => viewModel.IsReduceOnlyEnabled, "the opposite-side context");
+        viewModel.IsReduceOnly = true;
+        viewModel.IsReduceOnly.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Flags_ReduceOnlySwitch_ParksWithoutAnOppositePosition()
+    {
+        // Arrange: no positions at all.
+        _trading.GetPositionsAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<Position>());
+        using var viewModel = CreateViewModel();
+
+        viewModel.SymbolInput = "BTC/USDT";
+        viewModel.SelectedSideIndex = (int)OrderSide.Buy;
+
+        await WaitUntilAsync(() => viewModel.SymbolInput == "BTC/USDT", "the symbol commit");
+        viewModel.IsReduceOnlyEnabled.Should().BeFalse("a long-buy ticket shrinks no held short");
+    }
+
+    [Fact]
+    public async Task Flags_ThePlacedLimitCarriesBothSwitches()
+    {
+        // Arrange: the paper lane (confirmation policy OFF in paper), the
+        // risk gate approving, and a held short opposite the picked buy.
+        _trading.GetPositionsAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<Position> { BuildPosition(OrderSide.Sell) });
+        _riskManager.CheckOrderAsync(Arg.Any<OrderRequest>())
+            .Returns(RiskCheckResult.Approved(requiresConfirmation: true));
+        _confirmation.RequestConfirmationAsync(Arg.Any<ConfirmationRequest>()).Returns(true);
+        using var viewModel = CreateViewModel();
+
+        FillValidLimitOrder(viewModel);
+        viewModel.IsPostOnly = true;
+        await WaitUntilAsync(() => viewModel.IsReduceOnlyEnabled, "the opposite-side context");
+        viewModel.IsReduceOnly = true;
+
+        var placed = (OrderRequest?)null;
+        _trading.PlaceOrderAsync(Arg.Do<OrderRequest>(r => placed = r))
+            .Returns(call => BuildFilledOrder(call.Arg<OrderRequest>()!));
+
+        // Act
+        await viewModel.PlaceOrderCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the request the adapter received carries both flags.
+        placed.Should().NotBeNull();
+        placed!.Type.Should().Be(OrderType.Limit);
+        placed.PostOnly.Should().BeTrue();
+        placed.ReduceOnly.Should().BeTrue();
+    }
+
+    #endregion The Execution Flags (T-191)
+
     /// <summary>
     /// A schedule registry resolved by adapter id: the paper adapter answers
     /// the shipped schedule, every other id stays unknown — the exchange

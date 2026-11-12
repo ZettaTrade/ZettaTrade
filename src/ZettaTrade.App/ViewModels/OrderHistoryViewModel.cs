@@ -33,7 +33,10 @@ public sealed class OrderHistoryViewModel : ReactiveObject
     private const string LoadFailedKey = "History.LoadFailed";
     private const string ExportFailedKey = "History.ExportFailed";
     private const string FeeUnknownKey = "Fees.Unknown";
+    private const string PostOnlyFlagKey = "Order.FlagPostOnly";
+    private const string ReduceOnlyFlagKey = "Order.FlagReduceOnly";
     private const string FeeDisplayFormat = "F8";
+    private const string FlagsSeparator = ", ";
 
     #endregion Resx Keys
 
@@ -259,6 +262,7 @@ public sealed class OrderHistoryViewModel : ReactiveObject
         Price = order.Price.Value.ToString("F8", CultureInfo.InvariantCulture),
         Status = _localization.GetString($"Positions.Status{order.Status}"),
         Fee = FormatFee(order.Commission),
+        Flags = FormatFlags(order.ReduceOnly, order.PostOnly),
     };
 
     /// <summary>
@@ -271,6 +275,27 @@ public sealed class OrderHistoryViewModel : ReactiveObject
         commission is { } fee
             ? fee.ToString(FeeDisplayFormat, CultureInfo.InvariantCulture)
             : _localization.GetString(FeeUnknownKey);
+
+    /// <summary>
+    /// The order's flags as a localized list (post-only, reduce-only); an
+    /// order placed without either contract carries an empty cell — the
+    /// honest "no flags", never a fabricated dash.
+    /// </summary>
+    private string FormatFlags(bool reduceOnly, bool postOnly)
+    {
+        var flags = new List<string>(2);
+        if (postOnly)
+        {
+            flags.Add(_localization.GetString(PostOnlyFlagKey));
+        }
+
+        if (reduceOnly)
+        {
+            flags.Add(_localization.GetString(ReduceOnlyFlagKey));
+        }
+
+        return string.Join(FlagsSeparator, flags);
+    }
 
     #endregion Private Methods
 }

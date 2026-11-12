@@ -49,4 +49,11 @@ public sealed record OrderHistoryRowViewModel
     /// an honest unknown, never a fabricated zero.
     /// </summary>
     public required string Fee { get; init; }
+
+    /// <summary>
+    /// The order's execution flags as a localized list (post-only,
+    /// reduce-only). An empty cell is the honest "no flags": an order
+    /// placed without either contract shows nothing, never a dash.
+    /// </summary>
+    public required string Flags { get; init; }
 }

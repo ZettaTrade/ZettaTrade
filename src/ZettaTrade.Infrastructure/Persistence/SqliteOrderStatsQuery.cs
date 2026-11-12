@@ -117,6 +117,8 @@ public sealed class SqliteOrderStatsQuery(
         Price = new Price(entry.Price),
         Status = entry.Status,
         TimeInForce = entry.TimeInForce,
+        ReduceOnly = entry.ReduceOnly,
+        PostOnly = entry.PostOnly,
         CreatedAt = entry.CreatedAt,
         UpdatedAt = entry.UpdatedAt,
         FilledQuantity = new Quantity(entry.FilledQuantity),

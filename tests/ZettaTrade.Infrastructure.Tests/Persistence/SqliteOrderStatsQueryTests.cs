@@ -89,6 +89,8 @@ public sealed class SqliteOrderStatsQueryTests
             Price = 10m,
             Status = status,
             TimeInForce = TimeInForce.GTC,
+            ReduceOnly = false,
+            PostOnly = false,
             CreatedAt = createdAt,
             FilledQuantity = filledQuantity ?? quantity,
         };

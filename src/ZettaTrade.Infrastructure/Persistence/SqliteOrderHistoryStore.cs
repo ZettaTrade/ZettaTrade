@@ -116,17 +116,19 @@ public sealed class SqliteOrderHistoryStore(
         var rejectReason = order.RejectReason;
         var expiry = NullableTimestampText(order.Expiry);
         var commission = NullableAmountText(order.Commission);
+        var reduceOnly = order.ReduceOnly;
+        var postOnly = order.PostOnly;
 
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"""
             INSERT INTO Orders (
                 ExchangeId, OrderId, Symbol, Side, Type, Quantity, Price, Status, TimeInForce,
                 CreatedAt, UpdatedAt, FilledQuantity, ClientOrderId, StopPrice, ExchangeOrderId,
-                RejectReason, Expiry, Commission)
+                RejectReason, Expiry, Commission, ReduceOnly, PostOnly)
             VALUES (
                 {exchangeId}, {orderId}, {symbol}, {side}, {type}, {quantity}, {price}, {status},
                 {timeInForce}, {createdAt}, {updatedAt}, {filledQuantity}, {clientOrderId}, {stopPrice},
-                {exchangeOrderId}, {rejectReason}, {expiry}, {commission})
+                {exchangeOrderId}, {rejectReason}, {expiry}, {commission}, {reduceOnly}, {postOnly})
             ON CONFLICT (ExchangeId, OrderId) DO UPDATE SET
                 Symbol = {symbol},
                 Side = {side},
@@ -143,7 +145,9 @@ public sealed class SqliteOrderHistoryStore(
                 ExchangeOrderId = {exchangeOrderId},
                 RejectReason = {rejectReason},
                 Expiry = {expiry},
-                Commission = {commission}
+                Commission = {commission},
+                ReduceOnly = {reduceOnly},
+                PostOnly = {postOnly}
             """,
             cancellationToken);
     }
@@ -240,6 +244,8 @@ public sealed class SqliteOrderHistoryStore(
         Price = new Price(entry.Price),
         Status = entry.Status,
         TimeInForce = entry.TimeInForce,
+        ReduceOnly = entry.ReduceOnly,
+        PostOnly = entry.PostOnly,
         CreatedAt = entry.CreatedAt,
         UpdatedAt = entry.UpdatedAt,
         FilledQuantity = new Quantity(entry.FilledQuantity),

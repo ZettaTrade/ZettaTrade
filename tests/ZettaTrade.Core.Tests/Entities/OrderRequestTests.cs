@@ -468,4 +468,71 @@ public sealed class OrderRequestTests
     }
 
     #endregion
+
+    // ------------------------------------------------------------------
+    // T-191 order flags: post-only is the maker-only contract, defined
+    // for limit orders only — a non-limit request carrying it is refused,
+    // never degraded. Reduce-only carries no type restriction of its own.
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void Validate_PostOnlyLimitOrder_ShouldNotThrow()
+    {
+        var request = ValidOrder() with
+        {
+            Type = OrderType.Limit,
+            Price = new Price(50_000m),
+            PostOnly = true,
+        };
+
+        request.Invoking(r => r.Validate()).Should().NotThrow();
+    }
+
+    [Theory]
+    [InlineData(OrderType.Market)]
+    [InlineData(OrderType.StopLimit)]
+    [InlineData(OrderType.TrailingStop)]
+    public void Validate_PostOnlyNonLimitOrder_ShouldThrow(OrderType type)
+    {
+        // The shape is otherwise valid: the refusal must name the post-only
+        // contract, not the type's own parameter requirements.
+        var request = ValidOrder() with
+        {
+            Type = type,
+            Price = new Price(50_000m),
+            StopPrice = type is OrderType.StopLimit or OrderType.TrailingStop
+                ? new Price(49_500m)
+                : null,
+            TrailDistance = type == OrderType.TrailingStop ? new Price(500m) : null,
+            PostOnly = true,
+        };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*PostOnly*Limit*");
+    }
+
+    [Fact]
+    public void Validate_ReduceOnlyOnMarketAndLimit_ShouldNotThrow()
+    {
+        var market = ValidOrder() with { ReduceOnly = true };
+        market.Invoking(r => r.Validate()).Should().NotThrow();
+
+        var limit = market with { Type = OrderType.Limit, Price = new Price(50_000m) };
+        limit.Invoking(r => r.Validate()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_BracketStopLossLegCarryingPostOnly_ShouldThrow()
+    {
+        // The legs validate as whole requests: a stop-limit leg claiming
+        // the limit-only post-only contract is refused with its own reason.
+        var bracket = ValidBracket() with
+        {
+            StopLoss = ValidBracket().StopLoss with { PostOnly = true },
+        };
+        var request = ValidOrder() with { BracketLegs = bracket };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*PostOnly*Limit*");
+    }
 }
