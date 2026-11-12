@@ -201,7 +201,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | done | - |
 | T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | done | - |
 | T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | done | - |
-| T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | planned | - |
+| T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | in-progress | - |
 | T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | planned | - |
 | T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | planned | - |
 | T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/draw-tools-2 | planned | - |
@@ -455,7 +455,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-197 — Futures contour MVP: Bybit linear perps
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** `feat/futures-mvp` off `develop` (base `299521a`).
 - **Origin:** the sweep — every adapter is spot-only; derivatives stay out entirely.
 - **What:** Bybit linear perpetual market data as a new market-data category: instruments,
   klines, tickers, depth, plus the read-only funding rate and open interest; the watchlist row
@@ -467,7 +467,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** a perp symbol loads the chart, book and tape; the funding rate reads in the
   watchlist row; the spot flows are unchanged.
 - **Tests:** the adapter-kit coverage for the perp category; the funding-model contract tests.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-198 — Stocks MVP: a market-data adapter
 
