@@ -3072,3 +3072,77 @@ the board and its section below.
   silent subject (an unstubbed substitute lane made two service tests order-dependent —
   the TP leg was observed Filled between placements; the stub matches the infra battery's
   precedent and three full-class runs held green).
+
+## T-188 - Kill switch: cancel all + flatten all
+
+- **Branch:** feat/kill-switch, worktree zt-kill-switch, based on
+  develop@57304cf (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — no single panic route exists; the T-076 bulk cancel covers one
+  symbol's orders only.
+- **What:** one user action (a menu item + a remappable hotkey) that cancels every working
+  order and closes every open position across all armed trading adapters, behind ONE explicit
+  confirmation listing what will be cancelled and closed; per-item best effort with an honest
+  summary report (the T-076 discipline widened to positions and adapters).
+- **Scope:** App services (the aggregate command over the trading adapters), the menu + hotkey
+  registration, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** one confirmation covers the whole sweep; partial failures surface item by
+  item; the hotkey rides the hotkey manager (the cheat sheet reads it); nothing fires without
+  the confirmation.
+- **Tests:** the service-level battery (mixed adapters, the failure matrix); the hotkey
+  registration pin.
+- **Status:** done. Canon: the claim `83078be`, the feat `cfd3dd2`, this close commit follows;
+  alpha.131 -> alpha.132; no satellite release rode it (Livery 0.1.11, Plugins 0.3.0
+  untouched). Lane: supervisor-solo (the subagent lane stays closed). Shipped: NO Core
+  interface change. The sweep commands BOTH trading venues unconditionally (the paper
+  simulator first, the Bybit testnet venue second — panic semantics "flat everywhere", no
+  survivor behind a lane/picker subtlety); a venue whose read faults reports itself
+  unreachable (`KillSwitchVenueUnreachableFormat`) and the sweep continues. Flow: fresh
+  per-venue reads build the plan (`KillSwitchVenuePlan`: orders filtered to the working
+  statuses Pending/Submitted/PartiallyFilled, positions to non-zero) -> nothing anywhere
+  reports the localized nothing WITHOUT a confirmation (the T-187 no-op precedent) -> ONE
+  confirmation (`ForKillSwitch`: the totals + the per-venue plan lines with the positions
+  named side/quantity/symbol, venue lines joined with a space) -> execution per venue in
+  plan order: symbol-first cancels (`CancelOrderAsync(order.Symbol, order.Id)`, the same
+  command path the per-row cancel and the MCP tool ride) then a FRESH positions re-read
+  and reduce-only market exits (MarketReference anchor, `ExitSideOf` — an undefined side
+  faults the item, never defaults; Validate -> IRiskManager -> PlaceOrder) sized by the
+  fresh read (vanished = AlreadyFlat reported honestly; changed = sized by fresh facts,
+  the reduce-only flag capping what the venue reports). Per-item best effort: one fault =
+  its own failed report, never stops the rest; bookkeeping best effort (cancel ->
+  `MarkCancelledAsync`; exit -> `RecordPlaced` + `RecordPlacedAsync`); the outer catch
+  keeps the reached reports and appends the explicit NotAttempted tails (compared by
+  `Symbol.Normalized`, never by reference — the fresh re-read carries different
+  instances). The hotkey rides the hotkey manager: `HotkeyRegistry.KillSwitch =
+  "Trading.KillSwitch"`, shipped Ctrl+Shift+X (a deliberate two-modifier chord, never a
+  stray stroke) inserted between NewOrder and ToggleAiChat — the cheat sheet, the
+  settings tab and the menu's advertised gesture all read the same live map. The menu:
+  the kill switch is the Trading menu's FIRST item with a Separator after it (panic
+  prominence), `TradingKillSwitchMenuItem`; the report window
+  (`KillSwitchReportWindow`) shows the localized multi-line summary (per-venue counts,
+  the closed positions named with their exit order ids, the failed items' reasons in the
+  tail, the unreachable venues); a refused confirmation is silent (nothing touched,
+  nothing reported). DI: `AddKillSwitchServices` registers the venue set over the
+  explicit `[PaperTradingAdapter, BybitTradingAdapter]` array (the sweep never routes
+  through the current lane; testable via the `IEnumerable<ITradingAdapter>` ctor) and
+  the sweep service. Venue naming: the paper venue tags the localized
+  `Positions.BulkTagPaper`, a live venue its own name (the T-076 precedent). Tests: the
+  service battery (12: the mixed-venue sweep, the nothing state, the declined refusal,
+  the unreachable venue, the cancel fault, the vanished position, the risk rejection,
+  the placement fault, the unsupported side, the fresh-read fault, the fresh sizing,
+  the REAL paper adapter end-to-end flatten), the composer facts (3), the DI pins (3)
+  and the surface pins (6: the registry membership+chord, the menu lead+separator, the
+  code-behind handoff, the report-window AutomationIds, the route+advertised-gesture
+  wiring, the resx en+ru parity on the 14 keys); the four hardwired four-action pins
+  (the hotkey rows/sheet, the menu gestures, the headless startup hints) updated to the
+  five-action registry. GATE PASSED (5 non-blocking warnings: the sequenced
+  `Task.FromResult` stub idioms — NSubstitute's sequenced returns require task-valued
+  lambdas when a fault mixes into the sequence; an empty collection expression as the
+  last sequenced value otherwise binds to the params array itself and repeats the first
+  value forever). SMOKE PASSED on the T-166 functional bar: title held through the hold,
+  0 ERR/FTL, 0 ticker failures, palette refreshed, strategies+indicators provided,
+  ProductVersion 0.1.0-alpha.132+cfd3dd2. Hazards (recorded, accepted): the sweep's
+  exits ride the ONE sweep confirmation, never a per-item one — exactly the
+  bracket/reverse single-summary shape; a risk rejection of one exit leaves that
+  position open and reported while the rest still flatten (the report names it loudly);
+  a fresh-read fault reports that venue's planned positions NotAttempted while the
+  other venues still flatten.
