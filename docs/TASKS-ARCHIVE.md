@@ -2862,3 +2862,58 @@ the board and its section below.
   reviewer note for the human (gate-flagged): AmendOrderDialogWindow touched in markup only
   (the Amend button's class adoption; the trading path untouched). Hazards: none new.
 
+## T-184 - The settings window rides the category rail and the section cards
+
+- **Branch:** feat/settings-rail-cards, worktree zt-settings-rail-cards, based on develop@8aaeebe
+  (claimed 2026-11-12 per standing directive 6 — the 2026-11-12 design pass, variant A approved by
+  the user; the soft blocker T-183 landed, the buttons are in).
+- **Origin:** the settings window (760x720, four folded tabs) scrolls its long tabs whole —
+  Integrations and Workspace wrap their bodies in ScrollViewers, so the user scrolls to reach
+  anything; the section headers are bare bold TextBlocks with a top margin, reading as plain
+  text; the user asked for panels that read as panels. The approved variant A mockup fixes all
+  three: a left category rail, section cards, compact headers.
+- **What:** the tab strip becomes a left category rail (~190px: the retired tab captions
+  Appearance/Indicators/Integrations/Workspace become the rail items; the selected item rides
+  the soft Accent tint + the 3px Accent tick, keyboard navigable per the T-110 discipline); the
+  window grows taller-and-wider (~880x640) so each page fits without the whole-body scroll —
+  the long lists keep their own scrollports, Save/Close stay pinned; every section becomes a
+  Surface card (1px Border stroke, the CornerM radius) whose header is a compact label (Caption
+  11, uppercase, letter-spaced, TextSecondary) with a 3px Accent tick — the card+header shape
+  ships once (the Livery kit if shared, else the App themes), the settings' sections consume.
+- **Scope:** SettingsWindow.axaml (+ the rail's selected-index state on SettingsViewModel, the
+  TabControl index binding re-rides), the Livery kit if the section-card shape is shared; resx:
+  the rail captions reuse the existing tab keys; no settings behavior change — every binding,
+  command and persistence seam untouched.
+- **Acceptance:** no whole-window scroll at the default size (the headless bounds pin in the
+  T-144 lane); every section reads as a card with the compact header; the rail keyboard-navigates;
+  the pinned Save/Close footer survives the re-layout.
+- **Tests:** the headless bounds pin (no scroll at the default size); the existing settings
+  goldens stay green (behavior parity); a source pin that the section headers ride the shared
+  style.
+- **Status:** done. Canon: the claim `bf18b91`, the feat `9393d24`, this close commit follows;
+  ships as 0.1.0-alpha.129 with the matching CHANGELOG section. The work: the tab strip
+  becomes the left category rail (the four tab items restyle the theme's own internals via the
+  `/template/` selectors — the selected item holds the 3 px Accent tick, the theme's re-shaped
+  PART_SelectedPipe; the arrows walk the rail through the TabItem/TabControl focus-selection
+  contract, no custom keyboard code); the section-card grammar ships once in
+  Themes/SectionCards.axaml (the Surface panel + the hairline border + the CornerL step — the
+  task's original CornerM predates the T-183 ramp, canon wins: recorded deviation; the 3 px
+  tick + the tracked uppercase header, the six new Settings.Section.* keys in en and ru —
+  Avalonia has no text-transform, the resx values ship uppercase); the six cards (Appearance
+  1, Indicators 1, Integrations 2 — the port availability flag moved onto the port card,
+  Workspace 2); the inner viewport caps tuned so every page fits the default 880x720 (min
+  720x560) without the whole-body scroll: theme errors 160 (kept), MCP client cards 280, the
+  import preview 230, the hotkeys rows 175, the pairs lists' shared row height 305 — the body
+  ScrollViewers stay as the small machines' safety net and the pinned Save/Close footer
+  survives. SelectedTabIndex is view state only (RaiseAndSetIfChanged, never persisted); the
+  settings bindings, commands and persistence keep their shapes. Tests: the headless
+  no-scroll bounds pin over the four pages at the default size, the rail arrow-key walk fact,
+  the rail/card/caps source pins, the roomy-size pin updated (880x720, min 720x560), the
+  section-header key theory in both cultures; 1594 App.Tests facts green. GATE PASSED
+  attempt 1 (`-AllowProtected`; the warnings: the scope advisory plus the re-lifted
+  pre-existing HARDCODED-UI set — the canonical plugin names and the MCP transport labels —
+  and the App.Tests timing family ate its flaky retry: the veil-theme drain timeout passed
+  solo, recorded not fixed). Smoke PASSED on the T-166 functional bar: title held through the
+  12 s hold, 0 ERR/FTL, 0 ticker failures, ProductVersion 0.1.0-alpha.129+bf18b91…, palette
+  refreshed, strategies+indicators provided, no leftovers, sandbox deleted. Hazards: none
+  new (markup + view-state only, the trading paths untouched).

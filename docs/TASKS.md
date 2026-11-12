@@ -188,7 +188,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-181 The order ticket's CTA and side segments answer hover and pressed: the window's class styles grow the interaction variants (the review finding) | feat/ticket-cta-states | done | - |
 | T-182 The small-surface strays ride the scale and the palette: the off-scale margins and the bare Opacity dimmers move onto named keys (the review findings) | feat/surface-strays | done | - |
 | T-183 The button kit: quiet resting, a soft-tint hover, one primary per window, the corner tokens (the user-approved design pass) | feat/button-kit | done | - |
-| T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | in-progress | - |
+| T-184 The settings window rides the category rail and the section cards: no whole-window scroll, the headers read as panels (the user-approved design pass) | feat/settings-rail-cards | done | - |
 | T-185 The MainWindow's XAML re-indents: the 410-line DockPanel block stops sitting flush with its parent (the review finding) | refactor/main-xaml-indent | planned | - |
 | T-186 Bracket orders: entry + attached TP/SL (backlog sweep 2026-11-12) | feat/bracket-orders | planned | - |
 | T-187 SL/TP management from the positions panel (backlog sweep 2026-11-12) | feat/position-sltp | planned | - |
@@ -402,36 +402,6 @@ that day), whose live hover let the user feel the resting/hover/primary states i
 looking at a static picture. The approved shape files as T-183 (the button/kit half, riding the
 Livery satellite) and T-184 (the settings window's rail + cards); no separate findings doc —
 each section below carries its own origin. All rows start `planned`.
-
-## T-184 - The settings window rides the category rail and the section cards
-
-- **Branch:** feat/settings-rail-cards, worktree zt-settings-rail-cards, based on develop@8aaeebe
-  (claimed 2026-11-12 per standing directive 6 — the 2026-11-12 design pass, variant A approved by
-  the user; the soft blocker T-183 landed, the buttons are in).
-- **Origin:** the settings window (760x720, four folded tabs) scrolls its long tabs whole —
-  Integrations and Workspace wrap their bodies in ScrollViewers, so the user scrolls to reach
-  anything; the section headers are bare bold TextBlocks with a top margin, reading as plain
-  text; the user asked for panels that read as panels. The approved variant A mockup fixes all
-  three: a left category rail, section cards, compact headers.
-- **What:** the tab strip becomes a left category rail (~190px: the retired tab captions
-  Appearance/Indicators/Integrations/Workspace become the rail items; the selected item rides
-  the soft Accent tint + the 3px Accent tick, keyboard navigable per the T-110 discipline); the
-  window grows taller-and-wider (~880x640) so each page fits without the whole-body scroll —
-  the long lists keep their own scrollports, Save/Close stay pinned; every section becomes a
-  Surface card (1px Border stroke, the CornerM radius) whose header is a compact label (Caption
-  11, uppercase, letter-spaced, TextSecondary) with a 3px Accent tick — the card+header shape
-  ships once (the Livery kit if shared, else the App themes), the settings' sections consume.
-- **Scope:** SettingsWindow.axaml (+ the rail's selected-index state on SettingsViewModel, the
-  TabControl index binding re-rides), the Livery kit if the section-card shape is shared; resx:
-  the rail captions reuse the existing tab keys; no settings behavior change — every binding,
-  command and persistence seam untouched.
-- **Acceptance:** no whole-window scroll at the default size (the headless bounds pin in the
-  T-144 lane); every section reads as a card with the compact header; the rail keyboard-navigates;
-  the pinned Save/Close footer survives the re-layout.
-- **Tests:** the headless bounds pin (no scroll at the default size); the existing settings
-  goldens stay green (behavior parity); a source pin that the section headers ride the shared
-  style.
-- **Status:** in-progress.
 
 ## T-185 - The MainWindow's XAML re-indents: the DockPanel block stops sitting flush with its parent
 
