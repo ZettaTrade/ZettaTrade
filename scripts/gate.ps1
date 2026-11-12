@@ -67,7 +67,11 @@ function Test-AnyLike([string]$Text, [string[]]$Patterns) {
 # SurfaceStrayPinsTests failed 5 gate runs in a row right after the build,
 # green in isolation and ~2 minutes later). Wait until the newest binary under
 # tests/src is at least $MinAgeSeconds old, capped at $MaxWaitSeconds; a no-op
-# build skips the wait because the newest binary is already old.
+# build skips the wait because the newest binary is already old. Measured
+# profile (2026-11-12): the first App.Tests pass stays red up to ~290 s dwell,
+# while the pre-existing flaky retry turns green from ~245 s dwell; so the
+# settle feeds the retry, and settle+retry has been deterministically green
+# (2/2) where the bare gate was 0/5.
 function Wait-BuildSettle([string]$Root, [int]$MinAgeSeconds, [int]$MaxWaitSeconds) {
     $deadline = (Get-Date).AddSeconds($MaxWaitSeconds)
     $announced = $false
@@ -399,7 +403,7 @@ try {
                 if (-not $SkipTests) {
                     # Defender RT scans fresh binaries and stalls the first test
                     # load after a build (see Wait-BuildSettle); let them settle.
-                    Wait-BuildSettle $root 120 180
+                    Wait-BuildSettle $root 240 300
                     $testArgs = @('test', $sln[0].FullName, '--no-build', '--nologo', '-v', 'q')
                     $test = Invoke-Tool 'dotnet' $testArgs
                     $test.Output | Add-Content $logFile
