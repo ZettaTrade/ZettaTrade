@@ -35,7 +35,7 @@ using ZettaTrade.Core.ValueObjects;
 /// key pair — never a command line, never a config file) and reach the
 /// venue as signed requests: every trading call carries
 /// <c>X-MBX-APIKEY</c> plus an HMAC-SHA256 hex signature over the exact
-/// query string sent (<c>...&amp;timestamp&amp;recvWindow</c> first, the
+/// query string sent (the timestamp and recvWindow members first, the
 /// <c>signature</c> member appended after signing). Secrets are fetched per
 /// operation, never cached, and are never logged.
 /// </para>
