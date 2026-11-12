@@ -197,7 +197,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/tif-simulation | done | - |
 | T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | done | - |
 | T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | done | - |
-| T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | in-progress | - |
+| T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | done | - |
 | T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | planned | - |
 | T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | planned | - |
 | T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | planned | - |
@@ -423,7 +423,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-193 — Binance spot testnet trading adapter
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** `zt-binance-trading` off `develop` (the 2026-11-12 backlog sweep; claim commit
+  `3c0190a`, base `2440250`).
 - **Origin:** the sweep — real (testnet) trading exists only for Bybit; Binance rides read-only
   market data.
 - **What:** a `BinanceTradingAdapter` mirroring the Bybit trading adapter's shape: signed REST
@@ -436,7 +437,20 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** the conformance battery passes against the loopback stub; the arming gate
   matches the Bybit adapter's discipline verbatim; no key ever reaches a log or an argument.
 - **Tests:** the adapter-kit battery for the new adapter; the arming-gate pins.
-- **Status:** in-progress.
+- **Status:** done — shipped as 0.1.0-alpha.137. The adapter rides a delegated market-data face
+  (the venue's own `BinanceAdapter`), a listen-key private stream (issue → dial
+  `{PrivateWsUrl}/{listenKey}` → receive-only → the 30-minute keepalive loop), HMAC-SHA256
+  hex over the exact query string (`X-MBX-APIKEY` header), LIMIT GTC only with post-only on
+  the venue's `GTX` token (`LIMIT_MAKER` reads back onto GTC+flag), strict status mapping
+  (transitional statuses refuse), honest-empty positions, free+locked balances, arming via the
+  generic venue resolver in `TradingSurfaceService` (no new settings keys), the venue journal
+  merged over both venues' streams, the kill-switch sweep extended to the new venue. Kit
+  battery 24/24 through the new delegated depth profile + symbol-first book-topic template
+  (the honest pack declares blank-endpoints guards only — `BinanceAdapter` has no
+  unknown-symbol/bars-limit guards); Infrastructure 22 signed-wire facts + 4 private-stream
+  e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
+  were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
+  new user-facing UI string was introduced.
 
 ## T-194 — Third venue: OKX market data
 
