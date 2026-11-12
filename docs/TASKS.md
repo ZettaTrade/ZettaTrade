@@ -196,7 +196,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-189 Daily loss limit in the risk governor (backlog sweep 2026-11-12) | feat/daily-loss-limit | done | - |
 | T-190 Honest TIF simulation in the paper adapter (backlog sweep 2026-11-12) | feat/tif-simulation | done | - |
 | T-191 Order flags: post-only, reduce-only (backlog sweep 2026-11-12) | feat/order-flags | done | - |
-| T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | planned | - |
+| T-192 Paper account management: reset, starting balance (backlog sweep 2026-11-12) | feat/paper-account | in-progress | - |
 | T-193 Binance spot testnet trading adapter (backlog sweep 2026-11-12) | feat/binance-trading | planned | - |
 | T-194 Third venue: OKX market data (backlog sweep 2026-11-12) | feat/okx-adapter | planned | - |
 | T-195 Market screener panel (backlog sweep 2026-11-12) | feat/screener | planned | - |
@@ -423,7 +423,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-192 — Paper account management: reset, starting balance
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/paper-account, worktree zt-paper-account, based on
+  develop@49de4b4 (claimed 2026-11-12 off the synced board — the 2026-11-12 backlog sweep).
 - **Origin:** the sweep — the paper engine carries a fixed starting balance with no reset and
   no top-up route.
 - **What:** a settings/UI route to reset the paper account (balances, positions, working
@@ -436,7 +437,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** a reset restores the chosen balance and empties the paper positions, orders
   and journal; live/testnet surfaces are untouched; the confirmation names exactly what wipes.
 - **Tests:** the reset battery; the settings round-trip pin.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-193 — Binance spot testnet trading adapter
 
