@@ -14,6 +14,16 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to open new order dialog.</summary>
     public ReactiveCommand<RxVoid, RxVoid> NewOrderCommand { get; }
 
+    /// <summary>Command to run the kill switch: cancel all + close all (T-188).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> KillSwitchCommand { get; }
+
+    /// <summary>
+    /// Interaction that routes the kill-switch request to the View, which
+    /// runs the sweep service and renders its report (window plumbing stays
+    /// out of the ViewModel, same pattern as <see cref="NewOrderRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> KillSwitchRequested { get; }
+
     /// <summary>Command to show positions view.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowPositionsCommand { get; }
 
@@ -169,6 +179,7 @@ public sealed class MenuViewModel : ReactiveObject
 
         OpenSettingsRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
+        KillSwitchRequested = new Interaction<RxVoid, RxVoid>();
         ShowPositionsRequested = new Interaction<RxVoid, RxVoid>();
         ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
         ShowTradeStatsRequested = new Interaction<RxVoid, RxVoid>();
@@ -181,6 +192,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowLicenseActivationRequested = new Interaction<RxVoid, RxVoid>();
         ShowLogViewerRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
+        KillSwitchCommand = ReactiveCommand.CreateFromTask(HandleKillSwitchAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
         ShowTradeStatsCommand = ReactiveCommand.CreateFromTask(HandleShowTradeStatsAsync);
@@ -265,6 +277,13 @@ public sealed class MenuViewModel : ReactiveObject
     /// the ViewModel, same as the settings window).
     /// </summary>
     private Task HandleNewOrderAsync() => NewOrderRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the kill-switch request to the View (the sweep service runs
+    /// behind the View's handler, window plumbing stays out of the
+    /// ViewModel, same as the new-order dialog).
+    /// </summary>
+    private Task HandleKillSwitchAsync() => KillSwitchRequested.Handle(RxVoid.Default);
 
     /// <summary>
     /// Route the show-positions request to the View (window plumbing stays

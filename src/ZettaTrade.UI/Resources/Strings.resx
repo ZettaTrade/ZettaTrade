@@ -51,6 +51,9 @@
   <data name="Menu.Trading" xml:space="preserve">
     <value>Trading</value>
   </data>
+  <data name="Menu.Trading.KillSwitch" xml:space="preserve">
+    <value>Kill Switch — Cancel All + Close All</value>
+  </data>
   <data name="Menu.Trading.NewOrder" xml:space="preserve">
     <value>New Order...</value>
   </data>
@@ -635,6 +638,42 @@
   </data>
   <data name="Trading.Cancel" xml:space="preserve">
     <value>Cancel</value>
+  </data>
+  <data name="Trading.ConfirmKillSwitchFormat" xml:space="preserve">
+    <value>Kill switch: cancel {0} working order(s) and close {1} open position(s) across every trading venue. {2} Confirm?</value>
+  </data>
+  <data name="Trading.KillSwitchPlanVenueFormat" xml:space="preserve">
+    <value>{0}: {1} order(s) to cancel, {2} position(s) to close: {3}.</value>
+  </data>
+  <data name="Trading.KillSwitchPlanPositionFormat" xml:space="preserve">
+    <value>{0} {1} {2}</value>
+  </data>
+  <data name="Trading.KillSwitchPlanNone" xml:space="preserve">
+    <value>none</value>
+  </data>
+  <data name="Trading.KillSwitchReportTitle" xml:space="preserve">
+    <value>Kill switch report</value>
+  </data>
+  <data name="Trading.KillSwitchNothing" xml:space="preserve">
+    <value>Nothing to cancel or close: no working orders and no open positions.</value>
+  </data>
+  <data name="Trading.KillSwitchVenueUnreachableFormat" xml:space="preserve">
+    <value>{0}: not reachable — {1}</value>
+  </data>
+  <data name="Trading.KillSwitchVenueDoneFormat" xml:space="preserve">
+    <value>{0}: orders cancelled: {1}, positions closed: {2}{3}, already flat: {4}, not attempted: {5}{6}</value>
+  </data>
+  <data name="Trading.KillSwitchClosedTailFormat" xml:space="preserve">
+    <value> ({0})</value>
+  </data>
+  <data name="Trading.KillSwitchClosedItemFormat" xml:space="preserve">
+    <value>{0} (order {1})</value>
+  </data>
+  <data name="Trading.KillSwitchFailedItemsFormat" xml:space="preserve">
+    <value>. Failed items: {0}.</value>
+  </data>
+  <data name="Trading.KillSwitchAbortedFormat" xml:space="preserve">
+    <value>The sweep stopped early: {0}</value>
   </data>
   <data name="Trading.Lane.Paper" xml:space="preserve">
     <value>Paper</value>
@@ -1922,6 +1961,9 @@ Estimated fee: {10}</value>
   </data>
   <data name="Hotkeys.Action.NewOrder" xml:space="preserve">
     <value>New order</value>
+  </data>
+  <data name="Hotkeys.Action.KillSwitch" xml:space="preserve">
+    <value>Kill switch (cancel all orders, close all positions)</value>
   </data>
   <data name="Hotkeys.Action.ToggleAiChat" xml:space="preserve">
     <value>Toggle assistant</value>

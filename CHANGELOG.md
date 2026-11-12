@@ -1,3 +1,29 @@
+## [0.1.0-alpha.132] - 2026-11-12
+
+Build of board task T-188 (branch `feat/kill-switch`): the kill switch —
+cancel all working orders + close all open positions.
+
+### Added
+- One user action (the Trading menu's leading item + the remappable
+  hotkey Ctrl+Shift+X, registered with the hotkey manager so the cheat
+  sheet and the settings tab carry it) sweeps every trading venue — the
+  paper simulator and the Bybit testnet surface alike — cancelling every
+  working order and closing every open position. The fresh per-venue
+  reads build the plan, ONE confirmation lists the totals and each
+  venue's orders and positions, and the per-item best-effort execution
+  commands the plan: cancellations ride the symbol-first cancel path,
+  closes ride reduce-only market exits sized by a fresh re-read,
+  validated and risk-checked per leg (a rejection never reaches the
+  venue). A venue whose read faults reports unreachable and the sweep
+  continues; an item's fault produces its own failed report and never
+  stops the rest; a vanished position reports already flat.
+- The honest report window: per-venue counts (orders cancelled,
+  positions closed with their symbols and exit order ids, already flat,
+  not attempted), the failed items' reasons in the tail, and the
+  unreachable venues named. Nothing anywhere reports the localized
+  nothing without a confirmation; a refused confirmation touches
+  nothing and reports nothing.
+
 ## [0.1.0-alpha.131] - 2026-11-12
 
 Build of board task T-187 (branch `feat/position-sltp`): stop-loss and

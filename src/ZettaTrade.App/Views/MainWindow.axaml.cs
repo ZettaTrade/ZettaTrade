@@ -129,6 +129,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // registration lives for the rest of it — no subscription disposal here.
         ViewModel?.Menu.OpenSettingsRequested.RegisterHandler(OpenSettingsAsync);
         ViewModel?.Menu.NewOrderRequested.RegisterHandler(OpenNewOrderAsync);
+        ViewModel?.Menu.KillSwitchRequested.RegisterHandler(RunKillSwitchAsync);
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
         ViewModel?.Menu.ShowTradeStatsRequested.RegisterHandler(OpenTradeStatsAsync);
@@ -627,6 +628,41 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         try
         {
             await OpenNewOrderDialogAsync(prefill: null);
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    /// <summary>
+    /// Land the menu's (and the hotkey's) kill-switch route (T-188): the
+    /// sweep service runs behind its ONE confirmation, and the localized
+    /// report window renders its per-venue outcome. A refused confirmation
+    /// reports nothing — the refusal is the user's answer; a sweep fault
+    /// logs loud and the route still settles (the same posture the other
+    /// window routes keep).
+    /// </summary>
+    private async Task RunKillSwitchAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            var service = App.Services.GetRequiredService<KillSwitchService>();
+            var result = await service.ExecuteAsync();
+            if (result.IsDeclined)
+            {
+                return;
+            }
+
+            var report = new KillSwitchReportWindow
+            {
+                DataContext = new KillSwitchReportViewModel(result.Summary ?? string.Empty),
+            };
+            await report.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to run the kill switch");
         }
         finally
         {

@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.KillSwitchReportWindow"
+        Classes="chrome-compact"
+        Icon="/Assets/ZettaTrade.ico"
+        x:DataType="vm:KillSwitchReportViewModel"
+        AutomationProperties.AutomationId="KillSwitchReportWindow"
+        Title="{loc:Localized Trading.KillSwitchReportTitle}"
+        Width="480" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceM}">
+        <!-- The sweep's honest per-venue report: counts, closed positions
+             named, failed items with their fault text (the T-076 report
+             discipline, widened to venues and positions) -->
+        <TextBlock Text="{Binding Summary}"
+                   TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="KillSwitchReportSummary" />
+
+        <Button Name="CloseButton"
+                Content="{loc:Localized Chrome.Close}"
+                MinWidth="100"
+                HorizontalAlignment="Center"
+                AutomationProperties.AutomationId="KillSwitchReportCloseButton"
+                Click="OnCloseClick" />
+    </StackPanel>
+</Window>

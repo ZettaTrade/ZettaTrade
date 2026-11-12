@@ -414,6 +414,80 @@ public sealed class OrderConfirmationComposerTests
         act.Should().Throw<ArgumentException>();
     }
 
+    [Fact]
+    public void ForKillSwitch_MixedVenues_TotalsThePlanAndListsEachVenue()
+    {
+        // Arrange: the paper venue carries one order and one long; the bybit
+        // venue one short and no orders — the ONE summary over the whole
+        // sweep names every venue's plan.
+        var composer = new OrderConfirmationComposer(_localization);
+        var venueA = Substitute.For<ITradingAdapter>();
+        var planA = new KillSwitchVenuePlan(
+            "[Positions.BulkTagPaper]",
+            venueA,
+            [BuildOrder("order-a", OrderSide.Buy)],
+            [BuildPosition("BTC/USDT", OrderSide.Buy, 0.02m)]);
+        var venueB = Substitute.For<ITradingAdapter>();
+        var planB = new KillSwitchVenuePlan(
+            "Bybit Testnet",
+            venueB,
+            [],
+            [BuildPosition("ETH/USDT", OrderSide.Sell, 2m)]);
+
+        // Act
+        var confirmation = composer.ForKillSwitch([planA, planB]);
+
+        // Assert: the totals lead, the per-venue listing follows, the
+        // positions are named in full (side, quantity, symbol).
+        confirmation.MessageKey.Should().Be("Trading.ConfirmKillSwitchFormat");
+        confirmation.Arguments.Should().HaveCount(3);
+        confirmation.Arguments[0].Should().Be("1");
+        confirmation.Arguments[1].Should().Be("2");
+        confirmation.Arguments[2].Should().Be(
+            "[Trading.KillSwitchPlanVenueFormat:[Positions.BulkTagPaper]|1|1|[Trading.KillSwitchPlanPositionFormat:[Order.Buy]|0.02|BTC/USDT]]"
+            + " "
+            + "[Trading.KillSwitchPlanVenueFormat:Bybit Testnet|0|1|[Trading.KillSwitchPlanPositionFormat:[Order.Sell]|2|ETH/USDT]]");
+    }
+
+    [Fact]
+    public void ForKillSwitch_EmptyVenue_TheListingReadsTheLocalizedNone()
+    {
+        // Arrange: a venue that reads empty still gets its plan line — the
+        // sweep's honest nothing rides the same listing.
+        var composer = new OrderConfirmationComposer(_localization);
+        var venue = Substitute.For<ITradingAdapter>();
+        var plan = new KillSwitchVenuePlan("Bybit Testnet", venue, [], []);
+
+        // Act
+        var confirmation = composer.ForKillSwitch([plan]);
+
+        // Assert
+        confirmation.MessageKey.Should().Be("Trading.ConfirmKillSwitchFormat");
+        confirmation.Arguments[0].Should().Be("0");
+        confirmation.Arguments[1].Should().Be("0");
+        confirmation.Arguments[2].Should().Be("[Trading.KillSwitchPlanVenueFormat:Bybit Testnet|0|0|[Trading.KillSwitchPlanNone]]");
+    }
+
+    [Fact]
+    public void ForKillSwitch_WithNullPlans_Throws()
+    {
+        var composer = new OrderConfirmationComposer(_localization);
+        var act = () => composer.ForKillSwitch(null!);
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    private static Position BuildPosition(string symbol, OrderSide side, decimal quantity) => new()
+    {
+        Id = $"pos-{symbol}",
+        ExchangeId = "paper",
+        Symbol = Symbol.Parse(symbol),
+        Side = side,
+        Quantity = new Quantity(quantity),
+        EntryPrice = new Price(50_000m),
+        CurrentPrice = new Price(50_000m),
+        OpenedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
+    };
+
     private static Order BuildOrder(string id, OrderSide side) => new()
     {
         Id = id,

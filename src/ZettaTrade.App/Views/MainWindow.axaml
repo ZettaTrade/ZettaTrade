@@ -153,6 +153,13 @@
                 </MenuItem>
                 <MenuItem Header="{loc:Localized Menu.Trading}"
                           AutomationProperties.AutomationId="TradingMenu">
+                    <!-- The kill switch (T-188): the panic action leads the
+                         trading menu — one item cancelling every working
+                         order and closing every open position across the
+                         trading venues, behind ONE confirmation. -->
+                    <MenuItem Header="{loc:Localized Menu.Trading.KillSwitch}" Command="{Binding KillSwitchCommand}" InputGesture="{Binding Hotkeys.KillSwitchGesture}"
+                              AutomationProperties.AutomationId="TradingKillSwitchMenuItem" />
+                    <Separator />
                     <MenuItem Header="{loc:Localized Menu.Trading.NewOrder}" Command="{Binding NewOrderCommand}" InputGesture="{Binding Hotkeys.NewOrderGesture}"
                               AutomationProperties.AutomationId="TradingNewOrderMenuItem" />
                     <MenuItem Header="{loc:Localized Menu.Trading.Positions}" Command="{Binding ShowPositionsCommand}" />
