@@ -36,12 +36,16 @@ public sealed class BybitAdapterParsingTests
 
         public int Requests { get; private set; }
 
+        /// <summary>Every request URL the stub saw, in arrival order (the two-category catalog pins).</summary>
+        public List<string> SeenUrls { get; } = [];
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             LastRequest = request;
             Requests++;
+            SeenUrls.Add(request.RequestUri?.ToString() ?? string.Empty);
             return Task.FromResult(respond(request));
         }
     }
@@ -98,30 +102,53 @@ public sealed class BybitAdapterParsingTests
             .Replace("@quote@", pair[^4..])
             .Replace("@cursor@", cursor);
 
+    /// <summary>
+    /// Real linear instruments-info shape (T-197): server-served
+    /// <c>contractType</c> gates the PERPETUALS only (the dated linear
+    /// futures stay out), <c>settleCoin</c> names the settlement asset, the
+    /// same status filter and malformed-entry discipline apply.
+    /// </summary>
+    private const string LinearCatalogOnePageJson =
+        """
+        {"retCode":0,"retMsg":"OK","result":{"category":"linear","list":[
+            {"symbol":"BTCUSDT","baseCoin":"BTC","quoteCoin":"USDT","settleCoin":"USDT","contractType":"LinearPerpetual","status":"Trading"},
+            {"symbol":"ETHUSDT","baseCoin":"ETH","quoteCoin":"USDT","settleCoin":"USDT","contractType":"LinearPerpetual","status":"Trading"},
+            {"symbol":"BTCUSDT-26SEP25","baseCoin":"BTC","quoteCoin":"USDT","settleCoin":"USDT","contractType":"LinearFutures","status":"Trading"},
+            {"symbol":"CLOSEDPERP","baseCoin":"CLOSED","quoteCoin":"USDT","settleCoin":"USDT","contractType":"LinearPerpetual","status":"Closed"},
+            {"symbol":"BROKENPERP","baseCoin":"","quoteCoin":"USDT","settleCoin":"","contractType":"LinearPerpetual","status":"Trading"}
+        ],"nextPageCursor":""}}
+        """;
+
     [Fact]
     public async Task GetSymbolsAsync_ParsesServerServedPairsAndFiltersStatus()
     {
-        var (adapter, _) = CreateAdapter(CatalogOnePageJson);
+        var (adapter, _) = CreateAdapter(CatalogOnePageJson, LinearCatalogOnePageJson);
 
         var symbols = await adapter.GetSymbolsAsync();
 
         // Only status == "Trading" pairs land; the malformed entry is dropped,
-        // never guessed from the concatenated name.
+        // never guessed from the concatenated name. The linear walk joins the
+        // PERPETUAL contracts only — the dated futures, the closed one and
+        // the malformed perp never land.
         symbols.Select(symbol => symbol.Normalized)
-            .Should().Equal("BTC/USDT", "ETH/BTC");
+            .Should().Equal("BTC/USDT", "ETH/BTC", "BTC/USDT:USDT", "ETH/USDT:USDT");
+        symbols[2].SettleAsset.Should().Be("USDT");
+        symbols[2].IsPerpetual.Should().BeTrue("the settle coin carries the category");
+        symbols[0].IsPerpetual.Should().BeFalse("the spot rows keep their spot shape");
     }
 
     [Fact]
-    public async Task GetSymbolsAsync_RequestsTheInstrumentsCatalogSpotEndpoint()
+    public async Task GetSymbolsAsync_RequestsBothCategoriesOnOneCatalogEndpoint()
     {
-        var (adapter, handler) = CreateAdapter(CatalogOnePageJson);
+        var (adapter, handler) = CreateAdapter(CatalogOnePageJson, LinearCatalogOnePageJson);
 
         await adapter.GetSymbolsAsync();
 
-        handler.LastRequest!.RequestUri!.AbsolutePath
-            .Should().Be("/v5/market/instruments-info");
-        handler.LastRequest.RequestUri.Query
-            .Should().Contain("category=spot").And.Contain("limit=1000");
+        // The category rides the query on the SAME endpoint (T-197): the spot
+        // walk first, the linear walk second.
+        handler.Requests.Should().Be(2);
+        handler.SeenUrls[0].Should().Contain("/v5/market/instruments-info").And.Contain("category=spot");
+        handler.SeenUrls[1].Should().Contain("/v5/market/instruments-info").And.Contain("category=linear");
     }
 
     [Fact]
@@ -129,21 +156,28 @@ public sealed class BybitAdapterParsingTests
     {
         var (adapter, handler) = CreateAdapter(
             CatalogPage("XRPUSDT", "cursor-2"),
-            CatalogOnePageJson);
+            CatalogOnePageJson,
+            LinearCatalogOnePageJson);
 
         var symbols = await adapter.GetSymbolsAsync();
 
         symbols.Select(symbol => symbol.Normalized)
-            .Should().Equal("XRP/USDT", "BTC/USDT", "ETH/BTC");
-        handler.Requests.Should().Be(2, "the second page's empty cursor ends the loop");
+            .Should().Equal("XRP/USDT", "BTC/USDT", "ETH/BTC", "BTC/USDT:USDT", "ETH/USDT:USDT");
+        handler.Requests.Should().Be(3, "each category's empty cursor ends its own loop");
     }
 
     [Fact]
     public async Task GetSymbolsAsync_CursorNeverEnding_StopsAtTheShippedPageCap()
     {
         // Every page keeps promising a next one: the bounded cap protects the
-        // cursor loop from a pathological (or hostile) response.
+        // cursor loop from a pathological (or hostile) response — per
+        // category now (T-197): five spot pages plus five linear ones.
         var (adapter, handler) = CreateAdapter(
+            CatalogPage("BTCUSDT", "next"),
+            CatalogPage("ETHUSDT", "next"),
+            CatalogPage("XRPUSDT", "next"),
+            CatalogPage("SOLUSDT", "next"),
+            CatalogPage("ADAUSDT", "next"),
             CatalogPage("BTCUSDT", "next"),
             CatalogPage("ETHUSDT", "next"),
             CatalogPage("XRPUSDT", "next"),
@@ -152,6 +186,8 @@ public sealed class BybitAdapterParsingTests
 
         var symbols = await adapter.GetSymbolsAsync();
 
+        // The linear catalog rows carry no contractType, so the perp mapping
+        // drops every one of them — the served list stays the spot pairs.
         symbols.Select(symbol => symbol.Normalized)
             .Should().Equal(
                 "BTC/USDT",
@@ -159,7 +195,7 @@ public sealed class BybitAdapterParsingTests
                 "XRP/USDT",
                 "SOL/USDT",
                 "ADA/USDT");
-        handler.Requests.Should().Be(5, "the shipped page cap is five");
+        handler.Requests.Should().Be(10, "the shipped page cap is five per category");
     }
 
     [Fact]
@@ -199,9 +235,11 @@ public sealed class BybitAdapterParsingTests
             limit: 2);
 
         // The Bybit answers arrive newest-first; the adapter bar contract is
-        // ascending (Binance's order) — reversed in place.
+        // ascending (Binance's order) — reversed in place. The category rides
+        // the symbol's own kind: a spot symbol stays on the spot wire.
         handler.LastRequest!.RequestUri!.Query
-            .Should().Contain("symbol=BTCUSDT")
+            .Should().Contain("category=spot")
+            .And.Contain("symbol=BTCUSDT")
             .And.Contain("interval=60")
             .And.Contain("&limit=2");
         bars.Should().HaveCount(2);
@@ -217,6 +255,26 @@ public sealed class BybitAdapterParsingTests
         bars[1].Open.Should().Be(10.1m);
         bars[1].Close.Should().Be(10.5m);
         bars[1].Volume.Should().Be(7m);
+    }
+
+    [Fact]
+    public async Task GetBarsAsync_PerpetualSymbol_RequestsTheLinearCategory()
+    {
+        var (adapter, handler) = CreateAdapter(KlinePayloadJson);
+
+        await adapter.GetBarsAsync(
+            Symbol.Parse("BTC/USDT:USDT"),
+            TimeFrame.H1,
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            limit: 2);
+
+        // A perpetual rides the linear wire end to end (T-197): the same
+        // kline endpoint, the linear category, the same concatenated
+        // exchange-format pair.
+        handler.LastRequest!.RequestUri!.Query
+            .Should().Contain("category=linear")
+            .And.Contain("symbol=BTCUSDT")
+            .And.Contain("interval=60");
     }
 
     [Theory]

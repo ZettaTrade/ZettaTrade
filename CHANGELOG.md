@@ -1,3 +1,67 @@
+## [0.1.0-alpha.141] - 2026-11-13
+
+Build of board task T-197 (branch `feat/futures-mvp`): Bybit's linear
+perpetuals join the market-data surface — perp symbols end to end, the
+funding rate reads in the watchlist row and the screener, and the adapter
+grows the two-category wire discipline (spot flows unchanged).
+
+### Added
+- The `Symbol` perpetual category (Core): a symbol carries its settlement
+  asset in the ccxt-style normalized text ("BTC/USDT:USDT") —
+  `IsPerpetual` reads off the settle, a `settleAsset` without a quote is
+  a malformed constructor request, and `Parse` hardens the shape (a
+  settle-marked single asset, an empty settle part or a second settle
+  marker throw — never a defaulted parse). The Bybit exchange format
+  keeps the concatenated wire text: the category rides the request, not
+  the symbol.
+- The Bybit adapter's two-category discipline (T-197): one shared REST
+  host, TWO WebSocket category contexts — the v5 spot and linear streams
+  live on distinct hosts. The catalog loads both categories from the
+  same instruments-info endpoint (the `LinearPerpetual` contract type
+  gates the perps, `settleCoin` names the settlement asset, the dated
+  futures and closed entries stay out, malformed rows count into the
+  aggregated drop warning), klines route by the symbol's own category,
+  and each category socket reconnects and re-subscribes its own tracked
+  set while the venue's connected flag stays the either-state.
+- The linear ticker's delta merge: the linear tickers are delta-typed
+  (the first snapshot, then field-scoped deltas), so the linear context
+  merges each frame into the symbol's state — funding rate, open
+  interest and the next funding moment included — and publishes the
+  merged result; an absent field keeps its previous value (never a
+  fabricated zero) and nothing publishes before the wire ever said a
+  last price. A perp frame for an unsubscribed symbol drops with a
+  warning: the wire text cannot carry the category and a guessed one is
+  never honest.
+- The funding surface: `Ticker` carries the three funding members as
+  honest nullables (a spot or stock ticker keeps the nulls), the
+  watchlist row formats the wire fraction as a signed percent (four
+  decimals) gated on the quote's own null — a spot row stays hidden, no
+  empty gap — and the screener gains the display-only funding column
+  (the rate owns no sort shim yet; the column reads, never sorts).
+
+### Tests
+- The `Symbol` perp battery: the settled parse, the malformed shapes
+  (a settle without a quote, a settle-marked single asset, a double
+  marker) and the exchange-format texts.
+- The `Ticker` funding contract: the honest nulls and the members'
+  carriage.
+- The Bybit parsing battery over the two-category catalog: both
+  categories requested on the one endpoint (spot first, linear second),
+  the perp mapping (settle into the symbol, dated futures and closed
+  entries filtered, malformed counted), the per-category page cap, the
+  spot category pin and the perpetual kline's linear-category route.
+- The Bybit WS E2E over the linear socket: the delta merge publishes
+  funding and preserves absent members, frames before the first last
+  price publish nothing, and an unsubscribed perp frame drops with a
+  warning.
+- The adapter-kit's `BybitLinear` capture pack: the battery rides two
+  rigs (the linear rig is the session's server, the spot rig an owned
+  extra), the canned catalog serves a perp-only universe, and the
+  transcript replays the linear ticker family through the restore.
+- The watchlist and screener display pins: the funding fraction's
+  formatting, the spot null's empty cell, and the screener's fifth
+  numeric column token.
+
 ## [0.1.0-alpha.140] - 2026-11-13
 
 Build of board task T-196 (branch `feat/watchlist-edit`): the watchlist

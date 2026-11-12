@@ -39,20 +39,24 @@ public sealed class BybitRestHookTests
 
     private static Symbol SpotSymbol() => new("BTC", "USDT", AssetClass.Crypto);
 
-    private sealed class StubHandler(
-        HttpResponseMessage response) : HttpMessageHandler
+    /// <summary>
+    /// The stub serves a FRESH response per request (T-197): the catalog now
+    /// walks BOTH categories on one call, and an HttpResponseMessage — once
+    /// sent — is spent, so a shared instance would poison the second send.
+    /// </summary>
+    private sealed class StubHandler(Func<HttpResponseMessage> respond) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
-            CancellationToken cancellationToken) => Task.FromResult(response);
+            CancellationToken cancellationToken) => Task.FromResult(respond());
     }
 
     private static (BybitAdapter Adapter, IRestRateLimiter Limiter) CreateAdapter(
-        HttpResponseMessage response)
+        Func<HttpResponseMessage> respond)
     {
         var limiter = Substitute.For<IRestRateLimiter>();
         var factory = Substitute.For<IHttpClientFactory>();
-        factory.CreateClient(Arg.Any<string>()).Returns(new HttpClient(new StubHandler(response)));
+        factory.CreateClient(Arg.Any<string>()).Returns(new HttpClient(new StubHandler(respond)));
 
         return (new BybitAdapter(NullLogger<BybitAdapter>.Instance, factory, restLimiter: limiter), limiter);
     }
@@ -87,7 +91,7 @@ public sealed class BybitRestHookTests
     [Fact]
     public async Task GetBarsAsync_TailLoad_AcquiresUserLaneAtTheKlineBucket()
     {
-        var (adapter, limiter) = CreateAdapter(Json(KlinePayload));
+        var (adapter, limiter) = CreateAdapter(() => Json(KlinePayload));
 
         var bars = await adapter.GetBarsAsync(
             SpotSymbol(),
@@ -102,15 +106,15 @@ public sealed class BybitRestHookTests
         bars.Should().ContainSingle();
     }
 
-    /// <summary>The catalog page loop acquires one token per page request (background work).</summary>
+    /// <summary>The catalog's two-category walk acquires one token per page request (background work): both categories' pages ride the same endpoint bucket (T-197).</summary>
     [Fact]
     public async Task GetSymbolsAsync_AcquiresPerCatalogPageRequest()
     {
-        var (adapter, limiter) = CreateAdapter(Json(CatalogPayload));
+        var (adapter, limiter) = CreateAdapter(() => Json(CatalogPayload));
 
         await adapter.GetSymbolsAsync();
 
-        await limiter.Received(1).AcquireAsync(
+        await limiter.Received(2).AcquireAsync(
             RestLane.Background,
             "/v5/market/instruments-info",
             1,
@@ -137,7 +141,7 @@ public sealed class BybitRestHookTests
     [Fact]
     public async Task GetBarsAsync_On429ReportsTheRetryAfterAndThrows()
     {
-        var (adapter, limiter) = CreateAdapter(TooMany(TimeSpan.FromSeconds(2)));
+        var (adapter, limiter) = CreateAdapter(() => TooMany(TimeSpan.FromSeconds(2)));
 
         var request = () => adapter.GetBarsAsync(
             SpotSymbol(),
@@ -154,7 +158,7 @@ public sealed class BybitRestHookTests
     [Fact]
     public async Task GetSymbolsAsync_On429WithoutHeaderReportsTheBlock()
     {
-        var (adapter, limiter) = CreateAdapter(TooMany(retryAfter: null));
+        var (adapter, limiter) = CreateAdapter(() => TooMany(retryAfter: null));
 
         await FluentActions.Awaiting(() => adapter.GetSymbolsAsync()).Should().ThrowAsync<HttpRequestException>();
 

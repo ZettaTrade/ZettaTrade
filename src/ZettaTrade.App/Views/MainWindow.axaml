@@ -617,6 +617,15 @@
                                                                                Classes.down="{Binding IsChangeDown}" />
                                                                     <TextBlock Text="{Binding Volume24hText}"
                                                                                Foreground="{DynamicResource TextSecondary}" />
+                                                                    <!-- T-197: the funding rate rides the
+                                                                         derivatives wires only — a spot
+                                                                         row keeps the cell hidden (no
+                                                                         empty gap), the perp row shows
+                                                                         the signed rate -->
+                                                                    <TextBlock Text="{Binding FundingRateText}"
+                                                                               IsVisible="{Binding HasFundingRate}"
+                                                                               Foreground="{DynamicResource TextSecondary}"
+                                                                               ToolTip.Tip="{loc:Localized Watch.FundingRateTip}" />
                                                                 </StackPanel>
                                                             </StackPanel>
                                                             <!-- The sparkline: the viewport's one

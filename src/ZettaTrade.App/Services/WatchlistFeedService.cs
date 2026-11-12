@@ -386,7 +386,8 @@ public sealed class WatchlistFeedService : IAsyncInitializable
                         ticker.LastPrice,
                         ticker.PriceChange24hPercent,
                         ticker.Volume24h,
-                        ring.ToArray()));
+                        ring.ToArray(),
+                        ticker.FundingRate));
                     _dataTick.OnNext(RxVoid.Default);
                 },
                 error => _logger.LogWarning(
@@ -479,20 +480,23 @@ public sealed class WatchlistFeedService : IAsyncInitializable
                 latest?.LastPrice,
                 latest?.Change24hPercent,
                 latest?.Volume24h,
-                latest?.Ring ?? Array.Empty<decimal>());
+                latest?.Ring ?? Array.Empty<decimal>(),
+                latest?.FundingRate);
         }
     }
 
     /// <summary>
     /// One ticker arrival's full row state (immutable, swapped atomically).
     /// The ring is the producer's already-grown copy — the consumer reads it
-    /// without the producer ever mutating the same array again.
+    /// without the producer ever mutating the same array again. The funding
+    /// rate rides the derivatives wires (T-197); a spot tick keeps the null.
     /// </summary>
     private sealed record WatchlistTick(
         decimal LastPrice,
         decimal Change24hPercent,
         decimal Volume24h,
-        IReadOnlyList<decimal> Ring);
+        IReadOnlyList<decimal> Ring,
+        decimal? FundingRate);
 
     #endregion Row State
 }

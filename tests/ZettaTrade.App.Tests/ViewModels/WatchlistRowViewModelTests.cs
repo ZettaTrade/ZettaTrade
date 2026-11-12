@@ -11,9 +11,10 @@ using ZettaTrade.App.ViewModels;
 /// binds empty texts and an empty sparkline with no color flags, a priced
 /// quote formats through the pure helpers at the active culture and maps
 /// its ring onto the canvas, the change text's tint follows the 24h sign,
-/// the sparkline's tint follows the ring's own direction, and a re-pulsed
+/// the sparkline's tint follows the ring's own direction, a re-pulsed
 /// row with unchanged signs raises nothing (the stable-identity churn
-/// rule holds through the color flags).
+/// rule holds through the color flags), and the funding text (T-197)
+/// formats the derivative wire fraction while a spot row keeps it hidden.
 /// </summary>
 public sealed class WatchlistRowViewModelTests
 {
@@ -92,6 +93,55 @@ public sealed class WatchlistRowViewModelTests
 
         row.IsChangeUp.Should().BeFalse("a flat day is no gain");
         row.IsChangeDown.Should().BeFalse("a flat day is no loss — the plain ink carries it");
+    }
+
+    /// <summary>
+    /// The funding text (T-197): a derivative quote's wire fraction formats
+    /// as a signed percent through the pure helper (four decimals — a
+    /// typical funding rate lives below the two-decimal resolution), and a
+    /// spot quote's honest null keeps the text empty with the gate down —
+    /// the view hides the cell, a spot row owns no empty gap.
+    /// </summary>
+    [Fact]
+    public void TheFundingText_FormatsTheFraction_AndTheSpotNullKeepsItHidden()
+    {
+        var row = new WatchlistRowViewModel("BTC/USDT:USDT");
+        var previousCulture = CultureInfo.CurrentCulture;
+
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        try
+        {
+            row.ApplyQuote(new WatchlistQuote(
+                "BTC/USDT:USDT",
+                65432.10m,
+                +1.25m,
+                1_520_000m,
+                new decimal[] { 10m, 11m },
+                0.0001m));
+
+            row.FundingRateText.Should().Be("+0.0100%", "the wire fraction 0.0001 rides the percent basis with four decimals");
+            row.HasFundingRate.Should().BeTrue("the gate shows the cell over a derivative row");
+
+            row.ApplyQuote(new WatchlistQuote(
+                "BTC/USDT:USDT",
+                65432.10m,
+                +1.25m,
+                1_520_000m,
+                new decimal[] { 10m, 11m },
+                -0.0002m));
+
+            row.FundingRateText.Should().Be("-0.0200%", "a negative rate keeps its explicit minus");
+            row.HasFundingRate.Should().BeTrue();
+
+            row.ApplyQuote(new WatchlistQuote("BTC/USDT", 65432.10m, +1.25m, 1_520_000m, [10m, 11m]));
+
+            row.FundingRateText.Should().BeEmpty("a spot quote's absent funding is never a fabricated zero");
+            row.HasFundingRate.Should().BeFalse("the gate hides the cell — a spot row owns no empty gap");
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
     }
 
     /// <summary>

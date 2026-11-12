@@ -1,0 +1,24 @@
+{
+  "adapterId": "bybit",
+  "adapterName": "Bybit",
+  "capabilities": "MarketData | OrderBook | HistoricalData",
+  "connectsAtConstruction": false,
+  "symbols": [ "BTC/USDT:USDT", "ETH/USDT:USDT" ],
+  "strangerSymbol": "DOGE/GBP",
+  "clientSideGuards": [ "blank-endpoints" ],
+  "depthProfile": "explicit-set",
+  "servedBookDepths": [ 1, 50 ],
+  "depthProbeRequests": [ 1, 20 ],
+  "rejectedDepthRequest": 20,
+  "bookTopicPrefix": "orderbook.",
+  "subscribeMarker": "\"op\":\"subscribe\"",
+  "reconnectMode": "transcript",
+  "transcriptSessions": [
+    { "script": "Session1.json", "tickerPrice": 50000.5 },
+    { "script": "Session2.json", "tickerPrice": 50001.5 }
+  ],
+  "cannedRest": {
+    "category=spot": "RestSpotCatalog.json",
+    "category=linear": "RestLinearCatalog.json"
+  }
+}

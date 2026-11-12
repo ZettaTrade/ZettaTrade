@@ -51,6 +51,12 @@ public sealed class BybitAdapterWsE2eTests
     /// <summary>Symbol used in every scenario; its exchange form is "BTCUSDT".</summary>
     private static readonly Symbol BtcUsdt = new("btc", "usdt", AssetClass.Crypto);
 
+    /// <summary>
+    /// The perp symbol of the linear scenarios (T-197); its exchange form is
+    /// ALSO "BTCUSDT" — the v5 wire text never carries the category.
+    /// </summary>
+    private static readonly Symbol BtcUsdtPerp = new("btc", "usdt", AssetClass.Crypto, "usdt");
+
     /// <summary>Spot tickers are snapshot-typed and carry NO bid/ask (live-verified).</summary>
     private const string TickerFrame = """
         {"topic":"tickers.BTCUSDT","ts":1699999999000,"type":"snapshot","data":{"symbol":"BTCUSDT","lastPrice":"50000.5","highPrice24h":"51000","lowPrice24h":"49000","prevPrice24h":"49000.24","volume24h":"123.456","turnover24h":"6100000","price24hPcnt":"0.0204"}}
@@ -129,6 +135,48 @@ public sealed class BybitAdapterWsE2eTests
     private const string TradeFrameWithMalformedEntries = """
         {"topic":"publicTrade.BTCUSDT","ts":1699999999500,"type":"snapshot","data":[{"T":1699999999500,"s":"BTCUSDT","S":"Sell","v":"0.5","p":"49999.9","V":"24999.95","i":"42"},"not-an-object",42,{"T":1699999999600,"s":"BTCUSDT","S":"Buy","v":"0.75","p":"50000.25","V":"37500.19","i":"43"}]}
         """;
+
+    /// <summary>
+    /// The linear ticker's FIRST frame (T-197): a full snapshot whose wire
+    /// text is textually spot-like (the same concatenated symbol, the same
+    /// field family) plus the funding members only the linear wire serves.
+    /// </summary>
+    private const string LinearTickerSnapshotFrame = """
+        {"topic":"tickers.BTCUSDT","ts":1700000010000,"type":"snapshot","data":{"symbol":"BTCUSDT","lastPrice":"50001.5","volume24h":"321.5","turnover24h":"16075000","price24hPcnt":"0.0204","fundingRate":"0.0001","openInterest":"89123.45","nextFundingTime":"1700004000000"}}
+        """;
+
+    /// <summary>
+    /// The linear tickers are DELTA-typed after the snapshot: field-scoped
+    /// partial payloads (here only the funding rate moves).
+    /// </summary>
+    private const string LinearTickerDeltaFrame = """
+        {"topic":"tickers.BTCUSDT","ts":1700000010500,"type":"delta","data":{"fundingRate":"0.0002"}}
+        """;
+
+    /// <summary>
+    /// A funding-only delta that arrives BEFORE any snapshot said a last
+    /// price: it is not a ticker yet — nothing publishes, the drop warns.
+    /// </summary>
+    private const string LinearTickerNoPriceFrame = """
+        {"topic":"tickers.BTCUSDT","ts":1700000009000,"type":"delta","data":{"fundingRate":"0.0003"}}
+        """;
+
+    /// <summary>A linear ticker frame for a symbol the adapter never subscribed on this socket.</summary>
+    private const string LinearTickerUnsubscribedFrame = """
+        {"topic":"tickers.ETHUSDT","ts":1700000010000,"type":"snapshot","data":{"symbol":"ETHUSDT","lastPrice":"3000.5","volume24h":"10","turnover24h":"30000","price24hPcnt":"0.01","fundingRate":"0.0001"}}
+        """;
+
+    private static readonly Ticker ExpectedLinearTicker = new(
+        BtcUsdtPerp,
+        50001.5m,
+        0m,
+        0m,
+        321.5m,
+        2.04m,
+        DateTimeOffset.FromUnixTimeMilliseconds(1700000010000),
+        0.0001m,
+        89123.45m,
+        DateTimeOffset.FromUnixTimeMilliseconds(1700004000000));
 
     #endregion
 
@@ -398,7 +446,105 @@ public sealed class BybitAdapterWsE2eTests
         subscription.Dispose();
     }
 
-    #endregion
+    [Fact]
+    public async Task Linear_ticker_deltas_merge_funding_into_the_snapshot_state()
+    {
+        await using var stack = await E2eStack.StartAsync();
+        var server = stack.Server;
+
+        var tickersTask = stack.Adapter
+            .SubscribeTicker(BtcUsdtPerp)
+            .Take(2)
+            .ToList()
+            .ToTask(TaskCreationOptions.RunContinuationsAsynchronously)
+            .WaitAsync(EventWait);
+
+        // The perp rides the LINEAR socket (a distinct session on the shared
+        // loopback host); no spot symbol is subscribed, so the spot wire
+        // never dials and this session is the server's FIRST one.
+        var connection = await server.WaitForConnectionAsync(1, EventWait);
+        var subscribeFrame = await server.WaitForFrameAsync(
+            f => f.Contains("\"op\":\"subscribe\""),
+            EventWait);
+        AssertSubscribeFrame(subscribeFrame);
+
+        await connection.SendTextAsync(LinearTickerSnapshotFrame);
+        await connection.SendTextAsync(LinearTickerDeltaFrame);
+
+        var tickers = await tickersTask;
+
+        // The snapshot publishes the full served state, funding included.
+        tickers[0].Should().Be(ExpectedLinearTicker);
+
+        // The delta carries ONLY the funding rate: the merged result keeps
+        // every absent member's previous value, never a fabricated zero.
+        tickers[1].Symbol.Should().Be(BtcUsdtPerp);
+        tickers[1].LastPrice.Should().Be(50001.5m);
+        tickers[1].Volume24h.Should().Be(321.5m);
+        tickers[1].PriceChange24hPercent.Should().Be(2.04m);
+        tickers[1].FundingRate.Should().Be(0.0002m);
+        tickers[1].OpenInterest.Should().Be(89123.45m);
+        tickers[1].NextFundingTime.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1700004000000));
+        stack.Adapter.IsConnected.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Linear_frames_before_the_first_last_price_publish_nothing()
+    {
+        await using var stack = await E2eStack.StartAsync();
+        var server = stack.Server;
+
+        var tickers = new List<Ticker>();
+        using var subscription = stack.Adapter
+            .SubscribeTicker(BtcUsdtPerp)
+            .Subscribe(tickers.Add);
+
+        var connection = await server.WaitForConnectionAsync(1, EventWait);
+        await server.WaitForFrameAsync(f => f.Contains("\"op\":\"subscribe\""), EventWait);
+
+        // A funding-only delta arrives BEFORE any snapshot said a price: it
+        // is not a ticker yet — nothing publishes, and the drop is logged.
+        await connection.SendTextAsync(LinearTickerNoPriceFrame);
+
+        await TestPoll.PollUntilAsync(
+            () => stack.Logger.Entries.Any(entry =>
+                entry.Message.Contains("no last price has arrived yet")),
+            EventWait);
+
+        tickers.Should().BeEmpty("nothing publishes before the wire ever said a last price");
+        subscription.Dispose();
+    }
+
+    [Fact]
+    public async Task An_unsubscribed_linear_frame_drops_with_a_warning()
+    {
+        await using var stack = await E2eStack.StartAsync();
+        var server = stack.Server;
+
+        var tickers = new List<Ticker>();
+        using var subscription = stack.Adapter
+            .SubscribeTicker(BtcUsdtPerp)
+            .Subscribe(tickers.Add);
+
+        var connection = await server.WaitForConnectionAsync(1, EventWait);
+        await server.WaitForFrameAsync(f => f.Contains("\"op\":\"subscribe\""), EventWait);
+
+        // A wire frame for ANOTHER perp (ETHUSDT) the adapter never
+        // subscribed: the linear text cannot carry its category, so it is
+        // never guessed into a symbol — the frame drops with a warning.
+        await connection.SendTextAsync(LinearTickerUnsubscribedFrame);
+
+        await TestPoll.PollUntilAsync(
+            () => stack.Logger.Entries.Any(entry =>
+                entry.Level == LogLevel.Warning &&
+                entry.Message.Contains("unrecognised symbol format")),
+            EventWait);
+
+        tickers.Should().BeEmpty("a guessed category is never honest");
+        subscription.Dispose();
+    }
+
+    #endregion Tests
 
     #region Helpers
 
@@ -463,7 +609,12 @@ public sealed class BybitAdapterWsE2eTests
                 provider.GetRequiredService<IHttpClientFactory>(),
                 new BybitEndpoints(
                     RestBaseUrl: $"http://127.0.0.1:{server.Port}",
-                    WsUrl: server.CombinedStreamUrl));
+                    WsUrl: server.CombinedStreamUrl,
+                    // The linear socket shares the loopback host BY
+                    // CONFIGURATION (T-197): the loopback URL carries no
+                    // /spot tail, so a blank LinearWsUrl would derive the
+                    // shipped PRODUCTION linear host and dial out.
+                    LinearWsUrl: server.CombinedStreamUrl));
 
             return new E2eStack(server, logger, provider, adapter);
         }

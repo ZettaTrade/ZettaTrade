@@ -23,6 +23,9 @@ public sealed record Symbol
     /// <summary>Normalized pair separator (e.g., "BTC/USDT").</summary>
     private const char NormalizedSeparator = '/';
 
+    /// <summary>The perpetual's settlement marker ("BTC/USDT:USDT", T-197).</summary>
+    private const char SettleSeparator = ':';
+
     /// <summary>
     /// Common quote currencies used to split concatenated exchange pairs ("BTCUSDT").
     /// Order matters: tokens sharing prefixes (BUSD/USD) are matched suffix-first,
@@ -44,24 +47,53 @@ public sealed record Symbol
     /// <summary>Quote asset (e.g., "USDT"). Null for stocks.</summary>
     public string? QuoteAsset { get; }
 
+    /// <summary>
+    /// The perpetual's settlement asset (T-197: "USDT" for a Bybit linear
+    /// USDT-perp). Null for every spot, stock and index symbol — the settled
+    /// category's single honest marker, never a guessed flag.
+    /// </summary>
+    public string? SettleAsset { get; }
+
+    /// <summary>
+    /// Whether the symbol names a perpetual contract (T-197): the
+    /// settlement asset carries the category, so an adapter routes a
+    /// perpetual's requests to its derivatives wire, never the spot one.
+    /// </summary>
+    public bool IsPerpetual => SettleAsset is not null;
+
     /// <summary>Asset class (Crypto, Stock, etc.).</summary>
     public Enums.AssetClass AssetClass { get; }
 
     /// <summary>
-    /// Create a new Symbol instance.
+    /// Create a new Symbol instance. A perpetual carries its settlement
+    /// asset (T-197): a <c>settleAsset</c> without a quote asset is a
+    /// malformed request and throws — the category is never defaulted.
     /// </summary>
-    public Symbol(string baseAsset, string? quoteAsset, Enums.AssetClass assetClass)
+    public Symbol(string baseAsset, string? quoteAsset, Enums.AssetClass assetClass, string? settleAsset = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseAsset);
 
+        if (settleAsset != null && quoteAsset == null)
+        {
+            throw new ArgumentException(
+                "A perpetual symbol requires a quote asset alongside its settlement asset",
+                nameof(settleAsset));
+        }
+
         BaseAsset = baseAsset.ToUpperInvariant();
         QuoteAsset = quoteAsset?.ToUpperInvariant();
+        SettleAsset = settleAsset?.ToUpperInvariant();
         AssetClass = assetClass;
-        Normalized = quoteAsset != null ? $"{baseAsset.ToUpperInvariant()}/{quoteAsset.ToUpperInvariant()}" : baseAsset.ToUpperInvariant();
+        Normalized = quoteAsset != null
+            ? $"{baseAsset.ToUpperInvariant()}/{quoteAsset.ToUpperInvariant()}{(SettleAsset != null ? $":{SettleAsset}" : string.Empty)}"
+            : baseAsset.ToUpperInvariant();
     }
 
     /// <summary>
-    /// Get exchange-specific symbol format.
+    /// Get exchange-specific symbol format. A perpetual's wire text is the
+    /// same concatenated pair as its spot twin (the v5 category rides the
+    /// request, not the symbol text — T-197); every other exchange keeps
+    /// the settled normalized form.
     /// </summary>
     public string GetExchangeFormat(string exchangeId)
     {
@@ -75,7 +107,10 @@ public sealed record Symbol
     }
 
     /// <summary>
-    /// Parse a normalized symbol string (e.g., "BTC/USDT").
+    /// Parse a normalized symbol string (e.g., "BTC/USDT"; a perpetual
+    /// carries its settlement asset as the ccxt-style "BTC/USDT:USDT"
+    /// suffix, T-197). A settle-marked single asset ("BTC:") or an empty
+    /// settle is a malformed symbol and throws — never a defaulted parse.
     /// </summary>
     public static Symbol Parse(string normalized)
     {
@@ -84,7 +119,37 @@ public sealed record Symbol
         var parts = normalized.Split(NormalizedSeparator);
         if (parts.Length == 2)
         {
+            var quotePart = parts[1];
+            var settleSeparator = quotePart.IndexOf(SettleSeparator);
+            if (settleSeparator >= 0)
+            {
+                var quote = quotePart[..settleSeparator];
+                var settle = quotePart[(settleSeparator + 1)..];
+                if (quote.Length == 0 || settle.Length == 0 || settle.Contains(SettleSeparator))
+                {
+                    throw new ArgumentException(
+                        $"A perpetual symbol needs exactly one quote and one settlement asset: '{normalized}'",
+                        nameof(normalized));
+                }
+
+                return new Symbol(parts[0], quote, Enums.AssetClass.Crypto, settle);
+            }
+
             return new Symbol(parts[0], parts[1], Enums.AssetClass.Crypto);
+        }
+
+        if (parts.Length > 2)
+        {
+            throw new ArgumentException(
+                $"A normalized symbol carries at most one '/' separator: '{normalized}'",
+                nameof(normalized));
+        }
+
+        if (parts[0].Contains(SettleSeparator))
+        {
+            throw new ArgumentException(
+                $"A settle-marked asset without a quote is a malformed symbol: '{normalized}'",
+                nameof(normalized));
         }
 
         return new Symbol(parts[0], null, Enums.AssetClass.Stock);

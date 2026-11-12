@@ -93,6 +93,30 @@ public sealed class WatchlistRowViewModel : ReactiveObject
         private set => this.RaiseAndSetIfChanged(ref _volume24hText, value);
     }
 
+    private string _fundingRateText = string.Empty;
+
+    /// <summary>
+    /// The formatted signed funding rate (T-197), or empty while the row
+    /// carries none — a spot or stock row keeps it hidden forever.
+    /// </summary>
+    public string FundingRateText
+    {
+        get => _fundingRateText;
+        private set => this.RaiseAndSetIfChanged(ref _fundingRateText, value);
+    }
+
+    private bool _hasFundingRate;
+
+    /// <summary>
+    /// Whether the row's quote carries a funding rate (T-197): the view
+    /// gates the funding text on it, so a spot row leaves no empty gap.
+    /// </summary>
+    public bool HasFundingRate
+    {
+        get => _hasFundingRate;
+        private set => this.RaiseAndSetIfChanged(ref _hasFundingRate, value);
+    }
+
     private IList<Point> _sparklinePoints = new List<Point>();
 
     /// <summary>The sparkline's mapped points, or empty until the ring grows.</summary>
@@ -134,6 +158,10 @@ public sealed class WatchlistRowViewModel : ReactiveObject
         Volume24hText = quote.Volume24h is { } volume
             ? WatchlistRowPresentation.FormatVolume(volume, CultureInfo.CurrentCulture)
             : string.Empty;
+        FundingRateText = quote.FundingRate is { } funding
+            ? WatchlistRowPresentation.FormatFundingRate(funding, CultureInfo.CurrentCulture)
+            : string.Empty;
+        HasFundingRate = quote.FundingRate is not null;
         SparklinePoints = WatchlistRowPresentation.BuildSparklinePoints(
             quote.Sparkline,
             WatchlistRowPresentation.SparklineWidth,

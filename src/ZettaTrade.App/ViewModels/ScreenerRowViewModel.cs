@@ -22,6 +22,12 @@ public sealed record ScreenerRowViewModel
     /// <summary>The 24h volume, compactly formatted.</summary>
     public required string Volume { get; init; }
 
+    /// <summary>
+    /// The funding rate, signed percent (T-197), or empty off the
+    /// derivatives wires — a spot row leaves the cell blank, never zero.
+    /// </summary>
+    public required string Funding { get; init; }
+
     /// <summary>True for a positive 24h change: the up tint's state class.</summary>
     public required bool IsChangeUp { get; init; }
 

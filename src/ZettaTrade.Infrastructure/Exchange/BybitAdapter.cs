@@ -16,17 +16,26 @@ using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.RateLimiting;
 
 /// <summary>
-/// Bybit v5 spot exchange adapter implementation (read-only market data).
-/// Mirrors the Binance structure: a named HTTP client for REST, one shared
-/// WebSocket for all market data streams, endpoints from the
-/// <see cref="ExchangeEndpointRegistry"/>. Wire facts measured live on
-/// 2026-11-02 (public, key-less endpoints): the spot catalog is one page of
-/// ~520 server-typed instruments (<c>baseCoin</c>/<c>quoteCoin</c>/<c>status</c>),
-/// klines arrive newest-first with all numbers as strings, and the stream is
-/// ONE multiplexed socket answered in <c>{"topic",...,"data"}</c> frames
-/// where spot tickers are snapshot-typed, <c>orderbook.50</c> deltas carry a
+/// Bybit v5 spot and linear-perp exchange adapter implementation (read-only
+/// market data, T-197). Mirrors the Binance structure: a named HTTP client
+/// for REST, one shared WebSocket PER CATEGORY — the v5 spot and linear
+/// streams live on distinct hosts, so the adapter owns a two-socket
+/// category context pair and routes every symbol by its settled category —
+/// endpoints from the <see cref="ExchangeEndpointRegistry"/>. Wire facts
+/// measured live on 2026-11-02 (public, key-less endpoints): the spot
+/// catalog is one page of ~520 server-typed instruments
+/// (<c>baseCoin</c>/<c>quoteCoin</c>/<c>status</c>), klines arrive
+/// newest-first with all numbers as strings, and the stream is ONE
+/// multiplexed socket answered in <c>{"topic",...,"data"}</c> frames where
+/// spot tickers are snapshot-typed, <c>orderbook.50</c> deltas carry a
 /// monotonic <c>u</c> (quantity <c>"0"</c> deletes a level) and Bybit
-/// dislikes silence — hence the adapter-owned keepalive ping.
+/// dislikes silence — hence the adapter-owned keepalive ping. The linear
+/// ticker topic is DELTA-typed (the first snapshot, then field-scoped
+/// deltas), so the linear context merges each frame into the symbol's last
+/// known ticker state — funding rate and open interest included — and
+/// publishes the merged result; a perp frame for an unsubscribed symbol is
+/// dropped with a warning, because the wire text cannot carry the category
+/// and a guessed category is never honest.
 /// </summary>
 public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 {
@@ -44,11 +53,23 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <summary>Production WebSocket URL of the v5 public spot stream.</summary>
     public const string DefaultWsUrl = "wss://stream.bybit.com/v5/public/spot";
 
+    /// <summary>Production WebSocket URL of the v5 public linear-perp stream (T-197: Bybit keeps the categories on distinct hosts).</summary>
+    public const string DefaultLinearWsUrl = "wss://stream.bybit.com/v5/public/linear";
+
     /// <summary>REST path of the symbol catalog.</summary>
     private const string CatalogRequestPath = "/v5/market/instruments-info";
 
     /// <summary>REST path of the kline history endpoint.</summary>
     private const string KlineRequestPath = "/v5/market/kline";
+
+    /// <summary>The v5 REST category of the spot instruments (T-197's category-aware requests).</summary>
+    private const string SpotCategory = "spot";
+
+    /// <summary>The v5 REST category of the linear-perp instruments.</summary>
+    private const string LinearCategory = "linear";
+
+    /// <summary>The linear contract type the catalog serves (T-197: linear PERPETUALS only — dated futures stay out).</summary>
+    private const string LinearPerpetualContractType = "LinearPerpetual";
 
     /// <summary>The per-second request budget the venue publishes for its public market REST endpoints, as shipped.</summary>
     private const int PublicRequestsPerSecond = 10;
@@ -147,18 +168,25 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     private readonly HttpClient _httpClient;
     private readonly WebSocketClient _wsClient;
+    private readonly WebSocketClient _linearSocket;
     private readonly string _baseUrl;
     private readonly string _wsUrl;
+    private readonly string _linearWsUrl;
     private readonly IRestRateLimiter _restLimiter;
 
-    /// <summary>Serializes every outbound frame across concurrent stream starts, reconnect re-subscribes and the keepalive.</summary>
+    /// <summary>
+    /// The spot category context: the spot socket, its subscribed symbols
+    /// and its per-symbol book state machines (T-197: every category owns
+    /// its context — the wires are distinct hosts and the exchange-format
+    /// symbol text cannot tell the two apart).
+    /// </summary>
+    private readonly CategoryContext _spot;
+
+    /// <summary>The linear-perp category context: the linear socket, its subscribed symbols, book state machines and the delta-merge ticker states.</summary>
+    private readonly CategoryContext _linear;
+
+    /// <summary>Serializes every outbound frame across concurrent stream starts, reconnect re-subscribes and the keepalive (both sockets).</summary>
     private readonly SemaphoreSlim _sendGate = new(1, 1);
-
-    /// <summary>Order book state machines keyed by the normalized symbol.</summary>
-    private readonly ConcurrentDictionary<string, SequencedOrderBookAssembler> _bookAssemblers = new();
-
-    /// <summary>Currently subscribed symbols keyed by the exchange-format name (the reconnect re-subscribe set).</summary>
-    private readonly ConcurrentDictionary<string, Symbol> _subscribedSymbols = new();
 
     /// <summary>
     /// Topic re-subscribe requests (a book gap or a fresh socket): each one
@@ -170,6 +198,8 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     private readonly IDisposable _messageSubscription;
     private readonly IDisposable _connectionSubscription;
+    private readonly IDisposable _linearMessageSubscription;
+    private readonly IDisposable _linearConnectionSubscription;
 
     /// <summary>Adapter-owned keepalive loop lifetime; the loop task is awaited on disposal, never abandoned.</summary>
     private readonly CancellationTokenSource _lifetimeCts = new();
@@ -214,6 +244,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         _baseUrl = endpoints?.RestBaseUrl ?? DefaultRestBaseUrl;
         _wsUrl = endpoints?.WsUrl ?? DefaultWsUrl;
+        _linearWsUrl = ResolveLinearWsUrl(endpoints, _wsUrl);
 
         if (string.IsNullOrWhiteSpace(_baseUrl) || string.IsNullOrWhiteSpace(_wsUrl))
         {
@@ -224,14 +255,24 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
         _httpClient = httpClientFactory.CreateClient(HttpClientName);
         _restLimiter = restLimiter ?? UnthrottledRestRateLimiter.Instance;
-        _wsClient = new WebSocketClient(
-            _wsUrl,
-            logger,
-            DefaultReconnectPolicy,
-            reconnectSupervisor?.For(Id, DefaultReconnectPolicy));
 
-        _messageSubscription = _wsClient.MessageStream.Subscribe(HandleWebSocketMessage);
-        _connectionSubscription = _wsClient.ConnectionStateStream.Subscribe(HandleConnectionStateChanged);
+        // One venue health lane: both category sockets report through the
+        // same adapter-id sink (the latest transition wins — the venue's
+        // health is one honest surface, not two).
+        var reconnectSink = reconnectSupervisor?.For(Id, DefaultReconnectPolicy);
+        _wsClient = new WebSocketClient(_wsUrl, logger, DefaultReconnectPolicy, reconnectSink);
+        _linearSocket = new WebSocketClient(_linearWsUrl, logger, DefaultReconnectPolicy, reconnectSink);
+        _spot = new CategoryContext(_wsClient);
+        _linear = new CategoryContext(_linearSocket);
+
+        _messageSubscription = _wsClient.MessageStream.Subscribe(
+            message => HandleWebSocketMessage(message, _spot));
+        _connectionSubscription = _wsClient.ConnectionStateStream.Subscribe(
+            isConnected => HandleConnectionStateChanged(isConnected, _spot, _wsUrl));
+        _linearMessageSubscription = _linearSocket.MessageStream.Subscribe(
+            message => HandleWebSocketMessage(message, _linear));
+        _linearConnectionSubscription = _linearSocket.ConnectionStateStream.Subscribe(
+            isConnected => HandleConnectionStateChanged(isConnected, _linear, _linearWsUrl));
 
         _keepaliveLoop = RunKeepaliveLoopAsync(_lifetimeCts.Token);
         _resubscribeLoop = RunResubscribeLoopAsync(_lifetimeCts.Token);
@@ -245,42 +286,47 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     public override async Task ConnectAsync(CancellationToken ct = default)
     {
         await _wsClient.ConnectAsync(ct);
-        IsConnected = _wsClient.IsConnected;
+        await _linearSocket.ConnectAsync(ct);
+        IsConnected = _wsClient.IsConnected || _linearSocket.IsConnected;
     }
 
     /// <inheritdoc/>
     public override async Task DisconnectAsync(CancellationToken ct = default)
     {
         await _wsClient.DisconnectAsync();
+        await _linearSocket.DisconnectAsync();
         IsConnected = false;
     }
 
     /// <summary>
     /// Start the streams for one symbol on demand (called by the first
-    /// subscriber of any feed): connect once when not connected, then
-    /// subscribe the symbol's ticker, order book and trade topics. Serialized
-    /// with the send gate so concurrent starts cannot interleave frames on
-    /// the shared WebSocket. The caller's token covers the gate wait and the
-    /// connect only: the SEND rides the adapter-owned lifetime — cancelling
-    /// it mid-send would abort the shared socket for every feed (BUG-004).
+    /// subscriber of any feed): connect the symbol's CATEGORY socket once
+    /// when not connected (T-197 — the spot and linear wires are distinct
+    /// hosts), then subscribe the symbol's ticker, order book and trade
+    /// topics on it. Serialized with the send gate so concurrent starts
+    /// cannot interleave frames on either shared WebSocket. The caller's
+    /// token covers the gate wait and the connect only: the SEND rides the
+    /// adapter-owned lifetime — cancelling it mid-send would abort the
+    /// shared socket for every feed (BUG-004).
     /// </summary>
     protected override async Task StartSymbolStreamsAsync(
         Symbol symbol,
         int? bookDepth,
         CancellationToken ct)
     {
+        var context = ContextFor(symbol);
         await _sendGate.WaitAsync(ct);
         try
         {
-            if (!_wsClient.IsConnected)
+            if (!context.Socket.IsConnected)
             {
-                await ConnectAsync(ct);
+                await context.Socket.ConnectAsync(ct);
             }
 
-            await _wsClient.SendJsonAsync(
+            await context.Socket.SendJsonAsync(
                 new SubscriptionFrame(FrameOps.Subscribe, BuildTopics(symbol, bookDepth)),
                 _lifetimeCts.Token);
-            _subscribedSymbols[symbol.GetExchangeFormat(Id)] = symbol;
+            context.Subscribed[symbol.GetExchangeFormat(Id)] = symbol;
         }
         finally
         {
@@ -291,6 +337,30 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <inheritdoc/>
     public override async Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default)
     {
+        // The catalog carries BOTH categories (T-197): the spot pairs keep
+        // their symbols and the linear-perp contracts join with their
+        // settlement asset, so the palette and the panel surface can route
+        // a perpetual on the same venue.
+        var spot = await LoadCatalogAsync(SpotCategory, MapSpotCatalogRow, ct);
+        var linear = await LoadCatalogAsync(LinearCategory, MapLinearCatalogRow, ct);
+        return [.. spot, .. linear];
+    }
+
+    /// <summary>
+    /// Load one category's instrument catalog: the cursor-paged
+    /// instruments-info walk (bounded by the shipped page cap) over a
+    /// category-specific row mapping. The mapping separates the two honest
+    /// outcomes: a MALFORMED entry (blank server-served metadata) counts
+    /// into the aggregated warning, an out-of-scope one (non-trading, a
+    /// non-perpetual contract) is filtered silently — never guessed; the
+    /// page cap stops a pathological (or hostile) pagination with one
+    /// aggregated warning, never a silent truncation.
+    /// </summary>
+    private async Task<IReadOnlyList<Symbol>> LoadCatalogAsync(
+        string category,
+        Func<JsonElement, (Symbol? Symbol, bool Malformed)> mapRow,
+        CancellationToken ct)
+    {
         var symbols = new List<Symbol>();
         var dropped = 0;
         var pages = 0;
@@ -299,7 +369,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
         do
         {
-            var url = $"{_baseUrl}{CatalogRequestPath}?category=spot&limit={CatalogPageSize}";
+            var url = $"{_baseUrl}{CatalogRequestPath}?category={category}&limit={CatalogPageSize}";
             if (!string.IsNullOrEmpty(cursor))
             {
                 url += $"&cursor={Uri.EscapeDataString(cursor)}";
@@ -313,23 +383,14 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
                 ct);
             foreach (var item in result.GetProperty("list").EnumerateArray())
             {
-                var baseCoin = TryGetString(item, "baseCoin");
-                var quoteCoin = TryGetString(item, "quoteCoin");
-                var status = TryGetString(item, "status");
-
-                if (baseCoin is null || quoteCoin is null ||
-                    string.IsNullOrWhiteSpace(baseCoin) ||
-                    string.IsNullOrWhiteSpace(quoteCoin))
+                var (symbol, malformed) = mapRow(item);
+                if (symbol is not null)
                 {
-                    // The split is server-served metadata; a malformed entry
-                    // is counted and dropped — never guessed.
-                    dropped++;
-                    continue;
+                    symbols.Add(symbol);
                 }
-
-                if (status == "Trading")
+                else if (malformed)
                 {
-                    symbols.Add(new Symbol(baseCoin, quoteCoin, AssetClass.Crypto));
+                    dropped++;
                 }
             }
 
@@ -344,7 +405,8 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         if (truncated)
         {
             Logger.LogWarning(
-                "The Bybit spot catalog exceeded the shipped page cap ({MaxPages} pages of {PageSize}); the load stops with a partial catalog",
+                "The Bybit {Category} catalog exceeded the shipped page cap ({MaxPages} pages of {PageSize}); the load stops with a partial catalog",
+                category,
                 MaxCatalogPages,
                 CatalogPageSize);
         }
@@ -352,11 +414,65 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         if (dropped > 0)
         {
             Logger.LogWarning(
-                "{Count} Bybit catalog entries arrived malformed and are dropped",
-                dropped);
+                "{Count} Bybit {Category} catalog entries arrived malformed and are dropped",
+                dropped,
+                category);
         }
 
         return symbols;
+    }
+
+    /// <summary>
+    /// Map one spot instruments row: the split is server-served metadata —
+    /// a blank split is the malformed outcome (counted), a non-trading
+    /// status is the silent filter (the entry exists, it just does not
+    /// serve).
+    /// </summary>
+    private static (Symbol? Symbol, bool Malformed) MapSpotCatalogRow(JsonElement item)
+    {
+        var baseCoin = TryGetString(item, "baseCoin");
+        var quoteCoin = TryGetString(item, "quoteCoin");
+        var status = TryGetString(item, "status");
+
+        if (string.IsNullOrWhiteSpace(baseCoin) || string.IsNullOrWhiteSpace(quoteCoin))
+        {
+            return (null, true);
+        }
+
+        return status == "Trading"
+            ? (new Symbol(baseCoin, quoteCoin, AssetClass.Crypto), false)
+            : (null, false);
+    }
+
+    /// <summary>
+    /// Map one linear instruments row: ONLY <c>LinearPerpetual</c> contracts
+    /// serve (the dated linear futures stay out of scope, silently), the
+    /// settlement coin names the category, and the same server-served split
+    /// discipline applies — a blank split is the malformed outcome.
+    /// </summary>
+    private static (Symbol? Symbol, bool Malformed) MapLinearCatalogRow(JsonElement item)
+    {
+        var contractType = TryGetString(item, "contractType");
+        if (contractType != LinearPerpetualContractType)
+        {
+            return (null, false);
+        }
+
+        var baseCoin = TryGetString(item, "baseCoin");
+        var quoteCoin = TryGetString(item, "quoteCoin");
+        var settleCoin = TryGetString(item, "settleCoin");
+        var status = TryGetString(item, "status");
+
+        if (string.IsNullOrWhiteSpace(baseCoin) ||
+            string.IsNullOrWhiteSpace(quoteCoin) ||
+            string.IsNullOrWhiteSpace(settleCoin))
+        {
+            return (null, true);
+        }
+
+        return status == "Trading"
+            ? (new Symbol(baseCoin, quoteCoin, AssetClass.Crypto, settleCoin), false)
+            : (null, false);
     }
 
     /// <inheritdoc/>
@@ -371,9 +487,10 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         var interval = ConvertTimeFrame(timeFrame);
         var startTime = from.ToUnixTimeMilliseconds();
         var endTime = to?.ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var category = symbol.IsPerpetual ? LinearCategory : SpotCategory;
 
         var url = $"{_baseUrl}{KlineRequestPath}" +
-                  $"?category=spot" +
+                  $"?category={category}" +
                   $"&symbol={symbol.GetExchangeFormat(Id)}" +
                   $"&interval={interval}" +
                   $"&start={startTime}" +
@@ -411,17 +528,19 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <summary>
     /// Subscribe to ticker, 50-level order book and public trades for a
-    /// symbol (one multiplexed frame; the server answers one ack per frame).
+    /// symbol (one multiplexed frame; the server answers one ack per frame)
+    /// on the symbol's category socket.
     /// </summary>
     public async Task SubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
+        var context = ContextFor(symbol);
         await _sendGate.WaitAsync(ct);
         try
         {
-            await _wsClient.SendJsonAsync(
+            await context.Socket.SendJsonAsync(
                 new SubscriptionFrame(FrameOps.Subscribe, BuildTopics(symbol)),
                 ct);
-            _subscribedSymbols[symbol.GetExchangeFormat(Id)] = symbol;
+            context.Subscribed[symbol.GetExchangeFormat(Id)] = symbol;
         }
         finally
         {
@@ -430,18 +549,21 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     }
 
     /// <summary>
-    /// Unsubscribe from all topics for a symbol and drop its book state.
+    /// Unsubscribe from all topics for a symbol on its category socket and
+    /// drop its book and ticker-merge state.
     /// </summary>
     public async Task UnsubscribeSymbolAsync(Symbol symbol, CancellationToken ct = default)
     {
+        var context = ContextFor(symbol);
         await _sendGate.WaitAsync(ct);
         try
         {
-            await _wsClient.SendJsonAsync(
+            await context.Socket.SendJsonAsync(
                 new SubscriptionFrame(FrameOps.Unsubscribe, BuildTopics(symbol)),
                 ct);
-            _subscribedSymbols.TryRemove(symbol.GetExchangeFormat(Id), out _);
-            _bookAssemblers.TryRemove(symbol.Normalized, out _);
+            context.Subscribed.TryRemove(symbol.GetExchangeFormat(Id), out _);
+            context.Books.TryRemove(symbol.Normalized, out _);
+            context.TickerStates.TryRemove(symbol.Normalized, out _);
         }
         finally
         {
@@ -470,16 +592,18 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     }
 
     /// <summary>
-    /// Re-send the topic subscription frames for one symbol (gap recovery or
-    /// a fresh socket). The set membership is kept by the regular subscribe
-    /// paths, so this send-only path cannot resurrect a stale entry.
+    /// Re-send the topic subscription frames for one symbol on its category
+    /// socket (gap recovery or a fresh socket). The set membership is kept
+    /// by the regular subscribe paths, so this send-only path cannot
+    /// resurrect a stale entry.
     /// </summary>
     private async Task ResubscribeStreamsAsync(Symbol symbol, CancellationToken ct)
     {
+        var context = ContextFor(symbol);
         await _sendGate.WaitAsync(ct);
         try
         {
-            await _wsClient.SendJsonAsync(
+            await context.Socket.SendJsonAsync(
                 new SubscriptionFrame(FrameOps.Subscribe, BuildTopics(symbol)),
                 ct);
         }
@@ -525,20 +649,24 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     }
 
     /// <summary>
-    /// Re-subscribe every tracked symbol after a reconnection: the server
-    /// holds no session state across sockets, so a silent reconnection would
-    /// otherwise keep subscriptions "live" while no data flows (the first
-    /// connect skips this path — the tracked set is still empty and the
-    /// per-symbol start subscribes on its own).
+    /// Re-subscribe every tracked symbol of ONE category after that
+    /// category's reconnection: the server holds no session state across
+    /// sockets, so a silent reconnection would otherwise keep subscriptions
+    /// "live" while no data flows (the first connect skips this path — the
+    /// tracked set is still empty and the per-symbol start subscribes on
+    /// its own). The venue's connected flag is the EITHER-state: either
+    /// category socket live keeps the adapter connected.
     /// </summary>
-    private void HandleConnectionStateChanged(bool isConnected)
+    private void HandleConnectionStateChanged(bool isConnected, CategoryContext context, string socketUrl)
     {
-        IsConnected = isConnected;
+        IsConnected = _wsClient.IsConnected || _linearSocket.IsConnected;
         Logger.LogInformation(
-            "Bybit WebSocket connection state: {State}",
-            isConnected ? "Connected" : "Disconnected");
+            "Bybit WebSocket ({Category}) connection state: {State} at {Url}",
+            ReferenceEquals(context, _spot) ? SpotCategory : LinearCategory,
+            isConnected ? "Connected" : "Disconnected",
+            socketUrl);
 
-        if (isConnected && _subscribedSymbols.IsEmpty)
+        if (isConnected && context.Subscribed.IsEmpty)
         {
             return;
         }
@@ -548,7 +676,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
             return;
         }
 
-        foreach (var symbol in _subscribedSymbols.Values)
+        foreach (var symbol in context.Subscribed.Values)
         {
             _resubscribeQueue.Writer.TryWrite(symbol);
         }
@@ -558,8 +686,9 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// The adapter-owned keepalive: Bybit disconnects idle public sockets,
     /// while the infrastructure has no app-level ping — so the adapter sends
     /// an <c>"op":"ping"</c> frame every <see cref="KeepaliveIntervalSeconds"/>
-    /// on a PeriodicTimer owned by <see cref="DisposeAsync"/> (the loop task
-    /// is tracked and awaited there, never abandoned).
+    /// to each connected category socket on a PeriodicTimer owned by
+    /// <see cref="DisposeAsync"/> (the loop task is tracked and awaited
+    /// there, never abandoned).
     /// </summary>
     private async Task RunKeepaliveLoopAsync(CancellationToken ct)
     {
@@ -568,28 +697,31 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(KeepaliveIntervalSeconds));
             while (await timer.WaitForNextTickAsync(ct))
             {
-                if (!_wsClient.IsConnected)
+                foreach (var (context, label) in new[] { (_spot, SpotCategory), (_linear, LinearCategory) })
                 {
-                    continue;
-                }
+                    if (!context.Socket.IsConnected)
+                    {
+                        continue;
+                    }
 
-                try
-                {
-                    await _sendGate.WaitAsync(ct);
                     try
                     {
-                        await _wsClient.SendAsync(KeepalivePingFrame, ct);
+                        await _sendGate.WaitAsync(ct);
+                        try
+                        {
+                            await context.Socket.SendAsync(KeepalivePingFrame, ct);
+                        }
+                        finally
+                        {
+                            _sendGate.Release();
+                        }
                     }
-                    finally
+                    catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _sendGate.Release();
+                        // One failed ping never kills the heartbeat: the
+                        // socket's own error handling drives the reconnection.
+                        Logger.LogWarning(ex, "Bybit keepalive ping failed ({Category})", label);
                     }
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    // One failed ping never kills the heartbeat: the socket's
-                    // own error handling drives the reconnection.
-                    Logger.LogWarning(ex, "Bybit keepalive ping failed");
                 }
             }
         }
@@ -600,11 +732,11 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     }
 
     /// <summary>
-    /// Bybit v5 frame dispatch: data frames carry a "topic", control frames
-    /// (subscribe/unsubscribe/ping acks) do not — errors from one message
-    /// never leave the handler.
+    /// Bybit v5 frame dispatch for ONE category socket: data frames carry a
+    /// "topic", control frames (subscribe/unsubscribe/ping acks) do not —
+    /// errors from one message never leave the handler.
     /// </summary>
-    private void HandleWebSocketMessage(string message)
+    private void HandleWebSocketMessage(string message, CategoryContext context)
     {
         try
         {
@@ -645,18 +777,19 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
             if (topic.StartsWith(OrderBookTopicPrefix, StringComparison.Ordinal))
             {
-                HandleOrderBookFrame(topic, type, data, receivedAt);
+                HandleOrderBookFrame(topic, type, data, receivedAt, context);
             }
             else if (topic.StartsWith(TickerTopicPrefix, StringComparison.Ordinal))
             {
-                // Spot tickers are snapshot-typed (live-verified; the delta
-                // type exists only on the linear/options tickers) — the full
-                // payload is parsed as-is.
-                HandleTickerFrame(topic, data, timestamp);
+                // The spot tickers are snapshot-typed (live-verified; the
+                // full payload is parsed as-is) while the linear tickers are
+                // delta-typed (the first snapshot, then field-scoped deltas)
+                // — each category merges through its own path.
+                HandleTickerFrame(topic, data, timestamp, context);
             }
             else if (topic.StartsWith(PublicTradeTopicPrefix, StringComparison.Ordinal))
             {
-                HandlePublicTradeFrame(topic, data);
+                HandlePublicTradeFrame(topic, data, context);
             }
         }
         catch (Exception ex)
@@ -692,18 +825,29 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     }
 
     /// <summary>
-    /// Map a spot ticker frame: the price journey is lastPrice only — the v5
-    /// SPOT tickers carry no bid/ask fields (live-verified; the mapped ticker
-    /// keeps the honest absent value instead of a guessed substitute), and
-    /// <c>price24hPcnt</c> is a fraction, so it maps into the percent basis
-    /// the Binance ticker already ships (<c>"P"</c> is a percent there).
+    /// Map a ticker frame on its category's terms: the SPOT wire is
+    /// snapshot-typed — the price journey is lastPrice only (the v5 spot
+    /// tickers carry no bid/ask fields, live-verified) and
+    /// <c>price24hPcnt</c> is a fraction mapped into the percent basis the
+    /// Binance ticker already ships. The LINEAR wire is delta-typed: each
+    /// frame merges into the symbol's last known state (funding rate, open
+    /// interest and the next funding moment included) and the merged result
+    /// publishes — an absent field keeps its previous value, never a
+    /// fabricated zero, and nothing publishes before the wire ever said a
+    /// last price.
     /// </summary>
-    private void HandleTickerFrame(string topic, JsonElement data, DateTimeOffset timestamp)
+    private void HandleTickerFrame(string topic, JsonElement data, DateTimeOffset timestamp, CategoryContext context)
     {
-        var symbol = ParseExchangeSymbol(GetTopicSymbol(topic));
+        var symbol = ResolveFrameSymbol(GetTopicSymbol(topic), context);
         if (symbol is null)
         {
             Logger.LogWarning("Bybit tickers topic {Topic}: unrecognised symbol format", topic);
+            return;
+        }
+
+        if (!ReferenceEquals(context, _spot))
+        {
+            PublishLinearTicker(symbol, data, timestamp);
             return;
         }
 
@@ -720,6 +864,114 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     }
 
     /// <summary>
+    /// Merge one linear ticker frame into the symbol's delta state and
+    /// publish the merged ticker. A present-and-parseable field updates the
+    /// state; a present-but-blank or absent field keeps the previous value;
+    /// nothing publishes until the wire has said a last price (a frame
+    /// before the first snapshot is not a ticker yet).
+    /// </summary>
+    private void PublishLinearTicker(Symbol symbol, JsonElement data, DateTimeOffset timestamp)
+    {
+        var state = _linear.TickerStates.GetOrAdd(symbol.Normalized, _ => new LinearTickerState());
+
+        if (TryGetDecimal(data, "lastPrice") is { } lastPrice)
+        {
+            state.LastPrice = lastPrice;
+            state.HasLastPrice = true;
+        }
+
+        if (TryGetDecimal(data, "volume24h") is { } volume)
+        {
+            state.Volume24h = volume;
+        }
+
+        if (TryGetDecimal(data, "price24hPcnt") is { } fraction)
+        {
+            state.PriceChange24hPercent = fraction * 100m;
+        }
+
+        if (TryGetDecimal(data, "fundingRate") is { } fundingRate)
+        {
+            state.FundingRate = fundingRate;
+        }
+
+        if (TryGetDecimal(data, "openInterest") is { } openInterest)
+        {
+            state.OpenInterest = openInterest;
+        }
+
+        if (TryGetUnixMs(data, "nextFundingTime") is { } nextFunding)
+        {
+            state.NextFundingTime = nextFunding;
+        }
+
+        if (!state.HasLastPrice)
+        {
+            Logger.LogWarning(
+                "Bybit linear ticker for {Symbol}: no last price has arrived yet, the frame is not published",
+                symbol.Normalized);
+            return;
+        }
+
+        PublishTicker(new Ticker(
+            symbol,
+            state.LastPrice,
+            0m,
+            0m,
+            state.Volume24h,
+            state.PriceChange24hPercent,
+            timestamp,
+            state.FundingRate,
+            state.OpenInterest,
+            state.NextFundingTime));
+    }
+
+    /// <summary>
+    /// Read one optional decimal wire field: a present-and-parseable value
+    /// returns it; an absent, non-string or blank field returns null (the
+    /// merge keeps the previous value — never a fabricated zero).
+    /// </summary>
+    private static decimal? TryGetDecimal(JsonElement data, string property)
+    {
+        if (!data.TryGetProperty(property, out var value) ||
+            value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var text = value.GetString();
+        if (string.IsNullOrWhiteSpace(text) ||
+            !decimal.TryParse(text, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+        {
+            return null;
+        }
+
+        return parsed;
+    }
+
+    /// <summary>
+    /// Read one optional epoch-milliseconds wire field: a present-and-
+    /// parseable value returns its moment; an absent, non-string or blank
+    /// field returns null (the merge keeps the previous value).
+    /// </summary>
+    private static DateTimeOffset? TryGetUnixMs(JsonElement data, string property)
+    {
+        if (!data.TryGetProperty(property, out var value) ||
+            value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var text = value.GetString();
+        if (string.IsNullOrWhiteSpace(text) || !long.TryParse(text, out var unixMs))
+        {
+            return null;
+        }
+
+        return DateTimeOffset.FromUnixTimeMilliseconds(unixMs);
+    }
+
+    /// <summary>
     /// Route an <c>orderbook.{depth}</c> frame into the per-symbol state
     /// machine: snapshots rebuild, deltas continue the sequence, a gap
     /// discards the state and re-subscribes the topic (via the serialized
@@ -729,9 +981,9 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// carries the frame's local receive moment (T-142's one clock
     /// discipline), never the exchange's server ts.
     /// </summary>
-    private void HandleOrderBookFrame(string topic, string? type, JsonElement data, DateTimeOffset receivedAt)
+    private void HandleOrderBookFrame(string topic, string? type, JsonElement data, DateTimeOffset receivedAt, CategoryContext context)
     {
-        var symbol = ParseExchangeSymbol(GetTopicSymbol(topic));
+        var symbol = ResolveFrameSymbol(GetTopicSymbol(topic), context);
         if (symbol is null)
         {
             Logger.LogWarning("Bybit order book topic {Topic}: unrecognised symbol format", topic);
@@ -755,7 +1007,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
             return;
         }
 
-        var assembler = _bookAssemblers.GetOrAdd(
+        var assembler = context.Books.GetOrAdd(
             symbol.Normalized,
             _ => new SequencedOrderBookAssembler(symbol, DepthLevelCount));
 
@@ -789,9 +1041,9 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// the trade id. Malformed entries are counted per frame and dropped —
     /// an unparsable side is an error, never a defaulted guess.
     /// </summary>
-    private void HandlePublicTradeFrame(string topic, JsonElement data)
+    private void HandlePublicTradeFrame(string topic, JsonElement data, CategoryContext context)
     {
-        var symbol = ParseExchangeSymbol(GetTopicSymbol(topic));
+        var symbol = ResolveFrameSymbol(GetTopicSymbol(topic), context);
         if (symbol is null)
         {
             Logger.LogWarning("Bybit public trade topic {Topic}: unrecognised symbol format", topic);
@@ -915,6 +1167,49 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
             : null;
     }
 
+    /// <summary>
+    /// The category context a symbol rides: a settled (perpetual) symbol
+    /// lives on the linear wires, everything else on the spot ones (T-197).
+    /// </summary>
+    private CategoryContext ContextFor(Symbol symbol) =>
+        symbol.IsPerpetual ? _linear : _spot;
+
+    /// <summary>
+    /// Resolve a frame's exchange-format symbol text through its socket's
+    /// subscribed set. The spot wires' text parses on its own (the legacy
+    /// fallback), but the derivatives text CANNOT carry the category — a
+    /// linear frame for an unsubscribed symbol is dropped with a warning,
+    /// never guessed into a spot symbol.
+    /// </summary>
+    private Symbol? ResolveFrameSymbol(string exchangeText, CategoryContext context)
+    {
+        if (context.Subscribed.TryGetValue(exchangeText, out var subscribed))
+        {
+            return subscribed;
+        }
+
+        return ReferenceEquals(context, _spot) ? ParseExchangeSymbol(exchangeText) : null;
+    }
+
+    /// <summary>
+    /// The linear socket URL (T-197): an explicit configuration wins; a
+    /// blank one derives from the spot URL's <c>/spot</c> tail (the testnet
+    /// lane keeps its host), and a URL without that tail falls back to the
+    /// shipped production linear host.
+    /// </summary>
+    private static string ResolveLinearWsUrl(BybitEndpoints? endpoints, string spotWsUrl)
+    {
+        var configured = endpoints?.LinearWsUrl;
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured;
+        }
+
+        return spotWsUrl.EndsWith("/spot", StringComparison.OrdinalIgnoreCase)
+            ? $"{spotWsUrl[..^5]}/linear"
+            : DefaultLinearWsUrl;
+    }
+
     /// <summary>Extract the symbol part after the LAST dot of a topic ("orderbook.50.BTCUSDT").</summary>
     private static string GetTopicSymbol(string topic) => topic[(topic.LastIndexOf('.') + 1)..];
 
@@ -1021,9 +1316,12 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
         _messageSubscription.Dispose();
         _connectionSubscription.Dispose();
+        _linearMessageSubscription.Dispose();
+        _linearConnectionSubscription.Dispose();
 
         await base.DisposeAsync();
         await _wsClient.DisposeAsync();
+        await _linearSocket.DisposeAsync();
         _sendGate.Dispose();
         // HttpClient comes from IHttpClientFactory; its lifetime is managed there.
     }
@@ -1031,6 +1329,57 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     #endregion
 
     #region Nested Types
+
+    /// <summary>
+    /// One category's shared wire state (T-197): the category's socket, the
+    /// symbols subscribed on it (keyed by the exchange-format text — a
+    /// category cannot hold two symbols with the same wire text), the
+    /// per-symbol book state machines (keyed by the normalized symbol, which
+    /// DOES tell the categories apart) and the linear delta-merge ticker
+    /// states (unused on the spot wire, whose tickers are snapshot-typed).
+    /// </summary>
+    private sealed class CategoryContext(WebSocketClient socket)
+    {
+        /// <summary>The category's multiplexed public socket.</summary>
+        public WebSocketClient Socket { get; } = socket;
+
+        /// <summary>Currently subscribed symbols keyed by the exchange-format name (the reconnect re-subscribe set).</summary>
+        public ConcurrentDictionary<string, Symbol> Subscribed { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Order book state machines keyed by the normalized symbol.</summary>
+        public ConcurrentDictionary<string, SequencedOrderBookAssembler> Books { get; } = new();
+
+        /// <summary>The linear tickers' delta-merge states keyed by the normalized symbol.</summary>
+        public ConcurrentDictionary<string, LinearTickerState> TickerStates { get; } = new();
+    }
+
+    /// <summary>
+    /// One linear symbol's last known ticker facts (T-197): the delta-typed
+    /// wire sends field-scoped updates, so the merge keeps the previous
+    /// value of every field a frame does not carry. Mutable by design — the
+    /// merge owns it; the published <see cref="Ticker"/> stays immutable.
+    /// </summary>
+    private sealed class LinearTickerState
+    {
+        /// <summary>The last seen last price (the publish gate rides it: nothing publishes before the wire said a price).</summary>
+        public decimal LastPrice;
+
+        /// <summary>Whether the wire has said a last price yet.</summary>
+        public bool HasLastPrice;
+
+        public decimal Volume24h;
+
+        public decimal PriceChange24hPercent;
+
+        /// <summary>The last seen funding rate, or null while the wire has not said one.</summary>
+        public decimal? FundingRate;
+
+        /// <summary>The last seen open interest, or null while the wire has not said one.</summary>
+        public decimal? OpenInterest;
+
+        /// <summary>The last seen next-funding moment, or null while the wire has not said one.</summary>
+        public DateTimeOffset? NextFundingTime;
+    }
 
     private sealed record SubscriptionFrame(
         [property: JsonPropertyName("op")] string Op,
