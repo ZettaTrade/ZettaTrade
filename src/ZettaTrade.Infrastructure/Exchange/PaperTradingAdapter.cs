@@ -563,6 +563,19 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             filled = filled with { Commission = commission.Value };
         }
 
+        // Reduce-only honor (T-187): a protective leg may only shrink the
+        // opposite-side position the venue reports. The fill caps at that
+        // position (a partial trim logs the reduction), a fill with nothing
+        // to close throws an honest refusal — the placement path surfaces it
+        // to its caller and the conditional trigger path turns it into a
+        // Rejected leg whose OCO siblings tear down, so a stale protective
+        // pair self-cleans on its first trigger instead of flipping into a
+        // fresh exposure. Runs under the trading lock in every path.
+        if (filled.ReduceOnly)
+        {
+            filled = ClampReduceOnlyFillLocked(filled);
+        }
+
         // The portfolio applies BEFORE the order is recorded: a fill rejected
         // for insufficient balance throws out of here and leaves no phantom
         // Filled record behind — the caller receives the exception and every
@@ -589,6 +602,50 @@ public sealed class PaperTradingAdapter : ITradingAdapter
         if (_pendingBrackets.Remove(filled.Id, out var parked))
         {
             ArmBracketLegsLocked(parked, fillPrice);
+        }
+
+        return filled;
+    }
+
+    /// <summary>
+    /// The reduce-only fill clamp (T-187): the fill quantity caps at the
+    /// opposite-side position the store currently reports. Zero available
+    /// exposure throws an honest refusal (the caller paths handle it: the
+    /// placement surfaces the error, the conditional trigger rejects the
+    /// leg); a smaller position trims the fill to what exists and logs the
+    /// reduction — a protective leg can shrink the position it protects,
+    /// never open or flip exposure. Runs under the trading lock.
+    /// </summary>
+    private Order ClampReduceOnlyFillLocked(Order filled)
+    {
+        var symbolKey = filled.Symbol.Normalized;
+        var opposite = filled.Side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+        var available = _positions.TryGetValue(symbolKey, out var net)
+            && net.Side == opposite
+            ? net.Quantity
+            : 0m;
+
+        if (available <= 0m)
+        {
+            throw new InvalidOperationException(
+                $"The reduce-only {filled.Side} {filled.Type} on {symbolKey} has no opposite-side " +
+                "position to close; the fill is refused rather than degraded into an open.");
+        }
+
+        if (filled.Quantity.Value > available)
+        {
+            var trimmed = filled with
+            {
+                Quantity = new Quantity(available),
+                FilledQuantity = new Quantity(available),
+            };
+            _logger.LogInformation(
+                "Reduce-only trim: {OrderId} {Requested} -> {Available} {Symbol} (the position caps the protective fill)",
+                trimmed.Id,
+                filled.Quantity.Value,
+                available,
+                symbolKey);
+            return trimmed;
         }
 
         return filled;
@@ -801,6 +858,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             TimeInForce = request.TimeInForce,
             Expiry = request.Expiry,
             ClientOrderId = request.ClientOrderId,
+            ReduceOnly = request.ReduceOnly,
             Status = status,
             FilledQuantity = filledQuantity,
             CreatedAt = now,
@@ -893,6 +951,7 @@ public sealed class PaperTradingAdapter : ITradingAdapter
     private Position ToEntity(NetPosition net)
     {
         var symbol = Symbol.Parse(net.SymbolKey);
+        var (stopLoss, takeProfit) = ProtectiveLevelsForLocked(symbol, net.Side);
         return new Position
         {
             Id = $"{PositionIdPrefix}{net.SymbolKey}",
@@ -903,7 +962,47 @@ public sealed class PaperTradingAdapter : ITradingAdapter
             EntryPrice = new Price(net.EntryPrice),
             CurrentPrice = new Price(net.LastPrice),
             OpenedAt = net.OpenedAt,
+            StopLoss = stopLoss,
+            TakeProfit = takeProfit,
         };
+    }
+
+    /// <summary>
+    /// The protective levels a position currently carries (T-187): the
+    /// working reduce-only legs riding the OPPOSITE side of the net
+    /// position — the stop-loss stop-limit's trigger and the take-profit
+    /// limit's price. The scan reads the conditional store's concurrent
+    /// values (safe without the trading lock; the snapshot may race a
+    /// concurrent edit, the next read is fresh). Absent legs read as null —
+    /// an honest "no protection", never a defaulted level.
+    /// </summary>
+    private (Price? StopLoss, Price? TakeProfit) ProtectiveLevelsForLocked(Symbol symbol, OrderSide side)
+    {
+        var opposite = side == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
+        Price? stopLoss = null;
+        Price? takeProfit = null;
+
+        foreach (var conditional in _conditionals.Values)
+        {
+            var order = conditional.Order;
+            if (!order.ReduceOnly
+                || order.Symbol != symbol
+                || order.Side != opposite)
+            {
+                continue;
+            }
+
+            if (order.Type == OrderType.StopLimit && order.StopPrice is { } trigger)
+            {
+                stopLoss = trigger;
+            }
+            else if (order.Type == OrderType.Limit && order.Price is { } limit)
+            {
+                takeProfit = limit;
+            }
+        }
+
+        return (stopLoss, takeProfit);
     }
 
     /// <summary>Mutable accumulator for net exposure on one symbol (paper adapter internal).</summary>

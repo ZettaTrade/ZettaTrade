@@ -159,10 +159,11 @@ public sealed class TableGrammarPinsTests
     {
         // Alignment rides the cells directly beside the T-155 NumericFont
         // attribute (the token test owns the font counts): the positions
-        // panel carries 10 numeric data cells (3 + 3 + 4) and 10 matching
-        // header cells; the history window 4 data + 4 headers.
+        // panel carries 12 numeric data cells (5 + 3 + 4; T-187 adds the
+        // stop-loss and take-profit cells) and 12 matching header cells; the
+        // history window 4 data + 4 headers.
         Regex.Matches(PositionsXaml, "TextAlignment=\"Right\"")
-            .Should().HaveCount(20, "every numeric column (data + header) right-aligns: 3 positions + 3 open orders + 4 session journal cells and their 10 headers");
+            .Should().HaveCount(24, "every numeric column (data + header) right-aligns: 5 positions + 3 open orders + 4 session journal cells and their 12 headers");
         Regex.Matches(HistoryXaml, "TextAlignment=\"Right\"")
             .Should().HaveCount(8, "the history's opened/quantity/price/fee columns right-align, data and headers alike");
 
@@ -171,7 +172,7 @@ public sealed class TableGrammarPinsTests
         // field, not a column — it rides the stack without the alignment).
         foreach (var (name, source, numericCells, inputFields) in new[]
                  {
-                     ("positions panel", PositionsXaml, 10, 1),
+                     ("positions panel", PositionsXaml, 12, 1),
                      ("order history", HistoryXaml, 4, 0),
                  })
         {
@@ -197,15 +198,15 @@ public sealed class TableGrammarPinsTests
 
         // Three weights on the rows: the default carries the row's main
         // move (the Close, the two row Cancels and the bulk cancel), the
-        // secondary is the quiet outlined sibling (the Reduce, the two
-        // Amends), and the destructive is EXACTLY one — the two-step gated
-        // Reverse. One destructive per panel means the subdued ghost is
-        // reserved for the flip; the confirmation gate itself is the
+        // secondary is the quiet outlined sibling (the Reduce, the SL/TP
+        // protect, the two Amends), and the destructive is EXACTLY one — the
+        // two-step gated Reverse. One destructive per panel means the subdued
+        // ghost is reserved for the flip; the confirmation gate itself is the
         // view-model's, and the action command tests own that fact.
         Regex.Matches(source, "Classes=\"row-action\"")
             .Should().HaveCount(4, "the default weight: Close, the two row Cancels, the bulk cancel");
         Regex.Matches(source, "Classes=\"row-action secondary\"")
-            .Should().HaveCount(3, "the secondary weight: Reduce, the two Amends");
+            .Should().HaveCount(4, "the secondary weight: Reduce, the SL/TP protect, the two Amends (T-187)");
         Regex.Matches(source, "Classes=\"row-action destructive\"")
             .Should().HaveCount(1, "only the Reverse is destructive — never one of a crowd");
 

@@ -71,7 +71,7 @@ public sealed class TokensPinsTests
         Regex.Matches(stats, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(10, "all ten stats tiles set their values in the tabular stack");
         Regex.Matches(positions, "FontFamily=\"{StaticResource NumericFont}\"")
-            .Should().HaveCount(11, "the three sections' numeric columns (3 positions + 3 open orders + 4 session journal) and the reduce input set their digits in the tabular stack (T-157)");
+            .Should().HaveCount(13, "the three sections' numeric columns (5 positions + 3 open orders + 4 session journal) and the reduce input set their digits in the tabular stack (T-157; T-187 adds the positions table's stop-loss and take-profit cells)");
         Regex.Matches(history, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(4, "the history table's opened/quantity/price/fee columns hold their digits");
         Regex.Matches(ticket, "FontFamily=\"{StaticResource NumericFont}\"")

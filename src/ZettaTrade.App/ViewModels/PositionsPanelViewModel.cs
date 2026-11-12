@@ -27,9 +27,11 @@ using ZettaTrade.Infrastructure.Persistence;
 /// amended shape through <see cref="IRiskManager"/>, walks large-delta
 /// amends through the confirmation dialog and re-places the order — the
 /// row shows the amending state for as long as the replace is in flight.
-/// Position rows carry the action surface (close, partial close, reverse):
-/// the requests ride the <see cref="PositionActionsService"/> pipeline
-/// (validate → risk → confirmation → adapter), every attempt is serialized
+/// Position rows carry the action surface (close, partial close, reverse)
+/// plus the protective SL/TP edit (T-187): the requests ride the
+/// <see cref="PositionActionsService"/> and
+/// <see cref="ProtectiveLevelsService"/> pipelines (validate → risk →
+/// confirmation → adapter), every attempt is serialized
 /// by one in-flight gate — a busy panel disables the rows' action commands,
 /// so a double click is a no-op — and the sections reload after every
 /// resolved attempt. The orders section carries ONE bulk action (T-076):
@@ -47,6 +49,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     private const string CancelledKey = "Positions.Cancelled";
     private const string CancelFailedKey = "Positions.CancelFailed";
     private const string AmendFailedKey = "Positions.AmendFailed";
+    private const string ActionFailedKey = "Positions.ActionFailedFormat";
     private const string FeeUnknownKey = "Fees.Unknown";
     private const string FeeDisplayFormat = "F8";
 
@@ -61,6 +64,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     private readonly OrderConfirmationComposer _composer;
     private readonly OrderAmendService _amendService;
     private readonly PositionActionsService _actions;
+    private readonly ProtectiveLevelsService _protect;
     private readonly BulkCancelService _bulkCancel;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<PositionsPanelViewModel> _logger;
@@ -239,6 +243,15 @@ public sealed class PositionsPanelViewModel : ReactiveObject
     public Interaction<Order, OrderAmendRequest?> AmendRequested { get; }
 
     /// <summary>
+    /// The protective-levels dialog handoff (T-187): the view model asks for
+    /// the level edits over one position, the View opens the protect dialog
+    /// window and answers with the parsed <see cref="Services.ProtectiveLevelsEdits"/>
+    /// — or null when the user cancelled the dialog. Window plumbing stays
+    /// in the View.
+    /// </summary>
+    public Interaction<Position, ProtectiveLevelsEdits?> ProtectRequested { get; }
+
+    /// <summary>
     /// The bulk action of the orders section (T-076): confirm once, then
     /// cancel every working order the adapter still serves on the workspace's
     /// active symbol. Enabled while the panel is idle and the section is
@@ -263,6 +276,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         OrderConfirmationComposer composer,
         OrderAmendService amendService,
         PositionActionsService actions,
+        ProtectiveLevelsService protect,
         BulkCancelService bulkCancel,
         ILocalizationManager localization,
         ILogger<PositionsPanelViewModel> logger)
@@ -274,6 +288,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
         _amendService = amendService ?? throw new ArgumentNullException(nameof(amendService));
         _actions = actions ?? throw new ArgumentNullException(nameof(actions));
+        _protect = protect ?? throw new ArgumentNullException(nameof(protect));
         _bulkCancel = bulkCancel ?? throw new ArgumentNullException(nameof(bulkCancel));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -286,6 +301,7 @@ public sealed class PositionsPanelViewModel : ReactiveObject
 
         LoadCommand = ReactiveCommand.CreateFromTask(HandleLoadAsync);
         AmendRequested = new Interaction<Order, OrderAmendRequest?>();
+        ProtectRequested = new Interaction<Position, ProtectiveLevelsEdits?>();
         CancelAllCommand = ReactiveCommand.CreateFromTask(
             HandleBulkCancelAsync,
             Observable.CombineLatest(
@@ -557,6 +573,72 @@ public sealed class PositionsPanelViewModel : ReactiveObject
         await RunActionAsync(() => _actions.ReverseAsync(position.Symbol));
 
     /// <summary>
+    /// The protective-levels flow for one position (T-187): the View hands
+    /// back the parsed level edits (null = the user cancelled the dialog),
+    /// and the <see cref="ProtectiveLevelsService"/> pipeline carries the
+    /// fresh state re-read, the direction checks, the risk pair, the ONE
+    /// confirmation and the cancel+place rewrite — under the same in-flight
+    /// gate the other position actions ride, with the sections reloading on
+    /// resolution and the outcome line landing last.
+    /// </summary>
+    private async Task HandleProtectAsync(Position position)
+    {
+        // Belt-and-braces against a raced click: the canExecute gate disables
+        // the commands, but anything that still arrives while an attempt
+        // runs is dropped, not queued into a second pipeline.
+        if (IsBusy)
+        {
+            return;
+        }
+
+        // A fresh attempt replaces whatever the previous attempt reported.
+        ErrorMessage = null;
+        ResultMessage = null;
+
+        IsBusy = true;
+        try
+        {
+            var edits = await ProtectRequested.Handle(position);
+            if (edits is null)
+            {
+                _logger.LogInformation(
+                    "Positions panel: the protective-levels dialog of {Symbol} closed without an edit",
+                    position.Symbol.Normalized);
+                return;
+            }
+
+            var result = await _protect.ProtectAsync(position, edits.StopLoss, edits.TakeProfit);
+
+            // The sections refresh BEFORE the outcome line so the lists the
+            // rows render are the ones the report describes.
+            await ReloadSectionsAsync();
+
+            switch (result.Outcome)
+            {
+                case PositionActionOutcome.Placed:
+                    ResultMessage = result.ResultMessage;
+                    break;
+
+                case PositionActionOutcome.Failed:
+                    ErrorMessage = result.ErrorMessage;
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Broader than the service's own conversion: only an unexpected
+            // fault of the dialog handoff itself can reach here, and the
+            // panel must report it instead of going silently stale.
+            _logger.LogError(ex, "Positions panel: the protective-levels flow of {Symbol} failed", position.Symbol.Normalized);
+            ErrorMessage = _localization.GetString(ActionFailedKey, ex.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
     /// Run one position action under the in-flight gate: the gate disables
     /// the rows' action commands for its duration (a double click is a
     /// no-op), the sections reload on resolution, and the attempt's own
@@ -639,10 +721,13 @@ public sealed class PositionsPanelViewModel : ReactiveObject
 
     /// <summary>
     /// Build the immutable display row for one position, wiring its action
-    /// surface: close, partial close (from the row's own reduce input) and
-    /// reverse all close over the position the row rendered, ride the
-    /// service pipeline, and share the in-flight gate — an attempt in
-    /// flight disables every row's action commands until it resolves.
+    /// surface: close, partial close (from the row's own reduce input),
+    /// reverse and the protective SL/TP edit all close over the position the
+    /// row rendered, ride the service pipelines, and share the in-flight
+    /// gate — an attempt in flight disables every row's action commands
+    /// until it resolves. The SL/TP cells read the levels the position
+    /// itself reports (the working protective legs' values the venue
+    /// surfaces); an unprotected position renders the honest empty cell.
     /// </summary>
     private PositionRowViewModel CreatePositionRow(Position position)
     {
@@ -660,6 +745,12 @@ public sealed class PositionsPanelViewModel : ReactiveObject
             IsBuySide = position.Side is OrderSide.Buy,
             Quantity = position.Quantity.Value.ToString(CultureInfo.InvariantCulture),
             EntryPrice = position.EntryPrice.Value.ToString("F8", CultureInfo.InvariantCulture),
+            StopLoss = position.StopLoss is { } stop
+                ? stop.Value.ToString("F8", CultureInfo.InvariantCulture)
+                : string.Empty,
+            TakeProfit = position.TakeProfit is { } takeProfit
+                ? takeProfit.Value.ToString("F8", CultureInfo.InvariantCulture)
+                : string.Empty,
             Opened = position.OpenedAt.ToLocalTime().ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
             CloseCommand = ReactiveCommand.CreateFromTask(
                 () => HandleCloseAsync(position),
@@ -669,6 +760,9 @@ public sealed class PositionsPanelViewModel : ReactiveObject
                 _actionsIdle),
             ReverseCommand = ReactiveCommand.CreateFromTask(
                 () => HandleReverseAsync(position),
+                _actionsIdle),
+            EditProtectCommand = ReactiveCommand.CreateFromTask(
+                () => HandleProtectAsync(position),
                 _actionsIdle),
         };
 

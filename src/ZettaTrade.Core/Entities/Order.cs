@@ -68,6 +68,14 @@ public sealed record Order
     /// <summary>Exchange-assigned order identifier.</summary>
     public string? ExchangeOrderId { get; init; }
 
+    /// <summary>
+    /// Reduce-only intent (T-187): the order may only shrink an existing
+    /// opposite-side position — the fill clamps at the position the venue
+    /// reports and never opens or flips exposure. False for every
+    /// direction-bearing order.
+    /// </summary>
+    public bool ReduceOnly { get; init; }
+
     /// <summary>Rejection reason (if status is Rejected).</summary>
     public string? RejectReason { get; init; }
 

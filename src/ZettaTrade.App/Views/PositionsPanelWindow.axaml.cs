@@ -67,6 +67,10 @@ public partial class PositionsPanelWindow : ReactiveWindow<PositionsPanelViewMod
             ViewModel?.AmendRequested
                 .RegisterHandler(HandleAmendRequestedAsync)
                 .DisposeWith(disposables);
+
+            ViewModel?.ProtectRequested
+                .RegisterHandler(HandleProtectRequestedAsync)
+                .DisposeWith(disposables);
         });
     }
 
@@ -99,6 +103,37 @@ public partial class PositionsPanelWindow : ReactiveWindow<PositionsPanelViewMod
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the amend order dialog");
+            context.SetOutput(null);
+        }
+    }
+
+    /// <summary>
+    /// Show the protective-levels dialog over this panel (T-187) and return
+    /// the parsed level edits; null when the dialog closes without one (user
+    /// cancel, title bar X, or refused input kept the dialog open).
+    /// </summary>
+    private async Task<ProtectiveLevelsEdits?> ShowProtectDialogAsync(Position position)
+    {
+        var viewModel = App.Services.GetRequiredService<ProtectiveLevelsDialogViewModel>();
+        viewModel.Initialize(position);
+
+        var dialog = new ProtectiveLevelsDialogWindow
+        {
+            DataContext = viewModel,
+        };
+        await dialog.ShowDialog<object>(this);
+        return dialog.ProtectEdits;
+    }
+
+    private async Task HandleProtectRequestedAsync(IInteractionContext<Position, ProtectiveLevelsEdits?> context)
+    {
+        try
+        {
+            context.SetOutput(await ShowProtectDialogAsync(context.Input));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the protective-levels dialog");
             context.SetOutput(null);
         }
     }

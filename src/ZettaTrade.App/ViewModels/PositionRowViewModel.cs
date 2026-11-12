@@ -7,9 +7,10 @@ using ReactiveUI.Primitives;
 /// One display row of the positions table in the positions panel. The parent
 /// view model precomputes the localized display strings at load time — the
 /// row itself is not a localization surface. It carries the row's action
-/// surface: the close, reduce and reverse commands close over the position
-/// the row rendered, and the one dynamic input is the reduce amount (parsed
-/// and validated by the position actions service, never defaulted here).
+/// surface: the close, reduce, reverse and protect commands close over the
+/// position the row rendered, and the one dynamic input is the reduce amount
+/// (parsed and validated by the position actions service, never defaulted
+/// here).
 /// </summary>
 public sealed class PositionRowViewModel : ReactiveObject
 {
@@ -40,6 +41,16 @@ public sealed class PositionRowViewModel : ReactiveObject
     /// <summary>Average entry price, invariant culture.</summary>
     public required string EntryPrice { get; init; }
 
+    /// <summary>
+    /// The stop-loss level the position carries (the working protective leg's
+    /// trigger the venue reports), invariant F8; an unprotected position
+    /// renders the honest empty cell — never a fabricated dash or zero.
+    /// </summary>
+    public required string StopLoss { get; init; }
+
+    /// <summary>The take-profit level the position carries, invariant F8; empty when none.</summary>
+    public required string TakeProfit { get; init; }
+
     /// <summary>Formatted opening timestamp.</summary>
     public required string Opened { get; init; }
 
@@ -68,4 +79,11 @@ public sealed class PositionRowViewModel : ReactiveObject
 
     /// <summary>Per-row reverse command (two risk-checked legs, one confirmation).</summary>
     public required ReactiveCommand<RxVoid, RxVoid> ReverseCommand { get; init; }
+
+    /// <summary>
+    /// Per-row protect command (T-187): opens the SL/TP edit dialog through
+    /// the panel's interaction; the rewrite rides the protective-levels
+    /// service behind the shared in-flight gate.
+    /// </summary>
+    public required ReactiveCommand<RxVoid, RxVoid> EditProtectCommand { get; init; }
 }
