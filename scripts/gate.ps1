@@ -61,6 +61,41 @@ function Test-AnyLike([string]$Text, [string[]]$Patterns) {
     return $false
 }
 
+# Defender real-time protection scans freshly written assemblies; a test run
+# started immediately after a build contends with the scan queue and can stall
+# the Avalonia UI thread past its dispatcher-pump timeout (observed 2026-11-12:
+# SurfaceStrayPinsTests failed 5 gate runs in a row right after the build,
+# green in isolation and ~2 minutes later). Wait until the newest binary under
+# tests/src is at least $MinAgeSeconds old, capped at $MaxWaitSeconds; a no-op
+# build skips the wait because the newest binary is already old.
+function Wait-BuildSettle([string]$Root, [int]$MinAgeSeconds, [int]$MaxWaitSeconds) {
+    $deadline = (Get-Date).AddSeconds($MaxWaitSeconds)
+    while ($true) {
+        $newest = $null
+        foreach ($dir in @('tests', 'src')) {
+            $path = Join-Path $Root $dir
+            if (-not (Test-Path -LiteralPath $path)) { continue }
+            foreach ($f in (Get-ChildItem -LiteralPath $path -Recurse -File)) {
+                $n = $f.Name
+                if ($n -notlike '*.dll' -and $n -notlike '*.exe' -and $n -notlike '*.pdb' -and $n -notlike '*.deps.json') { continue }
+                if ($null -eq $newest -or $f.LastWriteTime -gt $newest.LastWriteTime) { $newest = $f }
+            }
+        }
+        if ($null -eq $newest) { return }  # no binaries at all: nothing to settle
+        $age = [int](((Get-Date) - $newest.LastWriteTime).TotalSeconds)
+        if ($age -ge $MinAgeSeconds) { return }
+        if ((Get-Date) -gt $deadline) {
+            Say "[GATE] settle deadline hit (newest binary $($newest.Name) is $age s old); continuing."
+            return
+        }
+        if (-not $announced) {
+            $announced = $true
+            Say "[GATE] waiting for fresh build outputs to settle (newest: $($newest.Name), $age s old) ..."
+        }
+        Start-Sleep -Seconds 5
+    }
+}
+
 # Yields { File, Line, Text } for every added line in .cs / .axaml / .xaml files.
 function Get-AddedLines([string]$Base) {
     $diff = Invoke-Git diff -U0 --no-color --diff-filter=AM $Base '--' '*.cs' '*.axaml' '*.xaml'
@@ -361,6 +396,9 @@ try {
             }
             else {
                 if (-not $SkipTests) {
+                    # Defender RT scans fresh binaries and stalls the first test
+                    # load after a build (see Wait-BuildSettle); let them settle.
+                    Wait-BuildSettle $root 120 180
                     $testArgs = @('test', $sln[0].FullName, '--no-build', '--nologo', '-v', 'q')
                     $test = Invoke-Tool 'dotnet' $testArgs
                     $test.Output | Add-Content $logFile
