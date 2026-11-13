@@ -4225,6 +4225,70 @@ the board and its section below.
   ticker+screener+watchlist clean, palette 14 rows, strategies+indicators provided, chat
   history store ready, 0 leftovers.
 
+## T-209 — Portfolio value history
+
+- **Branch:** feat/portfolio-history, worktree zt-portfolio-history, base develop@2c3e7a9
+  (claimed 2026-11-13 off the synced board).
+- **Origin:** the sweep — the PnL engine (T-082) and the stats equity curve (T-083) ship; the
+  balances panel has no time dimension.
+- **What:** periodic portfolio-value snapshots per trading account (paper-first) persisted to
+  SQLite; the balances panel grows a value-over-time curve (the existing equity-curve widget)
+  and an allocation list by asset; the snapshot cadence is bounded and skips when nothing
+  changed materially.
+- **Scope:** Infrastructure (the snapshot service + store), the balances VM, resx en+ru, the
+  next free alpha bump + the CHANGELOG section.
+- **Acceptance:** the curve survives restart and reads the snapshot history; the allocation
+  sums to the portfolio value; the snapshots stay cheap (a bounded write cadence).
+- **Tests:** the snapshot cadence battery; the store migration pins.
+- **Status:** done - 0.1.0-alpha.153. Chain: claim `5827e9d` -> feat `b8672ed` -> close.
+  The store family (Infrastructure.Persistence): `IPortfolioValueStore` /
+  `SqlitePortfolioValueStore` (IAsyncInitializable, one context per operation),
+  `PortfolioValueDbContext` (table `PortfolioValue`, composite PK (ExchangeId, TimestampUtc),
+  the OrderHistoryConversions Timestamp/Amount converters), the design-time factory,
+  migration `20261113153202_InitialPortfolioValue`,
+  `ConfigPathResolver.PortfolioValueDatabaseFile` ("portfolio-value.db") and
+  `PortfolioValueStoreLimits.MaxRecentBatch` = 1000 (the read clamps 1..1000, newest-first per
+  account). The snapshot service (App): the DI factory pins the concrete paper adapter
+  singleton (paper-first; the factory form rides the startup walk — the walk resolves factory
+  registrations and initializes the IAsyncInitializable instances), values on the pinned 30 s
+  cadence — the quote asset rides at par (the simulation's unit of account, definitional,
+  never a fabricated price), every other asset rides the last price its facade ticker
+  delivered (one `SubscribeTicker("{asset}/{quote}")` pump per held asset, dropped when sold
+  out, re-armed on a faulted stream), an asset no ticker priced stays in the allocation with
+  its amount disclosed and OUT of the total, an empty account writes nothing, and a pass
+  whose (TotalValue, AllocationJson) facts did not change since the last write is skipped;
+  the allocation rides as camelCase JSON whose priced entries sum to the row's total; a store
+  fault surfaces from the pass and the loop catches and retries on the next tick. The
+  balances VM loads the history alongside the live figures: the curve points ride
+  chronological, the newest row becomes the allocation list with the localized not-priced
+  cell, the quote currency rides disclosed, and a read fault stays scoped to the section's
+  own line — the aggregation display never depends on the store's health (the equity-curve
+  widget and the section-scoped fault pattern follow TradeStatsWindow). Resx:
+  `Trading.BalancesValueHistoryHeader/A11y/Empty/FailedFormat` +
+  `Trading.BalancesAllocationValue/Unpriced`, en+ru. The smoke's fresh-demo profile honestly
+  writes nothing: a never-traded paper account serves no balances (the ctor seeds none; only
+  the reset flow does — the adapter's implicit initial quote is an order-placement fallback,
+  never a served balance), so the first write lands after the user's reset — the write path
+  rides the unit battery, the smoke pins the store ready line + portfolio-value.db +
+  surviving the 30 s tick. Tests: 18 new cases (10 snapshot-service facts — the par row, the
+  identical skip, the moved rewrite, the empty account, the store fault, the priced/unpriced/
+  refused valuation paths, the camelCase document, the cadence pin; 8 store facts — the
+  migration pin, the round-trip, the newest-first clamp, the account isolation, the restart
+  story, the duplicate-key honesty, the empty account, the schema whitelist; the VM battery
+  grew to 14 with the empty/curve/allocation/scoped-fault facts). Suites: App 2082/2082
+  (delta exactly 14 over T-208's 2068), Infrastructure 628 (delta exactly 8 over T-208's 620;
+  one Alpaca WS flake retried green), UI 409, Core 61, AdapterKit 48, Strategies 32, Backtest
+  29, Soak 17, E2E 6 - all green. GATE PASSED attempt 2 (-AllowProtected; attempt 1 failed the
+  FORMAT check on the dotnet-ef-generated migration files' CRLF plus one stray CRLF in the
+  service file, fixed by normalizing to LF; the Infrastructure flake retry and the SCOPE info
+  + the local gitleaks skip are warn-level). The launch smoke green on the feat tip (the
+  close touches no app code): ProductVersion
+  0.1.0-alpha.153+b8672edc7a0da5ed73c835dd02bc256172e20f1d (the full 40-character sha), title
+  held through the 40 s hold (the 30 s snapshot tick included), 0 ERR/FTL,
+  ticker+screener+watchlist clean, palette 14 rows, strategies+indicators provided, chat
+  history store ready, "Portfolio value store ready" + portfolio-value.db verified, 0
+  leftovers.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
