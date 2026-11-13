@@ -48,6 +48,12 @@
   <data name="Menu.File.Exit" xml:space="preserve">
     <value>Exit</value>
   </data>
+  <data name="Tray.CloseToTray" xml:space="preserve">
+    <value>Keep running in the tray on close</value>
+  </data>
+  <data name="Tray.ShowHide" xml:space="preserve">
+    <value>Show / hide the main window</value>
+  </data>
   <data name="Menu.Trading" xml:space="preserve">
     <value>Trading</value>
   </data>

@@ -62,9 +62,16 @@ public partial class App : Application
                 // record, so the detached layout stands exactly as the user
                 // left it for the next session.
                 desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
-                desktop.ShutdownRequested += (_, _) => Services
-                    .GetRequiredService<IDetachedPanelCoordinator>()
-                    .MarkShutdownRequested();
+                desktop.ShutdownRequested += (_, _) =>
+                {
+                    // The tray close policy (T-214): the OS session end is an
+                    // explicit exit — armed here so the close-to-tray
+                    // interception can never swallow it.
+                    Services.GetRequiredService<TrayClosePolicy>().ArmExit();
+
+                    Services.GetRequiredService<IDetachedPanelCoordinator>()
+                        .MarkShutdownRequested();
+                };
 
                 // The single-instance handoff (T-104): the dispatch pipe
                 // opens only now — after the composition walk — so a
@@ -82,8 +89,15 @@ public partial class App : Application
                 // first binding pass - the View menu's $parent[Window] lanes,
                 // the HUD gate, the gesture hints - resolves against the live
                 // graph and logs no null-DataContext noise.
-                var mainWindow = new MainWindow(mainVm);
+                var mainWindow = new MainWindow(
+                    mainVm,
+                    Services.GetRequiredService<TrayClosePolicy>());
                 desktop.MainWindow = mainWindow;
+
+                // The tray presence (T-214): attached before the window
+                // shows, so the tray exists regardless of the window's own
+                // fate — including the close-to-tray mode hiding it.
+                Services.GetRequiredService<TrayIconService>().AttachMainWindow(mainWindow);
 
                 // StartCore() shows MainWindow synchronously right after this callback returns.
                 // With a settings file present, our async initialization suspends on the first

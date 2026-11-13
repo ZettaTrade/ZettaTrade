@@ -21,4 +21,14 @@ public static class AppSettingsKeys
     /// "no news arrives").
     /// </summary>
     public const bool DefaultUpdateCheckEnabled = true;
+
+    /// <summary>Settings key of the tray close behavior (a stored enum name).</summary>
+    public const string TrayCloseBehavior = "TrayCloseBehavior";
+
+    /// <summary>
+    /// The tray close behavior applied until a stored value is loaded:
+    /// the close gesture exits exactly as it always has — the tray option
+    /// never changes anything before the user asks for it.
+    /// </summary>
+    public const TrayCloseMode DefaultTrayCloseBehavior = TrayCloseMode.Exit;
 }

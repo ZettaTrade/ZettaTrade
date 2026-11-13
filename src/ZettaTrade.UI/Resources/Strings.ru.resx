@@ -48,6 +48,12 @@
   <data name="Menu.File.Exit" xml:space="preserve">
     <value>Выход</value>
   </data>
+  <data name="Tray.CloseToTray" xml:space="preserve">
+    <value>Оставаться в трее при закрытии</value>
+  </data>
+  <data name="Tray.ShowHide" xml:space="preserve">
+    <value>Показать или скрыть главное окно</value>
+  </data>
   <data name="Menu.Trading" xml:space="preserve">
     <value>Торговля</value>
   </data>

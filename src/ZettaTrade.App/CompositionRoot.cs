@@ -397,6 +397,12 @@ internal static class CompositionRoot
         // the startup walk never awaits the network.
         services.AddUpdateServices();
 
+        // The tray presence (T-214): the close policy the main window's
+        // gesture consults and the tray icon's menu. Registered after the
+        // update services — the settings service and the notification
+        // center it reads must be in the container first.
+        services.AddTrayServices();
+
         // The PnL accounting core + its app-side feed (T-082): after the
         // order history registration, so the walk initializes the ledger
         // store before the engine's boot replay reads it.

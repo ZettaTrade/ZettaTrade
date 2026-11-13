@@ -1,3 +1,27 @@
+## [0.1.0-alpha.161] - 2026-11-14
+
+Build of board task T-214 (branch `feat/tray-icon`): the tray presence —
+the tray icon with its minimal menu and the close-to-tray option (off by
+default), so a hidden session keeps trading while the window is away.
+
+### Added
+- The tray icon rides the app's own branding asset with a minimal menu:
+  show/hide the main window, the close-to-tray checkable, the Do-Not-Disturb
+  checkable (the notification center's own truth) and Exit. A platform
+  without tray support degrades honestly: the registration is wrapped, the
+  app continues exactly as before. There is no balloon API on the tray, so
+  fired alerts keep landing in the notification center (the history holds
+  everything while the window is hidden) — the tray's DND checkable is the
+  alert-control surface.
+- The close-to-tray option (`App.TrayCloseBehavior`, off by default): the
+  shipped semantics never change — a close IS the exit until the user asks
+  for the tray mode. With the mode on, a plain user close hides the main
+  window instead: the exchanges, the risk gates and the single-instance
+  dispatch pipe keep running behind the tray icon, and a forwarded
+  `--symbol` start still lands the selection. Every explicit exit path —
+  the tray's Exit, the File menu's Exit (armed through the policy) and the
+  OS session end — closes exactly as it always has.
+
 ## [0.1.0-alpha.160] - 2026-11-14
 
 Build of board task T-223 (branch `feat/settings-collapse`): the settings

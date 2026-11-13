@@ -2,6 +2,7 @@ namespace ZettaTrade.App.ViewModels;
 
 using ReactiveUI;
 using ReactiveUI.Primitives;
+using ZettaTrade.App.Services;
 
 /// <summary>
 /// ViewModel for menu bar with commands.
@@ -9,6 +10,13 @@ using ReactiveUI.Primitives;
 /// </summary>
 public sealed class MenuViewModel : ReactiveObject
 {
+    /// <summary>
+    /// The tray close policy (T-214), or null: the Exit item arms it so a
+    /// close-to-tray session exits cleanly; without it (the tests) the
+    /// shipped lifetime route stands.
+    /// </summary>
+    private readonly TrayClosePolicy? _closePolicy;
+
     #region Commands
 
     /// <summary>Command to open new order dialog.</summary>
@@ -191,11 +199,20 @@ public sealed class MenuViewModel : ReactiveObject
     /// menu's checkable cheat-sheet item drives its own toggle command and
     /// mirrors the sheet's visibility; the advertised gestures the menu
     /// items print come from the same live map the window routes.</param>
-    public MenuViewModel(ChatViewModel chat, PerformanceHudViewModel hud, HotkeyViewModel hotkeys)
+    /// <param name="closePolicy">The tray close policy (T-214): the Exit
+    /// item arms it and shuts down through it, so a close-to-tray session
+    /// exits cleanly. Optional — every existing call (the tests) stays
+    /// valid and keeps the shipped lifetime route.</param>
+    public MenuViewModel(
+        ChatViewModel chat,
+        PerformanceHudViewModel hud,
+        HotkeyViewModel hotkeys,
+        TrayClosePolicy? closePolicy = null)
     {
         _chat = chat;
         _hud = hud;
         Hotkeys = hotkeys;
+        _closePolicy = closePolicy;
 
         OpenSettingsRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderRequested = new Interaction<RxVoid, RxVoid>();
@@ -401,8 +418,20 @@ public sealed class MenuViewModel : ReactiveObject
     /// </summary>
     private Task HandleCheckUpdatesAsync() => CheckUpdatesRequested.Handle(RxVoid.Default);
 
+    /// <summary>
+    /// The Exit route (T-214): with the tray close policy present it arms
+    /// the exit flag and shuts down through it — a close-to-tray session
+    /// must exit cleanly, never hide behind the interception; without the
+    /// policy the shipped lifetime route stands exactly as before.
+    /// </summary>
     private void HandleExit()
     {
+        if (_closePolicy is { } policy)
+        {
+            policy.RequestExit();
+            return;
+        }
+
         if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime lifetime)
         {
             lifetime.Shutdown();
