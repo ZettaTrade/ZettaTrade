@@ -423,6 +423,21 @@
   <data name="AI.Chat.Copy" xml:space="preserve">
     <value>Копировать сообщение</value>
   </data>
+  <data name="AI.Chat.HistoryPicker" xml:space="preserve">
+    <value>История диалогов</value>
+  </data>
+  <data name="AI.Chat.NewConversation" xml:space="preserve">
+    <value>Начать новый диалог</value>
+  </data>
+  <data name="AI.Chat.ConversationDefaultTitle" xml:space="preserve">
+    <value>Новый диалог</value>
+  </data>
+  <data name="AI.Chat.Export" xml:space="preserve">
+    <value>Экспортировать чат в Markdown</value>
+  </data>
+  <data name="AI.Chat.ExportFailed" xml:space="preserve">
+    <value>Не удалось экспортировать чат: {0}</value>
+  </data>
   <data name="Chart.NoDataMessage" xml:space="preserve">
     <value>Нет данных</value>
   </data>

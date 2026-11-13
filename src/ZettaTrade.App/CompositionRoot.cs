@@ -153,6 +153,11 @@ internal static class CompositionRoot
         // named HttpClient; the workspace context rides the existing seams.
         services.AddAiServices();
 
+        // Persistent chat history (T-206): the conversations' transcripts of
+        // record. Registered BEFORE the ChatViewModel factory — the startup
+        // walk applies its migrations ahead of the history restore.
+        services.AddChatHistory();
+
         services.AddSingleton<IMcpClient>(sp =>
             new McpClientService(
                 sp.GetRequiredService<ILogger<McpClientService>>(),
@@ -229,7 +234,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<ChatViewModel>>(),
                 sp.GetRequiredService<MarketContextPreambleComposer>(),
-                sp.GetRequiredService<IStreamingChatCompletion>()));
+                sp.GetRequiredService<IStreamingChatCompletion>(),
+                sp.GetRequiredService<IChatHistoryStore>()));
         // The detached-panel runtime (T-103): the one authority of the
         // detached state with its per-panel window shells. Registered
         // before the layout ViewModel — the layout mirror and the View

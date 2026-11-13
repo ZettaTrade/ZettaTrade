@@ -113,6 +113,13 @@ public static class ConfigPathResolver
     public static string ChartDrawingsDatabaseFile => Path.Combine(DataDirectory, "chart-drawings.db");
 
     /// <summary>
+    /// Path to the SQLite database holding the persistent AI chat history
+    /// (T-206): the conversations' transcripts of record — the picker's
+    /// list and every restore replay read them whole.
+    /// </summary>
+    public static string ChatHistoryDatabaseFile => Path.Combine(DataDirectory, "chat-history.db");
+
+    /// <summary>
     /// Ensure all required directories exist.
     /// </summary>
     public static void EnsureDirectoriesExist()
