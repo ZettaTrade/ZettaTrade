@@ -79,7 +79,7 @@
              here too). The kind's own fields show; the other kind's stay
              hidden. Every spelling parses at submit, nothing defaults. -->
         <Grid Grid.Row="1"
-              ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*"
+              ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*"
               ColumnSpacing="{StaticResource SpaceS}">
             <StackPanel Grid.Column="0">
                 <TextBlock Text="{loc:Localized Alert.Editing.Kind}" FontSize="{StaticResource CaptionFontSize}" />
@@ -94,10 +94,10 @@
                 </ComboBox>
             </StackPanel>
             <StackPanel Grid.Column="1"
-                        IsVisible="{Binding IsPriceKind}">
+                        IsVisible="{Binding ShowsTrigger}">
                 <TextBlock Text="{loc:Localized Alert.Editing.Trigger}" FontSize="{StaticResource CaptionFontSize}" />
-                <ComboBox Width="110"
-                          ItemsSource="{Binding TriggerOptions}"
+                <ComboBox Width="100"
+                          ItemsSource="{Binding VisibleTriggerOptions}"
                           SelectedItem="{Binding SelectedTrigger, Mode=TwoWay}">
                     <ComboBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:AlertTriggerOption">
@@ -109,23 +109,53 @@
             <StackPanel Grid.Column="2"
                         IsVisible="{Binding IsPriceKind}">
                 <TextBlock Text="{loc:Localized Alert.Editing.Target}" FontSize="{StaticResource CaptionFontSize}" />
-                <TextBox Width="110" Text="{Binding TargetText}" />
+                <TextBox Width="100" Text="{Binding TargetText}" />
             </StackPanel>
             <StackPanel Grid.Column="3"
+                        IsVisible="{Binding IsIndicatorKind}">
+                <TextBlock Text="{loc:Localized Alert.Editing.Indicator}" FontSize="{StaticResource CaptionFontSize}" />
+                <ComboBox Width="110"
+                          ItemsSource="{Binding IndicatorOptions}"
+                          SelectedItem="{Binding SelectedIndicatorName, Mode=TwoWay}" />
+            </StackPanel>
+            <StackPanel Grid.Column="4"
+                        IsVisible="{Binding IsIndicatorKind}">
+                <TextBlock Text="{loc:Localized Alert.Editing.Period}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBox Width="60" Text="{Binding PeriodText}" />
+            </StackPanel>
+            <StackPanel Grid.Column="5"
+                        IsVisible="{Binding IsIndicatorKind}">
+                <TextBlock Text="{loc:Localized Alert.Editing.Source}" FontSize="{StaticResource CaptionFontSize}" />
+                <ComboBox Width="120"
+                          ItemsSource="{Binding SourceOptions}"
+                          SelectedItem="{Binding SelectedSource, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AlertSourceOption">
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="6"
+                        IsVisible="{Binding IsIndicatorValueSource}">
+                <TextBlock Text="{loc:Localized Alert.Editing.Level}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBox Width="90" Text="{Binding LevelText}" />
+            </StackPanel>
+            <StackPanel Grid.Column="7"
                         IsVisible="{Binding IsPercentKind}">
                 <TextBlock Text="{loc:Localized Alert.Editing.Percent}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Width="80" Text="{Binding PercentText}" />
             </StackPanel>
-            <StackPanel Grid.Column="4"
+            <StackPanel Grid.Column="8"
                         IsVisible="{Binding IsPercentKind}">
                 <TextBlock Text="{loc:Localized Alert.Editing.Window}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Width="70" Text="{Binding WindowText}" />
             </StackPanel>
-            <StackPanel Grid.Column="5">
+            <StackPanel Grid.Column="9">
                 <TextBlock Text="{loc:Localized Alert.Editing.Symbol}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Width="120" Text="{Binding SymbolText}" />
             </StackPanel>
-            <StackPanel Grid.Column="6">
+            <StackPanel Grid.Column="10">
                 <TextBlock Text="{loc:Localized Alert.Editing.Note}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Text="{Binding NoteText}" />
             </StackPanel>

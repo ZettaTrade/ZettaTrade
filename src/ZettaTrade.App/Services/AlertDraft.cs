@@ -9,11 +9,12 @@ namespace ZettaTrade.App.Services;
 /// </summary>
 /// <param name="SymbolName">The normalized symbol the alert evaluates.</param>
 /// <param name="Kind">Which evaluation the alert performs.</param>
-/// <param name="Trigger">The Price kind's edge trigger; unused (neutral slot) for the PercentMove kind.</param>
+/// <param name="Trigger">The Price kind's edge trigger and the IndicatorCross kind's cross direction; unused (neutral slot) for the PercentMove kind.</param>
 /// <param name="TargetPrice">The Price kind's level; unused (zero) for the PercentMove kind.</param>
 /// <param name="ThresholdPercent">The PercentMove kind's percent threshold (non-negative); unused (zero) for the Price kind.</param>
 /// <param name="WindowMinutes">The PercentMove kind's trailing window in minutes; unused (zero) for the Price kind.</param>
 /// <param name="Note">The user's free-text note; empty when left off.</param>
+/// <param name="Indicator">The IndicatorCross kind's facts (T-203); null for the other kinds.</param>
 public sealed record AlertDraft(
     string SymbolName,
     PriceAlertKind Kind,
@@ -21,16 +22,22 @@ public sealed record AlertDraft(
     decimal TargetPrice,
     decimal ThresholdPercent,
     int WindowMinutes,
-    string Note)
+    string Note,
+    AlertIndicatorSpec? Indicator = null)
 {
     /// <summary>
     /// Validate the draft against the kind it names: the symbol spelling
     /// must be parsable under this app's exact vocabulary (the seed for the
     /// engine's own refuse-not-default gate), the Price kind requires a
     /// strictly positive target, the PercentMove kind a strictly positive
-    /// threshold and window; any other kind value is a fault. Errors are
-    /// specific, never defaults (the trading-safety canon reaches every
-    /// submitted value).
+    /// threshold and window, the IndicatorCross kind (T-203) a present spec
+    /// with a named indicator, a strictly positive period and a real cross
+    /// edge (At is meaningless for a cross and is refused); any other kind
+    /// value is a fault. The spec's level is unconstrained — an oscillator's
+    /// canonical level can be 70, a zero-cross's 0, an oscillator band's
+    /// negative — only its presence is demanded for the indicator-value
+    /// source. Errors are specific, never defaults (the trading-safety canon
+    /// reaches every submitted value).
     /// </summary>
     /// <exception cref="ArgumentException">One required fact is missing or malformed for the named kind.</exception>
     public void Validate()
@@ -72,6 +79,34 @@ public sealed record AlertDraft(
 
                 break;
 
+            case PriceAlertKind.IndicatorCross:
+                if (Indicator is not { } indicator)
+                {
+                    throw new ArgumentException(
+                        "An indicator-cross trigger needs its indicator facts.",
+                        nameof(Indicator));
+                }
+
+                if (string.IsNullOrWhiteSpace(indicator.Name))
+                {
+                    throw new ArgumentException(
+                        "An indicator-cross trigger needs a named indicator.",
+                        nameof(Indicator));
+                }
+
+                if (indicator.Period <= 0)
+                {
+                    throw new ArgumentException(
+                        "An indicator-cross trigger needs a strictly positive period.",
+                        nameof(Indicator));
+                }
+
+                // The level is deliberately unconstrained (an oscillator's 70,
+                // a zero-cross's 0, a band's negative): a decimal carries no
+                // invalid value, the source demarks whether it is read at all.
+
+                break;
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(Kind), Kind, "The draft names no known alert kind.");
         }
@@ -79,6 +114,13 @@ public sealed record AlertDraft(
         if (Trigger is not (AlertTrigger.Above or AlertTrigger.Below or AlertTrigger.At))
         {
             throw new ArgumentOutOfRangeException(nameof(Trigger), Trigger, "The draft names no known trigger edge.");
+        }
+
+        if (Kind == PriceAlertKind.IndicatorCross && Trigger == AlertTrigger.At)
+        {
+            throw new ArgumentException(
+                "An indicator-cross trigger reads only the Above or Below edge; At is meaningless for a cross.",
+                nameof(Trigger));
         }
     }
 
@@ -97,7 +139,8 @@ public sealed record AlertDraft(
         AlertStatus.Armed,
         occurredUtc,
         SnoozedUntilUtc: null,
-        LastFiredUtc: null);
+        LastFiredUtc: null,
+        Indicator: Indicator);
 
     #region Private Fields
 

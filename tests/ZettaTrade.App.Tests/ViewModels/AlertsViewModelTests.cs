@@ -15,6 +15,8 @@ using ReactiveUI;
 using Xunit;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Charting;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
@@ -105,7 +107,8 @@ public sealed class AlertsViewModelTests
                 AlertStatus.Armed,
                 Roster[index].CreatedUtc,
                 SnoozedUntilUtc: null,
-                LastFiredUtc: null);
+                LastFiredUtc: null,
+                draft.Indicator);
             Feed.OnNext(new AlertEvent(AlertEventKind.RosterChanged, null, null));
             return Task.CompletedTask;
         }
@@ -156,6 +159,24 @@ public sealed class AlertsViewModelTests
         SnoozedUntilUtc: null,
         LastFiredUtc: null);
 
+    /// <summary>The cross-kind fixture: one RSI(14) indicator-value cross above 70.</summary>
+    private static AlertDefinition CrossFixture(
+        AlertStatus status = AlertStatus.Armed,
+        AlertTrigger trigger = AlertTrigger.Above) => new(
+        Id: Guid.Parse("0a0a0a0a-0000-0000-0000-000000000002"),
+        SymbolName: "BTC/USDT",
+        Kind: PriceAlertKind.IndicatorCross,
+        Trigger: trigger,
+        TargetPrice: 0m,
+        ThresholdPercent: 0m,
+        WindowMinutes: 0,
+        Note: string.Empty,
+        Status: status,
+        CreatedUtc: Base,
+        SnoozedUntilUtc: null,
+        LastFiredUtc: null,
+        Indicator: new AlertIndicatorSpec("RSI", 14, AlertCrossSource.IndicatorValue, 70m));
+
     /// <summary>Build one model over one fake engine and the bracketed localization.</summary>
     private static (AlertsViewModel Model, FakeEngine Engine, FakeLocalization Loc) Build(
         params AlertDefinition[] preloaded)
@@ -165,9 +186,34 @@ public sealed class AlertsViewModelTests
         var loc = new FakeLocalization();
         var model = new AlertsViewModel(
             engine,
+            new FakeCatalog(),
             loc,
             NullLogger<AlertsViewModel>.Instance);
         return (model, engine, loc);
+    }
+
+    /// <summary>Build one model whose plugin set carries the named indicators (the cross editor's picker surface).</summary>
+    private static (AlertsViewModel Model, FakeEngine Engine, FakeLocalization Loc) BuildWithIndicators(
+        string[] indicatorNames,
+        params AlertDefinition[] preloaded)
+    {
+        var engine = new FakeEngine();
+        engine.Roster.AddRange(preloaded);
+        var loc = new FakeLocalization();
+        var model = new AlertsViewModel(
+            engine,
+            new FakeCatalog(indicatorNames),
+            loc,
+            NullLogger<AlertsViewModel>.Instance);
+        return (model, engine, loc);
+    }
+
+    /// <summary>The indicator catalog fake: the loaded names the picker reads; the VM never builds implementations.</summary>
+    private sealed class FakeCatalog(params string[] names) : IIndicatorCatalog
+    {
+        public IReadOnlyCollection<string> LoadedNames => names;
+
+        public IIndicator? Create(string name, int period) => null;
     }
 
     #region Draft Refusals
@@ -279,6 +325,95 @@ public sealed class AlertsViewModelTests
     }
 
     #endregion Valid Drafts
+
+    #region Indicator Cross Editor (T-203)
+
+    [Fact]
+    public void TheIndicatorPicker_ListsOnlyTheLoadedPluginNames()
+    {
+        var (model, _, _) = BuildWithIndicators(["RSI", "SMA"]);
+
+        model.IndicatorOptions.Should().Equal(["RSI", "SMA"], "the picker is the loaded plugin snapshot, nothing invented");
+    }
+
+    [Fact]
+    public async Task AnEmptyPluginSet_RefusesTheCrossKind_Outright()
+    {
+        var (model, engine, _) = Build();
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.IndicatorCross);
+        model.SymbolText = "BTC/USDT";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+
+        model.ErrorMessage.Should().Be("[Alert.Error.NoIndicatorsLoaded]");
+        engine.Roster.Should().BeEmpty("an indicator cross with nothing to resolve is refused before the engine");
+    }
+
+    [Fact]
+    public void TheCrossKind_HidesTheAtEdge_AndMovesAStaleAtSelectionOntoARealEdge()
+    {
+        var (model, _, _) = BuildWithIndicators(["RSI"]);
+        model.SelectedTrigger = model.TriggerOptions.First(option => option.Trigger == AlertTrigger.At);
+
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.IndicatorCross);
+
+        model.VisibleTriggerOptions.Select(option => option.Trigger)
+            .Should().Equal([AlertTrigger.Above, AlertTrigger.Below], "the editor never offers the edge it would refuse");
+        model.SelectedTrigger.Trigger.Should().Be(AlertTrigger.Below, "a stale At selection moves to a real cross edge");
+    }
+
+    [Fact]
+    public async Task AValidIndicatorValueCrossDraft_ReachesTheEngine_WithEverySpecFact()
+    {
+        var (model, engine, _) = BuildWithIndicators(["RSI", "SMA"]);
+        using var attach = model.Attach();
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.IndicatorCross);
+        model.SelectedIndicatorName = "RSI";
+        model.PeriodText = "14";
+        model.LevelText = "70";
+        model.SymbolText = "BTC/USDT";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var definition = engine.Roster.Should().ContainSingle().Subject;
+        definition.Kind.Should().Be(PriceAlertKind.IndicatorCross);
+        definition.Trigger.Should().Be(AlertTrigger.Below, "the editor's default cross edge is the Below option");
+        definition.Indicator.Should().NotBeNull();
+        definition.Indicator!.Name.Should().Be("RSI");
+        definition.Indicator.Period.Should().Be(14);
+        definition.Indicator.Source.Should().Be(AlertCrossSource.IndicatorValue);
+        definition.Indicator.Level.Should().Be(70m);
+        model.ErrorMessage.Should().BeNull();
+        model.Rows[0].ConditionText.Should().Be("[Alert.Condition.Indicator.ValueBelow.Format/RSI|14|70]");
+    }
+
+    [Fact]
+    public void SelectingACrossRow_LoadsTheStoredSpecIntoTheEditor()
+    {
+        var (model, _, _) = BuildWithIndicators(["RSI"], CrossFixture());
+
+        model.SelectedRow = model.Rows[0];
+
+        model.SelectedKind.Kind.Should().Be(PriceAlertKind.IndicatorCross);
+        model.SelectedTrigger.Trigger.Should().Be(AlertTrigger.Above);
+        model.SelectedIndicatorName.Should().Be("RSI");
+        model.PeriodText.Should().Be("14", "the editor loads the stored spec's exact facts");
+        model.LevelText.Should().Be("70");
+        model.SelectedSource.Source.Should().Be(AlertCrossSource.IndicatorValue);
+        model.IsIndicatorValueSource.Should().BeTrue("the level field shows for the indicator-value source");
+    }
+
+    [Fact]
+    public void ThePausedRow_RendersTheHonestPausedStatus()
+    {
+        var (model, _, _) = BuildWithIndicators(["RSI"], CrossFixture(AlertStatus.Paused));
+
+        model.Rows.Should().ContainSingle();
+        model.Rows[0].StatusText.Should().Be("[Alert.Status.Paused]");
+    }
+
+    #endregion Indicator Cross Editor (T-203)
 
     #region Selection
 

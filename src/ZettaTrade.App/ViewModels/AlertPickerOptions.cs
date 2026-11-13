@@ -19,3 +19,12 @@ public sealed record AlertKindOption(PriceAlertKind Kind, string Label);
 /// <param name="Trigger">The canonical edge the option carries.</param>
 /// <param name="Label">The localized display label.</param>
 public sealed record AlertTriggerOption(AlertTrigger Trigger, string Label);
+
+/// <summary>
+/// The editor's cross-source combo option (T-203): the canonical comparison
+/// source beside its localized label, the same presentation-only pairing as
+/// the kind options.
+/// </summary>
+/// <param name="Source">The canonical cross source the option carries.</param>
+/// <param name="Label">The localized display label.</param>
+public sealed record AlertSourceOption(AlertCrossSource Source, string Label);

@@ -56,4 +56,71 @@ public static class AlertEdge
 
         return Math.Abs(SignedMovePercent(reference, current)) >= thresholdPercent;
     }
+
+    /// <summary>
+    /// Does the indicator's value cross the fixed level between two
+    /// consecutive closes (T-203)? Above is a cross from STRICTLY below to
+    /// AT-OR-ABOVE (a value already at the level then rising is not a cross —
+    /// it never left it), Below the mirror; the equality boundary belongs to
+    /// the arriving close, the same discipline
+    /// <see cref="MoveMeetsThreshold"/> keeps. An uncomputable value on either
+    /// side (the indicator's warmup stretch reads null) is an honest absence —
+    /// the cross waits for two computable consecutive closes, nothing fires.
+    /// The At edge is meaningless for a cross and is an argument fault.
+    /// </summary>
+    public static bool IsLevelCrossHit(AlertTrigger edge, decimal? previous, decimal? current, decimal level)
+    {
+        if (edge is not (AlertTrigger.Above or AlertTrigger.Below))
+        {
+            throw new ArgumentOutOfRangeException(nameof(edge), edge, "A cross reads only the Above or Below edge.");
+        }
+
+        if (previous is not { } from || current is not { } to)
+        {
+            return false;
+        }
+
+        return edge switch
+        {
+            AlertTrigger.Above => from < level && to >= level,
+            AlertTrigger.Below => from > level && to <= level,
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// Does the close price cross the indicator's value between two
+    /// consecutive closes (T-203, the price source)? The price is judged
+    /// against the indicator's own value at the SAME close — the moving level
+    /// the MA draws — so the crossing is the sign flip of
+    /// <c>close - indicator</c>: Above is a flip from strictly negative to
+    /// at-or-positive, Below the mirror. An uncomputable indicator value or a
+    /// missing close on either side is an honest absence — nothing fires. The
+    /// At edge is meaningless for a cross and is an argument fault.
+    /// </summary>
+    public static bool IsIndicatorCrossHit(
+        AlertTrigger edge,
+        decimal? previousPrice,
+        decimal? previousIndicator,
+        decimal? currentPrice,
+        decimal? currentIndicator)
+    {
+        if (edge is not (AlertTrigger.Above or AlertTrigger.Below))
+        {
+            throw new ArgumentOutOfRangeException(nameof(edge), edge, "A cross reads only the Above or Below edge.");
+        }
+
+        if (previousPrice is not { } fromPrice || currentPrice is not { } toPrice ||
+            previousIndicator is not { } fromIndicator || currentIndicator is not { } toIndicator)
+        {
+            return false;
+        }
+
+        return edge switch
+        {
+            AlertTrigger.Above => fromPrice - fromIndicator < 0m && toPrice - toIndicator >= 0m,
+            AlertTrigger.Below => fromPrice - fromIndicator > 0m && toPrice - toIndicator <= 0m,
+            _ => false,
+        };
+    }
 }

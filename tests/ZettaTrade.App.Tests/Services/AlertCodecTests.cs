@@ -54,6 +54,98 @@ public sealed class AlertCodecTests
         SnoozedUntilUtc: null,
         LastFiredUtc: null);
 
+    private static AlertDefinition IndicatorCrossAlert(
+        AlertStatus status = AlertStatus.Armed,
+        AlertTrigger trigger = AlertTrigger.Above,
+        AlertCrossSource source = AlertCrossSource.IndicatorValue,
+        decimal level = 70m) => new(
+        Id: Guid.Parse("0a0a0a0a-0000-0000-0000-000000000003"),
+        SymbolName: "BTC/USDT",
+        Kind: PriceAlertKind.IndicatorCross,
+        Trigger: trigger,
+        TargetPrice: 0m,
+        ThresholdPercent: 0m,
+        WindowMinutes: 0,
+        Note: string.Empty,
+        Status: status,
+        CreatedUtc: Base,
+        SnoozedUntilUtc: null,
+        LastFiredUtc: null,
+        Indicator: new AlertIndicatorSpec("RSI", 14, source, level));
+
+    [Fact]
+    public void RoundTrip_TheCrossKindSurvivesEveryFact()
+    {
+        var roster = new[]
+        {
+            IndicatorCrossAlert(),
+            IndicatorCrossAlert(
+                status: AlertStatus.Paused,
+                trigger: AlertTrigger.Below,
+                source: AlertCrossSource.Price,
+                level: 0m),
+        };
+
+        var decoded = AlertCodec.Decode(AlertCodec.Encode(roster));
+
+        decoded.SkippedCount.Should().Be(0);
+        decoded.Valid.Should().Equal(roster, "version 2 carries the cross facts and the Paused state verbatim");
+    }
+
+    [Fact]
+    public void AVersion1EntryClaimingTheCrossKind_IsSkipped()
+    {
+        // The cross facts cannot exist in the version 1 shape: the entry is
+        // skipped with its count, never defaulted into a half-honored row.
+        var payload = Roster(
+            "IndicatorCross",
+            CrossMembers,
+            null,
+            null);
+
+        var decoded = AlertCodec.Decode(payload);
+
+        decoded.SkippedCount.Should().Be(1);
+        decoded.Valid.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("noIndicator")]
+    [InlineData("zeroPeriod")]
+    [InlineData("ghostSource")]
+    [InlineData("levelMissing")]
+    public void ACrossEntry_WithOneBrokenSpecFact_IsSkipped(string variant)
+    {
+        var indicatorJson = variant switch
+        {
+            "noIndicator" => null,
+            "zeroPeriod" => "{\"name\":\"RSI\",\"period\":0,\"source\":\"IndicatorValue\",\"level\":70}",
+            "ghostSource" => "{\"name\":\"RSI\",\"period\":14,\"source\":\"Ghost\",\"level\":70}",
+            "levelMissing" => "{\"name\":\"RSI\",\"period\":14,\"source\":\"IndicatorValue\"}",
+            _ => throw new ArgumentOutOfRangeException(nameof(variant)),
+        };
+
+        var payload = CrossRoster(indicatorJson);
+
+        var decoded = AlertCodec.Decode(payload);
+
+        decoded.SkippedCount.Should().Be(1, "the entry cannot be honored exactly, so it is skipped, never defaulted");
+        decoded.Valid.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ACrossEntry_WithTheMeaninglessAtEdge_IsSkipped()
+    {
+        var payload = CrossRoster(
+            "{\"name\":\"RSI\",\"period\":14,\"source\":\"IndicatorValue\",\"level\":70}",
+            trigger: "\"At\"");
+
+        var decoded = AlertCodec.Decode(payload);
+
+        decoded.SkippedCount.Should().Be(1, "a cross reads only the Above or Below edge");
+        decoded.Valid.Should().BeEmpty();
+    }
+
     [Fact]
     public void RoundTrip_BothKindsEveryFact_Survives()
     {
@@ -164,6 +256,35 @@ public sealed class AlertCodecTests
         ("status", "\"Armed\""),
         ("createdUtc", null!),
     ];
+
+    private static readonly List<(string Member, string Json)> CrossMembers =
+    [
+        ("id", "\"0a0a0a0a-0000-0000-0000-000000000003\""),
+        ("symbol", "\"BTC/USDT\""),
+        ("targetPrice", "0"),
+        ("trigger", "\"Above\""),
+        ("status", "\"Armed\""),
+        ("createdUtc", null!),
+    ];
+
+    /// <summary>
+    /// Build one version-2 roster whose single entry is an indicator-cross
+    /// carrying the named nested spec (or none at all); the trigger spelling
+    /// is overridable for the At-edge fact.
+    /// </summary>
+    private static string CrossRoster(string? indicatorJson, string trigger = "\"Above\"")
+    {
+        var members = CrossMembers
+            .Select(entry => entry.Member == "createdUtc" ? (entry.Member, BaseTicksJson) : entry)
+            .Select(entry => entry.Member == "trigger" ? (entry.Member, trigger) : entry)
+            .ToList();
+        if (indicatorJson is { } spec)
+        {
+            members.Add(("indicator", spec));
+        }
+
+        return $"{{\"version\":2,\"alerts\":[{{\"kind\":\"IndicatorCross\",{JoinMembers(members)}}}]}}";
+    }
 
     /// <summary>
     /// Build one versioned-roster payload whose single entry carries the

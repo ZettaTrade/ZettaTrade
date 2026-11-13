@@ -1,26 +1,32 @@
 namespace ZettaTrade.App.Services;
 
+using System.Globalization;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Channels;
 using Livery.Contracts;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Sound;
+using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
-/// The price-alerts engine (T-096): the one owner of the alert roster and
-/// its delayed facts. The initialization loads the persisted roster through
-/// <see cref="AlertCodec"/> (a wholly unreadable payload is a logged fault —
-/// never a fabricated empty roster presented as truth — and an entry that
-/// cannot be honored is skipped with its count, its stored facts untouched).
-/// The evaluation is purely stream-driven: one ticker subscription per
-/// evaluatable symbol rides the adapter porta (the app's active-exchange
-/// facade), every arriving observation is routed through a channel into a
-/// serial consumer task — the engine serializes all roster work and tick
-/// work behind one gate, so roster edits, fires and reloads never interleave.
+/// The price-alerts engine (T-096, T-203): the one owner of the alert roster
+/// and its delayed facts. The initialization loads the persisted roster
+/// through <see cref="AlertCodec"/> (a wholly unreadable payload is a logged
+/// fault — never a fabricated empty roster presented as truth — and an entry
+/// that cannot be honored is skipped with its count, its stored facts
+/// untouched) and re-arms the stored Paused indicator alerts whose plugin the
+/// current session resolves. The evaluation is purely stream-driven: one
+/// ticker subscription per evaluatable symbol rides the adapter porta (the
+/// app's active-exchange facade), every arriving observation is routed
+/// through a channel into a serial consumer task — the engine serializes all
+/// roster work and tick work behind one gate, so roster edits, fires and
+/// reloads never interleave.
 /// </summary>
 /// <remarks>
 /// Delayed semantics without timers: a snoozed alert re-arms on the next
@@ -28,10 +34,15 @@ using ZettaTrade.Infrastructure.Sound;
 /// oldest observation the engine still holds inside the alert's own window
 /// (an honest stream-side approximation of the window's leading price; the
 /// cleared history means the window is not covered yet and the alert waits).
-/// A fire is persistent by design: the reached definition becomes Fired with
-/// the tick's own stamp, the roster persists, the beep rides a degrade lane
-/// (a failed beep is a logged warning, never a broken evaluation or a
-/// crash), and a reload can never re-fire it.
+/// The indicator cross (T-203) rides the same ticker stream with no new
+/// stream of its own: the engine aggregates its ticks into one-minute
+/// candles (a seeded history page opens the series when the symbol first
+/// goes live with an indicator alert), and every candle CLOSE is the
+/// evaluation event — a close the plugin set cannot honor pauses the alert,
+/// never guesses. A fire is persistent by design: the reached definition
+/// becomes Fired with the event's own stamp, the roster persists, the beep
+/// rides a degrade lane (a failed beep is a logged warning, never a broken
+/// evaluation or a crash), and a reload can never re-fire it.
 /// </remarks>
 public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 {
@@ -46,12 +57,34 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     /// ceiling so one unreachable definition cannot grow the prune horizon.</summary>
     private const int MaxWindowMinutesAcrossRoster = 10_080;
 
+    /// <summary>The candle length the indicator-cross evaluation rides (T-203): the
+    /// engine aggregates its OWN ticker stream's ticks into one-minute candles —
+    /// the "crossing candle close" is the minute's OHLC completing, learned at
+    /// the next tick after the minute turns (stream-driven, no timers, no
+    /// polling loop).</summary>
+    private static readonly TimeSpan CandleSpan = TimeSpan.FromMinutes(1);
+
+    /// <summary>How many one-minute candles the per-symbol series keeps (history
+    /// seed + session closes): about half a day of M1 — a period the roster's
+    /// realistic oscillators and averages fit inside; a longer period warms up
+    /// from the session's own closes (the honest stream absence, never a
+    /// fabricated value).</summary>
+    private const int MaxCandlesPerSymbol = 720;
+
+    /// <summary>How many seeded history candles the engine asks the adapter for
+    /// when the first indicator alert on a symbol arms: the indicator's
+    /// computation needs warmup bars the session has not aggregated yet, so the
+    /// first close evaluates against real history instead of waiting an hour of
+    /// session candles. The fetch is a one-shot per symbol per session.</summary>
+    private const int SeedCandleCount = 720;
+
     #endregion Constants
 
     #region Private Fields
 
     private readonly ISettingsService _settings;
     private readonly IMarketDataAdapter _ticks;
+    private readonly IIndicatorCatalog _indicators;
     private readonly IAlertSoundPlayer _sound;
     private readonly TimeProvider _clock;
     private readonly ILogger<AlertEngine> _logger;
@@ -77,6 +110,23 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     /// <summary>The live ticker subscriptions keyed by normalized symbol (the same spelling the definitions carry).</summary>
     private readonly Dictionary<string, IDisposable> _tickSubscriptions = [];
 
+    /// <summary>The per-symbol closed one-minute candle series, ascending by open time (T-203):
+    /// the seeded history page plus every session close; bounded by <see cref="MaxCandlesPerSymbol"/>.</summary>
+    private readonly Dictionary<string, List<Bar>> _candles = [];
+
+    /// <summary>The per-symbol candle the current minute is still building (presence is the flag): the
+    /// open is the minute's first tick price, the close rides every later tick.</summary>
+    private readonly Dictionary<string, Bar> _pendingCandles = [];
+
+    /// <summary>The resolved indicator implementations keyed by "name:period" (the plugin set is
+    /// session-fixed, so one resolution per pair per session; a null is a cached miss — the
+    /// honest Paused reason, not a per-close reflection storm).</summary>
+    private readonly Dictionary<string, IIndicator?> _indicatorCache = [];
+
+    /// <summary>The symbols whose M1 history seed already ran this session (one fetch per live
+    /// subscription period: a dropped subscription forgets the symbol, the next arm re-seeds).</summary>
+    private readonly HashSet<string> _seededSymbols = new(StringComparer.Ordinal);
+
     private bool _consumerRunning;
     private Task _consumerTask = Task.CompletedTask;
 
@@ -87,18 +137,22 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     /// <summary>Create the alerts engine over its dependencies.</summary>
     /// <param name="settings">The reactive settings service (the roster key's store).</param>
     /// <param name="ticks">The active market-data source the ticker subscriptions ride (the app's exchange facade).</param>
+    /// <param name="indicators">The loaded plugin indicator catalog (T-203): the indicator-cross
+    /// evaluation builds its implementations from it, and a name it cannot resolve pauses the alert.</param>
     /// <param name="sound">The fired-alert beep seam (the engine owns the degrade lane).</param>
     /// <param name="clock">The time provider the manager ops stamp with (create, snooze).</param>
     /// <param name="logger">The engine's logger.</param>
     public AlertEngine(
         ISettingsService settings,
         IMarketDataAdapter ticks,
+        IIndicatorCatalog indicators,
         IAlertSoundPlayer sound,
         TimeProvider clock,
         ILogger<AlertEngine> logger)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _ticks = ticks ?? throw new ArgumentNullException(nameof(ticks));
+        _indicators = indicators ?? throw new ArgumentNullException(nameof(indicators));
         _sound = sound ?? throw new ArgumentNullException(nameof(sound));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -134,7 +188,7 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
             var created = draft.ToCreated(_clock.GetUtcNow());
             _definitions.Add(created);
             await PersistAsync(cancellationToken).ConfigureAwait(false);
-            RecalculateSubscriptions();
+            await RecalculateSubscriptionsAsync(cancellationToken).ConfigureAwait(false);
             Publish(new AlertEvent(AlertEventKind.RosterChanged, null, null));
             return created;
         }
@@ -163,21 +217,21 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
             }
 
             var previous = _definitions[index];
-            _definitions[index] = new AlertDefinition(
-                previous.Id,
-                draft.SymbolName,
-                draft.Kind,
-                draft.Trigger,
-                draft.TargetPrice,
-                draft.ThresholdPercent,
-                draft.WindowMinutes,
-                draft.Note,
-                AlertStatus.Armed,
-                previous.CreatedUtc,
-                SnoozedUntilUtc: null,
-                previous.LastFiredUtc);
+            _definitions[index] = previous with
+            {
+                SymbolName = draft.SymbolName,
+                Kind = draft.Kind,
+                Trigger = draft.Trigger,
+                TargetPrice = draft.TargetPrice,
+                ThresholdPercent = draft.ThresholdPercent,
+                WindowMinutes = draft.WindowMinutes,
+                Note = draft.Note,
+                Status = AlertStatus.Armed,
+                SnoozedUntilUtc = null,
+                Indicator = draft.Indicator,
+            };
             await PersistAsync(cancellationToken).ConfigureAwait(false);
-            RecalculateSubscriptions();
+            await RecalculateSubscriptionsAsync(cancellationToken).ConfigureAwait(false);
             Publish(new AlertEvent(AlertEventKind.RosterChanged, null, null));
         }
         finally
@@ -237,7 +291,7 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 
             _definitions.RemoveAt(index);
             await PersistAsync(cancellationToken).ConfigureAwait(false);
-            RecalculateSubscriptions();
+            await RecalculateSubscriptionsAsync(cancellationToken).ConfigureAwait(false);
             Publish(new AlertEvent(AlertEventKind.RosterChanged, null, null));
         }
         finally
@@ -280,8 +334,9 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
                     _definitions.Count);
             }
 
+            ReArmPausedUnlocked();
             StartConsumerUnlocked();
-            RecalculateSubscriptions();
+            await RecalculateSubscriptionsAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -289,6 +344,45 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
         }
 
         Publish(new AlertEvent(AlertEventKind.RosterChanged, null, null));
+    }
+
+    /// <summary>
+    /// Re-arm the stored Paused indicator-cross alerts whose indicator the
+    /// CURRENT session's plugin set resolves (T-203): a pause is the honest
+    /// stall of a missing plugin, not a death — a session that loads the
+    /// indicator resumes the evaluation. Called under the gate, before the
+    /// subscriptions recalculate (the re-armed symbols seed and subscribe
+    /// through the same pass). The load never rewrites the settings key: the
+    /// re-arm lives in memory until the next roster persist.
+    /// </summary>
+    private void ReArmPausedUnlocked()
+    {
+        var reArmed = 0;
+        for (var index = 0; index < _definitions.Count; index++)
+        {
+            var definition = _definitions[index];
+            if (definition.Status != AlertStatus.Paused ||
+                definition.Kind != PriceAlertKind.IndicatorCross ||
+                definition.Indicator is not { } spec)
+            {
+                continue;
+            }
+
+            if (ResolveIndicator(spec.Name, spec.Period) is null)
+            {
+                continue;
+            }
+
+            _definitions[index] = definition with { Status = AlertStatus.Armed };
+            reArmed++;
+        }
+
+        if (reArmed > 0)
+        {
+            _logger.LogInformation(
+                "{Count} paused indicator alert(s) re-armed: the current session's plugin set resolves their indicators",
+                reArmed);
+        }
     }
 
     /// <summary>Arm the one consumer task exactly once (called under the gate).</summary>
@@ -374,6 +468,11 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
                 TrackObservation(observation);
             }
 
+            // The candle tracking rides EVERY tick of every evaluatable symbol
+            // (T-203): the in-progress minute grows, a turned minute closes the
+            // previous candle and hands it to the close evaluation.
+            var closedCandle = TrackCandle(observation);
+
             var changed = false;
             foreach (var definition in evaluatable)
             {
@@ -386,19 +485,11 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 
                     // The snooze window expired on an arriving tick: re-arm NOW,
                     // evaluate later (the re-arm tick itself is not an evaluation).
-                    Replace(new AlertDefinition(
-                        definition.Id,
-                        definition.SymbolName,
-                        definition.Kind,
-                        definition.Trigger,
-                        definition.TargetPrice,
-                        definition.ThresholdPercent,
-                        definition.WindowMinutes,
-                        definition.Note,
-                        AlertStatus.Armed,
-                        definition.CreatedUtc,
-                        SnoozedUntilUtc: null,
-                        definition.LastFiredUtc));
+                    Replace(definition with
+                    {
+                        Status = AlertStatus.Armed,
+                        SnoozedUntilUtc = null,
+                    });
                     changed = true;
                     continue;
                 }
@@ -410,6 +501,19 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 
                 Fire(definition, observation);
                 changed = true;
+            }
+
+            if (closedCandle is { } candle)
+            {
+                // The minute's candle closed: land it in the series (the
+                // displayed-bar-wins tail rule) and run the close evaluation —
+                // the indicator-cross alerts' own event; the raw tick above
+                // never reaches them.
+                AppendClosedCandle(observation.SymbolName, candle);
+                if (EvaluateClosedCandle(observation.SymbolName, candle))
+                {
+                    changed = true;
+                }
             }
 
             if (changed)
@@ -428,6 +532,10 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     {
         PriceAlertKind.Price => AlertEdge.IsLevelHit(definition.Trigger, observation.Price, definition.TargetPrice),
         PriceAlertKind.PercentMove => IsMoveReached(definition, observation),
+
+        // T-203: the indicator cross never judges the raw tick — its evaluation
+        // event is the candle close, handled after the per-tick loop.
+        PriceAlertKind.IndicatorCross => false,
         _ => throw new ArgumentOutOfRangeException(nameof(definition), definition.Kind, "The definition names no known alert kind."),
     };
 
@@ -556,14 +664,251 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 
     #endregion Evaluation
 
+    #region Candles
+
+    /// <summary>
+    /// Grow the symbol's candle state by one arriving tick (T-203): the tick
+    /// rides the pending candle of its open-minute, a turned minute closes the
+    /// pending one and starts the next. Returns the candle that just closed
+    /// (the close evaluation's own event) or null when nothing closed. The
+    /// OHLC is honest aggregation of the engine's own ticker stream; the
+    /// volume stays zero (no trade stream is pulled — the indicator contract
+    /// reads OHLC only).
+    /// </summary>
+    private Bar? TrackCandle(AlertObservation observation)
+    {
+        var minute = FloorToMinute(observation.OccurredUtc);
+        if (!_pendingCandles.TryGetValue(observation.SymbolName, out var pending))
+        {
+            _pendingCandles[observation.SymbolName] = new Bar(
+                minute,
+                observation.Price,
+                observation.Price,
+                observation.Price,
+                observation.Price,
+                Volume: 0m);
+            return null;
+        }
+
+        if (pending.Time == minute)
+        {
+            _pendingCandles[observation.SymbolName] = pending with
+            {
+                High = Math.Max(pending.High, observation.Price),
+                Low = Math.Min(pending.Low, observation.Price),
+                Close = observation.Price,
+            };
+            return null;
+        }
+
+        if (minute < pending.Time)
+        {
+            // An out-of-order stamp cannot extend a closed minute: dropped,
+            // never rewritten backwards.
+            return null;
+        }
+
+        _pendingCandles[observation.SymbolName] = new Bar(
+            minute,
+            observation.Price,
+            observation.Price,
+            observation.Price,
+            observation.Price,
+            Volume: 0m);
+        return pending;
+    }
+
+    /// <summary>
+    /// Land one closed candle into the symbol's series: appended ascending,
+    /// EXCEPT when the seeded history's tail bar carries the same open-minute
+    /// — that tail is the still-forming displayed bar the history page served,
+    /// and the session's own close for the minute wins. The series stays
+    /// bounded by <see cref="MaxCandlesPerSymbol"/> (the oldest go).
+    /// </summary>
+    private void AppendClosedCandle(string symbolName, Bar closed)
+    {
+        if (!_candles.TryGetValue(symbolName, out var series))
+        {
+            series = [];
+            _candles[symbolName] = series;
+        }
+
+        if (series.Count > 0 && series[^1].Time == closed.Time)
+        {
+            series[^1] = closed;
+            return;
+        }
+
+        series.Add(closed);
+        if (series.Count > MaxCandlesPerSymbol)
+        {
+            series.RemoveAt(0);
+        }
+    }
+
+    /// <summary>
+    /// Evaluate one closed candle against the symbol's Armed indicator-cross
+    /// alerts (T-203): the indicator resolves through the session-fixed cache
+    /// (a miss PAUSES the alert — the honest stall, never a fabricated value),
+    /// the series maps onto the plugin contract's OHLC bars, and the cross is
+    /// the pure <see cref="AlertEdge"/> predicate over the last two values.
+    /// Returns whether the roster changed (a pause or a fire) so the caller
+    /// persists.
+    /// </summary>
+    private bool EvaluateClosedCandle(string symbolName, Bar closed)
+    {
+        if (!_candles.TryGetValue(symbolName, out var series) || series.Count < 2)
+        {
+            // Fewer than two closed bars: no previous close to cross from.
+            return false;
+        }
+
+        var definitions = _definitions
+            .Where(definition => definition.SymbolName == symbolName &&
+                                 definition.Kind == PriceAlertKind.IndicatorCross &&
+                                 definition.Status == AlertStatus.Armed)
+            .ToList();
+        if (definitions.Count == 0)
+        {
+            return false;
+        }
+
+        var bars = series.Select(ToIndicatorBar).ToArray();
+        var changed = false;
+        foreach (var definition in definitions)
+        {
+            var spec = definition.Indicator;
+            if (spec is null)
+            {
+                // A decode-honored definition always carries its spec; a
+                // missing one is unresolvable by construction — the same
+                // honest stall as a missing plugin.
+                Pause(definition);
+                changed = true;
+                continue;
+            }
+
+            var indicator = ResolveIndicator(spec.Name, spec.Period);
+            if (indicator is null)
+            {
+                Pause(definition);
+                changed = true;
+                continue;
+            }
+
+            var values = indicator.Apply(bars);
+            if (values.Count != bars.Length || values.Count < 2)
+            {
+                // The plugin broke its alignment contract: the close is
+                // skipped loudly, no value is guessed.
+                _logger.LogWarning(
+                    "The indicator '{Name}' returned {ValueCount} value(s) for {BarCount} bar(s); the candle close is skipped",
+                    spec.Name,
+                    values.Count,
+                    bars.Length);
+                continue;
+            }
+
+            var hit = spec.Source switch
+            {
+                AlertCrossSource.IndicatorValue =>
+                    AlertEdge.IsLevelCrossHit(definition.Trigger, values[^2], values[^1], spec.Level),
+                AlertCrossSource.Price =>
+                    AlertEdge.IsIndicatorCrossHit(
+                        definition.Trigger,
+                        series[^2].Close,
+                        values[^2],
+                        series[^1].Close,
+                        values[^1]),
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(definition),
+                    spec.Source,
+                    "The definition names no known cross source."),
+            };
+            if (!hit)
+            {
+                continue;
+            }
+
+            // The fire stamps the CLOSE: the bar's open minute plus the span —
+            // the moment the minute's close completed.
+            Fire(definition, new AlertObservation(symbolName, closed.Time.Add(CandleSpan), closed.Close));
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    /// <summary>Swap the definition the id names for its Paused self and publish the roster change; the persistence rides the caller's changed flag.</summary>
+    private void Pause(AlertDefinition definition)
+    {
+        Replace(definition with { Status = AlertStatus.Paused });
+        var spec = definition.Indicator;
+        _logger.LogWarning(
+            "Alert '{Id}' on {Symbol} paused: the indicator '{Name}' (period {Period}) is not loaded",
+            definition.Id,
+            definition.SymbolName,
+            spec?.Name ?? "?",
+            spec?.Period ?? 0);
+        Publish(new AlertEvent(AlertEventKind.RosterChanged, null, null));
+    }
+
+    /// <summary>
+    /// Resolve the indicator implementation for one "name:period" pair through
+    /// the session-fixed cache: the plugin set never changes mid-session, so
+    /// one resolution per pair is final — a cached null is the honest Paused
+    /// reason, not a per-close reflection storm.
+    /// </summary>
+    private IIndicator? ResolveIndicator(string name, int period)
+    {
+        var key = string.Create(CultureInfo.InvariantCulture, $"{name}:{period}");
+        if (_indicatorCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        IIndicator? created = null;
+        try
+        {
+            created = _indicators.Create(name, period);
+        }
+        catch (Exception ex)
+        {
+            // The catalog owns its rejection contract (null); a thrown fault
+            // degrades to the same honest miss, logged once per pair.
+            _logger.LogWarning(ex, "Resolving the indicator '{Name}' (period {Period}) threw; the alert stalls", name, period);
+        }
+
+        _indicatorCache[key] = created;
+        return created;
+    }
+
+    /// <summary>One engine-synthesized M1 minute's floor: the UTC instant truncated to its minute.</summary>
+    private static DateTimeOffset FloorToMinute(DateTimeOffset moment)
+    {
+        var utc = moment.UtcDateTime;
+        return new DateTimeOffset(
+            new DateTime(utc.Year, utc.Month, utc.Day, utc.Hour, utc.Minute, 0, DateTimeKind.Utc),
+            TimeSpan.Zero);
+    }
+
+    /// <summary>Map the engine's OHLCV bar onto the plugin contract's OHLC shape (the volume the contract never reads).</summary>
+    private static IndicatorBar ToIndicatorBar(Bar bar) => new(bar.Open, bar.High, bar.Low, bar.Close);
+
+    #endregion Candles
+
     #region Tick Subscriptions
 
     /// <summary>
     /// Reconcile the ticker subscriptions with the evaluatable symbol set:
-    /// a symbol with zero evaluatable alerts drops its subscription and its
-    /// history, a newly armed symbol gains one. Called under the gate.
+    /// a symbol with zero evaluatable alerts drops its subscription (and its
+    /// candle state and seeded flag — a fresh arm re-seeds), a newly armed
+    /// symbol gains one; a live symbol carrying an evaluatable indicator-cross
+    /// alert gets its ONE-SHOT M1 history seed (T-203) the first time it is
+    /// live this session, so the first close evaluates against real history
+    /// instead of an hour of warmup. Called under the gate.
     /// </summary>
-    private void RecalculateSubscriptions()
+    private async Task RecalculateSubscriptionsAsync(CancellationToken cancellationToken)
     {
         var symbols = _definitions
             .Where(definition => definition.IsEvaluatable)
@@ -575,6 +920,9 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
         {
             _tickSubscriptions[symbolName].Dispose();
             _tickSubscriptions.Remove(symbolName);
+            _pendingCandles.Remove(symbolName);
+            _candles.Remove(symbolName);
+            _seededSymbols.Remove(symbolName);
         }
 
         foreach (var symbolName in symbols.Where(name => !_tickSubscriptions.ContainsKey(name)))
@@ -597,6 +945,67 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
             _tickSubscriptions[symbolName] = stream.Subscribe(
                 tick => _inbox.Writer.TryWrite(new AlertObservation(symbolName, tick.Timestamp, tick.LastPrice)),
                 ex => _logger.LogWarning(ex, "The alert ticker stream for {Symbol} ended unexpectedly", symbolName));
+        }
+
+        await SeedCandleHistoryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The one-shot M1 history seed (T-203): for every live, not-yet-seeded
+    /// symbol with an evaluatable indicator-cross alert, pull the trailing
+    /// <see cref="SeedCandleCount"/> one-minute bars once and land them as the
+    /// series' opening page (only when the session has not aggregated closes
+    /// yet — live data is never overwritten by history). A fetch fault is a
+    /// logged warning and an empty seed: the indicator warms up from the
+    /// session's own closes, the honest stream absence. The seeded flag marks
+    /// the attempt done regardless of the outcome (one shot per live period).
+    /// </summary>
+    private async Task SeedCandleHistoryAsync(CancellationToken cancellationToken)
+    {
+        var seedSymbols = _definitions
+            .Where(definition => definition.IsEvaluatable &&
+                                 definition.Kind == PriceAlertKind.IndicatorCross &&
+                                 _tickSubscriptions.ContainsKey(definition.SymbolName) &&
+                                 !_seededSymbols.Contains(definition.SymbolName))
+            .Select(definition => definition.SymbolName)
+            .Distinct(StringComparer.Ordinal);
+        foreach (var symbolName in seedSymbols)
+        {
+            _seededSymbols.Add(symbolName);
+            try
+            {
+                if (_candles.TryGetValue(symbolName, out var existing) && existing.Count > 0)
+                {
+                    // The session already aggregates closes: live data wins,
+                    // the history page would only double-count minutes.
+                    continue;
+                }
+
+                var symbol = Symbol.Parse(symbolName);
+                var now = _clock.GetUtcNow();
+                var bars = await _ticks
+                    .GetBarsAsync(symbol, TimeFrame.M1, now.AddMinutes(-SeedCandleCount), now, SeedCandleCount, cancellationToken)
+                    .ConfigureAwait(false);
+                _candles[symbolName] = bars
+                    .Select(bar => new Bar(FloorToMinute(bar.Time), bar.Open, bar.High, bar.Low, bar.Close, bar.Volume))
+                    .OrderBy(bar => bar.Time)
+                    .ToList();
+                _logger.LogInformation(
+                    "Seeded {Count} one-minute candle(s) of history for {Symbol}'s indicator alerts",
+                    _candles[symbolName].Count,
+                    symbolName);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Seeding the one-minute history for {Symbol} failed; its indicator alerts warm up from the session's own closes",
+                    symbolName);
+            }
         }
     }
 
