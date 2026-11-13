@@ -131,18 +131,13 @@ public sealed class BacktestService : IBacktestService
             ?? throw new InvalidOperationException(
                 $"Strategy '{request.StrategyId}' is unknown to the catalog; the run is refused, never defaulted.");
 
-        // Deterministic seed: the replay's only stochastic input (the slippage
-        // draw) derives from the explicit seed — xoshiro256** (the explicit-
-        // seed Random ctor), stable across runs of one runtime.
-        var prng = new Random(request.Seed);
-
-        var processed = 0;
-        var pumpTask = Task.CompletedTask;
-        BacktestRunResult result;
+        BacktestReport report;
+        var loaded = false;
 
         try
         {
             var bars = await LoadCandlesAsync(request, cancellationToken).ConfigureAwait(false);
+            loaded = true;
             _logger.LogInformation(
                 "Backtest '{Strategy}' on {Symbol} {Interval} (adapter {AdapterId}, seed {Seed}): {Bars} cached bars loaded",
                 request.StrategyId,
@@ -152,6 +147,55 @@ public sealed class BacktestService : IBacktestService
                 request.Seed,
                 bars.Count);
 
+            report = await ReplayAsync(request, strategy, bars, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The stop is the outcome: the cancelled run produces NO report
+            // and NO artifacts. The replay publishes its own cancelled event
+            // when the stop landed inside it; a stop during the load never
+            // started a run, so the event goes out here with the zero count.
+            if (!loaded)
+            {
+                Publish(new BacktestRunEvent(BacktestRunEventKind.Cancelled, request.Bars, BarsProcessed: 0, Report: null));
+                _logger.LogInformation(
+                    "Backtest '{Strategy}' cancelled during the load; nothing was produced",
+                    request.StrategyId);
+            }
+
+            return BacktestRunResult.Cancelled;
+        }
+
+        return new BacktestRunResult(BacktestRunOutcome.Completed, report);
+    }
+
+    /// <summary>
+    /// Replay one fully-loaded window through the strategy seam and fold the
+    /// report (T-113's evaluation loop, extracted so a sweep replays the same
+    /// bars per parameterization): a fresh host, ledger and seeded draw per
+    /// replay, the per-run events published as the run shape owns them. The
+    /// cancellation is cooperative per signal; a stop inside the replay
+    /// publishes the cancelled event (with the bars processed so far) and
+    /// rethrows — the caller owns the cancelled result.
+    /// </summary>
+    private async Task<BacktestReport> ReplayAsync(
+        BacktestRunRequest request,
+        IStrategy strategy,
+        IReadOnlyList<Bar> bars,
+        CancellationToken cancellationToken)
+    {
+        // Deterministic seed: the replay's only stochastic input (the slippage
+        // draw) derives from the explicit seed — xoshiro256** (the explicit-
+        // seed Random ctor), stable across runs of one runtime. A fresh draw
+        // per replay: every parameterization of a sweep reproduces its own
+        // run exactly.
+        var prng = new Random(request.Seed);
+
+        var processed = 0;
+        var pumpTask = Task.CompletedTask;
+
+        try
+        {
             // The T-111 canon, consumed exactly as registered: a real host runs
             // the candle-close evaluation loop over its own retained window; the
             // replay feeds it the loaded series and reads the stamped signals.
@@ -195,7 +239,6 @@ public sealed class BacktestService : IBacktestService
                 ledger.Refusals,
                 ledger.ComputeStatistics(finalClose));
 
-            result = new BacktestRunResult(BacktestRunOutcome.Completed, report);
             Publish(new BacktestRunEvent(
                 BacktestRunEventKind.Completed,
                 request.Bars,
@@ -209,17 +252,19 @@ public sealed class BacktestService : IBacktestService
                 report.Refusals.Count,
                 report.Statistics.Trades,
                 report.Statistics.FinalEquity);
+
+            return report;
         }
         catch (OperationCanceledException)
         {
-            // The stop is the outcome: the cancelled run publishes the
+            // The stop inside the replay: the cancelled run publishes the
             // cancelled event and produces NO report and NO artifacts.
-            result = BacktestRunResult.Cancelled;
             Publish(new BacktestRunEvent(BacktestRunEventKind.Cancelled, request.Bars, processed, Report: null));
             _logger.LogInformation(
                 "Backtest '{Strategy}' cancelled after {Processed} candle(s); nothing was produced",
                 request.StrategyId,
                 processed);
+            throw;
         }
         finally
         {
@@ -227,11 +272,149 @@ public sealed class BacktestService : IBacktestService
             // and cannot throw — its RunAsync swallow-the-stop canon.
             await pumpTask.ConfigureAwait(false);
         }
-
-        return result;
     }
 
     #endregion Run
+
+    #region Sweep
+
+    /// <inheritdoc/>
+    public async Task<BacktestSweepResult> SweepAsync(
+        BacktestSweepRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+
+        // The same single-flight gate a run takes, held for the WHOLE sweep:
+        // the per-run events must never interleave with another run's, and a
+        // run started while a sweep is in flight refuses exactly as a second
+        // run would.
+        if (!await _runGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("A backtest run is already in flight; runs refuse concurrent starts.");
+        }
+
+        try
+        {
+            return await SweepLockedAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _runGate.Release();
+        }
+    }
+
+    private async Task<BacktestSweepResult> SweepLockedAsync(
+        BacktestSweepRequest request,
+        CancellationToken cancellationToken)
+    {
+        var strategy = _strategies.Get(request.Template.StrategyId)
+            ?? throw new InvalidOperationException(
+                $"Strategy '{request.Template.StrategyId}' is unknown to the catalog; the sweep is refused, never defaulted.");
+
+        _logger.LogInformation(
+            "Backtest sweep '{Strategy}': grid {First} x {Second} over {Bars} bars (adapter {AdapterId}, seed {Seed})",
+            request.Template.StrategyId,
+            request.FirstAxis.Parameter,
+            request.SecondAxis.Parameter,
+            request.Template.Bars,
+            request.Template.AdapterId,
+            request.Template.Seed);
+
+        // The window loads ONCE: every parameterization replays the SAME
+        // bars, so the grid compares parameterizations of one honest window
+        // (and the load's cost stays one walk-back, not one per row).
+        IReadOnlyList<Bar> bars;
+        try
+        {
+            bars = await LoadCandlesAsync(request.Template, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The stop during the load: no parameterization ever started, so
+            // no cancelled event goes out (the stream carries per-run events
+            // only) — the cancelled result is the whole answer.
+            _logger.LogInformation(
+                "Backtest sweep '{Strategy}' cancelled during the load; nothing was produced",
+                request.Template.StrategyId);
+            return new BacktestSweepResult(BacktestSweepOutcome.Cancelled, request, []);
+        }
+
+        _logger.LogInformation(
+            "Backtest sweep '{Strategy}': {Bars} cached bars loaded, {Parameterizations} parameterization(s) to replay",
+            request.Template.StrategyId,
+            bars.Count,
+            request.FirstAxis.Values.Count * request.SecondAxis.Values.Count);
+
+        // The rows in enumeration order (first axis outer, second axis
+        // inner); the ranking happens once over the completed rows.
+        var rows = new List<BacktestSweepRow>();
+        var outcome = BacktestSweepOutcome.Completed;
+        var index = 0;
+
+        try
+        {
+            foreach (var firstValue in request.FirstAxis.Values)
+            {
+                foreach (var secondValue in request.SecondAxis.Values)
+                {
+                    // The cooperative stop BETWEEN parameterizations — the
+                    // acceptance's "never mid-run" discipline: each replay
+                    // rides no token and completes fully; a stop request
+                    // lands at the next boundary, so the row whose replay
+                    // already completed stays and the next one never starts.
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var rowRequest = request.Apply(firstValue, secondValue);
+                    var report = await ReplayAsync(rowRequest, strategy, bars, CancellationToken.None).ConfigureAwait(false);
+                    rows.Add(new BacktestSweepRow(
+                        Rank: 0,
+                        Index: index,
+                        FirstValue: firstValue,
+                        SecondValue: secondValue,
+                        Report: report));
+                    index++;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The stop landed at a boundary: the parameterizations whose
+            // replays completed stay (each a complete, byte-stable report —
+            // nothing half-run exists), the rest never started. The stop is
+            // the outcome, never an error.
+            outcome = BacktestSweepOutcome.Cancelled;
+            _logger.LogInformation(
+                "Backtest sweep '{Strategy}' cancelled after {Count} parameterization(s); the completed rows stay",
+                request.Template.StrategyId,
+                rows.Count);
+        }
+
+        var ranked = Rank(rows);
+        _logger.LogInformation(
+            "Backtest sweep '{Strategy}' {End}: {Count} of {Total} parameterization(s) replayed, best net {BestNet}",
+            request.Template.StrategyId,
+            outcome == BacktestSweepOutcome.Completed ? "completed" : "cancelled at a boundary",
+            ranked.Count,
+            request.FirstAxis.Values.Count * request.SecondAxis.Values.Count,
+            ranked.Count > 0 ? ranked[0].Net : 0m);
+
+        return new BacktestSweepResult(outcome, request, ranked);
+    }
+
+    /// <summary>
+    /// Rank the completed rows deterministically: net descending, ties broken
+    /// by the enumeration order — the same grid over the same cache always
+    /// yields the same table. The rank is 1-based, assigned here once.
+    /// </summary>
+    private static IReadOnlyList<BacktestSweepRow> Rank(List<BacktestSweepRow> rows) =>
+    [.. rows
+        .OrderByDescending(static row => row.Net)
+        .ThenBy(static row => row.Index)
+        .Select((row, rank) => row with { Rank = rank + 1 })];
+
+    #endregion Sweep
 
     #region Candle Loading
 

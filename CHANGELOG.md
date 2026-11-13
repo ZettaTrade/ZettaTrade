@@ -1,3 +1,40 @@
+## [0.1.0-alpha.158] - 2026-11-14
+
+Build of board task T-212 (branch `feat/backtest-optimize`): the backtest
+window learns parameter optimization - a two-axis grid sweep over the run
+request's own outcome-shaping knobs, ranked by net, with a click-through
+to each row's own single-run report.
+
+### Added
+- The sweep engine (ZettaTrade.Backtest): a sweep request carries a fully
+  valid run template plus two grid axes naming two DIFFERENT request
+  knobs (the long notional fraction and the slippage magnitude; bars,
+  seed and the starting balance stay the replay's identity and scale).
+  The grid enumerates the cartesian product row-major, the window loads
+  ONCE and every parameterization replays the same bars through a fresh
+  host, ledger and seeded draw, each a complete byte-stable replay. The
+  rows rank deterministically - net descending, ties broken by the
+  enumeration order - and the result serializes byte-stably for the
+  determinism acceptance. The single-flight gate covers the whole sweep:
+  a run or sweep started while a sweep is in flight refuses exactly as a
+  second run would.
+- The cooperative stop rides the parameterization boundary: a cancel
+  request never interrupts a replay mid-bars - the row whose replay
+  completed stays (a complete report, kept in the table), the rest never
+  starts, and the cancelled outcome carries the completed rows. A stop
+  during the single window load produces no rows and no events.
+- The sweep surface in the backtest window: two axis rows (a knob picker
+  plus a comma-separated values list each), the ranked result table
+  (rank, parameters, net, drawdown, win rate, profit factor), progress
+  that wraps the per-row bar line into the global counter ("Row k of n")
+  and a done line ("Sweep finished: k of n parameterizations replayed").
+  Clicking a row swaps its own complete single-run report onto the report
+  surface (equity curve, summary line, canonical text); a completed sweep
+  auto-selects rank 1. Every malformed input refuses with its own
+  localized line - an unparsable list, an axis over the 8-value ceiling,
+  a duplicate-knob grid, an out-of-range value - nothing is defaulted,
+  corrected or clamped. All new strings ship in English and Russian.
+
 ## [0.1.0-alpha.157] - 2026-11-14
 
 Build of board task T-222 (branch `fix/settings-rail-fix`): the settings

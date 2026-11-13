@@ -14,7 +14,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <!-- The run form: strategy over the T-111 seam, the active venue's
              cached series identity, the seed and the execution policy. Every
@@ -55,9 +55,43 @@
             </StackPanel>
         </WrapPanel>
 
+        <!-- The sweep form (T-212): two grid axes over the request's own
+             outcome-shaping knobs — the picker names the knob, the text
+             carries the comma-separated values in declaration order. The
+             grid composes and range-checks at start: an unparsable list, a
+             too-long axis, a duplicate-knob grid or an out-of-range value
+             is a refused start, never a corrected input. -->
+        <StackPanel Grid.Row="1" Spacing="{StaticResource SpaceS}">
+            <TextBlock Text="{loc:Localized Backtest.Sweep.Title}" FontWeight="SemiBold" />
+            <WrapPanel>
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="{loc:Localized Backtest.Sweep.Parameter}" Margin="0,0,0,4" />
+                    <ComboBox Width="190"
+                              ItemsSource="{Binding SweepParameters}"
+                              SelectedIndex="{Binding SweepFirstIndex}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="{loc:Localized Backtest.Sweep.Values}" Margin="0,0,0,4" />
+                    <TextBox Width="220" Text="{Binding SweepFirstValuesText}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="{loc:Localized Backtest.Sweep.Parameter}" Margin="0,0,0,4" />
+                    <ComboBox Width="190"
+                              ItemsSource="{Binding SweepParameters}"
+                              SelectedIndex="{Binding SweepSecondIndex}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="{loc:Localized Backtest.Sweep.Values}" Margin="0,0,0,4" />
+                    <TextBox Width="220" Text="{Binding SweepSecondValuesText}" />
+                </StackPanel>
+            </WrapPanel>
+        </StackPanel>
+
         <!-- The run surface: the phase line, the progress bar and the
-             refusal/failure line. The cancelled run surfaces no report. -->
-        <StackPanel Grid.Row="1" Spacing="{StaticResource SpaceXs}">
+             refusal/failure line. During a sweep the progress line wraps
+             the per-row bar line into the global counter ("Row k of n");
+             the cancelled run surfaces no report. -->
+        <StackPanel Grid.Row="2" Spacing="{StaticResource SpaceXs}">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceM}">
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontWeight="SemiBold" />
                 <ProgressBar Grid.Column="1"
@@ -75,10 +109,84 @@
                        IsVisible="{Binding HasErrorMessage}" />
         </StackPanel>
 
+        <!-- The sweep's ranked result table (T-212): the parameterizations
+             ranked by net, the honest absence while nothing replayed. The
+             click-through opens the selected row's own complete report on
+             the report surface below. -->
+        <StackPanel Grid.Row="3"
+                    Spacing="{StaticResource SpaceXs}"
+                    IsVisible="{Binding HasSweepRows}">
+            <Grid ColumnDefinitions="50,240,110,110,90,100" ColumnSpacing="{StaticResource SpaceS}">
+                <TextBlock Grid.Column="0"
+                           Text="{loc:Localized Backtest.Sweep.Column.Rank}"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="1"
+                           Text="{loc:Localized Backtest.Sweep.Column.Parameter}"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="2"
+                           Text="{loc:Localized Backtest.Sweep.Column.Net}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="3"
+                           Text="{loc:Localized Backtest.Sweep.Column.Drawdown}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="4"
+                           Text="{loc:Localized Backtest.Sweep.Column.WinRate}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="5"
+                           Text="{loc:Localized Backtest.Sweep.Column.ProfitFactor}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+            </Grid>
+            <ListBox ItemsSource="{Binding SweepRows}"
+                     SelectedItem="{Binding SelectedSweepRow, Mode=TwoWay}"
+                     AutomationProperties.Name="{loc:Localized Backtest.Sweep.A11yRows}"
+                     Background="Transparent"
+                     MaxHeight="150"
+                     Margin="0,0,16,0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BacktestSweepRowViewModel">
+                        <Grid ColumnDefinitions="50,240,110,110,90,100" ColumnSpacing="{StaticResource SpaceS}">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding Rank}"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ParameterText}" />
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding NetText}"
+                                       TextAlignment="Right"
+                                       FontFamily="{StaticResource NumericFont}" />
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding DrawdownText}"
+                                       TextAlignment="Right"
+                                       FontFamily="{StaticResource NumericFont}" />
+                            <TextBlock Grid.Column="4"
+                                       Text="{Binding WinRateText}"
+                                       TextAlignment="Right"
+                                       FontFamily="{StaticResource NumericFont}" />
+                            <TextBlock Grid.Column="5"
+                                       Text="{Binding ProfitFactorText}"
+                                       TextAlignment="Right"
+                                       FontFamily="{StaticResource NumericFont}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
         <!-- The report surface: the equity curve over the mark-to-cloud path
              and the localized headline line; the honest empty state while
-             nothing replayed yet. -->
-        <Grid Grid.Row="2" RowDefinitions="Auto,Auto,*" RowSpacing="{StaticResource SpaceS}">
+             nothing replayed yet. The sweep's click-through swaps the
+             selected row's own report in here. -->
+        <Grid Grid.Row="4" RowDefinitions="Auto,Auto,*" RowSpacing="{StaticResource SpaceS}">
             <Button Grid.Row="0"
                     Content="{loc:Localized Backtest.Report.SummaryTitle}"
                     IsVisible="{Binding HasReport}"
@@ -100,7 +208,7 @@
         <!-- The canonical report text: the byte-stable serialization the
              determinism acceptance pins — a replay diff is exactly this
              text against the previous one. -->
-        <TextBox Grid.Row="3"
+        <TextBox Grid.Row="5"
                  Text="{Binding ReportText}"
                  IsReadOnly="True"
                  AcceptsReturn="True"
@@ -109,18 +217,22 @@
                  FontFamily="{StaticResource NumericFont}"
                  IsVisible="{Binding HasReport}" />
 
-        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceM}">
+        <Grid Grid.Row="6" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceM}">
             <Button Grid.Column="1"
                     Classes="primary"
                     Content="{loc:Localized Backtest.Start}"
                     Command="{Binding StartCommand}"
                     MinWidth="110" />
             <Button Grid.Column="2"
+                    Content="{loc:Localized Backtest.Sweep.Start}"
+                    Command="{Binding StartSweepCommand}"
+                    MinWidth="110" />
+            <Button Grid.Column="3"
                     Content="{loc:Localized Backtest.Cancel}"
                     Command="{Binding CancelCommand}"
                     MinWidth="110"
                     IsVisible="{Binding IsRunning}" />
-            <Button Grid.Column="3"
+            <Button Grid.Column="4"
                     Content="{loc:Localized Backtest.Close}"
                     Click="OnCloseClick"
                     MinWidth="90" />

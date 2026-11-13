@@ -2100,6 +2100,66 @@
   <data name="Backtest.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="Backtest.Sweep.Title" xml:space="preserve">
+    <value>Перебор параметров</value>
+  </data>
+  <data name="Backtest.Sweep.Parameter" xml:space="preserve">
+    <value>Параметр</value>
+  </data>
+  <data name="Backtest.Sweep.Values" xml:space="preserve">
+    <value>Значения</value>
+  </data>
+  <data name="Backtest.Sweep.Param.Fraction" xml:space="preserve">
+    <value>Доля номинала в лонг</value>
+  </data>
+  <data name="Backtest.Sweep.Param.Slippage" xml:space="preserve">
+    <value>Проскальзывание</value>
+  </data>
+  <data name="Backtest.Sweep.Start" xml:space="preserve">
+    <value>Перебрать</value>
+  </data>
+  <data name="Backtest.Sweep.Error.Values" xml:space="preserve">
+    <value>'{0}' — не список чисел через запятую.</value>
+  </data>
+  <data name="Backtest.Sweep.Error.Parameter" xml:space="preserve">
+    <value>Выбор параметра перебора не называет определённого параметра.</value>
+  </data>
+  <data name="Backtest.Sweep.Error.SameParameter" xml:space="preserve">
+    <value>Две оси перебора должны называть разные параметры.</value>
+  </data>
+  <data name="Backtest.Sweep.Error.Count" xml:space="preserve">
+    <value>В оси {0} значений; перебор принимает от 1 до {1} на ось.</value>
+  </data>
+  <data name="Backtest.Sweep.Error.Range" xml:space="preserve">
+    <value>Значение {0} вне диапазона для «{1}».</value>
+  </data>
+  <data name="Backtest.Sweep.Column.Rank" xml:space="preserve">
+    <value>Место</value>
+  </data>
+  <data name="Backtest.Sweep.Column.Parameter" xml:space="preserve">
+    <value>Параметры</value>
+  </data>
+  <data name="Backtest.Sweep.Column.Net" xml:space="preserve">
+    <value>Нетто</value>
+  </data>
+  <data name="Backtest.Sweep.Column.Drawdown" xml:space="preserve">
+    <value>Просадка</value>
+  </data>
+  <data name="Backtest.Sweep.Column.WinRate" xml:space="preserve">
+    <value>Доля выигрышей</value>
+  </data>
+  <data name="Backtest.Sweep.Column.ProfitFactor" xml:space="preserve">
+    <value>Профит-фактор</value>
+  </data>
+  <data name="Backtest.Sweep.Progress.Format" xml:space="preserve">
+    <value>Строка {0} из {1}: {2}</value>
+  </data>
+  <data name="Backtest.Sweep.Done.Format" xml:space="preserve">
+    <value>Перебор завершён: проиграно параметризаций: {0} из {1}.</value>
+  </data>
+  <data name="Backtest.Sweep.A11yRows" xml:space="preserve">
+    <value>Результаты перебора параметров</value>
+  </data>
   <data name="Backtest.Status.Idle" xml:space="preserve">
     <value>Готово — прогонов пока не было</value>
   </data>
