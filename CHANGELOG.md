@@ -1,3 +1,35 @@
+## [0.1.0-alpha.150] - 2026-11-13
+
+Build of board task T-206 (branch `feat/ai-chat-history`): the persistent
+chat history — the AI assistant's conversations outlive the process.
+
+### Added
+- The SQLite chat history store (`chat-history.db` in the data
+  directory): the conversations' transcripts of record. The picker
+  reads the store's list newest-first and replays the newest
+  conversation's transcript on launch (kinds, contents, moments); a
+  faulted read stands the panel down — empty picker, empty chat, logged
+  and swallowed — and the next send opens a fresh conversation.
+- The send pipeline's persistence: the user turn appends after it
+  renders (opening the conversation lazily on a fresh start), the
+  one-shot reply and the streamed settlement (completed answer,
+  faulted prefix, stopped prefix alike) append after they render, and
+  an honest error line appends with them. Every persist logs and
+  swallows its faults — the chat never breaks on its history. A reply
+  never precedes its question in the record: a send whose conversation
+  could not be opened drops its answer too.
+- The conversation's auto-title: the first titled turn's input becomes
+  the title (trimmed, at most 48 characters plus the ellipsis) through
+  a rename, once per conversation; an untitled conversation renders
+  the localized default in the picker and the export header.
+- The picker row: the conversation combo (sleeps while a reply runs),
+  the fresh-conversation quiet button (opens a stored record and
+  clears the transcript) and the export quiet button beside it.
+- The chat export: the save-file picker pre-fills the chat-stamped
+  name, the transcript writes as Markdown (UTF-8, no byte-order mark),
+  a failed write renders an in-chat error line and answers false — the
+  record stays untouched.
+
 ## [0.1.0-alpha.149] - 2026-11-13
 
 Build of board task T-205 (branch `feat/ai-streaming`): the streaming AI

@@ -66,6 +66,27 @@
         <Style Selector="Border.message.error Path.copy-glyph">
             <Setter Property="Stroke" Value="{DynamicResource Error}" />
         </Style>
+
+        <!-- The history row's quiet icon buttons (T-206): the fresh-
+             conversation and export affordances beside the picker, dim at
+             rest and full on the pointer — the copy-pin treatment carried
+             by its own class (the T-158 family stays untouched); the glyph
+             strokes in the panel's primary ink. -->
+        <Style Selector="Button.quiet-icon">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <Style Selector="Button.quiet-icon:pointerover">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Button.quiet-icon:pressed">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Button.quiet-icon Path.quiet-glyph">
+            <Setter Property="Stroke" Value="{DynamicResource TextPrimary}" />
+        </Style>
     </UserControl.Styles>
 
     <!-- The AI assistant panel (T-103): the exact content the main window's
@@ -80,6 +101,54 @@
                    FontWeight="Bold"
                    FontSize="{StaticResource SubtitleStrongFontSize}"
                    Margin="{StaticResource InsetS}" />
+
+        <!-- T-206: the conversation history row — the picker lists the
+             stored conversations (newest first) and replays the pick's
+             transcript through the awaited SelectionChanged route (the
+             OneWay selection binding reads the VM's applied value); the
+             quiet buttons open a fresh conversation and export the
+             transcript to Markdown. The picker sleeps while a reply runs. -->
+        <Grid DockPanel.Dock="Top"
+              Margin="8,0,8,0"
+              ColumnDefinitions="*,Auto,Auto"
+              ColumnSpacing="{StaticResource SpaceS}">
+            <ComboBox x:Name="ConversationPicker"
+                      Grid.Column="0"
+                      AutomationProperties.Name="{loc:Localized AI.Chat.HistoryPicker}"
+                      ToolTip.Tip="{loc:Localized AI.Chat.HistoryPicker}"
+                      IsEnabled="{Binding !IsBusy}"
+                      ItemsSource="{Binding Conversations}"
+                      SelectedItem="{Binding SelectedConversation, Mode=OneWay}"
+                      SelectionChanged="OnConversationSelected">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ChatConversationViewModel">
+                        <TextBlock Text="{Binding DisplayTitle}" TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button Grid.Column="1"
+                    Classes="quiet-icon"
+                    Command="{Binding NewConversationCommand}"
+                    AutomationProperties.Name="{loc:Localized AI.Chat.NewConversation}"
+                    ToolTip.Tip="{loc:Localized AI.Chat.NewConversation}">
+                <!-- The fresh-page glyph: a plus over the 10x10 box -->
+                <Path Classes="quiet-glyph"
+                      Stretch="None"
+                      StrokeThickness="1"
+                      Data="M5,1 V9 M1,5 H9" />
+            </Button>
+            <Button Grid.Column="2"
+                    Classes="quiet-icon"
+                    Click="OnExportChatClick"
+                    AutomationProperties.Name="{loc:Localized AI.Chat.Export}"
+                    ToolTip.Tip="{loc:Localized AI.Chat.Export}">
+                <!-- The export glyph: an arrow dropping onto a tray -->
+                <Path Classes="quiet-glyph"
+                      Stretch="None"
+                      StrokeThickness="1"
+                      Data="M5,1 V6.5 M2,4 L5,7 L8,4 M1.5,9 H8.5" />
+            </Button>
+        </Grid>
 
         <!-- T-114: the market-context consent chip — the one
              explicit toggle behind which every send carries the

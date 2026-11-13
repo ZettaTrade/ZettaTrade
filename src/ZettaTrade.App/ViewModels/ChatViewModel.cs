@@ -1,6 +1,9 @@
 namespace ZettaTrade.App.ViewModels;
 
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
 using System.Reactive.Linq;
 using System.Text;
 using Livery.Contracts;
@@ -10,6 +13,7 @@ using ReactiveUI;
 using ZettaTrade.AI.Chat;
 using ZettaTrade.App.Services;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Infrastructure.Persistence;
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
@@ -36,6 +40,13 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// Unavailable assistant models surface honestly:
 /// an in-chat error line with the underlying reason, never a silently
 /// swallowed send.
+/// The conversation's history of record persists (T-206): the picker lists
+/// the stored conversations newest-first and replays the newest transcript
+/// on launch, every send persists its turns (the user turn, the answer or
+/// its arrived prefix, an honest error line), the first user turn
+/// auto-titles the conversation, the picker swaps transcripts on demand,
+/// and the export writes the transcript to Markdown. A storeless panel
+/// (the tests' shape) runs memory-only — the pre-T-206 chat verbatim.
 /// </summary>
 public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
 {
@@ -47,6 +58,19 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>Localized display labels of the chat row roles.</summary>
     private const string RoleUserKey = "AI.Chat.RoleUser";
     private const string RoleAssistantKey = "AI.Chat.RoleAssistant";
+
+    /// <summary>The untitled conversation's display label (the picker and
+    /// the export header fall back to it while no title was stored).</summary>
+    internal const string ConversationDefaultTitleKey = "AI.Chat.ConversationDefaultTitle";
+
+    /// <summary>In-chat failure line of a failed chat export.</summary>
+    private const string ExportFailedKey = "AI.Chat.ExportFailed";
+
+    /// <summary>The auto-title's length budget (characters before the ellipsis).</summary>
+    private const int TitleLengthLimit = 48;
+
+    /// <summary>The auto-title's overflow marker.</summary>
+    private const string TitleEllipsis = "…";
 
     #endregion
 
@@ -105,6 +129,23 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     private readonly IStreamingChatCompletion? _streaming;
 
+    /// <summary>
+    /// The persistent history's store (T-206); without it the chat runs
+    /// memory-only — no picker, no restore, no persistence, the pre-T-206
+    /// shape verbatim.
+    /// </summary>
+    private readonly IChatHistoryStore? _history;
+
+    /// <summary>
+    /// The current conversation's identity — the authority the persistence
+    /// and switching paths read. Null while no conversation is open (a
+    /// storeless panel, or a fresh start whose first send creates the row).
+    /// </summary>
+    private Guid? _conversationId;
+
+    /// <summary>The picker's applied selection (the OneWay binding reads it).</summary>
+    private ChatConversationViewModel? _selectedConversation;
+
     private readonly ILocalizationManager _localization;
     private readonly ILogger<ChatViewModel> _logger;
 
@@ -130,6 +171,9 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// <param name="streaming">The streaming half of the provider surface
     /// (T-205); without it every send rides the one-shot completion, whatever
     /// the settings key says.</param>
+    /// <param name="chatHistory">The persistent history's store (T-206);
+    /// without it the chat runs memory-only — no picker, no restore, no
+    /// persistence.</param>
     public ChatViewModel(
         ISettingsService settings,
         IChatCompletion completion,
@@ -138,7 +182,8 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         ILocalizationManager localization,
         ILogger<ChatViewModel> logger,
         MarketContextPreambleComposer? momentComposer = null,
-        IStreamingChatCompletion? streaming = null)
+        IStreamingChatCompletion? streaming = null,
+        IChatHistoryStore? chatHistory = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _completion = completion ?? throw new ArgumentNullException(nameof(completion));
@@ -148,6 +193,7 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _momentComposer = momentComposer;
         _streaming = streaming;
+        _history = chatHistory;
 
         // Persist every user flip immediately (the same real-difference
         // discipline the settings window applies): the cache LEADS the
@@ -239,6 +285,13 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         {
             IsMarketContextEnabled = !IsMarketContextEnabled;
         });
+
+        // The fresh-conversation affordance (T-206): offered while no reply
+        // runs (the busy guard keeps a raced click inert), it opens a new
+        // stored conversation and clears the transcript.
+        NewConversationCommand = ReactiveCommand.CreateFromTask(
+            NewConversationAsync,
+            this.WhenAnyValue(x => x.IsBusy).Select(busy => !busy));
     }
 
     #endregion
@@ -316,6 +369,23 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     public ObservableCollection<ChatMessageViewModel> ChatMessages { get; } = new();
 
     /// <summary>
+    /// The stored conversations the history picker lists (T-206), newest
+    /// update first — the order the store answers in.
+    /// </summary>
+    public ObservableCollection<ChatConversationViewModel> Conversations { get; } = new();
+
+    /// <summary>
+    /// The picker's applied selection (T-206). The view binds it OneWay —
+    /// the user's picks reach the VM through the picker's SelectionChanged
+    /// route and land here after the transcript swap completes.
+    /// </summary>
+    public ChatConversationViewModel? SelectedConversation
+    {
+        get => _selectedConversation;
+        private set => this.RaiseAndSetIfChanged(ref _selectedConversation, value);
+    }
+
+    /// <summary>
     /// Whether the assistant panel occupies the window's right column;
     /// toggled by the menu (hotkey <c>Ctrl+Shift+A</c>), mirrored by the menu
     /// item's checkable state.
@@ -355,6 +425,13 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>Flip the market-context consent chip (persisted pipeline rides
     /// the property change).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleContextCommand { get; }
+
+    /// <summary>
+    /// Open a fresh conversation (T-206): a new stored row (identity and all)
+    /// enters the picker's top, becomes the selection and the transcript
+    /// clears. Offered only while no reply runs.
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> NewConversationCommand { get; }
 
     #endregion
 
@@ -400,6 +477,11 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         _logger.LogInformation(
             "Restored persisted market-context consent: '{Consent}'",
             marketContextRestored ? "on" : "off");
+
+        // The persistent history (T-206) restores last: the picker fills
+        // from the store (newest first) and the newest conversation's
+        // transcript lands in the chat.
+        await RestoreHistoryAsync(ct);
     }
 
     #endregion
@@ -415,8 +497,11 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         }
 
         AddTurn(ChatMessageKind.UserTurn, input, RoleUserKey);
-        // The send is accepted: the input row yields to the answer.
+        // The send is accepted: the input row yields to the answer (cleared
+        // BEFORE the persistence write — the empty input keeps the send
+        // command's guard closed against a re-entry while the write runs).
         AiChatInput = string.Empty;
+        await PersistUserTurnAsync(input);
 
         IsBusy = true;
         try
@@ -463,6 +548,7 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
                     var reply = await _completion.CompleteAsync(systemPrompt, turns, inFlight.Token);
 
                     AddTurn(ChatMessageKind.AssistantTurn, reply, RoleAssistantKey);
+                    await PersistTurnAsync(ChatHistoryMessage.AssistantKind, reply);
                 }
             }
             finally
@@ -500,10 +586,9 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         catch (Exception ex)
         {
             _logger.LogError(ex, "The assistant request failed");
-            AddTurn(
-                ChatMessageKind.ErrorLine,
-                _localization.GetString(ChatErrorKey, ex.Message),
-                RoleAssistantKey);
+            var line = _localization.GetString(ChatErrorKey, ex.Message);
+            AddTurn(ChatMessageKind.ErrorLine, line, RoleAssistantKey);
+            await PersistTurnAsync(ChatHistoryMessage.ErrorKind, line);
         }
         finally
         {
@@ -549,6 +634,9 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// deltas are the model's real output); the caller's catch renders the
     /// error line after it — except a stop, which keeps the prefix with no
     /// error line (the T-158 semantics, the streamed prefix included).
+    /// The arrived content persists whatever the settlement (T-206): the
+    /// finally rides the completed answer, the faulted prefix and the
+    /// stopped prefix alike.
     /// </summary>
     /// <param name="systemPrompt">The composed workspace prompt.</param>
     /// <param name="turns">The conversation history for the request.</param>
@@ -562,23 +650,383 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         var content = new StringBuilder();
         ChatMessageViewModel? bubble = null;
 
-        await foreach (var delta in _streaming!.StreamAsync(systemPrompt, turns, ct))
+        try
         {
-            content.Append(delta);
-            if (bubble is null)
+            await foreach (var delta in _streaming!.StreamAsync(systemPrompt, turns, ct))
             {
-                bubble = new ChatMessageViewModel
+                content.Append(delta);
+                if (bubble is null)
                 {
-                    Kind = ChatMessageKind.AssistantTurn,
-                    Role = _localization.GetString(RoleAssistantKey),
-                    Content = content.ToString(),
-                };
-                ChatMessages.Add(bubble);
+                    bubble = new ChatMessageViewModel
+                    {
+                        Kind = ChatMessageKind.AssistantTurn,
+                        Role = _localization.GetString(RoleAssistantKey),
+                        Content = content.ToString(),
+                    };
+                    ChatMessages.Add(bubble);
+                }
+                else
+                {
+                    bubble.Content = content.ToString();
+                }
             }
-            else
+        }
+        finally
+        {
+            // The arrived content persists whatever the settlement (T-206):
+            // a completed answer, a mid-flight fault's prefix, a Stop cut's
+            // prefix — the deltas are the model's real output. An
+            // immediately-failing stream never rendered a bubble, so nothing
+            // lands; the error line, when one follows, persists separately
+            // in the caller's catch. The write rides no in-flight token — a
+            // stopped reply must still record its prefix.
+            if (bubble is not null)
             {
-                bubble.Content = content.ToString();
+                await PersistTurnAsync(ChatHistoryMessage.AssistantKind, bubble.Content);
             }
+        }
+    }
+
+    #endregion
+
+    #region Persistent History
+
+    /// <summary>
+    /// The picker's fill and the newest conversation's replay (T-206). A
+    /// faulted read leaves the panel standing — an empty picker and an empty
+    /// chat, logged and swallowed (the history is a convenience, never the
+    /// trading flow); the next send starts a fresh conversation, and the
+    /// picker's rows re-read on the next launch.
+    /// </summary>
+    /// <param name="ct">The startup walk's token.</param>
+    /// <returns>The completed restore.</returns>
+    private async Task RestoreHistoryAsync(CancellationToken ct)
+    {
+        var history = _history;
+        if (history is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<ChatConversation> conversations;
+        try
+        {
+            conversations = await history.ListConversationsAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load the chat history picker");
+            return;
+        }
+
+        foreach (var conversation in conversations)
+        {
+            Conversations.Add(new ChatConversationViewModel(_localization, conversation));
+        }
+
+        if (Conversations.Count > 0)
+        {
+            await SelectConversationAsync(Conversations[0]);
+        }
+    }
+
+    /// <summary>
+    /// Swap the transcript to the picked conversation (the picker's
+    /// SelectionChanged route, T-206). The guards: a storeless panel never
+    /// switches, a null pick is nothing to switch to, a busy reply owns the
+    /// transcript until it settles, and the conversation already on display
+    /// (the identity reads against <see cref="_conversationId"/>) no-ops —
+    /// that last guard also absorbs the OneWay binding's re-entrant echo.
+    /// A faulted load stays put: the current transcript keeps serving, the
+    /// failure is logged, the pick retries honestly on the next attempt.
+    /// </summary>
+    /// <param name="conversation">The picked conversation row.</param>
+    /// <returns>The completed swap.</returns>
+    public async Task SelectConversationAsync(ChatConversationViewModel? conversation)
+    {
+        var history = _history;
+        if (history is null ||
+            conversation is null ||
+            IsBusy ||
+            conversation.Id == _conversationId)
+        {
+            return;
+        }
+
+        IReadOnlyList<ChatHistoryMessage> transcript;
+        try
+        {
+            transcript = await history.LoadMessagesAsync(conversation.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to load the chat conversation {ConversationId}",
+                conversation.Id);
+            return;
+        }
+
+        // The identity field leads the property assignment: a re-entrant
+        // picker event (the OneWay binding pushing the selection back) sees
+        // the id already set and Id-guards out before a second load could
+        // race the rebuild.
+        _conversationId = conversation.Id;
+        SelectedConversation = conversation;
+
+        ChatMessages.Clear();
+        foreach (var message in transcript)
+        {
+            if (KindFromStored(message.Kind) is not { } kind)
+            {
+                _logger.LogWarning(
+                    "Chat message dropped on restore: unknown kind name {Kind}",
+                    message.Kind);
+                continue;
+            }
+
+            ChatMessages.Add(new ChatMessageViewModel
+            {
+                Kind = kind,
+                Role = _localization.GetString(
+                    kind == ChatMessageKind.UserTurn ? RoleUserKey : RoleAssistantKey),
+                Content = message.Content,
+                Timestamp = message.TimestampUtc.ToLocalTime(),
+            });
+        }
+    }
+
+    /// <summary>
+    /// The fresh-conversation affordance's route (T-206): a new stored row
+    /// enters the picker's top, becomes the selection, the transcript
+    /// clears. The identity field leads the assignment (the same re-entrancy
+    /// discipline the switch applies). A faulted create keeps the current
+    /// conversation on display — the trader's click retries honestly. The
+    /// storeless panel degrades to a memory-only fresh chat.
+    /// </summary>
+    /// <param name="ct">The command's token.</param>
+    /// <returns>The completed swap.</returns>
+    private async Task NewConversationAsync(CancellationToken ct)
+    {
+        var history = _history;
+        if (history is null)
+        {
+            ChatMessages.Clear();
+            return;
+        }
+
+        try
+        {
+            var created = await history.CreateConversationAsync(ct);
+            var conversation = new ChatConversationViewModel(_localization, created);
+            Conversations.Insert(0, conversation);
+
+            _conversationId = conversation.Id;
+            SelectedConversation = conversation;
+            ChatMessages.Clear();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start a new chat conversation");
+        }
+    }
+
+    /// <summary>The stored kind name back into a row kind; an unknown name drops.</summary>
+    private static ChatMessageKind? KindFromStored(string kind) => kind switch
+    {
+        ChatHistoryMessage.UserKind => ChatMessageKind.UserTurn,
+        ChatHistoryMessage.AssistantKind => ChatMessageKind.AssistantTurn,
+        ChatHistoryMessage.ErrorKind => ChatMessageKind.ErrorLine,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Persist the user's turn (T-206): the first send opens the
+    /// conversation (the lazily-created row enters the picker and becomes
+    /// the selection), every send appends and — on the conversation's first
+    /// titled turn — auto-titles it from the input. All faults log and
+    /// swallow: the chat never breaks on its history.
+    /// </summary>
+    /// <param name="content">The user turn's text.</param>
+    /// <returns>The completed write.</returns>
+    private async Task PersistUserTurnAsync(string content)
+    {
+        var history = _history;
+        if (history is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var conversation = await EnsureConversationAsync();
+            if (conversation is null)
+            {
+                return;
+            }
+
+            await history.AppendMessageAsync(
+                conversation.Id,
+                new ChatHistoryMessage(ChatHistoryMessage.UserKind, content, DateTimeOffset.UtcNow));
+
+            await AutoTitleAsync(conversation, content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist the chat user turn");
+        }
+    }
+
+    /// <summary>
+    /// Persist an already-rendered turn (the one-shot reply, the streamed
+    /// settlement, the error line — T-206). The turn rides the conversation
+    /// already on record: a send whose conversation could not be opened (the
+    /// user turn's create faulted) drops its reply too — the record never
+    /// carries an answer without its question. Faults log and swallow.
+    /// </summary>
+    /// <param name="kind">The stored kind name.</param>
+    /// <param name="content">The turn's text.</param>
+    /// <returns>The completed write.</returns>
+    private async Task PersistTurnAsync(string kind, string content)
+    {
+        var history = _history;
+        if (history is null || _conversationId is not { } conversationId)
+        {
+            return;
+        }
+
+        try
+        {
+            await history.AppendMessageAsync(
+                conversationId,
+                new ChatHistoryMessage(kind, content, DateTimeOffset.UtcNow));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist the chat turn ({Kind})", kind);
+        }
+    }
+
+    /// <summary>
+    /// The current send's conversation, opened on demand (T-206): the
+    /// standing identity returns its picker row; a fresh start creates the
+    /// row (untitled — the auto-title writes the first turn's), inserts it
+    /// at the picker's top and makes it the selection. A faulted create
+    /// answers null — the caller drops the write (already logged upstream
+    /// by this method's caller catch).
+    /// </summary>
+    /// <returns>The conversation row, or null when the create faulted.</returns>
+    private async Task<ChatConversationViewModel?> EnsureConversationAsync()
+    {
+        if (_conversationId is { } id)
+        {
+            return Conversations.FirstOrDefault(conversation => conversation.Id == id);
+        }
+
+        var created = await _history!.CreateConversationAsync();
+        var conversation = new ChatConversationViewModel(_localization, created);
+        Conversations.Insert(0, conversation);
+
+        // The identity field leads the property assignment (the re-entrancy
+        // discipline the switch applies).
+        _conversationId = conversation.Id;
+        SelectedConversation = conversation;
+        return conversation;
+    }
+
+    /// <summary>
+    /// The conversation's auto-title (T-206): the FIRST titled turn's input
+    /// becomes the title (trimmed, at most 48 characters plus the ellipsis)
+    /// through a rename, and the stored-title flag keeps it a once-per-
+    /// conversation affair — later turns never retitle.
+    /// </summary>
+    /// <param name="conversation">The conversation row to title.</param>
+    /// <param name="content">The user turn's text.</param>
+    /// <returns>The completed rename.</returns>
+    private async Task AutoTitleAsync(ChatConversationViewModel conversation, string content)
+    {
+        if (conversation.HasStoredTitle)
+        {
+            return;
+        }
+
+        var title = AutoTitleFrom(content);
+        if (title is null)
+        {
+            return;
+        }
+
+        await _history!.RenameConversationAsync(conversation.Id, title);
+        conversation.ApplyTitle(title);
+    }
+
+    /// <summary>The auto-title text for an input: trimmed, 48 characters at most.</summary>
+    private static string? AutoTitleFrom(string input)
+    {
+        var trimmed = input.Trim();
+        return trimmed.Length == 0
+            ? null
+            : trimmed.Length > TitleLengthLimit
+                ? trimmed[..TitleLengthLimit] + TitleEllipsis
+                : trimmed;
+    }
+
+    #endregion
+
+    #region Export
+
+    /// <summary>
+    /// The transcript's Markdown export (T-206): a title line, then one
+    /// labelled paragraph per row — the exact text a fresh read renders,
+    /// byte for byte deterministic (the invariant culture formats the
+    /// moment).
+    /// </summary>
+    /// <returns>The export document.</returns>
+    public string BuildExportMarkdown()
+    {
+        var title = SelectedConversation?.DisplayTitle
+            ?? _localization.GetString(ConversationDefaultTitleKey);
+        var builder = new StringBuilder();
+        builder.Append("# ").Append(title).Append("\n\n");
+        foreach (var message in ChatMessages)
+        {
+            builder.Append("**").Append(message.Role).Append("** (")
+                .Append(message.Timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture))
+                .Append(")\n\n")
+                .Append(message.Content).Append("\n\n");
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>The export's suggested file name: the chat stamp of the moment.</summary>
+    /// <returns>The pre-filled file name (no directory part).</returns>
+    public string BuildExportFileName() =>
+        $"zettatrade-chat-{DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.md";
+
+    /// <summary>
+    /// Write the export document to the picked path (T-206), UTF-8 with no
+    /// byte-order mark. A failed write is logged, renders an in-chat error
+    /// line (the honest surface of a dead export) and answers false — the
+    /// chat itself never breaks on it.
+    /// </summary>
+    /// <param name="path">The absolute destination path.</param>
+    /// <returns>Whether the write succeeded.</returns>
+    public async Task<bool> ExportToAsync(string path)
+    {
+        try
+        {
+            await File.WriteAllTextAsync(path, BuildExportMarkdown(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "The chat export to {Path} failed", path);
+            AddTurn(
+                ChatMessageKind.ErrorLine,
+                _localization.GetString(ExportFailedKey, ex.Message),
+                RoleAssistantKey);
+            return false;
         }
     }
 
@@ -653,6 +1101,82 @@ public sealed class ChatMessageViewModel : ReactiveObject
 
     /// <summary>Message timestamp.</summary>
     public System.DateTimeOffset Timestamp { get; init; } = System.DateTimeOffset.Now;
+
+    #endregion
+}
+
+/// <summary>
+/// View model for one conversation row in the history picker (T-206): the
+/// stored identity plus the display title — the first user turn's
+/// auto-title, or the localized default while the conversation carries no
+/// stored title yet.
+/// </summary>
+public sealed class ChatConversationViewModel : ReactiveObject
+{
+    #region Private Fields
+
+    private readonly ILocalizationManager _localization;
+
+    private string? _title;
+
+    /// <summary>Whether a title was already stored (the auto-title fires once).</summary>
+    private bool _hasStoredTitle;
+
+    #endregion
+
+    #region Constructor
+
+    /// <summary>Create the picker row over its stored record.</summary>
+    /// <param name="localization">The localization manager for the default label.</param>
+    /// <param name="conversation">The stored record the row renders.</param>
+    public ChatConversationViewModel(ILocalizationManager localization, ChatConversation conversation)
+    {
+        _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+        Id = conversation.Id;
+        _title = conversation.Title;
+        _hasStoredTitle = conversation.Title is not null;
+    }
+
+    #endregion
+
+    #region Properties
+
+    /// <summary>The stored conversation identity.</summary>
+    public Guid Id { get; }
+
+    /// <summary>The stored title, or <c>null</c> while the conversation is untitled.</summary>
+    public string? Title
+    {
+        get => _title;
+        private set => this.RaiseAndSetIfChanged(ref _title, value);
+    }
+
+    /// <summary>Whether a title was already stored (the auto-title fires once).</summary>
+    public bool HasStoredTitle
+    {
+        get => _hasStoredTitle;
+        private set => this.RaiseAndSetIfChanged(ref _hasStoredTitle, value);
+    }
+
+    /// <summary>The picker's display label: the stored title or the localized default.</summary>
+    public string DisplayTitle => _title ?? _localization.GetString(ChatViewModel.ConversationDefaultTitleKey);
+
+    #endregion
+
+    #region Public Methods
+
+    /// <summary>
+    /// Apply a stored title (the auto-title's rename): the display label
+    /// re-renders and the stored-title flag rides along, so the auto-title
+    /// stays a once-per-conversation affair.
+    /// </summary>
+    /// <param name="title">The stored title.</param>
+    public void ApplyTitle(string title)
+    {
+        Title = title;
+        HasStoredTitle = true;
+        this.RaisePropertyChanged(nameof(DisplayTitle));
+    }
 
     #endregion
 }

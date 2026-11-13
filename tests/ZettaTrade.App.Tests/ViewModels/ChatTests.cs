@@ -13,6 +13,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// The shared chat test fixture: the collaborators a ChatViewModel and its
@@ -96,11 +97,14 @@ internal static class ChatTests
     /// A fully wired chat: anonymous collaborators, an idle workspace, and
     /// every substitute exposed for programming by the test. The streaming
     /// provider rides in only when a test asks for it — the default kit is
-    /// the pre-T-205 one-shot shape.
+    /// the pre-T-205 one-shot shape. The history store rides in the same
+    /// way (T-206): absent by default, so the default kit stays the
+    /// memory-only chat.
     /// </summary>
     internal static ChatKit CreateKit(
         bool persistedVisibility = UiSettingsKeys.DefaultShowAiPanel,
-        IStreamingChatCompletion? streaming = null)
+        IStreamingChatCompletion? streaming = null,
+        IChatHistoryStore? history = null)
     {
         var (settings, changes) = VisibilitySettings(persistedVisibility);
         var completion = Completion();
@@ -113,7 +117,8 @@ internal static class ChatTests
             new WorkspacePromptComposer(),
             localization,
             NullLogger<ChatViewModel>.Instance,
-            streaming: streaming);
+            streaming: streaming,
+            chatHistory: history);
 
         return new ChatKit(
             chat,
@@ -121,7 +126,8 @@ internal static class ChatTests
             changes,
             completion,
             localization,
-            streaming);
+            streaming,
+            history);
     }
 
     /// <summary>
@@ -138,7 +144,7 @@ internal static class ChatTests
 /// <summary>
 /// One wired chat with every substitute that drives it, so a test can assert
 /// against the pieces without wiring them again. The streaming provider is
-/// null unless the test passed one.
+/// null unless the test passed one; the history store rides the same way.
 /// </summary>
 internal sealed record ChatKit(
     ChatViewModel Chat,
@@ -146,7 +152,8 @@ internal sealed record ChatKit(
     Subject<SettingsChange> Changes,
     IChatCompletion Completion,
     ILocalizationManager Localization,
-    IStreamingChatCompletion? Streaming = null)
+    IStreamingChatCompletion? Streaming = null,
+    IChatHistoryStore? History = null)
 {
     /// <summary>
     /// The kit rides the streamed path only when the settings say so: this
