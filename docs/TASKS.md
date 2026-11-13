@@ -204,7 +204,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | done | - |
 | T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | done | - |
 | T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | done | - |
-| T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/draw-tools-2 | planned | - |
+| T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/drawing-tools-2 | in-progress | - |
 | T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | planned | - |
 | T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | planned | - |
 | T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | planned | - |
@@ -455,7 +455,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-200 — Drawing tools wave 2: zone, text, measure ruler
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** `feat/drawing-tools-2` off `develop` (base `ab320cc`).
 - **Origin:** the sweep — exactly three drawing kinds ship (trend line, horizontal level, fib
   retracement).
 - **What:** a rectangle/zone, a text annotation, and a measure tool — an entry-to-exit risk
@@ -468,7 +468,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   the measure tool's readout matches the ticket's stop math; the older three kinds are
   untouched.
 - **Tests:** the geometry and persistence batteries per kind.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-201 — Multi-chart grid layout
 
