@@ -57,6 +57,7 @@ public sealed class NotificationCenter
         [NotificationSettingsKeys.MuteCancel] = NotificationKind.OrderCancel,
         [NotificationSettingsKeys.MuteReject] = NotificationKind.OrderReject,
         [NotificationSettingsKeys.MuteAdapterState] = NotificationKind.AdapterState,
+        [NotificationSettingsKeys.MuteAlerts] = NotificationKind.AlertFired,
     }.ToImmutableDictionary();
 
     private readonly ISettingsService _settings;
@@ -217,8 +218,9 @@ public sealed class NotificationCenter
 
     /// <summary>
     /// The muted kinds: the settings snapshot at subscription time, then
-    /// every relevant setting re-ordering the set. Only the four
-    /// per-source mutes participate; the system voice never mutes.
+    /// every relevant setting re-ordering the set. Only the per-source
+    /// mutes participate; the system voice (the Do-Not-Disturb summary)
+    /// never mutes.
     /// </summary>
     public IObservable<IReadOnlySet<NotificationKind>> MutedKinds => ComposeMutedKinds();
 

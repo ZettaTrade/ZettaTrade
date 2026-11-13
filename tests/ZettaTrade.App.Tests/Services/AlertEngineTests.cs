@@ -21,7 +21,7 @@ using ZettaTrade.Infrastructure.Sound;
 using ZettaTrade.Plugins.Abstractions;
 
 /// <summary>
-/// The engine's end-to-end facts (T-096): an armed alert fires on its exact
+/// The engine's end-to-end facts (T-096, T-204): an armed alert fires on its exact
 /// edge and stays quiet on the near-miss (the paired no-fire tick is proven
 /// processed by the FIFO observation route when the eventual fire lands),
 /// the fire is persistent with the tick's own stamp, a reloaded fired
@@ -29,7 +29,12 @@ using ZettaTrade.Plugins.Abstractions;
 /// tick evaluates nothing, the next one evaluates), the percent move
 /// evaluates against its window's oldest reference, a sound failure
 /// degrades into a still-completed fire, and garbage input is refused
-/// before anything persists. All exercises run OFFLINE: the fake adapter is
+/// before anything persists. The T-204 fire mechanics ride the same
+/// offline rig: a per-crossing re-arm waits for a fresh crossing, a
+/// cooldown re-arms into its snooze window and refires after it, a silent
+/// alert fires without the beep, an edit forgets the re-arm gate, and every
+/// fire bridges its toast into the notification center (DND and the source
+/// mute included). All exercises run OFFLINE: the fake adapter is
 /// the only tick source.
 /// </summary>
 public sealed class AlertEngineTests
@@ -185,7 +190,7 @@ public sealed class AlertEngineTests
         }
     }
 
-    private sealed record Rig(AlertEngine Engine, TestSettings Settings, TestAdapter Adapter, TestSound Sound, TestClock Clock);
+    private sealed record Rig(AlertEngine Engine, TestSettings Settings, TestAdapter Adapter, TestSound Sound, TestClock Clock, NotificationCenter Center);
 
     private static Rig BuildRig(
         TestSettings? settings = null,
@@ -196,14 +201,16 @@ public sealed class AlertEngineTests
         adapter ??= new TestAdapter();
         var sound = new TestSound();
         var clock = new TestClock();
+        var center = new NotificationCenter(settings, NullLogger<NotificationCenter>.Instance);
         var engine = new AlertEngine(
             settings,
             adapter,
             indicators ?? new TestCatalog(),
             sound,
+            center,
             clock,
             NullLogger<AlertEngine>.Instance);
-        return new Rig(engine, settings, adapter, sound, clock);
+        return new Rig(engine, settings, adapter, sound, clock, center);
     }
 
     private static AlertDraft PriceDraft(decimal target, AlertTrigger trigger) => new(
@@ -214,6 +221,23 @@ public sealed class AlertEngineTests
         ThresholdPercent: 0m,
         WindowMinutes: 0,
         Note: string.Empty);
+
+    private static AlertDraft ReArmingPriceDraft(
+        decimal target,
+        AlertTrigger trigger,
+        AlertReArmMode reArm,
+        int cooldownMinutes = 0,
+        AlertSoundChoice sound = AlertSoundChoice.Beep) => new(
+        SymbolName: BtcUsdt.Normalized,
+        Kind: PriceAlertKind.Price,
+        Trigger: trigger,
+        TargetPrice: target,
+        ThresholdPercent: 0m,
+        WindowMinutes: 0,
+        Note: string.Empty,
+        ReArm: reArm,
+        CooldownMinutes: cooldownMinutes,
+        Sound: sound);
 
     private static AlertDraft PercentDraft(decimal threshold, int windowMinutes) => new(
         SymbolName: BtcUsdt.Normalized,
@@ -792,6 +816,353 @@ public sealed class AlertEngineTests
 
     #endregion Indicator Cross (T-203)
 
+    #region Re-arm mechanics (T-204)
+
+    [Fact]
+    public async Task PerCross_ReArmsToArmed_AndRefiresOnTheNextFreshCrossing()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        var created = await rig.Engine.CreateAsync(ReArmingPriceDraft(110m, AlertTrigger.Above, AlertReArmMode.PerCross));
+        var (census, firstFire) = WireFiredLatch(rig.Engine, created);
+
+        // The unknown gate state fires on the first hit (the T-096 arming
+        // semantics), then the fire re-arms to Armed.
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+        await WaitFiresAsync(census, 1);
+        var definition = rig.Engine.Definitions.Single(item => item.Id == created.Id);
+        definition.Status.Should().Be(AlertStatus.Armed, "the per-cross fire re-arms immediately, never terminally");
+        definition.LastFiredUtc.Should().Be(Base.AddMinutes(1));
+
+        // The level holds above its edge: the held mark blocks every tick.
+        PushTick(rig.Adapter, 111.5m, Base.AddMinutes(2));
+        PushTick(rig.Adapter, 112m, Base.AddMinutes(3));
+        CountFires(census).Should().Be(1, "a level the price never left is not a fresh crossing");
+
+        // The price leaves the edge and crosses again: the fresh hit fires.
+        PushTick(rig.Adapter, 105m, Base.AddMinutes(4));
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(5));
+        await WaitFiresAsync(census, 2);
+        var second = census.Where(@event => @event.Kind == AlertEventKind.Fired).Last();
+        second.Definition!.LastFiredUtc.Should().Be(Base.AddMinutes(5), "the fresh crossing owns the second fire");
+        second.Definition!.Status.Should().Be(AlertStatus.Armed, "the second fire re-arms the same way");
+        rig.Sound.Played.Should().Be(2, "every fire of a beep alert sounds its beep");
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Cooldown_ReArmsIntoItsWindow_AndRefiresAfterIt()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        var created = await rig.Engine.CreateAsync(ReArmingPriceDraft(
+            110m,
+            AlertTrigger.Above,
+            AlertReArmMode.Cooldown,
+            cooldownMinutes: 5));
+        var (census, firstFire) = WireFiredLatch(rig.Engine, created);
+
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+        await WaitFiresAsync(census, 1);
+        var definition = rig.Engine.Definitions.Single(item => item.Id == created.Id);
+        definition.Status.Should().Be(AlertStatus.Snoozed, "the cooldown fire re-arms into its snooze window");
+        definition.SnoozedUntilUtc.Should().Be(Base.AddMinutes(6), "the window starts at the fire's own stamp");
+
+        // The window holds the alert quiet even while the condition stays reached.
+        PushTick(rig.Adapter, 112m, Base.AddMinutes(2));
+        PushTick(rig.Adapter, 112m, Base.AddMinutes(4));
+        CountFires(census).Should().Be(1, "the cooldown's suppression is its snooze window");
+
+        // The expiry tick re-arms (it evaluates nothing); the next hit — the
+        // gate's entry died with the fire — fires again immediately.
+        PushTick(rig.Adapter, 112m, Base.AddMinutes(6));
+        PushTick(rig.Adapter, 112m, Base.AddMinutes(7));
+        await WaitFiresAsync(census, 2);
+        var second = census.Where(@event => @event.Kind == AlertEventKind.Fired).Last();
+        second.Definition!.LastFiredUtc.Should().Be(Base.AddMinutes(7));
+        rig.Engine.Definitions.Single(item => item.Id == created.Id).Status
+            .Should().Be(AlertStatus.Snoozed, "the second fire re-arms its own window");
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AnEdit_ClearsTheReArmGate_TheNextHitFires()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        var created = await rig.Engine.CreateAsync(ReArmingPriceDraft(110m, AlertTrigger.Above, AlertReArmMode.PerCross));
+        var (census, firstFire) = WireFiredLatch(rig.Engine, created);
+
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+        await WaitFiresAsync(census, 1);
+
+        // The edit re-arms and forgets the held mark: the next hit fires
+        // even though the level never left (the arming semantics restart).
+        await rig.Engine.UpdateAsync(created.Id, ReArmingPriceDraft(100m, AlertTrigger.Above, AlertReArmMode.PerCross));
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(2));
+        await WaitFiresAsync(census, 2);
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ASilentAlert_FiresWithoutTheBeep()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        await rig.Engine.CreateAsync(ReArmingPriceDraft(
+            110m,
+            AlertTrigger.Above,
+            AlertReArmMode.OneShot,
+            sound: AlertSoundChoice.Silent));
+        var (census, firstFire) = WireFiredLatch(rig.Engine);
+
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+
+        (await firstFire.Task.WaitAsync(EventWaitBudget)).Definition!.Status
+            .Should().Be(AlertStatus.Fired, "the silent choice changes the sound alone, never the fire");
+        rig.Sound.Played.Should().Be(0, "a silent alert never touches the beep seam");
+        CountFires(census).Should().Be(1);
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ACooldownDraft_WithANonPositiveWindow_IsRefused()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+
+        var refuse = async () => await rig.Engine.CreateAsync(ReArmingPriceDraft(
+            110m,
+            AlertTrigger.Above,
+            AlertReArmMode.Cooldown,
+            cooldownMinutes: 0));
+        (await refuse.Should().ThrowAsync<ArgumentException>())
+            .WithMessage("*strictly positive cooldown*");
+
+        rig.Engine.Definitions.Should().BeEmpty("a refused draft never joins the roster");
+        rig.Settings.Saved.Should().BeEmpty();
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ADraft_WithAnUnknownReArmMode_IsRefused()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        var ghostDraft = new AlertDraft(
+            SymbolName: BtcUsdt.Normalized,
+            Kind: PriceAlertKind.Price,
+            Trigger: AlertTrigger.Above,
+            TargetPrice: 110m,
+            ThresholdPercent: 0m,
+            WindowMinutes: 0,
+            Note: string.Empty,
+            ReArm: (AlertReArmMode)999);
+
+        var refuse = async () => await rig.Engine.CreateAsync(ghostDraft);
+        (await refuse.Should().ThrowAsync<ArgumentOutOfRangeException>())
+            .WithMessage("*no known re-arm mode*");
+
+        rig.Engine.Definitions.Should().BeEmpty("an unparsable enum value is an error, never a defaulted mode");
+        await rig.Engine.DisposeAsync();
+    }
+
+    #endregion Re-arm mechanics (T-204)
+
+    #region Toast bridge (T-204)
+
+    /// <summary>How long a bridge toast may take to surface through the short test window (the same wait budget discipline).</summary>
+    private static readonly TimeSpan BridgeToastWindow = TimeSpan.FromMilliseconds(150);
+
+    /// <summary>
+    /// A settle delay long enough for a toast the lane WOULD deliver to have
+    /// delivered (the coalescing window plus scheduling slack under load).
+    /// </summary>
+    private static readonly TimeSpan BridgeSettleDelay = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// An in-memory reactive settings double with TYPED reads (the bridge
+    /// tests' DND flag and mute booleans ride it beside the engine's roster
+    /// strings): writes land in the store and announce themselves on the
+    /// change stream, exactly the reactive settings canon in miniature.
+    /// </summary>
+    private sealed class ReactiveSettings : ISettingsService
+    {
+        private readonly Dictionary<string, object?> _store = new(StringComparer.Ordinal);
+        private readonly Subject<SettingsChange> _changes = new();
+
+        public IObservable<SettingsChange> Changes => _changes;
+
+        public Task<T> GetAsync<T>(string section, string key, T defaultValue = default!)
+        {
+            if (_store.TryGetValue($"{section}\u0001{key}", out var value) && value is T typed)
+            {
+                return Task.FromResult(typed);
+            }
+
+            return Task.FromResult(defaultValue);
+        }
+
+        public Task SetAsync<T>(string section, string key, T value)
+        {
+            _store[$"{section}\u0001{key}"] = value;
+            _changes.OnNext(new SettingsChange(section, key, default, value));
+            return Task.CompletedTask;
+        }
+
+        public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task ReloadAsync(CancellationToken ct = default) => Task.CompletedTask;
+    }
+
+    private sealed record BridgeRig(AlertEngine Engine, ReactiveSettings Settings, TestAdapter Adapter, TestSound Sound, TestClock Clock, NotificationCenter Center);
+
+    private static BridgeRig BuildBridgeRig(
+        ReactiveSettings? settings = null,
+        TestAdapter? adapter = null,
+        IIndicatorCatalog? indicators = null)
+    {
+        settings ??= new ReactiveSettings();
+        adapter ??= new TestAdapter();
+        var sound = new TestSound();
+        var clock = new TestClock();
+        var center = new NotificationCenter(settings, NullLogger<NotificationCenter>.Instance, BridgeToastWindow);
+        var engine = new AlertEngine(
+            settings,
+            adapter,
+            indicators ?? new TestCatalog(),
+            sound,
+            center,
+            clock,
+            NullLogger<AlertEngine>.Instance);
+        return new BridgeRig(engine, settings, adapter, sound, clock, center);
+    }
+
+    [Fact]
+    public async Task AFire_BridgesTheAlertToast_WithTheFactsTheRowNeeds()
+    {
+        var rig = BuildBridgeRig();
+        var raw = new List<Notification>();
+        using var rawSubscription = rig.Center.Events.Subscribe(raw.Add, ex => throw ex);
+        await rig.Engine.InitializeAsync();
+        var created = await rig.Engine.CreateAsync(PriceDraft(110m, AlertTrigger.Above));
+        var (census, firstFire) = WireFiredLatch(rig.Engine, created);
+
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+        await firstFire.Task.WaitAsync(EventWaitBudget);
+
+        var toast = raw.Should().ContainSingle(n => n.Kind == NotificationKind.AlertFired).Subject;
+        toast.SymbolName.Should().Be(BtcUsdt.Normalized);
+        toast.Quantity.Should().Be(111m, "the fired observation's price is the toast's structured fact");
+        toast.OccurredUtc.Should().Be(Base.AddMinutes(1));
+        toast.Route.Should().Be(NotificationRoute.None, "a fire toast's click only dismisses");
+        toast.Alert.Should().NotBeNull("the row composes the alert's own condition line from the definition");
+        toast.Alert!.Id.Should().Be(created.Id);
+        rig.Center.HistorySnapshot.Should().Contain(toast, "the raw publish lands the history row first");
+        CountFires(census).Should().Be(1);
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AFire_ToastsWhenTheLaneIsFree_AndReachesTheDisplayLane()
+    {
+        var rig = BuildBridgeRig();
+        var toasts = new List<Notification>();
+        using var toastsSubscription = rig.Center.Toasts.Subscribe(toasts.Add, ex => throw ex);
+        await rig.Engine.InitializeAsync();
+        await rig.Engine.CreateAsync(PriceDraft(110m, AlertTrigger.Above));
+        var (census, firstFire) = WireFiredLatch(rig.Engine);
+
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+        await firstFire.Task.WaitAsync(EventWaitBudget);
+
+        var deadline = DateTimeOffset.UtcNow + EventWaitBudget;
+        while (toasts.Count == 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        toasts.Should().ContainSingle("the unmuted, non-DND fire toasts");
+        toasts[0].Kind.Should().Be(NotificationKind.AlertFired);
+        toasts[0].Alert.Should().NotBeNull();
+        CountFires(census).Should().Be(1);
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AFire_DuringDoNotDisturb_KeepsItsHistoryRow_AndSkipsTheToast()
+    {
+        var settings = new ReactiveSettings();
+        await settings.SetAsync(NotificationSettingsKeys.Section, NotificationSettingsKeys.DoNotDisturb, true);
+        var rig = BuildBridgeRig(settings);
+        var toasts = new List<Notification>();
+        using var toastsSubscription = rig.Center.Toasts.Subscribe(toasts.Add, ex => throw ex);
+        await rig.Engine.InitializeAsync();
+        await rig.Engine.CreateAsync(PriceDraft(110m, AlertTrigger.Above));
+        var (census, firstFire) = WireFiredLatch(rig.Engine);
+
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+        await firstFire.Task.WaitAsync(EventWaitBudget);
+        await Task.Delay(BridgeSettleDelay);
+
+        toasts.Should().BeEmpty("the active Do-Not-Disturb window swallows the toast");
+        rig.Center.HistorySnapshot.Should().ContainSingle(n => n.Kind == NotificationKind.AlertFired, "the fire still records its honest history row");
+        CountFires(census).Should().Be(1, "the display suppression never touches the fire itself");
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task TheMutedAlertSource_SkipsTheToast_AndHistoryKeepsRecording()
+    {
+        var settings = new ReactiveSettings();
+        await settings.SetAsync(NotificationSettingsKeys.Section, NotificationSettingsKeys.MuteAlerts, true);
+        var rig = BuildBridgeRig(settings);
+        var toasts = new List<Notification>();
+        using var toastsSubscription = rig.Center.Toasts.Subscribe(toasts.Add, ex => throw ex);
+        await rig.Engine.InitializeAsync();
+        await rig.Engine.CreateAsync(PriceDraft(110m, AlertTrigger.Above));
+        var (census, firstFire) = WireFiredLatch(rig.Engine);
+
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+        await firstFire.Task.WaitAsync(EventWaitBudget);
+        await Task.Delay(BridgeSettleDelay);
+
+        toasts.Should().BeEmpty("the alert-fire mute holds the display lane for the source");
+        rig.Center.HistorySnapshot.Should().ContainSingle(n => n.Kind == NotificationKind.AlertFired, "a mute silences the popup, never the record");
+        CountFires(census).Should().Be(1);
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task TheDoNotDisturbFlipBack_CountsTheMissedFire_InExactlyOneSummary()
+    {
+        var settings = new ReactiveSettings();
+        await settings.SetAsync(NotificationSettingsKeys.Section, NotificationSettingsKeys.DoNotDisturb, true);
+        var rig = BuildBridgeRig(settings);
+        var toasts = new List<Notification>();
+        using var toastsSubscription = rig.Center.Toasts.Subscribe(toasts.Add, ex => throw ex);
+        await rig.Engine.InitializeAsync();
+        await rig.Engine.CreateAsync(PriceDraft(110m, AlertTrigger.Above));
+        var (_, firstFire) = WireFiredLatch(rig.Engine);
+
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+        await firstFire.Task.WaitAsync(EventWaitBudget);
+        await settings.SetAsync(NotificationSettingsKeys.Section, NotificationSettingsKeys.DoNotDisturb, false);
+
+        var deadline = DateTimeOffset.UtcNow + EventWaitBudget;
+        while (!toasts.Any(n => n.Kind == NotificationKind.DoNotDisturbSummary) && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        toasts.Should().ContainSingle("the flip back emits exactly one summary for the missed span");
+        toasts[0].Kind.Should().Be(NotificationKind.DoNotDisturbSummary);
+        toasts[0].Count.Should().Be(1, "exactly one fire was missed");
+        await rig.Engine.DisposeAsync();
+    }
+
+    #endregion Toast bridge (T-204)
+
     /// <summary>The latch settles on the first roster change (the pause path's own publish; wire it after the create).</summary>
     private static TaskCompletionSource<AlertEvent> WireRosterLatch(AlertEngine engine)
     {
@@ -821,6 +1192,25 @@ public sealed class AlertEngineTests
             if (DateTimeOffset.UtcNow > deadline)
             {
                 throw new TimeoutException($"the roster never persisted the {marker} state within the budget");
+            }
+
+            await Task.Delay(10);
+        }
+    }
+
+    /// <summary>
+    /// Wait until the census counts the named number of fires: the FIFO
+    /// consumer delivers one fire per evaluation, so a multi-fire fact polls
+    /// the census within the same budget instead of assuming timing.
+    /// </summary>
+    private static async Task WaitFiresAsync(ConcurrentQueue<AlertEvent> census, int count)
+    {
+        var deadline = DateTimeOffset.UtcNow + EventWaitBudget;
+        while (CountFires(census) < count)
+        {
+            if (DateTimeOffset.UtcNow > deadline)
+            {
+                throw new TimeoutException($"the engine never reached {count} fire(s) within the budget");
             }
 
             await Task.Delay(10);

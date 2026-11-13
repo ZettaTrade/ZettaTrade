@@ -1752,6 +1752,12 @@ Estimated fee: {10}</value>
   <data name="Menu.Trading.Alerts" xml:space="preserve">
     <value>Price alerts...</value>
   </data>
+  <data name="Notif.AlertFired" xml:space="preserve">
+    <value>Alert fired: {0} {1}</value>
+  </data>
+  <data name="Notif.AlertFiredDigest" xml:space="preserve">
+    <value>{0} alert fires — {1}</value>
+  </data>
   <data name="Notif.AdapterDown" xml:space="preserve">
     <value>Adapter {0} went down</value>
   </data>
@@ -1811,6 +1817,9 @@ Estimated fee: {10}</value>
   </data>
   <data name="Notif.SourceAdapterStates" xml:space="preserve">
     <value>Adapter states</value>
+  </data>
+  <data name="Notif.SourceAlerts" xml:space="preserve">
+    <value>Alert fires</value>
   </data>
   <data name="Notif.SourceCancels" xml:space="preserve">
     <value>Cancellations</value>
@@ -2019,6 +2028,15 @@ Estimated fee: {10}</value>
   <data name="Alert.Editing.Level" xml:space="preserve">
     <value>Level</value>
   </data>
+  <data name="Alert.Editing.ReArm" xml:space="preserve">
+    <value>After firing</value>
+  </data>
+  <data name="Alert.Editing.Cooldown" xml:space="preserve">
+    <value>Cooldown, min</value>
+  </data>
+  <data name="Alert.Editing.Sound" xml:space="preserve">
+    <value>Fire sound</value>
+  </data>
   <data name="Alert.Kind.Price" xml:space="preserve">
     <value>Price level</value>
   </data>
@@ -2042,6 +2060,21 @@ Estimated fee: {10}</value>
   </data>
   <data name="Alert.Source.Price" xml:space="preserve">
     <value>Price × indicator</value>
+  </data>
+  <data name="Alert.ReArm.OneShot" xml:space="preserve">
+    <value>Fire once</value>
+  </data>
+  <data name="Alert.ReArm.PerCross" xml:space="preserve">
+    <value>Re-arm on every crossing</value>
+  </data>
+  <data name="Alert.ReArm.Cooldown" xml:space="preserve">
+    <value>Cooldown</value>
+  </data>
+  <data name="Alert.Sound.Silent" xml:space="preserve">
+    <value>Silent</value>
+  </data>
+  <data name="Alert.Sound.Beep" xml:space="preserve">
+    <value>Beep</value>
   </data>
   <data name="Alert.Status.Armed" xml:space="preserve">
     <value>Armed</value>
@@ -2117,6 +2150,9 @@ Estimated fee: {10}</value>
   </data>
   <data name="Alert.Error.InvalidLevel" xml:space="preserve">
     <value>'{0}' is not a parsable level.</value>
+  </data>
+  <data name="Alert.Error.InvalidCooldown" xml:space="preserve">
+    <value>'{0}' is not a parsable cooldown (minutes).</value>
   </data>
   <data name="Alert.Error.NoIndicatorsLoaded" xml:space="preserve">
     <value>No indicator plugins are loaded; an indicator-cross alert cannot be created.</value>

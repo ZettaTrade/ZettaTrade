@@ -20,16 +20,18 @@ public static class AlertCodec
     #region Private Fields
 
     /// <summary>
-    /// The only payload version this codec writes (T-203's roster schema
-    /// versioning: version 2 carries the indicator-cross facts and the
-    /// Paused status). Reads BOTH versions — a version 1 roster (T-096's
-    /// shape) decodes exactly as it always did; version 2's new facts ride
-    /// the nested <c>indicator</c> object the old shape never carried.
+    /// The only payload version this codec writes (T-204's roster schema
+    /// versioning: version 3 carries the re-arm facts — the mode, the
+    /// cooldown window and the sound choice). Reads versions 1-3 — a
+    /// version 1 roster (T-096's shape) decodes exactly as it always did
+    /// and version 2 (T-203's) likewise; both predate the re-arm facts and
+    /// decode them as the defaults (OneShot, no window, the beep), while
+    /// version 3's entries demand their re-arm facts by name.
     /// </summary>
-    private const int PayloadVersion = 2;
+    private const int PayloadVersion = 3;
 
     /// <summary>The payload versions this codec reads (it writes only <see cref="PayloadVersion"/>).</summary>
-    private static readonly int[] ReadableVersions = [1, PayloadVersion];
+    private static readonly int[] ReadableVersions = [1, 2, PayloadVersion];
 
     /// <summary>The payload's member names (written exact, read case-insensitive).</summary>
     private const string VersionMember = "version";
@@ -53,6 +55,9 @@ public static class AlertCodec
     private const string IndicatorPeriodMember = "period";
     private const string IndicatorSourceMember = "source";
     private const string IndicatorLevelMember = "level";
+    private const string ReArmMember = "reArm";
+    private const string CooldownMinutesMember = "cooldownMinutes";
+    private const string SoundMember = "sound";
 
     /// <summary>The enums the codec stores: every value parses by its exact enum name, case-insensitively.</summary>
     private static readonly Dictionary<string, PriceAlertKind> StoredKinds =
@@ -62,6 +67,10 @@ public static class AlertCodec
         Built(AlertStatus.Armed, AlertStatus.Snoozed, AlertStatus.Fired, AlertStatus.Paused);
     private static readonly Dictionary<string, AlertCrossSource> StoredSources =
         Built(AlertCrossSource.IndicatorValue, AlertCrossSource.Price);
+    private static readonly Dictionary<string, AlertReArmMode> StoredReArmModes =
+        Built(AlertReArmMode.OneShot, AlertReArmMode.PerCross, AlertReArmMode.Cooldown);
+    private static readonly Dictionary<string, AlertSoundChoice> StoredSounds =
+        Built(AlertSoundChoice.Silent, AlertSoundChoice.Beep);
 
     /// <summary>The payload's UTF-8 encoding the codec authors itself (the settings store is UTF-8).</summary>
     private static readonly Encoding PayloadEncoding = Encoding.UTF8;
@@ -137,6 +146,16 @@ public static class AlertCodec
             writer.WriteEndObject();
         }
 
+        // The re-arm facts (T-204): version 3 demands them on every entry,
+        // so the mode and the sound always land — even at their defaults —
+        // and the cooldown window lands only when its mode reads it.
+        writer.WriteString(ReArmMember, definition.ReArm.ToString());
+        if (definition.CooldownMinutes > 0)
+        {
+            writer.WriteNumber(CooldownMinutesMember, definition.CooldownMinutes);
+        }
+
+        writer.WriteString(SoundMember, definition.Sound.ToString());
         writer.WriteEndObject();
     }
 
@@ -146,9 +165,10 @@ public static class AlertCodec
 
     /// <summary>
     /// Decode one stored payload: the root must carry the wrapper shape
-    /// (a readable version — the codec writes 2 and reads 1 and 2 — plus an
-    /// alerts array), every entry that cannot be honored exactly is skipped
-    /// with a count — no default-substituted rows. A wholly unreadable root
+    /// (a readable version — the codec writes 3 and reads 1, 2 and 3 —
+    /// plus an alerts array), every entry that cannot be honored exactly is
+    /// skipped with a count — no default-substituted rows. A wholly
+    /// unreadable root
     /// — malformed JSON or a wrong shape alike — throws ONE uniform
     /// <see cref="ArgumentException"/> to the caller (broken payloads are a
     /// caller's logged fault; nothing here fabricates an empty roster).
@@ -312,6 +332,36 @@ public static class AlertCodec
             indicator = new AlertIndicatorSpec(name, parsedPeriod, source.Value, level ?? 0m);
         }
 
+        // The re-arm facts (T-204): a version 3 entry demands its mode and
+        // its sound by exact enum name, and a Cooldown mode its window; a
+        // version 1/2 payload predates the facts entirely and decodes them
+        // as the defaults (the terminal one-shot with the beep). The
+        // cooldown minutes of the other modes are unused facts — junk there
+        // stays harmlessly decodable, the demark is the mode.
+        AlertReArmMode reArm;
+        AlertSoundChoice sound;
+        int cooldownMinutes;
+        if (payloadVersion < 3)
+        {
+            reArm = AlertReArmMode.OneShot;
+            cooldownMinutes = 0;
+            sound = AlertSoundChoice.Beep;
+        }
+        else
+        {
+            var parsedReArm = ReadEnum(entry, ReArmMember, StoredReArmModes);
+            var parsedSound = ReadEnum(entry, SoundMember, StoredSounds);
+            cooldownMinutes = ReadIntegerMember(entry, CooldownMinutesMember) ?? 0;
+            if (parsedReArm is null || parsedSound is null ||
+                (parsedReArm == AlertReArmMode.Cooldown && cooldownMinutes <= 0))
+            {
+                return false;
+            }
+
+            reArm = parsedReArm.Value;
+            sound = parsedSound.Value;
+        }
+
         definition = new AlertDefinition(
             id,
             symbol,
@@ -325,7 +375,10 @@ public static class AlertCodec
             created.Value,
             ReadTicksMember(entry, SnoozedUntilUtcMember),
             ReadTicksMember(entry, LastFiredUtcMember),
-            indicator);
+            indicator,
+            reArm,
+            cooldownMinutes,
+            sound);
         return true;
     }
 

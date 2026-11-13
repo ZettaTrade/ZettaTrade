@@ -15,6 +15,9 @@ namespace ZettaTrade.App.Services;
 /// <param name="WindowMinutes">The PercentMove kind's trailing window in minutes; unused (zero) for the Price kind.</param>
 /// <param name="Note">The user's free-text note; empty when left off.</param>
 /// <param name="Indicator">The IndicatorCross kind's facts (T-203); null for the other kinds.</param>
+/// <param name="ReArm">The fire's aftermath (T-204, <see cref="AlertReArmMode"/>); the terminal one-shot unless stated.</param>
+/// <param name="CooldownMinutes">The Cooldown re-arm's window in minutes; unused (zero) for the other modes.</param>
+/// <param name="Sound">The fire's sound choice (T-204); the beep unless stated.</param>
 public sealed record AlertDraft(
     string SymbolName,
     PriceAlertKind Kind,
@@ -23,7 +26,10 @@ public sealed record AlertDraft(
     decimal ThresholdPercent,
     int WindowMinutes,
     string Note,
-    AlertIndicatorSpec? Indicator = null)
+    AlertIndicatorSpec? Indicator = null,
+    AlertReArmMode ReArm = AlertReArmMode.OneShot,
+    int CooldownMinutes = 0,
+    AlertSoundChoice Sound = AlertSoundChoice.Beep)
 {
     /// <summary>
     /// Validate the draft against the kind it names: the symbol spelling
@@ -33,7 +39,9 @@ public sealed record AlertDraft(
     /// threshold and window, the IndicatorCross kind (T-203) a present spec
     /// with a named indicator, a strictly positive period and a real cross
     /// edge (At is meaningless for a cross and is refused); any other kind
-    /// value is a fault. The spec's level is unconstrained — an oscillator's
+    /// value is a fault. The re-arm facts (T-204) parse by their exact enum
+    /// names and a Cooldown mode demands a strictly positive window. The
+    /// spec's level is unconstrained — an oscillator's
     /// canonical level can be 70, a zero-cross's 0, an oscillator band's
     /// negative — only its presence is demanded for the indicator-value
     /// source. Errors are specific, never defaults (the trading-safety canon
@@ -122,6 +130,23 @@ public sealed record AlertDraft(
                 "An indicator-cross trigger reads only the Above or Below edge; At is meaningless for a cross.",
                 nameof(Trigger));
         }
+
+        if (!Enum.IsDefined(ReArm))
+        {
+            throw new ArgumentOutOfRangeException(nameof(ReArm), ReArm, "The draft names no known re-arm mode.");
+        }
+
+        if (!Enum.IsDefined(Sound))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Sound), Sound, "The draft names no known sound choice.");
+        }
+
+        if (ReArm == AlertReArmMode.Cooldown && CooldownMinutes <= 0)
+        {
+            throw new ArgumentException(
+                "A cooldown re-arm needs a strictly positive cooldown (minutes).",
+                nameof(CooldownMinutes));
+        }
     }
 
     /// <summary>Build the armed definition a fresh create persists: a new identity, the supplied facts, no history.</summary>
@@ -140,7 +165,10 @@ public sealed record AlertDraft(
         occurredUtc,
         SnoozedUntilUtc: null,
         LastFiredUtc: null,
-        Indicator: Indicator);
+        Indicator: Indicator,
+        ReArm: ReArm,
+        CooldownMinutes: ReArm == AlertReArmMode.Cooldown ? CooldownMinutes : 0,
+        Sound: Sound);
 
     #region Private Fields
 

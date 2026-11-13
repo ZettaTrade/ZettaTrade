@@ -1752,6 +1752,12 @@
   <data name="Menu.Trading.Alerts" xml:space="preserve">
     <value>Ценовые оповещения…</value>
   </data>
+  <data name="Notif.AlertFired" xml:space="preserve">
+    <value>Сработало оповещение: {0} {1}</value>
+  </data>
+  <data name="Notif.AlertFiredDigest" xml:space="preserve">
+    <value>Срабатываний оповещений: {0} — {1}</value>
+  </data>
   <data name="Notif.AdapterDown" xml:space="preserve">
     <value>Адаптер {0} недоступен</value>
   </data>
@@ -1811,6 +1817,9 @@
   </data>
   <data name="Notif.SourceAdapterStates" xml:space="preserve">
     <value>Состояния адаптеров</value>
+  </data>
+  <data name="Notif.SourceAlerts" xml:space="preserve">
+    <value>Срабатывания оповещений</value>
   </data>
   <data name="Notif.SourceCancels" xml:space="preserve">
     <value>Отмены</value>
@@ -2019,6 +2028,15 @@
   <data name="Alert.Editing.Level" xml:space="preserve">
     <value>Уровень</value>
   </data>
+  <data name="Alert.Editing.ReArm" xml:space="preserve">
+    <value>После срабатывания</value>
+  </data>
+  <data name="Alert.Editing.Cooldown" xml:space="preserve">
+    <value>Пауза, мин</value>
+  </data>
+  <data name="Alert.Editing.Sound" xml:space="preserve">
+    <value>Звук</value>
+  </data>
   <data name="Alert.Kind.Price" xml:space="preserve">
     <value>Ценовой уровень</value>
   </data>
@@ -2042,6 +2060,21 @@
   </data>
   <data name="Alert.Source.Price" xml:space="preserve">
     <value>Цена × индикатор</value>
+  </data>
+  <data name="Alert.ReArm.OneShot" xml:space="preserve">
+    <value>Один раз</value>
+  </data>
+  <data name="Alert.ReArm.PerCross" xml:space="preserve">
+    <value>На каждом пересечении</value>
+  </data>
+  <data name="Alert.ReArm.Cooldown" xml:space="preserve">
+    <value>С паузой</value>
+  </data>
+  <data name="Alert.Sound.Silent" xml:space="preserve">
+    <value>Тихо</value>
+  </data>
+  <data name="Alert.Sound.Beep" xml:space="preserve">
+    <value>Сигнал</value>
   </data>
   <data name="Alert.Status.Armed" xml:space="preserve">
     <value>Активно</value>
@@ -2117,6 +2150,9 @@
   </data>
   <data name="Alert.Error.InvalidLevel" xml:space="preserve">
     <value>'{0}' — не разборчивый уровень.</value>
+  </data>
+  <data name="Alert.Error.InvalidCooldown" xml:space="preserve">
+    <value>'{0}' — не разборчивая пауза (минуты).</value>
   </data>
   <data name="Alert.Error.NoIndicatorsLoaded" xml:space="preserve">
     <value>Плагины индикаторов не загружены; оповещение о пересечении индикатора создать нельзя.</value>

@@ -24,6 +24,9 @@ namespace ZettaTrade.App.Services;
 /// <param name="SnoozedUntilUtc">The snooze expiration window for the <see cref="AlertStatus.Snoozed"/> state; null otherwise.</param>
 /// <param name="LastFiredUtc">The UTC moment the alert last fired; null until it does.</param>
 /// <param name="Indicator">The IndicatorCross kind's own facts (T-203, <see cref="AlertIndicatorSpec"/>); null for the other kinds.</param>
+/// <param name="ReArm">The fire's aftermath (T-204, <see cref="AlertReArmMode"/>): the terminal one-shot, the per-crossing re-arm or the cooldown snooze.</param>
+/// <param name="CooldownMinutes">The Cooldown re-arm's window in whole minutes; unused (zero) for the other modes.</param>
+/// <param name="Sound">The fire's sound choice (T-204, <see cref="AlertSoundChoice"/>).</param>
 public sealed record AlertDefinition(
     Guid Id,
     string SymbolName,
@@ -37,7 +40,10 @@ public sealed record AlertDefinition(
     DateTimeOffset CreatedUtc,
     DateTimeOffset? SnoozedUntilUtc,
     DateTimeOffset? LastFiredUtc,
-    AlertIndicatorSpec? Indicator = null)
+    AlertIndicatorSpec? Indicator = null,
+    AlertReArmMode ReArm = AlertReArmMode.OneShot,
+    int CooldownMinutes = 0,
+    AlertSoundChoice Sound = AlertSoundChoice.Beep)
 {
     /// <summary>Whether the engine still evaluates the alert — every Armed or Snoozed one does; a Fired one visits the next restart read-only, and a Paused one (T-203) stalls until its plugin's set restores the indicator.</summary>
     public bool IsEvaluatable => Status is AlertStatus.Armed or AlertStatus.Snoozed;

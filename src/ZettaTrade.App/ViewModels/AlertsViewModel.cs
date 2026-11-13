@@ -15,9 +15,10 @@ using ZettaTrade.Core.ValueObjects;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
-/// The alert manager view model (T-096): renders the engine's roster as the
+/// The alert manager view model (T-096, T-204): renders the engine's roster as the
 /// manager table, composes the editor's drafts (create, edit re-arm, snooze,
-/// delete), and mirrors the engine's events plus the live language — every
+/// delete — the fire mechanics riding the re-arm, cooldown and sound pickers),
+/// and mirrors the engine's events plus the live language — every
 /// row text re-renders on a language switch. The engine stays the roster's
 /// only writer; garbage spellings refuse the operation each with its own
 /// localized line, never a silently defaulted alert.
@@ -40,20 +41,13 @@ public sealed class AlertsViewModel : ReactiveObject
     private const string InvalidateLevelKey = "Alert.Error.InvalidLevel";
     private const string NoIndicatorsKey = "Alert.Error.NoIndicatorsLoaded";
     private const string InvalidateOperationKey = "Alert.Error.OperationFailed";
+    private const string InvalidateCooldownKey = "Alert.Error.InvalidCooldown";
     private const string StatusArmedKey = "Alert.Status.Armed";
     private const string StatusSnoozedFormatKey = "Alert.Status.Snoozed.Format";
     private const string StatusFiredKey = "Alert.Status.Fired";
     private const string StatusPausedKey = "Alert.Status.Paused";
     private const string LastFiredNeverKey = "Alert.Status.Never";
     private const string StatusLastFiredFormatKey = "Alert.Status.LastFired.Format";
-    private const string ConditionAboveKey = "Alert.Condition.Price.Above";
-    private const string ConditionBelowKey = "Alert.Condition.Price.Below";
-    private const string ConditionAtKey = "Alert.Condition.Price.At";
-    private const string ConditionPercentFormatKey = "Alert.Condition.PercentMove.Format";
-    private const string ConditionIndicatorValueAboveFormatKey = "Alert.Condition.Indicator.ValueAbove.Format";
-    private const string ConditionIndicatorValueBelowFormatKey = "Alert.Condition.Indicator.ValueBelow.Format";
-    private const string ConditionPriceAboveFormatKey = "Alert.Condition.Indicator.PriceAbove.Format";
-    private const string ConditionPriceBelowFormatKey = "Alert.Condition.Indicator.PriceBelow.Format";
 
     #endregion Resx Keys
 
@@ -70,6 +64,9 @@ public sealed class AlertsViewModel : ReactiveObject
 
     /// <summary>The cross level the editor seeds for a fresh cross alert (the oscillators' canonical upper band).</summary>
     private const string DefaultLevelText = "70";
+
+    /// <summary>The cooldown minutes the editor seeds for a fresh cooldown re-arm (the roster's snooze preset).</summary>
+    private const string DefaultCooldownText = "15";
 
     #endregion Constants
 
@@ -90,6 +87,9 @@ public sealed class AlertsViewModel : ReactiveObject
     private AlertSourceOption _selectedSource = null!;
     private string _periodText = DefaultPeriodText;
     private string _levelText = DefaultLevelText;
+    private AlertReArmOption _selectedReArm = null!;
+    private string _cooldownText = DefaultCooldownText;
+    private AlertSoundOption _selectedSound = null!;
     private string _noteText = string.Empty;
     private AlertsRowViewModel? _selectedRow;
     private string? _errorMessage;
@@ -118,6 +118,8 @@ public sealed class AlertsViewModel : ReactiveObject
         _selectedKind = KindOptions[0];
         _selectedTrigger = TriggerOptions[1];
         _selectedSource = SourceOptions[0];
+        _selectedReArm = ReArmOptions[0];
+        _selectedSound = SoundOptions[1];
 
         CreateCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
             (_, cancellationToken) => HandleCreateAsync(cancellationToken));
@@ -146,6 +148,11 @@ public sealed class AlertsViewModel : ReactiveObject
     private const string TriggerAboveKey = "Alert.Trigger.Above";
     private const string TriggerBelowKey = "Alert.Trigger.Below";
     private const string TriggerAtKey = "Alert.Trigger.At";
+    private const string ReArmOneShotKey = "Alert.ReArm.OneShot";
+    private const string ReArmPerCrossKey = "Alert.ReArm.PerCross";
+    private const string ReArmCooldownKey = "Alert.ReArm.Cooldown";
+    private const string SoundSilentKey = "Alert.Sound.Silent";
+    private const string SoundBeepKey = "Alert.Sound.Beep";
 
     #endregion Resx Option Keys
 
@@ -194,6 +201,12 @@ public sealed class AlertsViewModel : ReactiveObject
 
     /// <summary>The cross sources the editor offers (localized labels, recomposed on language changes).</summary>
     public ObservableCollection<AlertSourceOption> SourceOptions { get; } = [];
+
+    /// <summary>The re-arm modes the editor offers (T-204; localized labels, recomposed on language changes).</summary>
+    public ObservableCollection<AlertReArmOption> ReArmOptions { get; } = [];
+
+    /// <summary>The fire sound choices the editor offers (T-204; localized labels, recomposed on language changes).</summary>
+    public ObservableCollection<AlertSoundOption> SoundOptions { get; } = [];
 
     /// <summary>The loaded indicators' canonical names (the session-fixed plugin snapshot).</summary>
     public ObservableCollection<string> IndicatorOptions { get; } = [];
@@ -304,6 +317,41 @@ public sealed class AlertsViewModel : ReactiveObject
         get => _levelText;
         set => this.RaiseAndSetIfChanged(ref _levelText, value);
     }
+
+    /// <summary>The re-arm mode the next draft composes with (T-204).</summary>
+    public AlertReArmOption SelectedReArm
+    {
+        get => _selectedReArm;
+        set
+        {
+            if (_selectedReArm == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _selectedReArm, value);
+
+            // The cooldown window belongs to the cooldown mode only.
+            this.RaisePropertyChanged(nameof(IsCooldownMode));
+        }
+    }
+
+    /// <summary>The cooldown spelling, minutes (Cooldown re-arm; parsed and validated at submit).</summary>
+    public string CooldownText
+    {
+        get => _cooldownText;
+        set => this.RaiseAndSetIfChanged(ref _cooldownText, value);
+    }
+
+    /// <summary>The fire sound the next draft composes with (T-204).</summary>
+    public AlertSoundOption SelectedSound
+    {
+        get => _selectedSound;
+        set => this.RaiseAndSetIfChanged(ref _selectedSound, value);
+    }
+
+    /// <summary>True while the Cooldown re-arm mode is selected (its window field shows).</summary>
+    public bool IsCooldownMode => SelectedReArm.Mode == AlertReArmMode.Cooldown;
 
     /// <summary>The user's free-text note (carried as-is).</summary>
     public string NoteText
@@ -541,6 +589,16 @@ public sealed class AlertsViewModel : ReactiveObject
         var window = 0;
         AlertIndicatorSpec? indicator = null;
 
+        var reArm = SelectedReArm.Mode;
+        var cooldown = 0;
+        if (reArm == AlertReArmMode.Cooldown &&
+            (!int.TryParse(_cooldownText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out cooldown) ||
+             cooldown <= 0))
+        {
+            inputError = _localization.GetString(InvalidateCooldownKey, _cooldownText);
+            return false;
+        }
+
         switch (SelectedKind.Kind)
         {
             case PriceAlertKind.Price:
@@ -605,7 +663,10 @@ public sealed class AlertsViewModel : ReactiveObject
             ThresholdPercent: percent,
             WindowMinutes: window,
             Note: _noteText,
-            Indicator: indicator);
+            Indicator: indicator,
+            ReArm: reArm,
+            CooldownMinutes: cooldown,
+            Sound: SelectedSound.Sound);
         return true;
     }
 
@@ -648,6 +709,13 @@ public sealed class AlertsViewModel : ReactiveObject
         SourceOptions.Clear();
         SourceOptions.Add(new AlertSourceOption(AlertCrossSource.IndicatorValue, _localization.GetString(SourceIndicatorValueKey)));
         SourceOptions.Add(new AlertSourceOption(AlertCrossSource.Price, _localization.GetString(SourcePriceKey)));
+        ReArmOptions.Clear();
+        ReArmOptions.Add(new AlertReArmOption(AlertReArmMode.OneShot, _localization.GetString(ReArmOneShotKey)));
+        ReArmOptions.Add(new AlertReArmOption(AlertReArmMode.PerCross, _localization.GetString(ReArmPerCrossKey)));
+        ReArmOptions.Add(new AlertReArmOption(AlertReArmMode.Cooldown, _localization.GetString(ReArmCooldownKey)));
+        SoundOptions.Clear();
+        SoundOptions.Add(new AlertSoundOption(AlertSoundChoice.Silent, _localization.GetString(SoundSilentKey)));
+        SoundOptions.Add(new AlertSoundOption(AlertSoundChoice.Beep, _localization.GetString(SoundBeepKey)));
         IndicatorOptions.Clear();
         foreach (var name in _indicators.LoadedNames)
         {
@@ -664,6 +732,8 @@ public sealed class AlertsViewModel : ReactiveObject
         var trigger = SelectedTrigger.Trigger;
         var source = SelectedSource.Source;
         var indicatorName = SelectedIndicatorName;
+        var reArm = SelectedReArm.Mode;
+        var sound = SelectedSound.Sound;
         var selectedId = SelectedRow?.Id;
         ComposeOptionLabels();
         RebuildRows();
@@ -674,6 +744,10 @@ public sealed class AlertsViewModel : ReactiveObject
         this.RaisePropertyChanged(nameof(SelectedTrigger));
         _selectedSource = SourceOptions.First(option => option.Source == source);
         this.RaisePropertyChanged(nameof(SelectedSource));
+        _selectedReArm = ReArmOptions.First(option => option.Mode == reArm);
+        this.RaisePropertyChanged(nameof(SelectedReArm));
+        _selectedSound = SoundOptions.First(option => option.Sound == sound);
+        this.RaisePropertyChanged(nameof(SelectedSound));
         if (indicatorName.Length > 0 && !IndicatorOptions.Contains(indicatorName))
         {
             // A stored name whose plugin is not loaded this session stays in
@@ -732,6 +806,9 @@ public sealed class AlertsViewModel : ReactiveObject
         PercentText = definition.ThresholdPercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
         WindowText = definition.WindowMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture);
         NoteText = definition.Note;
+        SelectedReArm = ReArmOptions.First(option => option.Mode == definition.ReArm);
+        CooldownText = definition.CooldownMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        SelectedSound = SoundOptions.First(option => option.Sound == definition.Sound);
         if (definition.Kind == PriceAlertKind.IndicatorCross && definition.Indicator is { } spec)
         {
             if (!IndicatorOptions.Contains(spec.Name))
@@ -748,33 +825,8 @@ public sealed class AlertsViewModel : ReactiveObject
         }
     }
 
-    private void ApplyConditionText(AlertsRowViewModel row, AlertDefinition definition) => row.ConditionText =
-        definition.Kind switch
-        {
-            PriceAlertKind.Price => definition.Trigger switch
-            {
-                AlertTrigger.Above => _localization.GetString(ConditionAboveKey, definition.TargetPrice),
-                AlertTrigger.Below => _localization.GetString(ConditionBelowKey, definition.TargetPrice),
-                AlertTrigger.At => _localization.GetString(ConditionAtKey, definition.TargetPrice),
-                _ => string.Empty,
-            },
-            PriceAlertKind.PercentMove => _localization.GetString(ConditionPercentFormatKey, definition.ThresholdPercent, definition.WindowMinutes),
-            PriceAlertKind.IndicatorCross => definition.Indicator is not { } spec
-                ? string.Empty
-                : (definition.Trigger, spec.Source) switch
-                {
-                    (AlertTrigger.Above, AlertCrossSource.IndicatorValue) =>
-                        _localization.GetString(ConditionIndicatorValueAboveFormatKey, spec.Name, spec.Period, spec.Level),
-                    (AlertTrigger.Below, AlertCrossSource.IndicatorValue) =>
-                        _localization.GetString(ConditionIndicatorValueBelowFormatKey, spec.Name, spec.Period, spec.Level),
-                    (AlertTrigger.Above, AlertCrossSource.Price) =>
-                        _localization.GetString(ConditionPriceAboveFormatKey, spec.Name, spec.Period),
-                    (AlertTrigger.Below, AlertCrossSource.Price) =>
-                        _localization.GetString(ConditionPriceBelowFormatKey, spec.Name, spec.Period),
-                    _ => string.Empty,
-                },
-            _ => string.Empty,
-        };
+    private void ApplyConditionText(AlertsRowViewModel row, AlertDefinition definition) =>
+        row.ConditionText = AlertConditionText.Compose(definition, _localization);
 
     private void ApplyStatusText(AlertsRowViewModel row, AlertDefinition definition) => row.StatusText =
         definition.Status switch

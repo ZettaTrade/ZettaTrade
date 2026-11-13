@@ -22,14 +22,16 @@ using ZettaTrade.Plugins.Abstractions;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 /// <summary>
-/// The alert manager view model's facts (T-096): every draft field parses
-/// explicitly (garbage spellings refuse with their own localized line and
-/// the engine is never reached), a valid create/update/snooze/delete rides
-/// the engine and the manager re-renders from the roster event the engine
-/// publishes, the selection loads the editor, a language switch re-labels
-/// the pickers and re-renders the rows with the selection surviving, and
-/// the attach handle's dispose ends the mirrors. Facts run inside the
-/// AvaloniaDispatcherSerial collection and settle through the pump.
+/// The alert manager view model's facts (T-096, T-203, T-204): every draft
+/// field parses explicitly (garbage spellings refuse with their own
+/// localized line and the engine is never reached), a valid
+/// create/update/snooze/delete rides the engine and the manager re-renders
+/// from the roster event the engine publishes, the selection loads the
+/// editor (including the re-arm mode, the cooldown window and the sound
+/// choice), a language switch re-labels the pickers and re-renders the rows
+/// with the selection surviving, and the attach handle's dispose ends the
+/// mirrors. Facts run inside the AvaloniaDispatcherSerial collection and
+/// settle through the pump.
 /// </summary>
 [Collection("AvaloniaDispatcherSerial")]
 public sealed class AlertsViewModelTests
@@ -108,7 +110,10 @@ public sealed class AlertsViewModelTests
                 Roster[index].CreatedUtc,
                 SnoozedUntilUtc: null,
                 LastFiredUtc: null,
-                draft.Indicator);
+                draft.Indicator,
+                draft.ReArm,
+                draft.CooldownMinutes,
+                draft.Sound);
             Feed.OnNext(new AlertEvent(AlertEventKind.RosterChanged, null, null));
             return Task.CompletedTask;
         }
@@ -176,6 +181,24 @@ public sealed class AlertsViewModelTests
         SnoozedUntilUtc: null,
         LastFiredUtc: null,
         Indicator: new AlertIndicatorSpec("RSI", 14, AlertCrossSource.IndicatorValue, 70m));
+
+    /// <summary>The re-arm fixture: one cooldown, silent price alert with a stored five-minute window.</summary>
+    private static AlertDefinition ReArmFixture() => new(
+        Id: Guid.Parse("0a0a0a0a-0000-0000-0000-000000000003"),
+        SymbolName: "BTC/USDT",
+        Kind: PriceAlertKind.Price,
+        Trigger: AlertTrigger.Above,
+        TargetPrice: 110_000.5m,
+        ThresholdPercent: 0m,
+        WindowMinutes: 0,
+        Note: string.Empty,
+        Status: AlertStatus.Armed,
+        CreatedUtc: Base,
+        SnoozedUntilUtc: null,
+        LastFiredUtc: null,
+        ReArm: AlertReArmMode.Cooldown,
+        CooldownMinutes: 5,
+        Sound: AlertSoundChoice.Silent);
 
     /// <summary>Build one model over one fake engine and the bracketed localization.</summary>
     private static (AlertsViewModel Model, FakeEngine Engine, FakeLocalization Loc) Build(
@@ -415,6 +438,96 @@ public sealed class AlertsViewModelTests
 
     #endregion Indicator Cross Editor (T-203)
 
+    #region Re-arm Editor (T-204)
+
+    [Fact]
+    public void TheEditor_DefaultsToOneShotReArm_BeepSound_AndAFifteenMinuteCooldownSpelling()
+    {
+        var (model, _, _) = Build();
+
+        model.SelectedReArm.Mode.Should().Be(AlertReArmMode.OneShot, "the default aftermath is the terminal one-shot");
+        model.SelectedSound.Sound.Should().Be(AlertSoundChoice.Beep, "the default sound is the audible beep");
+        model.CooldownText.Should().Be("15", "the window spelling preloads the standard window");
+        model.IsCooldownMode.Should().BeFalse("the window field shows only for the Cooldown mode");
+
+        model.SelectedReArm = model.ReArmOptions.First(option => option.Mode == AlertReArmMode.Cooldown);
+        model.IsCooldownMode.Should().BeTrue("the Cooldown mode shows its window field");
+    }
+
+    [Fact]
+    public async Task CreateCommand_AValidCooldownSilentDraft_CarriesTheReArmFacts()
+    {
+        var (model, engine, _) = Build();
+        using var attach = model.Attach();
+        model.SelectedReArm = model.ReArmOptions.First(option => option.Mode == AlertReArmMode.Cooldown);
+        model.CooldownText = "5";
+        model.SelectedSound = model.SoundOptions.First(option => option.Sound == AlertSoundChoice.Silent);
+        model.SymbolText = "BTC/USDT";
+        model.TargetText = "110";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var definition = engine.Roster.Should().ContainSingle().Subject;
+        definition.ReArm.Should().Be(AlertReArmMode.Cooldown);
+        definition.CooldownMinutes.Should().Be(5);
+        definition.Sound.Should().Be(AlertSoundChoice.Silent);
+        model.ErrorMessage.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-3")]
+    [InlineData("abc")]
+    public async Task CreateCommand_AnUnparsableOrNonPositiveCooldownRefusesWithItsOwnLine_AndNeverReachesTheEngine(
+        string spelling)
+    {
+        var (model, engine, _) = Build();
+        model.SelectedReArm = model.ReArmOptions.First(option => option.Mode == AlertReArmMode.Cooldown);
+        model.CooldownText = spelling;
+        model.SymbolText = "BTC/USDT";
+        model.TargetText = "110";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+
+        model.ErrorMessage.Should().Be("[Alert.Error.InvalidCooldown/" + spelling + "]");
+        engine.Roster.Should().BeEmpty("a refused window never reaches the engine");
+    }
+
+    [Fact]
+    public void SelectingACooldownRow_LoadsTheStoredWindowAndSound()
+    {
+        var (model, _, _) = Build(ReArmFixture());
+
+        model.SelectedRow = model.Rows[0];
+
+        model.SelectedReArm.Mode.Should().Be(AlertReArmMode.Cooldown, "the editor loads the stored aftermath");
+        model.CooldownText.Should().Be("5", "the editor loads the stored window's exact fact");
+        model.SelectedSound.Sound.Should().Be(AlertSoundChoice.Silent);
+        model.IsCooldownMode.Should().BeTrue("the loaded Cooldown mode shows its window field");
+    }
+
+    [Fact]
+    public async Task UpdateSelectedCommand_CarriesTheReArmFacts()
+    {
+        var (model, engine, _) = Build(ReArmFixture());
+        using var attach = model.Attach();
+        model.SelectedRow = model.Rows[0];
+        model.SelectedReArm = model.ReArmOptions.First(option => option.Mode == AlertReArmMode.OneShot);
+        model.SelectedSound = model.SoundOptions.First(option => option.Sound == AlertSoundChoice.Beep);
+
+        await model.UpdateSelectedCommand.Execute(RxVoid.Default);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var reArmed = engine.Roster.Should().ContainSingle().Subject;
+        reArmed.Id.Should().Be(ReArmFixture().Id, "an edit keeps the identity");
+        reArmed.ReArm.Should().Be(AlertReArmMode.OneShot, "the edit re-arms with the editor's aftermath");
+        reArmed.Sound.Should().Be(AlertSoundChoice.Beep);
+        reArmed.Status.Should().Be(AlertStatus.Armed);
+    }
+
+    #endregion Re-arm Editor (T-204)
+
     #region Selection
 
     [Fact]
@@ -430,6 +543,9 @@ public sealed class AlertsViewModelTests
         model.SelectedKind.Kind.Should().Be(PriceAlertKind.Price);
         model.SelectedTrigger.Trigger.Should().Be(AlertTrigger.Above);
         model.NoteText.Should().Be("watch");
+        model.SelectedReArm.Mode.Should().Be(AlertReArmMode.OneShot, "the editor loads the stored aftermath");
+        model.SelectedSound.Sound.Should().Be(AlertSoundChoice.Beep);
+        model.CooldownText.Should().Be("0", "the one-shot's unused window loads as its stored fact");
     }
 
     [Fact]
