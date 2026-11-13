@@ -3716,3 +3716,70 @@ the board and its section below.
   bound (the gate's flaky retry fired once for the KNOWN LogTail-family victim
   `LogViewerViewModelTests.ADeadLaneStopsTheSurface`, clean on retry, recorded, not fixed
   in-flight). Launch smoke not needed (tests-only; the T-144/T-176 precedent).
+
+## T-199 - Indicator panes: oscillator sub-charts
+
+- **Branch:** `feat/indicator-panes` off `develop` (base `0d70ef0`).
+- **Origin:** the sweep - RSI and MACD draw on the price axis today; the overlay-only renderer
+  is wrong for oscillators.
+- **What:** indicators declare a pane kind (overlay vs oscillator) through the plugin
+  descriptor; oscillators render in their own sub-pane under the chart with their own Y scale
+  (0-100 for RSI), the pane resizing with the splitter discipline and persisting with the chart
+  indicators JSON; overlay indicators are untouched.
+- **Scope:** ZettaTrade.Charting (pane geometry), the CandlestickChart renderer, the SDK
+  descriptor's backward-compatible extension (`ZettaTrade.Plugins.Abstractions`), the Plugins
+  satellite's pane annotations ride its own package bump, resx en+ru, the next free alpha bump
+  + the CHANGELOG section.
+- **Acceptance:** RSI and MACD land in their own panes with correct scales; the pane resizes
+  and persists across restarts; the overlay shapes render exactly as before.
+- **Tests:** the renderer geometry pins; the pane-persistence battery.
+- **Status:** done. Canon:
+  - The SDK pane declaration rides contract 2.2.0, a backward-compatible addition: the
+    `IndicatorPaneKind` enum and the `IIndicator` default members `PaneKind` /
+    `ScaleMin` / `ScaleMax`; the golden surface baseline rewritten and green. The host
+    matches no contract version at load, so every plugin compiled against an older contract
+    stays an overlay through the DIM defaults - the pane split is opt-in per indicator.
+  - The renderer: `ChartPaneLayout` / `ChartPaneScale` pure helpers live in
+    `ZettaTrade.UI.Charting` (no Avalonia on the Charting project; the panes' rects ride
+    `Rect`); the draw pass splits overlays from oscillators, each pane paints its own ladder
+    (a declared usable bound pair pins it exactly, otherwise the pane's own padded spread over
+    its visible values - the values map RAW, never through the main scale mode's transform), a
+    clipped polyline, its name label, and the shared right gutter widens to the widest label
+    column; the hover separator band highlights with the theme's new `Accent` snapshot field.
+  - The splitter: an 8 px grab band per pane's top edge drags live (drag DOWN shrinks the pane),
+    hits render-cached cross-thread like the drawing hits; a settle rides the hot
+    `IObservable<IndicatorPaneHeight> PaneHeightSettles` and the VM persists behind an
+    apply-echo guard (the T-093 issue-time-lead discipline). Keyboard arrow stepping is
+    OMITTED, recorded: it would need a focusable pane concept the canvas chart does not carry
+    yet; the pointer drag owns the geometry.
+  - Persistence DEVIATION: the heights ride a NEW sibling settings key
+    `UI.ChartIndicatorPaneHeights` (a name->px map), NOT inside the `ChartIndicators` rows -
+    the settings window's Save writes the rows wholesale and would clobber in-row heights on
+    every save; the sibling key keeps the two writers disjoint. The read is tolerant (numbers
+    or numeric strings, garbage serves the empty map), the cache clamps on restore.
+  - No resx keys: the pane's label is the catalog's canonical indicator name (a technical
+    identifier, not prose) - the localization surface stays untouched.
+  - Satellite ride (the pack repo first, then the consuming bump in-tree): all eleven plugin
+    csprojs and the umbrella bump to contract 2.2.0; RSI pins the canonical 0-100 band through
+    EXPLICIT interface members (the class's own `ScaleMax` const collides with the contract
+    member name - CS0102 on a same-named property), MACD pins the oscillator kind with the
+    bounds left null (auto); +2 pane facts, satellite suite 117/117; the umbrella ships 0.4.0;
+    then `PluginsVersion` moves to 0.4.0 in-tree in a follow-up feat commit.
+  - Publish facts: `gh` is absent on the machine and every local token carries the `repo`
+    scope only (packages push AND private-package read both 403), so contract 2.2.0 published
+    through the in-tree `sdk` workflow dispatched on this branch (run 43351075693 success)
+    and pack 0.4.0 through the satellite's `v0.4.0` tag (run 43351708626 success). Local
+    restores seeded a machine-local temp feed with the locally packed artifacts (the
+    CI-published ones stay canonical) - the standing workaround until a
+    `read:packages`/`write:packages` token lands in the feed credentials.
+  - Gotcha recorded: a Debug satellite build packs a stale, incomplete lib (the pack glob
+    reads the Release bins; the three strategy DLLs missing) - always build Release before a
+    local pack.
+  - The optional real-pack acceptance pin (the REAL RSI/MACD off the pack rendered through the
+    pane renderer) skipped deliberately: the satellite's pane facts plus the stub-based
+    pipeline/render pins cover the seam; recorded, not faked.
+  - Verification: 30 new UI.Tests pins green; the App.Tests pipeline/VM/render pins green
+    (1842 total); the rewritten Infrastructure golden baseline green (611 total); full suites
+    green; GATE PASSED (the TASK-FROMRESULT lint fired once on the pane-settings stub's
+    `Task.FromResult`, unwrapped to the NSubstitute auto-wrap precedent in a follow-up test
+    commit); the launch smoke green on pack 0.4.0 (11 DLLs, indicators provided, alpha.143).
