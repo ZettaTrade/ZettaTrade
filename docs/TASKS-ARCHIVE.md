@@ -4074,6 +4074,50 @@ the board and its section below.
   12 s hold, 0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed (14 rows),
   strategies+indicators provided.
 
+## T-206 — Persistent chat history
+
+- **Branch:** feat/ai-chat-history, worktree zt-ai-chat-history, base develop@dd67253.
+- **Origin:** the sweep — the chat history lives in memory only and dies with the process.
+- **What:** conversations persist to SQLite; several named conversations with a session picker;
+  a conversation exports to Markdown; the market-context injection and the consent chip (T-114)
+  semantics are unchanged.
+- **Scope:** ZettaTrade.AI persistence + the App chat VM (the conversation list), resx en+ru,
+  the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** the history survives restart; a picked conversation restores its bubbles; the
+  export writes a readable Markdown file; the consent chip still gates the context injection.
+- **Tests:** the persistence round-trip battery; the export golden.
+- **Status:** done - 0.1.0-alpha.150. Chain: claim `6181430` -> feat `a0eb603` -> fix `be6ab30`
+  -> close. The store rides Infrastructure.Persistence (the IOrderHistoryStore house pattern -
+  the board scope line's "ZettaTrade.AI persistence" was the sketch; the house keeps every
+  SQLite store in one project), `chat-history.db` in the data directory, per-operation contexts
+  behind a one-time self-heal migration gate (`InitialChatHistory`; the EF tooling wrote the
+  migration file with CRLF endings and the gate's format check failed on it - normalized to the
+  house LF). The message kind is a free string (the App's message kinds stay App-local); an
+  unknown kind is the restore's honest drop. The VM takes `IChatHistoryStore?` LAST in the
+  constructor - the 24 existing chat tests stayed untouched; the storeless panel runs
+  memory-only. The `_conversationId` field leads every selection assignment (a re-entrant
+  picker echo Id-guards out); the picker swap is the awaited SelectionChanged route behind the
+  storeless/busy/same-id guards. The conversation opens lazily on the first send (sessions that
+  never chat leave no empty rows), the auto-title fires once per conversation (trimmed, 48
+  characters plus the ellipsis, through a rename that never reorders the picker), and a reply
+  never precedes its question in the record (a send whose conversation could not be opened
+  drops its answer too). The streamed settlement persists in StreamReplyAsync's finally -
+  completed answer, faulted prefix, stopped prefix alike - riding no in-flight token so a
+  stopped reply still records its prefix. The export is the golden document (title line + one
+  labelled paragraph per row, invariant culture, UTF-8 no BOM) through the save-file picker; a
+  failed write renders an in-chat error line, answers false and touches no record. Resx: 5 new
+  AI.Chat keys (HistoryPicker, NewConversation, ConversationDefaultTitle, Export, ExportFailed),
+  en+ru. Tests: 8 store facts + 17 VM facts (the kit's history store rides in as the last
+  optional parameter). Suites on the fix tip: App 1993 (1976 at the T-205 tip; the delta is
+  exactly the 17 new cases), Infrastructure 620 - green (the Infrastructure suite retried once,
+  the known WS E2E timing family; recorded, not fixed in-flight). GATE PASSED (-AllowProtected;
+  the SCOPE info + the uncommitted-fixes notice + the local gitleaks skip are warn-level). The
+  launch smoke green on the fix tip's content (the fix touches no app code - a migration file
+  and a test file): ProductVersion 0.1.0-alpha.150+a0eb603, title held through the 12 s hold,
+  0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
+  provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
+  (migrations applied)".
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
