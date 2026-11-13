@@ -4176,6 +4176,55 @@ the board and its section below.
   acceptance's default-configuration posture: with nothing configured the app behaves
   exactly as before - no AI network traffic at startup, 0 leftovers after the smoke.
 
+## T-208 — MCP server expansion: resources, prompts, tools
+
+- **Branch:** feat/mcp-server-tools, worktree zt-mcp-server-tools, base develop@064367e.
+- **Origin:** the sweep — the built-in server registers five trading tools, no resources, no
+  prompts.
+- **What:** MCP resources (a read-only portfolio snapshot, the workspace state), prompt
+  templates (a market brief, a portfolio review), and new tools — `get_order_history`,
+  `get_indicators` (the enabled setups), `place_alert`/`cancel_alert`, `get_trade_stats`;
+  trading-adjacent tools ride the same risk/confirmation gates; the journaling-adapter
+  discipline (T-133) holds.
+- **Scope:** ZettaTrade.AI (the server host registrars), resx en+ru, the next free alpha bump
+  + the CHANGELOG section.
+- **Acceptance:** the JSON-RPC surface lists the new resources, prompts and tools; a client
+  (the app's own MCP client in tests) walks them; an alert placed via MCP appears in the
+  manager and fires normally.
+- **Tests:** the server e2e battery over the loopback transport (the T-020/T-050 harness
+  shape).
+- **Status:** done - 0.1.0-alpha.152. Chain: claim `e15fff3` -> feat `c5552bb` -> close.
+  The host answers `prompts/get` (one user message, the 2024-11-05 shape), advertises the
+  tools/resources/prompts capabilities honestly, and a faulted tool/resource/prompt handler
+  earns the -32603 envelope instead of hanging the client. The registrar is the app-side
+  `McpWorkspaceToolsRegistrar` (the board's sketch placed it in ZettaTrade.AI, but the
+  alert engine and the workspace context are App services): the two read-only resources and
+  the two prompt templates ride the same journaling-wrapped venue the trading tools act on
+  (one venue view), `get_order_history` clamps its limit to 1..200, `get_trade_stats` scans
+  at most 20 pages x 2000 rows and reports `truncated` honestly, and the alert pair enforces
+  the trading-adjacent gates: `place_alert` joins the roster ONLY through the human
+  confirmation (the localized `Trading.ConfirmPlaceAlertFormat` dialog, en+ru) and carries
+  the Price/PercentMove kinds only (IndicatorCross is refused by name), while `cancel_alert`
+  removes without one — the removal is the explicit forgetting. Every enum argument parses
+  through the now-public `ToolEnumParser` (the one strict-enum discipline; an undefined or
+  numeric spelling is an error, never a default). Wire-shape fix on the way: `prompts/list`,
+  `resources/list` and `resources/read` now emit the protocol's camelCase keys (the records'
+  PascalCase default was unreadable to a spec-trusting client; the tools/call content blocks
+  keep their pre-existing shape — pinned surface, queued fix). Resx: `Trading.ConfirmPlaceAlertFormat`
+  en+ru. Tests: 29 new cases (27 registrar facts including the real-engine fire acceptance
+  and the 1..200 clamp, 2 host-level prompts facts; the stdio capabilities pin grew to the
+  three-surface advertisement). Suites: App 2068/2068 (delta exactly 29 over T-207's 2039),
+  Infrastructure 620, UI 409, Core 61, AdapterKit 48, Strategies 32, Backtest 29, Soak 17,
+  E2E 6 - all green. GATE PASSED attempt 2 (-AllowProtected; attempt 1 failed the lint on two
+  fire-and-forget errors - the `Received.InOrder` `_ =` discards, fixed by dropping the
+  discards; the eight `Task.FromResult` warnings stand, the documented interface-requires-Task
+  case with TreatWarningsAsErrors pinning async-without-await as an error; the SCOPE info +
+  the local gitleaks skip are warn-level). The launch smoke green on the feat tip (the close
+  touches no app code): ProductVersion 0.1.0-alpha.152+c5552bbd284774119293261971e83df7df0f21ff
+  (the full 40-character sha), title held through the 12 s hold, 0 ERR/FTL,
+  ticker+screener+watchlist clean, palette 14 rows, strategies+indicators provided, chat
+  history store ready, 0 leftovers.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).

@@ -212,7 +212,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | done | - |
 | T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | done | - |
 | T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-provider-openai | done | - |
-| T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | in-progress | - |
+| T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | done | - |
 | T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | planned | - |
 | T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | planned | - |
 | T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | planned | - |
@@ -496,25 +496,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
-
-## T-208 — MCP server expansion: resources, prompts, tools
-
-- **Branch:** feat/mcp-server-tools, worktree zt-mcp-server-tools, base develop@064367e.
-- **Origin:** the sweep — the built-in server registers five trading tools, no resources, no
-  prompts.
-- **What:** MCP resources (a read-only portfolio snapshot, the workspace state), prompt
-  templates (a market brief, a portfolio review), and new tools — `get_order_history`,
-  `get_indicators` (the enabled setups), `place_alert`/`cancel_alert`, `get_trade_stats`;
-  trading-adjacent tools ride the same risk/confirmation gates; the journaling-adapter
-  discipline (T-133) holds.
-- **Scope:** ZettaTrade.AI (the server host registrars), resx en+ru, the next free alpha bump
-  + the CHANGELOG section.
-- **Acceptance:** the JSON-RPC surface lists the new resources, prompts and tools; a client
-  (the app's own MCP client in tests) walks them; an alert placed via MCP appears in the
-  manager and fires normally.
-- **Tests:** the server e2e battery over the loopback transport (the T-020/T-050 harness
-  shape).
-- **Status:** in-progress.
 
 ## T-209 — Portfolio value history
 

@@ -33,6 +33,10 @@ workspace tools.
   client: the fault earns the JSON-RPC internal-error envelope and the
   honest log (well-behaved handlers answer `isError` results and never
   reach the net).
+- The MCP list/read payloads ride the camelCase keys the protocol names:
+  `prompts/list`, `resources/list` and `resources/read` emitted the
+  records' PascalCase defaults before, which a spec-trusting client could
+  not read.
 
 ## [0.1.0-alpha.151] - 2026-11-13
 
