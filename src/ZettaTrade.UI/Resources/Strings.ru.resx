@@ -675,6 +675,57 @@
   <data name="Chart.Drawing.Delete.Tip" xml:space="preserve">
     <value>Удалить выбранный рисунок. Клавиша Delete тоже удаляет его; Esc отменяет незавершённое построение, иначе снимает выделение.</value>
   </data>
+  <data name="Chart.Templates" xml:space="preserve">
+    <value>Шаблоны</value>
+  </data>
+  <data name="Chart.Templates.Tip" xml:space="preserve">
+    <value>Шаблоны графика: сохранить текущий облик, применить сохранённый или назначить умолчание, от которого наследуются символы без собственного выбора</value>
+  </data>
+  <data name="Chart.Templates.Save" xml:space="preserve">
+    <value>Сохранить как шаблон…</value>
+  </data>
+  <data name="Chart.Templates.Apply" xml:space="preserve">
+    <value>Применить</value>
+  </data>
+  <data name="Chart.Templates.SetDefault" xml:space="preserve">
+    <value>Назначить умолчанием</value>
+  </data>
+  <data name="Chart.Templates.Rename" xml:space="preserve">
+    <value>Переименовать</value>
+  </data>
+  <data name="Chart.Templates.Delete" xml:space="preserve">
+    <value>Удалить</value>
+  </data>
+  <data name="Chart.Templates.DefaultSuffix" xml:space="preserve">
+    <value>(умолчание)</value>
+  </data>
+  <data name="Chart.Templates.SavePromptTitle" xml:space="preserve">
+    <value>Сохранить шаблон графика</value>
+  </data>
+  <data name="Chart.Templates.SavePromptLabel" xml:space="preserve">
+    <value>Имя шаблона:</value>
+  </data>
+  <data name="Chart.Templates.RenamePromptTitle" xml:space="preserve">
+    <value>Переименовать шаблон графика</value>
+  </data>
+  <data name="Chart.Templates.RenamePromptLabel" xml:space="preserve">
+    <value>Новое имя:</value>
+  </data>
+  <data name="Chart.Templates.PromptPlace" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
+  <data name="Chart.Templates.ApplyNoSymbol" xml:space="preserve">
+    <value>Символ не выбран: шаблону нужен символ рабочего пространства, чтобы применить его облик</value>
+  </data>
+  <data name="Chart.Templates.NewerVersion" xml:space="preserve">
+    <value>Сохранённые шаблоны графика записаны более новой сборкой: сохранение отключено, пока файл не заменят совместимым</value>
+  </data>
+  <data name="Chart.Templates.RenameClash" xml:space="preserve">
+    <value>Шаблон с таким именем уже существует</value>
+  </data>
+  <data name="Chart.Templates.MutationFailed" xml:space="preserve">
+    <value>Изменение шаблонов графика не удалось сохранить</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Требуется подтверждение</value>
   </data>

@@ -675,6 +675,57 @@
   <data name="Chart.Drawing.Delete.Tip" xml:space="preserve">
     <value>Delete the selected drawing. The Delete key removes it; Esc cancels the in-flight placement, else clears the selection.</value>
   </data>
+  <data name="Chart.Templates" xml:space="preserve">
+    <value>Templates</value>
+  </data>
+  <data name="Chart.Templates.Tip" xml:space="preserve">
+    <value>Chart templates: save the current face, apply a saved one, or pick the default the symbols without their own choice seed from</value>
+  </data>
+  <data name="Chart.Templates.Save" xml:space="preserve">
+    <value>Save as template…</value>
+  </data>
+  <data name="Chart.Templates.Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Chart.Templates.SetDefault" xml:space="preserve">
+    <value>Set as default</value>
+  </data>
+  <data name="Chart.Templates.Rename" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="Chart.Templates.Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Chart.Templates.DefaultSuffix" xml:space="preserve">
+    <value>(default)</value>
+  </data>
+  <data name="Chart.Templates.SavePromptTitle" xml:space="preserve">
+    <value>Save chart template</value>
+  </data>
+  <data name="Chart.Templates.SavePromptLabel" xml:space="preserve">
+    <value>Template name:</value>
+  </data>
+  <data name="Chart.Templates.RenamePromptTitle" xml:space="preserve">
+    <value>Rename chart template</value>
+  </data>
+  <data name="Chart.Templates.RenamePromptLabel" xml:space="preserve">
+    <value>New name:</value>
+  </data>
+  <data name="Chart.Templates.PromptPlace" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Chart.Templates.ApplyNoSymbol" xml:space="preserve">
+    <value>No symbol is selected: a template needs a workspace symbol to apply its face</value>
+  </data>
+  <data name="Chart.Templates.NewerVersion" xml:space="preserve">
+    <value>The stored chart templates were written by a newer build: saving is disabled until a compatible file replaces them</value>
+  </data>
+  <data name="Chart.Templates.RenameClash" xml:space="preserve">
+    <value>A template with that name already exists</value>
+  </data>
+  <data name="Chart.Templates.MutationFailed" xml:space="preserve">
+    <value>The chart templates change could not be saved</value>
+  </data>
   <data name="Trading.ConfirmationTitle" xml:space="preserve">
     <value>Confirmation required</value>
   </data>

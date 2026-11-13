@@ -43,13 +43,13 @@ public sealed class ChartToolbarPinsTests
     {
         var source = ChartPanelXaml;
 
-        // The band carries exactly eight icon buttons: the six drawing
+        // The band carries exactly nine icon buttons: the six drawing
         // tools (wave 1's three plus T-200's zone, text and measure), the
-        // export flyout and the T-178 delete affordance (the overlay
-        // toggles and the compare action stay text — they are outside the
-        // icon pass's named scope).
+        // export flyout, the T-178 delete affordance and T-202's templates
+        // flyout (the overlay toggles and the compare action stay text —
+        // they are outside the icon pass's named scope).
         Regex.Matches(source, "Classes=\"icon\"")
-            .Should().HaveCount(8, "the six tools, the export flyout and the delete affordance are the band's icon family");
+            .Should().HaveCount(9, "the six tools, the export flyout, the delete affordance and the templates flyout are the band's icon family");
 
         // Each tool rides the kit's armed class through the VM's own fact,
         // and its caption became the automation name — an icon-only
@@ -98,15 +98,16 @@ public sealed class ChartToolbarPinsTests
     {
         var source = ChartPanelXaml;
 
-        // One flyout gathers the three export actions; each item keeps
-        // its caption as the header (a menu item's header text is its
-        // automation name) and its own command. Avalonia 12 hosts the
-        // flyout's actions as MenuItem elements — the MenuFlyoutItem type
-        // is gone (the docs' MenuFlyout example rides MenuItems).
+        // Two flyouts gather the band's multi-action affordances: the
+        // three export actions (T-160) and the chart templates (T-202).
+        // Each item keeps its caption as the header (a menu item's header
+        // text is its automation name) and its own command. Avalonia 12
+        // hosts the flyout's actions as MenuItem elements — the docs'
+        // MenuFlyout example rides MenuItems.
         Regex.Matches(source, "<MenuFlyout>")
-            .Should().HaveCount(1, "the exports gather under ONE flyout");
+            .Should().HaveCount(2, "the exports and the templates each gather under ONE flyout");
         Regex.Matches(source, "<MenuItem ")
-            .Should().HaveCount(3, "all three export actions ride the flyout as MenuItems");
+            .Should().HaveCount(7, "the three export items plus the templates' save item and the row scaffolding ride as MenuItems");
 
         foreach (var (key, command) in new[]
                  {
@@ -202,12 +203,13 @@ public sealed class ChartToolbarPinsTests
     {
         var source = ChartPanelXaml;
 
-        // The five icon controls: three tools, the export flyout and the
-        // T-178 delete affordance, each with the localized automation name.
+        // The five icon controls: three tools, the export flyout, the
+        // T-202 templates flyout and the T-178 delete affordance, each
+        // with the localized automation name.
         foreach (var key in new[]
                  {
                      "Chart.Tool.TrendLine", "Chart.Tool.Level", "Chart.Tool.Fib", "Chart.Export",
-                     "Chart.Drawing.Delete",
+                     "Chart.Templates", "Chart.Drawing.Delete",
                  })
         {
             Regex.Matches(source, $"AutomationProperties.Name=\"{{loc:Localized {key}}}\"")
@@ -218,9 +220,63 @@ public sealed class ChartToolbarPinsTests
         }
 
         // The flyout's items carry their header captions (a menu item's
-        // header text is what assistive tech reads).
+        // header text is what assistive tech reads): the three export
+        // items and the templates' static save item.
         Regex.Matches(source, "Header=\"{loc:Localized Chart\\.Export")
             .Should().HaveCount(3, "the three items name themselves through their headers");
+        Regex.Matches(source, "Header=\"{loc:Localized Chart\\.Templates\\.Save\\}\"")
+            .Should().HaveCount(1, "the templates' static save item names itself through its header");
+    }
+
+    [Fact]
+    public void TheTemplatesFlyout_IsPrimaryOnly_AndBindsTheRowsLazily()
+    {
+        var source = ChartPanelXaml;
+
+        // The templates affordance (T-202): an icon-only flyout button
+        // that shows on the primary's surface alone — a grid slot keeps
+        // its face picks in-session and never sees the shared template
+        // state (the T-201 canon). The bookmark glyph draws like the
+        // band's other glyphs: an explicit stroke, no inheritance chain.
+        var block = IconBlock(source, "Chart.Templates");
+        block.Should().Contain(
+            "IsVisible=\"{Binding HasTemplates}\"",
+            "the affordance hides on the slots — the templates stay primary-only");
+        block.Should().Contain(
+            "<Button.Flyout>",
+            "the flyout rides the button itself");
+        block.Should().Contain(
+            "Data=\"M 3 1 H 9 V 11 L 6 8.5 L 3 11 Z\"",
+            "the bookmark glyph is the templates' mark");
+        block.Should().Contain(
+            "Stroke=\"{DynamicResource TextPrimary}\"",
+            "the glyph draws like the strip's: an explicit stroke, no inheritance chain");
+        block.Should().Contain(
+            "StrokeThickness=\"1.5\"",
+            "the glyph keeps the strip's stroke weight");
+
+        // The static save item and the dynamic rows: the save item rides
+        // the manager's command, the rows bind the manager's collection —
+        // the nested DataTemplates carry the typed roots (the compiled
+        // bindings' discipline).
+        block.Should().Contain(
+            "Command=\"{Binding Templates.SaveCommand}\"",
+            "the static save item rides the manager's save command");
+        block.Should().Contain(
+            "ItemsSource=\"{Binding Templates.Rows}\"",
+            "the rows bind the manager's collection (materialized on the flyout's open, the startup-noise pin stays safe)");
+        block.Should().Contain(
+            "x:DataType=\"vm:ChartTemplateRow\"",
+            "the row template carries its typed root");
+        block.Should().Contain(
+            "x:DataType=\"vm:ChartTemplateAction\"",
+            "the action template carries its typed root");
+        block.Should().Contain(
+            "Header=\"{Binding Header}\"",
+            "the per-row action binds its header");
+        block.Should().Contain(
+            "Command=\"{Binding Command}\"",
+            "the per-row action binds its command");
     }
 
     /// <summary>

@@ -191,6 +191,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private readonly bool _persistsFaceChoices;
 
     /// <summary>
+    /// The named chart templates' manager (T-202): the primary hosts it
+    /// (the face captures, the error reports and the default seeding run
+    /// through it); a slot passes none and keeps every face pick
+    /// in-session — a slot never writes the shared template state.
+    /// </summary>
+    private readonly ChartTemplatesViewModel? _templates;
+
+    /// <summary>
     /// The settings key this instance persists its selected symbol under:
     /// the workspace's shared key on the primary (the order book and the
     /// order dialog follow the same stream), a per-slot key on the
@@ -1031,6 +1039,58 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     #endregion
 
+    #region Chart Templates Surface
+
+    /// <summary>
+    /// The named chart templates' manager (T-202): non-null on the primary
+    /// only — the slots carry none, and the toolbar's templates affordance
+    /// hides on them with it.
+    /// </summary>
+    public ChartTemplatesViewModel? Templates => _templates;
+
+    /// <summary>
+    /// Whether the templates affordance belongs to this chart's surface:
+    /// the manager is hosted and the face choices persist from here (the
+    /// primary's surface alone).
+    /// </summary>
+    public bool HasTemplates => _templates is not null && _persistsFaceChoices;
+
+    /// <summary>
+    /// Whether this instance persists the shared face state (the primary
+    /// yes, a slot no) — the testability surface of the T-201 gate.
+    /// </summary>
+    internal bool PersistsFaceChoices => _persistsFaceChoices;
+
+    /// <summary>
+    /// Capture the current chart face for the templates manager's save
+    /// (T-202): the rendering type, the scale mode, the indicator
+    /// configuration verbatim and the two overlay toggles.
+    /// </summary>
+    internal ChartTemplateFace CaptureTemplateFace() =>
+        new(ChartType, ScaleMode, _persistedIndicatorConfig, ShowVwap, ShowVolumeProfile);
+
+    /// <summary>
+    /// Report a templates-manager failure into the chart's error line: the
+    /// manager's refusals and failed applies surface where the chart's own
+    /// export failures already do.
+    /// </summary>
+    internal void ReportTemplateError(string message) => ErrorMessage = message;
+
+    /// <summary>
+    /// Re-apply the standing default template's face (T-202): a default's
+    /// change — manager-made or external — reached the chart. The restore
+    /// hooks resolve the standing symbol's stored entry first (a stored
+    /// entry keeps winning over the default); an entry-less symbol seeds
+    /// from the default.
+    /// </summary>
+    private void ReapplyDefaultTemplateFace()
+    {
+        ApplyPersistedChartType(SelectedSymbol);
+        ApplyPersistedScaleMode(SelectedSymbol);
+    }
+
+    #endregion
+
     #region Indicator Overlay State
 
     /// <summary>
@@ -1402,7 +1462,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         SignalSeriesRelay seriesRelay,
         IObservable<ChartFootprintSnapshot> tradingFootprint,
         ILogger<ChartViewModel> logger,
-        string? slotId = null)
+        string? slotId = null,
+        ChartTemplatesViewModel? templates = null)
     {
         _activeExchanges = activeExchanges;
         _symbolList = symbolList;
@@ -1429,6 +1490,22 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         // whole-map writes otherwise).
         _slotId = slotId;
         _persistsFaceChoices = slotId is null;
+
+        // The named templates (T-202): the primary hosts the manager and
+        // hands itself over for the face captures and the error reports;
+        // the slots pass none. The default's change stream re-applies the
+        // default face to the standing symbol (the restore hooks resolve
+        // it — a stored entry keeps winning, an entry-less symbol seeds).
+        // The initial seeding is a pull through the same hooks, so the
+        // manager's earlier init publish needs no replay: whichever side
+        // constructs first, the hooks see the resolved default.
+        _templates = templates;
+        _templates?.AttachChart(() => this);
+        _templates?.DefaultTemplateChanged
+            .ObserveOnUiThread()
+            .Subscribe(
+                _ => ReapplyDefaultTemplateFace(),
+                ex => _logger.LogError(ex, "The chart default template stream stopped unexpectedly"));
 
         ExportCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportCandlesAsync);
         SaveCandlesCsvRequested = new Interaction<string, string?>();
@@ -2081,14 +2158,35 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// Apply the workspace symbol's stored chart type, under the restore
     /// gate: a stored entry re-asserts the type (the persistence pipeline
     /// sees an equal address and skips the write — the same suppress shape
-    /// the time frame restore keeps), a symbol without a stored entry keeps
-    /// the standing type (a preference map substitutes nothing silently).
+    /// the time frame restore keeps); a symbol without a stored entry
+    /// keeps the standing type — unless the default template (T-202) stands
+    /// on the primary, whose type seeds the entry-less pick. The seed is a
+    /// READ: the map entry is never materialized, the persistence pipeline
+    /// never learns of it, and a stored preference appears only when the
+    /// user flips the selector themselves.
     /// </summary>
     private void ApplyPersistedChartType(Symbol? symbol)
     {
-        if (symbol is null || !_persistedChartTypes.TryGetValue(symbol.Normalized, out var restored))
+        if (symbol is null)
         {
             return;
+        }
+
+        if (!_persistedChartTypes.TryGetValue(symbol.Normalized, out var restored))
+        {
+            // No stored entry: the standing default template (T-202, the
+            // primary only) seeds the entry-less pick's face. The seed is
+            // a READ — the map entry is never materialized (a stored
+            // preference appears only when the user flips the selector
+            // themselves), so the persistence pipeline never learns of it.
+            // Without a default (or on a slot) the standing type stays — a
+            // preference map substitutes nothing silently.
+            if (!_persistsFaceChoices || _templates?.DefaultTemplate is not { } seeded)
+            {
+                return;
+            }
+
+            restored = seeded.ChartType;
         }
 
         _isApplyingPersistedChartType = true;
@@ -2153,14 +2251,28 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// Apply the workspace symbol's stored scale mode, under the restore
     /// gate: a stored entry re-asserts the mode (the persistence pipeline
     /// sees an equal address and skips the write — the same suppress shape
-    /// the chart type restore keeps), a symbol without a stored entry keeps
-    /// the standing mode (a preference map substitutes nothing silently).
+    /// the chart type restore keeps); a symbol without a stored entry
+    /// keeps the standing mode — unless the default template (T-202)
+    /// stands on the primary, whose mode seeds the entry-less pick. The
+    /// seed is a READ: the map entry is never materialized, the
+    /// persistence pipeline never learns of it, and a stored preference
+    /// appears only when the user flips the selector themselves.
     /// </summary>
     private void ApplyPersistedScaleMode(Symbol? symbol)
     {
-        if (symbol is null || !_persistedScaleModes.TryGetValue(symbol.Normalized, out var restored))
+        if (symbol is null)
         {
             return;
+        }
+
+        if (!_persistedScaleModes.TryGetValue(symbol.Normalized, out var restored))
+        {
+            if (!_persistsFaceChoices || _templates?.DefaultTemplate is not { } seeded)
+            {
+                return;
+            }
+
+            restored = seeded.ScaleMode;
         }
 
         _isApplyingPersistedScaleMode = true;
