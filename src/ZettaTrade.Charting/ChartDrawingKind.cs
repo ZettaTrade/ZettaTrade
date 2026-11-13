@@ -16,4 +16,13 @@ public enum ChartDrawingKind
 
     /// <summary>A two-anchor Fibonacci retracement: the levels sit between the anchors' prices and span the anchors' time range.</summary>
     FibRetracement,
+
+    /// <summary>A two-corner rectangular zone: the corners' prices bound the band, the times bound its span (T-200).</summary>
+    Zone,
+
+    /// <summary>A one-anchor text annotation carrying its own string (T-200).</summary>
+    Text,
+
+    /// <summary>A two-anchor entry-to-exit measure ruler reading the move's size against the stop context (T-200).</summary>
+    Measure,
 }

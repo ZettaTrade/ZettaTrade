@@ -29,11 +29,11 @@ public sealed class ChartDrawingPlacement
     /// <summary>
     /// The gesture's in-flight anchors for the preview rendering: the
     /// planted first plus the following preview while dragging (the two-
-    /// corner tools render both), the planted anchor alone for the level,
-    /// empty otherwise.
+    /// corner tools render both), the planted anchor alone for the level
+    /// and the text annotation, empty otherwise.
     /// </summary>
     public IReadOnlyList<ChartDrawingAnchor> PreviewAnchors => Dragging
-        ? Tool == ChartDrawingTool.HorizontalLevel
+        ? Tool is ChartDrawingTool.HorizontalLevel or ChartDrawingTool.Text
             ? new[] { _first }
             : new[] { _first, _preview }
         : [];
@@ -77,10 +77,11 @@ public sealed class ChartDrawingPlacement
     }
 
     /// <summary>
-    /// The release ends the gesture: the level commits its single anchor,
-    /// the two-corner tools commit press+release as their corners — unless
-    /// the geometry degenerated (a zero-length drag), which reports a
-    /// cancel and returns to armed-with-empty (the user retries).
+    /// The release ends the gesture: the level and the text annotation
+    /// commit their single anchor, the two-corner tools commit
+    /// press+release as their corners — unless the geometry degenerated (a
+    /// zero-length drag), which reports a cancel and returns to
+    /// armed-with-empty (the user retries).
     /// </summary>
     public ChartPlacementEvent OnRelease(ChartDrawingAnchor anchor)
     {
@@ -91,7 +92,7 @@ public sealed class ChartDrawingPlacement
 
         Dragging = false;
 
-        var anchors = Tool == ChartDrawingTool.HorizontalLevel
+        var anchors = Tool is ChartDrawingTool.HorizontalLevel or ChartDrawingTool.Text
             ? new[] { _first }
             : new[] { _first, anchor };
 

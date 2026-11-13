@@ -261,6 +261,47 @@
                           Stroke="{DynamicResource TextPrimary}"
                           Data="M 1 2 H 11 M 1 6 H 11 M 1 10 H 11" />
                 </Button>
+                <!-- The wave-2 kinds (T-200): the zone's band, the text
+                     annotation's prompt and the measure ruler's readout.
+                     Same grammar as the wave-1 tools: a press arms (or
+                     toggles off), the control's placement machine owns the
+                     gesture, the chart ViewModel owns persistence. -->
+                <Button Classes="icon"
+                        Classes.on="{Binding IsZoneToolActive}"
+                        Command="{Binding ToolCommand}"
+                        CommandParameter="{x:Static tools:ChartDrawingTool.Zone}"
+                        ToolTip.Tip="{loc:Localized Chart.Tool.Zone.Tip}"
+                        AutomationProperties.Name="{loc:Localized Chart.Tool.Zone}"
+                        Margin="8,4,0,4">
+                    <Path Stretch="None"
+                          StrokeThickness="1.5"
+                          Stroke="{DynamicResource TextPrimary}"
+                          Data="M 2.5 3.5 H 9.5 V 8.5 H 2.5 Z" />
+                </Button>
+                <Button Classes="icon"
+                        Classes.on="{Binding IsTextToolActive}"
+                        Command="{Binding ToolCommand}"
+                        CommandParameter="{x:Static tools:ChartDrawingTool.Text}"
+                        ToolTip.Tip="{loc:Localized Chart.Tool.Text.Tip}"
+                        AutomationProperties.Name="{loc:Localized Chart.Tool.Text}"
+                        Margin="8,4,0,4">
+                    <Path Stretch="None"
+                          StrokeThickness="1.5"
+                          Stroke="{DynamicResource TextPrimary}"
+                          Data="M 2 3 H 10 M 6 3 V 9 M 4.5 9 H 7.5" />
+                </Button>
+                <Button Classes="icon"
+                        Classes.on="{Binding IsMeasureToolActive}"
+                        Command="{Binding ToolCommand}"
+                        CommandParameter="{x:Static tools:ChartDrawingTool.Measure}"
+                        ToolTip.Tip="{loc:Localized Chart.Tool.Measure.Tip}"
+                        AutomationProperties.Name="{loc:Localized Chart.Tool.Measure}"
+                        Margin="8,4,0,4">
+                    <Path Stretch="None"
+                          StrokeThickness="1.5"
+                          Stroke="{DynamicResource TextPrimary}"
+                          Data="M 2.5 8.5 L 9.5 3.5 M 4.2 4.3 L 4.9 5 M 6 5.6 L 6.7 6.3 M 7.8 6.9 L 8.5 7.6" />
+                </Button>
                 <!-- The delete affordance (T-178): the selected drawing's
                      removal is discoverable — the button rides the same
                      route the chart's Delete key names (the selection
@@ -330,6 +371,7 @@
                                    Drawings="{Binding Drawings}"
                                    ActiveTool="{Binding ActiveDrawingTool}"
                                    SelectedDrawingId="{Binding SelectedDrawingId}"
+                                   MeasureStopPrice="{Binding MeasureStopPrice}"
                                    FrameTapEnabled="{Binding $parent[panels:ChartPanelView].HudFrameTapSource}" />
                                     <!-- T-122: the trading footprint — my own position entry, working orders and fills, overlay-only (nothing routes back toward an order). -->
                                     <!-- T-124: the compare overlays — the chip strip's main label follows the workspace symbol; the layers are transient chart-level state. -->

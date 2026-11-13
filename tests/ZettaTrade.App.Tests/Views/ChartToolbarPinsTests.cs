@@ -43,12 +43,13 @@ public sealed class ChartToolbarPinsTests
     {
         var source = ChartPanelXaml;
 
-        // The band carries exactly five icon buttons: the three drawing
-        // tools, the export flyout and the T-178 delete affordance (the
-        // overlay toggles and the compare action stay text — they are
-        // outside the icon pass's named scope).
+        // The band carries exactly eight icon buttons: the six drawing
+        // tools (wave 1's three plus T-200's zone, text and measure), the
+        // export flyout and the T-178 delete affordance (the overlay
+        // toggles and the compare action stay text — they are outside the
+        // icon pass's named scope).
         Regex.Matches(source, "Classes=\"icon\"")
-            .Should().HaveCount(5, "the three tools, the export flyout and the delete affordance are the band's icon family");
+            .Should().HaveCount(8, "the six tools, the export flyout and the delete affordance are the band's icon family");
 
         // Each tool rides the kit's armed class through the VM's own fact,
         // and its caption became the automation name — an icon-only
@@ -58,6 +59,9 @@ public sealed class ChartToolbarPinsTests
                      ("Chart.Tool.TrendLine", "IsTrendLineToolActive"),
                      ("Chart.Tool.Level", "IsLevelToolActive"),
                      ("Chart.Tool.Fib", "IsFibToolActive"),
+                     ("Chart.Tool.Zone", "IsZoneToolActive"),
+                     ("Chart.Tool.Text", "IsTextToolActive"),
+                     ("Chart.Tool.Measure", "IsMeasureToolActive"),
                  })
         {
             var block = IconBlock(source, tool);
@@ -77,7 +81,11 @@ public sealed class ChartToolbarPinsTests
 
         // The text copies are gone: the tools' captions print nowhere —
         // the icons + tooltips + names carry them now.
-        foreach (var tool in new[] { "Chart.Tool.TrendLine", "Chart.Tool.Level", "Chart.Tool.Fib" })
+        foreach (var tool in new[]
+                 {
+                     "Chart.Tool.TrendLine", "Chart.Tool.Level", "Chart.Tool.Fib",
+                     "Chart.Tool.Zone", "Chart.Tool.Text", "Chart.Tool.Measure",
+                 })
         {
             source.Should().NotContain(
                 $"Content=\"{{loc:Localized {tool}}}\"",

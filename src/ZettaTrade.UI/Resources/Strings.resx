@@ -627,6 +627,36 @@
   <data name="Chart.Tool.Fib.Tip" xml:space="preserve">
     <value>Draw a Fibonacci retracement: press the swing high, drag to the swing low, release (press again to disarm)</value>
   </data>
+  <data name="Chart.Tool.Zone" xml:space="preserve">
+    <value>Zone</value>
+  </data>
+  <data name="Chart.Tool.Zone.Tip" xml:space="preserve">
+    <value>Draw a supply/demand zone: press a corner, drag to the opposite corner, release (press again to disarm)</value>
+  </data>
+  <data name="Chart.Tool.Text" xml:space="preserve">
+    <value>Text</value>
+  </data>
+  <data name="Chart.Tool.Text.Tip" xml:space="preserve">
+    <value>Place a text annotation: press the anchor spot, release, enter the text in the prompt (press again to disarm)</value>
+  </data>
+  <data name="Chart.Tool.Measure" xml:space="preserve">
+    <value>Measure</value>
+  </data>
+  <data name="Chart.Tool.Measure.Tip" xml:space="preserve">
+    <value>Measure entry to exit: press the entry, drag to the exit, release — the readout shows the move against the ticket's stop (press again to disarm)</value>
+  </data>
+  <data name="Chart.Text.PromptTitle" xml:space="preserve">
+    <value>Text annotation</value>
+  </data>
+  <data name="Chart.Text.PromptLabel" xml:space="preserve">
+    <value>Annotation text:</value>
+  </data>
+  <data name="Chart.Text.Place" xml:space="preserve">
+    <value>Place</value>
+  </data>
+  <data name="Chart.Text.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
   <data name="Chart.Drawing.Delete" xml:space="preserve">
     <value>Delete selected drawing</value>
   </data>

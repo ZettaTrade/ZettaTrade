@@ -138,6 +138,79 @@ public sealed class ChartViewModelFootprintPickTests
 
     #endregion Fill pick
 
+    #region Stop-context pick
+
+    /// <summary>The unset workspace symbol owns nothing: null, never an invented stop.</summary>
+    [Fact]
+    public void TheStopPick_ANullSymbol_PicksNothing()
+    {
+        ChartViewModel.SelectMeasureStopPrice(
+                null,
+                [new FootprintStop("BTC/USDT", 88_000m)],
+                position: null)
+            .Should().BeNull("the ruler reads no risk distance while no workspace symbol is picked");
+    }
+
+    /// <summary>
+    /// With a position standing, the nearest stop to the position's entry
+    /// is the pick — the protective stop's own risk distance.
+    /// </summary>
+    [Fact]
+    public void TheStopPick_WithAPosition_TakesTheStopNearestTheEntry()
+    {
+        var picked = ChartViewModel.SelectMeasureStopPrice(
+            "BTC/USDT",
+            [
+                new FootprintStop("BTC/USDT", 80_000m),
+                new FootprintStop("BTC/USDT", 88_000m),
+                new FootprintStop("ETH/USDT", 3_000m),
+            ],
+            new PositionOverlay { Direction = PositionDirection.Long, EntryPrice = 89_000m });
+
+        picked.Should().Be(88_000m, "the protective stop rides the entry's own risk distance");
+    }
+
+    /// <summary>
+    /// With no position standing, the symbol's first stop in feed order is
+    /// the pick — the ruler still reads an R row, honestly sourced.
+    /// </summary>
+    [Fact]
+    public void TheStopPick_WithoutAPosition_TakesTheFirstStopInFeedOrder()
+    {
+        var picked = ChartViewModel.SelectMeasureStopPrice(
+            "BTC/USDT",
+            [
+                new FootprintStop("BTC/USDT", 88_000m),
+                new FootprintStop("BTC/USDT", 80_000m),
+            ],
+            position: null);
+
+        picked.Should().Be(88_000m, "no entry prices no nearest — the feed's first stop stands in");
+    }
+
+    /// <summary>A symbol without a stop (or a foreign stop only) resolves to an honest absence.</summary>
+    [Fact]
+    public void TheStopPick_NoMatchingStop_IsHonestAbsence()
+    {
+        ChartViewModel.SelectMeasureStopPrice(
+                "BTC/USDT",
+                [],
+                position: null)
+            .Should().BeNull();
+        ChartViewModel.SelectMeasureStopPrice(
+                "BTC/USDT",
+                [new FootprintStop("ETH/USDT", 3_000m)],
+                position: null)
+            .Should().BeNull("another symbol's stop prices nobody's risk");
+        ChartViewModel.SelectMeasureStopPrice(
+                "btc/usdt",
+                [new FootprintStop("BTC/USDT", 88_000m)],
+                position: null)
+            .Should().BeNull("the pick compares against the normalized key, never a loose case");
+    }
+
+    #endregion Stop-context pick
+
     #region Helpers
 
     private static FootprintPosition Footprint(

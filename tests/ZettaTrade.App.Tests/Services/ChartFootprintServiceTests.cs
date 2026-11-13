@@ -99,6 +99,39 @@ public sealed class ChartFootprintServiceTests
     }
 
     /// <summary>
+    /// The working stop legs map to the measure ruler's stop context
+    /// (T-200): every stop-shaped leg's trigger price rides the snapshot
+    /// keyed by its normalized symbol — the limit legs, the missing and
+    /// the zero triggers stay out (a stop without a trigger prices no
+    /// risk distance).
+    /// </summary>
+    [Fact]
+    public void TheStopLegs_MapToStopContexts_OthersStayOut()
+    {
+        var snapshot = ChartFootprintService.Compose(
+            LaneId,
+            [],
+            [
+                Order(OrderType.StopMarket, OrderSide.Sell, "BTC/USDT", 88_000m, LaneId, stopPrice: 88_000m),
+                Order(OrderType.StopLimit, OrderSide.Sell, "BTC/USDT", 88_100m, LaneId, stopPrice: 88_050m),
+                Order(OrderType.TrailingStop, OrderSide.Sell, "BTC/USDT", 0m, LaneId, stopPrice: 91_500m),
+                Order(OrderType.StopMarket, OrderSide.Sell, "ETH/USDT", 0m, LaneId, stopPrice: null),
+                Order(OrderType.StopMarket, OrderSide.Sell, "ETH/USDT", 0m, LaneId, stopPrice: 0m),
+                Order(OrderType.Limit, OrderSide.Buy, "SOL/USDT", 180m, LaneId, stopPrice: 170m),
+            ],
+            []);
+
+        snapshot.Stops.Select(static s => (s.Symbol, s.Price)).Should().Equal(
+            ("BTC/USDT", 88_000m),
+            ("BTC/USDT", 88_050m),
+            ("BTC/USDT", 91_500m));
+        snapshot.Stops.Select(static s => s.Symbol).Should().NotContain("SOL/USDT",
+            "a limit leg never prices a stop context, whatever its fields say");
+        snapshot.Stops.Should().NotContain(s => s.Symbol == "ETH/USDT",
+            "a stop without a trigger prices no risk distance");
+    }
+
+    /// <summary>
     /// The journal's filled rows map to fill markers ordered by their own
     /// times: another lane's rows, non-filled statuses and zero-quantity
     /// rows stay out.
@@ -317,7 +350,8 @@ public sealed class ChartFootprintServiceTests
         OrderSide side,
         string symbol,
         decimal price,
-        string exchange) => new()
+        string exchange,
+        decimal? stopPrice = null) => new()
         {
             Id = $"o-{Guid.NewGuid():N}",
             ExchangeId = exchange,
@@ -326,6 +360,7 @@ public sealed class ChartFootprintServiceTests
             Type = type,
             Quantity = new Quantity(1m),
             Price = new Price(price),
+            StopPrice = stopPrice is { } stop ? new Price(stop) : null,
             Status = OrderStatus.Submitted,
             TimeInForce = TimeInForce.GTC,
             CreatedAt = AtMinutes(0),

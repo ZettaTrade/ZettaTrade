@@ -786,6 +786,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             this.RaisePropertyChanged(nameof(IsTrendLineToolActive));
             this.RaisePropertyChanged(nameof(IsLevelToolActive));
             this.RaisePropertyChanged(nameof(IsFibToolActive));
+            this.RaisePropertyChanged(nameof(IsZoneToolActive));
+            this.RaisePropertyChanged(nameof(IsTextToolActive));
+            this.RaisePropertyChanged(nameof(IsMeasureToolActive));
         }
     }
 
@@ -797,6 +800,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>Whether the fib-retracement tool is the armed one (the palette button's on-state).</summary>
     public bool IsFibToolActive => ActiveDrawingTool == ChartDrawingTool.FibRetracement;
+
+    /// <summary>Whether the zone tool is the armed one (the palette button's on-state, T-200).</summary>
+    public bool IsZoneToolActive => ActiveDrawingTool == ChartDrawingTool.Zone;
+
+    /// <summary>Whether the text-annotation tool is the armed one (the palette button's on-state, T-200).</summary>
+    public bool IsTextToolActive => ActiveDrawingTool == ChartDrawingTool.Text;
+
+    /// <summary>Whether the measure tool is the armed one (the palette button's on-state, T-200).</summary>
+    public bool IsMeasureToolActive => ActiveDrawingTool == ChartDrawingTool.Measure;
 
     private Guid? _selectedDrawingId;
 
@@ -853,6 +865,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// a null output is the user closing without a pick (not an error).
     /// </summary>
     public Interaction<RxVoid, Symbol?> PickCompareRequested { get; }
+
+    /// <summary>
+    /// Asks the view to prompt the text annotation's string (T-200): the
+    /// answer becomes the annotation's text, a null output is the user
+    /// cancelling — the placed anchor stands down and nothing persists.
+    /// </summary>
+    public Interaction<RxVoid, string?> TextAnnotationRequested { get; }
 
     #endregion
 
@@ -1149,6 +1168,20 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         private set => this.RaiseAndSetIfChanged(ref _tradingFills, value);
     }
 
+    private decimal? _measureStopPrice;
+
+    /// <summary>
+    /// The measure ruler's stop context (T-200): the workspace symbol's
+    /// working stop order nearest the position's entry — the risk
+    /// distance the R-multiple row divides the framed move by; null while
+    /// no stop rides the symbol (the ruler reads its Δ rows alone).
+    /// </summary>
+    public decimal? MeasureStopPrice
+    {
+        get => _measureStopPrice;
+        private set => this.RaiseAndSetIfChanged(ref _measureStopPrice, value);
+    }
+
     /// <summary>
     /// Resolve the footprint overlays for the CURRENT workspace symbol:
     /// a pure pick over the feed's latest snapshot (a re-publish rides the
@@ -1161,6 +1194,40 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         TradingPosition = SelectTradingPosition(symbol, _latestFootprint.Positions);
         TradingOrders = SelectTradingOrders(symbol, _latestFootprint.Orders);
         TradingFills = SelectTradingFills(symbol, _latestFootprint.Fills);
+        MeasureStopPrice = SelectMeasureStopPrice(
+            symbol,
+            _latestFootprint.Stops,
+            TradingPosition);
+    }
+
+    /// <summary>
+    /// The pure stop-context pick the publish uses (T-200, internal static
+    /// so the goldens pin it): the workspace symbol's stop nearest the
+    /// position's entry — the protective stop's own risk distance — or,
+    /// with no position standing, the symbol's first stop in feed order.
+    /// </summary>
+    internal static decimal? SelectMeasureStopPrice(
+        string? symbolNormalized,
+        IReadOnlyList<FootprintStop> stops,
+        PositionOverlay? position)
+    {
+        if (symbolNormalized is null)
+        {
+            return null;
+        }
+
+        var candidates = stops
+            .Where(s => string.Equals(s.Symbol, symbolNormalized, StringComparison.Ordinal))
+            .Select(static s => s.Price)
+            .ToArray();
+        if (candidates.Length == 0)
+        {
+            return null;
+        }
+
+        return position is not { } overlay
+            ? candidates[0]
+            : candidates.OrderBy(s => Math.Abs(s - overlay.EntryPrice)).First();
     }
 
     /// <summary>
@@ -1307,6 +1374,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         ToggleVolumeProfileCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVolumeProfile = !ShowVolumeProfile; });
         CompareCommand = ReactiveCommand.CreateFromTask(HandleCompareAsync);
         PickCompareRequested = new Interaction<RxVoid, Symbol?>();
+        TextAnnotationRequested = new Interaction<RxVoid, string?>();
         ToolCommand = ReactiveCommand.Create<ChartDrawingTool>(tool =>
         {
             ActiveDrawingTool = ActiveDrawingTool == tool ? ChartDrawingTool.None : tool;
@@ -2340,6 +2408,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// identity state. A store fault keeps the in-memory layer visible
     /// (the annotation stays drawn; the store stays as it was and the
     /// next save of the key rewrites everything from this state).
+    /// A text annotation (T-200) prompts the view first: the answer
+    /// becomes the annotation's string, a cancel or an empty answer
+    /// places nothing (an annotation never persists unlabelled).
     /// </summary>
     public async Task CommitDrawingAsync(ChartDrawingEventArgs request)
     {
@@ -2359,7 +2430,22 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             return;
         }
 
-        var layer = _drawings.Append(new ChartDrawing { Kind = request.Kind, Anchors = request.Anchors });
+        string? annotationText = null;
+        if (request.Kind == ChartDrawingKind.Text)
+        {
+            annotationText = (await TextAnnotationRequested.Handle(RxVoid.Default))?.Trim();
+            if (string.IsNullOrEmpty(annotationText))
+            {
+                return;
+            }
+        }
+
+        var layer = _drawings.Append(new ChartDrawing
+        {
+            Kind = request.Kind,
+            Anchors = request.Anchors,
+            Text = annotationText,
+        });
 
         await SaveDrawingLayerAsync(target, layer);
     }

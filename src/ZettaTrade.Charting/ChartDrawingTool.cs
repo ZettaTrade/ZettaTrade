@@ -18,6 +18,15 @@ public enum ChartDrawingTool
 
     /// <summary>Arm the Fibonacci retracement: click-drag places two corners.</summary>
     FibRetracement,
+
+    /// <summary>Arm the zone: click-drag places the band's two corners (T-200).</summary>
+    Zone,
+
+    /// <summary>Arm the text annotation: one click plants the anchor, the prompt answers the string (T-200).</summary>
+    Text,
+
+    /// <summary>Arm the measure ruler: click-drag frames entry and exit, the readout rides the stop context (T-200).</summary>
+    Measure,
 }
 
 /// <summary>
@@ -33,6 +42,9 @@ public static class ChartDrawingToolExtensions
         ChartDrawingTool.TrendLine => ChartDrawingKind.TrendLine,
         ChartDrawingTool.HorizontalLevel => ChartDrawingKind.HorizontalLevel,
         ChartDrawingTool.FibRetracement => ChartDrawingKind.FibRetracement,
+        ChartDrawingTool.Zone => ChartDrawingKind.Zone,
+        ChartDrawingTool.Text => ChartDrawingKind.Text,
+        ChartDrawingTool.Measure => ChartDrawingKind.Measure,
         _ => throw new InvalidOperationException("No drawing kind exists for the resting mode."),
     };
 }

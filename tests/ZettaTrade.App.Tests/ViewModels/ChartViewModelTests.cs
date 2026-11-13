@@ -3203,6 +3203,32 @@ public sealed class ChartViewModelTests
         chart.IsLevelToolActive.Should().BeTrue();
     }
 
+    /// <summary>The wave-2 tools ride the same arming machine: each arms, switches and toggles off.</summary>
+    [Fact]
+    public async Task ToolCommand_Wave2Tools_ArmSwitchAndToggleOff()
+    {
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")));
+
+        await chart.ToolCommand.Execute(ChartDrawingTool.Zone);
+        chart.ActiveDrawingTool.Should().Be(ChartDrawingTool.Zone);
+        chart.IsZoneToolActive.Should().BeTrue();
+        chart.IsTrendLineToolActive.Should().BeFalse();
+        chart.IsTextToolActive.Should().BeFalse();
+        chart.IsMeasureToolActive.Should().BeFalse();
+
+        await chart.ToolCommand.Execute(ChartDrawingTool.Zone);
+        chart.ActiveDrawingTool.Should().Be(ChartDrawingTool.None, "the same-tool press toggles off");
+
+        await chart.ToolCommand.Execute(ChartDrawingTool.Text);
+        chart.IsTextToolActive.Should().BeTrue();
+        chart.IsZoneToolActive.Should().BeFalse("the arm switches between the wave's tools");
+
+        await chart.ToolCommand.Execute(ChartDrawingTool.Measure);
+        chart.IsMeasureToolActive.Should().BeTrue();
+        chart.IsTextToolActive.Should().BeFalse();
+    }
+
     /// <summary>A placement's commit routes the whole-layer save under the standing key and republishes the store's answer.</summary>
     [Fact]
     public async Task CommitDrawing_SavesTheLayer_UnderTheStandingKey()
@@ -3228,6 +3254,80 @@ public sealed class ChartViewModelTests
         savedTimeFrame.Should().Be(TimeFrame.H1, "the standing interval owns the key");
         savedLayer.Should().ContainSingle()
             .Which.Kind.Should().Be(ChartDrawingKind.TrendLine);
+    }
+
+    /// <summary>
+    /// The text annotation's commit prompts the view first (T-200): the
+    /// answer becomes the annotation's string — trimmed — and the layer
+    /// saves with the label riding it.
+    /// </summary>
+    [Fact]
+    public async Task CommitTextAnnotation_PromptsThenSavesTheText()
+    {
+        var store = new FakeDrawingStore();
+        var chart = CreateChartWithStore(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            store);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        using var prompt = chart.TextAnnotationRequested.RegisterHandler(context =>
+        {
+            context.SetOutput("  supply above  ");
+            return Task.CompletedTask;
+        });
+        var anchors = new[]
+        {
+            new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 100m),
+        };
+        await chart.CommitDrawingAsync(new ChartDrawingEventArgs(null, ChartDrawingKind.Text, anchors));
+
+        chart.Drawings.Should().ContainSingle().Which.Text
+            .Should().Be("supply above", "the prompt's answer labels the annotation, trimmed");
+        store.Saves.Should().ContainSingle().Which.Layer.Should().ContainSingle().Which.Text
+            .Should().Be("supply above", "the label rides the whole-layer save");
+    }
+
+    /// <summary>
+    /// A cancelled or an empty answer places nothing: the annotation never
+    /// persists unlabelled, the layer keeps its standing shape and no save
+    /// fires.
+    /// </summary>
+    [Fact]
+    public async Task CommitTextAnnotation_AnEmptyOrCancelledAnswer_PlacesNothing()
+    {
+        var store = new FakeDrawingStore();
+        var chart = CreateChartWithStore(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            store);
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var anchors = new[]
+        {
+            new ChartDrawingAnchor(new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero), 100m),
+        };
+
+        using (chart.TextAnnotationRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        }))
+        {
+            await chart.CommitDrawingAsync(new ChartDrawingEventArgs(null, ChartDrawingKind.Text, anchors));
+        }
+
+        using (chart.TextAnnotationRequested.RegisterHandler(context =>
+        {
+            context.SetOutput("   ");
+            return Task.CompletedTask;
+        }))
+        {
+            await chart.CommitDrawingAsync(new ChartDrawingEventArgs(null, ChartDrawingKind.Text, anchors));
+        }
+
+        chart.Drawings.Should().BeEmpty("an annotation without a label is no annotation");
+        store.Saves.Should().BeEmpty("nothing was placed, nothing was saved");
     }
 
     /// <summary>A commit before any load has no key to anchor to — it drops quietly, saving nothing.</summary>

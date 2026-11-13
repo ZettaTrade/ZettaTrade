@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.TextAnnotationWindow"
+        Title="{loc:Localized Chart.Text.PromptTitle}"
+        Width="380"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        AutomationProperties.AutomationId="TextAnnotationWindow"
+        Icon="/Assets/ZettaTrade.ico"
+        Background="{DynamicResource Surface}"
+        WindowDecorations="Full">
+    <!-- The text annotation's prompt (T-200): the chart ViewModel raises
+         the request through the interaction; the answer (the string, or
+         null on cancel/empty) becomes the annotation's text. A plain
+         single-line entry: the annotation renders one line over the
+         chart. -->
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceS}">
+        <TextBlock Text="{loc:Localized Chart.Text.PromptLabel}"
+                   Foreground="{DynamicResource TextPrimary}"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,8" />
+        <TextBox x:Name="AnnotationInput"
+                 MaxLength="120"
+                 AutomationProperties.AutomationId="TextAnnotationInput"
+                 Margin="0,0,0,12" />
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="{StaticResource SpaceS}">
+            <Button x:Name="CancelButton"
+                    Content="{loc:Localized Chart.Text.Cancel}"
+                    AutomationProperties.AutomationId="TextAnnotationCancel"
+                    Click="OnCancel" />
+            <Button x:Name="PlaceButton"
+                    Content="{loc:Localized Chart.Text.Place}"
+                    AutomationProperties.AutomationId="TextAnnotationPlace"
+                    Classes="accent"
+                    Click="OnPlace" />
+        </StackPanel>
+    </StackPanel>
+</Window>
