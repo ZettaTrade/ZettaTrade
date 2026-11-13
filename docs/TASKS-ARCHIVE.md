@@ -4479,3 +4479,68 @@ the board and its section below.
   filed as T-221). GATE PASSED attempt 2 (-AllowProtected): attempt 1 failed the
   [PROTECTED] check on the rule-6 version bump in Directory.Build.props — the bump is
   the board task's sanctioned change, the same shape the T-210 landing rode.
+
+## T-222 — The settings window re-rides the approved variant-A mockup
+
+- **Branch:** queued 2026-11-13 (the user reported the landed T-184 window as "not at all
+  like the mockup"); the worktree `zt-settings-rail-fix`, base `develop`@6710643
+  (rebased onto origin/develop after T-211 landed while the task ran).
+- **Origin:** the T-184 window misses the approved variant A in the details the user sees.
+  The T-222 headless probes measured every fact before the fix: the template parts the
+  T-184 styles target EXIST (`PART_LayoutRoot`, `PART_SelectedPipe`), the selected tint
+  and the 3 px tick DO render (the derived ButtonHoverTint resolves wherever the theme
+  apply ran), so the rail's voice is fine — the deltas are the approved chrome the window
+  never adopted: the rail rides the window ground instead of the title-bar strip with its
+  right hairline, the items carry no icons and no bottom rail note, the tick sits 15 px
+  off the item's left edge (the padding-box inset, measured), the Appearance page is ONE
+  giant card instead of the compact per-section cards, the footer row is bare (no top
+  hairline, no strip fill, not full-width), and the window defaults to 880x720 instead of
+  the approved 880x640. The applied Fluent TabItem template renders NO Icon presenter
+  (measured), so the icons ride the headers as compositions.
+- **What:** the rail strip gains its approved chrome — a 190 px TitleBar-colored backing
+  with the right hairline and the rail note at its bottom; the four items carry 16 px
+  stroke icons beside their captions (the header TextBlocks keep the loc keys; the tab
+  helpers follow the header text); the item box insets 8 px inside the strip and re-pads
+  to the mockup's compact 12/8 with the tick pulled onto the item's left edge; the Appearance
+  page splits into the approved compact cards (appearance rows / theme folder / the
+  first-run wizard — every existing surface survives, one section header each); the card
+  radius steps to CornerM (4 px) per the mockup; the footer becomes the approved pinned
+  strip (full-width top hairline over the title-bar fill, quiet Close then the ONE
+  primary Save); the window defaults to 880x640, the body scroll staying the small
+  machines' safety net.
+- **Scope:** SettingsWindow.axaml, the SectionCards dictionary's radius, the loc catalogs
+  (two new section headers + the rail note, en+ru), the T-184 pin updates and the
+  tab-selection helpers; no Core/ViewModel contract change (the rail selection stays view
+  state).
+- **Acceptance:** the headless render pins measure the approved voice (the tint exactly
+  ButtonHoverTint, the tick 3 px on the item's left edge, the icons in every rail header,
+  the strip and the footer chrome); the bounds pin keeps every page inside its body
+  viewport at the default size; the T-184 migrated-surface pins stay green (nothing
+  dropped).
+- **Tests:** the rail render pins (the parts, the tint identity, the tick's edge
+  position, the icon compositions, the strip/footer chrome), the updated source pins (the
+  640 frame, the nine cards, the new header keys in both cultures), and the existing
+  settings suite (the gutter, polish and bounds facts) staying green.
+- **Status:** done - 0.1.0-alpha.157. Chain: claim `603d9d9` -> feat `ff7025f` -> close.
+  The probes' verdict held: the T-184 rail voice rendered fine — the landing adds the
+  approved chrome only. The rail strip rides the 190 px title-bar backing with its right
+  hairline and the rail note (the strip's own template root measured transparent, so the
+  backing shows through it); the four items carry the 16 px stroke icons beside the loc
+  captions (no Icon presenter in the applied template — the icons ride the header
+  compositions and the tab helpers follow the caption TextBlocks); the tick opens the
+  item's own left edge via the -13 px pull, named in the scale pin's anchor list (the
+  item border 1 + padding 12); the Appearance page splits into three compact cards
+  (appearance / theme folder / first-run wizard) over the CornerM card step (nine cards,
+  up from seven); the footer becomes the full-width pinned strip — the top hairline over
+  the title-bar fill, the quiet Close riding before the ONE primary Save; the frame
+  defaults to 880x640 with the inner viewport caps stepped down (MCP 280→220, import
+  preview 230→180, pairs 305→236, hotkeys 175→150) and the MCP clients hint cut to its
+  one-sentence core — the old five-line hint alone outweighed the frame's step, and the
+  bounds pin keeps every page inside its body viewport. Resx: 3 new keys en+ru
+  (Settings.Section.ThemesFolder, Settings.Section.Wizard, Settings.Rail.Note) plus the
+  hint cut. Tests: App 2122 (delta +8 over T-211's 2114 — the rail render pins: the
+  template parts, the tint identity, the tick's edge, the icon compositions, the strips'
+  chrome; plus the scale pin's anchor and the two new section keys' culture facts), E2E
+  6/6 (the gate's flaky retry). GATE PASSED attempt 2: attempt 1 caught the off-scale
+  rail literals — the item margins moved onto the scale (8/12) and the icon gap onto
+  SpaceS.
