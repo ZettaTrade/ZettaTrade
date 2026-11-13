@@ -1,23 +1,36 @@
-## [0.1.0-alpha.155] - 2026-11-13
+## [0.1.0-alpha.157] - 2026-11-14
 
-Build of board task T-217 (branch `feat/perf-fixes`): two performance fixes
-from the 2026-11-13 code+performance review round тАФ the streamed chat reply
-stops re-rendering per token, and the trade-statistics scan stops
-re-copying its equity curve per page.
+Build of board task T-222 (branch `fix/settings-rail-fix`): the settings
+window re-rides the approved variant-A mockup — the user-reported gap
+between the landed T-184 window and the approved design.
 
-### Fixed
-- The streamed chat reply (the T-205 semantics kept): the arrived deltas
-  still append in full, but the bubble's re-render throttles to a bounded
-  cadence with a settlement flush тАФ a fast token stream no longer rebuilds
-  the bound text and re-measures the non-virtualized transcript per token,
-  which stuttered the panel on long answers. The first delta still renders
-  immediately, an immediately-failing stream still renders no bubble, and
-  the persisted turn carries everything that arrived.
-- The trade-statistics scan: the accumulator's snapshot publishes a pinned
-  append-only view of the equity curve instead of a fresh copy per page тАФ
-  a six-figure journal no longer pays an O(pages ├Ч curve) copy churn while
-  the scan runs, and a published curve still never grows with the scan's
-  later appends.
+### Changed
+- The rail strip rides the approved chrome: the 190 px title-bar backing
+  with its right hairline and the bottom rail note; the items inset
+  8 px inside the strip with the compact 12/8 padding; the selected
+  item's 3 px Accent tick opens the item's own left edge (it sat 15 px
+  inside before).
+- Every rail item carries a 16 px stroke icon beside its localized
+  caption (the applied Fluent template renders no Icon presenter, so
+  the icons ride the header compositions); the strokes bind the item's
+  own foreground, so the selection's re-ink reaches them.
+- The Appearance page splits into three compact cards (the appearance
+  rows, the theme folder, the first-run wizard) and the section cards
+  step down to the CornerM (4 px) rounding — nine cards now, up from
+  seven, each keeping its Accent-tick header.
+- The footer becomes the approved pinned strip: the full-width top
+  hairline over the title-bar fill, the quiet Close riding before the
+  ONE primary Save.
+- The window defaults to the approved 880x640; the long lists' inner
+  viewport caps step down with the frame (MCP 280→220, import preview
+  230→180, pairs 305→236, hotkeys 175→150) and the MCP clients hint is
+  cut to its one-sentence core — every page still fits its body
+  viewport at the default size (the bounds pin keeps measuring it).
+
+### Added
+- The localization keys en+ru: `Settings.Section.ThemesFolder`,
+  `Settings.Section.Wizard` (the Appearance page's new card headers)
+  and `Settings.Rail.Note` (the rail strip's bottom note).
 
 ## [0.1.0-alpha.156] - 2026-11-14
 
@@ -54,6 +67,27 @@ from the trade statistics and order history windows.
 - The order-stats read query now serves the journal rows' annotations
   alongside the orders (one query, no second pass); the MCP
   `get_trade_stats` tool and the stats window ride the same shape.
+
+## [0.1.0-alpha.155] - 2026-11-13
+
+Build of board task T-217 (branch `feat/perf-fixes`): two performance fixes
+from the 2026-11-13 code+performance review round тАФ the streamed chat reply
+stops re-rendering per token, and the trade-statistics scan stops
+re-copying its equity curve per page.
+
+### Fixed
+- The streamed chat reply (the T-205 semantics kept): the arrived deltas
+  still append in full, but the bubble's re-render throttles to a bounded
+  cadence with a settlement flush тАФ a fast token stream no longer rebuilds
+  the bound text and re-measures the non-virtualized transcript per token,
+  which stuttered the panel on long answers. The first delta still renders
+  immediately, an immediately-failing stream still renders no bubble, and
+  the persisted turn carries everything that arrived.
+- The trade-statistics scan: the accumulator's snapshot publishes a pinned
+  append-only view of the equity curve instead of a fresh copy per page тАФ
+  a six-figure journal no longer pays an O(pages ├Ч curve) copy churn while
+  the scan runs, and a published curve still never grows with the scan's
+  later appends.
 
 ## [0.1.0-alpha.154] - 2026-11-13
 
