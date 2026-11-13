@@ -2007,11 +2007,26 @@ Estimated fee: {10}</value>
   <data name="Alert.Editing.Note" xml:space="preserve">
     <value>Note</value>
   </data>
+  <data name="Alert.Editing.Indicator" xml:space="preserve">
+    <value>Indicator</value>
+  </data>
+  <data name="Alert.Editing.Period" xml:space="preserve">
+    <value>Period</value>
+  </data>
+  <data name="Alert.Editing.Source" xml:space="preserve">
+    <value>Cross</value>
+  </data>
+  <data name="Alert.Editing.Level" xml:space="preserve">
+    <value>Level</value>
+  </data>
   <data name="Alert.Kind.Price" xml:space="preserve">
     <value>Price level</value>
   </data>
   <data name="Alert.Kind.PercentMove" xml:space="preserve">
     <value>Percent move</value>
+  </data>
+  <data name="Alert.Kind.IndicatorCross" xml:space="preserve">
+    <value>Indicator cross</value>
   </data>
   <data name="Alert.Trigger.Above" xml:space="preserve">
     <value>Rises above</value>
@@ -2022,6 +2037,12 @@ Estimated fee: {10}</value>
   <data name="Alert.Trigger.At" xml:space="preserve">
     <value>Reaches exactly</value>
   </data>
+  <data name="Alert.Source.IndicatorValue" xml:space="preserve">
+    <value>Indicator × level</value>
+  </data>
+  <data name="Alert.Source.Price" xml:space="preserve">
+    <value>Price × indicator</value>
+  </data>
   <data name="Alert.Status.Armed" xml:space="preserve">
     <value>Armed</value>
   </data>
@@ -2030,6 +2051,9 @@ Estimated fee: {10}</value>
   </data>
   <data name="Alert.Status.Fired" xml:space="preserve">
     <value>Fired</value>
+  </data>
+  <data name="Alert.Status.Paused" xml:space="preserve">
+    <value>Paused (indicator not loaded)</value>
   </data>
   <data name="Alert.Status.Never" xml:space="preserve">
     <value>-</value>
@@ -2048,6 +2072,18 @@ Estimated fee: {10}</value>
   </data>
   <data name="Alert.Condition.PercentMove.Format" xml:space="preserve">
     <value>moves {0}% within {1} min</value>
+  </data>
+  <data name="Alert.Condition.Indicator.ValueAbove.Format" xml:space="preserve">
+    <value>{0}({1}) crossed above {2}</value>
+  </data>
+  <data name="Alert.Condition.Indicator.ValueBelow.Format" xml:space="preserve">
+    <value>{0}({1}) crossed below {2}</value>
+  </data>
+  <data name="Alert.Condition.Indicator.PriceAbove.Format" xml:space="preserve">
+    <value>price crossed above {0}({1})</value>
+  </data>
+  <data name="Alert.Condition.Indicator.PriceBelow.Format" xml:space="preserve">
+    <value>price crossed below {0}({1})</value>
   </data>
   <data name="Alert.Create" xml:space="preserve">
     <value>Create</value>
@@ -2075,6 +2111,15 @@ Estimated fee: {10}</value>
   </data>
   <data name="Alert.Error.InvalidWindow" xml:space="preserve">
     <value>'{0}' is not a parsable window (minutes).</value>
+  </data>
+  <data name="Alert.Error.InvalidPeriod" xml:space="preserve">
+    <value>'{0}' is not a parsable period (a positive whole number).</value>
+  </data>
+  <data name="Alert.Error.InvalidLevel" xml:space="preserve">
+    <value>'{0}' is not a parsable level.</value>
+  </data>
+  <data name="Alert.Error.NoIndicatorsLoaded" xml:space="preserve">
+    <value>No indicator plugins are loaded; an indicator-cross alert cannot be created.</value>
   </data>
   <data name="Alert.Error.OperationFailed" xml:space="preserve">
     <value>The alerts operation failed: {0}</value>

@@ -8,6 +8,7 @@ using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.ValueObjects;
 
 /// <summary>The status byte the commands exchange (the app standard alias).</summary>
@@ -35,16 +36,24 @@ public sealed class AlertsViewModel : ReactiveObject
     private const string InvalidateTargetKey = "Alert.Error.InvalidTarget";
     private const string InvalidatePercentKey = "Alert.Error.InvalidPercent";
     private const string InvalidateWindowKey = "Alert.Error.InvalidWindow";
+    private const string InvalidatePeriodKey = "Alert.Error.InvalidPeriod";
+    private const string InvalidateLevelKey = "Alert.Error.InvalidLevel";
+    private const string NoIndicatorsKey = "Alert.Error.NoIndicatorsLoaded";
     private const string InvalidateOperationKey = "Alert.Error.OperationFailed";
     private const string StatusArmedKey = "Alert.Status.Armed";
     private const string StatusSnoozedFormatKey = "Alert.Status.Snoozed.Format";
     private const string StatusFiredKey = "Alert.Status.Fired";
+    private const string StatusPausedKey = "Alert.Status.Paused";
     private const string LastFiredNeverKey = "Alert.Status.Never";
     private const string StatusLastFiredFormatKey = "Alert.Status.LastFired.Format";
     private const string ConditionAboveKey = "Alert.Condition.Price.Above";
     private const string ConditionBelowKey = "Alert.Condition.Price.Below";
     private const string ConditionAtKey = "Alert.Condition.Price.At";
     private const string ConditionPercentFormatKey = "Alert.Condition.PercentMove.Format";
+    private const string ConditionIndicatorValueAboveFormatKey = "Alert.Condition.Indicator.ValueAbove.Format";
+    private const string ConditionIndicatorValueBelowFormatKey = "Alert.Condition.Indicator.ValueBelow.Format";
+    private const string ConditionPriceAboveFormatKey = "Alert.Condition.Indicator.PriceAbove.Format";
+    private const string ConditionPriceBelowFormatKey = "Alert.Condition.Indicator.PriceBelow.Format";
 
     #endregion Resx Keys
 
@@ -56,11 +65,18 @@ public sealed class AlertsViewModel : ReactiveObject
     /// <summary>The percent threshold the editor seeds for a fresh alert (the roster preset).</summary>
     private const string DefaultPercentText = "5";
 
+    /// <summary>The indicator period the editor seeds for a fresh cross alert (the oscillators' canonical 14).</summary>
+    private const string DefaultPeriodText = "14";
+
+    /// <summary>The cross level the editor seeds for a fresh cross alert (the oscillators' canonical upper band).</summary>
+    private const string DefaultLevelText = "70";
+
     #endregion Constants
 
     #region Private Fields
 
     private readonly IAlertEngine _engine;
+    private readonly IIndicatorCatalog _indicators;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<AlertsViewModel> _logger;
 
@@ -70,6 +86,10 @@ public sealed class AlertsViewModel : ReactiveObject
     private string _targetText = string.Empty;
     private string _percentText = DefaultPercentText;
     private string _windowText = DefaultWindowText;
+    private string _selectedIndicatorName = string.Empty;
+    private AlertSourceOption _selectedSource = null!;
+    private string _periodText = DefaultPeriodText;
+    private string _levelText = DefaultLevelText;
     private string _noteText = string.Empty;
     private AlertsRowViewModel? _selectedRow;
     private string? _errorMessage;
@@ -80,20 +100,24 @@ public sealed class AlertsViewModel : ReactiveObject
 
     /// <summary>Create a manager view model over the roster's engine.</summary>
     /// <param name="engine">The alert engine (the roster's sole owner and evaluator).</param>
+    /// <param name="indicators">The loaded plugin indicator catalog (T-203): the cross editor's picker reads the loaded names.</param>
     /// <param name="localization">The localized strings resolver (live language switching).</param>
     /// <param name="logger">The view model's logger.</param>
     public AlertsViewModel(
         IAlertEngine engine,
+        IIndicatorCatalog indicators,
         ILocalizationManager localization,
         ILogger<AlertsViewModel> logger)
     {
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        _indicators = indicators ?? throw new ArgumentNullException(nameof(indicators));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         ComposeOptionLabels();
         _selectedKind = KindOptions[0];
         _selectedTrigger = TriggerOptions[1];
+        _selectedSource = SourceOptions[0];
 
         CreateCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
             (_, cancellationToken) => HandleCreateAsync(cancellationToken));
@@ -116,6 +140,9 @@ public sealed class AlertsViewModel : ReactiveObject
 
     private const string KindPriceKey = "Alert.Kind.Price";
     private const string KindPercentKey = "Alert.Kind.PercentMove";
+    private const string KindIndicatorKey = "Alert.Kind.IndicatorCross";
+    private const string SourceIndicatorValueKey = "Alert.Source.IndicatorValue";
+    private const string SourcePriceKey = "Alert.Source.Price";
     private const string TriggerAboveKey = "Alert.Trigger.Above";
     private const string TriggerBelowKey = "Alert.Trigger.Below";
     private const string TriggerAtKey = "Alert.Trigger.At";
@@ -154,6 +181,23 @@ public sealed class AlertsViewModel : ReactiveObject
     /// <summary>The trigger edges the editor offers (localized labels, recomposed on language changes).</summary>
     public ObservableCollection<AlertTriggerOption> TriggerOptions { get; } = [];
 
+    /// <summary>
+    /// The trigger edges the CURRENT kind's vocabulary offers (T-203): the
+    /// indicator cross reads only Above/Below — At is meaningless for a cross
+    /// and the editor never offers what it would refuse.
+    /// </summary>
+    public IReadOnlyList<AlertTriggerOption> VisibleTriggerOptions =>
+        IsIndicatorKind ? _crossTriggerOptions : TriggerOptions;
+
+    /// <summary>The cross vocabulary's edges (Above + Below; composed beside <see cref="TriggerOptions"/>).</summary>
+    private readonly List<AlertTriggerOption> _crossTriggerOptions = [];
+
+    /// <summary>The cross sources the editor offers (localized labels, recomposed on language changes).</summary>
+    public ObservableCollection<AlertSourceOption> SourceOptions { get; } = [];
+
+    /// <summary>The loaded indicators' canonical names (the session-fixed plugin snapshot).</summary>
+    public ObservableCollection<string> IndicatorOptions { get; } = [];
+
     /// <summary>The symbol spelling the next draft composes with (normalized on success).</summary>
     public string SymbolText
     {
@@ -165,10 +209,35 @@ public sealed class AlertsViewModel : ReactiveObject
     public AlertKindOption SelectedKind
     {
         get => _selectedKind;
-        set => this.RaiseAndSetIfChanged(ref _selectedKind, value);
+        set
+        {
+            if (_selectedKind == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _selectedKind, value);
+
+            // The kind's own field columns, the source flags (they AND with
+            // the kind) and the trigger vocabulary all ride this selection:
+            // every dependent fact re-renders, and a cross selection that
+            // held At moves to a real cross edge (the editor never shows an
+            // option it would refuse).
+            this.RaisePropertyChanged(nameof(IsPriceKind));
+            this.RaisePropertyChanged(nameof(IsPercentKind));
+            this.RaisePropertyChanged(nameof(IsIndicatorKind));
+            this.RaisePropertyChanged(nameof(ShowsTrigger));
+            this.RaisePropertyChanged(nameof(IsIndicatorValueSource));
+            this.RaisePropertyChanged(nameof(IsPriceSource));
+            this.RaisePropertyChanged(nameof(VisibleTriggerOptions));
+            if (IsIndicatorKind && _selectedTrigger.Trigger == AlertTrigger.At)
+            {
+                SelectedTrigger = TriggerOptions.First(option => option.Trigger == AlertTrigger.Below);
+            }
+        }
     }
 
-    /// <summary>The trigger edge the next draft composes with (the Price kind's vocabulary).</summary>
+    /// <summary>The trigger edge the next draft composes with (the current kind's own vocabulary).</summary>
     public AlertTriggerOption SelectedTrigger
     {
         get => _selectedTrigger;
@@ -196,6 +265,46 @@ public sealed class AlertsViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _windowText, value);
     }
 
+    /// <summary>The cross source the next draft composes with (T-203: what crosses what).</summary>
+    public AlertSourceOption SelectedSource
+    {
+        get => _selectedSource;
+        set
+        {
+            if (_selectedSource == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _selectedSource, value);
+
+            // The level field belongs to the indicator-value source only.
+            this.RaisePropertyChanged(nameof(IsIndicatorValueSource));
+            this.RaisePropertyChanged(nameof(IsPriceSource));
+        }
+    }
+
+    /// <summary>The indicator the next draft composes with (a loaded plugin's canonical name).</summary>
+    public string SelectedIndicatorName
+    {
+        get => _selectedIndicatorName;
+        set => this.RaiseAndSetIfChanged(ref _selectedIndicatorName, value);
+    }
+
+    /// <summary>The period spelling (IndicatorCross kind; parsed and validated at submit).</summary>
+    public string PeriodText
+    {
+        get => _periodText;
+        set => this.RaiseAndSetIfChanged(ref _periodText, value);
+    }
+
+    /// <summary>The level spelling (IndicatorCross kind, indicator-value source; parsed and validated at submit).</summary>
+    public string LevelText
+    {
+        get => _levelText;
+        set => this.RaiseAndSetIfChanged(ref _levelText, value);
+    }
+
     /// <summary>The user's free-text note (carried as-is).</summary>
     public string NoteText
     {
@@ -208,6 +317,20 @@ public sealed class AlertsViewModel : ReactiveObject
 
     /// <summary>True while the PercentMove kind is selected (its fields visible, the price fields hidden).</summary>
     public bool IsPercentKind => SelectedKind.Kind == PriceAlertKind.PercentMove;
+
+    /// <summary>True while the selected kind reads the trigger edge vocabulary (Price and IndicatorCross; the PercentMove kind leaves the neutral At slot untouchable).</summary>
+    public bool ShowsTrigger => IsPriceKind || IsIndicatorKind;
+
+    /// <summary>True while the IndicatorCross kind is selected (T-203: its indicator fields visible, the others hidden).</summary>
+    public bool IsIndicatorKind => SelectedKind.Kind == PriceAlertKind.IndicatorCross;
+
+    /// <summary>True while the cross reads the indicator's own value against the stored level (the level field shows).</summary>
+    public bool IsIndicatorValueSource =>
+        IsIndicatorKind && SelectedSource.Source == AlertCrossSource.IndicatorValue;
+
+    /// <summary>True while the cross reads the close against the indicator's value (the level field hides).</summary>
+    public bool IsPriceSource =>
+        IsIndicatorKind && SelectedSource.Source == AlertCrossSource.Price;
 
     #endregion Editor Form
 
@@ -386,7 +509,10 @@ public sealed class AlertsViewModel : ReactiveObject
     /// <summary>
     /// Compose the editor's draft: every spelling parses explicitly — an
     /// unparsable field is a refused operation with its own localized line,
-    /// never a silently substituted value.
+    /// never a silently substituted value. The indicator cross (T-203) needs
+    /// a loaded indicator, a positive period and — for the indicator-value
+    /// source — a numeric level; an empty plugin set refuses the kind
+    /// outright (there is nothing to cross).
     /// </summary>
     private bool TryComposeDraft(out AlertDraft draft, out string? inputError)
     {
@@ -413,28 +539,62 @@ public sealed class AlertsViewModel : ReactiveObject
         var target = 0m;
         var percent = 0m;
         var window = 0;
+        AlertIndicatorSpec? indicator = null;
 
-        if (SelectedKind.Kind == PriceAlertKind.Price)
+        switch (SelectedKind.Kind)
         {
-            if (!decimal.TryParse(_targetText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out target))
-            {
-                inputError = _localization.GetString(InvalidateTargetKey, _targetText);
-                return false;
-            }
-        }
-        else
-        {
-            if (!decimal.TryParse(_percentText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out percent))
-            {
-                inputError = _localization.GetString(InvalidatePercentKey, _percentText);
-                return false;
-            }
+            case PriceAlertKind.Price:
+                if (!decimal.TryParse(_targetText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out target))
+                {
+                    inputError = _localization.GetString(InvalidateTargetKey, _targetText);
+                    return false;
+                }
 
-            if (!int.TryParse(_windowText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out window))
-            {
-                inputError = _localization.GetString(InvalidateWindowKey, _windowText);
+                break;
+
+            case PriceAlertKind.PercentMove:
+                if (!decimal.TryParse(_percentText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out percent))
+                {
+                    inputError = _localization.GetString(InvalidatePercentKey, _percentText);
+                    return false;
+                }
+
+                if (!int.TryParse(_windowText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out window))
+                {
+                    inputError = _localization.GetString(InvalidateWindowKey, _windowText);
+                    return false;
+                }
+
+                break;
+
+            case PriceAlertKind.IndicatorCross:
+                if (_indicators.LoadedNames.Count == 0 || string.IsNullOrWhiteSpace(_selectedIndicatorName))
+                {
+                    inputError = _localization.GetString(NoIndicatorsKey);
+                    return false;
+                }
+
+                if (!int.TryParse(_periodText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var period) ||
+                    period <= 0)
+                {
+                    inputError = _localization.GetString(InvalidatePeriodKey, _periodText);
+                    return false;
+                }
+
+                var level = 0m;
+                if (SelectedSource.Source == AlertCrossSource.IndicatorValue &&
+                    !decimal.TryParse(_levelText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out level))
+                {
+                    inputError = _localization.GetString(InvalidateLevelKey, _levelText);
+                    return false;
+                }
+
+                indicator = new AlertIndicatorSpec(_selectedIndicatorName, period, SelectedSource.Source, level);
+                break;
+
+            default:
+                inputError = _localization.GetString(InvalidateOperationKey, "unknown alert kind");
                 return false;
-            }
         }
 
         draft = new AlertDraft(
@@ -444,7 +604,8 @@ public sealed class AlertsViewModel : ReactiveObject
             TargetPrice: target,
             ThresholdPercent: percent,
             WindowMinutes: window,
-            Note: _noteText);
+            Note: _noteText,
+            Indicator: indicator);
         return true;
     }
 
@@ -476,10 +637,24 @@ public sealed class AlertsViewModel : ReactiveObject
         KindOptions.Clear();
         KindOptions.Add(new AlertKindOption(PriceAlertKind.Price, _localization.GetString(KindPriceKey)));
         KindOptions.Add(new AlertKindOption(PriceAlertKind.PercentMove, _localization.GetString(KindPercentKey)));
+        KindOptions.Add(new AlertKindOption(PriceAlertKind.IndicatorCross, _localization.GetString(KindIndicatorKey)));
         TriggerOptions.Clear();
         TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Above, _localization.GetString(TriggerAboveKey)));
         TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Below, _localization.GetString(TriggerBelowKey)));
         TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.At, _localization.GetString(TriggerAtKey)));
+        _crossTriggerOptions.Clear();
+        _crossTriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Above, _localization.GetString(TriggerAboveKey)));
+        _crossTriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Below, _localization.GetString(TriggerBelowKey)));
+        SourceOptions.Clear();
+        SourceOptions.Add(new AlertSourceOption(AlertCrossSource.IndicatorValue, _localization.GetString(SourceIndicatorValueKey)));
+        SourceOptions.Add(new AlertSourceOption(AlertCrossSource.Price, _localization.GetString(SourcePriceKey)));
+        IndicatorOptions.Clear();
+        foreach (var name in _indicators.LoadedNames)
+        {
+            IndicatorOptions.Add(name);
+        }
+
+        this.RaisePropertyChanged(nameof(VisibleTriggerOptions));
     }
 
     /// <summary>The language mirror's leg: the pickers re-label, the rows re-render, the selection survives.</summary>
@@ -487,6 +662,8 @@ public sealed class AlertsViewModel : ReactiveObject
     {
         var kind = SelectedKind.Kind;
         var trigger = SelectedTrigger.Trigger;
+        var source = SelectedSource.Source;
+        var indicatorName = SelectedIndicatorName;
         var selectedId = SelectedRow?.Id;
         ComposeOptionLabels();
         RebuildRows();
@@ -495,6 +672,17 @@ public sealed class AlertsViewModel : ReactiveObject
         this.RaisePropertyChanged(nameof(SelectedKind));
         _selectedTrigger = TriggerOptions.First(option => option.Trigger == trigger);
         this.RaisePropertyChanged(nameof(SelectedTrigger));
+        _selectedSource = SourceOptions.First(option => option.Source == source);
+        this.RaisePropertyChanged(nameof(SelectedSource));
+        if (indicatorName.Length > 0 && !IndicatorOptions.Contains(indicatorName))
+        {
+            // A stored name whose plugin is not loaded this session stays in
+            // the picker (the honest stored fact, never a silent swap).
+            IndicatorOptions.Add(indicatorName);
+        }
+
+        _selectedIndicatorName = indicatorName;
+        this.RaisePropertyChanged(nameof(SelectedIndicatorName));
 
         if (selectedId is { } id)
         {
@@ -544,6 +732,20 @@ public sealed class AlertsViewModel : ReactiveObject
         PercentText = definition.ThresholdPercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
         WindowText = definition.WindowMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture);
         NoteText = definition.Note;
+        if (definition.Kind == PriceAlertKind.IndicatorCross && definition.Indicator is { } spec)
+        {
+            if (!IndicatorOptions.Contains(spec.Name))
+            {
+                // The stored name's plugin is not loaded this session: the
+                // picker shows the stored fact rather than silently swapping it.
+                IndicatorOptions.Add(spec.Name);
+            }
+
+            SelectedIndicatorName = spec.Name;
+            SelectedSource = SourceOptions.First(option => option.Source == spec.Source);
+            PeriodText = spec.Period.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            LevelText = spec.Level.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
     }
 
     private void ApplyConditionText(AlertsRowViewModel row, AlertDefinition definition) => row.ConditionText =
@@ -557,6 +759,20 @@ public sealed class AlertsViewModel : ReactiveObject
                 _ => string.Empty,
             },
             PriceAlertKind.PercentMove => _localization.GetString(ConditionPercentFormatKey, definition.ThresholdPercent, definition.WindowMinutes),
+            PriceAlertKind.IndicatorCross => definition.Indicator is not { } spec
+                ? string.Empty
+                : (definition.Trigger, spec.Source) switch
+                {
+                    (AlertTrigger.Above, AlertCrossSource.IndicatorValue) =>
+                        _localization.GetString(ConditionIndicatorValueAboveFormatKey, spec.Name, spec.Period, spec.Level),
+                    (AlertTrigger.Below, AlertCrossSource.IndicatorValue) =>
+                        _localization.GetString(ConditionIndicatorValueBelowFormatKey, spec.Name, spec.Period, spec.Level),
+                    (AlertTrigger.Above, AlertCrossSource.Price) =>
+                        _localization.GetString(ConditionPriceAboveFormatKey, spec.Name, spec.Period),
+                    (AlertTrigger.Below, AlertCrossSource.Price) =>
+                        _localization.GetString(ConditionPriceBelowFormatKey, spec.Name, spec.Period),
+                    _ => string.Empty,
+                },
             _ => string.Empty,
         };
 
@@ -568,6 +784,7 @@ public sealed class AlertsViewModel : ReactiveObject
                 ? _localization.GetString(StatusSnoozedFormatKey, until)
                 : _localization.GetString(StatusArmedKey),
             AlertStatus.Fired => _localization.GetString(StatusFiredKey),
+            AlertStatus.Paused => _localization.GetString(StatusPausedKey),
             _ => string.Empty,
         };
 

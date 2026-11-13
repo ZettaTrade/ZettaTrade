@@ -1,5 +1,6 @@
 namespace ZettaTrade.App.Services;
 
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 
@@ -18,8 +19,17 @@ public static class AlertCodec
 {
     #region Private Fields
 
-    /// <summary>The only payload version this codec writes or reads.</summary>
-    private const int PayloadVersion = 1;
+    /// <summary>
+    /// The only payload version this codec writes (T-203's roster schema
+    /// versioning: version 2 carries the indicator-cross facts and the
+    /// Paused status). Reads BOTH versions — a version 1 roster (T-096's
+    /// shape) decodes exactly as it always did; version 2's new facts ride
+    /// the nested <c>indicator</c> object the old shape never carried.
+    /// </summary>
+    private const int PayloadVersion = 2;
+
+    /// <summary>The payload versions this codec reads (it writes only <see cref="PayloadVersion"/>).</summary>
+    private static readonly int[] ReadableVersions = [1, PayloadVersion];
 
     /// <summary>The payload's member names (written exact, read case-insensitive).</summary>
     private const string VersionMember = "version";
@@ -38,11 +48,20 @@ public static class AlertCodec
     private const string CreatedUtcMember = "createdUtc";
     private const string SnoozedUntilUtcMember = "snoozedUntilUtc";
     private const string LastFiredUtcMember = "lastFiredUtc";
+    private const string IndicatorMember = "indicator";
+    private const string IndicatorNameMember = "name";
+    private const string IndicatorPeriodMember = "period";
+    private const string IndicatorSourceMember = "source";
+    private const string IndicatorLevelMember = "level";
 
     /// <summary>The enums the codec stores: every value parses by its exact enum name, case-insensitively.</summary>
-    private static readonly Dictionary<string, PriceAlertKind> StoredKinds = Built(PriceAlertKind.Price, PriceAlertKind.PercentMove);
+    private static readonly Dictionary<string, PriceAlertKind> StoredKinds =
+        Built(PriceAlertKind.Price, PriceAlertKind.PercentMove, PriceAlertKind.IndicatorCross);
     private static readonly Dictionary<string, AlertTrigger> StoredTriggers = Built(AlertTrigger.Above, AlertTrigger.Below, AlertTrigger.At);
-    private static readonly Dictionary<string, AlertStatus> StoredStatuses = Built(AlertStatus.Armed, AlertStatus.Snoozed, AlertStatus.Fired);
+    private static readonly Dictionary<string, AlertStatus> StoredStatuses =
+        Built(AlertStatus.Armed, AlertStatus.Snoozed, AlertStatus.Fired, AlertStatus.Paused);
+    private static readonly Dictionary<string, AlertCrossSource> StoredSources =
+        Built(AlertCrossSource.IndicatorValue, AlertCrossSource.Price);
 
     /// <summary>The payload's UTF-8 encoding the codec authors itself (the settings store is UTF-8).</summary>
     private static readonly Encoding PayloadEncoding = Encoding.UTF8;
@@ -108,6 +127,16 @@ public static class AlertCodec
             writer.WriteNumber(LastFiredUtcMember, fired.Ticks);
         }
 
+        if (definition.Indicator is { } indicator)
+        {
+            writer.WriteStartObject(IndicatorMember);
+            writer.WriteString(IndicatorNameMember, indicator.Name);
+            writer.WriteNumber(IndicatorPeriodMember, indicator.Period);
+            writer.WriteString(IndicatorSourceMember, indicator.Source.ToString());
+            writer.WriteNumber(IndicatorLevelMember, indicator.Level);
+            writer.WriteEndObject();
+        }
+
         writer.WriteEndObject();
     }
 
@@ -117,12 +146,12 @@ public static class AlertCodec
 
     /// <summary>
     /// Decode one stored payload: the root must carry the wrapper shape
-    /// (version 1 + an alerts array), every entry that cannot be honored
-    /// exactly is skipped with a count — no default-substituted rows. A
-    /// wholly unreadable root — malformed JSON or a wrong shape alike —
-    /// throws ONE uniform <see cref="ArgumentException"/> to the caller
-    /// (broken payloads are a caller's logged fault; nothing here fabricates
-    /// an empty roster).
+    /// (a readable version — the codec writes 2 and reads 1 and 2 — plus an
+    /// alerts array), every entry that cannot be honored exactly is skipped
+    /// with a count — no default-substituted rows. A wholly unreadable root
+    /// — malformed JSON or a wrong shape alike — throws ONE uniform
+    /// <see cref="ArgumentException"/> to the caller (broken payloads are a
+    /// caller's logged fault; nothing here fabricates an empty roster).
     /// </summary>
     public static AlertDecodingResult Decode(string payload)
     {
@@ -158,7 +187,7 @@ public static class AlertCodec
 
         if (FindMember(root, VersionMember) is not { Value.ValueKind: JsonValueKind.Number } versionValue ||
             !versionValue.Value.TryGetInt32(out var parsedVersion) ||
-            parsedVersion != PayloadVersion ||
+            !ReadableVersions.Contains(parsedVersion) ||
             FindMember(root, AlertsMember) is not { Value.ValueKind: JsonValueKind.Array } alerts)
         {
             throw new ArgumentException("The alert payload is not a recognizable versioned roster.", nameof(payload));
@@ -168,7 +197,7 @@ public static class AlertCodec
         var skipped = 0;
         foreach (var element in alerts.Value.EnumerateArray())
         {
-            if (TryReadDefinition(element, out var definition))
+            if (TryReadDefinition(element, parsedVersion, out var definition))
             {
                 valid.Add(definition);
             }
@@ -182,7 +211,7 @@ public static class AlertCodec
     }
 
     /// <summary>Read one stored entry — exact or not at all.</summary>
-    private static bool TryReadDefinition(JsonElement entry, out AlertDefinition definition)
+    private static bool TryReadDefinition(JsonElement entry, int payloadVersion, out AlertDefinition definition)
     {
         definition = null!;
         if (entry.ValueKind is not JsonValueKind.Object)
@@ -201,9 +230,11 @@ public static class AlertCodec
 
         // Each kind reads only its own facts and demands them exactly: a
         // price entry needs a positive level AND a named edge, a percent-move
-        // entry a positive percent inside a positive window. Facts the other
-        // kind unused-fields (even junk there) stay harmlessly decodable —
-        // the demark is the kind, never a silent value guess.
+        // entry a positive percent inside a positive window, an
+        // indicator-cross entry (T-203) a resolvable-looking spec with a real
+        // cross edge. Facts the other kinds unused-fields (even junk there)
+        // stay harmlessly decodable — the demark is the kind, never a silent
+        // value guess.
         if (id == Guid.Empty ||
             symbol is not { Length: > 0 } ||
             kind is null ||
@@ -221,19 +252,64 @@ public static class AlertCodec
 
         // The resolved trigger: the Price kind's stored edge — the PercentMove
         // kind leaves the neutral At slot in place (its direction rides the
-        // threshold magnitude, never the stored edge).
-        var parsedTrigger = kind == PriceAlertKind.Price
-            ? ReadEnum(entry, TriggerMember, StoredTriggers)
-            : AlertTrigger.At;
-        if (parsedTrigger is null)
+        // threshold magnitude, never the stored edge) — and the
+        // IndicatorCross kind demands a real cross edge by name (At is
+        // meaningless for a cross: an entry carrying it is skipped).
+        AlertTrigger? parsedTrigger;
+        if (kind == PriceAlertKind.Price)
         {
-            return false;
+            parsedTrigger = ReadEnum(entry, TriggerMember, StoredTriggers);
+            if (parsedTrigger is null)
+            {
+                return false;
+            }
+        }
+        else if (kind == PriceAlertKind.IndicatorCross)
+        {
+            parsedTrigger = ReadEnum(entry, TriggerMember, StoredTriggers);
+            if (parsedTrigger is not AlertTrigger.Above and not AlertTrigger.Below)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            parsedTrigger = AlertTrigger.At;
         }
 
         if (kind == PriceAlertKind.PercentMove &&
             (thresholdPercent is not { } parsedThreshold || parsedThreshold <= 0m || windowMinutes <= 0))
         {
             return false;
+        }
+
+        // The indicator-cross spec (T-203): the nested object is demanded
+        // whole — a name, a strictly positive period, a stored source and a
+        // level number for the indicator-value source. A version 1 payload
+        // predates the kind entirely: an entry claiming it there is skipped
+        // (its facts cannot exist in that shape).
+        AlertIndicatorSpec? indicator = null;
+        if (kind == PriceAlertKind.IndicatorCross)
+        {
+            if (payloadVersion < 2 ||
+                FindMember(entry, IndicatorMember) is not { Value.ValueKind: JsonValueKind.Object } indicatorEntry)
+            {
+                return false;
+            }
+
+            var name = ReadStringMember(indicatorEntry.Value, IndicatorNameMember);
+            var period = ReadIntegerMember(indicatorEntry.Value, IndicatorPeriodMember);
+            var source = ReadEnum(indicatorEntry.Value, IndicatorSourceMember, StoredSources);
+            var level = ReadNumberMember(indicatorEntry.Value, IndicatorLevelMember);
+            if (name is not { Length: > 0 } ||
+                period is not { } parsedPeriod || parsedPeriod <= 0 ||
+                source is null ||
+                (source == AlertCrossSource.IndicatorValue && level is null))
+            {
+                return false;
+            }
+
+            indicator = new AlertIndicatorSpec(name, parsedPeriod, source.Value, level ?? 0m);
         }
 
         definition = new AlertDefinition(
@@ -248,7 +324,8 @@ public static class AlertCodec
             status.Value,
             created.Value,
             ReadTicksMember(entry, SnoozedUntilUtcMember),
-            ReadTicksMember(entry, LastFiredUtcMember));
+            ReadTicksMember(entry, LastFiredUtcMember),
+            indicator);
         return true;
     }
 

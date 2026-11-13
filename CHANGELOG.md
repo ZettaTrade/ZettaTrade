@@ -1,3 +1,38 @@
+## [0.1.0-alpha.147] - 2026-11-13
+
+Build of board task T-203 (branch `feat/indicator-alerts`): the
+indicator-based alerts — the price-alerts engine's third kind, a cross
+condition evaluated on one-minute candle closes the engine synthesizes
+from its own ticker stream (no new data subscription of any kind).
+
+### Added
+- The `IndicatorCross` alert kind: on every one-minute candle close the
+  alert's indicator spec (a loaded plugin's name and period, e.g. RSI 14)
+  crosses its stored level per the stored edge (RSI 70/30), or the
+  candle's close crosses the indicator's own value (a price cross of a
+  moving average) — the cross edge reads Above (strictly below to
+  at-or-above) or Below, the mirror; the meaningless At edge is refused
+  at draft validation. The fire stamps the close: the bar's open minute
+  plus the span.
+- The candle synthesis rides the EXISTING ticker stream only: the
+  in-progress minute grows on every tick, a turned minute closes the
+  previous candle into the bounded per-symbol series (720 bars); the
+  first live period of a symbol with an indicator alert pulls a one-shot
+  M1 history seed (720 bars) through the adapter's existing REST pull so
+  the first close evaluates against real history, and the seeded tail
+  bar yields to the session's own close of the same open minute. Warmup
+  closes (null indicator values) never fire.
+- The honest stall: an alert whose indicator the session's plugin set
+  cannot resolve PAUSES at the first close it cannot honor (persisted,
+  never terminal) — the row shows "Paused", and a session whose plugin
+  set restores the indicator re-arms it at the roster load.
+- The manager editor's cross fields: the indicator picker (the loaded
+  names), the period, the cross source (indicator × level / price ×
+  indicator) and the level, with the trigger combo hiding the At edge
+  for the cross kind; empty plugin sets refuse the kind outright. The
+  row's condition text renders all four cross spellings, and the
+  localized status adds the Paused state.
+
 ## [0.1.0-alpha.146] - 2026-11-13
 
 Build of board task T-202 (branch `feat/chart-templates`): the chart
