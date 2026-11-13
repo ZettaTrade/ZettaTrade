@@ -126,6 +126,15 @@
   <data name="Settings.Section.Appearance" xml:space="preserve">
     <value>APPEARANCE</value>
   </data>
+  <data name="Settings.Section.ThemesFolder" xml:space="preserve">
+    <value>THEME FOLDER</value>
+  </data>
+  <data name="Settings.Section.Wizard" xml:space="preserve">
+    <value>FIRST-RUN WIZARD</value>
+  </data>
+  <data name="Settings.Rail.Note" xml:space="preserve">
+    <value>Long lists scroll inside their own viewports — the window itself never scrolls.</value>
+  </data>
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Indicators</value>
   </data>
@@ -163,7 +172,7 @@
     <value>External MCP servers</value>
   </data>
   <data name="Settings.McpClients.Hint" xml:space="preserve">
-    <value>Save applies the external servers: added or changed enabled entries connect, removed or disabled ones disconnect, and an entry whose saved connection did not change stays connected. The auth field holds a reference key that resolves through the secret store — the secret itself never rides the config or the logs. An unusable entry pins its own failed state with the transport's reason.</value>
+    <value>Save applies the external servers: entries reconnect on Save; the auth field is a secret-store reference key.</value>
   </data>
   <data name="Settings.McpClients.Add" xml:space="preserve">
     <value>Add server</value>

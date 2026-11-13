@@ -67,6 +67,7 @@ public sealed class SurfaceStrayPinsTests
         "0,72,0,0",  // the palette's and the hotkeys sheet's drop
         "0,52,12,0", // the hotkeys sheet's content card drop
         "0,0,0,40",  // the log viewer's overlay-bar clearance
+        "-13,0,0,0", // the rail tick's pull onto the item's own left edge (the item border 1 + padding 12, T-222)
         "0,-2,0,-2", // the pair-star's vertical nudge under the glyph's line box (T-152)
     ];
 

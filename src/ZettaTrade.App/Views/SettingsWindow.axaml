@@ -13,7 +13,7 @@
         Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:SettingsViewModel"
         Title="{loc:Localized Settings.Title}"
-        Width="880" Height="720"
+        Width="880" Height="640"
         MinWidth="720" MinHeight="560"
         WindowStartupLocation="CenterOwner"
         CanResize="True"
@@ -48,9 +48,10 @@
             <Setter Property="Padding" Value="0" />
         </Style>
         <Style Selector="TabItem.rail-item">
-            <Setter Property="Width" Value="190" />
+            <Setter Property="Width" Value="174" />
+            <Setter Property="Margin" Value="8,12,8,0" />
             <Setter Property="MinHeight" Value="36" />
-            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Padding" Value="12,8" />
             <Setter Property="CornerRadius" Value="{StaticResource CornerM}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="Transparent" />
@@ -78,11 +79,16 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
         </Style>
         <!-- The selected item's tick: the theme's own left pipe re-shaped —
-             3 px wide, the Accent fill, the rounded ends. -->
+             3 px wide, the Accent fill, the rounded ends. The negative left
+             margin cancels the item's own border (1 px) plus padding
+             (12 px), so the mark opens the item box at its left edge (the
+             mockup's ::before mark), not inside the padding inset the
+             template's content panel carries (the T-222 probe measured the
+             15 px offset the old margin left behind). -->
         <Style Selector="TabItem.rail-item[TabStripPlacement=Left] /template/ Border#PART_SelectedPipe">
             <Setter Property="Width" Value="3" />
             <Setter Property="Height" Value="18" />
-            <Setter Property="Margin" Value="0,0,9,0" />
+            <Setter Property="Margin" Value="-13,0,0,0" />
             <Setter Property="CornerRadius" Value="1.5" />
             <Setter Property="Background" Value="{DynamicResource Accent}" />
         </Style>
@@ -117,21 +123,72 @@
         </Style>
     </Window.Styles>
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto" RowSpacing="{StaticResource SpaceL}">
+    <Grid RowDefinitions="*,Auto">
         <!-- The settings live on the left category rail (T-184): the four
              retired tab captions are the rail items (title case, the tab
              keys unchanged), the rail's width and the selected item's tint
              and tick ride the window styles. Each page lays its sections
              out as cards (the SectionCards dictionary), the content root
-             carries a top margin — the breathing room beside the rail. -->
-        <TabControl Grid.Row="0" Classes="rail" TabStripPlacement="Left" SelectedIndex="{Binding SelectedTabIndex}">
-            <TabItem Classes="rail-item" Header="{loc:Localized Settings.Tab.Appearance}">
+             carries the page inset — the breathing room beside the rail.
+             The window's own frame stays flush: the rail strip touches the
+             left edge and the footer strip touches the bottom edge (the
+             approved variant A frame, T-222). -->
+        <Panel Grid.Row="0">
+            <!-- The rail strip's approved chrome (T-222): the 190 px backing
+                 rides the title-bar fill with its right hairline, and the
+                 note speaks the categories' shape at its bottom. The strip's
+                 own template root measured transparent (the T-222 probe),
+                 so this backing shows through it; the note is hit-invisible
+                 — the rail's clicks belong to the items. -->
+            <Border x:Name="RailBacking"
+                    Width="190"
+                    HorizontalAlignment="Left"
+                    Background="{DynamicResource TitleBar}"
+                    BorderBrush="{DynamicResource Border}"
+                    BorderThickness="0,0,1,0">
+                <TextBlock Text="{loc:Localized Settings.Rail.Note}"
+                           VerticalAlignment="Bottom"
+                           Margin="12,0,12,12"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}"
+                           TextWrapping="Wrap"
+                           IsHitTestVisible="False" />
+            </Border>
+            <TabControl Classes="rail" TabStripPlacement="Left" SelectedIndex="{Binding SelectedTabIndex}">
+            <TabItem Classes="rail-item">
+                <TabItem.Header>
+                    <!-- The rail item: the 16 px stroke mark beside the caption
+                         (the approved variant A icons, T-222). The icon strokes
+                         ride the item's own foreground, so the selection's
+                         re-ink reaches them; the appearance mark's paint stroke
+                         keeps the Accent detail. The caption TextBlock keeps
+                         the tab key — the localization facts and the tab
+                         helpers read it. -->
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}" VerticalAlignment="Center">
+                        <Grid Width="16" Height="16">
+                            <Path Stroke="{Binding $parent[TabItem].Foreground}"
+                                  StrokeThickness="1.5"
+                                  Data="M 8 2 A 6 6 0 1 0 8 14 A 6 6 0 1 0 8 2" />
+                            <Path Stroke="{DynamicResource Accent}"
+                                  StrokeThickness="3"
+                                  StrokeLineCap="Round"
+                                  Data="M 8 2 L 8 8" />
+                        </Grid>
+                        <TextBlock Text="{loc:Localized Settings.Tab.Appearance}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
                 <!-- The appearance page rides the body scroll only as the
                      small machines' safety net — at the default size the
-                     card fits (the T-184 bounds pin). The scroll content
-                     carries the T-169 gutter. -->
+                     three compact cards fit (the T-222 bounds pin). The
+                     scroll content carries the page inset (the T-169 gutter
+                     included on every side). -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="{StaticResource SpaceL}" Margin="0,12,16,0">
+                    <StackPanel Spacing="{StaticResource SpaceL}" Margin="{StaticResource InsetL}">
+
+                        <!-- The appearance card: the theme pick (with the
+                             preview swatches), the language and the chart
+                             clock format — the approved appearance section. -->
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
@@ -212,68 +269,101 @@
                                           AutomationProperties.AutomationId="TimeFormatHours12Item" />
                         </ComboBox>
                     </Grid>
+                            </StackPanel>
+                        </Border>
 
-                    <!-- Theme folder and schema hint: customization is file-based, so the
-                         button hands the folder over to the OS file manager. -->
-                    <StackPanel Spacing="{StaticResource SpaceM}">
-                        <Button Content="{loc:Localized Settings.ThemesFolder.Open}"
-                                Command="{Binding OpenThemesFolderCommand}"
-                                MinWidth="160"
-                                HorizontalAlignment="Left" />
-                        <TextBlock Text="{loc:Localized Settings.ThemeErrors.Hint}"
-                                   TextWrapping="Wrap"
-                                   />
-                    </StackPanel>
+                        <!-- The theme folder card: customization is file-based, so
+                             the button hands the folder over to the OS file
+                             manager; broken theme files list right here (the
+                             approved theme-folder section). -->
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                    <Border Classes="section-tick" />
+                                    <TextBlock Classes="section-header"
+                                               Text="{loc:Localized Settings.Section.ThemesFolder}" />
+                                </StackPanel>
 
-                    <!-- Broken theme files (theme files that failed to parse): hidden
-                         while every file loads. The list can grow with the broken
-                         files' count — it scrolls its own viewport, the bottom row
-                         stays pinned. -->
-                    <StackPanel IsVisible="{Binding HasThemeFileErrors}" Spacing="{StaticResource SpaceXs}">
-                        <TextBlock Text="{loc:Localized Settings.ThemeErrors.Header}"
-                                   FontWeight="Bold" />
-                        <ScrollViewer MaxHeight="160">
-                            <!-- The gutter rides the list too (T-169). -->
-                            <ItemsControl ItemsSource="{Binding ThemeFileErrors}"
-                                          Margin="0,0,16,0">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="themes:ThemeFileLoadError">
-                                        <TextBlock Text="{Binding FileName}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   ToolTip.Tip="{Binding FilePath}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </StackPanel>
+                                <Button Content="{loc:Localized Settings.ThemesFolder.Open}"
+                                        Command="{Binding OpenThemesFolderCommand}"
+                                        MinWidth="160"
+                                        HorizontalAlignment="Left" />
+                                <TextBlock Text="{loc:Localized Settings.ThemeErrors.Hint}"
+                                           TextWrapping="Wrap"
+                                           />
 
-                    <!-- The first-run wizard's re-run entry (T-099): the board
-                         names the settings window as the only way back into
-                         the wizard. Closing this window first and modally
-                         opening the wizard over the owner keeps one modal at
-                         a time; the entries are View behavior (window
-                         lifecycle), no ViewModel state involved. -->
-                    <Separator Margin="0,4" />
-                    <TextBlock Text="{loc:Localized Settings.FirstRunWizard.Hint}"
-                               TextWrapping="Wrap"
-                               />
-                    <Button x:Name="FirstRunWizardButton"
-                            Content="{loc:Localized Settings.FirstRunWizard.RunAgain}"
-                            HorizontalAlignment="Left"
-                            MinWidth="160"
-                            Click="OnFirstRunWizardClick" />
+                                <!-- Broken theme files (theme files that failed to
+                                     parse): hidden while every file loads. The list
+                                     can grow with the broken files' count — it
+                                     scrolls its own viewport, the bottom row stays
+                                     pinned. -->
+                                <StackPanel IsVisible="{Binding HasThemeFileErrors}" Spacing="{StaticResource SpaceXs}">
+                                    <TextBlock Text="{loc:Localized Settings.ThemeErrors.Header}"
+                                               FontWeight="Bold" />
+                                    <ScrollViewer MaxHeight="160">
+                                        <!-- The gutter rides the list too (T-169). -->
+                                        <ItemsControl ItemsSource="{Binding ThemeFileErrors}"
+                                                      Margin="0,0,16,0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="themes:ThemeFileLoadError">
+                                                    <TextBlock Text="{Binding FileName}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip.Tip="{Binding FilePath}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- The first-run wizard card (T-099): the board names the
+                             settings window as the only way back into the wizard.
+                             Closing this window first and modally opening the
+                             wizard over the owner keeps one modal at a time; the
+                             entries are View behavior (window lifecycle), no
+                             ViewModel state involved. -->
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                    <Border Classes="section-tick" />
+                                    <TextBlock Classes="section-header"
+                                               Text="{loc:Localized Settings.Section.Wizard}" />
+                                </StackPanel>
+
+                                <TextBlock Text="{loc:Localized Settings.FirstRunWizard.Hint}"
+                                           TextWrapping="Wrap"
+                                           />
+                                <Button x:Name="FirstRunWizardButton"
+                                        Content="{loc:Localized Settings.FirstRunWizard.RunAgain}"
+                                        HorizontalAlignment="Left"
+                                        MinWidth="160"
+                                        Click="OnFirstRunWizardClick" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Classes="rail-item" Header="{loc:Localized Settings.Tab.Indicators}">
+            <TabItem Classes="rail-item">
+                <TabItem.Header>
+                    <!-- The rail item's mark: the stroke chart line beside the
+                         caption; the caption keeps the tab key. -->
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}" VerticalAlignment="Center">
+                        <Grid Width="16" Height="16">
+                            <Path Stroke="{Binding $parent[TabItem].Foreground}"
+                                  StrokeThickness="1.5"
+                                  Data="M 1 12 L 5 7 L 8 10 L 12 4 L 15 8" />
+                        </Grid>
+                        <TextBlock Text="{loc:Localized Settings.Tab.Indicators}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
                 <!-- The indicator page: one section card — the compact header
                      replaces the T-169 bare caption — and the body scroll rides
                      only as the small machines' safety net (the T-184 pin). -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="{StaticResource SpaceL}" Margin="0,12,16,0">
+                    <StackPanel Spacing="{StaticResource SpaceL}" Margin="{StaticResource InsetL}">
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
@@ -498,7 +588,20 @@
                  — merged tabs must never let one section hide the other.
                  Each long list still scrolls its own viewport; the merged
                  tab's body scrolls as one for small machines. -->
-            <TabItem Classes="rail-item" Header="{loc:Localized Settings.Tab.Integrations}">
+            <TabItem Classes="rail-item">
+                <TabItem.Header>
+                    <!-- The rail item's mark: the stroke plug beside the
+                         caption; the caption keeps the tab key. -->
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}" VerticalAlignment="Center">
+                        <Grid Width="16" Height="16">
+                            <Path Stroke="{Binding $parent[TabItem].Foreground}"
+                                  StrokeThickness="1.5"
+                                  Data="M 5 1 L 5 4 M 11 1 L 11 4 M 4.5 4 L 11.5 4 A 1.5 1.5 0 0 1 13 5.5 L 13 8.5 A 1.5 1.5 0 0 1 11.5 10 L 4.5 10 A 1.5 1.5 0 0 1 3 8.5 L 3 5.5 A 1.5 1.5 0 0 1 4.5 4 Z M 8 10 L 8 13 M 6 15 L 10 15" />
+                        </Grid>
+                        <TextBlock Text="{loc:Localized Settings.Tab.Integrations}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
                 <!-- The scroll content's right gutter (T-169): the Fluent
                      ScrollViewer's content presenter spans the scrollbar's
                      strip when the overlay bar appears, so the content ends
@@ -507,7 +610,7 @@
                      the hint texts never sit under the bar. Every scroll
                      content in the window carries the same shape. -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="{StaticResource SpaceL}" Margin="0,12,16,0">
+                    <StackPanel Spacing="{StaticResource SpaceL}" Margin="{StaticResource InsetL}">
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
@@ -549,7 +652,7 @@
                                 <TextBlock Text="{loc:Localized Settings.McpClients.Caption}"
                                            FontWeight="SemiBold" />
 
-                                <ScrollViewer MaxHeight="280"
+                                <ScrollViewer MaxHeight="220"
                                               HorizontalScrollBarVisibility="Disabled"
                                               VerticalScrollBarVisibility="Auto">
                                     <!-- The inner viewport carries the same gutter (T-169). -->
@@ -850,7 +953,7 @@
                                 <StackPanel IsVisible="{Binding IsImportPreviewVisible}" Spacing="{StaticResource SpaceM}">
                                     <TextBlock Text="{loc:Localized Port.PreviewHeader}"
                                                FontWeight="SemiBold" />
-                                    <ScrollViewer MaxHeight="230"
+                                    <ScrollViewer MaxHeight="180"
                                                   HorizontalScrollBarVisibility="Disabled"
                                                   VerticalScrollBarVisibility="Auto">
                                         <!-- The inner viewport carries the same gutter (T-169). -->
@@ -947,13 +1050,26 @@
                  pairs lists keep a fixed-height viewport (their own
                  scrollbars, the original discipline) so the merged tab's
                  body scrolls as one. -->
-            <TabItem Classes="rail-item" Header="{loc:Localized Settings.Tab.Workspace}">
+            <TabItem Classes="rail-item">
+                <TabItem.Header>
+                    <!-- The rail item's mark: the stroke workspace grid beside
+                         the caption; the caption keeps the tab key. -->
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}" VerticalAlignment="Center">
+                        <Grid Width="16" Height="16">
+                            <Path Stroke="{Binding $parent[TabItem].Foreground}"
+                                  StrokeThickness="1.5"
+                                  Data="M 1.75 1.75 L 6.25 1.75 L 6.25 6.25 L 1.75 6.25 Z M 9.75 1.75 L 14.25 1.75 L 14.25 6.25 L 9.75 6.25 Z M 1.75 9.75 L 6.25 9.75 L 6.25 14.25 L 1.75 14.25 Z M 9.75 9.75 L 14.25 9.75 L 14.25 14.25 L 9.75 14.25 Z" />
+                        </Grid>
+                        <TextBlock Text="{loc:Localized Settings.Tab.Workspace}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
                 <!-- The hotkeys rows scroll in their own viewport: its
                      scrollbar carries the same right gutter as every
                      scroll content (T-169) - the gesture boxes never
                      sit under the scrollbar's strip. -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="{StaticResource SpaceL}" Margin="0,12,16,0">
+                    <StackPanel Spacing="{StaticResource SpaceL}" Margin="{StaticResource InsetL}">
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
@@ -961,7 +1077,7 @@
                                     <TextBlock Classes="section-header"
                                                Text="{loc:Localized Settings.Section.Pairs}" />
                                 </StackPanel>
-                                <Grid Height="305"
+                                <Grid Height="236"
                                       ColumnDefinitions="*,Auto,*"
                                       ColumnSpacing="{StaticResource SpaceM}"
                                       RowDefinitions="Auto,*"
@@ -1065,7 +1181,7 @@
                                            Foreground="{DynamicResource TextSecondary}"
                                            TextWrapping="Wrap"
                                            />
-                                <ScrollViewer MaxHeight="175"
+                                <ScrollViewer MaxHeight="150"
                                               HorizontalScrollBarVisibility="Disabled"
                                               VerticalScrollBarVisibility="Auto">
                                     <ItemsControl ItemsSource="{Binding Rows}"
@@ -1109,20 +1225,30 @@
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+        </Panel>
 
-        <!-- The dialog's bottom row: pinned outside the tab area, never
-             scrolled away. -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="{StaticResource SpaceM}" HorizontalAlignment="Right">
-            <Button x:Name="SaveButton"
-                    Classes="primary"
-                    AutomationProperties.AutomationId="SaveButton"
-                    Content="{loc:Localized Settings.Save}"
-                    MinWidth="90"
-                    Click="OnSaveClick" />
-            <Button x:Name="CloseButton"
-                    Content="{loc:Localized Settings.Close}"
-                    MinWidth="90"
-                    Click="OnCloseClick" />
-        </StackPanel>
+        <!-- The dialog's bottom row (T-222): the approved pinned strip — the
+             full-width top hairline over the title-bar fill; the quiet Close
+             rides beside the ONE primary Save (the T-183 vocabulary). The
+             row pins outside the tab area, never scrolled away. -->
+        <Border x:Name="FooterBar"
+                Grid.Row="1"
+                Background="{DynamicResource TitleBar}"
+                BorderBrush="{DynamicResource Border}"
+                BorderThickness="0,1,0,0"
+                Padding="16,12">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceM}" HorizontalAlignment="Right">
+                <Button x:Name="CloseButton"
+                        Content="{loc:Localized Settings.Close}"
+                        MinWidth="90"
+                        Click="OnCloseClick" />
+                <Button x:Name="SaveButton"
+                        Classes="primary"
+                        AutomationProperties.AutomationId="SaveButton"
+                        Content="{loc:Localized Settings.Save}"
+                        MinWidth="90"
+                        Click="OnSaveClick" />
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

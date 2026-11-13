@@ -81,8 +81,8 @@ public sealed class WindowLayoutPinsTests
         var source = SettingsXaml;
 
         source.Should().Contain(
-            "Width=\"880\" Height=\"720\"",
-            "the dialog defaults roomier still: the rail consumes its 190 px column and the cards breathe (T-184)");
+            "Width=\"880\" Height=\"640\"",
+            "the approved variant-A frame: the 190 px rail column and the pinned footer strip ride the compact default (T-222)");
         source.Should().Contain(
             "MinWidth=\"720\" MinHeight=\"560\"",
             "the resizable dialog keeps sane minimums");
@@ -99,25 +99,24 @@ public sealed class WindowLayoutPinsTests
     {
         var source = SettingsXaml;
 
-        Regex.Matches(source, "<TabItem").Should().HaveCount(
+        Regex.Matches(source, "<TabItem Classes=\"rail-item\"").Should().HaveCount(
             4,
-            "the six tabs fold: Appearance and Indicators stand, MCP+port ride Integrations, pairs+hotkeys ride Workspace");
+            "the six tabs fold: Appearance and Indicators stand, MCP+port ride Integrations, pairs+hotkeys ride Workspace (the header compositions open their own TabItem.Header tags)");
 
         source.Should().Contain(
-            "Header=\"{loc:Localized Settings.Tab.Integrations}\"",
-            "the integrations tab carries the folded MCP + port surface");
+            "Text=\"{loc:Localized Settings.Tab.Integrations}\"",
+            "the integrations tab carries the folded MCP + port surface (the header composition's caption)");
         source.Should().Contain(
-            "Header=\"{loc:Localized Settings.Tab.Workspace}\"",
-            "the workspace tab carries the folded pairs + hotkeys surface");
+            "Text=\"{loc:Localized Settings.Tab.Workspace}\"",
+            "the workspace tab carries the folded pairs + hotkeys surface (the header composition's caption)");
 
-        // The retired tab headers: gone from the tab strip (the folded
-        // Integrations/Workspace keys replaced them; T-184 retired the
-        // bare section captions too — the merged sections ride the
-        // section-card headers now, never a bare caption line).
-        source.Should().NotContain("Header=\"{loc:Localized Settings.Tab.Mcp}\"");
-        source.Should().NotContain("Header=\"{loc:Localized Settings.Tab.Pairs}\"");
-        source.Should().NotContain("Header=\"{loc:Localized Settings.Tab.Hotkeys}\"");
-        source.Should().NotContain("Header=\"{loc:Localized Settings.Tab.Port}\"");
+        // The retired tab headers: gone from the strip (the folded
+        // Integrations/Workspace captions ride the section-card headers).
+        // T-222 moved every rail caption into a header composition's
+        // TextBlock — no attribute header carries a loc key anymore.
+        source.Should().NotContain(
+            "Header=\"{loc:",
+            "the rail captions ride the header compositions' TextBlocks, never attribute headers");
     }
 
     [Fact]
@@ -162,8 +161,8 @@ public sealed class WindowLayoutPinsTests
         var source = SettingsXaml;
 
         source.Should().Contain(
-            "<TabControl Grid.Row=\"0\" Classes=\"rail\" TabStripPlacement=\"Left\" SelectedIndex=\"{Binding SelectedTabIndex}\">",
-            "the rail is the tab strip on the left placement with the view-model index binding (T-184)");
+            "<TabControl Classes=\"rail\" TabStripPlacement=\"Left\" SelectedIndex=\"{Binding SelectedTabIndex}\">",
+            "the rail is the tab strip on the left placement with the view-model index binding, riding the flush panel over the backing strip (T-222)");
         Regex.Matches(source, "<TabItem Classes=\"rail-item\"").Should().HaveCount(
             4,
             "every category item rides the rail-item class");
@@ -182,10 +181,10 @@ public sealed class WindowLayoutPinsTests
         var cards = SectionCardsXaml;
 
         Regex.Matches(source, "<Border Classes=\"section-card\"").Should().HaveCount(
-            7,
-            "the seven sections: Appearance 1, Indicators 1, Integrations 3 (MCP + AI chat + import/export), Workspace 2 (pairs + hotkeys)");
+            9,
+            "the nine sections: Appearance 3 (appearance + theme folder + first-run wizard), Indicators 1, Integrations 3 (MCP + AI chat + import/export), Workspace 2 (pairs + hotkeys)");
         Regex.Matches(source, "<Border Classes=\"section-tick\" />").Should().HaveCount(
-            7,
+            9,
             "every section card carries the Accent tick header");
         source.Should().Contain(
             "<StyleInclude Source=\"avares://ZettaTrade.App/Themes/SectionCards.axaml\" />",
@@ -202,11 +201,16 @@ public sealed class WindowLayoutPinsTests
         cards.Should().Contain(
             "<Style Selector=\"TextBlock.section-header\">",
             "the section-header class carries the tracked uppercase caption");
+        cards.Should().Contain(
+            "<Setter Property=\"CornerRadius\" Value=\"{StaticResource CornerM}\" />",
+            "the cards ride the approved compact CornerM rounding (the variant-A card step, T-222)");
 
-        // The seven header keys ride the pages (one per card, exactly).
+        // The nine header keys ride the pages (one per card, exactly).
         foreach (var key in new[]
                  {
                      "Settings.Section.Appearance",
+                     "Settings.Section.ThemesFolder",
+                     "Settings.Section.Wizard",
                      "Settings.Section.Indicators",
                      "Settings.Section.Mcp",
                      "Settings.Section.Ai",
@@ -221,8 +225,60 @@ public sealed class WindowLayoutPinsTests
         }
     }
 
+    [Fact]
+    public void TheSettingsWindow_RidesTheVariantAChrome()
+    {
+        var source = SettingsXaml;
+
+        // The rail strip (T-222): the 190 px title-bar backing with its
+        // right hairline, and the rail note speaking the categories'
+        // shape at its bottom.
+        source.Should().Contain(
+            "x:Name=\"RailBacking\"",
+            "the rail strip's backing is the named chrome element the render pins measure");
+        source.Should().Contain(
+            "Background=\"{DynamicResource TitleBar}\"",
+            "the backing strip rides the title-bar fill (the approved variant-A rail)");
+        source.Should().Contain(
+            "BorderThickness=\"0,0,1,0\"",
+            "the backing strip carries the right hairline");
+        source.Should().Contain(
+            "Settings.Rail.Note",
+            "the rail note speaks the categories' shape at the strip's bottom");
+
+        // The footer strip (T-222): the full-width pinned bar over the
+        // title-bar fill with its top hairline, the quiet Close riding
+        // before the ONE primary Save.
+        source.Should().Contain(
+            "x:Name=\"FooterBar\"",
+            "the pinned footer is the named chrome element the render pins measure");
+        source.Should().Contain(
+            "BorderThickness=\"0,1,0,0\"",
+            "the footer strip carries the top hairline");
+        source.Should().Contain(
+            "Padding=\"16,12\"",
+            "the footer strip rides the approved inset");
+        source.IndexOf("x:Name=\"CloseButton\"", StringComparison.Ordinal)
+            .Should().BeLessThan(
+                source.IndexOf("x:Name=\"SaveButton\"", StringComparison.Ordinal),
+                "the quiet Close rides before the ONE primary Save (the approved order)");
+
+        // The rail headers (T-222): the icons ride the header
+        // compositions — the applied template renders no Icon presenter
+        // (the probe measured it), and the strokes bind the item's own
+        // foreground so the selection's re-ink reaches them.
+        Regex.Matches(source, Regex.Escape("<TabItem.Header>")).Should().HaveCount(
+            4,
+            "every rail caption rides a header composition");
+        Regex.Matches(source, Regex.Escape("{Binding $parent[TabItem].Foreground}")).Should().HaveCount(
+            4,
+            "every rail icon's main stroke rides the item's own foreground");
+    }
+
     [Theory]
     [InlineData("Settings.Section.Appearance")]
+    [InlineData("Settings.Section.ThemesFolder")]
+    [InlineData("Settings.Section.Wizard")]
     [InlineData("Settings.Section.Indicators")]
     [InlineData("Settings.Section.Mcp")]
     [InlineData("Settings.Section.Ai")]
@@ -256,23 +312,24 @@ public sealed class WindowLayoutPinsTests
         var source = SettingsXaml;
 
         // The inner scrollports: each long list scrolls inside its own
-        // capped viewport so the page fits the default window (the
-        // headless bounds pin measures the fit). The theme-error list's
-        // cap predates T-184 and stays.
+        // capped viewport so the page fits the compact default window
+        // (the headless bounds pin measures the fit; the caps stepped
+        // down with the approved variant-A frame, T-222). The
+        // theme-error list's cap predates T-184 and stays.
         source.Should().Contain(
             "<ScrollViewer MaxHeight=\"160\">",
             "the theme-error list keeps its pre-T-184 viewport cap");
         source.Should().Contain(
-            "<ScrollViewer MaxHeight=\"280\"",
+            "<ScrollViewer MaxHeight=\"220\"",
             "the MCP client cards scroll inside their capped viewport");
         source.Should().Contain(
-            "<ScrollViewer MaxHeight=\"230\"",
+            "<ScrollViewer MaxHeight=\"180\"",
             "the import preview scrolls inside its capped viewport");
         source.Should().Contain(
-            "<ScrollViewer MaxHeight=\"175\"",
+            "<ScrollViewer MaxHeight=\"150\"",
             "the hotkeys rows scroll inside their capped viewport (T-184)");
         source.Should().Contain(
-            "Height=\"305\"",
+            "Height=\"236\"",
             "the pairs lists ride one shared row height sized with the rest (T-184)");
     }
 
