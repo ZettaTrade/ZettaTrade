@@ -218,7 +218,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | done | - |
 | T-212 Backtest parameter optimization (backlog sweep 2026-11-12) | feat/backtest-optimize | done | - |
 | T-213 Update checker (backlog sweep 2026-11-12) | feat/update-check | done | - |
-| T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | planned | - |
+| T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | in-progress | - |
 | T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | planned | - |
 | T-216 Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses (queued from the T-193/T-194 gate fights) | feat/flaky-theme-drain | done | - |
 | T-217 Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot (the 2026-11-13 review round) | feat/perf-fixes | done | - |
@@ -506,7 +506,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-214 — Tray icon
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/tray-icon, worktree zt-tray-icon, base develop@7b3c7d3
+  (claimed 2026-11-14 off the synced board).
 - **Origin:** the sweep — no tray presence exists.
 - **What:** a tray icon with a minimal menu (show/hide the main window, the DND toggle, exit);
   an option to keep running in the tray on close (off by default); fired alerts route through
@@ -517,7 +518,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** close-to-tray keeps the session alive and the single-instance hand-off
   intact; exit from the tray fully exits; the off state changes nothing.
 - **Tests:** the close-policy headless pins; the single-instance interaction pin.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-215 — Profile backup and restore
 
