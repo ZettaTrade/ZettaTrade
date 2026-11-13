@@ -7,8 +7,11 @@ using System;
 /// they name a member DEFINED by the enum (case-insensitive), and numeric or
 /// undefined strings never ride through — trading-safety rule: never
 /// substitute defaults for unparsable enums, return an error instead.
+/// Public since T-208: every MCP registrar (the AI module's and the app's
+/// workspace registrar alike) parses its arguments through this one
+/// discipline, never a private re-implementation.
 /// </summary>
-internal static class ToolEnumParser
+public static class ToolEnumParser
 {
     /// <summary>
     /// Parse <paramref name="text"/> into an enum value only when it names a

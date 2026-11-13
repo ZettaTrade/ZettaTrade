@@ -43,6 +43,10 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
     /// <summary>JSON-RPC error code for invalid params (e.g. a missing tool name).</summary>
     private const int InvalidParamsErrorCode = -32602;
 
+    /// <summary>JSON-RPC error code for a faulted request handler (a server
+    /// bug must never hang the client — the honest internal-error envelope).</summary>
+    private const int InternalErrorErrorCode = -32603;
+
     /// <summary>JSON-RPC method name for the MCP initialize handshake.</summary>
     private const string InitializeMethod = "initialize";
 
@@ -60,6 +64,9 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
 
     /// <summary>JSON-RPC method name listing registered prompts.</summary>
     private const string PromptsListMethod = "prompts/list";
+
+    /// <summary>JSON-RPC method name fetching one prompt's rendered messages.</summary>
+    private const string PromptsGetMethod = "prompts/get";
 
     #endregion
 
@@ -233,6 +240,7 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
                     ResourcesListMethod => await HandleResourcesListAsync(requestId, ct),
                     ResourcesReadMethod => await HandleResourceReadAsync(doc.RootElement, requestId, ct),
                     PromptsListMethod => await HandlePromptsListAsync(requestId, ct),
+                    PromptsGetMethod => await HandlePromptsGetAsync(doc.RootElement, requestId, ct),
                     // An unknown method with an id must be answered too; a
                     // notification stays silent per JSON-RPC.
                     _ => requestId.HasValue
@@ -293,7 +301,12 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         result = new
         {
             protocolVersion = ProtocolVersion,
-            capabilities = new { tools = new { } },
+
+            // Every registry surface the host implements is advertised
+            // honestly: tools, resources and prompts (T-208) - a client that
+            // trusts the advertisement then walks the surface and finds every
+            // category answered, never a promised-absent one.
+            capabilities = new { tools = new { }, resources = new { }, prompts = new { } },
             serverInfo = new { name = ServerName, version = ServerVersion },
         },
     });
@@ -349,7 +362,21 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
             return BuildErrorResponse(id, UnknownRequestErrorCode, "Unknown tool");
         }
 
-        var result = await tool.Handler(arguments, ct);
+        // A handler fault is a server bug, but the client must never hang on
+        // one: the fault earns the JSON-RPC internal-error envelope and the
+        // honest log (the well-behaved handler answers IsError results and
+        // never reaches this net).
+        McpToolResult result;
+        try
+        {
+            result = await tool.Handler(arguments, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "MCP tool '{Name}' handler faulted", name);
+            return BuildErrorResponse(id, InternalErrorErrorCode, "Internal error");
+        }
+
         return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { content = result.Content } });
     }
 
@@ -358,7 +385,15 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         await _lock.WaitAsync(ct);
         try
         {
-            var resources = _resources.Values.Select(r => new { r.Uri, r.Name, r.MimeType });
+            // The wire shape is the MCP camelCase one (uri, name, mimeType):
+            // the records' default PascalCase serialization would hand a
+            // spec-trusting client keys it cannot read (T-208).
+            var resources = _resources.Values.Select(r => new
+            {
+                uri = r.Uri,
+                name = r.Name,
+                mimeType = r.MimeType,
+            });
             return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { resources } });
         }
         finally
@@ -391,8 +426,31 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         if (resource is null)
             return BuildErrorResponse(id, UnknownRequestErrorCode, "Unknown resource");
 
-        var content = await resource.Reader(ct);
-        return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { contents = content } });
+        IReadOnlyList<McpContent> content;
+        try
+        {
+            content = await resource.Reader(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "MCP resource '{Uri}' reader faulted", uri);
+            return BuildErrorResponse(id, InternalErrorErrorCode, "Internal error");
+        }
+
+        // The wire shape is the MCP camelCase content block (type, text,
+        // data, mimeType): the record's PascalCase default would hand a
+        // spec-trusting client keys it cannot read (T-208).
+        var contents = content
+            .Select(c => new
+            {
+                type = c.Type,
+                text = c.TextValue,
+                data = c.Data,
+                mimeType = c.MimeType,
+            })
+            .ToList();
+
+        return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { contents } });
     }
 
     private async Task<string> HandlePromptsListAsync(JsonElement? id, CancellationToken ct)
@@ -400,13 +458,119 @@ public sealed class McpServerHost : IMcpServerHost, IAsyncDisposable
         await _lock.WaitAsync(ct);
         try
         {
-            var prompts = _prompts.Values.Select(p => new { p.Name, p.Description, p.Arguments });
+            // CamelCase on the wire again: a prompt argument rides the
+            // protocol's name/description/required keys (T-208).
+            var prompts = _prompts.Values.Select(p => new
+            {
+                name = p.Name,
+                description = p.Description,
+                arguments = p.Arguments.Select(a => new
+                {
+                    name = a.Name,
+                    description = a.Description,
+                    required = a.Required,
+                }),
+            });
             return JsonSerializer.Serialize(new { jsonrpc = JsonRpcVersion, id, result = new { prompts } });
         }
         finally
         {
             _lock.Release();
         }
+    }
+
+    /// <summary>
+    /// Fetch one prompt's rendered messages (T-208): the named prompt's
+    /// handler runs with the request's string arguments and the rendered
+    /// text rides back as ONE user message — the 2024-11-05 shape. The
+    /// registry read holds the lock; the handler runs OUTSIDE it (the same
+    /// release-before-await discipline the tool call keeps, BUG-020). A
+    /// missing name or a non-string argument member is invalid params; an
+    /// unregistered prompt is the unknown-request error; a required
+    /// argument the request omits is invalid params naming it (the honest
+    /// refusal — a silently substituted argument would render a prompt the
+    /// template never wrote).
+    /// </summary>
+    private async Task<string> HandlePromptsGetAsync(JsonElement root, JsonElement? id, CancellationToken ct)
+    {
+        if (!root.TryGetProperty("params", out var @params))
+            return BuildErrorResponse(id, InvalidParamsErrorCode, "Invalid params: missing params");
+
+        if (!@params.TryGetProperty("name", out var nameEl) || nameEl.ValueKind != JsonValueKind.String)
+            return BuildErrorResponse(id, InvalidParamsErrorCode, "Invalid params: missing prompt name");
+
+        var name = nameEl.GetString() ?? "";
+
+        Dictionary<string, string> arguments = new(StringComparer.Ordinal);
+        if (@params.TryGetProperty("arguments", out var argsEl))
+        {
+            if (argsEl.ValueKind != JsonValueKind.Object)
+                return BuildErrorResponse(id, InvalidParamsErrorCode, "Invalid params: arguments must be an object");
+
+            foreach (var arg in argsEl.EnumerateObject())
+            {
+                if (arg.Value.ValueKind != JsonValueKind.String)
+                    return BuildErrorResponse(
+                        id,
+                        InvalidParamsErrorCode,
+                        $"Invalid params: the argument '{arg.Name}' must be a string");
+
+                arguments[arg.Name] = arg.Value.GetString()!;
+            }
+        }
+
+        McpPromptDefinition? prompt;
+        await _lock.WaitAsync(ct);
+        try
+        {
+            _prompts.TryGetValue(name, out prompt);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        if (prompt is null)
+            return BuildErrorResponse(id, UnknownRequestErrorCode, "Unknown prompt");
+
+        var missing = prompt.Arguments
+            .Where(a => a.Required && !arguments.ContainsKey(a.Name))
+            .Select(a => a.Name)
+            .FirstOrDefault();
+        if (missing is not null)
+            return BuildErrorResponse(
+                id,
+                InvalidParamsErrorCode,
+                $"Invalid params: missing required argument '{missing}'");
+
+        string rendered;
+        try
+        {
+            rendered = await prompt.Handler(arguments, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "MCP prompt '{Name}' handler faulted", name);
+            return BuildErrorResponse(id, InternalErrorErrorCode, "Internal error");
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            jsonrpc = JsonRpcVersion,
+            id,
+            result = new
+            {
+                description = prompt.Description,
+                messages = new[]
+                {
+                    new
+                    {
+                        role = "user",
+                        content = new { type = "text", text = rendered },
+                    },
+                },
+            },
+        });
     }
 
     public ValueTask DisposeAsync()

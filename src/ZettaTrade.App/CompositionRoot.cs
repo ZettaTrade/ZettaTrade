@@ -188,6 +188,7 @@ internal static class CompositionRoot
             sp.GetRequiredService<ILogger<UiConfirmationService>>(),
             sp.GetRequiredService<ILocalizationManager>()));
         services.AddSingleton<TradingToolsRegistrar>();
+        services.AddSingleton<McpWorkspaceToolsRegistrar>(); // T-208: the workspace surface (resources, prompts, workspace tools).
 
         // First-run disclaimer: the acknowledged-version flag rides the
         // settings store (read fresh at every launch, never cached), and the
@@ -435,6 +436,23 @@ internal static class CompositionRoot
             provider.GetRequiredService<IMcpServerHost>(),
             provider.GetRequiredService<McpJournalingTradingAdapter>(),
             provider.GetRequiredService<IRiskManager>(),
+            provider.GetRequiredService<IConfirmationService>(),
+            provider.GetRequiredService<ILocalizationManager>());
+
+        // The workspace MCP surface (T-208): the read-only resources, the
+        // prompt templates and the workspace tools register against the SAME
+        // host, riding the same journaling wrapper (one venue view), the
+        // alert engine, the workspace context and the journal read queries.
+        // Registration stays after the startup walk for the same reason the
+        // trading tools' does: the wrapper's construction reads the settings
+        // file's endpoints first.
+        provider.GetRequiredService<McpWorkspaceToolsRegistrar>().RegisterAll(
+            provider.GetRequiredService<IMcpServerHost>(),
+            provider.GetRequiredService<McpJournalingTradingAdapter>(),
+            provider.GetRequiredService<IAlertEngine>(),
+            provider.GetRequiredService<ChatContextService>(),
+            provider.GetRequiredService<IOrderHistoryStore>(),
+            provider.GetRequiredService<IOrderStatsQuery>(),
             provider.GetRequiredService<IConfirmationService>(),
             provider.GetRequiredService<ILocalizationManager>());
 
