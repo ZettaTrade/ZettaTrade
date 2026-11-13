@@ -126,6 +126,15 @@
   <data name="Settings.Section.Appearance" xml:space="preserve">
     <value>ОФОРМЛЕНИЕ</value>
   </data>
+  <data name="Settings.Section.ThemesFolder" xml:space="preserve">
+    <value>ПАПКА ТЕМ</value>
+  </data>
+  <data name="Settings.Section.Wizard" xml:space="preserve">
+    <value>МАСТЕР ПЕРВОГО ЗАПУСКА</value>
+  </data>
+  <data name="Settings.Rail.Note" xml:space="preserve">
+    <value>Длинные списки прокручиваются внутри своих областей — само окно настроек не прокручивается.</value>
+  </data>
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Индикаторы</value>
   </data>
@@ -163,7 +172,7 @@
     <value>Внешние MCP-серверы</value>
   </data>
   <data name="Settings.McpClients.Hint" xml:space="preserve">
-    <value>Сохранение применяет внешние серверы: добавленные или изменённые включённые записи подключаются, удалённые или отключённые — разъединяются, а запись с тем же сохранённым подключением остаётся на связи. Поле авторизации хранит ключ-ссылку на секрет из защищённого хранилища — сам секрет в конфигурации и журналах не появляется. Непригодная запись закрепляет собственное состояние ошибки с причиной от транспорта.</value>
+    <value>Сохранение применяет внешние серверы: записи переподключаются при сохранении; поле авторизации — ключ-ссылка на секрет из защищённого хранилища.</value>
   </data>
   <data name="Settings.McpClients.Add" xml:space="preserve">
     <value>Добавить сервер</value>

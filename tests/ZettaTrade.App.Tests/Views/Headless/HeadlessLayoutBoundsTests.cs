@@ -119,7 +119,14 @@ public sealed class HeadlessLayoutBoundsTests
                              }))
                 {
                     var expected = LocalizationManager.Instance.GetString(key);
-                    tab.Header.Should().Be(expected, "'{0}' is the tab's own key", key);
+                    var header = tab.Header.Should()
+                        .BeOfType<StackPanel>(
+                            "the rail caption rides the header composition beside its icon (T-222)")
+                        .Which;
+                    header.Children.OfType<TextBlock>()
+                        .Should().ContainSingle(
+                            caption => caption.Text == expected,
+                            "'{0}' is the tab's own key", key);
                 }
 
                 // The pinned Save/Close row: inside the window at the
@@ -318,10 +325,20 @@ public sealed class HeadlessLayoutBoundsTests
         {
             var expected = LocalizationManager.Instance.GetString(headerKey);
             HeadlessWorld.Descendants<TabItem>(window)
-                .Single(tab => tab.Header as string == expected)
+                .Single(tab => HeaderCarriesCaption(tab, expected))
                 .IsSelected = true;
         });
     }
+
+    /// <summary>
+    /// The rail header carries the caption inside its composition's
+    /// TextBlock (the icon rides beside it, T-222) — the tabs no longer
+    /// ride bare string headers.
+    /// </summary>
+    private static bool HeaderCarriesCaption(TabItem tab, string expected) =>
+        tab.Header is StackPanel header
+        && HeadlessWorld.Descendants<TextBlock>(header)
+            .Any(caption => caption.Text == expected);
 
     /// <summary>The control's bounds in window coordinates.</summary>
     private static Rect WindowRect(Window window, Visual element)

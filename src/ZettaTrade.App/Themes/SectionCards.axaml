@@ -4,21 +4,22 @@
     <!--
     The section card grammar (T-184): the settings pages' shared panel
     shape. Every page speaks the same voice — the Surface panel with the
-    hairline border and the CornerL card step, the 3 px Accent tick plus
-    the tracked uppercase caption over it. The colors and steps ride the
+    hairline border and the card rounding, the 3 px Accent tick plus the
+    tracked uppercase caption over it. The colors and steps ride the
     theme palette's keys, so a user theme retints the cards live; the
     windows include this dictionary once (StyleInclude) and consume the
     classes (section-card, section-tick, section-header).
     -->
 
-    <!-- The panel: the Surface fill, the hairline border, the CornerL
-         step (the cards' radius ramp, T-183) and the InsetM padding —
-         the content breathes the same inset everywhere. -->
+    <!-- The panel: the Surface fill, the hairline border, the compact
+         CornerM rounding (the approved variant-A card step, T-222) and
+         the InsetM padding — the content breathes the same inset
+         everywhere. -->
     <Style Selector="Border.section-card">
         <Setter Property="Background" Value="{DynamicResource Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource CornerL}" />
+        <Setter Property="CornerRadius" Value="{StaticResource CornerM}" />
         <Setter Property="Padding" Value="{StaticResource InsetM}" />
     </Style>
 
