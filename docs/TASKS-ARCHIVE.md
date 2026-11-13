@@ -3919,6 +3919,66 @@ the board and its section below.
   held through the 12 s hold, 0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed
   (14 rows), strategies+indicators provided.
 
+## T-203 - Indicator-based alerts
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — alert kinds are Price and PercentMove only.
+- **What:** alert conditions over enabled indicator values — crosses above/below a level (RSI
+  70/30, a price cross of an MA) — evaluated on the ticker and candle-close streams the alerts
+  service already rides; the alert editor gains the indicator condition kind with honest
+  capability disclosure (only loaded plugin indicators qualify; a missing plugin pauses the
+  alert, it does not die).
+- **Scope:** the alerts engine + the editor UI, the roster schema versioning, resx en+ru, the
+  next free alpha bump + the CHANGELOG section.
+- **Acceptance:** an indicator alert fires on the crossing candle close exactly once per
+  definition; the editor lists only the loaded plugins' parameters; the disabled-plugin state
+  reads honestly in the roster.
+- **Tests:** the condition-evaluation battery over canned streams; the editor capability pins.
+- **Status:** done - 0.1.0-alpha.147. Chain: claim `2d8e3c2` -> feat `b30972e` -> close.
+  The cross rides ONE new surface with no data of its own: the engine aggregates its
+  EXISTING ticker stream into per-symbol one-minute candles (the in-progress minute grows
+  on every tick, a turned minute closes the previous candle — stream-driven, no timers, no
+  polling), and every candle CLOSE is the evaluation event the raw tick never reaches. The
+  first live period of a symbol carrying an indicator alert pulls a ONE-SHOT M1 history
+  seed (720 bars) through the adapter's existing REST pull so the first close evaluates
+  against real history; the seeded tail bar yields to the session's own close of the same
+  open minute (the displayed bar is never double-counted) and the series stays bounded at
+  720. The cross predicate keeps the price edges' discipline: Above is strictly-below ->
+  at-or-above (a value already at the level never crosses it by rising), Below the mirror,
+  the equality boundary belongs to the arriving close; the meaningless At edge is refused
+  at draft validation AND at decode (an entry carrying it is skipped). Two sources demark
+  honestly: the indicator's own value against the stored level (RSI 70/30), or the candle's
+  close against the indicator's moving value (a price cross of an MA — the sign flip of
+  close - indicator). Warmup closes (null values) never fire. The honest stall: an
+  indicator the session's plugin set cannot resolve PAUSES the alert at the first close it
+  cannot honor (persisted, never terminal), and the next session's roster load re-arms the
+  stored Paused alerts whose indicator the current set resolves (the re-arm lives in
+  memory until the next persist — the load never rewrites the settings key). The roster
+  schema is version 2 (the nested indicator object + the Paused status); version 1 decodes
+  exactly as it always did and an entry claiming the cross kind there is skipped (its facts
+  cannot exist in that shape). The editor: the indicator picker lists ONLY the loaded
+  plugins' names (a stored name whose plugin is missing stays in the picker — the honest
+  stored fact), beside the period, the cross source and the level fields; the trigger combo
+  hides At for the cross kind and a stale At selection moves onto a real edge; an empty
+  plugin set refuses the kind outright with its own localized line. The row renders all
+  four cross spellings and the Paused status. The engine and the view model constructors
+  gained the charting seam's IIndicatorCatalog (DI resolves it — no composition change).
+  The fire stamps the crossing close's completion (the bar's open minute plus the span).
+  Tests: 23 new test cases (20 methods: 10 engine facts — the crossing-close fire exactly
+  once, the equality boundary, the at-level no-cross with a paired FIFO fire, the warmup
+  nulls, the unresolvable pause and its no-churn, the re-arm through a shared store, the
+  price source, the seed binding + tail-yield + one-shot pin, the two draft refusals; 4
+  codec facts with one theory expanding to 4 skipped-spec cases; 6 VM facts — the picker
+  surface, the empty-set refusal, the At-edge hiding, the spec-fact create, the stored-spec
+  editor load, the Paused row) over a scripted-indicator + seeded-bars fixture pair.
+  Suites on the feat tip: App 1934 (1911 at the T-202 tip; the delta is exactly the 23 new
+  cases) — green. GATE PASSED attempt 1 (-AllowProtected; 4 warn-level notes: the SCOPE
+  info, the TASK-FROMRESULT warn on the ISettingsService fixture — the interface-mandated
+  wrap, the pre-commit state, the local gitleaks skip; no suite retried). The launch smoke
+  green on the feat tip: ProductVersion 0.1.0-alpha.147+b30972e, title held through the
+  12 s hold, 0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed (14 rows),
+  strategies+indicators provided.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).

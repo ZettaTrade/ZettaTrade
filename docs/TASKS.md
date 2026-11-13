@@ -207,7 +207,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/drawing-tools-2 | done | - |
 | T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | done | - |
 | T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | done | - |
-| T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | in-progress | - |
+| T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | done | - |
 | T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alert-mechanics | planned | - |
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | planned | - |
 | T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | planned | - |
@@ -453,24 +453,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
   new user-facing UI string was introduced.
 
-## T-203 — Indicator-based alerts
-
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
-- **Origin:** the sweep — alert kinds are Price and PercentMove only.
-- **What:** alert conditions over enabled indicator values — crosses above/below a level (RSI
-  70/30, a price cross of an MA) — evaluated on the ticker and candle-close streams the alerts
-  service already rides; the alert editor gains the indicator condition kind with honest
-  capability disclosure (only loaded plugin indicators qualify; a missing plugin pauses the
-  alert, it does not die).
-- **Scope:** the alerts engine + the editor UI, the roster schema versioning, resx en+ru, the
-  next free alpha bump + the CHANGELOG section.
-- **Acceptance:** an indicator alert fires on the crossing candle close exactly once per
-  definition; the editor lists only the loaded plugins' parameters; the disabled-plugin state
-  reads honestly in the roster.
-- **Tests:** the condition-evaluation battery over canned streams; the editor capability pins.
-- **Status:** planned.
-
-## T-204 — Alert mechanics 2.0: toasts, re-arm, sound
+## T-204 - Alert mechanics 2.0: toasts, re-arm, sound
 
 - **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
 - **Origin:** the sweep — a fire today beeps and flips a status; no toast, no repeat semantics,
