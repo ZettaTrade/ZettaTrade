@@ -906,6 +906,9 @@
   <data name="Trading.ConfirmPlaceOrderFormat" xml:space="preserve">
     <value>Place {0} {1} order {2} {3} at {4}?</value>
   </data>
+  <data name="Trading.ConfirmPlaceAlertFormat" xml:space="preserve">
+    <value>Place a {0} {1} alert on {2} at {3}?</value>
+  </data>
   <data name="Trading.ConfirmPlaceOrderDetailedFormat" xml:space="preserve">
     <value>Venue: {5}
 Place {0} {1} order {2} {3} at {4}?

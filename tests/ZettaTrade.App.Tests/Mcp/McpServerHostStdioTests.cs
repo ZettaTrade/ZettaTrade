@@ -109,6 +109,10 @@ public sealed class McpServerHostStdioTests
                     .Should().Be(McpServerHost.ServerVersion);
                 result.GetProperty("capabilities").TryGetProperty("tools", out _)
                     .Should().BeTrue();
+                result.GetProperty("capabilities").TryGetProperty("resources", out _)
+                    .Should().BeTrue("the host implements the resources surface (T-208) and advertises it honestly");
+                result.GetProperty("capabilities").TryGetProperty("prompts", out _)
+                    .Should().BeTrue("the host implements the prompts surface (T-208) and advertises it honestly");
 
                 // The garbage line earns exactly the spec's -32700 parse-error
                 // envelope (itself protocol JSON: the id is the JSON null — a

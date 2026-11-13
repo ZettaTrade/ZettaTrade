@@ -1,3 +1,39 @@
+## [0.1.0-alpha.152] - 2026-11-13
+
+Build of board task T-208 (branch `feat/mcp-server-tools`): the MCP server
+grows the workspace surface — resources, prompt templates and five new
+workspace tools.
+
+### Added
+- The MCP resources: `zettatrade://portfolio` (the read-only portfolio
+  snapshot — the venue's balances and open positions, with a generation
+  stamp) and `zettatrade://workspace` (the workspace state — the exchange,
+  the venue classification, the selected symbol and time frame, the latest
+  ticker facts, the top book levels and the enabled indicator setups).
+  Both ride the same venue the tools act on.
+- The MCP prompt templates: `market_brief` (a concise market brief composed
+  from the live workspace snapshot) and `portfolio_review` (a structured
+  portfolio review carrying the current balances and positions). The
+  `prompts/get` method now answers them (one user message, the 2024-11-05
+  shape); the initialize advertisement lists the tools, resources and
+  prompts capabilities honestly.
+- The MCP workspace tools: `get_order_history` (the persistent journal,
+  newest first, the limit clamped to 1..200), `get_indicators` (the
+  workspace chart's enabled setups), `get_trade_stats` (the journal's
+  outcome counts, win rate, profit factor, realized total, volume and max
+  drawdown over a bounded scan that reports `truncated` honestly; the
+  equity curve stays out of the answer), and the alert pair —
+  `place_alert` (Price / PercentMove kinds with the re-arm and sound
+  choices; the AI-authored alert joins the roster only through the human
+  confirmation, the same gate an MCP order rides) and `cancel_alert`
+  (removal by id; an unknown id is an error, never a quiet no-op).
+
+### Fixed
+- A faulted tool, resource or prompt handler can no longer hang the MCP
+  client: the fault earns the JSON-RPC internal-error envelope and the
+  honest log (well-behaved handlers answer `isError` results and never
+  reach the net).
+
 ## [0.1.0-alpha.151] - 2026-11-13
 
 Build of board task T-207 (branch `feat/ai-provider-openai`): the second
