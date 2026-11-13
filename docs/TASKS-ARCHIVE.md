@@ -4337,7 +4337,73 @@ the board and its section below.
   title held through the 40 s hold, 0 ERR/FTL, ticker+screener+watchlist clean, palette 14
   rows, strategies+indicators provided, chat history store ready, 0 leftovers.
 
-## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
+## T-211 — Trade notes and tags
+
+- **Branch:** feat/trade-notes, worktree zt-trade-notes, base develop@b92eb0e
+  (claimed 2026-11-13 off the synced board).
+- **Origin:** the sweep — the journal records the what; nothing records the why.
+- **What:** user notes and tags on closed trades (the journal entities), editable from the
+  trade statistics and history surfaces; the stats filters gain tag lanes; the export includes
+  notes and tags (riding T-210's landed columns).
+- **Scope:** the journal entities + the store migration, the stats/history VMs, resx en+ru,
+  the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** notes and tags survive restart; the tag filter narrows the stats honestly;
+  the CSV columns join the statement only with data present (the existing headers stay
+  stable).
+- **Tests:** the store migration battery; the filter pins.
+- **Status:** done - 0.1.0-alpha.156. Chain: claim `e1c56e9` -> feat `04463d6` -> close.
+  The journal rows carry a user note and a canonical comma-joined tags list (migration
+  `AddOrderNotesTags`); a placement re-record upserts its explicit lifecycle column list and
+  never touches the annotations. The store writes the pair whole through
+  `SetTradeMetaAsync` (a null-null call is the honest clear; an unrecorded order refuses the
+  write) and bulk-reads annotations per exchange in chunks through `GetTradeMetaAsync`
+  (unannotated rows never come back). `IOrderStatsQuery.ReadPageAsync` returns
+  `OrderPageRow(Order, Note, Tags)` - the stats scan rides the annotations, the statement
+  export's scan stays ungated (the raw record exports what the journal holds). The tag lane
+  gates OUTCOME booking only in `TradeStatsAccumulator(tagLane)`: an untagged close reduces
+  the position state (the pairing stays whole) but books no trade, no PnL, no curve point,
+  no ledger row; the volume stays scope-wide; the lane matches the exact token
+  case-insensitively over the canonical list; lane trades stamp the closing journal row's
+  identity (ClosingOrderId) plus the row's note and tags. The honesty core: the state books
+  regardless, so the next lane trade pairs against the true remainder - a lane never
+  fabricates a PnL from a close whose open it would have filtered away. The stats window
+  grows the closed-trades table with a per-row edit dialog (an `Interaction` answered by the
+  view's shared `TradeNoteDialogWindow`; the Applied flag distinguishes applied-empty from
+  cancel; an applied blank clears both fields - there is no refusal path; tags normalize:
+  split, trim, drop empties, dedupe case-insensitively, the first-seen case wins); the
+  history window gains note/tags columns joining at load with the same edit flow; the
+  edited display row is replaced instance-whole (the row view models are records), a
+  cancelled dialog is a quiet no-op, a refused write surfaces the localized
+  `Stats.EditFailedFormat` / `History.EditFailedFormat`, never a fabricated save. The
+  realized CSV grows trailing `note,tags` columns ONLY when at least one row is annotated
+  (the alpha.154 shape stays byte-stable otherwise; RFC-4180 quoting carries commas inside
+  tags) - downstream readers must not assume one fixed shape. Resx:
+  `Stats.TagLane*/RealizedHeaders/EditFailedFormat`, `History.Note/Tags/EditFailedFormat`,
+  `Trading.TradeNote.*` (renamed from `TradeNote.*` under the known-prefix lint), en+ru,
+  parity 825/825. Tests: Infrastructure 649 (delta 10 over T-210's 639 - the store
+  meta/restart/re-record/migration battery, the query ride-along, the annotated-CSV
+  goldens), App 2111 (delta 19 over T-210's 2092 - 5 accumulator lane facts, 6 stats VM
+  facts (the lane gating, the realized table, the applied/cancelled/faulted/refused edit
+  flows), 4 history VM facts (the meta join, the edit flows), 4 dialog normalization
+  facts). The TokensPinsTests numeric-font pin moved 10 -> 15 (the realized table adds 5
+  cells). Known quirk recorded: `OrderHistoryWindow.axaml.cs` keeps no `using System;` -
+  implicit usings make it a CS0121 ambiguity with ReactiveUI's SubscribeExtensions over the
+  explicit `ObservableExtensions.Subscribe` overloads. Concurrent-landing note:
+  origin/develop moved mid-task (the T-217 perf fixes landed `46f1964` and took alpha.155
+  first), the branch rebased onto it - the version re-taken as alpha.156, T-217's Snapshot
+  Pinning accumulator region kept beside the tag lane, the merged tree re-proven (App 2114
+  = the T-211 2111 plus T-217's three new facts, Infrastructure 649), the gate re-passed
+  and a fresh launch smoke re-run on the rebased tip. The pre-rebase gates: GATE PASSED
+  attempt 3 (-AllowProtected; attempt 1 failed the resx known-prefix lint on `TradeNote.*`,
+  attempt 2 the import order in the same window - both fixed by amend); the pre-rebase
+  smoke green on the feat tip 3299952 as 0.1.0-alpha.155+3299952... The landing smoke
+  (built at the close commit's pre-amend tree `869f270` - the only later delta is this
+  canon text itself): ProductVersion
+  0.1.0-alpha.156+869f2700ee5d8179535cf50cf356c4134b650c43 (the full
+  40-character sha), alive through the 40 s hold, 0 ERR/FTL in the run slice (the
+  snapshot-offset slice excludes stale records from earlier runs), 0 leftovers.
+
+## T-216 - Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
 - **Origin:** the T-193 landing's recorded next-wave claim ("a tests-only task hardening
