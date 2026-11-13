@@ -25,6 +25,7 @@ using SkiaSharp;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
+using ZettaTrade.Plugins.Abstractions;
 using ZettaTrade.UI.Resources;
 
 /// <summary>
@@ -99,6 +100,22 @@ public class CandlestickChart : Control
     /// its tick sits at (or near) a boundary.
     /// </summary>
     private const float TimeLabelClampPadPx = 4f;
+
+    /// <summary>
+    /// The oscillator panes' separator grab half-band (T-199): the hairline
+    /// at a pane's top edge answers presses within this many pixels above
+    /// or below it — an 8 px drag affordance around a 1 px line.
+    /// </summary>
+    private const float PaneSeparatorGrabHalfPx = 4f;
+
+    /// <summary>The tick labels an oscillator pane's own price ladder carries.</summary>
+    private const int PaneAxisLabelCount = 3;
+
+    /// <summary>The pane name label's inset from the pane's top-left corner.</summary>
+    private const float PaneLabelInsetPx = 8f;
+
+    /// <summary>The hover-highlight fill's alpha over a separator's grab band.</summary>
+    private const byte PaneSeparatorHoverAlpha = 46;
 
     /// <summary>The chart takes a screenshot of these resources on each redraw.</summary>
     private const string NoDataMessageKey = "Chart.NoDataMessage";
@@ -259,6 +276,7 @@ public class CandlestickChart : Control
     private const string IndicatorLineColorKey = "IndicatorLine";
     private const string DrawingColorKey = "DrawingLine";
     private const string DrawingSelectedColorKey = "DrawingSelected";
+    private const string AccentColorKey = "Accent";
 
     /// <summary>Supersampling factor of the PNG snapshot export (T-094): the frame renders at this multiple of its logical size, so the shared image stays readable when scaled down or zoomed into.</summary>
     private const int ExportScale = 2;
@@ -668,6 +686,13 @@ public class CandlestickChart : Control
     /// <summary>The selected drawing's fallback color: the amber highlight.</summary>
     private static readonly SKColor DefaultDrawingSelectedColor = new(250, 204, 21);
 
+    /// <summary>
+    /// The accent's fallback color: the app's default accent blue the theme
+    /// resources publish as "Accent" — the pane splitter's hover highlight
+    /// rides it so the affordance reads as a shell control, not chart data.
+    /// </summary>
+    private static readonly SKColor DefaultAccentColor = new(59, 130, 246);
+
     private SKColor _backgroundColor = DefaultBackgroundColor;
     private SKColor _bullishColor = DefaultBullishColor;
     private SKColor _bearishColor = DefaultBearishColor;
@@ -676,6 +701,7 @@ public class CandlestickChart : Control
     private SKColor _indicatorLineColor = DefaultIndicatorLineColor;
     private SKColor _drawingLineColor = DefaultDrawingColor;
     private SKColor _drawingSelectedColor = DefaultDrawingSelectedColor;
+    private SKColor _accentColor = DefaultAccentColor;
 
     private IDisposable? _themeChangeSubscription;
     private IDisposable? _languageChangeSubscription;
@@ -763,6 +789,56 @@ public class CandlestickChart : Control
     private readonly record struct CompareChipHit(string Label, SKRect Bounds);
 
     /// <summary>
+    /// The oscillator panes' splitter press bands (T-199) as the render
+    /// thread cached them for the latest frame: one entry per pane, the
+    /// hairline's grab band across the control width plus the pane's own
+    /// painted height (the drag's start height). Empty whenever the frame
+    /// carried no oscillator. The same cross-thread discipline as
+    /// <see cref="_drawingHits"/>: the worst the UI thread's reads see is
+    /// the previous frame's bands.
+    /// </summary>
+    private PaneSeparatorHit[] _paneSeparatorHits = [];
+
+    /// <summary>
+    /// The live splitter drag's route (T-199): which pane's separator the
+    /// pointer captured, the pane's height at the press and the press's
+    /// control-space Y. Null when no drag is active. UI-thread state only.
+    /// </summary>
+    private (string Name, double StartHeight, double StartY)? _paneDragRoute;
+
+    /// <summary>
+    /// The live splitter drag's per-pane height overrides (T-199), keyed by
+    /// indicator name: the UI thread replaces the map wholesale on every
+    /// drag move (a fresh immutable view — reference assignment only), and
+    /// <see cref="CreateSnapshot"/> applies the entries over the published
+    /// lines' stored heights so the drag re-inks at 60 fps without waiting
+    /// for the settings round-trip. The settled value STAYS (the drag's
+    /// last height is also the correct one) until the ViewModel's next
+    /// publish carries it back; a lost capture drops it (the stored height
+    /// returns, no ghost).
+    /// </summary>
+    private IReadOnlyDictionary<string, double> _paneDragHeights = new Dictionary<string, double>();
+
+    /// <summary>
+    /// The pane heights' settle requests stream sink (hot; see
+    /// <see cref="PaneHeightSettles"/>).
+    /// </summary>
+    private readonly Subject<IndicatorPaneHeight> _paneHeightSettles = new();
+
+    /// <summary>
+    /// The oscillator panes' height settle stream (T-199), hot and raised
+    /// on the UI thread: a splitter drag whose release moved the pane's
+    /// height emits the pane's name and its settled (clamped) height. The
+    /// chart only reports, the persistence route rides the chart
+    /// ViewModel's write-settle pipeline — the same split the compare
+    /// chips' removals keep.
+    /// </summary>
+    public IObservable<IndicatorPaneHeight> PaneHeightSettles => _paneHeightSettles;
+
+    /// <summary>One oscillator pane's settled geometry: the indicator's name and the height the splitter released at.</summary>
+    public sealed record IndicatorPaneHeight(string Name, double Height);
+
+    /// <summary>
     /// The drawings layer's cached frame mapping (T-091): the inverse-map
     /// facts the UI-thread pointer handlers consume to turn pixel presses
     /// back into (time, price) anchors, to snap them onto the chart's own
@@ -812,6 +888,36 @@ public class CandlestickChart : Control
     /// matches or replaces the override).
     /// </summary>
     private sealed record ChartDrawingPreviewOverride(Guid Id, IReadOnlyList<ChartDrawingAnchor> Anchors);
+
+    /// <summary>
+    /// One oscillator pane's separator band (T-199): the hairline's grab
+    /// band across the control width (the press resolves by Y alone), the
+    /// pane's name and the pane's painted height — the drag's start height.
+    /// </summary>
+    /// <param name="Name">The pane's indicator name.</param>
+    /// <param name="Height">The pane's painted (resolved) height in pixels.</param>
+    /// <param name="Band">The grab band in control space.</param>
+    private sealed record PaneSeparatorHit(string Name, double Height, SKRect Band);
+
+    /// <summary>
+    /// One oscillator pane's resolved scale for one redraw (T-199): the
+    /// line with its pane declaration, the resolved value range, the picked
+    /// tick rungs with their label texts, and the widest label's pixel
+    /// width (the shared gutter's sizing input).
+    /// </summary>
+    /// <param name="Line">The indicator line (the pane declaration rides it).</param>
+    /// <param name="Min">The resolved pane minimum.</param>
+    /// <param name="Range">The resolved pane range (never zero).</param>
+    /// <param name="Ticks">The pane ladder's tick rungs.</param>
+    /// <param name="Texts">The tick label texts, in tick order.</param>
+    /// <param name="LabelWidth">The widest label's measured pixel width.</param>
+    private sealed record PaneScaleInfo(
+        ChartIndicatorLine Line,
+        decimal Min,
+        decimal Range,
+        IReadOnlyList<decimal> Ticks,
+        string[] Texts,
+        float LabelWidth);
 
     /// <summary>
     /// The older-history requests stream sink (hot; see <see cref="OlderHistoryRequested"/>).
@@ -1139,6 +1245,7 @@ public class CandlestickChart : Control
         _indicatorLineColor = ResourceColor(IndicatorLineColorKey, _indicatorLineColor);
         _drawingLineColor = ResourceColor(DrawingColorKey, _drawingLineColor);
         _drawingSelectedColor = ResourceColor(DrawingSelectedColorKey, _drawingSelectedColor);
+        _accentColor = ResourceColor(AccentColorKey, _accentColor);
     }
 
     private static SKColor ResourceColor(string key, SKColor fallback)
@@ -1259,7 +1366,7 @@ public class CandlestickChart : Control
 
         return new ChartSnapshot(
             visible,
-            SliceIndicatorLines(bars, spanStart, spanEnd),
+            ApplyPaneDragHeights(SliceIndicatorLines(bars, spanStart, spanEnd)),
             SliceVwapOverlay(bars, spanStart, spanEnd),
             _backgroundColor,
             _bullishColor,
@@ -1267,6 +1374,7 @@ public class CandlestickChart : Control
             _gridColor,
             _textColor,
             _indicatorLineColor,
+            _accentColor,
             ChartTickCulture.Resolve(),
             Use12HourClock,
             _hoverPosition,
@@ -1437,6 +1545,26 @@ public class CandlestickChart : Control
     }
 
     /// <summary>
+    /// <summary>
+    /// The live splitter drag's height overrides over the sliced lines
+    /// (T-199): a pane being dragged maps its name to the dragged height so
+    /// the frame re-inks live, ahead of the settings round-trip. An empty
+    /// map passes the list through untouched.
+    /// </summary>
+    private IReadOnlyList<ChartIndicatorLine> ApplyPaneDragHeights(IReadOnlyList<ChartIndicatorLine> lines)
+    {
+        var overrides = _paneDragHeights;
+        if (overrides.Count == 0)
+        {
+            return lines;
+        }
+
+        return [.. lines.Select(line => overrides.TryGetValue(line.Name, out var height)
+            ? line with { PaneHeight = height }
+            : line)];
+    }
+
+    /// <summary>
     /// Slice every overlay line with the SAME [start, end) window the bars
     /// slice uses. A line whose values no longer align with the current
     /// series (a stale publish racing the new Bars instance) is skipped
@@ -1473,7 +1601,7 @@ public class CandlestickChart : Control
                 slice[i] = line.Values[spanStart + i];
             }
 
-            slices.Add(new ChartIndicatorLine(line.Name, slice));
+            slices.Add(line with { Values = slice });
         }
 
         return slices;
@@ -1497,6 +1625,7 @@ public class CandlestickChart : Control
         SKColor Grid,
         SKColor Text,
         SKColor IndicatorLine,
+        SKColor Accent,
         CultureInfo Culture,
         bool Use12HourClock,
         Point? Hover,
@@ -1758,6 +1887,18 @@ public class CandlestickChart : Control
                 IsAntialias = true
             };
 
+            // The T-199 oscillator panes: the declared oscillators split off
+            // the overlay list and each resolves its own scale and label set
+            // BEFORE the gutters size themselves — a pane's labels widen the
+            // shared right gutter the same way the main axis's do (one
+            // gutter, many scales; the widest label column wins).
+            ChartIndicatorLine[] overlays = [.. _snapshot.Indicators.Where(line => line.PaneKind != IndicatorPaneKind.Oscillator)];
+            ChartIndicatorLine[] oscillators = [.. _snapshot.Indicators.Where(line => line.PaneKind == IndicatorPaneKind.Oscillator)];
+            var panes = BuildPaneInfos(oscillators, font);
+            var paneGutter = panes.Count == 0
+                ? 0f
+                : panes.Max(pane => pane.LabelWidth) + (2f * PriceAxisGutterPadPx);
+
             var axisTicks = ChartAxisFormatting.PickPriceTicks(minAxis, maxAxis, PriceAxisLabelCount);
             var axisDecimals = ChartAxisFormatting.PickPriceDecimals(axisRange / PriceAxisLabelCount);
 
@@ -1769,7 +1910,13 @@ public class CandlestickChart : Control
             var priceTexts = axisTicks
                 .Select(tick => FormatAxisTick(tick, axisDecimals, rawDecimals))
                 .ToArray();
-            var priceGutter = priceTexts.Max(text => font.MeasureText(text)) + (2f * PriceAxisGutterPadPx);
+
+            // The gutter is ONE: the main axis's label column and every
+            // pane's label column share it — the widest wins, no scale can
+            // clip the other's labels.
+            var priceGutter = Math.Max(
+                priceTexts.Max(text => font.MeasureText(text)) + (2f * PriceAxisGutterPadPx),
+                paneGutter);
 
             var openTimes = ChartBarLayout.CollectOpenTimes(visibleBars);
             var firstTime = openTimes[0];
@@ -1792,6 +1939,20 @@ public class CandlestickChart : Control
 
             // At least a one-pixel plot on an absurdly small window.
             var plotRect = new Rect(0, 0, plotWidth, Math.Max(1d, height - timeGutter));
+
+            // The T-199 pane split: the oscillator panes stack under the
+            // main pane and consume the whole drawable height (the time
+            // axis gutter sits outside it — the stack's bottom edge IS the
+            // time axis's top). Every main-pane layer below maps onto
+            // split[0]: the original rect survives as chartRect for the time
+            // axis (its baseline stays the drawable's bottom edge) and for
+            // the pane pass (the panes' bar slots are the main pane's).
+            var chartRect = plotRect;
+            var paneHeights = ChartPaneLayout.ResolveHeights(
+                plotRect.Height,
+                [.. panes.Select(pane => pane.Line.PaneHeight)]);
+            var split = ChartPaneLayout.Split(plotWidth, plotRect.Height, paneHeights);
+            plotRect = split[0];
 
             // The bar pitch is window-driven and capped: when fewer bars are
             // loaded than the window wants, they keep a normal candle width
@@ -1886,7 +2047,7 @@ public class CandlestickChart : Control
             // nothing and strip + lines short-circuit.
             DrawCompareLayers(canvas, font, textPaint, plotRect, barPitch, visibleBars.Length, minAxis, axisRange);
 
-            DrawIndicatorLines(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Indicators);
+            DrawIndicatorLines(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, overlays);
 
             // The annotations layer (T-091): the trader's drawings ride the
             // mapped bar-time axis (the same pure ChartBarLayout mapping the
@@ -1900,7 +2061,23 @@ public class CandlestickChart : Control
                 axisRange);
             DrawVwapOverlay(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Vwap);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minAxis, axisRange, axisTicks, priceTexts);
-            DrawTimeAxis(canvas, font, textPaint, plotRect, barPitch, openTimes, timeTicks, timeTexts);
+            DrawTimeAxis(canvas, font, textPaint, chartRect, barPitch, openTimes, timeTicks, timeTexts);
+
+            // The oscillator panes ride after the axis layers: each paints
+            // only its own rect (the main pane's geometry above is
+            // untouched), and the separator bands cache for the UI thread's
+            // splitter drag on the way out.
+            DrawOscillatorPanes(
+                canvas,
+                font,
+                gridPaint,
+                textPaint,
+                chartRect,
+                width,
+                barPitch,
+                visibleBars.Length,
+                panes,
+                split);
 
             // The honest no-volume note (T-093): shown when the drawn overlays
             // carry no volume-backed shape at all — the candles' prices still
@@ -1989,6 +2166,188 @@ public class CandlestickChart : Control
                 var x = (float)ChartBarLayout.BarXForTime(plotRect.Right, barPitch, openTimes, tick);
                 canvas.DrawLine(x, (float)plotRect.Top, x, (float)plotRect.Bottom, paint);
             }
+        }
+
+        /// <summary>
+        /// Resolve one redraw's pane scales (T-199): a declared usable fixed
+        /// bound pair pins the ladder exactly (RSI's 0-100), a missing or
+        /// unusable one falls through to the pane's own padded spread over
+        /// the visible values. The labels are plain decimals — an
+        /// oscillator's values never ride the main pane's scale-mode
+        /// transform, so its ladder never formats one either.
+        /// </summary>
+        private List<PaneScaleInfo> BuildPaneInfos(
+            IReadOnlyList<ChartIndicatorLine> oscillators,
+            SKFont font)
+        {
+            var panes = new List<PaneScaleInfo>(oscillators.Count);
+            foreach (var line in oscillators)
+            {
+                var (min, _, range) = ChartPaneScale.Resolve(line.ScaleMin, line.ScaleMax, line.Values);
+                var ticks = ChartAxisFormatting.PickPriceTicks(min, min + range, PaneAxisLabelCount);
+                var decimals = ChartAxisFormatting.PickPriceDecimals(range / PaneAxisLabelCount);
+                var texts = ticks
+                    .Select(tick => ChartAxisFormatting.FormatPriceTick(tick, decimals, _snapshot.Culture))
+                    .ToArray();
+                panes.Add(new PaneScaleInfo(
+                    line,
+                    min,
+                    range,
+                    ticks,
+                    texts,
+                    texts.Length == 0 ? 0f : texts.Max(text => font.MeasureText(text))));
+            }
+
+            return panes;
+        }
+
+        /// <summary>
+        /// The oscillator sub-panes (T-199): one pane per oscillator in
+        /// declaration order under the main pane — each paints its own
+        /// ladder (the labels mirror the price axis's left-aligned column),
+        /// its polyline clipped to the pane (a declared bound never clips
+        /// the data: the MAPPING holds the pane, values outside the band run
+        /// off the pane's edge exactly as an out-of-window price would), its
+        /// name label top-left, and the separator hairline at its top edge
+        /// whose grab band highlights under the hover and caches for the UI
+        /// thread's splitter drag (the SAME cross-thread discipline as the
+        /// drawings' hit zones: the handlers read the previous frame's
+        /// bands).
+        /// </summary>
+        private void DrawOscillatorPanes(
+            SKCanvas canvas,
+            SKFont font,
+            SKPaint gridPaint,
+            SKPaint textPaint,
+            Rect chartRect,
+            float fullWidth,
+            double barPitch,
+            int barCount,
+            IReadOnlyList<PaneScaleInfo> panes,
+            IReadOnlyList<Rect> split)
+        {
+            if (panes.Count == 0)
+            {
+                _owner._paneSeparatorHits = [];
+                return;
+            }
+
+            using var linePaint = new SKPaint
+            {
+                Color = _snapshot.IndicatorLine,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 2,
+                IsAntialias = true
+            };
+
+            var hits = new PaneSeparatorHit[panes.Count];
+            for (var paneIndex = 0; paneIndex < panes.Count; paneIndex++)
+            {
+                var pane = panes[paneIndex];
+                var rect = split[paneIndex + 1];
+                var bandTop = (float)rect.Top - PaneSeparatorGrabHalfPx;
+                var band = SKRect.Create(0f, bandTop, fullWidth, 2f * PaneSeparatorGrabHalfPx);
+
+                // The splitter affordance: the hairline's grab band
+                // highlights while the cursor rides it (the hover position
+                // is control space, the same space the band caches).
+                if (_snapshot.Hover is { } hover &&
+                    hover.Y >= bandTop &&
+                    hover.Y <= bandTop + band.Height)
+                {
+                    using var bandPaint = new SKPaint
+                    {
+                        Color = _snapshot.Accent.WithAlpha(PaneSeparatorHoverAlpha),
+                        Style = SKPaintStyle.Fill,
+                        IsAntialias = true
+                    };
+                    canvas.DrawRect(band, bandPaint);
+                }
+
+                // The pane's own ladder at its tick positions: lines inside
+                // the pane, labels mirrored from the price axis's anchoring
+                // (left-aligned in the shared gutter, centered on the rung).
+                foreach (var tick in pane.Ticks)
+                {
+                    var y = ChartPriceScale.PriceToY(rect, tick, pane.Min, pane.Range);
+                    canvas.DrawLine((float)rect.Left, y, (float)rect.Right, y, gridPaint);
+                }
+
+                for (var i = 0; i < pane.Texts.Length; i++)
+                {
+                    var y = ChartPriceScale.PriceToY(rect, pane.Ticks[i], pane.Min, pane.Range);
+                    var centerY = y - ((font.Metrics.Ascent + font.Metrics.Descent) / 2f);
+                    canvas.DrawText(
+                        pane.Texts[i],
+                        (float)rect.Right + PriceAxisGutterPadPx,
+                        centerY,
+                        SKTextAlign.Left,
+                        font,
+                        textPaint);
+                }
+
+                // The pane's name at its top-left: the catalog's canonical
+                // identity (never a localized alias — the palette lists the
+                // same name).
+                var nameBaseline = (float)rect.Top + PaneLabelInsetPx - font.Metrics.Ascent;
+                canvas.DrawText(
+                    pane.Line.Name,
+                    (float)rect.Left + PaneLabelInsetPx,
+                    nameBaseline,
+                    SKTextAlign.Left,
+                    font,
+                    textPaint);
+
+                // The polyline: clipped to the pane, the values mapped RAW
+                // onto the pane's own scale, at the SAME bar slots the
+                // candles occupy. The BUG-049 rule: the detached path dies
+                // right after DrawPath — the native wrapper never outlives
+                // the call.
+                canvas.Save();
+                canvas.ClipRect(new SKRect(
+                    (float)rect.Left,
+                    (float)rect.Top,
+                    (float)rect.Right,
+                    (float)rect.Bottom));
+                using (var builder = new SKPathBuilder())
+                {
+                    var penDown = false;
+                    var values = pane.Line.Values;
+                    for (var i = 0; i < barCount && i < values.Count; i++)
+                    {
+                        if (values[i] is not { } value)
+                        {
+                            penDown = false;
+                            continue;
+                        }
+
+                        var x = (float)ChartBarLayout.BarCenterX(chartRect.Right, barPitch, barCount, i);
+                        var y = ChartPriceScale.PriceToY(rect, value, pane.Min, pane.Range);
+                        if (!penDown)
+                        {
+                            builder.MoveTo(x, y);
+                            penDown = true;
+                        }
+                        else
+                        {
+                            builder.LineTo(x, y);
+                        }
+                    }
+
+                    using var drawnPath = builder.Detach();
+                    canvas.DrawPath(drawnPath, linePaint);
+                }
+
+                canvas.Restore();
+
+                // The separator hairline at the pane's top edge, across the
+                // full control width (the gutter carries no data to clash
+                // with), and the band cache for the splitter drag.
+                canvas.DrawLine(0f, (float)rect.Top, fullWidth, (float)rect.Top, gridPaint);
+                hits[paneIndex] = new PaneSeparatorHit(pane.Line.Name, rect.Height, band);
+            }
+
+            _owner._paneSeparatorHits = hits;
         }
 
         private void DrawCandles(
@@ -3842,6 +4201,14 @@ public class CandlestickChart : Control
 
         var position = e.GetPosition(this);
 
+        // The pane splitter's live drag (T-199) owns the pointer while it
+        // runs: the dragged pane's height override updates per move and
+        // re-inks — the drawings, pan and hover stand down for the event.
+        if (RoutePaneSeparatorMoved(position))
+        {
+            return;
+        }
+
         // The drawings layer's live gestures (T-091) own the pointer while
         // they run: the placement's previewed corner or the drag's drawn
         // geometry both update per move and re-ink — pan and hover stand
@@ -3932,6 +4299,17 @@ public class CandlestickChart : Control
                 }
             }
 
+            // The oscillator panes' separator bands (T-199): the render
+            // thread owns the cache; the worst this read sees is the
+            // previous frame's bands (the painted-bar-pitch discipline). A
+            // hit arms the splitter drag and captures — the drawings and
+            // the pan route below stay out of it.
+            if (RoutePaneSeparatorPressed(position, e))
+            {
+                e.Handled = true;
+                return;
+            }
+
             // The drawings layer (T-091): the placement's armed press or an
             // existing drawing's hit routes before the pan capture — the
             // gesture owns the press from here; an empty-plot press in the
@@ -3955,6 +4333,14 @@ public class CandlestickChart : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+
+        // The splitter drag's release settles its pane (T-199): the route
+        // drops, a moved pane reports its height for the persistence
+        // pipeline — before the drawings' own release route.
+        if (RoutePaneSeparatorReleased())
+        {
+            return;
+        }
 
         if (RouteDrawingPointerReleased(e))
         {
@@ -3983,6 +4369,7 @@ public class CandlestickChart : Control
 
         _drawingDragRoute = null;
         _drawingDragPreview = null;
+        CancelPaneDrag();
         EndPan();
     }
 
@@ -4182,6 +4569,102 @@ public class CandlestickChart : Control
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Resolves a press against the previous frame's separator bands
+    /// (T-199): a hit arms the splitter drag with the band's pane name,
+    /// painted height and press Y, and captures the pointer. False when the
+    /// press missed every band (the route hands the press back).
+    /// </summary>
+    private bool RoutePaneSeparatorPressed(Point position, PointerPressedEventArgs e)
+    {
+        foreach (var hit in _paneSeparatorHits)
+        {
+            if (hit.Band.Contains((float)position.X, (float)position.Y))
+            {
+                _paneDragRoute = (hit.Name, hit.Height, position.Y);
+                e.Pointer.Capture(this);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The live splitter drag's move leg (T-199): dragging DOWN on a pane's
+    /// top edge shrinks the pane and grows the main one above it (the
+    /// trading-terminal feel), the requested height clamps into the
+    /// layout's usable band, and the override map replaces wholesale (a
+    /// fresh map per move — the render thread's read never tears). Returns
+    /// false when no drag is active.
+    /// </summary>
+    private bool RoutePaneSeparatorMoved(Point position)
+    {
+        if (_paneDragRoute is not { } route)
+        {
+            return false;
+        }
+
+        var requested = route.StartHeight - (position.Y - route.StartY);
+        var clamped = Math.Clamp(requested, ChartPaneLayout.PaneMinHeightPx, ChartPaneLayout.PaneMaxHeightPx);
+        if (!_paneDragHeights.TryGetValue(route.Name, out var current) || current != clamped)
+        {
+            var next = new Dictionary<string, double>(_paneDragHeights, StringComparer.Ordinal)
+            {
+                [route.Name] = clamped,
+            };
+            _paneDragHeights = next;
+            InvalidateVisual();
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The splitter drag's release leg (T-199): the route drops, a moved
+    /// pane emits its settle (the name and the released height) for the
+    /// ViewModel's write-settle pipeline, and the override STAYS — the
+    /// released height is also the correct one until the next publish
+    /// carries it back. False when no drag was active.
+    /// </summary>
+    private bool RoutePaneSeparatorReleased()
+    {
+        if (_paneDragRoute is not { } route)
+        {
+            return false;
+        }
+
+        _paneDragRoute = null;
+        if (_paneDragHeights.TryGetValue(route.Name, out var height) &&
+            Math.Abs(height - route.StartHeight) > double.Epsilon)
+        {
+            _paneHeightSettles.OnNext(new IndicatorPaneHeight(route.Name, height));
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// A lost capture cancels the splitter drag (T-199): the route drops
+    /// and the in-flight override returns to the stored height — no ghost
+    /// geometry survives the pointer leaving the window. A settle never
+    /// rides a cancel: the pointer never released.
+    /// </summary>
+    private void CancelPaneDrag()
+    {
+        if (_paneDragRoute is null)
+        {
+            return;
+        }
+
+        _paneDragRoute = null;
+        if (_paneDragHeights.Count > 0)
+        {
+            _paneDragHeights = new Dictionary<string, double>();
+            InvalidateVisual();
+        }
     }
 
     /// <summary>

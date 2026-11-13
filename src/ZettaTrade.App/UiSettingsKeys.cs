@@ -149,6 +149,24 @@ public static class UiSettingsKeys
     public const string ChartIndicators = "ChartIndicators";
 
     /// <summary>
+    /// Settings key of the persisted oscillator panes' heights (T-199): a
+    /// JSON object mapping an indicator's canonical name to its settled
+    /// splitter height in pixels, e.g. <c>{"RSI":140}</c>. The map lives
+    /// BESIDE the indicator rows (not inside them): the settings window's
+    /// Save writes the rows wholesale, so a pane height stored in a row
+    /// would be clobbered by the next settings save — a sibling key keeps
+    /// the two writers disjoint. Written on every settled splitter drag,
+    /// read at every startup walk and re-read live on external writes.
+    /// </summary>
+    public const string ChartIndicatorPaneHeights = "ChartIndicatorPaneHeights";
+
+    /// <summary>
+    /// The pane-height map applied until a stored one is loaded: empty —
+    /// every oscillator pane rides the pane layout's default height.
+    /// </summary>
+    public const string DefaultChartIndicatorPaneHeights = "{}";
+
+    /// <summary>
     /// Settings key of the persisted chart VWAP overlay visibility (T-093):
     /// true shows the session-anchored VWAP line with its ±1σ bands.
     /// </summary>

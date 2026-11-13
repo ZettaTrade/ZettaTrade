@@ -33,7 +33,7 @@ public sealed class PluginContractBaselineTests
 
     private static class Pinned
     {
-        /// <summary>The contract 2.1.0 surface (T-168: the strategy seam rides the contract): types alphabetical, sections in the dump order (constructors, properties, fields, methods), members alphabetical inside each section.</summary>
+        /// <summary>The contract 2.2.0 surface (T-199: the indicator pane declaration rides the contract as a backward-compatible addition — the default members keep every pre-2.2.0 implementation an overlay): types alphabetical, sections in the dump order (constructors, properties, fields, methods), members alphabetical inside each section.</summary>
         public static readonly string[] Lines =
         [
             "#ZettaTrade.Plugins.Abstractions.Extensions.PluginPanelDescriptor",
@@ -51,6 +51,9 @@ public sealed class PluginContractBaselineTests
             "ZettaTrade.Plugins.Abstractions.Extensions.PluginToolbarItemDescriptor: prop System.String LabelResxKey",
             "#ZettaTrade.Plugins.Abstractions.IIndicator",
             "ZettaTrade.Plugins.Abstractions.IIndicator: prop System.String Name",
+            "ZettaTrade.Plugins.Abstractions.IIndicator: prop ZettaTrade.Plugins.Abstractions.IndicatorPaneKind PaneKind",
+            "ZettaTrade.Plugins.Abstractions.IIndicator: prop System.Nullable`1[System.Decimal] ScaleMax",
+            "ZettaTrade.Plugins.Abstractions.IIndicator: prop System.Nullable`1[System.Decimal] ScaleMin",
             "ZettaTrade.Plugins.Abstractions.IIndicator: method Apply(System.Collections.Generic.IReadOnlyList`1[ZettaTrade.Plugins.Abstractions.IndicatorBar]) : System.Collections.Generic.IReadOnlyList`1[System.Nullable`1[System.Decimal]]",
             "#ZettaTrade.Plugins.Abstractions.IPluginContext",
             "ZettaTrade.Plugins.Abstractions.IPluginContext: prop Microsoft.Extensions.Logging.ILoggerFactory LoggerFactory",
@@ -65,6 +68,10 @@ public sealed class PluginContractBaselineTests
             "ZettaTrade.Plugins.Abstractions.IndicatorBar: prop System.Decimal High",
             "ZettaTrade.Plugins.Abstractions.IndicatorBar: prop System.Decimal Low",
             "ZettaTrade.Plugins.Abstractions.IndicatorBar: prop System.Decimal Open",
+            "#ZettaTrade.Plugins.Abstractions.IndicatorPaneKind",
+            "ZettaTrade.Plugins.Abstractions.IndicatorPaneKind: field ZettaTrade.Plugins.Abstractions.IndicatorPaneKind Oscillator",
+            "ZettaTrade.Plugins.Abstractions.IndicatorPaneKind: field ZettaTrade.Plugins.Abstractions.IndicatorPaneKind Overlay",
+            "ZettaTrade.Plugins.Abstractions.IndicatorPaneKind: field System.Int32 value__",
             "#ZettaTrade.Plugins.Abstractions.ZettaTradePluginAttribute",
             "ZettaTrade.Plugins.Abstractions.ZettaTradePluginAttribute: ctor(System.String, System.String, System.String, System.String[])",
             "ZettaTrade.Plugins.Abstractions.ZettaTradePluginAttribute: prop System.Collections.Generic.IReadOnlyList`1[System.String] Dependencies",

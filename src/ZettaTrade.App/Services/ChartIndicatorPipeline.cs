@@ -58,7 +58,16 @@ public static class ChartIndicatorPipeline
             // never see the application's internal Bar.
             contractBars ??= MapContractBars(bars);
 
-            lines.Add(new ChartIndicatorLine(indicator.Name, indicator.Apply(contractBars)));
+            // The pane declaration rides the descriptor (T-199, contract
+            // 2.2.0): the kind, the optional fixed scale bounds and the
+            // series flow together into the drawable line - a pre-2.2.0
+            // implementation answers the defaults and stays an overlay.
+            lines.Add(new ChartIndicatorLine(
+                indicator.Name,
+                indicator.Apply(contractBars),
+                indicator.PaneKind,
+                indicator.ScaleMin,
+                indicator.ScaleMax));
         }
 
         return lines;
