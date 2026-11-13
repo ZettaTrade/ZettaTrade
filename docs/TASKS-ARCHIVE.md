@@ -4658,3 +4658,71 @@ the board and its section below.
   6/6 (the gate's flaky retry). GATE PASSED attempt 2: attempt 1 caught the off-scale
   rail literals — the item margins moved onto the scale (8/12) and the icon gap onto
   SpaceS.
+
+## T-223 — The settings pages collapse; the rail captions and the quiet controls ride the mockup
+
+- **Branch:** queued 2026-11-14 (the user reviewed the T-222 landing against the variant-A
+  mockup again: "there it is much better than after the last edits even").
+  The worktree `zt-settings-collapse`, base `develop`@7b3c7d3 (the branch
+  started at `21697b7` and rebased onto the T-212 and T-213 landings
+  mid-task).
+- **Origin:** the user's review found three deltas against the approved variant A. First,
+  the rail captions render in the Fluent TabItem template's large header type — the header
+  compositions never set a FontSize, so the template's own size wins. Second, the card
+  buttons' quiet rest (the T-183 transparent fill over the plain `Border` stroke) reads as
+  invisible chrome: the `Border` role vanishes against the very cards and strips the
+  buttons sit on. Third, the four category pages still scroll the whole window — the mockup
+  designs every category page short, and the real window carries more content, so the
+  pages must fold.
+- **What:** the rail captions ride the BodyFontSize step (13, the mockup's rail type); the
+  card headers become the section toggles (the tick + the caption + the right chevron, the
+  checked state rotates it down) and every card body binds to its toggle's IsChecked
+  (one-way, all nine explicit, no null state) — four open by default (the appearance card,
+  the indicators page's only card, the MCP card, the pairs card), five collapsed (the
+  theme-folder, wizard, AI, port and hotkey cards); the quiet buttons' stroke and the text
+  hosts' wells ride the Livery 0.1.13 surface-family keys (`ControlHairline` / `SurfaceHigh`
+  — the mockup's hand-picked stroke and well reads, derived in the satellite); the rail
+  note speaks the collapse grammar.
+- **Scope:** SettingsWindow.axaml, the SectionCards dictionary (the toggle styles + the
+  chevron), the rail note resx (en+ru), the LiveryVersion bump to 0.1.13; no
+  ViewModel/Core change (the collapse is view state, every toggle an explicit IsChecked).
+- **Acceptance:** the captions measure 13 px and fit their items; every card folds and
+  unfolds from its own header; at the default size each page fits its body viewport with
+  the defaults (the window itself never scrolls); the quiet buttons read as buttons over
+  the cards.
+- **Tests:** the rail type pin + the measured caption fact; the nine-toggle pins + the
+  toggle-expands-body fact; the updated viewport facts (their measures open the section
+  they touch first); the resx pins.
+- **Status:** done - 0.1.0-alpha.160. Chain: claim `dd784aa` -> feat `a594349` -> close.
+  Concurrent-landing note: origin/develop moved mid-task twice (the T-212 sweep landed
+  `4f97486` taking alpha.158, then the T-213 update check landed `7b3c7d3` taking
+  alpha.159), the branch rebased onto each top - the version re-taken as alpha.160
+  (never renumber a shipped landing), the CHANGELOG section stacked above T-213's,
+  the merged tree re-proven by the gate.
+  The buttons/wells half rode the satellite first: Livery 0.1.12 (tag `v0.1.12`) derives
+  the surface-family keys off the theme's own Surface toward its luminance pole
+  (`ControlHairline` 7% -> #2a2a3d and `SurfaceHigh` 3% -> #212134 on the shipped dark
+  palette, the mockup's hand-picked reads) and retints the Button stroke and the
+  TextBox/ComboBox fill + stroke live; the role battery grew the well text leg and the
+  step floors. The gate then caught the fixed step's blind spot on the extreme
+  palettes: the shipped oled ground #0a0a0a left the 3% well one grain short of the
+  1.05 floor (#111111, 1.0485) — Livery 0.1.13 (tag `v0.1.13`) adds the floor
+  guarantee: the hairline's and the well's blend steps raise by the 0.5% grain until
+  the pair clears `SubtleTintStepMinimum` (the oled well lands at #131313; the
+  hover/press tints stay request-pure — the Accent is the theme's own interactive
+  color, a no-op blend still fails by name), the shipped dark/midnight/light bytes
+  unchanged. The window half: the rail-item style pins the BodyFontSize step (the
+  Fluent template's own header size would win otherwise) and the caption inherits it —
+  the measured fact also holds the caption inside its item box; the nine card headers
+  became named section toggles (tick + caption + the right-edge chevron, `:checked`
+  rotates it 90 degrees down — the descendant selector compiled and measured) with every
+  body riding its toggle's IsChecked one-way and the IsChecked explicit (4 open: the
+  appearance card, the indicators page's only card, MCP, pairs; 5 collapsed: theme
+  folder, wizard, AI, port, hotkeys); the fold is pure view state, no ViewModel change.
+  The headless fold fact walks the pages (the TabControl materializes one page's content
+  at a time, so the nine toggles exist three at a time: 3 + 1 + 3 + 2) and flips the
+  theme-folder card both ways; the integrations gutter fact unfolds the AI/port cards
+  before its measure. Resx: the rail note rewritten en+ru. Tests: App 2126 (delta +4
+  over T-222's 2122 — the fold pins, the measured 13 px caption fact, the fold/unfold
+  headless fact, the rail-note culture fact), Livery 60/60 (the extreme-grounds floor
+  theory, the oled first-grain bytes, the true-black minimum step).
