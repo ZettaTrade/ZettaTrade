@@ -3611,6 +3611,74 @@ the board and its section below.
   shape). Smoke PASSED: a clean boot on the demo venue, 0 ERR/FTL, ticker+screener+watchlist
   clean, ProductVersion 0.1.0-alpha.141+5f03b3e.
 
+## T-198 — Stocks MVP: a market-data adapter
+
+- **Branch:** `feat/stocks-mvp` off `develop` (base `b0a35a8`).
+- **Origin:** the sweep — the product identity names "crypto + stocks", no stock venue exists.
+- **What:** a stock `IMarketDataAdapter` over a user-keyed provider (Alpaca market data as the
+  candidate: a free tier, keys ride `ISecretStore`); the symbol namespace disambiguates asset
+  classes (AAPL vs BTC-USDT); candles, tickers and whatever book depth the provider serves,
+  honestly; the demo adapter gains a small stock fixture for offline work.
+- **Scope:** Infrastructure adapter + the provider-key settings seam, Core symbol-namespace
+  rules only if a contract gap forces it (the supervisor gates the shared files), resx en+ru,
+  the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a stock symbol loads the chart and the watchlist row with the provider's
+  honest capability subset; keys never leave `ISecretStore`; the crypto flows are untouched.
+- **Tests:** the adapter battery over a canned-provider stub; the symbol-namespace pins.
+- **Status:** done — 0.1.0-alpha.142. Chain: claim `d1ff82a` -> feat `bd80566` -> close. The
+  Core namespace gap proved NONE: `Symbol` already carries stocks (the `AlpacaId` constant, a
+  one-leg parse landing `AssetClass.Stock`, `GetExchangeFormat("alpaca")` -> `BaseAsset`) — the
+  namespace got pins only. The REAL gap sat on the tape: the Alpaca v2 IEX stream serves no
+  aggressor side, so `OrderSide.None = 2` was added as the tape-only neutral (a value the order
+  path refuses — `OrderRequest.Validate()` hardened from `Enum.IsDefined` to the Buy|Sell
+  scope, while an out-of-range cast still rides through to the venue validator) and the tape
+  widget paints the None rows with the neutral text (the side is color-only; no resx keys
+  anywhere — no localizable user-facing string was introduced, the T-197 precedent). The
+  adapter rides the wire's own facts: EVERY stream message is a JSON array; the 10 s auth
+  window is answered `{"action":"auth",...}` and the ack gates every subscribe; a quote's
+  price 0 means no active side and that book side serves EMPTY (top-of-book depth only —
+  `ServedBookDepths = {1}`, deeper requests reject honestly); the dailyBars channel is the
+  running session volume; timestamps are RFC-3339 with NANOSECOND fractions (parsed trimmed to
+  7 digits); a trades subscription auto-adds the corrections/cancelErrors channels (recorded,
+  not applied); the single-symbol bars endpoint paginates by token (a 5-page cap aggregates
+  the truncation warning) over the 1Min..1Month timeframe map. Keys never leave `ISecretStore`
+  (fetched per use, never CLI args, nothing but MCP protocol on stdout); the auth completion
+  source is created BEFORE the send (the BUG-004 race rule: a plain field with
+  `Volatile.Read/Write` — the `volatile` keyword is forbidden on it by CS0420); one send gate
+  serializes the control wire, the resubscribe loop drains a FIFO channel, no keepalive rides.
+  The ticker merge publishes on the TRADE event alone — the stream's only last-price source —
+  while the quote and dailyBar handlers only enrich the per-symbol state (bid/ask/volume): a
+  quote never republishes a last price it did not carry; the change percent stays the honest
+  zero (no previous close rides the stream). The demo fixture gained two stock singles (AAPL
+  187.50, MSFT 420.00) for the offline stocks lane — the smoke's palette refresh reads 14
+  rows. Rate limiting: the free tier's 200 req/min is a SHARED pool, so ONE limiter bucket
+  rides the market-data key (`WeightPerMinute`, SettingsKey "Alpaca"). Trading-lane check: the
+  venue ids the trading surfaces switch on never name alpaca — the stocks lane trades paper
+  only, the crypto flows are untouched. Tests: the Core symbol pins (one-letter tickers F/T/A
+  round-trip, crypto stays) + the None-side order guard (61 green); the Alpaca parsing battery
+  (the catalog map/filters, the bars pagination + page cap + timeframe map, the auth headers)
+  + the WS E2E family (auth content, the batched Side.None tape, the merged ticker, the
+  zero-sided/untracked/unknown-type/non-array drops, the reconnect re-auth + re-subscribe,
+  the error event, the missing pair) — Infrastructure 611 green twice; the kit's Alpaca pack
+  (the ctor guard, the transcript restore over a loopback auto-responder answering the auth
+  action) 8/8 five consecutive runs, the full kit battery 48/48 twice; App 1831, UI tape
+  family 21. Two recorded discoveries ride the close: (a) the kit restore-leg failed until
+  the session-2 capture script was reordered [quote, trade] — the Rx hazard behind it is REAL
+  and recorded, not fixed in-flight: `Observable.ToTask()` builds its completion source
+  WITHOUT `RunContinuationsAsynchronously`, so a test awaiting a feed task can resume INLINE
+  inside the adapter's `Subject.OnNext` delivery; when the session script's LAST event is the
+  very subject the late subscriber rides, the late-subscriber assert runs mid-delivery and
+  the failing unwind disposes the late subscription mid-pump — the book never reaches it.
+  Session scripts whose last event is not the probed subject (every other pack's shape) never
+  expose it; a capture-script convention is the candidate follow-up, not a product fix.
+  (b) the startup-walk replicas in the Infrastructure DI tests now carry an `ISecretStore`
+  stub — Alpaca is the first market-data adapter in the `AddExchangeAdapters` chain that
+  resolves the store (the composition root registers it ahead of the chain). Gate round 1:
+  GATE PASSED (the `Task.FromResult` lint warnings stay deliberate — the async `ISecretStore`
+  interface mandates the task shape). Smoke PASSED: a clean boot on the demo venue, 0 ERR/FTL,
+  ticker+screener+watchlist clean, ProductVersion 0.1.0-alpha.142+bd80566, the palette's 14
+  rows.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
