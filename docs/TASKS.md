@@ -208,7 +208,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | done | - |
 | T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | done | - |
 | T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | done | - |
-| T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alert-mechanics | planned | - |
+| T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alerts-mechanics-2 | in-progress | - |
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | planned | - |
 | T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | planned | - |
 | T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-providers | planned | - |
