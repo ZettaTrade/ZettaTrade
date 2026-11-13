@@ -3679,44 +3679,6 @@ the board and its section below.
   ticker+screener+watchlist clean, ProductVersion 0.1.0-alpha.142+bd80566, the palette's 14
   rows.
 
-## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
-
-- **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
-- **Origin:** the T-193 landing's recorded next-wave claim ("a tests-only task hardening
-  AvaloniaDispatcherPump — raise/jitter DrainTimeout, or drain-with-retry inside the
-  pump"); the family fired again in the T-194 landing gates — two consecutive gate runs
-  lost the same fact (`SurfaceStrayPinsTests.EveryShippedTheme_ServesTheVeilFromItsOwn
-  Background`, 1729/1730 on both passes) while the isolated rerun stayed green (433 ms;
-  the T-193 landing canon names the cause: `System.TimeoutException` at
-  `AvaloniaDispatcherPump.DrainAsync` — the drain exceeds the fixed 5 s `DrainTimeout`
-  under cross-assembly load / fresh-binary conditions while the pump is healthy).
-- **What:** harden the pump's drain against load-induced false hang verdicts without
-  weakening the real-wedge detection.
-- **Scope:** tests-only — the pump harness (`AvaloniaDispatcherPump` + the drain-path
-  facts); no product surface, no bump, no CHANGELOG (the T-135/T-138/T-148/T-149/T-144/
-  T-176 precedent).
-- **Acceptance:** the veil fact survives a full gate run; a genuinely dead pump still
-  fails bounded (no unbounded wait anywhere).
-- **Tests:** the evidence-driven shape decided at implementation: a raised bound, or an
-  in-pump drain retry that preserves the drain semantics (everything queued BEFORE the
-  drain lands on the owner thread, nothing after).
-- **Status:** done — tests-only (no bump, no CHANGELOG). Chain: claim `1a99309` -> fix
-  `c2a775e` -> close. The raised bound won: `DrainTimeout` 5 s -> 20 s (4x the observed
-  exceedance; the constant's comment carries the family profile). The in-pump drain retry
-  was REJECTED with the reason recorded — a retry drain would execute jobs queued after
-  the first drain request, violating the pump's documented "everything queued before the
-  drain, nothing after" semantics; the jitter idea dropped — the slow case is
-  deterministic (a first-load assembly scan), not a distribution to jitter. The new fact
-  `DrainAsync_CompletesThroughASlowJobAndThePumpKeepsServing` parks the pump thread 5.5 s
-  inside a job (the Defender first-load-scan shape, above the legacy bound) and proves the
-  drain completes and the pump keeps serving. The negative (a truly hung pump fails
-  bounded) rides `WaitAsync(finite)` by construction — pinning it behaviorally would burn
-  the full bound on every suite run; recorded, not faked. Verification: the pump class 2/2
-  green standalone; GATE PASSED — the veil fact survived the first pass under the new
-  bound (the gate's flaky retry fired once for the KNOWN LogTail-family victim
-  `LogViewerViewModelTests.ADeadLaneStopsTheSurface`, clean on retry, recorded, not fixed
-  in-flight). Launch smoke not needed (tests-only; the T-144/T-176 precedent).
-
 ## T-199 - Indicator panes: oscillator sub-charts
 
 - **Branch:** `feat/indicator-panes` off `develop` (base `0d70ef0`).
@@ -3783,3 +3745,95 @@ the board and its section below.
     green; GATE PASSED (the TASK-FROMRESULT lint fired once on the pane-settings stub's
     `Task.FromResult`, unwrapped to the NSubstitute auto-wrap precedent in a follow-up test
     commit); the launch smoke green on pack 0.4.0 (11 DLLs, indicators provided, alpha.143).
+
+
+## T-200 — Drawing tools wave 2: zone, text, measure ruler
+
+- **Branch:** `feat/drawing-tools-2` off `develop` (base `ab320cc`).
+- **Origin:** the sweep — exactly three drawing kinds ship (trend line, horizontal level, fib
+  retracement).
+- **What:** a rectangle/zone, a text annotation, and a measure tool — an entry-to-exit risk
+  ruler reading Δprice, Δ% and the R-multiple against the ticket's stop context; the T-091
+  store/layer/persistence discipline extends per kind; the T-178 delete affordance covers the
+  new kinds.
+- **Scope:** ZettaTrade.Charting (kinds, geometry), the chart layer, the drawing store schema
+  versioning, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** each kind draws, drags, persists per (adapter, symbol, interval) and deletes;
+  the measure tool's readout matches the ticket's stop math; the older three kinds are
+  untouched.
+- **Tests:** the geometry and persistence batteries per kind.
+- **Status:** done - 0.1.0-alpha.144. Chain: claim `23d7aea` -> feat `401afb2` (supervisor-solo
+  takeover: the dead session left the implementation as uncommitted, fully-tested drafts; the
+  takeover reviewed the diff and committed it) -> close. The wave-2 kinds ride the wave-1
+  press -> drag -> release placement machine (a degenerate drag cancels, the tool stays armed
+  across commits); the zone is a translucent band between two corner anchors (fill at alpha 40
+  under the kind's stroke, four border-segment hit zones for the press resolve); the text
+  annotation commits through the `TextAnnotationRequested` modal prompt (a cancelled or empty
+  answer places nothing - an annotation never persists unlabelled) and ships its string
+  through the store's new nullable `Text` column (EF migration `AddDrawingText`, carried on
+  every anchor row, read back from the first); the measure ruler reads the signed price
+  delta, the percentage and - when the stop context is real - the signed R-multiple
+  (`ChartMeasureReading`), and the division refuses loudly, never a default substitution (a
+  missing stop or a stop ON the entry reads no R row, a zero entry price reads no percentage
+  row). The stop context extends the T-122 feed: the footprint snapshot's `Stops` member
+  carries every working stop leg's trigger price keyed by normalized symbol, and the chart
+  VM picks the workspace symbol's stop nearest the position's entry (or the first stop in
+  feed order when no position stands). Suites on the feat tip: App 1853, UI 409,
+  Infrastructure 612, AdapterKit 48, E2E 6, Strategies 32, Backtest 29, Soak 17 - all green.
+  GATE PASSED attempt 2 (-AllowProtected; attempt 1 failed [FORMAT] only - the EF migration
+  was generated with CRLF line endings and dotnet format wants LF; fixed by `dotnet format`
+  + amend). The launch smoke green on the feat tip's build (the close is docs-only, the app
+  content identical): ProductVersion 0.1.0-alpha.144+401afb2, title held through the 12 s
+  hold, 0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed (14 rows), strategies
+  + indicators provided. PRE-EXISTING FLAKE REPAIRED en route (it blocked the gate on
+  develop too): CandlestickChartPaneTests' separator probes pinned the FALLBACK grid ink
+  literally, so after DerivedSystemKeysPublishTests' process-global theme apply the
+  separator painted the applied "Border" palette color and failed deterministically whenever
+  the theme class scheduled first; the two separator facts now read RELATIVE deltas against
+  a pane-less frame rendered in the same world state (theme-invariant; also re-pins render
+  determinism; the amber absence probes stay literal). Pin compliance: TextAnnotationWindow
+  rides WindowDecorations="Full" (the Avalonia 12 attribute, not the obsolete
+  SystemDecorations), a public ctor (AVLN3001), Icon="/Assets/ZettaTrade.ico",
+  StaticResource token spacing; ChartToolbarPinsTests' icon family grew 5 -> 8 (per-tool
+  grammar extended), ChromeKitPinsTests' Classes.on count grew 5 -> 8. ARCHIVE HYGIENE: the
+  T-199 close had appended its section AFTER T-216, breaking the archive's canonical T
+  order at the tail; this close moved T-216 after T-200, restoring T-198 < T-199 < T-200
+  < T-216.
+
+## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
+
+- **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
+- **Origin:** the T-193 landing's recorded next-wave claim ("a tests-only task hardening
+  AvaloniaDispatcherPump — raise/jitter DrainTimeout, or drain-with-retry inside the
+  pump"); the family fired again in the T-194 landing gates — two consecutive gate runs
+  lost the same fact (`SurfaceStrayPinsTests.EveryShippedTheme_ServesTheVeilFromItsOwn
+  Background`, 1729/1730 on both passes) while the isolated rerun stayed green (433 ms;
+  the T-193 landing canon names the cause: `System.TimeoutException` at
+  `AvaloniaDispatcherPump.DrainAsync` — the drain exceeds the fixed 5 s `DrainTimeout`
+  under cross-assembly load / fresh-binary conditions while the pump is healthy).
+- **What:** harden the pump's drain against load-induced false hang verdicts without
+  weakening the real-wedge detection.
+- **Scope:** tests-only — the pump harness (`AvaloniaDispatcherPump` + the drain-path
+  facts); no product surface, no bump, no CHANGELOG (the T-135/T-138/T-148/T-149/T-144/
+  T-176 precedent).
+- **Acceptance:** the veil fact survives a full gate run; a genuinely dead pump still
+  fails bounded (no unbounded wait anywhere).
+- **Tests:** the evidence-driven shape decided at implementation: a raised bound, or an
+  in-pump drain retry that preserves the drain semantics (everything queued BEFORE the
+  drain lands on the owner thread, nothing after).
+- **Status:** done — tests-only (no bump, no CHANGELOG). Chain: claim `1a99309` -> fix
+  `c2a775e` -> close. The raised bound won: `DrainTimeout` 5 s -> 20 s (4x the observed
+  exceedance; the constant's comment carries the family profile). The in-pump drain retry
+  was REJECTED with the reason recorded — a retry drain would execute jobs queued after
+  the first drain request, violating the pump's documented "everything queued before the
+  drain, nothing after" semantics; the jitter idea dropped — the slow case is
+  deterministic (a first-load assembly scan), not a distribution to jitter. The new fact
+  `DrainAsync_CompletesThroughASlowJobAndThePumpKeepsServing` parks the pump thread 5.5 s
+  inside a job (the Defender first-load-scan shape, above the legacy bound) and proves the
+  drain completes and the pump keeps serving. The negative (a truly hung pump fails
+  bounded) rides `WaitAsync(finite)` by construction — pinning it behaviorally would burn
+  the full bound on every suite run; recorded, not faked. Verification: the pump class 2/2
+  green standalone; GATE PASSED — the veil fact survived the first pass under the new
+  bound (the gate's flaky retry fired once for the KNOWN LogTail-family victim
+  `LogViewerViewModelTests.ADeadLaneStopsTheSurface`, clean on retry, recorded, not fixed
+  in-flight). Launch smoke not needed (tests-only; the T-144/T-176 precedent).

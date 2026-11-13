@@ -204,7 +204,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | done | - |
 | T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | done | - |
 | T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | done | - |
-| T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/drawing-tools-2 | in-progress | - |
+| T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/drawing-tools-2 | done | - |
 | T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | planned | - |
 | T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | planned | - |
 | T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | planned | - |
@@ -452,23 +452,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
   were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
   new user-facing UI string was introduced.
-
-## T-200 — Drawing tools wave 2: zone, text, measure ruler
-
-- **Branch:** `feat/drawing-tools-2` off `develop` (base `ab320cc`).
-- **Origin:** the sweep — exactly three drawing kinds ship (trend line, horizontal level, fib
-  retracement).
-- **What:** a rectangle/zone, a text annotation, and a measure tool — an entry-to-exit risk
-  ruler reading Δprice, Δ% and the R-multiple against the ticket's stop context; the T-091
-  store/layer/persistence discipline extends per kind; the T-178 delete affordance covers the
-  new kinds.
-- **Scope:** ZettaTrade.Charting (kinds, geometry), the chart layer, the drawing store schema
-  versioning, resx en+ru, the next free alpha bump + the CHANGELOG section.
-- **Acceptance:** each kind draws, drags, persists per (adapter, symbol, interval) and deletes;
-  the measure tool's readout matches the ticket's stop math; the older three kinds are
-  untouched.
-- **Tests:** the geometry and persistence batteries per kind.
-- **Status:** in-progress.
 
 ## T-201 — Multi-chart grid layout
 
