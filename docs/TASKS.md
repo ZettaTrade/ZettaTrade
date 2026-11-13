@@ -217,7 +217,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | done | - |
 | T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | done | - |
 | T-212 Backtest parameter optimization (backlog sweep 2026-11-12) | feat/backtest-optimize | done | - |
-| T-213 Update checker (backlog sweep 2026-11-12) | feat/update-check | planned | - |
+| T-213 Update checker (backlog sweep 2026-11-12) | feat/update-check | in-progress | - |
 | T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | planned | - |
 | T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | planned | - |
 | T-216 Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses (queued from the T-193/T-194 gate fights) | feat/flaky-theme-drain | done | - |
@@ -505,7 +505,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-213 — Update checker
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/update-check, worktree zt-update-check, base develop@4f97486
+  (claimed 2026-11-14 off the synced board).
 - **Origin:** the sweep — no updater and no version awareness beyond the status chip.
 - **What:** a periodic (and manual) check against the GitHub Releases API comparing the running
   version; a newer release surfaces as a status-bar chip and a notification with the release
@@ -515,7 +516,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** a newer tag surfaces the chip and the link; an unreachable network degrades
   silently to a logged warning; the off switch silences the check entirely.
 - **Tests:** the loopback releases-stub battery (parse, compare, the degraded states).
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-214 — Tray icon
 
