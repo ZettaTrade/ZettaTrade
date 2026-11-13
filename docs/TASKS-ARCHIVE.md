@@ -4374,3 +4374,42 @@ the board and its section below.
   bound (the gate's flaky retry fired once for the KNOWN LogTail-family victim
   `LogViewerViewModelTests.ADeadLaneStopsTheSurface`, clean on retry, recorded, not fixed
   in-flight). Launch smoke not needed (tests-only; the T-144/T-176 precedent).
+
+## T-217 — Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot
+
+- **Branch:** feat/perf-fixes, worktree zt-perf-fixes, base develop@b92eb0e (claimed
+  2026-11-13 off the synced board — the 2026-11-13 code+performance review round: the
+  review pulled T-209/T-210 and chased the app's stall reports to two hot paths).
+- **Origin:** the review — the streamed reply (T-205) rebuilt and re-rendered the bound
+  text per token over a non-virtualized transcript, and the trade-statistics scan
+  re-copied its whole growing equity curve per published page.
+- **What:** the streamed reply's re-render throttles to a bounded cadence (the deltas
+  still append into the buffer every time; the settlement's final flush lands the tail
+  the throttle held back), and the accumulator's snapshot publishes a pinned
+  append-only equity view instead of a fresh copy per page.
+- **Scope:** ChatViewModel + TradeStatsAccumulator (App) and their test families; no
+  resx, no contracts, no UI shape change.
+- **Acceptance:** a rapid token stream settles with the full arrived answer (the
+  persisted turn included); a published curve never grows with the scan's later
+  appends; the T-205 progressive-render and T-206 persistence semantics hold unchanged.
+- **Tests:** the throttle-flush streaming fact; the snapshot-pinning and
+  index-guard accumulator facts.
+- **Status:** done - 0.1.0-alpha.155. Chain: claim `17ba942` -> fix `e47b18f` -> close.
+  The render throttle pins the streamed bubble's re-render at ~20 updates a second
+  (`StreamRenderIntervalMillis = 50`): the deltas still append into the StringBuilder
+  every time, the bubble is born on the first delta immediately (an immediately-failing
+  stream still renders no bubble), and the settlement's final flush lands the tail the
+  throttle held back — the persisted turn carries everything that arrived, so the
+  T-205/T-206 semantics hold unchanged. The stats snapshot publishes a pinned
+  append-only `EquityView` (the count pinned at snapshot time) instead of
+  `[.. _equity]` — a six-figure journal no longer pays an O(pages × curve) copy churn,
+  and a published curve never grows with the scan's later appends. The review's other
+  findings filed as T-218..T-221 (the chat virtualization, the streaming statement
+  export, the non-blocking beep, the E2E DetachCycle flake). Resx: none. Tests: App
+  2095 (delta exactly 3 over T-210's 2092 — the throttle-flush streaming fact plus the
+  two accumulator facts), Infrastructure 639 (0), UI 409 (0), Core 61 (0), AdapterKit
+  48 (0), Strategies 32 (0), Backtest 29 (0), Soak 17 (0), E2E 6/6 (the gate's flaky
+  retry fired on both passes; the isolated run stayed green on the base and the tip —
+  filed as T-221). GATE PASSED attempt 2 (-AllowProtected): attempt 1 failed the
+  [PROTECTED] check on the rule-6 version bump in Directory.Build.props — the bump is
+  the board task's sanctioned change, the same shape the T-210 landing rode.

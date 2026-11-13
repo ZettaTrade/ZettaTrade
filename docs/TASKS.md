@@ -221,7 +221,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | planned | - |
 | T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | planned | - |
 | T-216 Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses (queued from the T-193/T-194 gate fights) | feat/flaky-theme-drain | done | - |
-| T-217 Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot (the 2026-11-13 review round) | feat/perf-fixes | in-progress | - |
+| T-217 Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot (the 2026-11-13 review round) | feat/perf-fixes | done | - |
 | T-218 Virtualize the AI chat transcript (queued from the 2026-11-13 review round) | feat/chat-virtualization | planned | - |
 | T-219 Stream the statement export past the whole-journal materialization (queued from the 2026-11-13 review round) | feat/statement-stream | planned | - |
 | T-220 Non-blocking alert beep (queued from the 2026-11-13 review round) | fix/alert-beep-async | planned | - |
@@ -575,27 +575,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   refuses honestly; a pin proves the archive never carries secret material.
 - **Tests:** the round-trip battery; the corrupt-archive negative; the no-secrets pin.
 - **Status:** planned.
-
-## T-217 — Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot
-
-- **Branch:** feat/perf-fixes, worktree zt-perf-fixes, base develop@b92eb0e (claimed
-  2026-11-13 off the synced board — the 2026-11-13 code+performance review round: the
-  review pulled T-209/T-210 and chased the app's stall reports to two hot paths).
-- **Origin:** the review — the streamed reply (T-205) rebuilt and re-rendered the bound
-  text per token over a non-virtualized transcript, and the trade-statistics scan
-  re-copied its whole growing equity curve per published page.
-- **What:** the streamed reply's re-render throttles to a bounded cadence (the deltas
-  still append into the buffer every time; the settlement's final flush lands the tail
-  the throttle held back), and the accumulator's snapshot publishes a pinned
-  append-only equity view instead of a fresh copy per page.
-- **Scope:** ChatViewModel + TradeStatsAccumulator (App) and their test families; no
-  resx, no contracts, no UI shape change.
-- **Acceptance:** a rapid token stream settles with the full arrived answer (the
-  persisted turn included); a published curve never grows with the scan's later
-  appends; the T-205 progressive-render and T-206 persistence semantics hold unchanged.
-- **Tests:** the throttle-flush streaming fact; the snapshot-pinning and
-  index-guard accumulator facts.
-- **Status:** in-progress.
 
 ## T-218 — Virtualize the AI chat transcript
 
