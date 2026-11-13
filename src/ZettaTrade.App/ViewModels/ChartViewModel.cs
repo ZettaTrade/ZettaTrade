@@ -25,8 +25,17 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// <summary>
 /// Chart panel state: the available symbols list, the selected symbol and the
 /// loaded bars. Application-lifetime singleton: the pipelines are built in the
-/// constructor — WhenActivated never fires for VMs bound as nested-panel
+/// constructor - WhenActivated never fires for VMs bound as nested-panel
 /// DataContexts (the documented workspace fact), so there is no activation path.
+/// <para>
+/// The multi-chart grid (T-201) constructs secondary instances for its
+/// non-primary slots: they carry the same pipelines with their own
+/// symbol/time-frame persistence keys (<see cref="UiSettingsKeys"/> - the
+/// primary keeps the workspace's shared keys, a slot writes
+/// <c>ChartSlot{N}*</c>), and they persist only those two choices - the
+/// chart-face maps (types, scales, pane heights, the overlay toggles) stay
+/// the primary's writes, so the slots' face picks live in-session.
+/// </para>
 /// <para>
 /// The loaded series exports as a candles CSV: the export command rides
 /// <see cref="ICsvExportService"/>, the destination comes through the
@@ -165,6 +174,52 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private readonly SymbolListProvider _symbolList;
     private readonly ICsvExportService _export;
     private readonly ILocalizationManager _localization;
+
+    /// <summary>
+    /// The slot identity (T-201): null on the application-lifetime primary,
+    /// otherwise the grid slot's number ("1".."3"). It derives this
+    /// instance's persistence keys and gates the chart-face writes.
+    /// </summary>
+    private readonly string? _slotId;
+
+    /// <summary>
+    /// Whether the chart-face choices (the per-symbol type/scale/pane maps
+    /// and the overlay toggles) persist from this instance. The primary
+    /// writes them; a slot's picks stay in-session so interleaved
+    /// whole-map writes cannot lose each other's entries (T-201).
+    /// </summary>
+    private readonly bool _persistsFaceChoices;
+
+    /// <summary>
+    /// The settings key this instance persists its selected symbol under:
+    /// the workspace's shared key on the primary (the order book and the
+    /// order dialog follow the same stream), a per-slot key on the
+    /// multi-chart grid's slots (T-201).
+    /// </summary>
+    private string SymbolSettingsKey =>
+        _slotId is null
+            ? UiSettingsKeys.WorkspaceSymbolId
+            : $"{UiSettingsKeys.ChartSlotPrefix}{_slotId}SymbolId";
+
+    /// <summary>
+    /// The settings key this instance persists its selected time frame
+    /// under: the shared key on the primary, a per-slot key on the grid's
+    /// slots (T-201).
+    /// </summary>
+    private string TimeFrameSettingsKey =>
+        _slotId is null
+            ? UiSettingsKeys.ChartTimeFrame
+            : $"{UiSettingsKeys.ChartSlotPrefix}{_slotId}TimeFrame";
+
+    /// <summary>
+    /// The settings section the symbol key lives in: the Workspace section
+    /// on the primary (the workspace symbol context), the UI section on the
+    /// grid's slots (T-201).
+    /// </summary>
+    private string SymbolSettingsSection =>
+        _slotId is null
+            ? UiSettingsKeys.WorkspaceSection
+            : UiSettingsKeys.Section;
 
     /// <summary>
     /// The local candle cache the bootstrap serves from and the loaded
@@ -1346,7 +1401,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         SignalRailViewModel signalRail,
         SignalSeriesRelay seriesRelay,
         IObservable<ChartFootprintSnapshot> tradingFootprint,
-        ILogger<ChartViewModel> logger)
+        ILogger<ChartViewModel> logger,
+        string? slotId = null)
     {
         _activeExchanges = activeExchanges;
         _symbolList = symbolList;
@@ -1363,6 +1419,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         SignalRail = signalRail;
         _seriesRelay = seriesRelay;
         _tradingFootprint = tradingFootprint;
+
+        // The multi-chart grid (T-201): the primary keeps the workspace's
+        // shared symbol key (the order book and the dialog follow it) and
+        // the shared time-frame key; a slot instance persists under its own
+        // ChartSlot{N}* keys in the UI section. The chart-face choices ride
+        // the primary only - a slot's type/scale/pane/overlay pick stays
+        // in-session (the shared maps would lose entries to interleaved
+        // whole-map writes otherwise).
+        _slotId = slotId;
+        _persistsFaceChoices = slotId is null;
 
         ExportCandlesCommand = ReactiveCommand.CreateFromTask(HandleExportCandlesAsync);
         SaveCandlesCsvRequested = new Interaction<string, string?>();
@@ -1627,7 +1693,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Where(_ => !_isRestoringTimeFrame)
             .SelectMany(timeFrame => Observable.FromAsync(() => _settings.SetAsync(
                 UiSettingsKeys.Section,
-                UiSettingsKeys.ChartTimeFrame,
+                TimeFrameSettingsKey,
                 timeFrame.ToString())))
             .Subscribe(
                 _ => { },
@@ -1649,8 +1715,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Where(symbol => symbol is not null)
             .Select(symbol => symbol!)
             .SelectMany(symbol => Observable.FromAsync(() => _settings.SetAsync(
-                UiSettingsKeys.WorkspaceSection,
-                UiSettingsKeys.WorkspaceSymbolId,
+                SymbolSettingsSection,
+                SymbolSettingsKey,
                 symbol.Normalized)))
             .Subscribe(
                 _ => { },
@@ -2047,6 +2113,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     private async Task PersistChartTypesAsync()
     {
+        if (!_persistsFaceChoices)
+        {
+            // A grid slot's chart-face pick stays in-session (T-201): the
+            // per-symbol type map is written whole, so a slot's write would
+            // lose the primary's entries to the interleaving.
+            return;
+        }
+
         try
         {
             await _settings.SetAsync(
@@ -2110,6 +2184,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     private async Task PersistScaleModesAsync()
     {
+        if (!_persistsFaceChoices)
+        {
+            // A grid slot's chart-face pick stays in-session (T-201): the
+            // per-symbol scale map is written whole, so a slot's write would
+            // lose the primary's entries to the interleaving.
+            return;
+        }
+
         try
         {
             await _settings.SetAsync(
@@ -2179,7 +2261,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
         var persisted = await _settings.GetAsync<string>(
             UiSettingsKeys.Section,
-            UiSettingsKeys.ChartTimeFrame);
+            TimeFrameSettingsKey);
 
         if (string.IsNullOrWhiteSpace(persisted))
         {
@@ -2655,6 +2737,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _appliedPaneHeightsJson = ChartIndicatorPaneHeights.Write(next);
         PublishIndicatorLines(Bars);
 
+        if (!_persistsFaceChoices)
+        {
+            // A grid slot's pane-height pick stays in-session (T-201): the
+            // key is shared and written whole, the primary's map must not
+            // lose its entries to a slot's settle.
+            return;
+        }
+
         Observable
             .FromAsync(() => _settings.SetAsync(
                 UiSettingsKeys.Section,
@@ -2758,6 +2848,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <returns>The completed write.</returns>
     private async Task SetOverlayChoiceAsync(string key, bool value)
     {
+        if (!_persistsFaceChoices)
+        {
+            // A grid slot's overlay pick stays in-session (T-201): the key
+            // is shared, the primary's choice must not be overwritten by a
+            // slot's toggle.
+            return;
+        }
+
         try
         {
             await _settings.SetAsync(UiSettingsKeys.Section, key, value);
@@ -3016,8 +3114,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         CancellationToken ct)
     {
         var stored = await _settings.GetAsync<string>(
-            UiSettingsKeys.WorkspaceSection,
-            UiSettingsKeys.WorkspaceSymbolId);
+            SymbolSettingsSection,
+            SymbolSettingsKey);
 
         var favoritesJson = await _settings.GetAsync<string>(
             UiSettingsKeys.WorkspaceSection,

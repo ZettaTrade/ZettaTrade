@@ -51,6 +51,13 @@ public sealed class MainViewModel : ReactiveObject
     /// <summary>Workspace layout ViewModel owning the persisted splitter column widths.</summary>
     public WorkspaceLayoutViewModel Layout { get; }
 
+    /// <summary>
+    /// The multi-chart grid's layout ViewModel (T-201): the workspace's
+    /// chart-face mode (single panel, 1x2 pair, 2x2 grid) with its lazy
+    /// slot charts and persisted seam sizes.
+    /// </summary>
+    public WorkspaceChartsViewModel Charts { get; }
+
     /// <summary>The global symbol palette (T-095): Ctrl+K's instrument picker over all adapters.</summary>
     public SymbolPaletteViewModel Palette { get; }
 
@@ -82,6 +89,7 @@ public sealed class MainViewModel : ReactiveObject
         WatchlistViewModel watchlist,
         HeatmapViewModel heatmap,
         WorkspaceLayoutViewModel layout,
+        WorkspaceChartsViewModel charts,
         SymbolPaletteViewModel palette,
         NotificationToastHostViewModel toastHost,
         PerformanceHudViewModel hud,
@@ -99,6 +107,7 @@ public sealed class MainViewModel : ReactiveObject
         Watchlist = watchlist;
         Heatmap = heatmap;
         Layout = layout;
+        Charts = charts;
         Palette = palette;
         ToastHost = toastHost;
         Hud = hud;

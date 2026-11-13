@@ -205,6 +205,34 @@
                               CommandParameter="{x:Static svc:PanelDetachId.Assistant}"
                               ToggleType="CheckBox"
                               IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Layout.IsAssistantDetached, Mode=OneWay}" />
+                    <Separator />
+                    <!-- The multi-chart grid (T-201): one radio item per
+                         layout mode; the checked state mirrors the
+                         workspace's current layout, and the pick rides the
+                         charts ViewModel's command through the window-routed
+                         binding (the same $parent[Window] shape the detach
+                         toggles keep). -->
+                    <MenuItem Header="{loc:Localized Menu.View.Layout}"
+                              AutomationProperties.AutomationId="ViewLayoutMenuItem">
+                        <MenuItem Header="{loc:Localized Menu.View.Layout.Single}"
+                                  AutomationProperties.AutomationId="ViewLayoutSingleMenuItem"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Charts.SetLayoutCommand}"
+                                  CommandParameter="{x:Static vm:ChartLayoutMode.Single}"
+                                  ToggleType="Radio"
+                                  IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Charts.IsSingleLayout, Mode=OneWay}" />
+                        <MenuItem Header="{loc:Localized Menu.View.Layout.OneByTwo}"
+                                  AutomationProperties.AutomationId="ViewLayoutOneByTwoMenuItem"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Charts.SetLayoutCommand}"
+                                  CommandParameter="{x:Static vm:ChartLayoutMode.OneByTwo}"
+                                  ToggleType="Radio"
+                                  IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Charts.IsOneByTwoLayout, Mode=OneWay}" />
+                        <MenuItem Header="{loc:Localized Menu.View.Layout.TwoByTwo}"
+                                  AutomationProperties.AutomationId="ViewLayoutTwoByTwoMenuItem"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Charts.SetLayoutCommand}"
+                                  CommandParameter="{x:Static vm:ChartLayoutMode.TwoByTwo}"
+                                  ToggleType="Radio"
+                                  IsChecked="{Binding $parent[Window].((vm:MainViewModel)DataContext).Charts.IsTwoByTwoLayout, Mode=OneWay}" />
+                    </MenuItem>
                 </MenuItem>
                 <!-- Help: the log viewer (T-101) — the file-only Serilog sinks are
                      otherwise reachable only through a text editor — and the
@@ -692,20 +720,29 @@
                             </TabItem>
                         </TabControl>
 
-                        <!-- Chart workspace (T-103): the chart panel's ONE control
-                             instance hosts here inline and moves into the detached
-                             chart window on detach — the code-behind's HUD and
-                             export routes ride the same instance on either host.
-                             The border is the swap host: detached, it carries the
-                             note. The panel itself is created in the code-behind
-                             (T-175), carrying its view model as a LocalValue from
-                             its own construction; the HUD frame-tap gate (T-108)
-                             rides the panel's own attach hook (a detached chart
-                             freezes the HUD's tap readout — the HUD overlay is a
-                             main-window citizen; the detached window carries
-                             none). -->
-                        <Border x:Name="ChartPanelHost" Grid.Column="0"
-                                AutomationProperties.AutomationId="ChartPanelHost" />
+                        <!-- Chart workspace (T-103/T-201): the multi-chart
+                              grid hosts the chart column's layout — the
+                              primary panel's ONE control instance (created
+                              in the code-behind, T-175) rides inside its
+                              swap-host Border, parked below as the grid's
+                              XAML content until the constructor hands it
+                              over; the grid's rebuilt layouts place that
+                              host into the primary cell, so the detach
+                              coordinator's inline-host reference survives
+                              every layout change. The border is the swap
+                              host: detached, it carries the note. The HUD
+                              frame-tap gate (T-108) rides the panel's own
+                              attach hook (a detached chart freezes the
+                              HUD's tap readout — the HUD overlay is a
+                              main-window citizen; the detached window
+                              carries none). -->
+                        <controls:ChartSlotGrid x:Name="ChartGrid"
+                                                Grid.Column="0"
+                                                AutomationProperties.AutomationId="ChartSlotGrid"
+                                                Charts="{Binding Charts}">
+                            <Border x:Name="ChartPanelHost"
+                                    AutomationProperties.AutomationId="ChartPanelHost" />
+                        </controls:ChartSlotGrid>
                     </Grid>
                 </Border>
 

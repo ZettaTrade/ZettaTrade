@@ -93,6 +93,18 @@
   <data name="Menu.View.Assistant" xml:space="preserve">
     <value>Ассистент в отдельном окне</value>
   </data>
+  <data name="Menu.View.Layout" xml:space="preserve">
+    <value>Сетка графиков</value>
+  </data>
+  <data name="Menu.View.Layout.Single" xml:space="preserve">
+    <value>Один график</value>
+  </data>
+  <data name="Menu.View.Layout.OneByTwo" xml:space="preserve">
+    <value>Два графика (1×2)</value>
+  </data>
+  <data name="Menu.View.Layout.TwoByTwo" xml:space="preserve">
+    <value>Четыре графика (2×2)</value>
+  </data>
   <data name="Chrome.DetachNote" xml:space="preserve">
     <value>Панель открыта в отдельном окне (меню «Вид»). Закройте это окно, чтобы вернуть панель сюда.</value>
   </data>

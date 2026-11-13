@@ -1,3 +1,38 @@
+## [0.1.0-alpha.145] - 2026-11-13
+
+Build of board task T-201 (branch `feat/multi-chart-grid`): the
+multi-chart grid — the workspace's chart column tiles the single panel,
+a 1x2 primary+slot pair or a 2x2 four-face grid, with the mode and the
+seams persisted across sessions.
+
+### Added
+- The View menu's layout pick (three radio items): the single panel every
+  session had, the 1x2 pair and the 2x2 grid. The pick applies live and
+  persists (`UI.ChartLayout`); the startup walk restores it before any
+  window opens, so a tiled session comes back tiled — and an
+  unrecognized stored mode keeps the single-panel default with a logged
+  warning, never a silent substitution.
+- The grid (`ChartSlotGrid`): every slot is a FULL chart — its own
+  symbol and time frame under its own per-slot keys
+  (`UI.ChartSlot{N}SymbolId` / `UI.ChartSlot{N}TimeFrame`), its own
+  drawings, compare chips, pane heights and export routes — while the
+  primary keeps the workspace's shared keys: the order book, the tape
+  and the order dialog follow the primary's pick, never a slot's. A
+  slot's chart-face picks (rendering type, scale mode, overlay toggles)
+  stay in-session so interleaved whole-map writes cannot lose each
+  other's entries. Slots are never torn down within the session: a
+  switch back to a tiled mode re-shows them exactly as they stood.
+- The grid's seams: the shared slot column (one width both rows ride, so
+  the 2x2's vertical seams stay one aligned line) and the 2x2 top row —
+  both drag under the standard direction, clamp at the usable minimum
+  and persist once per settled drag burst (`UI.ChartSlotColumnWidth`,
+  `UI.ChartGridTopRowHeight`), with the restore and the external
+  writers applying live and never rewriting what they just applied.
+- The slot faces hide the signal rail strip (the primary's surface
+  alone): the collapse zeroes the strip row's persisted clamps and
+  hides the splitter track with it, so a slot spends every pixel on its
+  chart.
+
 ## [0.1.0-alpha.144] - 2026-11-13
 
 Build of board task T-200 (branch `feat/drawing-tools-2`): the drawing

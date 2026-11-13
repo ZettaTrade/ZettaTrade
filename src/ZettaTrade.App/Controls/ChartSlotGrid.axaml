@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:ZettaTrade.App.Controls"
+             x:Class="ZettaTrade.App.Controls.ChartSlotGrid">
+
+    <UserControl.Styles>
+        <!-- The grid's horizontal seam grip (T-201): the T-177 rail-handle
+             look, copied one-for-one from the chart panel's own — the quiet
+             hairline the drag grabs, tinting to the Accent on hover while
+             the whole track keeps the north-south cursor. The window-scoped
+             styles cannot carry it: the main window styles the COLUMN
+             handles (the workspace's vertical seams), the panel's local
+             styles cover only the panel's own rail, and the grid's top-row
+             seam lives in neither scope. -->
+        <Style Selector="controls|RowResizeHandle">
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="Cursor" Value="SizeNorthSouth" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Panel>
+                        <Border Background="Transparent" />
+                        <Border x:Name="GripLine"
+                                Height="1"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource Border}" />
+                    </Panel>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="controls|RowResizeHandle:pointerover /template/ Border#GripLine">
+            <Setter Property="Height" Value="3" />
+            <Setter Property="CornerRadius" Value="1.5" />
+            <Setter Property="Background" Value="{DynamicResource Accent}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- The layout itself is code-built (T-201): the rows-of-stacks
+         grammar changes shape with the layout mode, so the control's
+         Content is rebuilt per mode — the axaml carries only the styles
+         the code-built handles need. -->
+</UserControl>

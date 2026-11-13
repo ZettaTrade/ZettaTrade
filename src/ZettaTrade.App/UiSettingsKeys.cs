@@ -25,6 +25,50 @@ public static class UiSettingsKeys
     public const string ChartTimeFrame = "ChartTimeFrame";
 
     /// <summary>
+    /// Key prefix of the multi-chart grid's per-slot persistence (T-201):
+    /// slot N writes <c>ChartSlot{N}SymbolId</c> and
+    /// <c>ChartSlot{N}TimeFrame</c>; the primary keeps the shared
+    /// <see cref="WorkspaceSymbolId"/> and <see cref="ChartTimeFrame"/> keys.
+    /// </summary>
+    public const string ChartSlotPrefix = "ChartSlot";
+
+    /// <summary>
+    /// Settings key of the persisted multi-chart layout mode (T-201): the
+    /// enum name of <c>ChartLayoutMode</c> ("Single", "OneByTwo",
+    /// "TwoByTwo") the View menu's items write and the startup walk applies.
+    /// </summary>
+    public const string ChartLayout = "ChartLayout";
+
+    /// <summary>The layout mode applied until a stored mode is loaded: the one chart panel every session had before the grid existed.</summary>
+    public const string DefaultChartLayout = "Single";
+
+    /// <summary>
+    /// Settings key of the persisted grid slot column width (logical
+    /// pixels): the fixed slot column's width the grid's vertical splitter
+    /// drags, shared by the 1x2 and 2x2 modes' slot seams (T-201).
+    /// </summary>
+    public const string ChartSlotColumnWidth = "ChartSlotColumnWidth";
+
+    /// <summary>The grid slot column width applied until a stored width is loaded (T-201).</summary>
+    public const double DefaultChartSlotColumnWidth = 420;
+
+    /// <summary>Usable-minimum clamp of the grid slot column (T-201): one headered chart face stays readable.</summary>
+    public const double MinChartSlotColumnWidth = 280;
+
+    /// <summary>
+    /// Settings key of the persisted grid top row height (logical pixels):
+    /// the fixed top row's height the 2x2 grid's horizontal splitter drags;
+    /// the bottom row takes the rest (T-201).
+    /// </summary>
+    public const string ChartGridTopRowHeight = "ChartGridTopRowHeight";
+
+    /// <summary>The grid top row height applied until a stored height is loaded (T-201).</summary>
+    public const double DefaultChartGridTopRowHeight = 380;
+
+    /// <summary>Usable-minimum clamp of the grid top row (T-201): one headered chart face stays readable.</summary>
+    public const double MinChartGridTopRowHeight = 240;
+
+    /// <summary>
     /// Settings key of the persisted chart clock format: true selects the
     /// 12-hour clock, false (the default) the 24-hour one.
     /// </summary>

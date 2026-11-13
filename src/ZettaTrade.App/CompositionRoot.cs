@@ -304,6 +304,13 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ChartFootprintService>().Updates,
                 // #endregion T-122
                 sp.GetRequiredService<ILogger<ChartViewModel>>()));
+        // The multi-chart grid (T-201): the workspace's layout-mode
+        // ViewModel over lazy slot factories. IAsyncInitializable: the
+        // startup walk restores the persisted layout and seam sizes before
+        // any window opens; a restored tiled layout creates its slots
+        // right there (their init walks ride the ViewModel's serialized
+        // queue).
+        services.AddWorkspaceChartsServices();
         services.AddSingleton<OrderBookViewModel>(sp =>
             new OrderBookViewModel(
                 sp.GetRequiredService<IMarketDataAdapter>(),
@@ -350,6 +357,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<WatchlistViewModel>(),
                 sp.GetRequiredService<HeatmapViewModel>(), // T-121: the right rail's heatmap tab.
                 sp.GetRequiredService<WorkspaceLayoutViewModel>(),
+                sp.GetRequiredService<WorkspaceChartsViewModel>(), // T-201: the multi-chart grid's layout mode + slots.
                 sp.GetRequiredService<SymbolPaletteViewModel>(),
                 sp.GetRequiredService<NotificationToastHostViewModel>(),
                 sp.GetRequiredService<PerformanceHudViewModel>(), // T-108: the Help menu's checkable dev-mode readout.
