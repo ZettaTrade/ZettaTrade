@@ -215,7 +215,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | done | - |
 | T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | done | - |
 | T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | done | - |
-| T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | planned | - |
+| T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | in-progress | - |
 | T-212 Backtest parameter optimization (backlog sweep 2026-11-12) | feat/backtest-optimize | planned | - |
 | T-213 Update checker (backlog sweep 2026-11-12) | feat/update-check | planned | - |
 | T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | planned | - |
@@ -504,18 +504,19 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-211 — Trade notes and tags
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/trade-notes, worktree zt-trade-notes, base develop@b92eb0e
+  (claimed 2026-11-13 off the synced board).
 - **Origin:** the sweep — the journal records the what; nothing records the why.
 - **What:** user notes and tags on closed trades (the journal entities), editable from the
   trade statistics and history surfaces; the stats filters gain tag lanes; the export includes
-  notes and tags (riding T-210's columns when both land).
+  notes and tags (riding T-210's landed columns).
 - **Scope:** the journal entities + the store migration, the stats/history VMs, resx en+ru,
   the next free alpha bump + the CHANGELOG section.
 - **Acceptance:** notes and tags survive restart; the tag filter narrows the stats honestly;
   the CSV columns join the statement only with data present (the existing headers stay
   stable).
 - **Tests:** the store migration battery; the filter pins.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-212 — Backtest parameter optimization
 
