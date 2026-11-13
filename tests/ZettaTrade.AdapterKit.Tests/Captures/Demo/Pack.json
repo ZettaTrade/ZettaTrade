@@ -3,7 +3,7 @@
   "adapterName": "Demo",
   "capabilities": "MarketData | OrderBook | HistoricalData",
   "connectsAtConstruction": true,
-  "symbols": [ "BTC/USDT", "ETH/USDT", "SOL/USDT", "BTC/USDC", "XRP/USDT", "ETH/BTC", "ADA/USDT", "DOGE/USDT", "BNB/USDT", "LINK/USDT", "AVAX/USDT", "LTC/USDT" ],
+  "symbols": [ "BTC/USDT", "ETH/USDT", "SOL/USDT", "BTC/USDC", "XRP/USDT", "ETH/BTC", "ADA/USDT", "DOGE/USDT", "BNB/USDT", "LINK/USDT", "AVAX/USDT", "LTC/USDT", "AAPL", "MSFT" ],
   "strangerSymbol": "DOGE/GBP",
   "clientSideGuards": [ "unknown-symbol", "bars-limit" ],
   "depthProfile": "clamped",

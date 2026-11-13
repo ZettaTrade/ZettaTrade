@@ -36,6 +36,16 @@ public sealed class KitLoopbackServer : IAsyncDisposable
 
     private int _sessionTotal;
     private WebApplication? _app;
+    private readonly Func<string, IReadOnlyList<string>?>? _autoResponder;
+
+    #endregion
+
+    #region Constructor
+
+    private KitLoopbackServer(Func<string, IReadOnlyList<string>?>? autoResponder)
+    {
+        _autoResponder = autoResponder;
+    }
 
     #endregion
 
@@ -54,14 +64,24 @@ public sealed class KitLoopbackServer : IAsyncDisposable
 
     #region Methods: Factory
 
-    /// <summary>Start the rig on a loopback port and make it accept WebSocket sessions.</summary>
+    /// <summary>
+    /// Start the rig on a loopback port and make it accept WebSocket
+    /// sessions. The optional <paramref name="autoResponder"/> gives a pack
+    /// an in-pump answer to the adapter's control frames (the Alpaca pack's
+    /// auth ack, T-198): every accepted session runs it against each frame
+    /// it captures and sends the answer back before the next capture — the
+    /// venue's own control protocol, scripted, never a sleeping test thread.
+    /// </summary>
     /// <param name="ct">The start's cancellation token.</param>
-    public static async Task<KitLoopbackServer> StartAsync(CancellationToken ct = default)
+    /// <param name="autoResponder">The per-frame answer script, or null for a mute rig (the standing packs).</param>
+    public static async Task<KitLoopbackServer> StartAsync(
+        CancellationToken ct = default,
+        Func<string, IReadOnlyList<string>?>? autoResponder = null)
     {
         for (var attempt = 0; ; attempt++)
         {
             var port = ReserveLoopbackPort();
-            var server = new KitLoopbackServer();
+            var server = new KitLoopbackServer(autoResponder);
             try
             {
                 await server.StartOnPortAsync(port, ct);
@@ -202,7 +222,7 @@ public sealed class KitLoopbackServer : IAsyncDisposable
         }
 
         using var socket = await context.WebSockets.AcceptWebSocketAsync();
-        var session = new KitLoopbackSession(socket);
+        var session = new KitLoopbackSession(socket, _autoResponder);
         var ordinal = Interlocked.Increment(ref _sessionTotal);
         _sessions[ordinal] = session;
 
@@ -229,9 +249,18 @@ public sealed class KitLoopbackServer : IAsyncDisposable
 /// <summary>
 /// One accepted WebSocket session of the kit rig: the send handoff and the
 /// receive loop that captures every inbound frame onto the rig's transcript
-/// queue. The loop runs to its natural completion (the client's close), never
+/// queue, running the rig's optional auto-responder against each captured
+/// frame. The loop runs to its natural completion (the client's close), never
 /// abandoned.
 /// </summary>
+/// <remarks>
+/// Every send on the session — the battery's replay handoff AND the
+/// auto-responder's in-pump answers — serializes through one
+/// <see cref="SemaphoreSlim"/>: <see cref="WebSocket.SendAsync"/> has no
+/// concurrent-use contract, and the two senders live on unrelated tasks
+/// (the pump answers while a battery leg may be replaying), so the gate is
+/// what keeps the socket honest.
+/// </remarks>
 public sealed class KitLoopbackSession
 {
     #region Constants
@@ -247,14 +276,19 @@ public sealed class KitLoopbackSession
     #region Fields
 
     private readonly WebSocket _socket;
+    private readonly Func<string, IReadOnlyList<string>?>? _autoResponder;
+
+    /// <summary>The session's send gate: the replay handoff and the in-pump answers share it (see the type remarks).</summary>
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
 
     #endregion
 
     #region Constructor
 
-    internal KitLoopbackSession(WebSocket socket)
+    internal KitLoopbackSession(WebSocket socket, Func<string, IReadOnlyList<string>?>? autoResponder)
     {
         _socket = socket;
+        _autoResponder = autoResponder;
     }
 
     #endregion
@@ -281,22 +315,32 @@ public sealed class KitLoopbackSession
     /// <param name="frames">The raw frame texts.</param>
     public async Task SendTextAsync(IReadOnlyList<string> frames)
     {
-        foreach (var frame in frames)
+        await _sendGate.WaitAsync(CancellationToken.None);
+        try
         {
-            var bytes = Encoding.UTF8.GetBytes(frame);
-            await _socket.SendAsync(
-                new ArraySegment<byte>(bytes),
-                WebSocketMessageType.Text,
-                endOfMessage: true,
-                CancellationToken.None);
+            foreach (var frame in frames)
+            {
+                var bytes = Encoding.UTF8.GetBytes(frame);
+                await _socket.SendAsync(
+                    new ArraySegment<byte>(bytes),
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    CancellationToken.None);
+            }
+        }
+        finally
+        {
+            _sendGate.Release();
         }
     }
 
     /// <summary>
     /// The receive loop: drain text frames until the client closes, capturing
     /// every completed frame onto <paramref name="captured"/> in arrival
-    /// order. A session whose transport dies mid-loop (the reconnect's
-    /// forced teardown) ends the loop without breaking the rig.
+    /// order, and answer each captured frame through the rig's auto-responder
+    /// when one rides the session. A session whose transport dies mid-loop
+    /// (the reconnect's forced teardown) ends the loop without breaking the
+    /// rig.
     /// </summary>
     /// <param name="captured">The rig's transcript queue.</param>
     public async Task PumpReceiveLoopAsync(ConcurrentQueue<string> captured)
@@ -323,8 +367,10 @@ public sealed class KitLoopbackSession
                     continue;
                 }
 
-                captured.Enqueue(pending.ToString());
+                var frame = pending.ToString();
                 pending.Clear();
+                captured.Enqueue(frame);
+                await AnswerWithAutoResponderAsync(frame);
             }
         }
         catch (OperationCanceledException)
@@ -334,6 +380,21 @@ public sealed class KitLoopbackSession
         catch (WebSocketException)
         {
             // The transport died mid-loop (forced teardown); the session ends.
+        }
+    }
+
+    /// <summary>
+    /// Run the session's auto-responder against one captured frame and send
+    /// the answer back when it produces one (the send rides the session's
+    /// own gate). A responder fault is a kit rig fault and propagates out of
+    /// the pump — a wrongly scripted venue must fail loudly, never mute.
+    /// </summary>
+    private async Task AnswerWithAutoResponderAsync(string frame)
+    {
+        var answer = _autoResponder?.Invoke(frame);
+        if (answer is { Count: > 0 })
+        {
+            await SendTextAsync(answer);
         }
     }
 

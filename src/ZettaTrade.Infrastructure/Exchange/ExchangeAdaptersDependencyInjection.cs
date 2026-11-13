@@ -45,6 +45,7 @@ public static class ExchangeAdaptersDependencyInjection
             .AddBinanceAdapter()
             .AddBybitAdapter()
             .AddOkxAdapter()
+            .AddAlpacaAdapter()
             .AddDemoAdapter();
     }
 
@@ -161,6 +162,42 @@ public static class ExchangeAdaptersDependencyInjection
                 sp.GetRequiredService<ExchangeEndpointRegistry>().Okx,
                 reconnectSupervisor: sp.GetService<ReconnectSupervisor>(),
                 restLimiter: sp.GetRequiredKeyedService<IRestRateLimiter>(OkxAdapter.HttpClientName)));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Register the Alpaca US-equity market-data adapter (mirrored on the
+    /// Bybit registration: adapter-owned timeout, transparent
+    /// decompression, endpoints from the <see cref="ExchangeEndpointRegistry"/>
+    /// snapshot). The adapter is USER-KEYED on every face (the catalog, the
+    /// bars and the stream all authenticate), so the registration passes the
+    /// <see cref="ISecretStore"/> beside the shared collaborators: the keys
+    /// are fetched per use inside the adapter and never leave the store.
+    /// Concrete-type registration: the App-side active-exchange wiring owns
+    /// the single <c>IMarketDataAdapter</c> entry point, so the adapter
+    /// itself must not claim the interface descriptor.
+    /// </summary>
+    public static IServiceCollection AddAlpacaAdapter(this IServiceCollection services)
+    {
+        services.AddHttpClient(AlpacaAdapter.HttpClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(AlpacaAdapter.RequestTimeoutSeconds);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip
+                | DecompressionMethods.Deflate
+                | DecompressionMethods.Brotli,
+        });
+        services.AddSingleton<AlpacaAdapter>(sp =>
+            new AlpacaAdapter(
+                sp.GetRequiredService<ILogger<AlpacaAdapter>>(),
+                sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetRequiredService<ISecretStore>(),
+                sp.GetRequiredService<ExchangeEndpointRegistry>().Alpaca,
+                reconnectSupervisor: sp.GetService<ReconnectSupervisor>(),
+                restLimiter: sp.GetRequiredKeyedService<IRestRateLimiter>(AlpacaAdapter.HttpClientName)));
 
         return services;
     }

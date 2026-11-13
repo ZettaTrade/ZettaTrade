@@ -16,7 +16,12 @@ public sealed record MarketTrade
     /// <summary>Trading symbol.</summary>
     public required Symbol Symbol { get; init; }
 
-    /// <summary>Trade side (aggressor side).</summary>
+    /// <summary>
+    /// Trade side (aggressor side). The neutral <see cref="OrderSide.None"/>
+    /// (T-198) states the wire's own absence: a stock feed's tape serves no
+    /// aggressor (a trade is a matched buy and a matched sell), so the tape
+    /// fact is the price, the size and the time — never a fabricated side.
+    /// </summary>
     public required OrderSide Side { get; init; }
 
     /// <summary>Trade price.</summary>

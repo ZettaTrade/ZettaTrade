@@ -3,7 +3,23 @@ namespace ZettaTrade.Core.Enums;
 /// <summary>
 /// Side of an order or trade.
 /// </summary>
-public enum OrderSide { Buy = 0, Sell = 1 }
+public enum OrderSide
+{
+    /// <summary>Buy side.</summary>
+    Buy = 0,
+    /// <summary>Sell side.</summary>
+    Sell = 1,
+
+    /// <summary>
+    /// The tape-only neutral side (T-198): the wire served NO aggressor side —
+    /// a stock feed's trade event is a matched buy and a matched sell, and
+    /// venues such as Alpaca's v2 IEX feed publish exactly that fact. A MARKET
+    /// TRADE may carry it (the tape states price, size and time only); an
+    /// ORDER never may — <see cref="Entities.OrderRequest"/> validates the
+    /// side scope to Buy/Sell before any order flows.
+    /// </summary>
+    None = 2,
+}
 
 /// <summary>
 /// Type of order execution.

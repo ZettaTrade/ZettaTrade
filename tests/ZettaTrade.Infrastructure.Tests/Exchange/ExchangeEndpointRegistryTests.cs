@@ -76,6 +76,10 @@ public sealed class ExchangeEndpointRegistryTests
             services.AddSingleton(NullLogger<ExchangeEndpointRegistry>.Instance);
             services.AddSingleton<ISettingsService>(sp =>
                 new SettingsService(path, sp.GetRequiredService<ILogger<SettingsService>>()));
+            // The composition root registers the secret store ahead of the
+            // adapter chain (an adapter in the chain now authenticates its
+            // stream off it) — the faithful replica carries the stub too.
+            services.AddSingleton(Substitute.For<ISecretStore>());
             services.AddExchangeAdapters();
 
             await using var provider = services.BuildServiceProvider();

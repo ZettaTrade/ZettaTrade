@@ -62,12 +62,14 @@ public sealed class DemoMarketDataAdapterTests
             ["LINK/USDT"] = 14m,
             ["AVAX/USDT"] = 28m,
             ["LTC/USDT"] = 66m,
+            ["AAPL"] = 187.50m,
+            ["MSFT"] = 420.00m,
         };
 
     private static Symbol BtcUsdt() => Symbol.Parse("BTC/USDT");
 
     [Fact]
-    public async Task GetSymbolsAsync_ServesTheFixedBinanceSubset()
+    public async Task GetSymbolsAsync_ServesTheFixedSandboxCatalog()
     {
         var symbols = await _adapter.GetSymbolsAsync();
 
@@ -85,6 +87,8 @@ public sealed class DemoMarketDataAdapterTests
             "LINK/USDT",
             "AVAX/USDT",
             "LTC/USDT",
+            "AAPL",
+            "MSFT",
         ]);
     }
 
@@ -242,7 +246,7 @@ public sealed class DemoMarketDataAdapterTests
     }
 
     /// <summary>
-    /// All twelve documented symbol cadences fire concurrently on pool
+    /// All fourteen documented symbol cadences fire concurrently on pool
     /// threads: every trade carries a GLOBALLY unique sequence number (the
     /// atomic increment, BUG-031) and the side/price parity it encodes stays
     /// consistent — a single lost increment would hand one sequence number to

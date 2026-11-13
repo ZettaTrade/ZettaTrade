@@ -44,8 +44,9 @@ public sealed class DemoMarketDataAdapter : IMarketDataAdapter
     private static readonly TimeSpan TradeRefreshInterval = TimeSpan.FromSeconds(2);
 
     /// <summary>
-    /// The fixed tradable universe (a Binance subset). It covers the
-    /// watchlist's starter majors (T-166): the default first-run exchange is
+    /// The fixed tradable universe (a Binance subset plus two stock singles
+    /// seeded for the stocks wave's offline lane). It covers the watchlist's
+    /// starter majors (T-166): the default first-run exchange is
     /// this adapter, so the catalog must never be narrower than the starter
     /// list — a starter row the catalog lacks throws at every startup and
     /// never prices.
@@ -64,6 +65,8 @@ public sealed class DemoMarketDataAdapter : IMarketDataAdapter
         Symbol.Parse("LINK/USDT"),
         Symbol.Parse("AVAX/USDT"),
         Symbol.Parse("LTC/USDT"),
+        Symbol.Parse("AAPL"),
+        Symbol.Parse("MSFT"),
     ];
 
     /// <summary>Seeded anchor price per normalized symbol.</summary>
@@ -81,6 +84,8 @@ public sealed class DemoMarketDataAdapter : IMarketDataAdapter
         ["LINK/USDT"] = 14m,
         ["AVAX/USDT"] = 28m,
         ["LTC/USDT"] = 66m,
+        ["AAPL"] = 187.50m,
+        ["MSFT"] = 420.00m,
     };
 
     #endregion Constants

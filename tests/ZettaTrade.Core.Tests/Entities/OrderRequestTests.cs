@@ -33,6 +33,34 @@ public sealed class OrderRequestTests
         act.Should().NotThrow();
     }
 
+    // ------------------------------------------------------------------
+    // T-198 side scope: the tape-only neutral side (OrderSide.None) states
+    // an unserved aggressor fact on a MARKET TRADE — on an ORDER it would
+    // silently take the sell branch of every side-aware path (the risk
+    // manager does not re-check the side), so Validate refuses it like any
+    // other unparsable side (BUG-007's definedness scope, now Buy/Sell).
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void Validate_NeutralSideOrder_ShouldThrow()
+    {
+        var request = ValidOrder() with { Side = OrderSide.None };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*Buy or Sell*");
+    }
+
+    [Fact]
+    public void Validate_OutOfRangeSideRideThrough_ShouldThrow()
+    {
+        // The numeric ride-through stays refused: the scope is the named
+        // Buy/Sell set, not bare definedness.
+        var request = ValidOrder() with { Side = (OrderSide)99 };
+
+        request.Invoking(r => r.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*Buy or Sell*");
+    }
+
     [Fact]
     public void Validate_GtdOrderWithoutExpiry_ShouldThrow()
     {

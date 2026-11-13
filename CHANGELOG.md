@@ -1,3 +1,45 @@
+## [0.1.0-alpha.142] - 2026-11-13
+
+Build of board task T-198 (branch `feat/stocks-mvp`): US equities join the
+market-data surface over Alpaca's v2 IEX feed — the stock face rides the
+user-keyed provider (secret-store keys, fetched per use), the tape carries
+the wire's own absence of an aggressor side, and the book serves the
+venue's top of book only.
+
+### Added
+- The Alpaca market-data adapter (T-198): one authenticated IEX stream
+  (auth within the venue's 10 s window, the ack awaited before any
+  subscribe rides, every message a JSON array — control size-one, data
+  batched), the v2 REST faces for the assets catalog (the trading-API
+  host) and the single-symbol bars (the data host, `feed=iex`, ascending
+  sort, token pagination bounded by the shipped page cap), and the shared
+  200 req/min market-data budget as ONE rate-limiter family
+  (`Limiter.Alpaca.RequestWeightMinute` rescales it live). A trade frame
+  publishes with the tape-only neutral side (`OrderSide.None` — a stock
+  trade is a matched buy and a matched sell; the wire never names an
+  aggressor), the quote frame serves the venue's TOP OF BOOK (a zero
+  price means no active quote on that side — that side serves empty,
+  never a padded ladder), the dailyBars channel feeds the ticker's
+  running session volume, and the per-symbol merge publishes once the
+  wire has said a last price (the 24h percent stays the honest zero —
+  the stream serves no previous close). Nanosecond RFC-3339 tape
+  timestamps trim to `DateTimeOffset` precision instead of dropping
+  whole events; corrections and cancel-errors (the trades
+  subscription's auto-added companions) are recorded, not applied.
+- The tape-side Core seam: `OrderSide.None` joins the enum as the
+  tape-only neutral value, `OrderRequest.Validate` hardens the side
+  scope to Buy/Sell (a neutral ORDER would silently take the sell
+  branch of every side-aware path — the risk manager does not re-check
+  the side), the trade entity documents the unserved fact, and the
+  trade tape widget renders neutral rows in its own text color (the
+  side is a color; an unserved fact is never painted as a sell).
+- The stock demo fixture: the canned-data demo adapter seeds AAPL
+  (187.50) and MSFT (420.00) so the offline lane prices stock rows too.
+- The kit's Alpaca pack: the battery rides the loopback rig with the
+  kit's new in-pump auth auto-responder (the venue's control protocol,
+  scripted under the session's own send gate) and the pairs-based
+  `KitSecretStoreStub` — never a real credential.
+
 ## [0.1.0-alpha.141] - 2026-11-13
 
 Build of board task T-197 (branch `feat/futures-mvp`): Bybit's linear

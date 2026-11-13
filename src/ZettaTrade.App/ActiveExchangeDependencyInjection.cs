@@ -88,6 +88,7 @@ public static class ActiveExchangeDependencyInjection
                 sp.GetRequiredService<BinanceAdapter>(),
                 sp.GetRequiredService<BybitAdapter>(),
                 sp.GetRequiredService<OkxAdapter>(),
+                sp.GetRequiredService<AlpacaAdapter>(),
             ];
             return new ActiveExchangeService(
                 ApplyAdapterAllowlist(

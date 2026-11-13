@@ -26,8 +26,9 @@ public static class RateLimiterDependencyInjection
     /// lambdas resolve theirs by key during the same registration chain).
     /// Keys are the adapters' named HttpClient identities:
     /// <see cref="BinanceAdapter.HttpClientName"/>,
-    /// <see cref="BybitAdapter.HttpClientName"/> and
-    /// <see cref="OkxAdapter.HttpClientName"/>.
+    /// <see cref="BybitAdapter.HttpClientName"/>,
+    /// <see cref="OkxAdapter.HttpClientName"/> and
+    /// <see cref="AlpacaAdapter.HttpClientName"/>.
     /// </summary>
     /// <param name="services">The registration collection.</param>
     public static IServiceCollection AddRestRateLimiters(this IServiceCollection services) =>
@@ -46,5 +47,10 @@ public static class RateLimiterDependencyInjection
                 OkxAdapter.HttpClientName,
                 (sp, _) => new RestRateLimiter(
                     OkxAdapter.DefaultRestLimits,
+                    sp.GetService<ISettingsService>()))
+            .AddKeyedSingleton<IRestRateLimiter>(
+                AlpacaAdapter.HttpClientName,
+                (sp, _) => new RestRateLimiter(
+                    AlpacaAdapter.DefaultRestLimits,
                     sp.GetService<ISettingsService>()));
 }
