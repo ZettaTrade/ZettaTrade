@@ -275,7 +275,7 @@ public sealed class McpWorkspaceToolsRegistrarTests
         kit.Stats.ReadPageAsync(Arg.Any<OrderStatsFilter>(), Arg.Any<Order?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => callInfo.ArgAt<Order?>(1) is null
                 ? Page([opening])
-                : callInfo.ArgAt<Order?>(1)!.Id == "o1" ? Page([closing]) : Page<Order>([]));
+                : callInfo.ArgAt<Order?>(1)!.Id == "o1" ? Page([closing]) : Page([]));
 
         var result = await kit.Host.Tools["get_trade_stats"].Handler(Args("{}"), CancellationToken.None);
 
@@ -297,7 +297,7 @@ public sealed class McpWorkspaceToolsRegistrarTests
     {
         var kit = CreateKit();
         kit.Stats.ReadPageAsync(Arg.Any<OrderStatsFilter>(), Arg.Any<Order?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Page<Order>([]));
+            .Returns(Page([]));
 
         var result = await kit.Host.Tools["get_trade_stats"].Handler(Args("{}"), CancellationToken.None);
 
@@ -611,7 +611,10 @@ public sealed class McpWorkspaceToolsRegistrarTests
         FilledQuantity = new Quantity(1m),
     };
 
-    private static IReadOnlyList<T> Page<T>(List<T> rows) => rows;
+    /// <summary>One stats-scan page row: the journal order plus its (unset)
+    /// user annotations (T-211).</summary>
+    private static IReadOnlyList<OrderPageRow> Page(List<Order> rows) =>
+        [.. rows.Select(order => new OrderPageRow(order, null, null))];
 
     #endregion
 

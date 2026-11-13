@@ -370,7 +370,7 @@ public sealed class SqliteOrderHistoryStoreTests
             "ExchangeId", "OrderId", "Symbol", "Side", "Type", "Quantity", "Price",
             "Status", "TimeInForce", "CreatedAt", "UpdatedAt", "FilledQuantity",
             "ClientOrderId", "StopPrice", "ExchangeOrderId", "RejectReason", "Expiry",
-            "Commission", "ReduceOnly", "PostOnly",
+            "Commission", "ReduceOnly", "PostOnly", "Note", "Tags",
         };
 
         await WithTempDatabaseAsync(async (file, store) =>
@@ -399,4 +399,166 @@ public sealed class SqliteOrderHistoryStoreTests
     }
 
     #endregion Schema Safety
+
+    #region Trade Meta (T-211)
+
+    [Fact]
+    public async Task SetTradeMeta_WritesTheAnnotations_AndTheySurviveTheRestart()
+    {
+        // The acceptance in miniature: the note and tags written in "run
+        // one" read back in "run two" (a fresh store instance over the same
+        // file) — the annotations persist like any journal row.
+        await WithTempDatabaseAsync(async (file, store) =>
+        {
+            await store.InitializeAsync();
+            await store.RecordPlacedAsync(BuildOrder());
+
+            var saved = await store.SetTradeMetaAsync("paper", "paper-1", "scaled out at the level", "swing,scalp");
+
+            saved.Should().BeTrue();
+            var meta = await store.GetTradeMetaAsync([("paper", "paper-1")]);
+            meta.Should().ContainSingle();
+            meta[0].Note.Should().Be("scaled out at the level");
+            meta[0].Tags.Should().Be("swing,scalp");
+
+            var restartedStore = CreateStore(file);
+            await restartedStore.InitializeAsync();
+            var afterRestart = await restartedStore.GetTradeMetaAsync([("paper", "paper-1")]);
+            afterRestart.Should().ContainSingle("the annotations survive the restart");
+            afterRestart[0].Note.Should().Be("scaled out at the level");
+            afterRestart[0].Tags.Should().Be("swing,scalp");
+        });
+    }
+
+    [Fact]
+    public async Task SetTradeMeta_ReplacesBothFieldsWhole_ANullClears()
+    {
+        // The annotation write replaces the pair whole: a null note and null
+        // tags clear both — the honest removal, never a half-cleared row.
+        await WithTempDatabaseAsync(async (_, store) =>
+        {
+            await store.InitializeAsync();
+            await store.RecordPlacedAsync(BuildOrder());
+            await store.SetTradeMetaAsync("paper", "paper-1", "note", "swing");
+
+            var cleared = await store.SetTradeMetaAsync("paper", "paper-1", null, null);
+            cleared.Should().BeTrue();
+
+            (await store.GetTradeMetaAsync([("paper", "paper-1")])).Should().BeEmpty(
+                "a fully cleared row is the honest unannotated again");
+        });
+    }
+
+    [Fact]
+    public async Task SetTradeMeta_UnrecordedOrder_ReturnsFalseAndWritesNothing()
+    {
+        await WithTempDatabaseAsync(async (_, store) =>
+        {
+            await store.InitializeAsync();
+
+            var saved = await store.SetTradeMetaAsync("paper", "ghost-1", "note", "swing");
+
+            saved.Should().BeFalse("the store refuses to fabricate a journal row");
+            (await store.GetTradeMetaAsync([("paper", "ghost-1")])).Should().BeEmpty();
+        });
+    }
+
+    [Fact]
+    public async Task RecordPlacedAfterSetTradeMeta_TheStatusRefreshNeverTouchesTheAnnotations()
+    {
+        // The adapter's placement upsert rewrites the order lifecycle
+        // fields by contract and lists its columns explicitly — the user
+        // annotations are not among them, so a re-record (a status refresh)
+        // cannot wipe what the user wrote.
+        await WithTempDatabaseAsync(async (_, store) =>
+        {
+            await store.InitializeAsync();
+            await store.RecordPlacedAsync(BuildOrder(status: OrderStatus.Pending));
+            await store.SetTradeMetaAsync("paper", "paper-1", "note", "swing");
+
+            await store.RecordPlacedAsync(BuildOrder(status: OrderStatus.Filled));
+
+            var meta = await store.GetTradeMetaAsync([("paper", "paper-1")]);
+            meta.Should().ContainSingle("the annotations survive the re-record");
+            meta[0].Note.Should().Be("note");
+            meta[0].Tags.Should().Be("swing");
+            (await store.GetRecentAsync(50))[0].Status.Should().Be(OrderStatus.Filled);
+        });
+    }
+
+    [Fact]
+    public async Task GetTradeMeta_ReturnsOnlyAnnotatedRows_IsolatedPerExchange()
+    {
+        // One bulk read: unannotated rows never come back, and the same
+        // order id on another exchange never leaks its annotations across.
+        await WithTempDatabaseAsync(async (_, store) =>
+        {
+            await store.InitializeAsync();
+            await store.RecordPlacedAsync(BuildOrder("paper-1"));
+            await store.RecordPlacedAsync(BuildOrder("paper-2", createdAt: BaseTime.AddMinutes(1)));
+            await store.RecordPlacedAsync(BuildOrder("binance-1", createdAt: BaseTime.AddMinutes(2)) with
+            {
+                ExchangeId = "binance",
+            });
+            await store.SetTradeMetaAsync("paper", "paper-1", "the paper note", "swing");
+            await store.SetTradeMetaAsync("binance", "binance-1", "the binance note", " scalp ");
+
+            var meta = await store.GetTradeMetaAsync(
+            [
+                ("paper", "paper-1"),
+                ("paper", "paper-2"),
+                ("binance", "binance-1"),
+            ]);
+
+            meta.Should().HaveCount(2, "the unannotated row stays absent");
+            var paper = meta.Should().ContainSingle(entry => entry.ExchangeId == "paper").Subject;
+            paper.OrderId.Should().Be("paper-1");
+            paper.Note.Should().Be("the paper note");
+            paper.Tags.Should().Be("swing");
+            var binance = meta.Should().ContainSingle(entry => entry.ExchangeId == "binance").Subject;
+            binance.OrderId.Should().Be("binance-1");
+            binance.Note.Should().Be("the binance note");
+            binance.Tags.Should().Be(" scalp ");
+        });
+    }
+
+    [Fact]
+    public async Task GetTradeMeta_EmptyKeys_ReturnsEmptyWithoutAQuery()
+    {
+        await WithTempDatabaseAsync(async (_, store) =>
+        {
+            await store.InitializeAsync();
+
+            (await store.GetTradeMetaAsync([])).Should().BeEmpty();
+        });
+    }
+
+    [Fact]
+    public async Task Migrations_ProduceTheAnnotationColumns()
+    {
+        // The migration battery: a fresh database walks the whole migration
+        // chain (InitializeAsync runs Migrate) and the Orders table ends
+        // with the two annotation columns the model snapshot carries.
+        await WithTempDatabaseAsync(async (file, store) =>
+        {
+            await store.InitializeAsync();
+
+            await using var connection = new SqliteConnection($"Data Source={file};Pooling=false");
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA table_info(Orders);";
+            var columns = new List<string>();
+            await using (var reader = await command.ExecuteReaderAsync())
+            {
+                while (await reader.ReadAsync())
+                {
+                    columns.Add(reader.GetString(reader.GetOrdinal("name")));
+                }
+            }
+
+            columns.Should().Contain("Note").And.Contain("Tags");
+        });
+    }
+
+    #endregion Trade Meta (T-211)
 }

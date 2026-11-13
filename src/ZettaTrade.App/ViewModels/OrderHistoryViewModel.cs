@@ -25,6 +25,13 @@ using ZettaTrade.Infrastructure.Persistence;
 /// save-file interactions the window answers. Write faults surface on the
 /// shared error line.
 /// </para>
+/// <para>
+/// The user trade annotations (T-211): the load joins each row's note and
+/// tags through the store's bulk meta read (only annotated rows come back),
+/// and a per-row edit affordance writes the applied dialog result through
+/// <see cref="IOrderHistoryStore.SetTradeMetaAsync"/> — the fresh row
+/// instance replaces the edited one in place.
+/// </para>
 /// </summary>
 public sealed class OrderHistoryViewModel : ReactiveObject
 {
@@ -32,6 +39,7 @@ public sealed class OrderHistoryViewModel : ReactiveObject
 
     private const string LoadFailedKey = "History.LoadFailed";
     private const string ExportFailedKey = "History.ExportFailed";
+    private const string EditFailedKey = "History.EditFailedFormat";
     private const string FeeUnknownKey = "Fees.Unknown";
     private const string PostOnlyFlagKey = "Order.FlagPostOnly";
     private const string ReduceOnlyFlagKey = "Order.FlagReduceOnly";
@@ -125,11 +133,20 @@ public sealed class OrderHistoryViewModel : ReactiveObject
     /// <summary>Exports the executions found in the loaded rows as a fills CSV file.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ExportFillsCommand { get; }
 
+    /// <summary>Opens the note-and-tags dialog for one history row (T-211); the applied result lands in the journal.</summary>
+    public ReactiveCommand<OrderHistoryRowViewModel, RxVoid> EditTradeCommand { get; }
+
     /// <summary>Asks the view for the orders CSV destination (a save-file dialog); null cancels.</summary>
     public Interaction<string, string?> SaveOrdersCsvRequested { get; }
 
     /// <summary>Asks the view for the fills CSV destination (a save-file dialog); null cancels.</summary>
     public Interaction<string, string?> SaveFillsCsvRequested { get; }
+
+    /// <summary>
+    /// Asks the view to show the note-and-tags dialog over one history row
+    /// (T-211); the applied result comes back, null closes without one.
+    /// </summary>
+    public Interaction<OrderHistoryRowViewModel, TradeNoteEditResult?> EditTradeRequested { get; }
 
     #endregion Properties
 
@@ -152,8 +169,11 @@ public sealed class OrderHistoryViewModel : ReactiveObject
         LoadCommand = ReactiveCommand.CreateFromTask(HandleLoadAsync);
         ExportOrdersCommand = ReactiveCommand.CreateFromTask(HandleExportOrdersAsync);
         ExportFillsCommand = ReactiveCommand.CreateFromTask(HandleExportFillsAsync);
+        EditTradeCommand = ReactiveCommand.CreateFromTask<OrderHistoryRowViewModel, RxVoid>(
+            (row, ct) => HandleEditTradeAsync(row, ct));
         SaveOrdersCsvRequested = new Interaction<string, string?>();
         SaveFillsCsvRequested = new Interaction<string, string?>();
+        EditTradeRequested = new Interaction<OrderHistoryRowViewModel, TradeNoteEditResult?>();
     }
 
     #endregion Constructor
@@ -169,7 +189,23 @@ public sealed class OrderHistoryViewModel : ReactiveObject
         {
             var orders = await _store.GetRecentAsync(DefaultLoadLimit);
             _loadedOrders = orders;
-            Rows = orders.Select(CreateRow).ToArray();
+
+            // The annotation join (T-211): one bulk meta read over the
+            // loaded rows; only annotated rows come back, the rest stays
+            // honestly null on the display rows.
+            var meta = await _store.GetTradeMetaAsync(
+                orders.Select(order => (order.ExchangeId, order.Id)).ToArray());
+            var metaByKey = meta.ToDictionary(
+                entry => (entry.ExchangeId, entry.OrderId),
+                entry => entry);
+            Rows = orders
+                .Select(order => metaByKey.TryGetValue(
+                    (order.ExchangeId, order.Id),
+                    out var entry)
+                    ? CreateRow(order, entry.Note, entry.Tags)
+                    : CreateRow(order, null, null))
+                .ToArray();
+
             _logger.LogInformation(
                 "Order history window: loaded {RowCount} orders from the journal",
                 Rows.Count);
@@ -182,6 +218,71 @@ public sealed class OrderHistoryViewModel : ReactiveObject
             _logger.LogError(ex, "Order history window: load failed");
             ErrorMessage = _localization.GetString(LoadFailedKey, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// One annotation edit (T-211): the view answers the dialog interaction
+    /// (null closes without an applied edit), the applied result rides the
+    /// journal write, and the edited display row is replaced with the fresh
+    /// annotations. A refused write (the journal row vanished mid-session)
+    /// surfaces the honest failure line, never a fabricated save.
+    /// </summary>
+    private async Task<RxVoid> HandleEditTradeAsync(
+        OrderHistoryRowViewModel row,
+        CancellationToken ct)
+    {
+        ErrorMessage = null;
+
+        try
+        {
+            var result = await EditTradeRequested.Handle(row);
+            if (result is null)
+            {
+                _logger.LogInformation(
+                    "Order history window: the trade note edit ended on a cancelled dialog");
+                return RxVoid.Default;
+            }
+
+            var saved = await _store.SetTradeMetaAsync(
+                row.Exchange,
+                row.OrderId,
+                result.Note,
+                result.Tags,
+                ct);
+            if (!saved)
+            {
+                _logger.LogWarning(
+                    "Order history window: the trade meta write for {ExchangeId}/{OrderId} found no recorded order",
+                    row.Exchange,
+                    row.OrderId);
+                ErrorMessage = _localization.GetString(EditFailedKey, "no recorded order");
+                return RxVoid.Default;
+            }
+
+            var fresh = _rows.ToList();
+            var index = fresh.IndexOf(row);
+            if (index >= 0)
+            {
+                fresh[index] = row with { Note = result.Note, Tags = result.Tags };
+                Rows = fresh;
+            }
+
+            _logger.LogInformation(
+                "Order history window: trade meta saved for {ExchangeId}/{OrderId} (note {HasNote}, tags {Tags})",
+                row.Exchange,
+                row.OrderId,
+                result.Note is not null,
+                result.Tags ?? string.Empty);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Broader than the annotation flow: the journal write rides the
+            // local disk; the window stays usable with its error line.
+            _logger.LogError(ex, "Order history window: the trade note edit failed");
+            ErrorMessage = _localization.GetString(EditFailedKey, ex.Message);
+        }
+
+        return RxVoid.Default;
     }
 
     private async Task HandleExportOrdersAsync(CancellationToken cancellationToken)
@@ -248,7 +349,7 @@ public sealed class OrderHistoryViewModel : ReactiveObject
     }
 
     /// <summary>Build the immutable display row for one persisted order.</summary>
-    private OrderHistoryRowViewModel CreateRow(Order order) => new()
+    private OrderHistoryRowViewModel CreateRow(Order order, string? note, string? tags) => new()
     {
         // The journal stores UTC; display follows the local wall clock, like
         // the positions panel does.
@@ -263,6 +364,9 @@ public sealed class OrderHistoryViewModel : ReactiveObject
         Status = _localization.GetString($"Positions.Status{order.Status}"),
         Fee = FormatFee(order.Commission),
         Flags = FormatFlags(order.ReduceOnly, order.PostOnly),
+        Note = note,
+        Tags = tags,
+        OrderId = order.Id,
     };
 
     /// <summary>

@@ -10,6 +10,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Export;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// Golden tests for the fill-pair aggregation math: open→close round trips
@@ -19,8 +20,10 @@ using ZettaTrade.Infrastructure.Export;
 /// a flip stamps its fresh position at its own fill), breakeven closes that
 /// stay undecided, per-symbol positions that never cross, non-filled rows
 /// that cost nothing, the FilledQuantity partial-fill reading, empty input,
-/// and the identical outcome whether the pages arrive at once or one page
-/// at a time (the incremental snapshot equals the batch).
+/// the identical outcome whether the pages arrive at once or one page
+/// at a time (the incremental snapshot equals the batch), and the tag
+/// lane (T-211): the outcome-only gate that leaves the position state
+/// whole and the volume scope-wide.
 /// </summary>
 public sealed class TradeStatsAccumulatorTests
 {
@@ -34,16 +37,20 @@ public sealed class TradeStatsAccumulatorTests
 
     /// <summary>
     /// One journal row the way the paper ledger records whole-order fills:
-    /// Filled, the (whole) FilledQuantity at the row price.
+    /// Filled, the (whole) FilledQuantity at the row price, plus the row's
+    /// user annotations (T-211) as the journal keeps them.
     /// </summary>
-    private static Order Fill(
+    private static OrderPageRow Fill(
         OrderSide side,
         decimal quantity,
         decimal price,
         int minute,
         string symbol = "BTC/USDT",
         OrderStatus status = OrderStatus.Filled,
-        decimal? filledQuantity = null) => new()
+        decimal? filledQuantity = null,
+        string? note = null,
+        string? tags = null) => new(
+        new Order
         {
             Id = $"row-{minute:n0}",
             ExchangeId = "paper",
@@ -56,7 +63,9 @@ public sealed class TradeStatsAccumulatorTests
             TimeInForce = TimeInForce.GTC,
             CreatedAt = BaseTime.AddMinutes(minute),
             FilledQuantity = new Quantity(filledQuantity ?? quantity),
-        };
+        },
+        note,
+        tags);
 
     #endregion Helpers
 
@@ -261,34 +270,40 @@ public sealed class TradeStatsAccumulatorTests
         var accumulator = new TradeStatsAccumulator();
         accumulator.Ingest(
         [
-            new Order
-            {
-                Id = "partial-1",
-                ExchangeId = "paper",
-                Symbol = Symbol.Parse("BTC/USDT"),
-                Side = OrderSide.Buy,
-                Type = OrderType.Limit,
-                Quantity = new Quantity(2m),
-                Price = new Price(10m),
-                Status = OrderStatus.Filled,
-                TimeInForce = TimeInForce.GTC,
-                CreatedAt = BaseTime,
-                FilledQuantity = new Quantity(1m),
-            },
-            new Order
-            {
-                Id = "partial-2",
-                ExchangeId = "paper",
-                Symbol = Symbol.Parse("BTC/USDT"),
-                Side = OrderSide.Sell,
-                Type = OrderType.Limit,
-                Quantity = new Quantity(2m),
-                Price = new Price(8m),
-                Status = OrderStatus.Filled,
-                TimeInForce = TimeInForce.GTC,
-                CreatedAt = BaseTime.AddMinutes(1),
-                FilledQuantity = new Quantity(1m),
-            },
+            new OrderPageRow(
+                new Order
+                {
+                    Id = "partial-1",
+                    ExchangeId = "paper",
+                    Symbol = Symbol.Parse("BTC/USDT"),
+                    Side = OrderSide.Buy,
+                    Type = OrderType.Limit,
+                    Quantity = new Quantity(2m),
+                    Price = new Price(10m),
+                    Status = OrderStatus.Filled,
+                    TimeInForce = TimeInForce.GTC,
+                    CreatedAt = BaseTime,
+                    FilledQuantity = new Quantity(1m),
+                },
+                null,
+                null),
+            new OrderPageRow(
+                new Order
+                {
+                    Id = "partial-2",
+                    ExchangeId = "paper",
+                    Symbol = Symbol.Parse("BTC/USDT"),
+                    Side = OrderSide.Sell,
+                    Type = OrderType.Limit,
+                    Quantity = new Quantity(2m),
+                    Price = new Price(8m),
+                    Status = OrderStatus.Filled,
+                    TimeInForce = TimeInForce.GTC,
+                    CreatedAt = BaseTime.AddMinutes(1),
+                    FilledQuantity = new Quantity(1m),
+                },
+                null,
+                null),
         ]);
 
         var summary = accumulator.Snapshot();
@@ -383,14 +398,14 @@ public sealed class TradeStatsAccumulatorTests
 
         ledger.Should().Equal(
             new StatementRealizedTrade(
-                BaseTime.AddMinutes(1), "paper", "BTC/USDT", "Sell",
-                1m, 10m, 13m, 3m, "USDT"),
+                BaseTime.AddMinutes(1), "paper", "BTC/USDT", "Sell", "row-1",
+                1m, 10m, 13m, 3m, "USDT", null, null),
             new StatementRealizedTrade(
-                BaseTime.AddMinutes(2), "paper", "BTC/USDT", "Buy",
-                1m, 13m, 15m, -2m, "USDT"),
+                BaseTime.AddMinutes(2), "paper", "BTC/USDT", "Buy", "row-2",
+                1m, 13m, 15m, -2m, "USDT", null, null),
             new StatementRealizedTrade(
-                BaseTime.AddMinutes(3), "paper", "BTC/USDT", "Sell",
-                1m, 15m, 14m, -1m, "USDT"));
+                BaseTime.AddMinutes(3), "paper", "BTC/USDT", "Sell", "row-3",
+                1m, 15m, 14m, -1m, "USDT", null, null));
     }
 
     [Fact]
@@ -436,6 +451,136 @@ public sealed class TradeStatsAccumulatorTests
     }
 
     #endregion Realized Ledger (T-210)
+
+    #region Tag Lane (T-211)
+
+    [Fact]
+    public void TagLane_ClosesOutsideTheLane_BookTheStateNotTheOutcome()
+    {
+        // The lane "swing" filters the OUTCOME only: the untagged close
+        // still reduces the position state (the pairing stays whole), but
+        // books no trade, no PnL, no curve point, no ledger row. The
+        // volume keeps counting every fill in the scope (the disclosed
+        // scope-wide fact).
+        var accumulator = new TradeStatsAccumulator("swing");
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 1m, 12m, 1),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        accumulator.HasAnyFills.Should().BeTrue("the lane filters outcomes, never the scope itself");
+        summary.Trades.Should().Be(0);
+        summary.Wins.Should().Be(0);
+        summary.Losses.Should().Be(0);
+        summary.RealizedTotal.Should().Be(0m);
+        summary.Volume.Should().Be(22m, "the volume stays the scope's fill volume");
+        summary.WinRate.Should().BeNull();
+        summary.Equity.Should().ContainSingle("the zero-seeded origin, no outcome points");
+        summary.Equity[0].Value.Should().Be(0m);
+        accumulator.GetRealizedTrades().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void TagLane_MatchesTheExactTokenCaseInsensitively()
+    {
+        // The exact-token match over the canonical comma-joined list:
+        // "swing" books; "swing-trade" (a different token) does not; the
+        // case differences never split a lane. The constructor trims stray
+        // whitespace off the lane token.
+        var tagged = Fill(OrderSide.Sell, 1m, 12m, 1, tags: "Swing, Scalp");
+
+        var lane = new TradeStatsAccumulator(" swing ");
+        lane.Ingest([Fill(OrderSide.Buy, 1m, 10m, 0), tagged]);
+        lane.Snapshot().Trades.Should().Be(1, "the lane matches the exact token, case-insensitively");
+
+        var narrowLane = new TradeStatsAccumulator("swing-trade");
+        narrowLane.Ingest([Fill(OrderSide.Buy, 1m, 10m, 0), tagged]);
+        narrowLane.Snapshot().Trades.Should().Be(0, "a partial token is not the token");
+
+        var caseLane = new TradeStatsAccumulator("SWING");
+        caseLane.Ingest([Fill(OrderSide.Buy, 1m, 10m, 0), tagged]);
+        caseLane.Snapshot().Trades.Should().Be(1, "the match is case-insensitive");
+    }
+
+    [Fact]
+    public void TagLane_TheStateBooksRegardless_TheNextLaneTradeSeesTheWholePairing()
+    {
+        // The honesty core: an untagged close reduces the position state, so
+        // the next tagged close pairs against the true remainder — the lane
+        // never fabricates a PnL from a close whose open it would have
+        // filtered away. Buy 1@10, untagged close 1@12 (state flat, no
+        // outcome), re-open 1@10, tagged close 1@14: the lane trade books
+        // +4 (entry 10), not +8.
+        var accumulator = new TradeStatsAccumulator("swing");
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 1m, 12m, 1),
+            Fill(OrderSide.Buy, 1m, 10m, 2),
+            Fill(OrderSide.Sell, 1m, 14m, 3, tags: "swing"),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.Trades.Should().Be(1);
+        summary.Wins.Should().Be(1);
+        summary.RealizedTotal.Should().Be(4m, "the lane trade pairs against the true state");
+        summary.Volume.Should().Be(46m, "10 + 12 + 10 + 14, the scope-wide fills");
+        var trade = accumulator.GetRealizedTrades().Should().ContainSingle().Subject;
+        trade.RealizedPnl.Should().Be(4m);
+        trade.EntryPrice.Should().Be(10m);
+        trade.ExitPrice.Should().Be(14m);
+    }
+
+    [Fact]
+    public void TagLane_TheLedgerCarriesTheClosingRowsIdentityAndAnnotations()
+    {
+        // Lane trades stamp the closing journal row's identity (the
+        // annotation surface's key) and the row's note and tags exactly as
+        // the journal keeps them.
+        var accumulator = new TradeStatsAccumulator("swing");
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(
+                OrderSide.Sell, 1m, 12m, 1,
+                note: "scaled out at the level",
+                tags: "swing,scalp"),
+        ]);
+
+        var trade = accumulator.GetRealizedTrades().Should().ContainSingle().Subject;
+
+        trade.ClosingOrderId.Should().Be("row-1");
+        trade.Note.Should().Be("scaled out at the level");
+        trade.Tags.Should().Be("swing,scalp");
+        trade.ClosingSide.Should().Be("Sell");
+        trade.RealizedPnl.Should().Be(2m);
+    }
+
+    [Fact]
+    public void NullLane_BooksEveryOutcome_TheDefaultScope()
+    {
+        // The null lane (the empty text) is the default scope: every
+        // closing fill books, tagged or not.
+        var accumulator = new TradeStatsAccumulator(null);
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 1m, 12m, 1, tags: "swing"),
+            Fill(OrderSide.Buy, 1m, 10m, 2),
+            Fill(OrderSide.Sell, 1m, 9m, 3),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.Trades.Should().Be(2);
+        summary.RealizedTotal.Should().Be(1m, "(+2 then -1)");
+    }
+
+    #endregion Tag Lane (T-211)
 
     #region Snapshot Pinning
 

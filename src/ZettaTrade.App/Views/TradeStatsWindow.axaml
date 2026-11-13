@@ -14,9 +14,27 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
+    <Window.Styles>
+        <!-- T-211: the realized-trades table rides the shared RowGrammar
+             dictionary (the emphasized header row, the hairline rows, the
+             side chips' state fills, the row-action buttons) - the same
+             scaffold the history window speaks. -->
+        <StyleInclude Source="avares://ZettaTrade.App/Themes/RowGrammar.axaml" />
 
-        <!-- Filters: text fields, the paper-live tag and the date range -->
+        <!-- The PnL cell tints by the realized sign (the candle state
+             colors, the screener-change pattern); a flat close keeps the
+             plain ink. -->
+        <Style Selector="TextBlock.pnl-cell.win">
+            <Setter Property="Foreground" Value="{DynamicResource CandleUp}" />
+        </Style>
+        <Style Selector="TextBlock.pnl-cell.loss">
+            <Setter Property="Foreground" Value="{DynamicResource CandleDown}" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
+
+        <!-- Filters: text fields, the paper-live tag, the date range and the tag lane -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,*" >
             <WrapPanel Grid.Column="1">
                 <StackPanel Margin="0,0,16,8">
@@ -44,6 +62,12 @@
                 <StackPanel Margin="0,0,16,8">
                     <TextBlock Text="{loc:Localized Stats.FilterTo}" Margin="0,0,0,4" />
                     <DatePicker Width="165" SelectedDate="{Binding ToDate}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,8">
+                    <TextBlock Text="{loc:Localized Stats.FilterTag}" Margin="0,0,0,4" />
+                    <TextBox Width="120" Text="{Binding TagLaneFilterText}"
+                             AutomationProperties.AutomationId="StatsTagLaneInput"
+                             PlaceholderText="{loc:Localized Stats.FilterTagHint}" />
                 </StackPanel>
                 <StackPanel VerticalAlignment="Bottom" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
                     <Button Content="{loc:Localized Stats.ExportPositions}"
@@ -122,8 +146,77 @@
                        TextWrapping="Wrap" />
         </Grid>
 
-        <!-- Progress / failure -->
+        <!-- The realized trades (T-211): every booked close with its journal
+             annotations, a per-row edit affordance over the shared dialog.
+             Bounded height: the table scrolls, the tiles and the curve keep
+             the window's primary space. -->
         <StackPanel Grid.Row="2" Spacing="{StaticResource SpaceXs}">
+            <TextBlock Text="{loc:Localized Stats.RealizedTitle}"
+                       Foreground="{DynamicResource TextSecondary}" />
+            <Border Classes="table-header-row" IsVisible="{Binding HasRealizedRows}">
+                <Grid ColumnDefinitions="130,80,90,60,80,80,80,90,*,*,70">
+                    <TextBlock Grid.Column="0" TextAlignment="Right" Text="{loc:Localized Stats.ColClosed}" />
+                    <TextBlock Grid.Column="1" Text="{loc:Localized Stats.ColExchange}" />
+                    <TextBlock Grid.Column="2" Text="{loc:Localized Stats.ColSymbol}" />
+                    <TextBlock Grid.Column="3" Text="{loc:Localized Stats.ColSide}" />
+                    <TextBlock Grid.Column="4" TextAlignment="Right" Text="{loc:Localized Stats.ColQuantity}" />
+                    <TextBlock Grid.Column="5" TextAlignment="Right" Text="{loc:Localized Stats.ColEntry}" />
+                    <TextBlock Grid.Column="6" TextAlignment="Right" Text="{loc:Localized Stats.ColExit}" />
+                    <TextBlock Grid.Column="7" TextAlignment="Right" Text="{loc:Localized Stats.ColPnl}" />
+                    <TextBlock Grid.Column="8" Text="{loc:Localized Stats.ColNote}" />
+                    <TextBlock Grid.Column="9" Text="{loc:Localized Stats.ColTags}" />
+                    <TextBlock Grid.Column="10" />
+                </Grid>
+            </Border>
+            <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <ItemsControl ItemsSource="{Binding RealizedRows}"
+                                  IsVisible="{Binding HasRealizedRows}"
+                                  AutomationProperties.Name="{loc:Localized Stats.A11yRealized}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TradeRealizedRowViewModel">
+                                <Border Classes="table-row">
+                                    <Grid ColumnDefinitions="130,80,90,60,80,80,80,90,*,*,70">
+                                        <TextBlock Grid.Column="0" Text="{Binding ClosedAt}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Exchange}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Symbol}" />
+                                        <Border Grid.Column="3"
+                                                Classes="chip"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Center"
+                                                Classes.buy="{Binding IsBuySide}"
+                                                Classes.sell="{Binding IsSellSide}">
+                                            <TextBlock Text="{Binding Side}" />
+                                        </Border>
+                                        <TextBlock Grid.Column="4" Text="{Binding Quantity}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                        <TextBlock Grid.Column="5" Text="{Binding EntryPrice}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                        <TextBlock Grid.Column="6" Text="{Binding ExitPrice}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                        <TextBlock Grid.Column="7" Text="{Binding Pnl}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right"
+                                                   Classes="pnl-cell"
+                                                   Classes.win="{Binding IsWinning}"
+                                                   Classes.loss="{Binding IsLosing}" />
+                                        <TextBlock Grid.Column="8" Text="{Binding Note}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="9" Text="{Binding Tags}" TextTrimming="CharacterEllipsis" />
+                                        <Button Grid.Column="10"
+                                                Classes="row-action secondary"
+                                                Content="{loc:Localized Stats.EditTrade}"
+                                                AutomationProperties.AutomationId="StatsEditTradeButton"
+                                                Command="{Binding $parent[Window].((vm:TradeStatsViewModel)DataContext).EditRealizedRowCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <!-- The honest empty state: no trades booked under the scope yet -->
+                    <TextBlock Text="{loc:Localized Stats.Empty}"
+                               IsVisible="{Binding !HasRealizedRows}" />
+                </StackPanel>
+            </ScrollViewer>
+        </StackPanel>
+
+        <!-- Progress / failure -->
+        <StackPanel Grid.Row="3" Spacing="{StaticResource SpaceXs}">
             <TextBlock Text="{Binding ScanStateText}"
                        IsVisible="{Binding ScanStateText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             <TextBlock Text="{Binding ErrorMessage}"
@@ -132,7 +225,7 @@
                        IsVisible="{Binding HasErrorMessage}" />
         </StackPanel>
 
-        <Button Grid.Row="3"
+        <Button Grid.Row="4"
                 Content="{loc:Localized Stats.Close}"
                 Click="OnCloseClick"
                 MinWidth="90"

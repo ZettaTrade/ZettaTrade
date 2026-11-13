@@ -23,9 +23,11 @@ public interface IOrderStatsQuery
     /// <paramref name="after"/> — the previous page's last order, null to
     /// start at the scope's beginning. <paramref name="pageSize"/> is
     /// clamped to a bounded window; a page shorter than the requested size
-    /// means the scope is exhausted (an empty page reads exhaust too).
+    /// means the scope is exhausted (an empty page reads exhaust too). Each
+    /// row carries the row's user trade annotations (T-211) as they sit in
+    /// the journal; nulls are the honest unannotated.
     /// </summary>
-    Task<IReadOnlyList<Order>> ReadPageAsync(
+    Task<IReadOnlyList<OrderPageRow>> ReadPageAsync(
         OrderStatsFilter filter,
         Order? after,
         int pageSize,

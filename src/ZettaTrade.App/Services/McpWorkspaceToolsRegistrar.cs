@@ -353,7 +353,7 @@ public sealed class McpWorkspaceToolsRegistrar(ILogger<McpWorkspaceToolsRegistra
                         }
 
                         accumulator.Ingest(page);
-                        after = page[^1];
+                        after = page[^1].Order;
                         scanned += page.Count;
                         pages++;
                         lastPageFull = page.Count == StatsScanPageSize;

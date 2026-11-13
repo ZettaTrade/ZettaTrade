@@ -17,10 +17,11 @@ using ZettaTrade.Core.ValueObjects;
 /// <summary>
 /// Tests for the SQLite order-stats query: the keyset walk (ascending
 /// (CreatedAt, ExchangeId, OrderId), strictly after the previous page's last
-/// order — the same-timestamp tie must straddle a page boundary without
+/// order - the same-timestamp tie must straddle a page boundary without
 /// skipping), the effective exhaustion (a short page, then an empty read),
 /// the scope filters (symbol, exchange, inclusive-from/exclusive-to dates,
-/// the venue paper/live tag), and the per-page size clamp.
+/// the venue paper/live tag), the per-page size clamp, and the annotation
+/// ride-along (T-211): each row carries the journal row's note and tags.
 /// </summary>
 public sealed class SqliteOrderStatsQueryTests
 {
@@ -78,7 +79,9 @@ public sealed class SqliteOrderStatsQueryTests
         string symbol = "BTC/USDT",
         OrderStatus status = OrderStatus.Filled,
         decimal quantity = 1m,
-        decimal? filledQuantity = null) => new()
+        decimal? filledQuantity = null,
+        string? note = null,
+        string? tags = null) => new()
         {
             ExchangeId = exchange,
             OrderId = id,
@@ -93,6 +96,8 @@ public sealed class SqliteOrderStatsQueryTests
             PostOnly = false,
             CreatedAt = createdAt,
             FilledQuantity = filledQuantity ?? quantity,
+            Note = note,
+            Tags = tags,
         };
 
     #endregion Helpers
@@ -115,20 +120,20 @@ public sealed class SqliteOrderStatsQueryTests
 
             var filter = new OrderStatsFilter(null, null, null, null, null);
             var page1 = await query.ReadPageAsync(filter, after: null, pageSize: 2);
-            page1.Select(row => row.Id).Should().Equal(["r-1", "r-2"]);
+            page1.Select(row => row.Order.Id).Should().Equal(["r-1", "r-2"]);
 
-            var page2 = await query.ReadPageAsync(filter, page1[^1], 2);
-            page2.Select(row => row.Id).Should().Equal(["r-3", "r-4"]);
+            var page2 = await query.ReadPageAsync(filter, page1[^1].Order, 2);
+            page2.Select(row => row.Order.Id).Should().Equal(["r-3", "r-4"]);
 
-            var page3 = await query.ReadPageAsync(filter, page2[^1], 2);
-            page3.Select(row => row.Id).Should().Equal(["r-5"]);
+            var page3 = await query.ReadPageAsync(filter, page2[^1].Order, 2);
+            page3.Select(row => row.Order.Id).Should().Equal(["r-5"]);
 
             // One read past the last page reads exhaust: nothing more.
-            var page4 = await query.ReadPageAsync(filter, page3[^1], 2);
+            var page4 = await query.ReadPageAsync(filter, page3[^1].Order, 2);
             page4.Should().BeEmpty();
 
             var walkedPages = new[] { page1, page2, page3 };
-            walkedPages.SelectMany(page => page.Select(row => row.Id))
+            walkedPages.SelectMany(page => page.Select(row => row.Order.Id))
                 .Should().OnlyHaveUniqueItems("the keyset never replays a row");
         });
     }
@@ -152,11 +157,11 @@ public sealed class SqliteOrderStatsQueryTests
             var filter = new OrderStatsFilter(null, null, null, null, null);
             var page1 = await query.ReadPageAsync(filter, after: null, pageSize: 2);
 
-            page1.Select(row => row.ExchangeId + "/" + row.Id)
+            page1.Select(row => row.Order.ExchangeId + "/" + row.Order.Id)
                 .Should().Equal(["binance/b-1", "binance/b-2"]);
 
-            var page2 = await query.ReadPageAsync(filter, page1[^1], 2);
-            page2.Select(row => row.ExchangeId + "/" + row.Id)
+            var page2 = await query.ReadPageAsync(filter, page1[^1].Order, 2);
+            page2.Select(row => row.Order.ExchangeId + "/" + row.Order.Id)
                 .Should().Equal(["paper/p-1", "paper/z-late"]);
         });
     }
@@ -194,7 +199,7 @@ public sealed class SqliteOrderStatsQueryTests
                 IsPaper: true);
 
             var page = await query.ReadPageAsync(filter, after: null, pageSize: 100);
-            page.Select(row => row.Id).Should().Equal(["in-1", "in-2", "in-zero-fill"]);
+            page.Select(row => row.Order.Id).Should().Equal(["in-1", "in-2", "in-zero-fill"]);
         });
     }
 
@@ -210,7 +215,7 @@ public sealed class SqliteOrderStatsQueryTests
 
             var filter = new OrderStatsFilter(null, null, null, null, IsPaper: false);
             var page = await query.ReadPageAsync(filter, after: null, pageSize: 100);
-            page.Select(row => row.Id).Should().Equal(["live-1"]);
+            page.Select(row => row.Order.Id).Should().Equal(["live-1"]);
         });
     }
 
@@ -226,7 +231,7 @@ public sealed class SqliteOrderStatsQueryTests
 
             var filter = new OrderStatsFilter(null, null, null, null, null);
             var page = await query.ReadPageAsync(filter, after: null, pageSize: 100);
-            page.Select(row => row.Id + "@" + row.ExchangeId).Should().Equal(["a-1@binance", "p-1@paper"]);
+            page.Select(row => row.Order.Id + "@" + row.Order.ExchangeId).Should().Equal(["a-1@binance", "p-1@paper"]);
         });
     }
 
@@ -256,4 +261,29 @@ public sealed class SqliteOrderStatsQueryTests
     }
 
     #endregion Page Clamp
+
+    #region Annotation Ride-Along (T-211)
+
+    [Fact]
+    public async Task ReadPageAsync_CarriesTheRowsAnnotations_UnannotatedRowsStayNull()
+    {
+        await WithTempDatabaseAsync(async (file, query) =>
+        {
+            await SeedAsync(
+                file,
+                BuildRow("a-1", BaseTime),
+                BuildRow("b-1", BaseTime.AddMinutes(1), note: "scaled out", tags: "swing,scalp"));
+
+            var filter = new OrderStatsFilter(null, null, null, null, null);
+            var page = await query.ReadPageAsync(filter, after: null, pageSize: 100);
+
+            page.Should().HaveCount(2);
+            page[0].Note.Should().BeNull("the honest unannotated");
+            page[0].Tags.Should().BeNull();
+            page[1].Note.Should().Be("scaled out");
+            page[1].Tags.Should().Be("swing,scalp");
+        });
+    }
+
+    #endregion Annotation Ride-Along (T-211)
 }

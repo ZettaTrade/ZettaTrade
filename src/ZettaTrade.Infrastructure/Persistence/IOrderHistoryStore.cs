@@ -37,4 +37,29 @@ public interface IOrderHistoryStore
     /// record stays untouched.
     /// </summary>
     Task<int> DeleteExchangeAsync(string exchangeId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Write the user's trade note and tags onto one journal row (T-211).
+    /// Both fields are replaced whole (a null clears — the honest removal),
+    /// and the row's other fields stay untouched: this is an annotation
+    /// write, never an order rewrite. Returns false when no such row is
+    /// recorded (the honest no-op — the caller decides what the surface
+    /// shows).
+    /// </summary>
+    Task<bool> SetTradeMetaAsync(
+        string exchangeId,
+        string orderId,
+        string? note,
+        string? tags,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Read the trade meta for the named journal rows (T-211): one bulk
+    /// query, rows with no recorded note and no tags simply don't come back.
+    /// The result order is unspecified — key the entries by
+    /// (ExchangeId, OrderId) on the caller's side.
+    /// </summary>
+    Task<IReadOnlyList<OrderTradeMeta>> GetTradeMetaAsync(
+        IReadOnlyList<(string ExchangeId, string OrderId)> keys,
+        CancellationToken cancellationToken = default);
 }

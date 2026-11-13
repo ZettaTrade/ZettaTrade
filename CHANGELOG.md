@@ -1,23 +1,59 @@
 ## [0.1.0-alpha.155] - 2026-11-13
 
 Build of board task T-217 (branch `feat/perf-fixes`): two performance fixes
-from the 2026-11-13 code+performance review round — the streamed chat reply
+from the 2026-11-13 code+performance review round тАФ the streamed chat reply
 stops re-rendering per token, and the trade-statistics scan stops
 re-copying its equity curve per page.
 
 ### Fixed
 - The streamed chat reply (the T-205 semantics kept): the arrived deltas
   still append in full, but the bubble's re-render throttles to a bounded
-  cadence with a settlement flush — a fast token stream no longer rebuilds
+  cadence with a settlement flush тАФ a fast token stream no longer rebuilds
   the bound text and re-measures the non-virtualized transcript per token,
   which stuttered the panel on long answers. The first delta still renders
   immediately, an immediately-failing stream still renders no bubble, and
   the persisted turn carries everything that arrived.
 - The trade-statistics scan: the accumulator's snapshot publishes a pinned
-  append-only view of the equity curve instead of a fresh copy per page —
-  a six-figure journal no longer pays an O(pages × curve) copy churn while
+  append-only view of the equity curve instead of a fresh copy per page тАФ
+  a six-figure journal no longer pays an O(pages ├Ч curve) copy churn while
   the scan runs, and a published curve still never grows with the scan's
   later appends.
+
+## [0.1.0-alpha.156] - 2026-11-14
+
+Build of board task T-211 (branch `feat/trade-notes`): the journal learns
+why a trade happened - user notes and tags on the recorded rows, editable
+from the trade statistics and order history windows.
+
+### Added
+- Trade notes and tags on journal rows (a SQLite migration: two nullable
+  TEXT columns, `Note` and `Tags`). The tags store in the canonical
+  comma-joined form; the dialog normalizes the user's comma list (split,
+  trim, drop empties, dedupe case-insensitively with the first-seen case
+  winning). A placement re-record never touches the annotations - the
+  adapter's status refresh cannot wipe what the user wrote.
+- The trade-statistics window grows the closed-trades table: one row per
+  booked close with its journal annotations and a per-row edit affordance
+  over the shared note-and-tags dialog.
+- The tag lane on the stats filter row: Apply restarts the scan with the
+  lane token and the accumulator gates OUTCOME booking on it - a closing
+  fill outside the lane still reduces the position state (the pairing
+  stays whole) but books no trade, no PnL, no curve point, so the lane's
+  aggregates stay honest. The volume keeps counting every fill in the
+  scope (disclosed as scope-wide). An annotation edit re-evaluates the
+  lane on the next Apply - the lane is a scan scope, not a live filter.
+- The order history window carries the note and tags columns with the
+  same per-row edit affordance.
+
+### Changed
+- The realized-trade CSV (the standalone export and the statement's
+  realized section, which share the writer) grows trailing `note` and
+  `tags` columns ONLY when at least one exported row carries an
+  annotation - the alpha.154 column shape stays byte-stable for
+  unannotated journals, rows without meta carry honest empty cells.
+- The order-stats read query now serves the journal rows' annotations
+  alongside the orders (one query, no second pass); the MCP
+  `get_trade_stats` tool and the stats window ride the same shape.
 
 ## [0.1.0-alpha.154] - 2026-11-13
 

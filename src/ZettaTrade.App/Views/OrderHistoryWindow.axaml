@@ -46,7 +46,7 @@
                      match their data cells (T-157). -->
                 <Border Classes="table-header-row"
                         IsVisible="{Binding HasRows}">
-                    <Grid ColumnDefinitions="130,90,*,80,100,90,110,120,80,90">
+                    <Grid ColumnDefinitions="110,70,*,70,80,80,100,100,70,70,*,*,64">
                         <TextBlock Grid.Column="0" TextAlignment="Right" Text="{loc:Localized History.ColOpened}" />
                         <TextBlock Grid.Column="1" Text="{loc:Localized History.ColExchange}" />
                         <TextBlock Grid.Column="2" Text="{loc:Localized History.ColSymbol}" />
@@ -57,6 +57,9 @@
                         <TextBlock Grid.Column="7" Text="{loc:Localized History.ColStatus}" />
                         <TextBlock Grid.Column="8" Text="{loc:Localized History.ColFlags}" />
                         <TextBlock Grid.Column="9" TextAlignment="Right" Text="{loc:Localized Fees.ColumnTitle}" />
+                        <TextBlock Grid.Column="10" Text="{loc:Localized History.ColNote}" />
+                        <TextBlock Grid.Column="11" Text="{loc:Localized History.ColTags}" />
+                        <TextBlock Grid.Column="12" />
                     </Grid>
                 </Border>
 
@@ -70,7 +73,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:OrderHistoryRowViewModel">
                             <Border Classes="table-row">
-                                <Grid ColumnDefinitions="130,90,*,80,100,90,110,120,80,90">
+                                <Grid ColumnDefinitions="110,70,*,70,80,80,100,100,70,70,*,*,64">
                                     <TextBlock Grid.Column="0" Text="{Binding Opened}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                     <TextBlock Grid.Column="1" Text="{Binding Exchange}" />
                                     <TextBlock Grid.Column="2" Text="{Binding Symbol}" />
@@ -88,6 +91,14 @@
                                     <TextBlock Grid.Column="7" Text="{Binding Status}" />
                                     <TextBlock Grid.Column="8" Text="{Binding Flags}" />
                                     <TextBlock Grid.Column="9" Text="{Binding Fee}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="10" Text="{Binding Note}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Note}" />
+                                    <TextBlock Grid.Column="11" Text="{Binding Tags}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Tags}" />
+                                    <Button Grid.Column="12"
+                                            Classes="row-action secondary"
+                                            Content="{loc:Localized History.EditTrade}"
+                                            AutomationProperties.AutomationId="HistoryEditTradeButton"
+                                            Command="{Binding $parent[Window].((vm:OrderHistoryViewModel)DataContext).EditTradeCommand}"
+                                            CommandParameter="{Binding}" />
                                 </Grid>
                             </Border>
                         </DataTemplate>

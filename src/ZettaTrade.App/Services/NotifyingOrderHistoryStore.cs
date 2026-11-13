@@ -118,6 +118,21 @@ public sealed class NotifyingOrderHistoryStore(
     public Task<int> DeleteExchangeAsync(string exchangeId, CancellationToken cancellationToken = default) =>
         _inner.DeleteExchangeAsync(exchangeId, cancellationToken);
 
+    /// <inheritdoc/>
+    public Task<bool> SetTradeMetaAsync(
+        string exchangeId,
+        string orderId,
+        string? note,
+        string? tags,
+        CancellationToken cancellationToken = default) =>
+        _inner.SetTradeMetaAsync(exchangeId, orderId, note, tags, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<OrderTradeMeta>> GetTradeMetaAsync(
+        IReadOnlyList<(string ExchangeId, string OrderId)> keys,
+        CancellationToken cancellationToken = default) =>
+        _inner.GetTradeMetaAsync(keys, cancellationToken);
+
     #endregion Journal Writes
 
     #region Initialization

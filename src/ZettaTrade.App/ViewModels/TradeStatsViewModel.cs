@@ -3,6 +3,7 @@ namespace ZettaTrade.App.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Livery.Localization;
@@ -25,12 +26,20 @@ using ZettaTrade.Infrastructure.Persistence;
 /// (symbol, exchange, date range, paper-live tag) restart the scan; a scan
 /// abandons itself quietly when a newer one takes over. Display values are
 /// precomputed invariant-culture strings, exactly like the other panels'
-/// rows; the equity points bind the Skia chart. The export routes (T-210)
-/// ride the window's data sources: the traded surface's positions as one
-/// CSV, and the whole statement bundle (orders + fills + the fill-pair
-/// realized ledger + a balances snapshot, CSVs plus a JSON manifest) under
-/// the window's current filter — an empty range writes nothing, never a
-/// broken file.
+/// rows; the equity points bind the Skia chart. The realized-trades table
+/// (T-211) lists every booked close with its journal annotations and a
+/// per-row edit affordance. The tag lane (T-211) is one more filter: Apply
+/// restarts the scan with it and the accumulator gates OUTCOME booking on
+/// it — the lane filters trades, never the scope itself (the volume and
+/// the pairing state stay whole; disclosed on the accumulator). An applied
+/// annotation edit re-evaluates the lane only on the next Apply: the lane
+/// is a scan scope, not a live filter. The export routes (T-210) ride the
+/// window's data sources: the traded surface's positions as one CSV, and
+/// the whole statement bundle (orders + fills + the fill-pair realized
+/// ledger + a balances snapshot, CSVs plus a JSON manifest) under the
+/// window's current filter — an empty range writes nothing, never a broken
+/// file. The statement is the raw record: its own fresh scan never gates
+/// on the tag lane, so the ledger rides every trade the filter scope saw.
 /// </summary>
 public sealed class TradeStatsViewModel : ReactiveObject
 {
@@ -42,6 +51,7 @@ public sealed class TradeStatsViewModel : ReactiveObject
     private const string ScannedKey = "Stats.Scanned";
     private const string ExportFailedKey = "Stats.ExportFailedFormat";
     private const string StatementEmptyKey = "Stats.StatementEmptyRange";
+    private const string EditFailedKey = "Stats.EditFailedFormat";
 
     #endregion Resx Keys
 
@@ -76,11 +86,15 @@ public sealed class TradeStatsViewModel : ReactiveObject
     private readonly ITradingAdapter _trading;
     private readonly ICsvExportService _csv;
     private readonly IStatementExportService _statementExport;
+    private readonly IOrderHistoryStore _store;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<TradeStatsViewModel> _logger;
 
     /// <summary>Identity of the current scan; a newer apply supersedes the older scan's loop.</summary>
     private long _runId;
+
+    /// <summary>The realized table's backing list; the public property serves it directly.</summary>
+    private List<TradeRealizedRowViewModel> _realizedRows = [];
 
     #endregion Private Fields
 
@@ -120,6 +134,21 @@ public sealed class TradeStatsViewModel : ReactiveObject
     {
         get => _fromDate;
         set => this.RaiseAndSetIfChanged(ref _fromDate, value);
+    }
+
+    private string _tagLaneFilterText = string.Empty;
+
+    /// <summary>
+    /// The tag lane filter text (T-211): the token a closing journal row's
+    /// tags must carry for its outcome to book. Empty (the default) means
+    /// no lane — every closing fill books. The token rides the accumulator
+    /// at Apply time: editing tags re-evaluates on the next Apply, the lane
+    /// is a scan scope, not a live filter.
+    /// </summary>
+    public string TagLaneFilterText
+    {
+        get => _tagLaneFilterText;
+        set => this.RaiseAndSetIfChanged(ref _tagLaneFilterText, value);
     }
 
     private DateTimeOffset? _toDate;
@@ -239,6 +268,29 @@ public sealed class TradeStatsViewModel : ReactiveObject
         private set => this.RaiseAndSetIfChanged(ref _hasTrades, value);
     }
 
+    /// <summary>
+    /// The realized-trades table's rows (T-211): every booked close with its
+    /// journal annotations, in booking order. Fresh list per publish, like
+    /// the equity curve — an applied edit replaces the row instance.
+    /// </summary>
+    public IReadOnlyList<TradeRealizedRowViewModel> RealizedRows
+    {
+        get => _realizedRows;
+        private set
+        {
+            // Callers always pass a fresh list; assignment replaces it whole
+            // (an applied edit swaps one row instance inside the fresh copy).
+            _realizedRows = value is List<TradeRealizedRowViewModel> list
+                ? list
+                : [.. value];
+            this.RaisePropertyChanged(nameof(RealizedRows));
+            this.RaisePropertyChanged(nameof(HasRealizedRows));
+        }
+    }
+
+    /// <summary>True while the realized table has rows; drives its empty state.</summary>
+    public bool HasRealizedRows => _realizedRows.Count > 0;
+
     private string _scanStateText = string.Empty;
 
     /// <summary>Scan progress: the fills scanned so far, or the completed-scan wording.</summary>
@@ -273,6 +325,9 @@ public sealed class TradeStatsViewModel : ReactiveObject
     /// <summary>Applies the current filters: restarts the paged scan from scratch.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ApplyCommand { get; }
 
+    /// <summary>Opens the note-and-tags dialog for one realized row (T-211); the applied result lands in the journal.</summary>
+    public ReactiveCommand<TradeRealizedRowViewModel, RxVoid> EditRealizedRowCommand { get; }
+
     /// <summary>Exports the traded surface's current open positions as a positions CSV file (T-210).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ExportPositionsCommand { get; }
 
@@ -284,6 +339,12 @@ public sealed class TradeStatsViewModel : ReactiveObject
 
     /// <summary>Asks the view for the statement manifest destination (a save-file dialog); null cancels.</summary>
     public Interaction<string, string?> SaveStatementRequested { get; }
+
+    /// <summary>
+    /// Asks the view to show the note-and-tags dialog over one realized row
+    /// (T-211); the applied result comes back, null closes without one.
+    /// </summary>
+    public Interaction<TradeRealizedRowViewModel, TradeNoteEditResult?> EditRealizedRowRequested { get; }
 
     #endregion Properties
 
@@ -298,6 +359,7 @@ public sealed class TradeStatsViewModel : ReactiveObject
         ITradingAdapter trading,
         ICsvExportService csv,
         IStatementExportService statementExport,
+        IOrderHistoryStore store,
         ILocalizationManager localization,
         ILogger<TradeStatsViewModel> logger)
     {
@@ -305,17 +367,21 @@ public sealed class TradeStatsViewModel : ReactiveObject
         _trading = trading ?? throw new ArgumentNullException(nameof(trading));
         _csv = csv ?? throw new ArgumentNullException(nameof(csv));
         _statementExport = statementExport ?? throw new ArgumentNullException(nameof(statementExport));
+        _store = store ?? throw new ArgumentNullException(nameof(store));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         ApplyCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
             (_, ct) => HandleApplyAsync(ct));
+        EditRealizedRowCommand = ReactiveCommand.CreateFromTask<TradeRealizedRowViewModel, RxVoid>(
+            (row, ct) => HandleEditRealizedRowAsync(row, ct));
         ExportPositionsCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
             (_, ct) => HandleExportPositionsAsync(ct));
         ExportStatementCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
             (_, ct) => HandleExportStatementAsync(ct));
         SavePositionsCsvRequested = new Interaction<string, string?>();
         SaveStatementRequested = new Interaction<string, string?>();
+        EditRealizedRowRequested = new Interaction<TradeRealizedRowViewModel, TradeNoteEditResult?>();
     }
 
     #endregion Constructor
@@ -342,15 +408,15 @@ public sealed class TradeStatsViewModel : ReactiveObject
         ResetStats();
 
         var runId = ++_runId;
-        var accumulator = new TradeStatsAccumulator();
-        Order? after = null;
+        var accumulator = new TradeStatsAccumulator(TagLaneFilterText);
+        OrderPageRow? last = null;
         long scanned = 0;
 
         try
         {
             while (true)
             {
-                var page = await _query.ReadPageAsync(filter, after, PageSize, ct);
+                var page = await _query.ReadPageAsync(filter, last?.Order, PageSize, ct);
 
                 if (runId != _runId)
                 {
@@ -365,14 +431,14 @@ public sealed class TradeStatsViewModel : ReactiveObject
                 }
 
                 accumulator.Ingest(page);
-                after = page[^1];
+                last = page[^1];
                 scanned += page.Count;
-                Publish(accumulator.Snapshot(), isFinal: false, scanned: scanned);
+                Publish(accumulator, isFinal: false, scanned: scanned);
             }
 
             if (runId == _runId)
             {
-                Publish(accumulator.Snapshot(), isFinal: true, scanned: scanned);
+                Publish(accumulator, isFinal: true, scanned: scanned);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -455,21 +521,23 @@ public sealed class TradeStatsViewModel : ReactiveObject
 
             // The fresh full scan: the bundle's orders collect whole (the
             // fill-pair ledger needs the full pass), the accumulator books
-            // the realized rows on the way.
+            // the realized rows on the way. The statement is the raw record:
+            // no tag lane here — the bundle carries every trade the filter
+            // scope saw, the lane only scopes the dashboard's aggregates.
             var orders = new List<Order>();
             var accumulator = new TradeStatsAccumulator();
-            Order? after = null;
+            OrderPageRow? last = null;
             while (true)
             {
-                var page = await _query.ReadPageAsync(filter, after, PageSize, ct);
+                var page = await _query.ReadPageAsync(filter, last?.Order, PageSize, ct);
                 if (page.Count == 0)
                 {
                     break;
                 }
 
-                orders.AddRange(page);
+                orders.AddRange(page.Select(row => row.Order));
                 accumulator.Ingest(page);
-                after = page[^1];
+                last = page[^1];
             }
 
             if (orders.Count == 0)
@@ -514,6 +582,78 @@ public sealed class TradeStatsViewModel : ReactiveObject
             // usable with its error line.
             _logger.LogError(ex, "Trade statistics window: the statement export failed");
             ErrorMessage = _localization.GetString(ExportFailedKey, ex.Message);
+        }
+
+        return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// One annotation edit (T-211): the view answers the dialog interaction
+    /// (null closes without an applied edit), the applied result rides the
+    /// journal write, and the realized table's row instance is replaced with
+    /// the fresh annotations. The lane's aggregates re-evaluate on the next
+    /// Apply — the lane is a scan scope, not a live filter. A refused write
+    /// (the journal row is gone — a reset wiped it mid-session) surfaces the
+    /// honest failure line, never a fabricated save.
+    /// </summary>
+    private async Task<RxVoid> HandleEditRealizedRowAsync(
+        TradeRealizedRowViewModel row,
+        CancellationToken ct)
+    {
+        ErrorMessage = null;
+
+        try
+        {
+            var result = await EditRealizedRowRequested.Handle(row);
+            if (result is null)
+            {
+                _logger.LogInformation(
+                    "Trade statistics window: the trade note edit ended on a cancelled dialog");
+                return RxVoid.Default;
+            }
+
+            var saved = await _store.SetTradeMetaAsync(
+                row.ExchangeId,
+                row.OrderId,
+                result.Note,
+                result.Tags,
+                ct);
+            if (!saved)
+            {
+                _logger.LogWarning(
+                    "Trade statistics window: the trade meta write for {ExchangeId}/{OrderId} found no recorded order",
+                    row.ExchangeId,
+                    row.OrderId);
+                ErrorMessage = _localization.GetString(EditFailedKey, "no recorded order");
+                return RxVoid.Default;
+            }
+
+            var index = _realizedRows.IndexOf(row);
+            if (index < 0)
+            {
+                // The table republished between open and apply: the edited
+                // row instance is stale — the next scan serves the fresh
+                // annotations, nothing to replace here.
+                _logger.LogInformation(
+                    "Trade statistics window: the edited trade row is stale, the annotations land with the next scan");
+                return RxVoid.Default;
+            }
+
+            _realizedRows[index] = row with { Note = result.Note, Tags = result.Tags };
+            RealizedRows = [.. _realizedRows];
+            _logger.LogInformation(
+                "Trade statistics window: trade meta saved for {ExchangeId}/{OrderId} (note {HasNote}, tags {Tags})",
+                row.ExchangeId,
+                row.OrderId,
+                result.Note is not null,
+                result.Tags ?? string.Empty);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Broader than the annotation flow: the journal write rides the
+            // local disk; the window stays usable with its error line.
+            _logger.LogError(ex, "Trade statistics window: the trade note edit failed");
+            ErrorMessage = _localization.GetString(EditFailedKey, ex.Message);
         }
 
         return RxVoid.Default;
@@ -611,13 +751,20 @@ public sealed class TradeStatsViewModel : ReactiveObject
         RealizedText = NotAvailableText;
         VolumeText = NotAvailableText;
         EquityPoints = [];
+        RealizedRows = [];
         HasTrades = false;
         ScanStateText = string.Empty;
     }
 
-    /// <summary>Publish one scan snapshot: the tiles, the equity points and the honest progress line.</summary>
-    private void Publish(TradeStatsSummary summary, bool isFinal, long scanned)
+    /// <summary>
+    /// Publish one scan snapshot: the tiles, the equity points, the realized
+    /// table and the honest progress line. The realized rows rebuild from
+    /// the accumulator's ledger each publish — a fresh list, like the
+    /// equity curve, so a snapshot never sees later rows.
+    /// </summary>
+    private void Publish(TradeStatsAccumulator accumulator, bool isFinal, long scanned)
     {
+        var summary = accumulator.Snapshot();
         TradesText = FormatCount(summary.Trades);
         WinsText = FormatCount(summary.Wins);
         LossesText = FormatCount(summary.Losses);
@@ -646,6 +793,10 @@ public sealed class TradeStatsViewModel : ReactiveObject
 
         EquityPoints = summary.Equity;
         HasTrades = summary.Trades > 0;
+        _realizedRows = accumulator.GetRealizedTrades()
+            .Select(TradeRealizedRowViewModel.From)
+            .ToList();
+        RealizedRows = _realizedRows;
         ScanStateText = isFinal
             ? _localization.GetString(ScannedKey, scanned)
             : _localization.GetString(ScanningKey, scanned);
