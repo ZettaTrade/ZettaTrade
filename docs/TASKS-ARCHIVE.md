@@ -4466,6 +4466,57 @@ the board and its section below.
   0.1.0-alpha.158+24ca2c8cb2f23e8a94174868d2a0093e1ea23389 (the full 40-character sha),
   alive through the 40 s hold, 0 ERR/FTL in the run slice, 0 leftovers.
 
+## T-213 — Update checker
+
+- **Branch:** feat/update-check, worktree zt-update-check, base develop@4f97486
+  (claimed 2026-11-14 off the synced board).
+- **Origin:** the sweep — no updater and no version awareness beyond the status chip.
+- **What:** a periodic (and manual) check against the GitHub Releases API comparing the running
+  version; a newer release surfaces as a status-bar chip and a notification with the release
+  link; no auto-download, no auto-install — the alpha posture, documented.
+- **Scope:** App update service (offline-honest), the settings key (`App.UpdateCheck`), resx
+  en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a newer tag surfaces the chip and the link; an unreachable network degrades
+  silently to a logged warning; the off switch silences the check entirely.
+- **Tests:** the loopback releases-stub battery (parse, compare, the degraded states).
+- **Status:** done - 0.1.0-alpha.159. Chain: claim `fa5a8dc` -> feat `00770d5` -> close.
+  The checker (`UpdateCheckService`, `IAsyncInitializable` + `IAsyncDisposable`) reads the
+  seed switch INLINE in its initialization, boots the first check on its own background
+  task, then rides a 12 h `PeriodicTimer` cadence; every completed check publishes its
+  verdict on a replaying `Results` stream (a failed check emits nothing — the standing
+  chip never flaps on an unreachable network) and a newer release announces exactly once
+  per version per process through the notification center (`NotificationKind.UpdateAvailable`,
+  the route `NotificationRoute.ReleasePage`; the toast's click opens the exact URL the
+  announcement named, the window's own route case is the safety net). Ranking rides
+  `UpdateVersionComparer`: the `0.1.0-alpha.N` spellings `Version` cannot parse (the v
+  prefix and build metadata are decoration), the semver rule (a stable outranks any
+  pre-release of the same core), the alpha numbers ranked numerically; drafts and foreign
+  tags skip, never guess. The named GitHub Releases HttpClient (10 s timeout, the honest
+  User-Agent) rides `AddUpdateServices()`; `IShellUtils.OpenInBrowser` accepts only
+  absolute http(s). The off switch (`App.UpdateCheck`, on by default — an opt-out) gates
+  both the loop and the manual ask; a flip re-applies live through the settings change
+  stream (no restart, no host apply). The toggle drafts draft-vs-persisted on the
+  settings' appearance page as its fourth row — the T-184 no-scroll pin bounds that page
+  (63 px of slack at the default size), so the banked standalone Application card would
+  not fit; the hint rides the checkbox's tooltip. The status strip rides six groups now
+  (the update chip the new column; the T-153 pin re-counted). resx en+ru 6 keys
+  (`Settings.UpdateCheck.*`, `Notif.UpdateAvailable`, `Menu.Help.CheckUpdates`,
+  `Status.UpdateAvailable*`). Tests: App.Tests +23 (the comparer parse/compare battery;
+  the loopback stub battery — the announce-once, the honest empty verdict, the ranking
+  with the draft/foreign skips, the degraded 500 and malformed-payload silence, the off
+  switch's zero requests, the live flip re-arm, the boot check joined through the
+  `FirstCheckForTests` seam; the chip's show/clear and the language re-derivation; the
+  settings toggle's seed/discard/save-persists-no-host/no-op facts; the route-matrix
+  line and the announcement row summary). Gate GATE PASSED (-AllowProtected; attempt 1
+  failed the three pin facts the surface change moved — the five-group strip pin
+  re-counted to six, the section-card pin re-counted back to nine, and the appearance
+  page's no-scroll pin resolved by the row placement above; the FromResult warn notes
+  stay on the interface-required fake shapes). The launch smoke green on the feat tip
+  `00770d5` (the close commit touches only the board docs — the binary is the same
+  content): ProductVersion
+  0.1.0-alpha.159+00770d5f74b734ebf0400c4e5fcaa47af87ec335 (the full 40-character sha),
+  alive through the 40 s hold, 0 ERR/FTL in the run slice, 0 leftovers.
+
 ## T-216 - Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
