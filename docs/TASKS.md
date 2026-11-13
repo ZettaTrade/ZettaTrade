@@ -212,7 +212,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | done | - |
 | T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | done | - |
 | T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-provider-openai | done | - |
-| T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | planned | - |
+| T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | in-progress | - |
 | T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | planned | - |
 | T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | planned | - |
 | T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | planned | - |
@@ -499,7 +499,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-208 — MCP server expansion: resources, prompts, tools
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/mcp-server-tools, worktree zt-mcp-server-tools, base develop@064367e.
 - **Origin:** the sweep — the built-in server registers five trading tools, no resources, no
   prompts.
 - **What:** MCP resources (a read-only portfolio snapshot, the workspace state), prompt
@@ -514,7 +514,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   manager and fires normally.
 - **Tests:** the server e2e battery over the loopback transport (the T-020/T-050 harness
   shape).
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-209 — Portfolio value history
 
