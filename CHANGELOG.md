@@ -1,3 +1,44 @@
+## [0.1.0-alpha.160] - 2026-11-14
+
+Build of board task T-223 (branch `feat/settings-collapse`): the settings
+pages fold behind the variant-A section toggles — the user-reported gap
+after the T-222 landing (the rail's type, the quiet buttons' readability,
+the whole-window scroll).
+
+### Changed
+- The rail captions ride the BodyFontSize step (13): the Fluent TabItem
+  template sets its own large header type and the header compositions
+  never carried a FontSize, so the window's rail-item style now pins the
+  ramp's Body step and the caption inherits it (measured: the caption
+  fits inside its item box).
+- Every settings card folds from its own header: the tick + caption
+  composition becomes a `ToggleButton.section-toggle` with the chevron
+  mark at the header's right edge — the rest is transparent (the card is
+  the ground), the pointer answers with the kit's soft tints, and the
+  checked state rotates the chevron down. Nine named toggles, every body
+  riding its toggle's IsChecked one-way with an explicit IsChecked
+  (no null state): four open by default (the appearance card, the
+  indicators page's only card, MCP, pairs), five collapsed (theme
+  folder, first-run wizard, AI chat, port, hotkeys). The window itself
+  still never scrolls at the defaults — the collapsed defaults make
+  every page fit its body viewport with room to spare.
+- The rail note speaks the collapse grammar (en+ru): sections collapse;
+  long lists scroll inside their own viewports.
+
+### Added
+- The Livery 0.1.13 surface-family keys the quiet controls ride:
+  `ControlHairline` (the resting button's boundary stroke, derived 7%
+  off the theme's Surface toward its luminance pole) and `SurfaceHigh`
+  (the text hosts' raised well, 3%) — the approved variant A's
+  hand-picked stroke and well reads (`#2a2a3d` / `#212134` on the
+  shipped dark palette). The Button stroke and the TextBox/ComboBox
+  fill + stroke retint live with every theme. The derivation
+  guarantees the contract's soft-tint floor: a ground that leaves the
+  requested step short raises it by the 0.5% grain until the step
+  reads (the oled palette's #0a0a0a ground left the 3% well one grain
+  short — 0.1.12 shipped it at #111111, 1.0485; the walk lands the
+  well at #131313).
+
 ## [0.1.0-alpha.159] - 2026-11-14
 
 Build of board task T-213 (branch `feat/update-check`): the terminal learns
