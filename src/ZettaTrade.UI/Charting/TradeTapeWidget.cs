@@ -602,7 +602,15 @@ public class TradeTapeWidget : Control
 
             foreach (var row in page.Rows)
             {
-                var sidePaint = row.Side == OrderSide.Buy ? buyPaint : sellPaint;
+                // The tape's side is a color, and the neutral side (T-198 — the
+                // wire served no aggressor) reads in the widget's own text
+                // color: an unserved fact is never painted as a sell.
+                var sidePaint = row.Side switch
+                {
+                    OrderSide.Buy => buyPaint,
+                    OrderSide.Sell => sellPaint,
+                    _ => textPaint,
+                };
 
                 canvas.DrawText(
                     row.TimeText,

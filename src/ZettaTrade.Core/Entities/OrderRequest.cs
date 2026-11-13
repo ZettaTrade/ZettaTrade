@@ -95,9 +95,13 @@ public sealed record OrderRequest
     {
         // Enum definedness: a record programmatically built with an out-of-set
         // value (e.g. a numeric ride-through) must fail loudly here — never
-        // flow on as valid toward execution (BUG-007).
-        if (!Enum.IsDefined(Side))
-            throw new InvalidOperationException($"Undefined order side: {Side}.");
+        // flow on as valid toward execution (BUG-007). The scope is Buy/Sell
+        // (T-198): the tape-only neutral side (OrderSide.None) states an
+        // unserved aggressor fact on a MARKET TRADE; on an ORDER it would
+        // silently take the sell branch of every side-aware execution path —
+        // so it is refused here like any other unparsable side.
+        if (Side is not (OrderSide.Buy or OrderSide.Sell))
+            throw new InvalidOperationException($"Order side must be Buy or Sell; {Side} is refused.");
 
         if (!Enum.IsDefined(Type))
             throw new InvalidOperationException($"Undefined order type: {Type}.");

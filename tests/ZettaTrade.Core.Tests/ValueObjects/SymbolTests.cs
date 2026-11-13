@@ -80,6 +80,61 @@ public sealed class SymbolTests
         symbol.Normalized.Should().Be("AAPL");
     }
 
+    #region Stock symbols over the Alpaca wire (T-198)
+
+    [Fact]
+    public void GetExchangeFormat_AlpacaStockWire_IsTheBaseAsset()
+    {
+        // The alpaca face speaks plain tickers: the wire text is the base
+        // asset, never a normalized pair.
+        var symbol = Symbol.Parse("AAPL");
+
+        symbol.GetExchangeFormat("alpaca").Should().Be("AAPL");
+    }
+
+    [Fact]
+    public void TryParseExchangeFormat_AlpacaTicker_RoundTripsTheStock()
+    {
+        var symbol = Symbol.Parse("MSFT");
+
+        var parsed = Symbol.TryParseExchangeFormat(symbol.GetExchangeFormat("alpaca"), "alpaca", out var restored);
+
+        parsed.Should().BeTrue();
+        restored.Should().NotBeNull();
+        restored!.Normalized.Should().Be(symbol.Normalized);
+        restored.AssetClass.Should().Be(AssetClass.Stock);
+        restored.QuoteAsset.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("F")]
+    [InlineData("T")]
+    [InlineData("A")]
+    public void TryParseExchangeFormat_AlpacaSingleLetterTicker_RoundTripsTheStock(string ticker)
+    {
+        // Real US listings carry one-letter tickers; the single-leg parse
+        // must never read the letter as a malformed pair.
+        var parsed = Symbol.TryParseExchangeFormat(ticker, "alpaca", out var restored);
+
+        parsed.Should().BeTrue();
+        restored!.Normalized.Should().Be(ticker);
+        restored.AssetClass.Should().Be(AssetClass.Stock);
+        restored.GetExchangeFormat("alpaca").Should().Be(ticker);
+    }
+
+    [Fact]
+    public void Parse_CryptoPairThroughTheAlpacaFace_StaysACryptoPair()
+    {
+        // The alpaca wire format never rewrites a crypto pair's class: the
+        // pair's own parse keeps its quote asset and its crypto class.
+        var symbol = Symbol.Parse("BTC/USDT");
+
+        symbol.AssetClass.Should().Be(AssetClass.Crypto);
+        symbol.Normalized.Should().Be("BTC/USDT");
+    }
+
+    #endregion
+
     #region Perpetual symbols (T-197)
 
     [Fact]

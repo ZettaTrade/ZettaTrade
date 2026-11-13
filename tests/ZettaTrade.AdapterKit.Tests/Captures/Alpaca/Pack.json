@@ -1,0 +1,23 @@
+{
+  "adapterId": "alpaca",
+  "adapterName": "Alpaca",
+  "capabilities": "MarketData | OrderBook | HistoricalData",
+  "connectsAtConstruction": false,
+  "symbols": [ "AAPL", "MSFT" ],
+  "strangerSymbol": "GOOG",
+  "clientSideGuards": [ "blank-endpoints" ],
+  "depthProfile": "explicit-set",
+  "servedBookDepths": [ 1 ],
+  "depthProbeRequests": [ 1 ],
+  "rejectedDepthRequest": 20,
+  "bookTopicTemplate": "quotes\":[\"{symbol}\"]",
+  "subscribeMarker": "\"action\":\"subscribe\"",
+  "reconnectMode": "transcript",
+  "transcriptSessions": [
+    { "script": "Session1.json", "tickerPrice": 187.5 },
+    { "script": "Session2.json", "tickerPrice": 187.55 }
+  ],
+  "cannedRest": {
+    "/v2/assets": "RestCatalog.json"
+  }
+}

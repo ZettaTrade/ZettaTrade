@@ -22,8 +22,10 @@ each one a sentence of the shared `IMarketDataAdapter` contract:
 | `SubscribedFeeds_RestoreDataAcrossTheReconnect` | Ticker, book and trade feeds take one event per session across the pack's reconnect semantics; the transcript story joins a fresh subscriber (shared subject), the always-on story survives the adapter's own connect cycle; session count stays pinned (no churn). |
 
 A battery run is `leg × pack`: the kit currently proves the **demo**, the
-**Bybit** spot face and the **BybitLinear** perpetual face (24 conformance
-verdicts) and grows for free with every new capture pack.
+**Bybit** spot face, the **BybitLinear** perpetual face, the **OKX** face,
+the **BinanceTrading** trading shell (delegated) and the **Alpaca**
+US-equity face (48 conformance verdicts) and grows for free with every new
+capture pack.
 
 ## The capture pack
 
@@ -63,7 +65,14 @@ testnet and canned captures only). The BybitLinear pack (T-197) mirrors
 that shape for the linear-perp face: a perp-only universe (the canned spot
 catalog answers an empty list), the funding-bearing linear tickers, and a
 two-rig session — the linear rig is the session's server, the spot rig an
-owned extra.
+owned extra. The Alpaca pack (T-198) adds the kit's third wire shape: a
+user-keyed venue whose EVERY stream message is a JSON array and whose
+stream must authenticate within its window — so the rig carries an
+optional **auto-responder** (`KitLoopbackServer.StartAsync`'s responder
+argument): the pack scripts the venue's auth ack, and every accepted
+session answers the adapter's auth action in-pump, under the session's own
+send gate. The user-keyed pair rides the pairs-based `KitSecretStoreStub`
+(never a real credential).
 
 ## Onboarding a new adapter
 

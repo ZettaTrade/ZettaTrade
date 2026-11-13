@@ -7,6 +7,7 @@ using FluentAssertions;
 using Livery.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Exchange;
@@ -121,6 +122,10 @@ public sealed class RateLimiterDependencyInjectionTests
         services.AddSingleton(NullLogger<BinanceAdapter>.Instance);
         services.AddSingleton(NullLogger<BybitAdapter>.Instance);
         services.AddSingleton(NullLogger<ReconnectSupervisor>.Instance);
+        // The composition root registers the secret store ahead of the
+        // adapter chain (an adapter in the chain now authenticates its
+        // stream off it) — the faithful replica carries the stub too.
+        services.AddSingleton(Substitute.For<ISecretStore>());
         services.AddExchangeAdapters();
 
         await using var provider = services.BuildServiceProvider();

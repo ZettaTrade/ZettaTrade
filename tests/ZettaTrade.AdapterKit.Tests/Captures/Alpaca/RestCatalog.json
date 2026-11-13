@@ -1,0 +1,28 @@
+[
+  {
+    "id": "904897e6-c87d-4f7f-9d05-31a5bbffb9ac",
+    "class": "us_equity",
+    "exchange": "NASDAQ",
+    "symbol": "AAPL",
+    "name": "Apple Inc. Common Stock",
+    "status": "active",
+    "tradable": true,
+    "marginable": true,
+    "shortable": true,
+    "easy_to_borrow": true,
+    "fractionable": true
+  },
+  {
+    "id": "b2b1a5e0-0d47-4c39-9bd1-8dd0bffa1d51",
+    "class": "us_equity",
+    "exchange": "NASDAQ",
+    "symbol": "MSFT",
+    "name": "Microsoft Corporation Common Stock",
+    "status": "active",
+    "tradable": true,
+    "marginable": true,
+    "shortable": true,
+    "easy_to_borrow": true,
+    "fractionable": true
+  }
+]

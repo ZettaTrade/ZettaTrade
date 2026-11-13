@@ -35,6 +35,9 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
     /// <summary>Settings key carrying the OKX endpoint record.</summary>
     public const string OkxKey = "OKX";
 
+    /// <summary>Settings key carrying the Alpaca endpoint record.</summary>
+    public const string AlpacaKey = "Alpaca";
+
     private readonly ILogger<ExchangeEndpointRegistry> _logger;
     private readonly ISettingsService _settings;
 
@@ -69,12 +72,21 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
     /// </summary>
     public OkxEndpoints Okx { get; private set; } = OkxEndpoints.Production;
 
+    /// <summary>
+    /// Alpaca adapter endpoints: shipped production defaults until an
+    /// initialized settings override (same semantics as <see cref="Binance"/>;
+    /// the record carries three hosts — the market-data REST base, the
+    /// assets-catalog base and the stream).
+    /// </summary>
+    public AlpacaEndpoints Alpaca { get; private set; } = AlpacaEndpoints.Production;
+
     /// <inheritdoc/>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
         ReadBinanceEndpoints(await _settings.GetAsync<BinanceEndpoints?>(SettingsSection, BinanceKey));
         ReadBybitEndpoints(await _settings.GetAsync<BybitEndpoints?>(SettingsSection, BybitKey));
         ReadOkxEndpoints(await _settings.GetAsync<OkxEndpoints?>(SettingsSection, OkxKey));
+        ReadAlpacaEndpoints(await _settings.GetAsync<AlpacaEndpoints?>(SettingsSection, AlpacaKey));
     }
 
     /// <summary>
@@ -156,6 +168,37 @@ public sealed class ExchangeEndpointRegistry : IAsyncInitializable
         _logger.LogInformation(
             "Exchange endpoints configured: rest {RestBaseUrl}, ws {WsUrl}",
             configured.RestBaseUrl,
+            configured.WsUrl);
+    }
+
+    /// <summary>
+    /// Apply the Alpaca override under the same tolerant semantics as the
+    /// Binance one (missing entry keeps the shipped defaults silently, an
+    /// incomplete override warns and keeps them, a complete override
+    /// replaces); the completeness check covers the record's THREE members.
+    /// </summary>
+    private void ReadAlpacaEndpoints(AlpacaEndpoints? configured)
+    {
+        if (configured is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(configured.RestBaseUrl) ||
+            string.IsNullOrWhiteSpace(configured.CatalogRestBaseUrl) ||
+            string.IsNullOrWhiteSpace(configured.WsUrl))
+        {
+            _logger.LogWarning(
+                "Exchange:{Key} endpoint override is incomplete; the shipped production endpoints stay in use",
+                AlpacaKey);
+            return;
+        }
+
+        Alpaca = configured;
+        _logger.LogInformation(
+            "Exchange endpoints configured: rest {RestBaseUrl}, catalog {CatalogRestBaseUrl}, ws {WsUrl}",
+            configured.RestBaseUrl,
+            configured.CatalogRestBaseUrl,
             configured.WsUrl);
     }
 }
