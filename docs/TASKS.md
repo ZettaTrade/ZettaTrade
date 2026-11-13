@@ -211,7 +211,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alerts-mechanics-2 | done | - |
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | done | - |
 | T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | done | - |
-| T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-provider-openai | in-progress | - |
+| T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-provider-openai | done | - |
 | T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | planned | - |
 | T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | planned | - |
 | T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | planned | - |
@@ -496,23 +496,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
-
-## T-207 — Second AI provider: OpenAI-compatible
-
-- **Branch:** feat/ai-provider-openai, worktree zt-ai-provider-openai, base develop@a899683.
-- **Origin:** the sweep — Ollama is the only provider; the canon keeps local-first as the
-  default posture.
-- **What:** a provider seam in the AI chat: the shipped default stays Ollama; an
-  OpenAI-compatible base URL + model + API key becomes selectable (the key rides
-  `ISecretStore` — saved immediately, passed via stdin never argv); the request/response
-  mapping is honest per provider; no cloud-by-default posture change.
-- **Scope:** ZettaTrade.AI (the provider abstraction) + the settings keys (`AI.Provider`,
-  `AI.OpenAiCompatible.*`), the settings window's Integrations section, resx en+ru, the next
-  free alpha bump + the CHANGELOG section.
-- **Acceptance:** both providers answer over loopback stubs; the key never reaches a log,
-  stdout or an argument; the default configuration behaves exactly as today.
-- **Tests:** the provider stub batteries; the secret-handling pins.
-- **Status:** in-progress.
 
 ## T-208 — MCP server expansion: resources, prompts, tools
 

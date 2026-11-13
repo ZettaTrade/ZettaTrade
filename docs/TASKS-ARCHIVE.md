@@ -4118,6 +4118,64 @@ the board and its section below.
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
 
+## T-207 — Second AI provider: OpenAI-compatible
+
+- **Branch:** feat/ai-provider-openai, worktree zt-ai-provider-openai, base develop@a899683.
+- **Origin:** the sweep — Ollama is the only provider; the canon keeps local-first as the
+  default posture.
+- **What:** a provider seam in the AI chat: the shipped default stays Ollama; an
+  OpenAI-compatible base URL + model + API key becomes selectable (the key rides
+  `ISecretStore` — saved immediately, passed via stdin never argv); the request/response
+  mapping is honest per provider; no cloud-by-default posture change.
+- **Scope:** ZettaTrade.AI (the provider abstraction) + the settings keys (`AI.Provider`,
+  `AI.OpenAiCompatible.*`), the settings window's Integrations section, resx en+ru, the next
+  free alpha bump + the CHANGELOG section.
+- **Acceptance:** both providers answer over loopback stubs; the key never reaches a log,
+  stdout or an argument; the default configuration behaves exactly as today.
+- **Tests:** the provider stub batteries; the secret-handling pins.
+- **Status:** done - 0.1.0-alpha.151. Chain: claim `9cd083d` -> feat `3685ca5` -> close (a
+  supervisor takeover: the dispatching session died after its claim, the fully drafted work
+  was reviewed on disk and landed unchanged). Both chat surfaces (`IChatCompletion`,
+  `IStreamingChatCompletion`) route per request through `ChatProviderRouter` reading the new
+  `AI/Provider` pick: blank (unset) falls back to the shipped Ollama default, the two known
+  spellings match case-insensitively, and an unknown pick is an honest
+  `InvalidOperationException` naming the stored value (a typo never silently reroutes the
+  conversation); the pick is read per request, so a settings-file flip switches the provider
+  live. The OpenAI-compatible provider speaks `POST {base}/chat/completions` one-shot
+  (`choices[0].message.content`) and SSE stream (each `choices[0].delta.content` the moment
+  its `data:` line arrives, the `data: [DONE]` sentinel closes, an un-closed stream after
+  deltas is the truncated-stream error, an un-closed stream with no content is the
+  missing-content family); the base URL may carry a version segment such as `/v1` (only
+  `chat/completions` is appended), the streamed send rides ResponseHeadersRead with NO
+  client-side timeout (Stop + the caller's token govern, the T-205 canon), the wire is
+  camelCase, the model has NO default (a blank stored model is the honest send-time error)
+  and a blank base URL falls back to the shipped local default (LM Studio's standard port,
+  `http://localhost:1234/v1` - the local-first posture keeps a second local server). The
+  API key rides the secret store per request (`ai.openai-compatible.api-key`, the T-046
+  canon): a stored key travels only as the request's Authorization Bearer value, an absent
+  one leaves the request unauthenticated (local servers run keyless), and the value itself
+  never reaches a log - only its presence does. The settings window's key box is the one
+  immediate field in it: it commits to the store per keystroke, a cleared box removes the
+  key, and every window-open re-seed rides a commit guard (a re-seed never commits, never
+  deletes; the box re-seeds empty - the secret never echoes). The key never rides the
+  settings file, the logs or the port export; the reset registry carries the non-credential
+  pieces only (`AI/Provider` reset stamps `Ollama`; the OpenAI model's default IS absence -
+  a reset removes the stored name). The provider pick and the endpoint drafts apply on Save
+  like every other selection (the no-op save discipline holds; a garbage stored pick drafts
+  the default with a logged warning - the router refuses the same garbage honestly at send
+  time). Resx: 11 new `Settings.Ai.*` keys, en+ru. Tests: 46 new cases (8 router facts
+  including the live per-request flip and the unknown-pick refusal, 14 one-shot over the
+  loopback, 12 streaming over the SSE loopback, 11 settings-VM facts; the loopback server
+  captures the Authorization header now). Suites: App 2039/2039 (delta exactly 46 over
+  T-206's 1993). GATE PASSED attempt 1 (-AllowProtected; the SCOPE info + the local gitleaks
+  skip are warn-level). The launch smoke green on the feat tip (the close touches no app
+  code): ProductVersion 0.1.0-alpha.151+3685ca5... (the full 40-character sha is baked -
+  earlier scripts matched a prefix only), title held through the 12 s hold, 0 ERR/FTL,
+  ticker+screener+watchlist clean, palette 14 rows, strategies+indicators provided, chat
+  history store ready (the T-206 regression pin), and the sandbox's blank pick proves the
+  acceptance's default-configuration posture: with nothing configured the app behaves
+  exactly as before - no AI network traffic at startup, 0 leftovers after the smoke.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
