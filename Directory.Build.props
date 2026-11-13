@@ -61,6 +61,6 @@
        version fact: bump this single line when a new pack release lands,
        never the consuming test projects. -->
   <PropertyGroup>
-    <PluginsVersion>0.3.0</PluginsVersion>
+    <PluginsVersion>0.4.0</PluginsVersion>
   </PropertyGroup>
 </Project>
