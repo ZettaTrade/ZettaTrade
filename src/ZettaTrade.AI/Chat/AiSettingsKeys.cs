@@ -22,4 +22,15 @@ public static class AiSettingsKeys
 
     /// <summary>Default model tag: a small local model, quick on CPU.</summary>
     public const string DefaultModel = "llama3.2";
+
+    /// <summary>Whether the chat streams the reply token by token (T-205).
+    /// Endpoints that cannot stream set it false; the chat panel then rides
+    /// the one-shot completion verbatim. Read at issue time, like the rest
+    /// of the section — a settings-file flip between sends changes exactly
+    /// what the next send does.</summary>
+    public const string Streaming = "Streaming";
+
+    /// <summary>Default streaming posture: on — the shipped Ollama route
+    /// streams natively.</summary>
+    public const bool DefaultStreaming = true;
 }

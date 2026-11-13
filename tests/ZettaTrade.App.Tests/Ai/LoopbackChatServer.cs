@@ -79,6 +79,59 @@ internal sealed class LoopbackChatServer : IDisposable
         return request;
     }
 
+    /// <summary>
+    /// Serve exactly one request with a paced chunked body: the first chunk
+    /// is written and flushed, the writer then parks on the gate (the
+    /// consumer observes the stream mid-flight — the streaming proof), and
+    /// the captured request is handed back before the gate releases. Chunked
+    /// transfer is explicit: without <c>SendChunked</c> HTTP.sys holds the
+    /// whole response until the response closes (the Flush never reaches the
+    /// socket), and the pacing would be impossible. The post-gate writes
+    /// swallow the connection-abort faults (the abort fact cancels the
+    /// consumer while the writer is parked) so the serve task always settles
+    /// for the test to await it.
+    /// </summary>
+    internal async Task<CapturedChatRequest> ServePacedAsync(
+        int statusCode,
+        string first,
+        Task gate,
+        string? last = null)
+    {
+        var context = await _listener.GetContextAsync();
+        var request = await ReadBodyAsync(context.Request);
+
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/x-ndjson";
+        context.Response.SendChunked = true;
+        await WriteChunkAsync(context.Response, first);
+
+        await gate;
+
+        try
+        {
+            if (last is not null)
+            {
+                await WriteChunkAsync(context.Response, last);
+            }
+
+            context.Response.Close();
+        }
+        catch (Exception)
+        {
+            // The consumer went away while the writer was parked (the
+            // abort shape): nothing to report — the serve task settles.
+        }
+
+        return request;
+    }
+
+    private static async Task WriteChunkAsync(HttpListenerResponse response, string chunk)
+    {
+        var payload = Encoding.UTF8.GetBytes(chunk);
+        await response.OutputStream.WriteAsync(payload);
+        await response.OutputStream.FlushAsync();
+    }
+
     private static async Task<CapturedChatRequest> ReadBodyAsync(HttpListenerRequest request)
     {
         var payload = new byte[request.ContentLength64];

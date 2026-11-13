@@ -4,8 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Composition of the AI chat module: the named HttpClient the Ollama
-/// provider builds on and the <see cref="IChatCompletion"/> service itself.
-/// Called from the composition root — one line for the module.
+/// provider builds on and the provider itself (the one-shot completion and
+/// the streaming half ride the same singleton). Called from the composition
+/// root — one line for the module.
 /// </summary>
 public static class AiDependencyInjection
 {
@@ -19,7 +20,9 @@ public static class AiDependencyInjection
             client.Timeout = OllamaChatCompletion.RequestTimeout;
         });
 
-        services.AddSingleton<IChatCompletion, OllamaChatCompletion>();
+        services.AddSingleton<OllamaChatCompletion>();
+        services.AddSingleton<IChatCompletion>(sp => sp.GetRequiredService<OllamaChatCompletion>());
+        services.AddSingleton<IStreamingChatCompletion>(sp => sp.GetRequiredService<OllamaChatCompletion>());
 
         return services;
     }

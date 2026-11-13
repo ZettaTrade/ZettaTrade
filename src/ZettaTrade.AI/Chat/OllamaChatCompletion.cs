@@ -1,22 +1,30 @@
 namespace ZettaTrade.AI.Chat;
 
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
-/// <see cref="IChatCompletion"/> over the Ollama HTTP server (local model
-/// first). One-shot, non-streaming <c>POST /api/chat</c>: the request carries
+/// <see cref="IChatCompletion"/> and <see cref="IStreamingChatCompletion"/>
+/// over the Ollama HTTP server (local model first). One-shot, non-streaming
+/// <c>POST /api/chat</c>: the request carries
 /// model + messages ([system rider] + the conversation turns), the answer is
-/// the final NDJSON line's <c>message.content</c>. Endpoint and model are
+/// the final NDJSON line's <c>message.content</c>. The streaming half (T-205)
+/// posts the same body with <c>stream: true</c> and reads the NDJSON reply
+/// line by line, yielding each delta the moment its line arrives. Endpoint
+/// and model are
 /// read per request from the settings (section <see cref="AiSettingsKeys.Section"/>),
 /// so a settings-file change switches them at runtime; an unset or blank
 /// value falls back to the module's documented defaults. Failures surface
 /// honestly: transport and status-code problems as <see cref="HttpRequestException"/>,
 /// an unusable reply body as <see cref="InvalidOperationException"/>.
+/// The streamed read carries no client-side request timeout: a token-by-token
+/// generation can outlast the one-shot's cold-load budget legitimately, so
+/// the Stop affordance and the caller's own cancellation token govern it.
 /// </summary>
-public sealed class OllamaChatCompletion : IChatCompletion
+public sealed class OllamaChatCompletion : IChatCompletion, IStreamingChatCompletion
 {
     #region Constants
 
@@ -105,7 +113,7 @@ public sealed class OllamaChatCompletion : IChatCompletion
             baseUrl,
             turns.Count);
 
-        var request = BuildChatRequest(model, systemPrompt, turns);
+        var request = BuildChatRequest(model, systemPrompt, turns, stream: false);
         var response = await _httpClientFactory.CreateClient(HttpClientName)
             .PostAsync(endpoint, request, ct);
         response.EnsureSuccessStatusCode();
@@ -118,6 +126,103 @@ public sealed class OllamaChatCompletion : IChatCompletion
             reply.Length);
 
         return reply;
+    }
+
+    /// <inheritdoc/>
+    public async IAsyncEnumerable<string> StreamAsync(
+        string systemPrompt,
+        IReadOnlyList<ChatTurn> turns,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(systemPrompt);
+        ArgumentNullException.ThrowIfNull(turns);
+
+        if (string.IsNullOrWhiteSpace(systemPrompt))
+            throw new ArgumentException("The system prompt must not be empty.", nameof(systemPrompt));
+
+        var baseUrl = await ResolveAsync(
+            AiSettingsKeys.OllamaUrl,
+            AiSettingsKeys.DefaultOllamaUrl,
+            ct);
+        var model = await ResolveAsync(
+            AiSettingsKeys.Model,
+            AiSettingsKeys.DefaultModel,
+            ct);
+        var endpoint = new Uri(new Uri(baseUrl), ChatPath);
+
+        _logger.LogInformation(
+            "AI completion: asking the local model {Model} at {BaseUrl} for a streamed reply ({TurnCount} turns)",
+            model,
+            baseUrl,
+            turns.Count);
+
+        var request = BuildChatRequest(model, systemPrompt, turns, stream: true);
+
+        // The streamed read carries no client-side request timeout: the Stop
+        // affordance and the caller's own token govern it (the factory hands
+        // a fresh instance per call, so the named client's cold-load budget
+        // stays untouched for the one-shot path). The response is taken at
+        // HEADERS-read: the default PostAsync completion (ResponseContentRead)
+        // buffers the whole reply and the deltas would never stream.
+        var client = _httpClientFactory.CreateClient(HttpClientName);
+        client.Timeout = Timeout.InfiniteTimeSpan;
+        using var requestMessage = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = request };
+        using var response = await client.SendAsync(
+            requestMessage,
+            HttpCompletionOption.ResponseHeadersRead,
+            ct);
+        response.EnsureSuccessStatusCode();
+
+        var content = new StringBuilder();
+        await using var body = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(body);
+        while (await reader.ReadLineAsync(ct) is { } line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            ReplyLine? reply;
+            try
+            {
+                reply = JsonSerializer.Deserialize<ReplyLine>(line, WireOptions);
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidOperationException(
+                    $"The Ollama server answered an unreadable line for the {model} model: {ex.Message}",
+                    ex);
+            }
+
+            var delta = reply?.Message?.Content;
+            if (!string.IsNullOrEmpty(delta))
+            {
+                content.Append(delta);
+                yield return delta;
+            }
+
+            if (reply is { Done: true })
+            {
+                if (content.Length == 0)
+                {
+                    throw new InvalidOperationException(MessageContentMissingText);
+                }
+
+                yield break;
+            }
+        }
+
+        // The stream closed without the terminal line: an early server exit.
+        // With no content at all this is the one-shot's missing-content
+        // family; with deltas on the table it is the truncated-stream family.
+        if (content.Length == 0)
+        {
+            throw new InvalidOperationException(MessageContentMissingText);
+        }
+
+        throw new InvalidOperationException(
+            $"The Ollama server never closed the chat stream for the {model} model.");
     }
 
     #endregion
@@ -134,11 +239,12 @@ public sealed class OllamaChatCompletion : IChatCompletion
         return string.IsNullOrWhiteSpace(stored) ? fallback : stored.Trim();
     }
 
-    /// <summary>The chat request body: model + messages, no streaming.</summary>
+    /// <summary>The chat request body: model + messages, streaming per request.</summary>
     private static StringContent BuildChatRequest(
         string model,
         string systemPrompt,
-        IReadOnlyList<ChatTurn> turns)
+        IReadOnlyList<ChatTurn> turns,
+        bool stream)
     {
         var messages = new List<(string role, string content)> { (SystemRole, systemPrompt) };
         foreach (var turn in turns)
@@ -148,7 +254,7 @@ public sealed class OllamaChatCompletion : IChatCompletion
 
         var payloadShape = new ChatRequestPayload(
             Model: model,
-            Stream: false,
+            Stream: stream,
             Messages: messages
                 .Select(m => new ChatMessagePayload(m.role, m.content))
                 .ToArray());
