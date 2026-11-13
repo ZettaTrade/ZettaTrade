@@ -56,4 +56,19 @@ public sealed record OrderHistoryRowViewModel
     /// placed without either contract shows nothing, never a dash.
     /// </summary>
     public required string Flags { get; init; }
+
+    /// <summary>
+    /// The journal row's user trade note (T-211); null is the honest
+    /// no-note. An applied edit replaces the row instance.
+    /// </summary>
+    public string? Note { get; init; }
+
+    /// <summary>
+    /// The journal row's canonical comma-joined tag list (T-211); null is
+    /// the honest no-tags. An applied edit replaces the row instance.
+    /// </summary>
+    public string? Tags { get; init; }
+
+    /// <summary>The row's order id; the annotation write's key half.</summary>
+    public required string OrderId { get; init; }
 }

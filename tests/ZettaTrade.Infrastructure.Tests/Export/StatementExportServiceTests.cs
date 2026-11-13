@@ -175,11 +175,14 @@ public sealed class StatementExportServiceTests
                     ExchangeId: "paper",
                     Symbol: "BTC/USDT",
                     ClosingSide: "Sell",
+                    ClosingOrderId: "paper-2",
                     Quantity: 0.02m,
                     EntryPrice: 50_100m,
                     ExitPrice: 50_300m,
                     RealizedPnl: 4m,
-                    QuoteCurrency: "USDT"),
+                    QuoteCurrency: "USDT",
+                    Note: null,
+                    Tags: null),
             ],
             Balances: new Dictionary<string, Money>
             {

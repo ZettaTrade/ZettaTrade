@@ -8,6 +8,7 @@ using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Infrastructure.Export;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// Incremental aggregator for the trade-statistics dashboard: ingests
@@ -32,10 +33,28 @@ using ZettaTrade.Infrastructure.Export;
 /// serves. Pages that never close a position cost nothing but the volume
 /// they traded.
 /// </para>
+/// <para>
+/// The tag lane (T-211): when the scan carries one, a closing fill whose
+/// journal row does not carry the lane's tag token books its position state
+/// (the pairing stays whole) but contributes NO trade outcome — no ledger
+/// row, no win/loss, no realized PnL, no curve point. The lane's aggregates
+/// therefore stay honest: a lane-trade's PnL never mixes a close whose open
+/// the lane would have filtered away. The volume keeps counting every fill
+/// in the scope (a fill-level fact, disclosed as scope-wide — it is not
+/// attributable to the lane's trades alone).
+/// </para>
 /// </summary>
 public sealed class TradeStatsAccumulator
 {
     #region Private Fields
+
+    /// <summary>
+    /// The scan's tag lane token (T-211): null means every closing fill
+    /// books its outcome; a token means only the closing fills whose journal
+    /// tags carry it do. The token match is exact-token and case-insensitive
+    /// — the same matching the tags' canonical comma-joined storage speaks.
+    /// </summary>
+    private readonly string? _tagLane;
 
     /// <summary>Running net position state per normalized symbol.</summary>
     private readonly Dictionary<string, SymbolPosition> _positions = new(StringComparer.Ordinal);
@@ -75,14 +94,24 @@ public sealed class TradeStatsAccumulator
 
     #region Public Methods
 
-    /// <summary>Ingest one chronological page of journal orders, ascending (CreatedAt, ExchangeId, OrderId).</summary>
-    public void Ingest(IReadOnlyList<Order> page)
+    /// <summary>
+    /// Create an accumulator for one scan run. The tag lane (T-211) is the
+    /// run's scope: null (the default) books every closing fill's outcome;
+    /// a token books only the outcomes whose closing journal row carries it.
+    /// </summary>
+    public TradeStatsAccumulator(string? tagLane = null)
+    {
+        _tagLane = string.IsNullOrWhiteSpace(tagLane) ? null : tagLane.Trim();
+    }
+
+    /// <summary>Ingest one chronological page of journal orders, ascending (CreatedAt, ExchangeId, OrderId). Each row rides its user trade annotations (T-211) as the journal keeps them.</summary>
+    public void Ingest(IReadOnlyList<OrderPageRow> page)
     {
         ArgumentNullException.ThrowIfNull(page);
 
-        foreach (var order in page)
+        foreach (var row in page)
         {
-            IngestOne(order);
+            IngestOne(row);
         }
     }
 
@@ -123,8 +152,9 @@ public sealed class TradeStatsAccumulator
 
     #region Private Methods
 
-    private void IngestOne(Order order)
+    private void IngestOne(OrderPageRow row)
     {
+        var order = row.Order;
         if (order.Status is not OrderStatus.Filled)
         {
             return;
@@ -142,7 +172,9 @@ public sealed class TradeStatsAccumulator
         if (!_hasFills)
         {
             // The curve's zero anchor sits at the scope's first fill, so the
-            // chart starts at the true origin instead of the first close.
+            // chart starts at the true origin instead of the first close
+            // (the scope's origin even under a tag lane — the lane filters
+            // outcomes, never the scope itself).
             _hasFills = true;
             _equity.Add(new EquityCurvePoint(order.CreatedAt, 0m));
         }
@@ -169,7 +201,7 @@ public sealed class TradeStatsAccumulator
             return;
         }
 
-        BookClose(position, order, price);
+        BookClose(position, row, price);
     }
 
     /// <summary>
@@ -179,11 +211,27 @@ public sealed class TradeStatsAccumulator
     /// fill = at most one trade outcome, per the fill-pair contract; the
     /// outcome lands in the realized-trade ledger exactly as the summary
     /// and the curve see it (T-210).
+    /// <para>
+    /// The tag lane (T-211) gates the OUTCOME only: a closing fill outside
+    /// the lane still hands its remainder to the position state (the pairing
+    /// stays whole), but books no trade, no PnL, no curve point. Lane trades
+    /// carry the closing journal row's identity and annotations in the
+    /// ledger row.
+    /// </para>
     /// </summary>
-    private void BookClose(SymbolPosition position, Order order, decimal price)
+    private void BookClose(SymbolPosition position, OrderPageRow row, decimal price)
     {
+        var order = row.Order;
         var closingDelta = (order.Side == OrderSide.Buy ? 1m : -1m) * order.FilledQuantity.Value;
         var time = order.CreatedAt;
+
+        // The lane gate BEFORE any outcome booking: the position state
+        // reduces no matter what, the aggregates only see lane trades.
+        if (_tagLane is { } lane && !CarriesTag(row.Tags, lane))
+        {
+            position.ReduceOrFlip(closingDelta, price);
+            return;
+        }
 
         var closable = Math.Min(Math.Abs(closingDelta), Math.Abs(position.SignedQuantity));
         var direction = decimal.Sign(position.SignedQuantity);
@@ -196,11 +244,14 @@ public sealed class TradeStatsAccumulator
             ExchangeId: order.ExchangeId,
             Symbol: order.Symbol.Normalized,
             ClosingSide: order.Side.ToString(),
+            ClosingOrderId: order.Id,
             Quantity: closable,
             EntryPrice: position.AverageEntry,
             ExitPrice: price,
             RealizedPnl: realized,
-            QuoteCurrency: order.Symbol.QuoteAsset));
+            QuoteCurrency: order.Symbol.QuoteAsset,
+            Note: row.Note,
+            Tags: row.Tags));
 
         if (realized > 0)
         {
@@ -228,6 +279,16 @@ public sealed class TradeStatsAccumulator
 
         position.ReduceOrFlip(closingDelta, price);
     }
+
+    /// <summary>
+    /// Whether a journal row's canonical comma-joined tag list carries the
+    /// lane's token: exact-token, case-insensitive, tolerant of stray
+    /// whitespace (the storage is canonical, the matching is forgiving).
+    /// </summary>
+    private static bool CarriesTag(string? tags, string lane) =>
+        tags?
+            .Split(',')
+            .Any(tag => string.Equals(tag.Trim(), lane, StringComparison.OrdinalIgnoreCase)) == true;
 
     #endregion Private Methods
 

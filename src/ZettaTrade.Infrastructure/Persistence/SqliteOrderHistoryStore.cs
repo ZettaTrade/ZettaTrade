@@ -29,6 +29,10 @@ public sealed class SqliteOrderHistoryStore(
     /// <summary>Growth cap in <see cref="GetRecentAsync"/>; the history view is read-only.</summary>
     private const int MaxRecentBatch = 1000;
 
+    /// <summary>Order ids per chunked meta query (T-211); SQLite's default
+    /// parameter budget stays far clear.</summary>
+    private const int MetaQueryChunk = 500;
+
     /// <summary>
     /// The model converters, compiled once, for the raw upsert statement
     /// (BUG-043): the interpolated SQL runs AROUND the EF value-conversion
@@ -232,6 +236,90 @@ public sealed class SqliteOrderHistoryStore(
             deleted,
             exchangeId);
         return deleted;
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> SetTradeMetaAsync(
+        string exchangeId,
+        string orderId,
+        string? note,
+        string? tags,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(exchangeId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(orderId);
+        await using var dbContext = new OrderHistoryDbContext(options);
+
+        var entry = await dbContext.Orders.FindAsync(
+            [exchangeId, orderId],
+            cancellationToken);
+        if (entry is null)
+        {
+            // The honest no-op by contract: the annotation targets a row the
+            // journal never recorded. The caller decides what the surface
+            // shows — this store just refuses to fabricate a row.
+            logger.LogWarning(
+                "Order history: trade meta for {ExchangeId}/{OrderId} has no recorded order; nothing annotated",
+                exchangeId,
+                orderId);
+            return false;
+        }
+
+        // The annotation write replaces both fields whole (a null clears)
+        // and touches nothing else: the journal row stays the adapter's
+        // record, the annotations stay the user's.
+        entry.Note = note;
+        entry.Tags = tags;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        logger.LogInformation(
+            "Order history: {ExchangeId}/{OrderId} trade meta written (note {HasNote}, tags {Tags})",
+            exchangeId,
+            orderId,
+            note is not null,
+            tags ?? string.Empty);
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<OrderTradeMeta>> GetTradeMetaAsync(
+        IReadOnlyList<(string ExchangeId, string OrderId)> keys,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        if (keys.Count == 0)
+        {
+            return [];
+        }
+
+        await using var dbContext = new OrderHistoryDbContext(options);
+
+        // One bulk read in bounded chunks; only rows that carry at least one
+        // annotation come back (the honest absent stays absent — the
+        // caller's dictionary lookup just misses). The keys pair per
+        // exchange: the order-id IN-clause is scoped to ITS exchange, so the
+        // (exchange, order) pairs match exactly and no cross-exchange
+        // id-collision can leak another row's annotations.
+        var results = new List<OrderTradeMeta>(keys.Count);
+        foreach (var group in keys.GroupBy(key => key.ExchangeId, StringComparer.Ordinal))
+        {
+            foreach (var chunk in group.Select(key => key.OrderId).Chunk(MetaQueryChunk))
+            {
+                var rows = await dbContext.Orders
+                    .Where(entry =>
+                        (entry.Note != null || entry.Tags != null)
+                        && entry.ExchangeId == group.Key
+                        && chunk.Contains(entry.OrderId))
+                    .Select(entry => new OrderTradeMeta(
+                        entry.ExchangeId,
+                        entry.OrderId,
+                        entry.Note,
+                        entry.Tags))
+                    .ToListAsync(cancellationToken);
+                results.AddRange(rows);
+            }
+        }
+
+        return results;
     }
 
     #endregion Public Methods

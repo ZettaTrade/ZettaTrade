@@ -412,6 +412,7 @@ internal static class CompositionRoot
         services.AddCandleBackfillServices(); // T-086: the deep-history fetcher (bounded channel, write-through).
         services.AddHistoryUiServices();
         services.AddTradeStatsServices();
+        services.AddTradeNotesServices(); // T-211: the transient trade note-and-tags dialog VM.
         services.AddCsvExportServices();
         services.AddPositionActionsServices(); // T-077: position actions (close, partial close, reverse).
         services.AddBulkCancelServices(); // T-076: bulk cancel (per-symbol, confirmed, best-effort).

@@ -71,8 +71,44 @@ public partial class OrderHistoryWindow : ReactiveWindow<OrderHistoryViewModel>
                     context.SetOutput(path);
                 })
                 .DisposeWith(disposables);
+
+            // The trade note dialog (T-211): the annotation dialog opens over
+            // this window and its applied result resolves the interaction -
+            // the PaperResetDialogWindow pattern.
+            ViewModel?.EditTradeRequested.RegisterHandler(HandleEditTradeRequestedAsync)
+                .DisposeWith(disposables);
         });
     }
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
+    /// Show the note-and-tags dialog over this window and return the applied
+    /// edit; null when the dialog closes without one (title bar X, or the
+    /// Cancel button).
+    /// </summary>
+    private async Task HandleEditTradeRequestedAsync(
+        IInteractionContext<OrderHistoryRowViewModel, TradeNoteEditResult?> context)
+    {
+        try
+        {
+            var viewModel = App.Services.GetRequiredService<TradeNoteDialogViewModel>();
+            viewModel.Initialize(context.Input.Note, context.Input.Tags);
+
+            var dialog = new TradeNoteDialogWindow
+            {
+                DataContext = viewModel,
+            };
+            await dialog.ShowDialog(this);
+
+            context.SetOutput(dialog.Applied
+                ? new TradeNoteEditResult(dialog.ChosenNote, dialog.ChosenTags)
+                : null);
+        }
+        catch (System.Exception ex)
+        {
+            Log.Error(ex, "Failed to open the trade note dialog");
+            context.SetOutput(null);
+        }
+    }
 }

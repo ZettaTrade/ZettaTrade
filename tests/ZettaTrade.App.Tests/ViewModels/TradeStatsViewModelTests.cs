@@ -47,6 +47,7 @@ public sealed class TradeStatsViewModelTests
     private readonly ITradingAdapter _trading = Substitute.For<ITradingAdapter>();
     private readonly ICsvExportService _csv = Substitute.For<ICsvExportService>();
     private readonly IStatementExportService _statementExport = Substitute.For<IStatementExportService>();
+    private readonly IOrderHistoryStore _store = Substitute.For<IOrderHistoryStore>();
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
 
     public TradeStatsViewModelTests()
@@ -64,23 +65,27 @@ public sealed class TradeStatsViewModelTests
         _trading,
         _csv,
         _statementExport,
+        _store,
         _localization,
         NullLogger<TradeStatsViewModel>.Instance);
 
-    private static Order Fill(OrderSide side, decimal quantity, decimal price, int minute, string id) => new()
-    {
-        Id = id,
-        ExchangeId = "paper",
-        Symbol = Symbol.Parse("BTC/USDT"),
-        Side = side,
-        Type = OrderType.Limit,
-        Quantity = new Quantity(quantity),
-        Price = new Price(price),
-        Status = OrderStatus.Filled,
-        TimeInForce = TimeInForce.GTC,
-        CreatedAt = BaseTime.AddMinutes(minute),
-        FilledQuantity = new Quantity(quantity),
-    };
+    private static OrderPageRow Fill(OrderSide side, decimal quantity, decimal price, int minute, string id, string? note = null, string? tags = null) => new(
+        new Order
+        {
+            Id = id,
+            ExchangeId = "paper",
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = side,
+            Type = OrderType.Limit,
+            Quantity = new Quantity(quantity),
+            Price = new Price(price),
+            Status = OrderStatus.Filled,
+            TimeInForce = TimeInForce.GTC,
+            CreatedAt = BaseTime.AddMinutes(minute),
+            FilledQuantity = new Quantity(quantity),
+        },
+        note,
+        tags);
 
     private async Task ApplyAsync(TradeStatsViewModel viewModel) =>
         await viewModel.ApplyCommand.Execute(RxVoid.Default);
@@ -102,7 +107,7 @@ public sealed class TradeStatsViewModelTests
                 Arg.Any<Order?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(page1, Array.Empty<Order>());
+            .Returns(page1, Array.Empty<OrderPageRow>());
 
         var viewModel = CreateViewModel();
         await ApplyAsync(viewModel);
@@ -121,7 +126,7 @@ public sealed class TradeStatsViewModelTests
         first.GetArguments()[1].Should().BeNull("the first page starts at the scope's beginning");
 
         second.GetArguments()[2].Should().Be(ExpectedPageSize);
-        second.GetArguments()[1].Should().Be(page1[^1], "the continuation is the previous page's last row");
+        second.GetArguments()[1].Should().Be(page1[^1].Order, "the continuation is the previous page's last row");
     }
 
     [Fact]
@@ -132,7 +137,7 @@ public sealed class TradeStatsViewModelTests
                 Arg.Any<Order?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<Order>());
+            .Returns(Array.Empty<OrderPageRow>());
 
         var viewModel = CreateViewModel();
         await ApplyAsync(viewModel);
@@ -177,7 +182,7 @@ public sealed class TradeStatsViewModelTests
                 Arg.Any<Order?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<Order>());
+            .Returns(Array.Empty<OrderPageRow>());
 
         var viewModel = CreateViewModel();
         viewModel.SymbolFilterText = " btc/usdt ";
@@ -204,7 +209,7 @@ public sealed class TradeStatsViewModelTests
                 Arg.Any<Order?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<Order>());
+            .Returns(Array.Empty<OrderPageRow>());
 
         var viewModel = CreateViewModel();
         viewModel.SymbolFilterText = "BTC/USDT";
@@ -246,7 +251,7 @@ public sealed class TradeStatsViewModelTests
                 Arg.Any<Order?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromException<IReadOnlyList<Order>>(new InvalidOperationException("database is locked")));
+            .Returns(_ => Task.FromException<IReadOnlyList<OrderPageRow>>(new InvalidOperationException("database is locked")));
 
         var viewModel = CreateViewModel();
         await ApplyAsync(viewModel);
@@ -355,7 +360,7 @@ public sealed class TradeStatsViewModelTests
                 Arg.Any<Order?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(page, Array.Empty<Order>());
+            .Returns(page, Array.Empty<OrderPageRow>());
         _trading.GetBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, Money>
             {
@@ -382,7 +387,8 @@ public sealed class TradeStatsViewModelTests
             Arg.Any<StatementExport>(),
             Arg.Any<CancellationToken>());
         captured.Should().NotBeNull();
-        captured!.Orders.Should().Equal(page, "the bundle carries the scan's whole order set");
+        captured!.Orders.Should().Equal(page.Select(row => row.Order),
+            "the bundle carries the scan's whole order set");
         captured.SymbolFilter.Should().Be("BTC/USDT", "the filter echo carries the CORE spelling");
         captured.ExchangeFilter.Should().BeNull();
         captured.IsPaperFilter.Should().BeTrue("venue slot 1 is the paper tag");
@@ -396,6 +402,9 @@ public sealed class TradeStatsViewModelTests
         trade.ExitPrice.Should().Be(12m);
         trade.RealizedPnl.Should().Be(2m);
         trade.ClosingSide.Should().Be("Sell");
+        trade.ClosingOrderId.Should().Be("o-2", "the closing journal row's identity rides the ledger");
+        trade.Note.Should().BeNull("the unannotated journal row stays honestly null");
+        trade.Tags.Should().BeNull();
         trade.Symbol.Should().Be("BTC/USDT");
         trade.ExchangeId.Should().Be("paper");
         trade.QuoteCurrency.Should().Be("USDT");
@@ -410,7 +419,7 @@ public sealed class TradeStatsViewModelTests
                 Arg.Any<Order?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<Order>());
+            .Returns(Array.Empty<OrderPageRow>());
         var viewModel = CreateViewModel();
         PickStatementPath(viewModel, @"C:\exports\trade-statement.json");
 
@@ -449,7 +458,7 @@ public sealed class TradeStatsViewModelTests
                 Arg.Any<Order?>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(page, Array.Empty<Order>());
+            .Returns(page, Array.Empty<OrderPageRow>());
         _trading.GetBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, Money> { ["USDT"] = new Money(100m, "USDT") });
         _statementExport
@@ -464,4 +473,204 @@ public sealed class TradeStatsViewModelTests
     }
 
     #endregion Exports (T-210)
+
+    #region Tag Lane and Realized Table (T-211)
+
+    [Fact]
+    public async Task Apply_WithATagLane_GatesTheOutcomesInTheAccumulator()
+    {
+        // The lane rides the accumulator: an untagged close books no trade,
+        // but the volume keeps the scope's fills and the scan walks whole.
+        var page = new[]
+        {
+            Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+            Fill(OrderSide.Sell, 1m, 12m, 1, "o-2"),
+        };
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(page, Array.Empty<OrderPageRow>());
+
+        var viewModel = CreateViewModel();
+        viewModel.TagLaneFilterText = " swing ";
+        await ApplyAsync(viewModel);
+
+        viewModel.HasTrades.Should().BeFalse("the closing fill's tags carry no swing token");
+        viewModel.TradesText.Should().Be("0");
+        viewModel.VolumeText.Should().Be("22.0000", "the volume stays the scope's fill volume");
+        viewModel.ScanStateText.Should().Be("[Stats.Scanned:2]");
+        viewModel.HasRealizedRows.Should().BeFalse();
+
+        // The lane token passed through the accumulator trimmed: the stats
+        // window never books on an untrimmed accidental token.
+        viewModel.TagLaneFilterText.Should().Be(" swing ", "the filter text is the user's own input");
+    }
+
+    [Fact]
+    public async Task Apply_PublishesTheRealizedTable_WithTheRowAnnotations()
+    {
+        var page = new[]
+        {
+            Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+            Fill(OrderSide.Sell, 1m, 12m, 1, "o-2", note: "scaled out", tags: "swing,scalp"),
+        };
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(page, Array.Empty<OrderPageRow>());
+
+        var viewModel = CreateViewModel();
+        await ApplyAsync(viewModel);
+
+        viewModel.HasRealizedRows.Should().BeTrue();
+        var row = viewModel.RealizedRows.Should().ContainSingle().Subject;
+        row.ExchangeId.Should().Be("paper");
+        row.OrderId.Should().Be("o-2", "the edit flow keys on the closing journal row");
+        row.ClosedAt.Should().Be(BaseTime.AddMinutes(1).ToLocalTime().ToString(ZettaTrade.App.Services.TimeFormats.OrderTimestamp, System.Globalization.CultureInfo.InvariantCulture));
+        row.Symbol.Should().Be("BTC/USDT");
+        row.Pnl.Should().Be("2.0000");
+        row.IsWinning.Should().BeTrue();
+        row.Note.Should().Be("scaled out");
+        row.Tags.Should().Be("swing,scalp");
+    }
+
+    [Fact]
+    public async Task EditRealizedRow_AppliedResult_WritesTheJournalAndReplacesTheRow()
+    {
+        var page = new[]
+        {
+            Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+            Fill(OrderSide.Sell, 1m, 12m, 1, "o-2", tags: "swing"),
+        };
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(page, Array.Empty<OrderPageRow>());
+        _store.SetTradeMetaAsync("paper", "o-2", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        var viewModel = CreateViewModel();
+        await ApplyAsync(viewModel);
+        var before = viewModel.RealizedRows.Single(row => row.OrderId == "o-2");
+
+        viewModel.EditRealizedRowRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(new TradeNoteEditResult("the fresh note", "swing,scalp"));
+            return Task.CompletedTask;
+        });
+        await viewModel.EditRealizedRowCommand.Execute(before);
+
+        await _store.Received(1).SetTradeMetaAsync(
+            "paper", "o-2", "the fresh note", "swing,scalp", Arg.Any<CancellationToken>());
+        var after = viewModel.RealizedRows.Single(row => row.OrderId == "o-2");
+        after.Note.Should().Be("the fresh note", "the applied edit replaces the row instance");
+        after.Tags.Should().Be("swing,scalp");
+        after.Pnl.Should().Be(before.Pnl, "the booked outcome never rewrites");
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task EditRealizedRow_CancelledDialog_WritesNothing()
+    {
+        var page = new[]
+        {
+            Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+            Fill(OrderSide.Sell, 1m, 12m, 1, "o-2"),
+        };
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(page, Array.Empty<OrderPageRow>());
+
+        var viewModel = CreateViewModel();
+        await ApplyAsync(viewModel);
+        var before = viewModel.RealizedRows.Single();
+
+        viewModel.EditRealizedRowRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+        await viewModel.EditRealizedRowCommand.Execute(before);
+
+        await _store.DidNotReceiveWithAnyArgs().SetTradeMetaAsync(
+            default!, default!, default!, default!, default);
+        viewModel.RealizedRows.Single().Should().Be(before, "a cancelled dialog is a quiet no-op");
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task EditRealizedRow_StoreFault_ReportsTheLocalizedFailure()
+    {
+        var page = new[]
+        {
+            Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+            Fill(OrderSide.Sell, 1m, 12m, 1, "o-2"),
+        };
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(page, Array.Empty<OrderPageRow>());
+        _store.SetTradeMetaAsync("paper", "o-2", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromException<bool>(new InvalidOperationException("database is locked")));
+
+        var viewModel = CreateViewModel();
+        await ApplyAsync(viewModel);
+        var row = viewModel.RealizedRows.Single();
+
+        viewModel.EditRealizedRowRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(new TradeNoteEditResult("note", null));
+            return Task.CompletedTask;
+        });
+        await viewModel.EditRealizedRowCommand.Execute(row);
+
+        viewModel.ErrorMessage.Should().Be("[Stats.EditFailedFormat:database is locked]");
+        viewModel.HasErrorMessage.Should().BeTrue();
+        viewModel.RealizedRows.Single().Note.Should().BeNull("a failed write never rewrites the row");
+    }
+
+    [Fact]
+    public async Task EditRealizedRow_RefusedWrite_ReportsTheHonestFailure()
+    {
+        var page = new[]
+        {
+            Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+            Fill(OrderSide.Sell, 1m, 12m, 1, "o-2"),
+        };
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(page, Array.Empty<OrderPageRow>());
+        _store.SetTradeMetaAsync("paper", "o-2", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var viewModel = CreateViewModel();
+        await ApplyAsync(viewModel);
+        var row = viewModel.RealizedRows.Single();
+
+        viewModel.EditRealizedRowRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(new TradeNoteEditResult("note", null));
+            return Task.CompletedTask;
+        });
+        await viewModel.EditRealizedRowCommand.Execute(row);
+
+        viewModel.ErrorMessage.Should().NotBeEmpty("a refused write is surfaced, never a fabricated save");
+        viewModel.RealizedRows.Single().Note.Should().BeNull();
+    }
+
+    #endregion Tag Lane and Realized Table (T-211)
 }

@@ -1479,6 +1479,36 @@ Estimated fee: {10}</value>
   <data name="History.ExportFailed" xml:space="preserve">
     <value>Could not export the CSV file: {0}</value>
   </data>
+  <data name="History.ColNote" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="History.ColTags" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="History.EditTrade" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="History.EditFailedFormat" xml:space="preserve">
+    <value>Could not save the trade note: {0}</value>
+  </data>
+  <data name="Trading.TradeNote.Title" xml:space="preserve">
+    <value>Trade note and tags</value>
+  </data>
+  <data name="Trading.TradeNote.NoteLabel" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="Trading.TradeNote.NoteHint" xml:space="preserve">
+    <value>What was the reasoning behind this trade?</value>
+  </data>
+  <data name="Trading.TradeNote.TagsLabel" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="Trading.TradeNote.TagsHint" xml:space="preserve">
+    <value>Comma-separated: swing, scalp</value>
+  </data>
+  <data name="Trading.TradeNote.Apply" xml:space="preserve">
+    <value>Save</value>
+  </data>
   <data name="OrderBook.Title" xml:space="preserve">
     <value>Order Book</value>
   </data>
@@ -1742,6 +1772,54 @@ Estimated fee: {10}</value>
   </data>
   <data name="Stats.A11yEquity" xml:space="preserve">
     <value>Equity curve (cumulative realized PnL)</value>
+  </data>
+  <data name="Stats.FilterTag" xml:space="preserve">
+    <value>Tag</value>
+  </data>
+  <data name="Stats.FilterTagHint" xml:space="preserve">
+    <value>trade tag, e.g. swing</value>
+  </data>
+  <data name="Stats.RealizedTitle" xml:space="preserve">
+    <value>Closed trades</value>
+  </data>
+  <data name="Stats.ColClosed" xml:space="preserve">
+    <value>Closed</value>
+  </data>
+  <data name="Stats.ColExchange" xml:space="preserve">
+    <value>Exchange</value>
+  </data>
+  <data name="Stats.ColSymbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="Stats.ColSide" xml:space="preserve">
+    <value>Side</value>
+  </data>
+  <data name="Stats.ColQuantity" xml:space="preserve">
+    <value>Qty</value>
+  </data>
+  <data name="Stats.ColEntry" xml:space="preserve">
+    <value>Entry</value>
+  </data>
+  <data name="Stats.ColExit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="Stats.ColPnl" xml:space="preserve">
+    <value>PnL</value>
+  </data>
+  <data name="Stats.ColNote" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="Stats.ColTags" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="Stats.EditTrade" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Stats.A11yRealized" xml:space="preserve">
+    <value>Closed trades table</value>
+  </data>
+  <data name="Stats.EditFailedFormat" xml:space="preserve">
+    <value>Could not save the trade note: {0}</value>
   </data>
   <data name="Menu.Trading.Balances" xml:space="preserve">
     <value>Balances</value>

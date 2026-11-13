@@ -75,4 +75,20 @@ public sealed class OrderHistoryEntry
     /// never a zero.
     /// </summary>
     public decimal? Commission { get; set; }
+
+    /// <summary>
+    /// The user's trade note on this journal row (T-211), free text. Null is
+    /// the honest no-note. Written only through the trade-meta flow — the
+    /// adapter's placement upsert never touches it, so a status refresh
+    /// cannot wipe what the user wrote.
+    /// </summary>
+    public string? Note { get; set; }
+
+    /// <summary>
+    /// The user's trade tags on this journal row (T-211), the canonical
+    /// comma-joined token list ("swing,scalp") with no spaces inside: tags
+    /// split on commas, trim, drop empties and dedupe case-insensitively
+    /// (the first-seen case wins). Null is the honest no-tags.
+    /// </summary>
+    public string? Tags { get; set; }
 }

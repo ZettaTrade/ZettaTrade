@@ -422,11 +422,14 @@ public sealed class CsvExportServiceTests
                 ExchangeId: "paper",
                 Symbol: "BTC/USDT",
                 ClosingSide: "Sell",
+                ClosingOrderId: "o-2",
                 Quantity: 0.02m,
                 EntryPrice: 50_100m,
                 ExitPrice: 50_300m,
                 RealizedPnl: 4m,
-                QuoteCurrency: "USDT");
+                QuoteCurrency: "USDT",
+                Note: null,
+                Tags: null);
 
             await Service.ExportRealizedTradesAsync(path, [trade]);
 
@@ -446,11 +449,14 @@ public sealed class CsvExportServiceTests
                 ExchangeId: "paper",
                 Symbol: "AAPL",
                 ClosingSide: "Buy",
+                ClosingOrderId: "o-1",
                 Quantity: 10m,
                 EntryPrice: 190m,
                 ExitPrice: 185m,
                 RealizedPnl: -50m,
-                QuoteCurrency: null);
+                QuoteCurrency: null,
+                Note: null,
+                Tags: null);
 
             await Service.ExportRealizedTradesAsync(path, [trade]);
 
@@ -472,6 +478,79 @@ public sealed class CsvExportServiceTests
     }
 
     #endregion Realized Trades (T-210)
+
+    #region Realized Trades Annotations (T-211)
+
+    [Fact]
+    public async Task ExportRealizedTradesAsync_AnnotatedRow_GrowsTheMetaTailOverTheWholeFile()
+    {
+        // The T-211 columns join the document ONLY when at least one row
+        // carries an annotation; the whole file keeps one column shape, and
+        // the unannotated rows carry honest empty cells.
+        await WithTempFileAsync(async path =>
+        {
+            var annotated = new Export.StatementRealizedTrade(
+                ClosedAt: BaseTime.AddMinutes(1),
+                ExchangeId: "paper",
+                Symbol: "BTC/USDT",
+                ClosingSide: "Sell",
+                ClosingOrderId: "o-2",
+                Quantity: 1m,
+                EntryPrice: 10m,
+                ExitPrice: 12m,
+                RealizedPnl: 2m,
+                QuoteCurrency: "USDT",
+                Note: "scaled out at the level",
+                Tags: "swing,scalp");
+            var plain = annotated with
+            {
+                ClosedAt = BaseTime.AddMinutes(3),
+                ClosingOrderId = "o-4",
+                Quantity = 1m,
+                EntryPrice = 10m,
+                ExitPrice = 9m,
+                RealizedPnl = -1m,
+                Note = null,
+                Tags = null,
+            };
+
+            await Service.ExportRealizedTradesAsync(path, [annotated, plain]);
+
+            (await File.ReadAllTextAsync(path)).Should().Be(
+                "closedAt,exchange,symbol,side,quantity,entryPrice,exitPrice,realizedPnl,quoteCurrency,note,tags\r\n" +
+                "2026-01-01T12:01:00.000Z,paper,BTC/USDT,Sell,1,10,12,2,USDT,scaled out at the level,\"swing,scalp\"\r\n" +
+                "2026-01-01T12:03:00.000Z,paper,BTC/USDT,Sell,1,10,9,-1,USDT,,\r\n");
+        });
+    }
+
+    [Fact]
+    public async Task ExportRealizedTradesAsync_TagsOnlyAnnotation_StillGrowsTheTail()
+    {
+        await WithTempFileAsync(async path =>
+        {
+            var trade = new Export.StatementRealizedTrade(
+                ClosedAt: BaseTime,
+                ExchangeId: "paper",
+                Symbol: "BTC/USDT",
+                ClosingSide: "Sell",
+                ClosingOrderId: "o-2",
+                Quantity: 1m,
+                EntryPrice: 10m,
+                ExitPrice: 11m,
+                RealizedPnl: 1m,
+                QuoteCurrency: "USDT",
+                Note: null,
+                Tags: "swing");
+
+            await Service.ExportRealizedTradesAsync(path, [trade]);
+
+            (await File.ReadAllTextAsync(path)).Should().Be(
+                "closedAt,exchange,symbol,side,quantity,entryPrice,exitPrice,realizedPnl,quoteCurrency,note,tags\r\n" +
+                "2026-01-01T12:00:00.000Z,paper,BTC/USDT,Sell,1,10,11,1,USDT,,swing\r\n");
+        });
+    }
+
+    #endregion Realized Trades Annotations (T-211)
 
     #region Balances (T-210)
 

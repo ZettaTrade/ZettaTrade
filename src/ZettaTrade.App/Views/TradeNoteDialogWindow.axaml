@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.TradeNoteDialogWindow"
+        Classes="chrome-compact"
+        Icon="/Assets/ZettaTrade.ico"
+        x:DataType="vm:TradeNoteDialogViewModel"
+        AutomationProperties.AutomationId="TradeNoteDialogWindow"
+        Title="{loc:Localized Trading.TradeNote.Title}"
+        Width="460" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceM}">
+        <TextBlock Text="{loc:Localized Trading.TradeNote.NoteLabel}" />
+        <TextBox Text="{Binding NoteInput, Mode=TwoWay}"
+                 AutomationProperties.AutomationId="TradeNoteNoteInput"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 MinHeight="72"
+                 MaxHeight="160"
+                 PlaceholderText="{loc:Localized Trading.TradeNote.NoteHint}" />
+
+        <TextBlock Text="{loc:Localized Trading.TradeNote.TagsLabel}" />
+        <TextBox Text="{Binding TagsInput, Mode=TwoWay}"
+                 AutomationProperties.AutomationId="TradeNoteTagsInput"
+                 PlaceholderText="{loc:Localized Trading.TradeNote.TagsHint}" />
+        <TextBlock Text="{loc:Localized Trading.TradeNote.TagsHint}"
+                   Foreground="{DynamicResource TextSecondary}"
+                   TextWrapping="Wrap" />
+
+        <UniformGrid Columns="2" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Click="OnApplyClick"
+                    AutomationProperties.AutomationId="TradeNoteApplyButton"
+                    Classes="primary"
+                    Content="{loc:Localized Trading.TradeNote.Apply}"
+                    MinWidth="120" Margin="0,0,8,0" />
+            <Button Content="{loc:Localized Trading.Cancel}"
+                    AutomationProperties.AutomationId="TradeNoteCancelButton"
+                    Click="OnCancelClick"
+                    MinWidth="90" />
+        </UniformGrid>
+    </StackPanel>
+</Window>

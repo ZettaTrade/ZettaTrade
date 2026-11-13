@@ -131,6 +131,13 @@ public sealed class CsvExportService : ICsvExportService
         "quoteCurrency",
     ];
 
+    /// <summary>
+    /// The realized-trade columns' T-211 tail: the user annotations join
+    /// ONLY when at least one exported row carries them, so the T-210
+    /// column shape stays byte-stable for unannotated journals.
+    /// </summary>
+    private static readonly string[] RealizedTradesMetaHeader = ["note", "tags"];
+
     /// <summary>Balance snapshot columns: the asset and its served amount (T-210).</summary>
     private static readonly string[] BalancesHeader =
     [
@@ -215,10 +222,20 @@ public sealed class CsvExportService : ICsvExportService
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(trades);
 
+        // The T-211 columns join only with data present: a journal with no
+        // annotations exports byte-identical to the T-210 shape (the header
+        // stability the existing consumers pin), while any annotated row
+        // grows the note/tags tail — rows without one carry honest empty
+        // cells.
+        var annotated = trades.Any(trade => trade.Note is not null || trade.Tags is not null);
+        var header = annotated
+            ? [.. RealizedTradesHeader, .. RealizedTradesMetaHeader]
+            : RealizedTradesHeader;
+
         await WriteDocumentAsync(
             path,
-            RealizedTradesHeader,
-            trades.Select(RealizedTradeToRow),
+            header,
+            trades.Select(trade => RealizedTradeToRow(trade, annotated)),
             cancellationToken);
     }
 
@@ -414,19 +431,36 @@ public sealed class CsvExportService : ICsvExportService
         };
     }
 
-    /// <summary>One booked closing fill's outcome as a CSV row.</summary>
-    private static string?[] RealizedTradeToRow(StatementRealizedTrade trade) => new string?[]
+    /// <summary>One booked closing fill's outcome as a CSV row. The T-211
+    /// annotation tail rides only when the document carries it
+    /// (<paramref name="withMeta"/>): the whole file keeps one column shape.</summary>
+    private static string?[] RealizedTradeToRow(StatementRealizedTrade trade, bool withMeta)
     {
-        FormatTimestamp(trade.ClosedAt),
-        trade.ExchangeId,
-        trade.Symbol,
-        trade.ClosingSide,
-        FormatAmount(trade.Quantity),
-        FormatAmount(trade.EntryPrice),
-        FormatAmount(trade.ExitPrice),
-        FormatAmount(trade.RealizedPnl),
-        trade.QuoteCurrency,
-    };
+        var row = new string?[]
+        {
+            FormatTimestamp(trade.ClosedAt),
+            trade.ExchangeId,
+            trade.Symbol,
+            trade.ClosingSide,
+            FormatAmount(trade.Quantity),
+            FormatAmount(trade.EntryPrice),
+            FormatAmount(trade.ExitPrice),
+            FormatAmount(trade.RealizedPnl),
+            trade.QuoteCurrency,
+        };
+
+        if (!withMeta)
+        {
+            return row;
+        }
+
+        return
+        [
+            .. row,
+            trade.Note,
+            trade.Tags,
+        ];
+    }
 
     /// <summary>One served balance as a CSV row (the key names the asset).</summary>
     private static string?[] BalanceToRow(string asset, Money balance) => new string?[]

@@ -2,6 +2,7 @@ namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -18,11 +19,14 @@ using ZettaTrade.Infrastructure.Persistence;
 /// <summary>
 /// Tests for the order history window view model: rows load from the
 /// persistent store newest first with precomputed localized display values,
-/// an empty journal shows the empty state, and a store failure surfaces the
-/// localized error line.
+/// an empty journal shows the empty state, a store failure surfaces the
+/// localized error line, and the trade annotations (T-211) join onto the
+/// rows at load and land in the journal through the edit flow.
 /// </summary>
 public sealed class OrderHistoryViewModelTests
 {
+    private static readonly DateTimeOffset BaseTime = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+
     private readonly IOrderHistoryStore _store = Substitute.For<IOrderHistoryStore>();
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
 
@@ -34,6 +38,11 @@ public sealed class OrderHistoryViewModelTests
             $"[{call.ArgAt<string>(0)}]");
         _localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
             $"[{call.ArgAt<string>(0)}:{string.Join("|", call.ArgAt<object[]>(1))}]");
+
+        // The bulk meta read defaults to the honest empty: only tests that
+        // stage annotations configure rows into it.
+        _store.GetTradeMetaAsync(Arg.Any<IReadOnlyList<(string ExchangeId, string OrderId)>>())
+            .Returns(new List<OrderTradeMeta>());
     }
 
     private OrderHistoryViewModel CreateViewModel(
@@ -384,5 +393,138 @@ public sealed class OrderHistoryViewModelTests
     }
 
     #endregion Export Flows
+
+    #region Trade Meta (T-211)
+
+    [Fact]
+    public async Task LoadCommand_JoinsTheTradeMetaOntoTheRows_UnannotatedStayNull()
+    {
+        // Arrange: two loaded rows, one annotated (the bulk meta read
+        // returns only the annotated rows) and one not.
+        var localOffset = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 1, 1, 12, 5, 0));
+        _store.GetRecentAsync(Arg.Any<int>())
+            .Returns(
+            [
+                BuildOrder("paper-2", OrderStatus.Filled, new DateTimeOffset(2026, 1, 1, 12, 5, 0, localOffset)),
+                BuildOrder("paper-1", OrderStatus.Filled, new DateTimeOffset(2026, 1, 1, 12, 0, 0, localOffset)),
+            ]);
+        _store.GetTradeMetaAsync(Arg.Any<IReadOnlyList<(string ExchangeId, string OrderId)>>())
+            .Returns([new OrderTradeMeta("paper", "paper-2", "scaled out", "swing,scalp")]);
+
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert
+        viewModel.Rows[0].OrderId.Should().Be("paper-2", "the edit flow keys on the journal identity");
+        viewModel.Rows[0].Note.Should().Be("scaled out");
+        viewModel.Rows[0].Tags.Should().Be("swing,scalp");
+        viewModel.Rows[1].Note.Should().BeNull("the honest unannotated");
+        viewModel.Rows[1].Tags.Should().BeNull();
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task EditTradeCommand_AppliedResult_WritesTheJournalAndReplacesTheRow()
+    {
+        // Arrange
+        var localOffset = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 1, 1, 12, 0, 0));
+        _store.GetRecentAsync(Arg.Any<int>())
+            .Returns(
+            [
+                BuildOrder("paper-1", OrderStatus.Filled, new DateTimeOffset(2026, 1, 1, 12, 0, 0, localOffset)),
+            ]);
+        _store.GetTradeMetaAsync(Arg.Any<IReadOnlyList<(string ExchangeId, string OrderId)>>())
+            .Returns([]);
+        _store.SetTradeMetaAsync("paper", "paper-1", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        var viewModel = CreateViewModel();
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        var before = viewModel.Rows.Single();
+
+        using var handler = viewModel.EditTradeRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(new TradeNoteEditResult("the fresh note", "swing"));
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.EditTradeCommand.Execute(before);
+
+        // Assert
+        await _store.Received(1).SetTradeMetaAsync(
+            "paper", "paper-1", "the fresh note", "swing", Arg.Any<CancellationToken>());
+        var after = viewModel.Rows.Single();
+        after.Note.Should().Be("the fresh note", "the applied edit replaces the row instance");
+        after.Tags.Should().Be("swing");
+        after.Opened.Should().Be(before.Opened, "the lifecycle fields never rewrite");
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task EditTradeCommand_CancelledDialog_WritesNothing()
+    {
+        // Arrange
+        _store.GetRecentAsync(Arg.Any<int>())
+            .Returns(
+            [
+                BuildOrder("paper-1", OrderStatus.Filled, BaseTime),
+            ]);
+        _store.GetTradeMetaAsync(Arg.Any<IReadOnlyList<(string ExchangeId, string OrderId)>>())
+            .Returns([]);
+        var viewModel = CreateViewModel();
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        var before = viewModel.Rows.Single();
+
+        using var handler = viewModel.EditTradeRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(null);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.EditTradeCommand.Execute(before);
+
+        // Assert
+        await _store.DidNotReceiveWithAnyArgs().SetTradeMetaAsync(
+            default!, default!, default!, default!, default);
+        viewModel.Rows.Single().Should().Be(before, "a cancelled dialog is a quiet no-op");
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task EditTradeCommand_StoreFault_ShowsTheLocalizedFailure()
+    {
+        // Arrange
+        _store.GetRecentAsync(Arg.Any<int>())
+            .Returns(
+            [
+                BuildOrder("paper-1", OrderStatus.Filled, BaseTime),
+            ]);
+        _store.GetTradeMetaAsync(Arg.Any<IReadOnlyList<(string ExchangeId, string OrderId)>>())
+            .Returns([]);
+        _store.SetTradeMetaAsync("paper", "paper-1", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromException<bool>(new InvalidOperationException("database is locked")));
+        var viewModel = CreateViewModel();
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+        var row = viewModel.Rows.Single();
+
+        using var handler = viewModel.EditTradeRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(new TradeNoteEditResult("note", null));
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await viewModel.EditTradeCommand.Execute(row);
+
+        // Assert
+        viewModel.ErrorMessage.Should().Be(Localized("History.EditFailedFormat", "database is locked"));
+        viewModel.HasErrorMessage.Should().BeTrue();
+        viewModel.Rows.Single().Note.Should().BeNull("a failed write never rewrites the row");
+    }
+
+    #endregion Trade Meta (T-211)
 }
 

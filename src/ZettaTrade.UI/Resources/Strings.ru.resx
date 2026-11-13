@@ -1479,6 +1479,36 @@
   <data name="History.ExportFailed" xml:space="preserve">
     <value>Не удалось экспортировать CSV-файл: {0}</value>
   </data>
+  <data name="History.ColNote" xml:space="preserve">
+    <value>Заметка</value>
+  </data>
+  <data name="History.ColTags" xml:space="preserve">
+    <value>Теги</value>
+  </data>
+  <data name="History.EditTrade" xml:space="preserve">
+    <value>Изменить</value>
+  </data>
+  <data name="History.EditFailedFormat" xml:space="preserve">
+    <value>Не удалось сохранить заметку о сделке: {0}</value>
+  </data>
+  <data name="Trading.TradeNote.Title" xml:space="preserve">
+    <value>Заметка и теги сделки</value>
+  </data>
+  <data name="Trading.TradeNote.NoteLabel" xml:space="preserve">
+    <value>Заметка</value>
+  </data>
+  <data name="Trading.TradeNote.NoteHint" xml:space="preserve">
+    <value>В чём была логика этой сделки?</value>
+  </data>
+  <data name="Trading.TradeNote.TagsLabel" xml:space="preserve">
+    <value>Теги</value>
+  </data>
+  <data name="Trading.TradeNote.TagsHint" xml:space="preserve">
+    <value>Через запятую: swing, scalp</value>
+  </data>
+  <data name="Trading.TradeNote.Apply" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
   <data name="OrderBook.Title" xml:space="preserve">
     <value>Стакан ордеров</value>
   </data>
@@ -1742,6 +1772,54 @@
   </data>
   <data name="Stats.A11yEquity" xml:space="preserve">
     <value>Кривая доходности (накопленный реализованный PnL)</value>
+  </data>
+  <data name="Stats.FilterTag" xml:space="preserve">
+    <value>Тег</value>
+  </data>
+  <data name="Stats.FilterTagHint" xml:space="preserve">
+    <value>тег сделки, например swing</value>
+  </data>
+  <data name="Stats.RealizedTitle" xml:space="preserve">
+    <value>Закрытые сделки</value>
+  </data>
+  <data name="Stats.ColClosed" xml:space="preserve">
+    <value>Закрыта</value>
+  </data>
+  <data name="Stats.ColExchange" xml:space="preserve">
+    <value>Биржа</value>
+  </data>
+  <data name="Stats.ColSymbol" xml:space="preserve">
+    <value>Символ</value>
+  </data>
+  <data name="Stats.ColSide" xml:space="preserve">
+    <value>Сторона</value>
+  </data>
+  <data name="Stats.ColQuantity" xml:space="preserve">
+    <value>Кол-во</value>
+  </data>
+  <data name="Stats.ColEntry" xml:space="preserve">
+    <value>Вход</value>
+  </data>
+  <data name="Stats.ColExit" xml:space="preserve">
+    <value>Выход</value>
+  </data>
+  <data name="Stats.ColPnl" xml:space="preserve">
+    <value>PnL</value>
+  </data>
+  <data name="Stats.ColNote" xml:space="preserve">
+    <value>Заметка</value>
+  </data>
+  <data name="Stats.ColTags" xml:space="preserve">
+    <value>Теги</value>
+  </data>
+  <data name="Stats.EditTrade" xml:space="preserve">
+    <value>Изменить</value>
+  </data>
+  <data name="Stats.A11yRealized" xml:space="preserve">
+    <value>Таблица закрытых сделок</value>
+  </data>
+  <data name="Stats.EditFailedFormat" xml:space="preserve">
+    <value>Не удалось сохранить заметку о сделке: {0}</value>
   </data>
   <data name="Menu.Trading.Balances" xml:space="preserve">
     <value>Балансы</value>

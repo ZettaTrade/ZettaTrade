@@ -26,7 +26,7 @@ public sealed class SqliteOrderStatsQuery(
     private const int MaxPageSize = 10_000;
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<Order>> ReadPageAsync(
+    public async Task<IReadOnlyList<OrderPageRow>> ReadPageAsync(
         OrderStatsFilter filter,
         Order? after,
         int pageSize,
@@ -39,7 +39,7 @@ public sealed class SqliteOrderStatsQuery(
         var entries = await BuildPageQuery(dbContext, filter, after, take)
             .ToListAsync(cancellationToken);
 
-        return entries.Select(ToOrder).ToArray();
+        return entries.Select(ToPageRow).ToArray();
     }
 
     /// <summary>
@@ -128,4 +128,12 @@ public sealed class SqliteOrderStatsQuery(
         RejectReason = entry.RejectReason,
         Expiry = entry.Expiry,
     };
+
+    /// <summary>
+    /// Map a journal row onto the paged row shape: the Core <see cref="Order"/>
+    /// the panels already serve, plus the row's user trade annotations
+    /// (T-211) exactly as the journal keeps them.
+    /// </summary>
+    private static OrderPageRow ToPageRow(OrderHistoryEntry entry) =>
+        new(ToOrder(entry), entry.Note, entry.Tags);
 }
