@@ -213,7 +213,9 @@ internal static class CompositionRoot
                 sp.GetRequiredService<TradingModeService>(),
                 sp.GetRequiredService<NotificationCenter>().Events,
                 sp.GetRequiredService<AdapterHealthService>().HealthStream,
-                logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>()));
+                logger: sp.GetRequiredService<ILogger<StatusBarViewModel>>(),
+                // T-213: the update chip rides the checker's verdict stream.
+                updateReleases: sp.GetRequiredService<UpdateCheckService>().Results));
         services.AddSingleton<MarketContextPreambleComposer>();
         services.AddSingleton<ChatContextService>(sp =>
             new ChatContextService(
@@ -388,6 +390,12 @@ internal static class CompositionRoot
         services.AddOrderAmendServices();
         services.AddOrderHistory();
         services.AddNotificationServices(); // T-097: the notification center (toasts, history, DND) over the journal + health taps above.
+
+        // The update checker (T-213): the periodic (and manual) GitHub
+        // Releases check. Registered AFTER the notification services it
+        // publishes through; its first check rides its own loop task, so
+        // the startup walk never awaits the network.
+        services.AddUpdateServices();
 
         // The PnL accounting core + its app-side feed (T-082): after the
         // order history registration, so the walk initializes the ledger

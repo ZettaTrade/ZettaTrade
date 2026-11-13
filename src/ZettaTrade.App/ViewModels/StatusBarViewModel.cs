@@ -215,6 +215,44 @@ public sealed class StatusBarViewModel : ReactiveObject
         private set => this.RaiseAndSetIfChanged(ref _isLiveLane, value);
     }
 
+    /// <summary>Localized update tooltip: the available release's version interpolates in.</summary>
+    private const string UpdateTooltipKey = "Status.UpdateAvailable.Tooltip";
+
+    /// <summary>
+    /// The newest release the checker found above the running version
+    /// (null when the last completed check found nothing newer): the
+    /// update chip's state and its tooltip's version ride it (T-213).
+    /// </summary>
+    private UpdateRelease? _lastUpdateRelease;
+
+    private bool _hasUpdate;
+
+    /// <summary>
+    /// Whether the last completed update check found a newer release:
+    /// the update chip's visibility. A failed check never touches it
+    /// (the checker emits nothing on a failure), so the chip never
+    /// flaps on an unreachable network.
+    /// </summary>
+    public bool HasUpdate
+    {
+        get => _hasUpdate;
+        private set => this.RaiseAndSetIfChanged(ref _hasUpdate, value);
+    }
+
+    /// <summary>The chip's tooltip: the localized announcement with the available version (empty while hidden).</summary>
+    public string UpdateTooltip
+    {
+        get => _updateTooltip;
+        private set => this.RaiseAndSetIfChanged(ref _updateTooltip, value);
+    }
+
+    private string _updateTooltip = string.Empty;
+
+    /// <summary>Compose the update tooltip from the standing release (empty while none stands).</summary>
+    private string ComposeUpdateTooltip() => _lastUpdateRelease is { } release
+        ? _localizationManager.GetString(UpdateTooltipKey, release.Version)
+        : string.Empty;
+
     #endregion Properties
 
     #region Constructor
@@ -246,6 +284,12 @@ public sealed class StatusBarViewModel : ReactiveObject
     /// five seconds (the parameter exists so tests can shorten the wait).
     /// </param>
     /// <param name="logger">Logger.</param>
+    /// <param name="updateReleases">
+    /// The update checker's verdict stream (T-213): the update chip's
+    /// state. Each completed check's emission shows (or clears) the chip;
+    /// a failed check emits nothing, so the standing chip never flaps.
+    /// Null in tests that construct the bar without the checker.
+    /// </param>
     public StatusBarViewModel(
         ILocalizationManager localizationManager,
         ActiveExchangeService activeExchanges,
@@ -254,7 +298,8 @@ public sealed class StatusBarViewModel : ReactiveObject
         IObservable<IReadOnlyList<AdapterHealth>> adapterHealth,
         TimeSpan? fallbackNoticeDuration = null,
         TimeSpan? statusMessageDuration = null,
-        ILogger<StatusBarViewModel>? logger = null)
+        ILogger<StatusBarViewModel>? logger = null,
+        IObservable<UpdateRelease?>? updateReleases = null)
     {
         _localizationManager = localizationManager;
         _exchanges = activeExchanges;
@@ -368,6 +413,7 @@ public sealed class StatusBarViewModel : ReactiveObject
                 {
                     RefreshAdapterHealthRows(_lastAdapterHealth);
                     RefreshIdleStatusMessage();
+                    UpdateTooltip = ComposeUpdateTooltip();
                 },
                 ex => _logger.LogError(ex, "The strip's language re-composition stream stopped unexpectedly"));
 
@@ -396,6 +442,23 @@ public sealed class StatusBarViewModel : ReactiveObject
             .Subscribe(
                 RefreshTradingLaneChip,
                 ex => _logger.LogError(ex, "The trading lane chip stream stopped unexpectedly"));
+
+        // The update chip (T-213): the checker's verdict stream shows (or
+        // clears) the chip on every COMPLETED check; a failed check emits
+        // nothing, so the standing chip never flaps on an unreachable
+        // network. The tooltip's version rides the standing release, so a
+        // language switch re-derives it from the kept snapshot (the strip's
+        // own re-composition discipline).
+        updateReleases?
+            .ObserveOnUiThread()
+            .Subscribe(
+                release =>
+                {
+                    _lastUpdateRelease = release;
+                    HasUpdate = release is not null;
+                    UpdateTooltip = ComposeUpdateTooltip();
+                },
+                ex => _logger.LogError(ex, "The update chip stream stopped unexpectedly"));
     }
 
     #endregion Constructor

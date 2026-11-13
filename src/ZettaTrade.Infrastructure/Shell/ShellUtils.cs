@@ -43,4 +43,27 @@ public sealed class ShellUtils : IShellUtils
         startInfo.ArgumentList.Add(path);
         Process.Start(startInfo);
     }
+
+    /// <inheritdoc/>
+    public void OpenInBrowser(string url)
+    {
+        // The honest guard: only the web schemes the shell may resolve.
+        // Anything else (a file://, a custom protocol, garbage) is
+        // refused here, never handed to the OS.
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || uri.Scheme is not ("http" or "https"))
+        {
+            throw new ArgumentException("Only an absolute http(s) URL opens in the browser.", nameof(url));
+        }
+
+        // Shell execution resolves the platform's own open path for the
+        // URL scheme (ShellExecute on Windows, the open/xdg-open helpers
+        // on macOS/Linux) — the browser choice stays the OS default's.
+        Process.Start(new ProcessStartInfo
+        {
+            UseShellExecute = true,
+            FileName = uri.AbsoluteUri,
+        });
+    }
 }

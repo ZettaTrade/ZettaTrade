@@ -7,10 +7,13 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
+using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
@@ -346,6 +349,8 @@ public sealed class NotificationCenterTests
             .Should().Be(NotificationRoute.HistoryDrawer, "the summary's readable surface is the notification history");
         NotificationRouteMap.Map(NotificationKind.AlertFired)
             .Should().Be(NotificationRoute.None, "the alerts manager opens from the Trading menu — a fire's click only dismisses");
+        NotificationRouteMap.Map(NotificationKind.UpdateAvailable)
+            .Should().Be(NotificationRoute.ReleasePage, "the update announcement's click opens the release page (the toast host shells it out, T-213)");
 
         var act = () => NotificationRouteMap.Map((NotificationKind)int.MaxValue);
         act.Should().Throw<ArgumentOutOfRangeException>("an unnamed kind faults, never a silently substituted route");
@@ -393,6 +398,31 @@ public sealed class NotificationCenterTests
                 0m),
         ]);
         cancelDigest.Route.Should().Be(NotificationRoute.OrderHistory);
+    }
+
+    /// <summary>
+    /// The update announcement's display row composes the localized
+    /// summary from the announcement's own version (the release URL rides
+    /// the route; the badge never appears — the announcement is one
+    /// event, never a burst).
+    /// </summary>
+    [Fact]
+    public void AnUpdateAnnouncement_ComposesItsSummaryFromTheAnnouncedVersion()
+    {
+        var localization = Substitute.For<ILocalizationManager>();
+        localization.GetString("Notif.UpdateAvailable", Arg.Any<object[]>())
+            .Returns(call => $"[Notif.UpdateAvailable:{call.ArgAt<object[]>(1)[0]}]");
+
+        var row = NotificationRow.ForDisplay(
+            Notification.ForUpdateAvailable(
+                "0.1.0-alpha.159",
+                "https://github.com/zettatrade/zettatrade/releases/tag/v0.1.0-alpha.159",
+                new DateTimeOffset(2026, 11, 14, 10, 0, 0, TimeSpan.Zero)),
+            localization);
+
+        row.Summary.Should().Be("[Notif.UpdateAvailable:0.1.0-alpha.159]");
+        row.HasCountBadge.Should().BeFalse("the announcement is one event, never a burst");
+        row.HasRoute.Should().BeTrue("the release page is the row's route");
     }
 
     #endregion

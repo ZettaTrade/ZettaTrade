@@ -333,6 +333,19 @@ public sealed class SettingsViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _isMcpServerEnabled, value);
     }
 
+    /// <summary>
+    /// Whether the update checker runs (T-213). A selection like every
+    /// other one here: applies only on the explicit Save — the persisted
+    /// write lands and the checker's change stream applies it live (no
+    /// host apply is needed; the next cadence tick, manual ask or boot
+    /// honors the saved choice).
+    /// </summary>
+    public bool IsUpdateCheckEnabled
+    {
+        get => _isUpdateCheckEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isUpdateCheckEnabled, value);
+    }
+
     #region AI provider (T-207)
 
     /// <summary>
@@ -684,6 +697,16 @@ public sealed class SettingsViewModel : ReactiveObject
     private bool _isMcpServerEnabled;
 
     /// <summary>
+    /// The persisted update-check choice as last read (T-213): the
+    /// checkbox drafts seed from it and the save persists only a real
+    /// difference (the same seed + changes pattern as the MCP choice).
+    /// </summary>
+    private bool _persistedUpdateCheckEnabled = AppSettingsKeys.DefaultUpdateCheckEnabled;
+
+    /// <summary>The unsaved update-check checkbox (the draft the save applies).</summary>
+    private bool _isUpdateCheckEnabled;
+
+    /// <summary>
     /// The MCP host's lifecycle state as the runner surfaces it: the three
     /// honest rows derive from it and every transition raises the bools.
     /// </summary>
@@ -981,6 +1004,26 @@ public sealed class SettingsViewModel : ReactiveObject
             .Subscribe(
                 enabled => _persistedMcpServerEnabled = enabled,
                 ex => _logger.LogError(ex, "The MCP server enable stream stopped unexpectedly"));
+
+        // The update check (T-213): the same seed + changes pattern as the
+        // MCP enable; the choice drafts the checkbox and the save applies
+        // it (the checker's own change subscription picks the flip live).
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                AppSettingsKeys.Section,
+                AppSettingsKeys.UpdateCheck,
+                AppSettingsKeys.DefaultUpdateCheckEnabled))
+            .Subscribe(
+                enabled => _persistedUpdateCheckEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the update check enable state"));
+
+        _settings.Changes
+            .Where(change => change.Section == AppSettingsKeys.Section &&
+                             change.Key == AppSettingsKeys.UpdateCheck)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedUpdateCheckEnabled = enabled,
+                ex => _logger.LogError(ex, "The update check enable stream stopped unexpectedly"));
 
         // The host's honest state (running / stopped / failed): the three
         // rows derive and rise on every transition; both subscriptions
@@ -1315,6 +1358,20 @@ public sealed class SettingsViewModel : ReactiveObject
             await _mcpHosts.ApplyAsync(_isMcpServerEnabled);
         }
 
+        // The update check enable (T-213): only a real difference applies
+        // (the same no-op discipline every other row keeps). No live apply
+        // is needed — the checker's own change subscription reads the flip
+        // without a restart; the next cadence tick, manual ask or launch
+        // honors the saved choice.
+        if (_isUpdateCheckEnabled != _persistedUpdateCheckEnabled)
+        {
+            await _settings.SetAsync(
+                AppSettingsKeys.Section,
+                AppSettingsKeys.UpdateCheck,
+                _isUpdateCheckEnabled);
+            _persistedUpdateCheckEnabled = _isUpdateCheckEnabled;
+        }
+
         // The AI chat provider pick (T-207): only a real difference applies
         // (the same no-op discipline every row keeps). The stored spelling
         // rides the router's constants; a stored garbage pick repairs to the
@@ -1644,6 +1701,7 @@ public sealed class SettingsViewModel : ReactiveObject
         IsBollEnabled = _persistedBollEnabled;
         BollPeriodText = PeriodTextOf(_persistedBollPeriod);
         IsMcpServerEnabled = _persistedMcpServerEnabled;
+        IsUpdateCheckEnabled = _persistedUpdateCheckEnabled;
 
         // The AI chat provider (T-207): the pick drafts the combo (a garbage
         // stored pick drafts the default with a logged warning) and the text

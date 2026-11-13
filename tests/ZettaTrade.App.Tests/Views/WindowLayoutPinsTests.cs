@@ -223,6 +223,14 @@ public sealed class WindowLayoutPinsTests
                 1,
                 "'{0}' is the one card header of its section", key);
         }
+
+        // The update-check toggle (T-213) rides the appearance card as its
+        // fourth row (the T-184 no-scroll pin bounds the page — a standalone
+        // Application card would not fit the default size): the row rides
+        // the pinned automation id.
+        source.Should().Contain(
+            "UpdateCheckEnabledCheckBox",
+            "the update check's checkbox is the one pinned control of its row");
     }
 
     [Fact]

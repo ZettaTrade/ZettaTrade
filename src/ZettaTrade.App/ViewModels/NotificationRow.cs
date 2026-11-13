@@ -61,6 +61,9 @@ public sealed class NotificationRow : ReactiveObject
     /// <summary>The alert-fire digest line: burst count + the newest fire's line.</summary>
     private const string AlertFiredDigestKey = "Notif.AlertFiredDigest";
 
+    /// <summary>The update announcement line: the available release's display version.</summary>
+    private const string UpdateAvailableKey = "Notif.UpdateAvailable";
+
     /// <summary>One unknown value's rendering: the honest localized dash (the fee column's precedent).</summary>
     private const string UnknownValueKey = "Fees.Unknown";
 
@@ -240,6 +243,9 @@ public sealed class NotificationRow : ReactiveObject
                 AlertFiredKey,
                 Source.SymbolName,
                 AlertConditionText.Compose(alert, _localization))),
+        NotificationKind.UpdateAvailable => _localization.GetString(
+            UpdateAvailableKey,
+            Source.VersionLabel),
         _ => throw new ArgumentOutOfRangeException(
             nameof(Source),
             Source.Kind,

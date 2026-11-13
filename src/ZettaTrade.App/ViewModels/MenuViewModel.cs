@@ -70,6 +70,16 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>Command to open the log viewer window (Help menu, T-101).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowLogViewerCommand { get; }
 
+    /// <summary>Command to check for updates now (Help menu, T-213).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> CheckUpdatesCommand { get; }
+
+    /// <summary>
+    /// Interaction that routes the check-updates request to the View,
+    /// which runs the service's manual check (window plumbing stays out
+    /// of the ViewModel; the same pattern the log viewer keeps).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> CheckUpdatesRequested { get; }
+
     /// <summary>
     /// Interaction that routes the show-log-viewer request to the View,
     /// which hosts the modal window (same pattern as
@@ -202,6 +212,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowDisclaimerRequested = new Interaction<RxVoid, RxVoid>();
         ShowLicenseActivationRequested = new Interaction<RxVoid, RxVoid>();
         ShowLogViewerRequested = new Interaction<RxVoid, RxVoid>();
+        CheckUpdatesRequested = new Interaction<RxVoid, RxVoid>();
         NewOrderCommand = ReactiveCommand.CreateFromTask(HandleNewOrderAsync);
         KillSwitchCommand = ReactiveCommand.CreateFromTask(HandleKillSwitchAsync);
         ShowPositionsCommand = ReactiveCommand.CreateFromTask(HandleShowPositionsAsync);
@@ -218,6 +229,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowDisclaimerCommand = ReactiveCommand.CreateFromTask(HandleShowDisclaimerAsync);
         ShowLicenseActivationCommand = ReactiveCommand.CreateFromTask(HandleShowLicenseActivationAsync);
         ShowLogViewerCommand = ReactiveCommand.CreateFromTask(HandleShowLogViewerAsync);
+        CheckUpdatesCommand = ReactiveCommand.CreateFromTask(HandleCheckUpdatesAsync);
         ExitCommand = ReactiveCommand.Create(HandleExit);
 
         // The checkable item mirrors the panel state: the when-any-value
@@ -381,6 +393,13 @@ public sealed class MenuViewModel : ReactiveObject
     /// out of the ViewModel, same as the stats window).
     /// </summary>
     private Task HandleShowLogViewerAsync() => ShowLogViewerRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the check-updates request to the View, which runs the
+    /// update checker's manual pass (the service answers honestly; the
+    /// off switch and the singleflight gate live there, T-213).
+    /// </summary>
+    private Task HandleCheckUpdatesAsync() => CheckUpdatesRequested.Handle(RxVoid.Default);
 
     private void HandleExit()
     {

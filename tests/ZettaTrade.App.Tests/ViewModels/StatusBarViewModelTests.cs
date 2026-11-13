@@ -94,7 +94,8 @@ public sealed class StatusBarViewModelTests
         ActiveExchangeService? exchanges = null,
         TimeSpan? fallbackNoticeDuration = null,
         TimeSpan? statusMessageDuration = null,
-        TradingModeService? tradingMode = null) =>
+        TradingModeService? tradingMode = null,
+        IObservable<UpdateRelease?>? updateReleases = null) =>
         new(
             _localizationManager,
             exchanges ?? CreateService(),
@@ -103,7 +104,8 @@ public sealed class StatusBarViewModelTests
             _health,
             fallbackNoticeDuration,
             statusMessageDuration,
-            NullLogger<StatusBarViewModel>.Instance);
+            NullLogger<StatusBarViewModel>.Instance,
+            updateReleases);
 
     #region Tests: the message channel (T-153)
 
@@ -529,5 +531,59 @@ public sealed class StatusBarViewModelTests
     }
 
     #endregion Tests: the trading lane chip (T-123)
+
+    #region Tests: the update chip (T-213)
+
+    /// <summary>The checker's verdict shows the chip; the honest empty verdict clears it (a failed check emits nothing — nothing here flaps).</summary>
+    [Fact]
+    public async Task TheUpdateChip_ShowsTheNewestRelease_AndClearsOnTheEmptyVerdict()
+    {
+        var releases = new Subject<UpdateRelease?>();
+        var viewModel = CreateViewModel(updateReleases: releases);
+
+        viewModel.HasUpdate.Should().BeFalse("no verdict has landed yet — the chip starts hidden");
+        viewModel.UpdateTooltip.Should().BeEmpty();
+
+        releases.OnNext(new UpdateRelease("0.1.0-alpha.159", "https://example.com/159"));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.HasUpdate.Should().BeTrue("a newer release stands");
+        viewModel.UpdateTooltip.Should().Be("[Status.UpdateAvailable.Tooltip]", "the tooltip composes localized with the version");
+
+        releases.OnNext(null);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.HasUpdate.Should().BeFalse("the honest empty verdict clears the standing chip");
+        viewModel.UpdateTooltip.Should().BeEmpty();
+    }
+
+    /// <summary>A language switch re-composes the tooltip from the standing release — the caption never goes stale.</summary>
+    [Fact]
+    public async Task ALanguageSwitch_ReDerivesTheUpdateTooltipFromTheStandingRelease()
+    {
+        var releases = new Subject<UpdateRelease?>();
+        var languageChanged = new BehaviorSubject<string>("en");
+        _localizationManager.LanguageChanged.Returns(languageChanged);
+        var cultureStamp = "en";
+        _localizationManager
+            .GetString("Status.UpdateAvailable.Tooltip", Arg.Any<object[]>())
+            .Returns(call => $"[{cultureStamp}:{call.ArgAt<object[]>(1)[0]}]");
+        var viewModel = CreateViewModel(updateReleases: releases);
+
+        releases.OnNext(new UpdateRelease("0.1.0-alpha.159", "https://example.com/159"));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.UpdateTooltip.Should().Be("[en:0.1.0-alpha.159]");
+
+        cultureStamp = "ru";
+        languageChanged.OnNext("ru");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        viewModel.UpdateTooltip.Should().Be(
+            "[ru:0.1.0-alpha.159]",
+            "the language switch re-composes the tooltip from the standing release, never from a stale culture");
+    }
+
+    #endregion Tests: the update chip (T-213)
 }
 
