@@ -44,6 +44,13 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     private readonly AssistantPanelView AssistantPanel;
 
     /// <summary>
+    /// The tray close policy (T-214), or null: the null rides the shipped
+    /// semantics (a close IS a close — the designer route and the headless
+    /// world never intercept), a policy consults its mode and exit flag.
+    /// </summary>
+    private readonly TrayClosePolicy? _closePolicy;
+
+    /// <summary>
     /// Create the main window around its view model (T-175): the DataContext
     /// lands BEFORE InitializeComponent, so the XAML's <c>$parent[Window]</c>
     /// lanes - the View menu's detach toggles, the HUD's tap gate - and the
@@ -51,10 +58,14 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     /// pass. The null-DataContext phase that logged binding errors and
     /// self-healed on the later assignment (the debug-output noise) is
     /// gone: the app's construction rides this ctor, nothing else.
+    /// The trailing optional close policy (T-214) keeps every existing
+    /// call valid: the app passes the composed policy, the tests pass
+    /// null or their own.
     /// </summary>
-    public MainWindow(MainViewModel mainViewModel)
+    public MainWindow(MainViewModel mainViewModel, TrayClosePolicy? closePolicy = null)
     {
         DataContext = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _closePolicy = closePolicy;
 
         InitializeComponent();
 
@@ -118,6 +129,33 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         _slotPanelsWiring = ChartGrid.SlotPanelsAdded.Subscribe(
             WireChartPanelRoutes,
             ex => Log.Error(ex, "The chart slot panel stream failed"));
+    }
+
+    /// <summary>
+    /// The close interception (T-214): the shipped semantics never change —
+    /// no policy, or an allowed close (the Exit mode, an armed exit), lets
+    /// the gesture through exactly as before. The MinimizeToTray mode
+    /// turns a plain user close into a hide instead, so the session keeps
+    /// running behind the tray icon — the exchanges, the risk gates and
+    /// the single-instance dispatch pipe never stop. An earlier
+    /// cancellation keeps its say: the interception never overrides it.
+    /// </summary>
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+
+        if (e.Cancel)
+        {
+            return;
+        }
+
+        if (_closePolicy is null || _closePolicy.ShouldAllowClose())
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        Hide();
     }
 
     /// <inheritdoc/>
