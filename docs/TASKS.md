@@ -216,7 +216,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | done | - |
 | T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | done | - |
 | T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | done | - |
-| T-212 Backtest parameter optimization (backlog sweep 2026-11-12) | feat/backtest-optimize | in-progress | - |
+| T-212 Backtest parameter optimization (backlog sweep 2026-11-12) | feat/backtest-optimize | done | - |
 | T-213 Update checker (backlog sweep 2026-11-12) | feat/update-check | planned | - |
 | T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | planned | - |
 | T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | planned | - |
@@ -502,22 +502,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
-
-## T-212 — Backtest parameter optimization
-
-- **Branch:** feat/backtest-optimize, worktree zt-backtest-optimize, base develop@6710643
-  (claimed 2026-11-14 off the synced board).
-- **Origin:** the sweep - the backtester runs one parameterization per run.
-- **What:** a grid sweep over a strategy's declared numeric parameters (the plugin descriptor's
-  settings shape), producing a ranked result table (net, drawdown, win rate, profit factor)
-  with a click-through to the single-run report; progress and cooperative cancel ride the
-  existing backtest events; walk-forward is explicitly out of scope (a later task).
-- **Scope:** ZettaTrade.Backtest (the sweep engine) + the window's results view, resx en+ru,
-  the next free alpha bump + the CHANGELOG section.
-- **Acceptance:** a two-parameter grid returns a ranked, deterministic table (the byte-stable
-  report discipline per row); cancel stops between parameterizations, never mid-run.
-- **Tests:** the sweep determinism battery; the cancel/progress pins.
-- **Status:** in-progress.
 
 ## T-213 — Update checker
 
