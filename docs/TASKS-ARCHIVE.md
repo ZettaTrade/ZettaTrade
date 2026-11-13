@@ -3979,6 +3979,55 @@ the board and its section below.
   12 s hold, 0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed (14 rows),
   strategies+indicators provided.
 
+## T-204 - Alert mechanics 2.0: toasts, re-arm, sound
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — a fire today beeps and flips a status; no toast, no repeat semantics,
+  no sound choice.
+- **What:** a fired alert surfaces as a notification-center toast (the T-097 lane, respecting
+  DND and the source mutes); re-arm options beyond today's one-shot (per-cross re-arm, an
+  N-minute cooldown); an optional per-alert sound beyond the single beep, best-effort and never
+  blocking the trading thread.
+- **Scope:** the alerts service (fire semantics) + the notification bridge, the editor's
+  re-arm controls, settings keys, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a fire produces the toast unless DND/mutes swallow it; the re-arm modes
+  behave per contract; the sound path degrades honestly on platforms without it.
+- **Tests:** the fire-semantics matrix (one-shot/re-arm/cooldown × DND); the toast-bridge pins.
+- **Status:** done - 0.1.0-alpha.148. Chain: claim `6ed9f11` -> feat `2a7631a` -> close.
+  A fire's aftermath is per alert now: the terminal one-shot stays the default; the
+  per-cross re-arm re-arms at the fire behind a per-definition in-memory crossing gate
+  (the first hit fires, a price HELD at the level blocks until it leaves — only a
+  leaving-and-re-crossing one re-fires); the cooldown snoozes at the fire for the stored
+  N-minute window (SnoozedUntilUtc) and re-arms at its expiry — the first hit after the
+  window re-fires, the expiry tick itself evaluates nothing. The gate rides both
+  evaluation paths (the tick and the candle close) and clears on an edit or a delete.
+  The sound is per alert too: the beep stays the default, silent skips the player
+  entirely; the best-effort path never blocks the trading thread.
+  The toast bridge: a fire publishes a notification-center event (the T-097 lane) — a
+  quiet session toasts, do-not-disturb collapses it into the history digest, the
+  alerts source mute (the history's fifth mute row) and the standalone toasts toggle
+  swallow it, and the history keeps the row in every lane; the row's condition line
+  reads through one composer shared with the manager's own.
+  The roster codec is version 3 (re-arm + sound always, the cooldown minutes only when
+  positive); versions 1/2 decode with their old defaults, entries with junk facts skip.
+  The editor grows the mode picker, the window field (a non-positive or unparsable
+  spelling refuses with its own localized line) and the sound picker on a second row.
+  Tests: 28 new cases (24 methods: 11 engine facts — the re-arm matrix (per-cross
+  re-fire on a fresh crossing, cooldown snooze + post-window re-fire, the gate's
+  clear on an edit, the silent skip, the two draft refusals) and the toast battery
+  (the free lane, DND, the mute, the digest collapse); 8 codec facts — the v3
+  round-trip, the v1/v2 defaults, the skip theories, the case-insensitive mode; 5 VM
+  facts — the defaults, the carry-through, the window refusals, the editor loads)
+  over a reactive-settings fake; the route matrix pins AlertFired -> None. Suites on
+  the feat tip: App 1962 (1934 at the T-203 tip; the delta is exactly the 28 new
+  cases) — green. GATE PASSED attempt 1 (-AllowProtected; 5 warn-level notes: the
+  SCOPE info, two TASK-FROMRESULT warns on the ISettingsService fixture — the
+  interface-mandated wrap, the pre-commit state, the local gitleaks skip). The
+  launch smoke green on the feat tip: ProductVersion 0.1.0-alpha.148+6ed9f11 (the
+  smoke ran on the uncommitted feat tree, so the stamp carries the branch head),
+  title held through the 12 s hold, 0 ERR/FTL, ticker+screener+watchlist clean,
+  palette refreshed (14 rows), strategies+indicators provided.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).

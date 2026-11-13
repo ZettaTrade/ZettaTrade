@@ -208,7 +208,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | done | - |
 | T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | done | - |
 | T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | done | - |
-| T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alerts-mechanics-2 | in-progress | - |
+| T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alerts-mechanics-2 | done | - |
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | planned | - |
 | T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | planned | - |
 | T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-providers | planned | - |
@@ -452,22 +452,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
   were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
   new user-facing UI string was introduced.
-
-## T-204 - Alert mechanics 2.0: toasts, re-arm, sound
-
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
-- **Origin:** the sweep — a fire today beeps and flips a status; no toast, no repeat semantics,
-  no sound choice.
-- **What:** a fired alert surfaces as a notification-center toast (the T-097 lane, respecting
-  DND and the source mutes); re-arm options beyond today's one-shot (per-cross re-arm, an
-  N-minute cooldown); an optional per-alert sound beyond the single beep, best-effort and never
-  blocking the trading thread.
-- **Scope:** the alerts service (fire semantics) + the notification bridge, the editor's
-  re-arm controls, settings keys, resx en+ru, the next free alpha bump + the CHANGELOG section.
-- **Acceptance:** a fire produces the toast unless DND/mutes swallow it; the re-arm modes
-  behave per contract; the sound path degrades honestly on platforms without it.
-- **Tests:** the fire-semantics matrix (one-shot/re-arm/cooldown × DND); the toast-bridge pins.
-- **Status:** planned. (The parked T-041 Telegram sink rides this event surface when opened.)
 
 ## T-205 — Streaming AI chat
 
