@@ -211,7 +211,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alerts-mechanics-2 | done | - |
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | done | - |
 | T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | done | - |
-| T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-providers | planned | - |
+| T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-provider-openai | in-progress | - |
 | T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | planned | - |
 | T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | planned | - |
 | T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | planned | - |
@@ -499,7 +499,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-207 — Second AI provider: OpenAI-compatible
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/ai-provider-openai, worktree zt-ai-provider-openai, base develop@a899683.
 - **Origin:** the sweep — Ollama is the only provider; the canon keeps local-first as the
   default posture.
 - **What:** a provider seam in the AI chat: the shipped default stays Ollama; an
@@ -512,7 +512,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** both providers answer over loopback stubs; the key never reaches a log,
   stdout or an argument; the default configuration behaves exactly as today.
 - **Tests:** the provider stub batteries; the secret-handling pins.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-208 — MCP server expansion: resources, prompts, tools
 
