@@ -4403,6 +4403,69 @@ the board and its section below.
   40-character sha), alive through the 40 s hold, 0 ERR/FTL in the run slice (the
   snapshot-offset slice excludes stale records from earlier runs), 0 leftovers.
 
+## T-212 — Backtest parameter optimization
+
+- **Branch:** feat/backtest-optimize, worktree zt-backtest-optimize, base develop@6710643
+  (claimed 2026-11-14 off the synced board).
+- **Origin:** the sweep — the backtester runs one parameterization per run.
+- **What:** a grid sweep over a strategy's declared numeric parameters (the plugin descriptor's
+  settings shape), producing a ranked result table (net, drawdown, win rate, profit factor)
+  with a click-through to the single-run report; progress and cooperative cancel ride the
+  existing backtest events; walk-forward is explicitly out of scope (a later task).
+- **Scope:** ZettaTrade.Backtest (the sweep engine) + the window's results view, resx en+ru,
+  the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a two-parameter grid returns a ranked, deterministic table (the byte-stable
+  report discipline per row); cancel stops between parameterizations, never mid-run.
+- **Tests:** the sweep determinism battery; the cancel/progress pins.
+- **Status:** done - 0.1.0-alpha.158. Chain: claim `e2f5a51` -> feat `5c7024e` -> close.
+  Concurrent-landing note: origin/develop moved mid-task (the T-222 settings re-ride landed
+  `21697b7` and took alpha.157 first), the branch rebased onto it - the version re-taken as
+  alpha.158 (never renumber a shipped landing), the CHANGELOG section stacked above T-222's,
+  the merged tree re-proven by the gate and a fresh launch smoke.
+  The sweepable knobs are the RUN REQUEST's own declared execution-policy parameters -
+  `LongNotionalFraction` x `SlippageValue` (bars, seed and the starting balance stay the
+  replay's identity and scale; the strategy contract 2.2.0 declares no per-strategy
+  parameters, the parameterless ctor being its only documented shape - the contract
+  untouched). Engine: `BacktestSweepParameter` / `BacktestSweepAxis` (1..8 values per axis,
+  the per-knob ranges (0,1] / >=0, refuse-never-clamp) / `BacktestSweepRequest` (the two
+  axes must name DIFFERENT knobs - a duplicate grid is refused, never collapsed) plus
+  `BacktestSweepRow` / `BacktestSweepOutcome` / `BacktestSweepResult` with a byte-stable
+  `ToCanonicalText` ("BacktestSweepReport v1": the template echo, both axes, the outcome,
+  every ranked row's headline metrics). `IBacktestService.SweepAsync` additive; the replay
+  core extracted (`ReplayAsync`) so a sweep loads the window ONCE and replays each
+  parameterization through a fresh host, ledger and seeded draw - each a complete, stable
+  replay of the same bars. The same single-flight gate covers the whole sweep (a run or
+  sweep started while a sweep is in flight refuses exactly as a second run would); the
+  cooperative stop lands ONLY at a parameterization boundary (rows ride no token) - a
+  cancelled sweep carries every row whose replay completed, a stop during the load carries
+  zero rows and publishes no events. UI: the sweep band in the backtest window (two axis
+  rows - a knob picker plus a comma-separated values list each), the ranked table
+  (rank / parameters / net / drawdown / win rate / profit factor, the numeric columns
+  right-aligned in the NumericFont stack), progress wrapping the per-row bar line into the
+  global counter ("Row k of n: bars" with the fraction ((rows done) + row fraction) /
+  total), the done line ("Sweep finished: k of n parameterizations replayed"), the
+  click-through swapping the selected row's own complete report onto the report surface
+  (equity, summary, canonical text), a completed sweep auto-selecting rank 1. Every
+  malformed input refuses with its own localized line (an unparsable list, the 1..8
+  ceiling, a duplicate-knob grid, an out-of-range value, an undefined picker state) -
+  nothing defaults, corrects or clamps; resx en+ru 20 keys (`Backtest.Sweep.*`).
+  Tests: Backtest.Tests +24 (the determinism byte-identical battery, ranking + the
+  tie-by-index duplicates, the canonical text shape, load-once via the new
+  `TestCandleCache.NewestReadCount`, cancel-after-the-first-row keeps the completed row,
+  mid-load cancel zero rows no events, the unknown strategy refused, the gate refusals in
+  all three directions; the request validation matrix + `Apply`), App.Tests +10 (the
+  compose, the click-through, the four refusal lines, the partial-cancel rows stay, the
+  progress row counter, the language mirror) and the token pin re-counted (the backtest
+  window rides 5 NumericFont surfaces now). Gate GATE PASSED attempt 3 (-AllowProtected;
+  attempt 1 failed the two new test files' whitespace + the token pin's stale count,
+  attempt 2 a missing final newline - all fixed; two warn-level FromResult notes stay on
+  the interface-required fake shapes; the re-run on the rebased tree passed first try).
+  The pre-rebase launch smoke green on the feat tip `3e27074` as 0.1.0-alpha.157+3e27074...;
+  the landing smoke (built at this close commit's tree `24ca2c8` - the only later delta is
+  this canon text itself): ProductVersion
+  0.1.0-alpha.158+24ca2c8cb2f23e8a94174868d2a0093e1ea23389 (the full 40-character sha),
+  alive through the 40 s hold, 0 ERR/FTL in the run slice, 0 leftovers.
+
 ## T-216 - Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
