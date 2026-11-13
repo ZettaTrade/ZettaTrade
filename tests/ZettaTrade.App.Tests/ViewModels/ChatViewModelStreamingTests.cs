@@ -372,4 +372,35 @@ public sealed class ChatViewModelStreamingTests
     }
 
     #endregion
+
+    #region Render Throttle
+
+    /// <summary>
+    /// A rapid stream — both deltas inside the re-render throttle's window —
+    /// still settles with the full arrived answer: the settlement's final
+    /// flush lands what the throttled re-render held back, so the rendered
+    /// bubble (and the persisted turn it carries) holds the concatenation.
+    /// </summary>
+    [Fact]
+    public async Task SendTextCommand_AStreamFasterThanTheRenderThrottle_SettlesWithTheFullAnswer()
+    {
+        var fake = new ScriptedStreamingCompletion("one", " two")
+        {
+            Beat = TimeSpan.FromMilliseconds(1),
+        };
+        var kit = ChatTests.CreateKit(streaming: fake);
+        kit.StreamPerSettings(true);
+        kit.Chat.AiChatInput = "How is the market?";
+
+        await kit.Chat.SendTextCommand.Execute(RxVoid.Default);
+
+        kit.Chat.ChatMessages
+            .Select(message => (message.Kind, message.Content))
+            .Should().Equal(
+                (ChatMessageKind.UserTurn, "How is the market?"),
+                (ChatMessageKind.AssistantTurn, "one two"));
+        kit.Chat.IsBusy.Should().BeFalse("the send finished before the assertion");
+    }
+
+    #endregion
 }

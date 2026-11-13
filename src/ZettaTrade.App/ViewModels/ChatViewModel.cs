@@ -72,6 +72,14 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>The auto-title's overflow marker.</summary>
     private const string TitleEllipsis = "…";
 
+    /// <summary>The streamed reply's re-render throttle, in milliseconds:
+    /// the bubble's text re-renders at most this often while deltas stream
+    /// (the settlement's final flush always lands). A fast token stream
+    /// must not rebuild the bound text per delta — the transcript is a
+    /// non-virtualized stack, so every flush re-measures the whole scroll
+    /// content.</summary>
+    private const int StreamRenderIntervalMillis = 50;
+
     #endregion
 
     #region Private Fields
@@ -626,8 +634,11 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// The streamed reply (T-205): the deltas append into ONE assistant
     /// bubble created on the first delta — an immediately-failing stream
     /// never renders an empty bubble — and the bubble grows while the answer
-    /// is still being written. Every append raises the content change, so
-    /// the bound text re-renders live. The reader's contract throws on a
+    /// is still being written. The re-render throttles to a bounded cadence
+    /// while the deltas append into the buffer every time: a fast token
+    /// stream must not rebuild the bound text per token (the transcript
+    /// re-measures per flush), and the settlement's final flush lands the
+    /// tail the throttle held back. The reader's contract throws on a
     /// stream that closes without any content, so a normal completion always
     /// carries the full answer in the bubble (no second append happens).
     /// A mid-flight fault keeps the arrived prefix in the bubble (the
@@ -649,30 +660,54 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     {
         var content = new StringBuilder();
         ChatMessageViewModel? bubble = null;
+        var lastRender = 0L;
+
+        // Render one arrived state into the transcript. The bubble is born
+        // on the first delta (an immediately-failing stream never renders
+        // an empty bubble); after that the re-render throttles to the
+        // interval: a fast token stream must not rebuild the bound text per
+        // delta — every flush rebuilds the whole answer string and the
+        // non-virtualized transcript re-measures, so an unthrottled stream
+        // stutters the UI on long answers. The settlement's final flush
+        // lands the tail the throttle held back.
+        void RenderArrived(bool force)
+        {
+            if (!force && Environment.TickCount64 - lastRender < StreamRenderIntervalMillis)
+            {
+                return;
+            }
+
+            lastRender = Environment.TickCount64;
+            if (bubble is null)
+            {
+                bubble = new ChatMessageViewModel
+                {
+                    Kind = ChatMessageKind.AssistantTurn,
+                    Role = _localization.GetString(RoleAssistantKey),
+                    Content = content.ToString(),
+                };
+                ChatMessages.Add(bubble);
+            }
+            else
+            {
+                bubble.Content = content.ToString();
+            }
+        }
 
         try
         {
             await foreach (var delta in _streaming!.StreamAsync(systemPrompt, turns, ct))
             {
                 content.Append(delta);
-                if (bubble is null)
-                {
-                    bubble = new ChatMessageViewModel
-                    {
-                        Kind = ChatMessageKind.AssistantTurn,
-                        Role = _localization.GetString(RoleAssistantKey),
-                        Content = content.ToString(),
-                    };
-                    ChatMessages.Add(bubble);
-                }
-                else
-                {
-                    bubble.Content = content.ToString();
-                }
+                RenderArrived(force: bubble is null);
             }
         }
         finally
         {
+            // The final flush first: the settled bubble — and the persisted
+            // content it carries — must hold everything that arrived, the
+            // throttle's tail included.
+            //
             // The arrived content persists whatever the settlement (T-206):
             // a completed answer, a mid-flight fault's prefix, a Stop cut's
             // prefix — the deltas are the model's real output. An
@@ -682,6 +717,7 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
             // stopped reply must still record its prefix.
             if (bubble is not null)
             {
+                bubble.Content = content.ToString();
                 await PersistTurnAsync(ChatHistoryMessage.AssistantKind, bubble.Content);
             }
         }

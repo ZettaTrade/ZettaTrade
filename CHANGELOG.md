@@ -1,3 +1,24 @@
+## [0.1.0-alpha.155] - 2026-11-13
+
+Build of board task T-217 (branch `feat/perf-fixes`): two performance fixes
+from the 2026-11-13 code+performance review round — the streamed chat reply
+stops re-rendering per token, and the trade-statistics scan stops
+re-copying its equity curve per page.
+
+### Fixed
+- The streamed chat reply (the T-205 semantics kept): the arrived deltas
+  still append in full, but the bubble's re-render throttles to a bounded
+  cadence with a settlement flush — a fast token stream no longer rebuilds
+  the bound text and re-measures the non-virtualized transcript per token,
+  which stuttered the panel on long answers. The first delta still renders
+  immediately, an immediately-failing stream still renders no bubble, and
+  the persisted turn carries everything that arrived.
+- The trade-statistics scan: the accumulator's snapshot publishes a pinned
+  append-only view of the equity curve instead of a fresh copy per page —
+  a six-figure journal no longer pays an O(pages × curve) copy churn while
+  the scan runs, and a published curve still never grows with the scan's
+  later appends.
+
 ## [0.1.0-alpha.154] - 2026-11-13
 
 Build of board task T-210 (branch `feat/export-parity`): the trade
