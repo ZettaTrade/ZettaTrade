@@ -1,3 +1,42 @@
+## [0.1.0-alpha.159] - 2026-11-14
+
+Build of board task T-213 (branch `feat/update-check`): the terminal learns
+release awareness - a periodic (and manual) check against the GitHub
+Releases API, an honest status-bar chip, and a notification whose click
+opens the release page. Nothing downloads, nothing installs.
+
+### Added
+- The update checker: on a bounded cadence (12 hours) and on demand
+  (Help > Check for updates) it asks this repository's published
+  releases, ranks the parsable tags against the running version with a
+  pre-release-aware comparison (the `0.1.0-alpha.N` shape `Version`
+  cannot parse; the semver rule - a stable outranks any pre-release,
+  two pre-releases rank by their alpha number), and answers one
+  question: is there a newer release, and where does it read? A newer
+  release surfaces twice - the status-bar chip and one notification
+  carrying the release page link (the toast's click opens the exact
+  URL the announcement named). Announcements dedupe per discovered
+  version per session: a repeated check never re-toasts the same
+  release. Draft releases and unparsable tags are skipped, never
+  guessed.
+- Offline-honest degradation: any transport, HTTP or parse fault degrades
+  to a logged warning - the standing verdict stays on the stream, the
+  chip never flaps on an unreachable network, and a failed check emits
+  nothing. Every COMPLETED check emits its verdict: nothing newer clears
+  the chip honestly.
+- The `App.UpdateCheck` settings key (section `App`, on by default, a
+  draft-vs-persisted checkbox on the settings' appearance page — its hint
+  rides the checkbox's tooltip; the T-184 no-scroll pin bounds that page):
+  the off switch silences the check entirely - no request, no chip, no
+  notification; the periodic loop keeps ticking but skips its work, the
+  manual ask no-ops with a logged note, and a flip re-applies live
+  without a restart.
+- The named GitHub Releases HttpClient (10 s timeout, the honest
+  User-Agent), the Help menu's manual check item, and the shell facade's
+  new browser route (only absolute http(s) URLs are accepted - the shell
+  never executes an arbitrary network-arrived string). All new strings
+  ship in English and Russian.
+
 ## [0.1.0-alpha.158] - 2026-11-14
 
 Build of board task T-212 (branch `feat/backtest-optimize`): the backtest

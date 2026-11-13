@@ -34,6 +34,9 @@ public enum NotificationKind
 
     /// <summary>A price alert reached its condition (the T-204 bridge from the alert engine's fire path).</summary>
     AlertFired,
+
+    /// <summary>A newer release is published (the T-213 update checker's announcement; the click opens the release page).</summary>
+    UpdateAvailable,
 }
 
 /// <summary>
@@ -56,6 +59,9 @@ public enum NotificationRoute
 
     /// <summary>The notification history window: a system summary has no deeper panel.</summary>
     HistoryDrawer,
+
+    /// <summary>The release page: the update announcement's click opens the published release's own URL (the View shells it out to the browser).</summary>
+    ReleasePage,
 }
 
 /// <summary>
@@ -82,6 +88,7 @@ public static class NotificationRouteMap
         NotificationKind.AdapterState => NotificationRoute.None,
         NotificationKind.DoNotDisturbSummary => NotificationRoute.HistoryDrawer,
         NotificationKind.AlertFired => NotificationRoute.None,
+        NotificationKind.UpdateAvailable => NotificationRoute.ReleasePage,
         _ => throw new ArgumentOutOfRangeException(
             nameof(kind),
             kind,
@@ -126,6 +133,8 @@ public interface INotificationRouteSink
 /// <param name="Quantity">The fill's traded quantity for a fill, the fired observation's price for an alert fire; unused (zero) for the rest.</param>
 /// <param name="Reason">The rejection reason for a rejection; empty for the rest.</param>
 /// <param name="Alert">The fired alert's definition for an alert fire (the row composes the alert's own condition line from it); null for the other kinds.</param>
+/// <param name="VersionLabel">The available release's display version for an update announcement; empty for the other kinds.</param>
+/// <param name="ReleaseUrl">The available release's page URL for an update announcement (the route's landing fact); empty for the other kinds.</param>
 public sealed record Notification(
     NotificationKind Kind,
     NotificationRoute Route,
@@ -137,7 +146,9 @@ public sealed record Notification(
     OrderSide Side,
     decimal Quantity,
     string Reason,
-    AlertDefinition? Alert = null)
+    AlertDefinition? Alert = null,
+    string VersionLabel = "",
+    string ReleaseUrl = "")
 {
     /// <summary>The digest marker: a count above one renders the burst badge.</summary>
     public bool IsDigest => Count > 1;
@@ -221,6 +232,29 @@ public sealed record Notification(
             Alert: definition);
 
     /// <summary>
+    /// One update announcement (the T-213 checker): the available
+    /// release's display version rides the summary's composition, the
+    /// page URL rides the route's landing (the click opens exactly what
+    /// the announcement named).
+    /// </summary>
+    public static Notification ForUpdateAvailable(
+        string versionLabel,
+        string releaseUrl,
+        DateTimeOffset occurredUtc) => new(
+            NotificationKind.UpdateAvailable,
+            NotificationRouteMap.Map(NotificationKind.UpdateAvailable),
+            Count: 1,
+            OccurredUtc: occurredUtc,
+            SymbolName: string.Empty,
+            AdapterName: string.Empty,
+            AdapterState: AdapterHealthState.Unsupervised,
+            Side: OrderSide.Buy,
+            Quantity: 0m,
+            Reason: string.Empty,
+            VersionLabel: versionLabel,
+            ReleaseUrl: releaseUrl);
+
+    /// <summary>
     /// Fold events of ONE kind arriving inside one coalescing window into
     /// their digest: the burst badge counts them, the per-event fields are
     /// the newest event's facts (the burst's "headline" preview) and the
@@ -247,7 +281,9 @@ public sealed record Notification(
             Side: newest.Side,
             Quantity: newest.Quantity,
             Reason: newest.Reason,
-            Alert: newest.Alert);
+            Alert: newest.Alert,
+            VersionLabel: newest.VersionLabel,
+            ReleaseUrl: newest.ReleaseUrl);
     }
 
     #endregion Factories

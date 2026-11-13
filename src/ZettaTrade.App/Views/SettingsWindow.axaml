@@ -197,7 +197,7 @@
                                                Text="{loc:Localized Settings.Section.Appearance}" />
                                 </StackPanel>
 
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceL}" RowDefinitions="Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceL}" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
                         <TextBlock Grid.Row="0" Grid.Column="0"
                                    Text="{loc:Localized Settings.Theme}"
                                    VerticalAlignment="Center" />
@@ -268,6 +268,25 @@
                             <ComboBoxItem Content="{loc:Localized Chart.TimeFormat.Hours12}"
                                           AutomationProperties.AutomationId="TimeFormatHours12Item" />
                         </ComboBox>
+
+                        <!-- The update check (T-213): the app-level awareness
+                             toggle rides the daily-use facts' card — the
+                             T-184 no-scroll pin bounds this page (63 px of
+                             slack at the default size), so a standalone
+                             Application card would not fit. The hint rides
+                             the checkbox's tooltip: the compact home's
+                             price. The draft/save contract is the same as
+                             every other selection here (only Save applies;
+                             the checker's own change stream picks the flip
+                             live). -->
+                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                   Text="{loc:Localized Settings.UpdateCheck.Enable}"
+                                   VerticalAlignment="Center" />
+                        <CheckBox Grid.Row="3" Grid.Column="1"
+                                  AutomationProperties.AutomationId="UpdateCheckEnabledCheckBox"
+                                  IsChecked="{Binding IsUpdateCheckEnabled}"
+                                  ToolTip.Tip="{loc:Localized Settings.UpdateCheck.Hint}"
+                                  HorizontalAlignment="Left" />
                     </Grid>
                             </StackPanel>
                         </Border>

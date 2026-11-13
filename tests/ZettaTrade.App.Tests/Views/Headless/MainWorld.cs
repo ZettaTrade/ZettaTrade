@@ -160,6 +160,7 @@ internal sealed record MainWorld(
         var toast = new NotificationToastHostViewModel(
             new NotificationCenter(settings, NullLogger<NotificationCenter>.Instance),
             localization,
+            Substitute.For<IShellUtils>(),
             NullLogger<NotificationToastHostViewModel>.Instance);
         var settingsViewModel = new SettingsViewModel(
             settings,

@@ -153,6 +153,12 @@
   <data name="Settings.Section.Mcp" xml:space="preserve">
     <value>MCP</value>
   </data>
+  <data name="Settings.UpdateCheck.Enable" xml:space="preserve">
+    <value>Проверять обновления</value>
+  </data>
+  <data name="Settings.UpdateCheck.Hint" xml:space="preserve">
+    <value>Опрашивает страницу GitHub Releases в небыстром темпе (и по команде «Справка → Проверить обновления»); более свежий выпуск появляется в статус-баре и в уведомлении со ссылкой. Ничего не скачивается и не устанавливается — проверка только информирует. Недоступная сеть молча остаётся в журнале.</value>
+  </data>
   <data name="Settings.Mcp.Enable" xml:space="preserve">
     <value>Включить MCP-сервер трейдинга</value>
   </data>
@@ -419,6 +425,12 @@
   </data>
   <data name="Status.ExchangeFallback" xml:space="preserve">
     <value>Сохранённая биржа недоступна — продолжаем на бирже по умолчанию</value>
+  </data>
+  <data name="Status.UpdateAvailable" xml:space="preserve">
+    <value>Доступно обновление</value>
+  </data>
+  <data name="Status.UpdateAvailable.Tooltip" xml:space="preserve">
+    <value>Опубликована версия {0} — ссылка на выпуск в уведомлении об обновлении</value>
   </data>
   <data name="Status.Health.Reconnecting" xml:space="preserve">
     <value>Переподключение</value>
@@ -1923,6 +1935,9 @@
   <data name="Notif.AlertFired" xml:space="preserve">
     <value>Сработало оповещение: {0} {1}</value>
   </data>
+  <data name="Notif.UpdateAvailable" xml:space="preserve">
+    <value>Доступно обновление: {0} — нажмите, чтобы открыть страницу выпуска</value>
+  </data>
   <data name="Notif.AlertFiredDigest" xml:space="preserve">
     <value>Срабатываний оповещений: {0} — {1}</value>
   </data>
@@ -2471,6 +2486,9 @@
   </data>
   <data name="Menu.Help.LogViewer" xml:space="preserve">
     <value>Открыть журнал…</value>
+  </data>
+  <data name="Menu.Help.CheckUpdates" xml:space="preserve">
+    <value>Проверить обновления…</value>
   </data>
   <data name="Menu.Help.PerformanceHud" xml:space="preserve">
     <value>Производительность (HUD)</value>

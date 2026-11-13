@@ -153,6 +153,12 @@
   <data name="Settings.Section.Mcp" xml:space="preserve">
     <value>MCP</value>
   </data>
+  <data name="Settings.UpdateCheck.Enable" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="Settings.UpdateCheck.Hint" xml:space="preserve">
+    <value>Asks the GitHub Releases page on a slow cadence (and from Help &gt; Check for updates) and surfaces a newer release in the status bar and a notification with its link. Nothing downloads or installs — the check is awareness only. Unreachable network stays silent in the log.</value>
+  </data>
   <data name="Settings.Mcp.Enable" xml:space="preserve">
     <value>Enable the MCP trading server</value>
   </data>
@@ -419,6 +425,12 @@
   </data>
   <data name="Status.ExchangeFallback" xml:space="preserve">
     <value>Saved exchange unavailable — continuing on the default one</value>
+  </data>
+  <data name="Status.UpdateAvailable" xml:space="preserve">
+    <value>Update available</value>
+  </data>
+  <data name="Status.UpdateAvailable.Tooltip" xml:space="preserve">
+    <value>Version {0} is published — the release link is in the update notification</value>
   </data>
   <data name="Status.Health.Reconnecting" xml:space="preserve">
     <value>Reconnecting</value>
@@ -1923,6 +1935,9 @@ Estimated fee: {10}</value>
   <data name="Notif.AlertFired" xml:space="preserve">
     <value>Alert fired: {0} {1}</value>
   </data>
+  <data name="Notif.UpdateAvailable" xml:space="preserve">
+    <value>Update available: {0} — click to open the release page</value>
+  </data>
   <data name="Notif.AlertFiredDigest" xml:space="preserve">
     <value>{0} alert fires — {1}</value>
   </data>
@@ -2471,6 +2486,9 @@ Estimated fee: {10}</value>
   </data>
   <data name="Menu.Help.LogViewer" xml:space="preserve">
     <value>Open log viewer…</value>
+  </data>
+  <data name="Menu.Help.CheckUpdates" xml:space="preserve">
+    <value>Check for updates…</value>
   </data>
   <data name="Menu.Help.PerformanceHud" xml:space="preserve">
     <value>Performance HUD</value>

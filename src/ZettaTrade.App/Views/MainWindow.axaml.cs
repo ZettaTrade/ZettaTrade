@@ -166,6 +166,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowDisclaimerRequested.RegisterHandler(OpenDisclaimerAsync);
         ViewModel?.Menu.ShowLicenseActivationRequested.RegisterHandler(OpenLicenseActivationAsync);
         ViewModel?.Menu.ShowLogViewerRequested.RegisterHandler(OpenLogViewerAsync);
+        ViewModel?.Menu.CheckUpdatesRequested.RegisterHandler(CheckUpdatesAsync);
 
         // The toast host lives for the whole window's stay like the other
         // singletons: its clicked rows pose their routes through this
@@ -1063,6 +1064,28 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     }
 
     /// <summary>
+    /// Land the menu's check-updates route: the checker's manual pass runs
+    /// (its own gates decide whether anything happens — the off switch,
+    /// the singleflight), a failure logs loud and the menu route still
+    /// settles (the same posture the other window routes keep).
+    /// </summary>
+    private async Task CheckUpdatesAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            await App.Services.GetRequiredService<Services.UpdateCheckService>().CheckNowAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "The manual update check failed");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    /// <summary>
     /// Land the menu's show-log-viewer route: the window opens modally, a
     /// failure logs loud and the menu route still settles (the same posture
     /// the other window routes keep).
@@ -1105,6 +1128,20 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
                     break;
                 case NotificationRoute.HistoryDrawer:
                     await ShowNotificationHistoryWindowAsync();
+                    break;
+                case NotificationRoute.ReleasePage:
+                    // The release link (T-213): the standing announcement's
+                    // URL shells out to the default browser (the OS opens
+                    // it, nothing embeds it). The toast host normally lands
+                    // this route itself (it owns the clicked row's URL);
+                    // this case keeps the window's answer exhaustive over
+                    // the tested map.
+                    var releaseUrl = App.Services.GetRequiredService<Services.UpdateCheckService>().Latest?.Url;
+                    if (!string.IsNullOrWhiteSpace(releaseUrl))
+                    {
+                        App.Services.GetRequiredService<Infrastructure.Shell.IShellUtils>().OpenInBrowser(releaseUrl);
+                    }
+
                     break;
                 case NotificationRoute.None:
                     // The dismissal is the whole action; no panel exists.

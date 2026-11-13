@@ -11,6 +11,7 @@ using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
+using ZettaTrade.Infrastructure.Shell;
 
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
@@ -41,6 +42,7 @@ public sealed class NotificationToastHostViewModel : ReactiveObject, INotificati
 
     private readonly NotificationCenter _center;
     private readonly ILocalizationManager _localization;
+    private readonly IShellUtils _shellUtils;
     private readonly ILogger<NotificationToastHostViewModel> _logger;
 
     /// <summary>The per-row expiry subscriptions; disposal rides the row's own removal.</summary>
@@ -82,14 +84,17 @@ public sealed class NotificationToastHostViewModel : ReactiveObject, INotificati
     /// </summary>
     /// <param name="center">The notification center the display lane rides.</param>
     /// <param name="localization">The catalog the composed rows' summaries ride.</param>
+    /// <param name="shellUtils">The shell facade the release-page route opens its URL through (T-213).</param>
     /// <param name="logger">The host's own logger.</param>
     public NotificationToastHostViewModel(
         NotificationCenter center,
         ILocalizationManager localization,
+        IShellUtils shellUtils,
         ILogger<NotificationToastHostViewModel> logger)
     {
         _center = center ?? throw new ArgumentNullException(nameof(center));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+        _shellUtils = shellUtils ?? throw new ArgumentNullException(nameof(shellUtils));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         OpenPanelRequested = new Interaction<NotificationRoute, RxVoid>();
@@ -146,13 +151,31 @@ public sealed class NotificationToastHostViewModel : ReactiveObject, INotificati
     /// <summary>
     /// Activate one row: dismiss the toast first (a routed click takes the
     /// row off the stack either way), then pose the route; a no-route
-    /// toast's dismissal is the whole action.
+    /// toast's dismissal is the whole action. The release-page route
+    /// (T-213) lands HERE — it opens the row's own URL through the shell
+    /// facade (the browser is not window plumbing, the T-012 routing
+    /// discipline stays for panels); a failed shell-open logs and ends
+    /// quietly, the dismissed toast is already off the stack.
     /// </summary>
     public async Task OpenAsync(NotificationRow row, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(row);
 
         RemoveToast(row);
+        if (row.Source.Route == NotificationRoute.ReleasePage)
+        {
+            try
+            {
+                _shellUtils.OpenInBrowser(row.Source.ReleaseUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Opening the release page {Url} failed", row.Source.ReleaseUrl);
+            }
+
+            return;
+        }
+
         if (row.Source.Route == NotificationRoute.None)
         {
             return;
