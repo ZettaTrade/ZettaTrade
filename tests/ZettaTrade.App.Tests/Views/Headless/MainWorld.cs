@@ -65,7 +65,7 @@ internal sealed record MainWorld(
     /// ViewModels). The optional rail (T-177) swaps the chart's rail strip
     /// for a subject-fed one the facts drive directly.
     /// </summary>
-    public static async Task<MainWorld> CreateAsync(SignalRailViewModel? rail = null)
+    public static async Task<MainWorld> CreateAsync(SignalRailViewModel? rail = null, bool withTemplates = false)
     {
         await HeadlessWorld.EnsureAppAsync();
         await HeadlessWorld.EnsureHealthyThemeSingletonAsync();
@@ -94,7 +94,20 @@ internal sealed record MainWorld(
 
         var localization = LocalizationManager.Instance;
 
-        var chart = CreateChart(activeExchanges, settings, rail);
+        ChartTemplatesViewModel? templates = null;
+        if (withTemplates)
+        {
+            // The composition's walk, mirrored (T-202): the stored envelope
+            // and the default's name restore before the chart constructs —
+            // the world's own settings and localization singletons ride.
+            templates = new ChartTemplatesViewModel(
+                settings,
+                localization,
+                NullLogger<ChartTemplatesViewModel>.Instance);
+            await templates.InitializeAsync();
+        }
+
+        var chart = CreateChart(activeExchanges, settings, rail, templates: templates);
         var palette = new SymbolPaletteViewModel(
             activeExchanges,
             new SymbolPaletteSource(activeExchanges, NullLogger<SymbolPaletteSource>.Instance),
@@ -246,7 +259,8 @@ internal sealed record MainWorld(
         ActiveExchangeService service,
         ISettingsService settings,
         SignalRailViewModel? rail = null,
-        string? slotId = null)
+        string? slotId = null,
+        ChartTemplatesViewModel? templates = null)
     {
         var relay = new SignalSeriesRelay();
         var signals = new StrategySignalService(
@@ -298,7 +312,8 @@ internal sealed record MainWorld(
             // The T-122 seam rides silent in the window facts likewise.
             Observable.Empty<ChartFootprintSnapshot>(),
             NullLogger<ChartViewModel>.Instance,
-            slotId);
+            slotId,
+            templates);
     }
 
     /// <summary>One offline market-data fake: a fixed symbol catalog, silent feeds.</summary>

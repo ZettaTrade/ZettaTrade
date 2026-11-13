@@ -203,6 +203,47 @@
                           Stroke="{DynamicResource TextPrimary}"
                           Data="M 6 8 V 2 M 3 5 L 6 2 L 9 5 M 1 8 V 11 H 11 V 8" />
                 </Button>
+                <!-- The templates flyout (T-202): the saved chart faces
+                     gather under one icon — the static save item, then
+                     one entry per stored template whose submenu carries
+                     the four actions (apply, set-default, rename,
+                     delete). The rows bind lazily on the flyout's open
+                     (the startup-noise pin stays safe), the default
+                     template's title carries the marker, and the whole
+                     affordance shows on the primary's surface alone
+                     (HasTemplates): a grid slot keeps its face picks
+                     in-session. The icon is the bookmark glyph. -->
+                <Button Classes="icon"
+                        IsVisible="{Binding HasTemplates}"
+                        ToolTip.Tip="{loc:Localized Chart.Templates.Tip}"
+                        AutomationProperties.Name="{loc:Localized Chart.Templates}"
+                        Margin="8,4,0,4">
+                    <Button.Flyout>
+                        <MenuFlyout>
+                            <MenuItem Header="{loc:Localized Chart.Templates.Save}"
+                                      Command="{Binding Templates.SaveCommand}" />
+                            <MenuItem ItemsSource="{Binding Templates.Rows}">
+                                <MenuItem.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ChartTemplateRow">
+                                        <MenuItem Header="{Binding Title}"
+                                                  ItemsSource="{Binding Actions}">
+                                            <MenuItem.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ChartTemplateAction">
+                                                    <MenuItem Header="{Binding Header}"
+                                                              Command="{Binding Command}" />
+                                                </DataTemplate>
+                                            </MenuItem.ItemTemplate>
+                                        </MenuItem>
+                                    </DataTemplate>
+                                </MenuItem.ItemTemplate>
+                            </MenuItem>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                    <Path Stretch="None"
+                          StrokeThickness="1.5"
+                          Stroke="{DynamicResource TextPrimary}"
+                          Data="M 3 1 H 9 V 11 L 6 8.5 L 3 11 Z" />
+                </Button>
                 <!-- The compare action (T-124): a second series of
                      the standing interval alongside the workspace
                      one, each percent-rebased to its own zero. The

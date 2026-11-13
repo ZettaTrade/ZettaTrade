@@ -1,3 +1,37 @@
+## [0.1.0-alpha.146] - 2026-11-13
+
+Build of board task T-202 (branch `feat/chart-templates`): the chart
+templates — the chart's face (rendering type, Y-axis scale mode, the
+indicator configuration and the two overlay toggles) saves under a name,
+applies back, and one template stands as the default the symbols without
+their own choice seed from.
+
+### Added
+- The templates flyout in the chart toolbar (the bookmark glyph, the
+  primary's surface alone — a grid slot keeps its face picks in-session):
+  the static "Save as template…" item captures the current face through
+  the modal single-line prompt, and one entry per stored template carries
+  the four actions (apply, set as default, rename, delete) under its
+  submenu. The default template's title carries the marker.
+- Applying writes the per-symbol facets (type, scale mode) through a
+  read-modify-write of the charts' own maps and the global facets
+  (indicators verbatim, the VWAP/volume-profile toggles) through their
+  own keys — the chart's changes-stream consumers apply everything live;
+  the pane heights stay untouched. An apply without a standing symbol
+  refuses honestly.
+- The default template: every symbol with no stored entry of its own
+  seeds its type and scale mode from it (a read — the map entry
+  materializes only when the user flips the selector themselves); the
+  global facets never ride the default. A rename carries the default
+  pointer along; a delete clears it.
+- The stored shape is a versioned envelope (`UI.ChartTemplates`, camelCase)
+  parsed fail-safe: an unusable entry drops, a duplicate name keeps the
+  last, the document stays name-ordinal. A foreign version (a newer
+  build's file or garbage) parses to no templates and refuses every
+  mutation — it is never clobbered by this build's next save; the refusal
+  reports through the chart's error line. The default's name rides
+  `UI.ChartTemplateDefault`; external writes apply live both ways.
+
 ## [0.1.0-alpha.145] - 2026-11-13
 
 Build of board task T-201 (branch `feat/multi-chart-grid`): the

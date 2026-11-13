@@ -279,6 +279,35 @@ public static class UiSettingsKeys
     public const string DefaultChartIndicators = """[{"name":"SMA","enabled":true,"period":20}]""";
 
     /// <summary>
+    /// Settings key of the persisted named chart templates (T-202): a
+    /// versioned JSON envelope (see <c>ChartTemplatesStore</c>) carrying
+    /// every named chart face — type, scale mode, the indicators JSON and
+    /// the VWAP/volume-profile toggles. Written wholesale on every manager
+    /// mutation (save, rename, delete), read at every startup walk and
+    /// re-read live on external writes.
+    /// </summary>
+    public const string ChartTemplates = "ChartTemplates";
+
+    /// <summary>
+    /// The templates envelope applied until a stored one is loaded: empty —
+    /// a fresh profile carries no named templates.
+    /// </summary>
+    public const string DefaultChartTemplates = """{"version":1,"templates":[]}""";
+
+    /// <summary>
+    /// Settings key of the persisted default chart template's NAME (T-202):
+    /// the template whose per-symbol face (type, scale mode) seeds every
+    /// symbol that carries no stored entry of its own. Empty means no
+    /// default stands. The global facets (indicators, overlays) never ride
+    /// the default — they are workspace-level state and restore from their
+    /// own keys.
+    /// </summary>
+    public const string ChartTemplateDefault = "ChartTemplateDefault";
+
+    /// <summary>The default template name applied until a stored one is loaded: none.</summary>
+    public const string DefaultChartTemplateDefault = "";
+
+    /// <summary>
     /// Settings section holding persisted workspace context choices; the
     /// active-exchange facade keeps its ExchangeId in the same section.
     /// </summary>

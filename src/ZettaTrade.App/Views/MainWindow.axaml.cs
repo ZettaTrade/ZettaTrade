@@ -199,6 +199,35 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         // chart ViewModel. The subscriptions live in the shared list,
         // disposed with the window.
         WireChartPanelRoutes(ChartPanel);
+
+        // The chart templates' prompt routes (T-202): the manager's save
+        // and rename ask this window to run the single-line prompt — the
+        // manager carries the localized strings, read at call time so a
+        // language switch re-inks the next prompt. The grid slots carry no
+        // manager (the templates stay primary-only), so the routes
+        // register once for the primary's manager alone.
+        if (ViewModel?.Chart.Templates is { } templates)
+        {
+            templates.SaveNameRequested.RegisterHandler(async context =>
+            {
+                context.SetOutput(await TextAnnotationWindow.PromptAsync(
+                    this,
+                    prefill: null,
+                    title: templates.SavePromptTitle,
+                    caption: templates.SavePromptLabel,
+                    placeLabel: templates.PromptPlaceLabel));
+            });
+            templates.RenameRequested.RegisterHandler(async context =>
+            {
+                context.SetOutput(await TextAnnotationWindow.PromptAsync(
+                    this,
+                    prefill: context.Input,
+                    title: templates.RenamePromptTitle,
+                    caption: templates.RenamePromptLabel,
+                    placeLabel: templates.PromptPlaceLabel));
+            });
+        }
+
         Closed += (_, _) =>
         {
             _slotPanelsWiring?.Dispose();

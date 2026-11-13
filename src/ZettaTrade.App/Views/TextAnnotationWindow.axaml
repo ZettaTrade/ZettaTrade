@@ -18,7 +18,11 @@
          single-line entry: the annotation renders one line over the
          chart. -->
     <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceS}">
-        <TextBlock Text="{loc:Localized Chart.Text.PromptLabel}"
+        <!-- The caption carries x:Name (T-202): the template prompts
+             pass their own caption at open time (the annotation keeps
+             the localized default). -->
+        <TextBlock x:Name="PromptCaption"
+                   Text="{loc:Localized Chart.Text.PromptLabel}"
                    Foreground="{DynamicResource TextPrimary}"
                    TextWrapping="Wrap"
                    Margin="0,0,0,8" />

@@ -286,6 +286,14 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<ILogger<SignalRailViewModel>>()));
 
+        // The named chart templates' manager (T-202): IAsyncInitializable —
+        // the startup walk restores the stored templates envelope and the
+        // default template's name before the chart constructs, so the
+        // chart's entry-less seeding pulls a resolved default. Registered
+        // BEFORE the chart ViewModel it serves (the walk's order warms it
+        // first); the primary passes it in, the slots pass none.
+        services.AddSingleton<ChartTemplatesViewModel>();
+
         services.AddSingleton<ChartViewModel>(sp =>
             new ChartViewModel(
                 sp.GetRequiredService<ActiveExchangeService>(),
@@ -303,7 +311,10 @@ internal static class CompositionRoot
                                                             // #region T-122: the footprint feed's stream (my-activity overlays).
                 sp.GetRequiredService<ChartFootprintService>().Updates,
                 // #endregion T-122
-                sp.GetRequiredService<ILogger<ChartViewModel>>()));
+                sp.GetRequiredService<ILogger<ChartViewModel>>(),
+                // T-202: the primary hosts the templates manager (the grid
+                // slots resolve their own charts without it).
+                templates: sp.GetRequiredService<ChartTemplatesViewModel>()));
         // The multi-chart grid (T-201): the workspace's layout-mode
         // ViewModel over lazy slot factories. IAsyncInitializable: the
         // startup walk restores the persisted layout and seam sizes before
