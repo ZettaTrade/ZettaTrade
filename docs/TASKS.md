@@ -214,7 +214,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-provider-openai | done | - |
 | T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | done | - |
 | T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | done | - |
-| T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | in-progress | - |
+| T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | done | - |
 | T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | planned | - |
 | T-212 Backtest parameter optimization (backlog sweep 2026-11-12) | feat/backtest-optimize | planned | - |
 | T-213 Update checker (backlog sweep 2026-11-12) | feat/update-check | planned | - |
@@ -496,22 +496,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
-
-## T-210 — Export parity: positions CSV + trade statement
-
-- **Branch:** feat/export-parity, worktree zt-export-parity, base develop@a45cb65
-  (claimed 2026-11-13 off the synced board).
-- **Origin:** the sweep — orders, fills and candles export (T-084); positions and the portfolio
-  do not, and no full statement exists.
-- **What:** a positions CSV export and a one-shot trade statement bundle (orders + fills +
-  realized PnL + a balances snapshot, CSV plus a JSON manifest) from the trade statistics
-  window; the T-084 CSV writer is reused, never re-implemented.
-- **Scope:** Infrastructure CSV service extensions + the stats VM routes, resx en+ru, the next
-  free alpha bump + the CHANGELOG section.
-- **Acceptance:** both exports open cleanly in a spreadsheet; the statement honors the date
-  filter; an empty range exports nothing rather than a broken file.
-- **Tests:** the export goldens (header stability, encoding, the empty-range negative).
-- **Status:** in-progress.
 
 ## T-211 — Trade notes and tags
 
