@@ -8,6 +8,7 @@ using Livery.Localization;
 using Livery.Themes;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ZettaTrade.AI.Chat;
 using ZettaTrade.AI.Mcp;
 using ZettaTrade.App.Services;
 using ZettaTrade.Charting;
@@ -15,6 +16,7 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Shell;
+using ZettaTrade.UI.Extensions;
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
@@ -331,6 +333,81 @@ public sealed class SettingsViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _isMcpServerEnabled, value);
     }
 
+    #region AI provider (T-207)
+
+    /// <summary>
+    /// The AI chat provider pick's combo index: 0 = Ollama (the shipped
+    /// local-first default), 1 = OpenAI-compatible. A selection - like every
+    /// other one here - applies only on the explicit Save; the pick swaps
+    /// the visible field stacks live (the two derived flags below).
+    /// </summary>
+    public int AiProviderIndex
+    {
+        get => _aiProviderIndex;
+        set
+        {
+            if (_aiProviderIndex == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _aiProviderIndex, value);
+            this.RaisePropertyChanged(nameof(IsAiOllama));
+            this.RaisePropertyChanged(nameof(IsAiOpenAiCompatible));
+        }
+    }
+
+    /// <summary>The Ollama stack's visibility (the pick rides Ollama).</summary>
+    public bool IsAiOllama => _aiProviderIndex == OllamaProviderIndex;
+
+    /// <summary>The OpenAI-compatible stack's visibility (the pick rides it).</summary>
+    public bool IsAiOpenAiCompatible => _aiProviderIndex == OpenAiProviderIndex;
+
+    /// <summary>The Ollama base URL as drafted (applies on Save).</summary>
+    public string OllamaUrlDraft
+    {
+        get => _ollamaUrlDraft;
+        set => this.RaiseAndSetIfChanged(ref _ollamaUrlDraft, value);
+    }
+
+    /// <summary>The Ollama model tag as drafted (applies on Save).</summary>
+    public string OllamaModelDraft
+    {
+        get => _ollamaModelDraft;
+        set => this.RaiseAndSetIfChanged(ref _ollamaModelDraft, value);
+    }
+
+    /// <summary>The OpenAI-compatible base URL as drafted (applies on Save).</summary>
+    public string OpenAiBaseUrlDraft
+    {
+        get => _openAiBaseUrlDraft;
+        set => this.RaiseAndSetIfChanged(ref _openAiBaseUrlDraft, value);
+    }
+
+    /// <summary>The OpenAI-compatible model name as drafted (applies on Save;
+    /// an emptied box saves absence — no model is a send-time error, never a
+    /// guessed name).</summary>
+    public string OpenAiModelDraft
+    {
+        get => _openAiModelDraft;
+        set => this.RaiseAndSetIfChanged(ref _openAiModelDraft, value);
+    }
+
+    /// <summary>
+    /// The OpenAI-compatible API key as typed. NOT a save-applied draft:
+    /// the secret commits to the secret store immediately per keystroke
+    /// (the key's only home — it never rides the settings file, the logs or
+    /// the port export). The box re-seeds empty on every window open (the
+    /// secret never echoes; the re-seed never touches the stored key).
+    /// </summary>
+    public string OpenAiApiKeyDraft
+    {
+        get => _openAiApiKeyDraft;
+        set => this.RaiseAndSetIfChanged(ref _openAiApiKeyDraft, value);
+    }
+
+    #endregion AI provider (T-207)
+
     /// <summary>The MCP tab's honest running row: the server is live.</summary>
     public bool IsMcpRunning => _mcpHostState == McpHostState.Running;
 
@@ -629,6 +706,58 @@ public sealed class SettingsViewModel : ReactiveObject
     /// </summary>
     private string _persistedServerJson = McpClientManager.DefaultServersJson;
 
+    #region AI provider fields (T-207)
+
+    /// <summary>The combo index each pick maps to (the OpenAI-compatible stack rides 1).</summary>
+    private const int OllamaProviderIndex = 0;
+    private const int OpenAiProviderIndex = 1;
+
+    /// <summary>
+    /// The persisted AI chat provider pick as last read (seed + changes
+    /// stream): the combo drafts from it and the save persists only a real
+    /// difference (the same seed + changes pattern as the MCP enable).
+    /// </summary>
+    private string _persistedAiProvider = AiSettingsKeys.DefaultProvider;
+
+    /// <summary>The persisted Ollama pieces as last read (the drafts seed from them).</summary>
+    private string _persistedOllamaUrl = AiSettingsKeys.DefaultOllamaUrl;
+    private string _persistedOllamaModel = AiSettingsKeys.DefaultModel;
+
+    /// <summary>The persisted OpenAI-compatible pieces as last read. The model
+    /// has NO default: absence and blank are the same honest empty.</summary>
+    private string _persistedOpenAiBaseUrl = AiSettingsKeys.DefaultOpenAiCompatibleBaseUrl;
+    private string _persistedOpenAiModel = string.Empty;
+
+    /// <summary>The unsaved provider pick (the combo index the save applies).</summary>
+    private int _aiProviderIndex;
+
+    /// <summary>The unsaved text drafts (each applies on Save).</summary>
+    private string _ollamaUrlDraft = string.Empty;
+    private string _ollamaModelDraft = string.Empty;
+    private string _openAiBaseUrlDraft = string.Empty;
+    private string _openAiModelDraft = string.Empty;
+
+    /// <summary>The API key as typed (commits immediately — see the property).</summary>
+    private string _openAiApiKeyDraft = string.Empty;
+
+    /// <summary>
+    /// The key-commit guard: set while the VM seeds the key draft itself
+    /// (construction and every window-open re-seed), so the property's
+    /// re-seed emissions never commit — only the user's typing does. The
+    /// guard is checked at emission time (the stream filters on it), so a
+    /// re-seed can never queue a deleting commit behind it.
+    /// </summary>
+    private bool _aiKeyCommitSuppressed;
+
+    /// <summary>
+    /// The secret store the OpenAI-compatible API key commits to (T-046
+    /// canon: secrets only through the store). Null in tests without the
+    /// surface — the key draft then stays memory-only.
+    /// </summary>
+    private readonly ISecretStore? _secrets;
+
+    #endregion AI provider fields (T-207)
+
     /// <summary>The settings port service (T-100): export, import, factory reset; null in tests without the surface.</summary>
     private readonly SettingsPortService? _settingsPort;
 
@@ -681,6 +810,12 @@ public sealed class SettingsViewModel : ReactiveObject
     /// The typed confirmation service the factory reset gates itself behind.
     /// Paired with <paramref name="settingsPort"/>; omitted together with it.
     /// </param>
+    /// <param name="secrets">
+    /// The secret store the OpenAI-compatible API key commits to immediately
+    /// (T-207): the key's only home — it never rides the settings file, the
+    /// logs or the port export. When omitted (tests without the secret
+    /// surface), the key draft stays memory-only and commits nothing.
+    /// </param>
     public SettingsViewModel(
         ISettingsService settings,
         IThemeManager themeManager,
@@ -694,7 +829,8 @@ public sealed class SettingsViewModel : ReactiveObject
         ILogger<SettingsViewModel> logger,
         IObservable<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null,
         SettingsPortService? settingsPort = null,
-        IConfirmationService? confirmations = null)
+        IConfirmationService? confirmations = null,
+        ISecretStore? secrets = null)
     {
         _settings = settings;
         _themeManager = themeManager;
@@ -708,6 +844,7 @@ public sealed class SettingsViewModel : ReactiveObject
         _logger = logger;
         _settingsPort = settingsPort;
         _confirmations = confirmations;
+        _secrets = secrets;
 
         // The plugin surface is settled at construction (the scan runs at
         // startup only): the SMA row renders only when the catalog holds
@@ -858,6 +995,111 @@ public sealed class SettingsViewModel : ReactiveObject
                     this.RaisePropertyChanged(nameof(IsMcpFailed));
                 },
                 ex => _logger.LogError(ex, "The MCP host state stream stopped unexpectedly"));
+
+        // The AI chat provider (T-207): the same seed + changes pattern as
+        // the clock. The reads carry the shipped defaults, so a fresh store
+        // caches the defaults (an untouched save never fabricates a write)
+        // and the drafts re-seed from the caches on every open.
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                AiSettingsKeys.Section,
+                AiSettingsKeys.Provider,
+                AiSettingsKeys.DefaultProvider))
+            .Subscribe(
+                provider => _persistedAiProvider = provider,
+                ex => _logger.LogError(ex, "Failed to read the AI chat provider"));
+
+        _settings.Changes
+            .Where(change => change.Section == AiSettingsKeys.Section &&
+                             change.Key == AiSettingsKeys.Provider)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                provider => _persistedAiProvider = provider,
+                ex => _logger.LogError(ex, "The AI chat provider stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                AiSettingsKeys.Section,
+                AiSettingsKeys.OllamaUrl,
+                AiSettingsKeys.DefaultOllamaUrl))
+            .Subscribe(
+                url => _persistedOllamaUrl = url,
+                ex => _logger.LogError(ex, "Failed to read the Ollama base URL"));
+
+        _settings.Changes
+            .Where(change => change.Section == AiSettingsKeys.Section &&
+                             change.Key == AiSettingsKeys.OllamaUrl)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                url => _persistedOllamaUrl = url,
+                ex => _logger.LogError(ex, "The Ollama base URL stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                AiSettingsKeys.Section,
+                AiSettingsKeys.Model,
+                AiSettingsKeys.DefaultModel))
+            .Subscribe(
+                model => _persistedOllamaModel = model,
+                ex => _logger.LogError(ex, "Failed to read the Ollama model"));
+
+        _settings.Changes
+            .Where(change => change.Section == AiSettingsKeys.Section &&
+                             change.Key == AiSettingsKeys.Model)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                model => _persistedOllamaModel = model,
+                ex => _logger.LogError(ex, "The Ollama model stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                AiSettingsKeys.OpenAiCompatibleSection,
+                AiSettingsKeys.OpenAiCompatibleBaseUrl,
+                AiSettingsKeys.DefaultOpenAiCompatibleBaseUrl))
+            .Subscribe(
+                url => _persistedOpenAiBaseUrl = url,
+                ex => _logger.LogError(ex, "Failed to read the OpenAI-compatible base URL"));
+
+        _settings.Changes
+            .Where(change => change.Section == AiSettingsKeys.OpenAiCompatibleSection &&
+                             change.Key == AiSettingsKeys.OpenAiCompatibleBaseUrl)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                url => _persistedOpenAiBaseUrl = url,
+                ex => _logger.LogError(ex, "The OpenAI-compatible base URL stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                AiSettingsKeys.OpenAiCompatibleSection,
+                AiSettingsKeys.OpenAiCompatibleModel,
+                string.Empty))
+            .Subscribe(
+                model => _persistedOpenAiModel = model,
+                ex => _logger.LogError(ex, "Failed to read the OpenAI-compatible model"));
+
+        _settings.Changes
+            .Where(change => change.Section == AiSettingsKeys.OpenAiCompatibleSection &&
+                             change.Key == AiSettingsKeys.OpenAiCompatibleModel)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                model => _persistedOpenAiModel = model,
+                ex => _logger.LogError(ex, "The OpenAI-compatible model stream stopped unexpectedly"));
+
+        // The OpenAI-compatible API key commits immediately (per keystroke):
+        // the secret store is the key's only home, so there is no save step
+        // to hold it. The guard keeps the VM's own re-seeds out of the
+        // pipeline: the construction and the window-open resets clear the
+        // box without ever committing (a re-seed must never queue a
+        // deleting commit behind it — the guard is checked at emission
+        // time). A store-less construction commits nothing (memory-only).
+        _aiKeyCommitSuppressed = true;
+        this
+            .WhenAnyValue(vm => vm.OpenAiApiKeyDraft)
+            .Where(_ => !_aiKeyCommitSuppressed)
+            .SubscribeAsync(
+                _ => CommitOpenAiApiKeyAsync(),
+                ex => _logger.LogError(ex, "Failed to store the OpenAI-compatible API key"));
+        _aiKeyCommitSuppressed = false;
 
         // The pairs tab's commands act on a pick: no pick, no move. A hide
         // move needs an unstarred pick (a starred pair never hides — that is
@@ -1071,6 +1313,58 @@ public sealed class SettingsViewModel : ReactiveObject
                 _isMcpServerEnabled);
             _persistedMcpServerEnabled = _isMcpServerEnabled;
             await _mcpHosts.ApplyAsync(_isMcpServerEnabled);
+        }
+
+        // The AI chat provider pick (T-207): only a real difference applies
+        // (the same no-op discipline every row keeps). The stored spelling
+        // rides the router's constants; a stored garbage pick repairs to the
+        // drafted name here (the draft is what the user confirmed — the
+        // router itself refuses garbage at send time).
+        var aiProviderName = _aiProviderIndex == OpenAiProviderIndex
+            ? ChatProviderRouter.OpenAiCompatibleProviderName
+            : ChatProviderRouter.OllamaProviderName;
+        if (!string.Equals(aiProviderName, _persistedAiProvider, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(AiSettingsKeys.Section, AiSettingsKeys.Provider, aiProviderName);
+            _persistedAiProvider = aiProviderName;
+        }
+
+        // The Ollama and the OpenAI-compatible pieces: the same no-op
+        // discipline, each piece its own key. An emptied draft saves
+        // emptiness (the provider's read falls back — Ollama to its default,
+        // the OpenAI model to the honest no-model send-time error).
+        var ollamaUrlDraft = _ollamaUrlDraft.Trim();
+        if (!string.Equals(ollamaUrlDraft, _persistedOllamaUrl, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(AiSettingsKeys.Section, AiSettingsKeys.OllamaUrl, ollamaUrlDraft);
+            _persistedOllamaUrl = ollamaUrlDraft;
+        }
+
+        var ollamaModelDraft = _ollamaModelDraft.Trim();
+        if (!string.Equals(ollamaModelDraft, _persistedOllamaModel, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(AiSettingsKeys.Section, AiSettingsKeys.Model, ollamaModelDraft);
+            _persistedOllamaModel = ollamaModelDraft;
+        }
+
+        var openAiBaseUrlDraft = _openAiBaseUrlDraft.Trim();
+        if (!string.Equals(openAiBaseUrlDraft, _persistedOpenAiBaseUrl, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                AiSettingsKeys.OpenAiCompatibleSection,
+                AiSettingsKeys.OpenAiCompatibleBaseUrl,
+                openAiBaseUrlDraft);
+            _persistedOpenAiBaseUrl = openAiBaseUrlDraft;
+        }
+
+        var openAiModelDraft = _openAiModelDraft.Trim();
+        if (!string.Equals(openAiModelDraft, _persistedOpenAiModel, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                AiSettingsKeys.OpenAiCompatibleSection,
+                AiSettingsKeys.OpenAiCompatibleModel,
+                openAiModelDraft);
+            _persistedOpenAiModel = openAiModelDraft;
         }
 
         // The external-servers drafts: the rows map into the persisted list
@@ -1325,8 +1619,8 @@ public sealed class SettingsViewModel : ReactiveObject
 
     /// <summary>
     /// Sync the appearance selections (theme, language, clock, indicator row,
-    /// the MCP enable draft) with the currently applied state. A pure
-    /// in-memory sync — no I/O.
+    /// the MCP enable draft, the AI chat provider drafts) with the currently
+    /// applied state. A pure in-memory sync — no I/O.
     /// </summary>
     private void ResetAppearanceSelections()
     {
@@ -1350,6 +1644,77 @@ public sealed class SettingsViewModel : ReactiveObject
         IsBollEnabled = _persistedBollEnabled;
         BollPeriodText = PeriodTextOf(_persistedBollPeriod);
         IsMcpServerEnabled = _persistedMcpServerEnabled;
+
+        // The AI chat provider (T-207): the pick drafts the combo (a garbage
+        // stored pick drafts the default with a logged warning) and the text
+        // drafts seed from the caches (blank stored values already resolved
+        // to the shipped defaults at the seed reads; the OpenAI model has no
+        // default — an unset one drafts empty). The key box re-seeds empty
+        // (the secret never echoes) under the commit guard: a re-seed never
+        // commits, the stored key stays exactly as the user left it.
+        AiProviderIndex = IndexOfAiProvider(_persistedAiProvider);
+        OllamaUrlDraft = _persistedOllamaUrl.Trim();
+        OllamaModelDraft = _persistedOllamaModel.Trim();
+        OpenAiBaseUrlDraft = _persistedOpenAiBaseUrl.Trim();
+        OpenAiModelDraft = _persistedOpenAiModel.Trim();
+        _aiKeyCommitSuppressed = true;
+        OpenAiApiKeyDraft = string.Empty;
+        _aiKeyCommitSuppressed = false;
+    }
+
+    /// <summary>
+    /// Map the stored provider pick to its combo index: blank (unset) and
+    /// the known spellings (case-insensitive) map directly; anything else
+    /// drafts the default with a logged warning (the router refuses the
+    /// same garbage honestly at send time).
+    /// </summary>
+    private int IndexOfAiProvider(string stored)
+    {
+        if (string.IsNullOrWhiteSpace(stored))
+        {
+            return OllamaProviderIndex;
+        }
+
+        var pick = stored.Trim();
+        if (string.Equals(pick, ChatProviderRouter.OllamaProviderName, StringComparison.OrdinalIgnoreCase))
+        {
+            return OllamaProviderIndex;
+        }
+
+        if (string.Equals(pick, ChatProviderRouter.OpenAiCompatibleProviderName, StringComparison.OrdinalIgnoreCase))
+        {
+            return OpenAiProviderIndex;
+        }
+
+        _logger.LogWarning(
+            "The stored AI chat provider '{Provider}' is not one of the known providers; the pick drafts the default",
+            stored);
+        return OllamaProviderIndex;
+    }
+
+    /// <summary>
+    /// Commit the typed API key to the secret store immediately: a typed
+    /// value stores (overwrites), an emptied one removes (a clear is a real
+    /// intent). Nothing here touches the settings file — the secret's only
+    /// home is the store. A store-less construction stays memory-only.
+    /// </summary>
+    private async Task CommitOpenAiApiKeyAsync()
+    {
+        var store = _secrets;
+        if (store is null)
+        {
+            return;
+        }
+
+        var draft = OpenAiApiKeyDraft;
+        if (string.IsNullOrWhiteSpace(draft))
+        {
+            await store.RemoveAsync(AiSettingsKeys.OpenAiCompatibleApiKeySecretKey);
+        }
+        else
+        {
+            await store.SetAsync(AiSettingsKeys.OpenAiCompatibleApiKeySecretKey, draft);
+        }
     }
 
     /// <summary>

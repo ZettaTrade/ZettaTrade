@@ -8,11 +8,13 @@ using System.Text;
 using System.Threading.Tasks;
 
 /// <summary>
-/// A loopback HTTP server standing in for Ollama: it binds an ephemeral
-/// localhost port, captures the chat request body, and answers with the
-/// response a test scripts (status code + body). Every
-/// <see cref="ServeAsync"/> parks on exactly one request — the test starts a
-/// client call and awaits the server task around it.
+/// A loopback HTTP server standing in for a chat provider (Ollama's NDJSON
+/// or an OpenAI-compatible SSE endpoint alike): it binds an ephemeral
+/// localhost port, captures the chat request (path, body and the
+/// Authorization header), and answers with the response a test scripts
+/// (status code + body). Every <see cref="ServeAsync"/> parks on exactly one
+/// request — the test starts a client call and awaits the server task
+/// around it.
 /// </summary>
 internal sealed class LoopbackChatServer : IDisposable
 {
@@ -139,11 +141,12 @@ internal sealed class LoopbackChatServer : IDisposable
 
         return new CapturedChatRequest(
             request.Url!.AbsolutePath,
-            Encoding.UTF8.GetString(payload));
+            Encoding.UTF8.GetString(payload),
+            request.Headers["Authorization"]);
     }
 
-    /// <summary>The captured request facts (path + JSON body).</summary>
-    internal sealed record CapturedChatRequest(string Path, string Body);
+    /// <summary>The captured request facts (path + JSON body + the Authorization header as sent).</summary>
+    internal sealed record CapturedChatRequest(string Path, string Body, string? Authorization);
 
     #endregion
 

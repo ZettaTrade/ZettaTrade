@@ -725,6 +725,100 @@
                                  error, preview and status rows below. -->
                             </StackPanel>
                         </Border>
+                        <!-- ==================== The AI chat section (T-207) ====================
+                             The provider pick drafts like every other selection
+                             here: only Save applies — it persists the pick and
+                             the two providers' endpoint pieces, and the chat
+                             routes per request, so the next send answers through
+                             the newly saved provider. The pick swaps the visible
+                             field stacks live. The API key is the one immediate
+                             field in the window: it commits to the secret store
+                             per keystroke (the secret's only home — the settings
+                             file, the logs and the port export never carry it),
+                             re-seeds empty on every open (the secret never
+                             echoes), and a re-seed never commits (a clear of the
+                             box is the user's act, not the window's). -->
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                    <Border Classes="section-tick" />
+                                    <TextBlock Classes="section-header"
+                                               Text="{loc:Localized Settings.Section.Ai}" />
+                                </StackPanel>
+                                <StackPanel Spacing="{StaticResource SpaceL}">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Ai.Provider}"
+                                                   VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="1"
+                                                  SelectedIndex="{Binding AiProviderIndex}"
+                                                  MinWidth="170"
+                                                  HorizontalAlignment="Left">
+                                            <ComboBoxItem Content="{loc:Localized Settings.Ai.ProviderOllama}" />
+                                            <ComboBoxItem Content="{loc:Localized Settings.Ai.ProviderOpenAiCompatible}" />
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <!-- The Ollama fields: endpoint + model tag (blank
+                                         stored values resolve to the shipped local
+                                         defaults at the provider). -->
+                                    <StackPanel IsVisible="{Binding IsAiOllama}" Spacing="{StaticResource SpaceS}">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{loc:Localized Settings.Ai.OllamaBaseUrl}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="1"
+                                                     Text="{Binding OllamaUrlDraft}"
+                                                     ToolTip.Tip="{loc:Localized Settings.Ai.OllamaBaseUrl}" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{loc:Localized Settings.Ai.OllamaModel}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="1"
+                                                     Text="{Binding OllamaModelDraft}"
+                                                     ToolTip.Tip="{loc:Localized Settings.Ai.OllamaModel}" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- The OpenAI-compatible fields: endpoint + model +
+                                         the immediate API key (the masked box commits to
+                                         the secret store as typed; a local server needs
+                                         no key — an empty box travels unauthenticated). -->
+                                    <StackPanel IsVisible="{Binding IsAiOpenAiCompatible}" Spacing="{StaticResource SpaceS}">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{loc:Localized Settings.Ai.OpenAiBaseUrl}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="1"
+                                                     Text="{Binding OpenAiBaseUrlDraft}"
+                                                     ToolTip.Tip="{loc:Localized Settings.Ai.OpenAiBaseUrl}" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{loc:Localized Settings.Ai.OpenAiModel}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="1"
+                                                     Text="{Binding OpenAiModelDraft}"
+                                                     ToolTip.Tip="{loc:Localized Settings.Ai.OpenAiModel}" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{loc:Localized Settings.Ai.OpenAiApiKey}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="1"
+                                                     Text="{Binding OpenAiApiKeyDraft}"
+                                                     PasswordChar="●"
+                                                     PlaceholderText="{loc:Localized Settings.Ai.OpenAiKeyWatermark}"
+                                                     ToolTip.Tip="{loc:Localized Settings.Ai.OpenAiApiKey}" />
+                                        </Grid>
+                                        <TextBlock Text="{loc:Localized Settings.Ai.OpenAiKeyHint}"
+                                                   TextWrapping="Wrap"
+                                                   />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                         <Border Classes="section-card" IsVisible="{Binding IsPortAvailable}">
                             <StackPanel Spacing="{StaticResource SpaceM}">
                                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">

@@ -216,6 +216,39 @@
   <data name="Settings.McpClients.State.Empty" xml:space="preserve">
     <value>Not applied yet — save to let the manager connect it</value>
   </data>
+  <data name="Settings.Section.Ai" xml:space="preserve">
+    <value>AI CHAT</value>
+  </data>
+  <data name="Settings.Ai.Provider" xml:space="preserve">
+    <value>Provider</value>
+  </data>
+  <data name="Settings.Ai.ProviderOllama" xml:space="preserve">
+    <value>Ollama (local)</value>
+  </data>
+  <data name="Settings.Ai.ProviderOpenAiCompatible" xml:space="preserve">
+    <value>OpenAI-compatible</value>
+  </data>
+  <data name="Settings.Ai.OllamaBaseUrl" xml:space="preserve">
+    <value>Ollama base URL</value>
+  </data>
+  <data name="Settings.Ai.OllamaModel" xml:space="preserve">
+    <value>Ollama model</value>
+  </data>
+  <data name="Settings.Ai.OpenAiBaseUrl" xml:space="preserve">
+    <value>Base URL (the chat appends chat/completions)</value>
+  </data>
+  <data name="Settings.Ai.OpenAiModel" xml:space="preserve">
+    <value>Model (empty = the send refuses honestly)</value>
+  </data>
+  <data name="Settings.Ai.OpenAiApiKey" xml:space="preserve">
+    <value>API key (stored immediately as you type)</value>
+  </data>
+  <data name="Settings.Ai.OpenAiKeyWatermark" xml:space="preserve">
+    <value>empty = no key sent</value>
+  </data>
+  <data name="Settings.Ai.OpenAiKeyHint" xml:space="preserve">
+    <value>The key is stored in the OS secret store immediately as you type — it never rides the settings file, the logs or the export. A local server needs no key: leave the box empty and the requests travel unauthenticated.</value>
+  </data>
   <data name="Settings.Tab.Workspace" xml:space="preserve">
     <value>Workspace</value>
   </data>

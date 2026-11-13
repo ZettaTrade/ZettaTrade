@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ReactiveUI.Primitives;
 using Xunit;
+using ZettaTrade.AI.Chat;
 using ZettaTrade.AI.Mcp;
 using ZettaTrade.App;
 using ZettaTrade.App.Services;
@@ -737,6 +738,15 @@ public sealed class SettingsViewModelTests
             .Returns(persistedUse12HourClock);
         settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>())
             .Returns(persistedHiddenMap);
+        // The AI chat keys (T-207): an unconfigured read echoes the passed
+        // default — the real store's absent-key contract, so the seed caches
+        // land on the shipped defaults and an untouched save stays silent.
+        settings.GetAsync<string>(
+                Arg.Is<string>(section => section == AiSettingsKeys.Section ||
+                                          section == AiSettingsKeys.OpenAiCompatibleSection),
+                Arg.Any<string>(),
+                Arg.Any<string>())
+            .Returns(callInfo => callInfo.ArgAt<string>(2));
         // The two workspace marks live in two keys: the specific setups must
         // ride AFTER the generic one (the last matching setup wins).
         settings.GetAsync<string>(

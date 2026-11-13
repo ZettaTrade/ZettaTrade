@@ -216,6 +216,39 @@
   <data name="Settings.McpClients.State.Empty" xml:space="preserve">
     <value>Ещё не применён — сохраните, чтобы менеджер подключил его</value>
   </data>
+  <data name="Settings.Section.Ai" xml:space="preserve">
+    <value>ИИ-ЧАТ</value>
+  </data>
+  <data name="Settings.Ai.Provider" xml:space="preserve">
+    <value>Провайдер</value>
+  </data>
+  <data name="Settings.Ai.ProviderOllama" xml:space="preserve">
+    <value>Ollama (локальная)</value>
+  </data>
+  <data name="Settings.Ai.ProviderOpenAiCompatible" xml:space="preserve">
+    <value>OpenAI-совместимый</value>
+  </data>
+  <data name="Settings.Ai.OllamaBaseUrl" xml:space="preserve">
+    <value>Базовый URL Ollama</value>
+  </data>
+  <data name="Settings.Ai.OllamaModel" xml:space="preserve">
+    <value>Модель Ollama</value>
+  </data>
+  <data name="Settings.Ai.OpenAiBaseUrl" xml:space="preserve">
+    <value>Базовый URL (чат добавляет chat/completions)</value>
+  </data>
+  <data name="Settings.Ai.OpenAiModel" xml:space="preserve">
+    <value>Модель (пусто = отправка честно откажет)</value>
+  </data>
+  <data name="Settings.Ai.OpenAiApiKey" xml:space="preserve">
+    <value>API-ключ (сохраняется сразу по мере ввода)</value>
+  </data>
+  <data name="Settings.Ai.OpenAiKeyWatermark" xml:space="preserve">
+    <value>пусто = запрос без ключа</value>
+  </data>
+  <data name="Settings.Ai.OpenAiKeyHint" xml:space="preserve">
+    <value>Ключ сохраняется в системном хранилище секретов сразу по мере ввода — он не попадает в файл настроек, журналы или экспорт. Локальному серверу ключ не нужен: оставьте поле пустым, и запросы пойдут без авторизации.</value>
+  </data>
   <data name="Settings.Tab.Workspace" xml:space="preserve">
     <value>Рабочая область</value>
   </data>
