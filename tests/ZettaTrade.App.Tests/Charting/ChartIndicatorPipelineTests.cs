@@ -30,17 +30,41 @@ public sealed class ChartIndicatorPipelineTests
             [.. new decimal?[bars.Count].Select(value => 42m)];
     }
 
-    /// <summary>The catalog fake: resolves "STUB" only and records the Create calls.</summary>
+    /// <summary>
+    /// A stub oscillator (T-199): every bar maps to the constant 50, the
+    /// canonical 0-100 band declared through the contract 2.2.0 pane
+    /// members.
+    /// </summary>
+    private sealed class StubOscillator : IIndicator
+    {
+        public string Name => "RSISTUB";
+
+        public IReadOnlyList<decimal?> Apply(IReadOnlyList<IndicatorBar> bars) =>
+            [.. new decimal?[bars.Count].Select(value => 50m)];
+
+        public IndicatorPaneKind PaneKind => IndicatorPaneKind.Oscillator;
+
+        public decimal? ScaleMin => 0m;
+
+        public decimal? ScaleMax => 100m;
+    }
+
+    /// <summary>The catalog fake: resolves "STUB" and "RSISTUB" only and records the Create calls.</summary>
     private sealed class FakeCatalog : IIndicatorCatalog
     {
         public List<(string Name, int Period)> CreateCalls { get; } = [];
 
-        public IReadOnlyCollection<string> LoadedNames => ["STUB"];
+        public IReadOnlyCollection<string> LoadedNames => ["STUB", "RSISTUB"];
 
         public IIndicator? Create(string name, int period)
         {
             CreateCalls.Add((name, period));
-            return name == "STUB" ? new StubIndicator() : null;
+            return name switch
+            {
+                "STUB" => new StubIndicator(),
+                "RSISTUB" => new StubOscillator(),
+                _ => null,
+            };
         }
     }
 
@@ -191,6 +215,43 @@ public sealed class ChartIndicatorPipelineTests
 
         lines.Should().BeEmpty();
         catalog.CreateCalls.Should().BeEmpty("no bars means nothing to compute against");
+    }
+
+    /// <summary>
+    /// An overlay row keeps the DIM defaults (T-199): an implementation
+    /// that predates the pane declaration stays an overlay through the
+    /// contract's default members — the pane split is opt-in per indicator.
+    /// </summary>
+    [Fact]
+    public void Compute_AnOverlayRow_KeepsTheDimDefaults()
+    {
+        var lines = ChartIndicatorPipeline.Compute(
+            MakeBars(3),
+            """[{"name":"STUB","enabled":true,"period":20}]""",
+            new FakeCatalog(),
+            new SpyLogger());
+
+        var line = lines.Should().ContainSingle().Which;
+        line.PaneKind.Should().Be(IndicatorPaneKind.Overlay);
+        line.ScaleMin.Should().BeNull();
+        line.ScaleMax.Should().BeNull();
+        line.PaneHeight.Should().BeNull("the persisted height rides the ViewModel's merge, not the pipeline");
+    }
+
+    /// <summary>An oscillator row carries the descriptor's declaration through the line (T-199): the kind and the fixed bounds ride together.</summary>
+    [Fact]
+    public void Compute_AnOscillatorRow_CarriesThePaneDeclaration()
+    {
+        var lines = ChartIndicatorPipeline.Compute(
+            MakeBars(3),
+            """[{"name":"RSISTUB","enabled":true,"period":14}]""",
+            new FakeCatalog(),
+            new SpyLogger());
+
+        var line = lines.Should().ContainSingle().Which;
+        line.PaneKind.Should().Be(IndicatorPaneKind.Oscillator);
+        line.ScaleMin.Should().Be(0m, "the canonical band's lower bound rides the line");
+        line.ScaleMax.Should().Be(100m);
     }
 
     /// <summary>The catalog variant that fails the build (a rejected period) - the row must skip, not throw.</summary>

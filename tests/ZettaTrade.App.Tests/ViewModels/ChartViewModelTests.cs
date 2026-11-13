@@ -3404,6 +3404,121 @@ public sealed class ChartViewModelTests
 
     #endregion Drawing Actions (T-091)
 
+    #region Indicator Pane Heights (T-199)
+
+    /// <summary>
+    /// The pane-heights seam's scripted settings pair: the stored map rides
+    /// the sibling key (the seed read answers it, every other key answers
+    /// empty) and the changes stream is a live subject the facts emit on.
+    /// </summary>
+    private (ChartViewModel Chart, Subject<SettingsChange> Changes, ISettingsService Settings)
+        CreateChartWithPaneSettings(string storedPaneHeights)
+    {
+        var settings = Substitute.For<ISettingsService>();
+        var changes = new Subject<SettingsChange>();
+        settings.Changes.Returns(changes);
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(call => Task.FromResult(
+                (string)call[1] == UiSettingsKeys.ChartIndicatorPaneHeights
+                    ? storedPaneHeights
+                    : string.Empty));
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+
+        var chart = CreateChart(
+            CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
+            settings);
+
+        return (chart, changes, settings);
+    }
+
+    /// <summary>A settled splitter drag writes the compact map — clamped into the layout's usable band (the stored truth is never an out-of-band height).</summary>
+    [Fact]
+    public void SettleIndicatorPaneHeight_WritesTheClampedHeight()
+    {
+        var (chart, _, settings) = CreateChartWithPaneSettings("{}");
+
+        chart.SettleIndicatorPaneHeight("RSI", 9999);
+
+        settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartIndicatorPaneHeights,
+            "{\"RSI\":480}");
+    }
+
+    /// <summary>The settle below the floor clamps up too.</summary>
+    [Fact]
+    public void SettleIndicatorPaneHeight_ABelowFloorHeight_ClampsUp()
+    {
+        var (chart, _, settings) = CreateChartWithPaneSettings("{}");
+
+        chart.SettleIndicatorPaneHeight("RSI", 5);
+
+        settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartIndicatorPaneHeights,
+            "{\"RSI\":72}");
+    }
+
+    /// <summary>The pipeline's own write echoes back through the changes stream: an equal JSON re-applies nothing (the no-echo guard).</summary>
+    [Fact]
+    public void SettleIndicatorPaneHeight_TheWriteEcho_ReappliesNothing()
+    {
+        var (chart, changes, _) = CreateChartWithPaneSettings("{}");
+        var publishes = 0;
+        using var sub = chart.IndicatorLinesUpdates.Subscribe(_ => publishes++);
+
+        chart.SettleIndicatorPaneHeight("RSI", 200);
+        publishes.Should().Be(1, "the settle republishes the lines once");
+
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartIndicatorPaneHeights,
+            null,
+            "{\"RSI\":200}"));
+
+        publishes.Should().Be(1, "the pipeline's own echo re-applies nothing");
+    }
+
+    /// <summary>An external write re-applies live (the settings window or another instance) — and the applied map clamps on restore, so the cache never carries an out-of-band height.</summary>
+    [Fact]
+    public void ApplyPaneHeights_AnExternalWrite_ClampsOnRestore()
+    {
+        var (chart, changes, settings) = CreateChartWithPaneSettings("{}");
+        using var sub = chart.IndicatorLinesUpdates.Subscribe(_ => { });
+
+        changes.OnNext(new SettingsChange(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartIndicatorPaneHeights,
+            null,
+            "{\"RSI\":9999,\"MACD\":5}"));
+
+        // The next settle writes the CLAMPED cache (480/72), not the raw
+        // stored extremes — the clamp-on-restore discipline rides the cache.
+        chart.SettleIndicatorPaneHeight("RSI", 220);
+
+        settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartIndicatorPaneHeights,
+            "{\"MACD\":72,\"RSI\":220}");
+    }
+
+    /// <summary>A seeded stored map clamps at the seed read too: the first settle after a restart writes the clamped truth beside its new entry.</summary>
+    [Fact]
+    public void SettleIndicatorPaneHeight_ASeededOutOfRangeMap_ClampsAtTheSeed()
+    {
+        var (chart, _, settings) = CreateChartWithPaneSettings("{\"RSI\":9999,\"MACD\":5}");
+
+        chart.SettleIndicatorPaneHeight("RSI", 220);
+
+        settings.Received().SetAsync(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartIndicatorPaneHeights,
+            "{\"MACD\":72,\"RSI\":220}");
+    }
+
+    #endregion
+
     #endregion
 }
 

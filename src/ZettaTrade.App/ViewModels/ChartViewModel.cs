@@ -1042,6 +1042,25 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     private string _persistedIndicatorConfig = UiSettingsKeys.DefaultChartIndicators;
 
+    /// <summary>
+    /// The persisted oscillator panes' heights (T-199): seeded from the
+    /// settings service, kept current by the changes stream and merged into
+    /// every indicator publish by name. The map rides the SIBLING settings
+    /// key — the settings window's Save writes the indicator rows
+    /// wholesale, so a pane height stored in a row would be clobbered by
+    /// the next save; the sibling key keeps the two writers disjoint.
+    /// </summary>
+    private IReadOnlyDictionary<string, double> _persistedPaneHeights =
+        new Dictionary<string, double>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The pane-heights JSON the pane pipeline last applied: the
+    /// changes-stream echo guard — the persistence write comes back through
+    /// the stream and an equal JSON re-applies nothing (the T-093
+    /// issue-time-lead discipline).
+    /// </summary>
+    private string? _appliedPaneHeightsJson;
+
     #endregion
 
     #region Symbol Marks State
@@ -1606,6 +1625,29 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 ApplyIndicatorConfig,
                 ex => _logger.LogError(ex, "The chart indicator config stream stopped unexpectedly"));
+
+        // The oscillator panes' heights follow the settings service live
+        // (T-199): one async read seeds the persisted map (a fresh install
+        // keeps every pane on the layout default) and the changes stream
+        // keeps it current. The map rides the SIBLING key — the settings
+        // window writes the indicator rows wholesale, so a height stored in
+        // a row would be clobbered by the next save.
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartIndicatorPaneHeights,
+                UiSettingsKeys.DefaultChartIndicatorPaneHeights))
+            .Subscribe(
+                ApplyPaneHeights,
+                ex => _logger.LogError(ex, "Failed to read the chart indicator pane heights"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartIndicatorPaneHeights)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                ApplyPaneHeights,
+                ex => _logger.LogError(ex, "The chart indicator pane heights stream stopped unexpectedly"));
 
         // The computed overlays ride the same marshal chain the Bars do: the
         // publishes land on whatever thread ran the compute (delivered and
@@ -2452,15 +2494,89 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// compute is pure and marshal-free; the publication lands wherever the
     /// caller runs (delivered/prepend subscribers are already marshalled,
     /// the settings paths run synchronously) and the property assignment is
-    /// the single UI-thread hop.
+    /// the single UI-thread hop. The persisted pane heights (T-199) merge
+    /// into the lines by name on the way out — the pipeline carries the
+    /// descriptors' pane declaration, the persisted map carries the
+    /// splitter's settled geometry.
     /// </summary>
     private void PublishIndicatorLines(IReadOnlyList<Bar> bars)
     {
-        _indicatorPublishes.OnNext(ChartIndicatorPipeline.Compute(
+        var lines = ChartIndicatorPipeline.Compute(
             bars,
             _persistedIndicatorConfig,
             _indicatorCatalog,
-            _logger));
+            _logger);
+
+        var heights = _persistedPaneHeights;
+        if (heights.Count > 0)
+        {
+            ChartIndicatorLine[] merged = [.. lines.Select(line => heights.TryGetValue(line.Name, out var height)
+                ? line with { PaneHeight = height }
+                : line)];
+            lines = merged;
+        }
+
+        _indicatorPublishes.OnNext(lines);
+    }
+
+    /// <summary>
+    /// Re-key the pane heights to a settings value (T-199): the map clamps
+    /// into the pane layout's usable band at apply time (a stored truth is
+    /// never an out-of-band height — the clamp-on-restore discipline) and
+    /// the current series republishes so a live window re-applies without a
+    /// restart.
+    /// </summary>
+    private void ApplyPaneHeights(string paneHeightsJson)
+    {
+        // The persistence write echoes back through the changes stream: an
+        // equal JSON re-applies nothing (the write's own value already
+        // leads the cache).
+        if (string.Equals(paneHeightsJson, _appliedPaneHeightsJson, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _appliedPaneHeightsJson = paneHeightsJson;
+        _persistedPaneHeights = ClampPaneHeights(ChartIndicatorPaneHeights.Parse(paneHeightsJson));
+        PublishIndicatorLines(Bars);
+    }
+
+    /// <summary>Clamp a parsed map into the pane layout's usable band.</summary>
+    private static IReadOnlyDictionary<string, double> ClampPaneHeights(
+        IReadOnlyDictionary<string, double> heights) =>
+        new Dictionary<string, double>(
+            heights.ToDictionary(
+                row => row.Key,
+                row => Math.Clamp(row.Value, ChartPaneLayout.PaneMinHeightPx, ChartPaneLayout.PaneMaxHeightPx)),
+            StringComparer.Ordinal);
+
+    /// <summary>
+    /// A settled splitter drag (T-199): the cache leads the write (the
+    /// issue-time discipline the overlay toggles keep — a settle is already
+    /// one event per drag, no throttle needed), the current series
+    /// republishes with the settled height, and the sibling settings key
+    /// stores the compact map behind the issued value.
+    /// </summary>
+    public void SettleIndicatorPaneHeight(string name, double height)
+    {
+        var clamped = Math.Clamp(height, ChartPaneLayout.PaneMinHeightPx, ChartPaneLayout.PaneMaxHeightPx);
+        var next = new Dictionary<string, double>(_persistedPaneHeights, StringComparer.Ordinal)
+        {
+            [name] = clamped,
+        };
+
+        _persistedPaneHeights = next;
+        _appliedPaneHeightsJson = ChartIndicatorPaneHeights.Write(next);
+        PublishIndicatorLines(Bars);
+
+        Observable
+            .FromAsync(() => _settings.SetAsync(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartIndicatorPaneHeights,
+                _appliedPaneHeightsJson))
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "Failed to persist the chart indicator pane heights"));
     }
 
     #endregion

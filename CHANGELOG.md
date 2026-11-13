@@ -1,3 +1,44 @@
+## [0.1.0-alpha.143] - 2026-11-13
+
+Build of board task T-199 (branch `feat/indicator-panes`): indicators
+declare their chart pane, oscillators render in their own sub-panes with
+their own Y scale, and the splitter geometry persists — the overlay-only
+renderer stops forcing RSI and MACD onto the price axis.
+
+### Added
+- The SDK pane declaration (contract 2.2.0, a backward-compatible
+  addition): `IndicatorPaneKind` (overlay vs oscillator) and the
+  `IIndicator` default members `PaneKind`/`ScaleMin`/`ScaleMax` — every
+  implementation compiled against an older contract stays an overlay
+  through the defaults (the pane split is opt-in per indicator, never a
+  surprise for an existing plugin). The contract ships as the 2.2.0
+  package on the private feed; the standard pack's annotations ride the
+  satellite's own 0.4.0 release.
+- The oscillator sub-panes (renderer): one pane per oscillator in
+  declaration order stacked under the main plot — each pane paints its
+  own ladder (a declared usable bound pair pins it exactly, RSI's 0-100;
+  otherwise the pane's own padded spread over its visible values; the
+  values map RAW, never through the main scale mode's transform), its
+  clipped polyline, its name label and the shared right gutter widening
+  to the widest label column. The main plot shrinks to its own floor
+  (the fit pass scales an overdrawing stack proportionally, never below
+  the pane floor), overlays draw exactly as before.
+- The pane splitter (T-172 discipline in the chart): the separator
+  hairline at each pane's top edge carries an 8 px grab band that
+  highlights under the hover (the theme's Accent) and drags live —
+  dragging DOWN shrinks the pane and grows the main plot; a settle
+  reports the released height on the hot `PaneHeightSettles` stream, a
+  lost capture returns the stored height (no ghost geometry).
+- The heights persistence: a NEW sibling settings key
+  (`UI.ChartIndicatorPaneHeights`, name→px map) rides BESIDE the
+  indicator rows on purpose — the settings window's Save writes the rows
+  wholesale, so in-row heights would be clobbered by the next save; the
+  sibling key keeps the two writers disjoint. The read is tolerant
+  (numbers or numeric strings, garbage serves the empty map), the write
+  is the compact ordinal-ordered map, the cache clamps on restore, and
+  the settle pipeline keeps the T-093 issue-time-lead discipline (the
+  write's own echo re-applies nothing).
+
 ## [0.1.0-alpha.142] - 2026-11-13
 
 Build of board task T-198 (branch `feat/stocks-mvp`): US equities join the

@@ -205,6 +205,21 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             onError: ex => Log.Error(ex, "Chart compare removal stream failed"));
         Closed += (_, _) => _compareRemovals.Dispose();
 
+        // The oscillator panes' splitter settles (T-199): the chart control
+        // reports which pane's height the drag released at, the chart
+        // ViewModel owns the persistence (the sibling settings key rides
+        // the write-settle pipeline). SubscribeAsync keeps the route
+        // task-based (zero async void); stream failures land in the log
+        // via the error callback.
+        _paneHeightSettles = ChartPanel.ChartControl.PaneHeightSettles.SubscribeAsync(
+            settle =>
+            {
+                ViewModel!.Chart.SettleIndicatorPaneHeight(settle.Name, settle.Height);
+                return Task.CompletedTask;
+            },
+            onError: ex => Log.Error(ex, "Chart pane height settle stream failed"));
+        Closed += (_, _) => _paneHeightSettles.Dispose();
+
         // The drawings layer's interaction mirror (T-091): the control owns
         // the pointer routes (placement, drag, selection, delete) and the
         // ViewModel owns the layer's persistence — the three state routes
@@ -351,6 +366,8 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
 
     /// <summary>Subscription of the compare chips' removal stream (T-124); disposed with the window.</summary>
     private IDisposable? _compareRemovals;
+
+    private IDisposable? _paneHeightSettles;
 
     private IDisposable? _drawingCommitted;
 
