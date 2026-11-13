@@ -3858,6 +3858,67 @@ the board and its section below.
   the LOGICAL tree (not visual until the popup opens) and the items' Command reads must
   ride the UI thread; Thumb drag deltas are cumulative, so the facts sweep single-step.
 
+## T-202 — Chart templates
+
+- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Origin:** the sweep — the chart face (type, indicators, scale) is per-symbol state; no
+  named presets exist.
+- **What:** save the current chart face (type, scale mode, indicators JSON, VWAP/volume-profile
+  toggles) as a named template; apply a template to the active symbol or as the default for new
+  symbols; templates live in the settings schema (versioned; export rides T-100).
+- **Scope:** the chart VM + the settings schema, a template manager in the chart toolbar's
+  flyout, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** save, apply, rename and delete round-trip; applying resets exactly the
+  template's facets and nothing else; the default-for-new-symbols rule holds.
+- **Tests:** the template round-trip battery; the toolbar pins.
+- **Status:** done - 0.1.0-alpha.146. Chain: claim `30dc126` -> feat `29df03f` -> close.
+  The templates live under `UI.ChartTemplates` as a versioned envelope
+  (`{"version":1,"templates":[...]}`, camelCase keys); one template is the record (Name,
+  ChartType, ScaleMode, IndicatorsJson verbatim, ShowVwap, ShowVolumeProfile). The parse is
+  fail-safe: a foreign version yields an EMPTY document and every mutation refuses while it
+  stands (the stored file is never clobbered — a compatible external write restores
+  usability live), a malformed entry drops and its neighbors survive, a duplicated name
+  keeps the LAST record, a stored name trims to canonical shape. The serializer mirrors the
+  parse contract key-by-key through `Utf8JsonWriter` — the enum NAMES (a numeric artifact
+  is not a user choice), the `indicators` key verbatim (the writer escapes the inner quotes
+  per the JSON spec), the camelCase keys, the name-ordinal order; the anonymous-object
+  camelCase form was a real bug (numeric enums, an `indicatorsJson` key, `\u0022`
+  escapes), caught by the round-trip battery and fixed in the feat. Applying writes
+  exactly the captured facets: the per-symbol chart type and scale mode under the
+  addressed symbol's keys (read-modify-write so interleaved whole-map writes cannot lose
+  each other's entries), the indicators and the two overlay toggles as the workspace-level
+  global keys — the chart's changes-stream consumers apply everything live. The
+  default-for-new-symbols rule: one template stands as the default (its name under
+  `UI.ChartTemplateDefault`); ONLY the per-symbol facets (type, scale mode) seed an
+  entry-less symbol's pick — the seed is a READ (the map entry is never materialized, the
+  persistence pipeline never learns of it, a stored entry keeps winning), the global
+  facets never ride the default (they are workspace-level state restoring from their own
+  keys). Templates are PRIMARY-ONLY: the grid slots carry no manager (`templates: null`)
+  and keep their face picks in-session; the affordance hides with `HasTemplates`. The row
+  list carries the "(default)" suffix on the default's title only (every row was
+  mislabeled — fixed in the feat); the row actions are Apply(0) / SetDefault(1) / Rename(2)
+  / Delete(3); a rename onto an existing name refuses and reports through the chart's
+  error line; a rename carries the default pointer along; deleting the default clears the
+  pointer; an external default write re-resolves the name and publishes the resolved
+  template. The save/rename prompts ride the generalized single-line prompt window
+  (TextAnnotationWindow), the manager holds the localized strings read at call time.
+  Tests: 27 new test methods (11 store facts, 15 manager facts, 1 toolbar-pin fact; 3
+  theories expand to 39 test cases total) and the toolbar pins re-inked (9 icons / 2
+  flyouts / 7 MenuItems + the templates flyout presence fact). Suites on the feat tip:
+  App 1911 (1872 at the T-201 tip; the delta is exactly the 39 new cases), UI 409,
+  Infrastructure 612, AdapterKit 48, E2E 6, Strategies 32, Backtest 29, Soak 17, Core 61 —
+  all green (the gate's solution-wide battery). GATE PASSED on attempts 3-4: the two first
+  attempts failed the E2E SplitterDragTests with a zero-movement drag (before == grown ==
+  292) — root-caused to the ENVIRONMENT, never the diff: a foreign window (Notepad++) held
+  the desktop foreground, the launched app could not take focus and the real-mouse
+  gesture landed on the occluder; a control run on the clean T-201 base reproduced the
+  identical signature and cleared 6/6 once the desktop was freed. Recorded as a new
+  environment flake family: the E2E real-mouse tests need an unoccluded,
+  foreground-capable desktop — free the desktop before the gate; never "fix" in-flight.
+  The launch smoke green on the feat tip: ProductVersion 0.1.0-alpha.146+29df03f, title
+  held through the 12 s hold, 0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed
+  (14 rows), strategies+indicators provided.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).

@@ -206,7 +206,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | done | - |
 | T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/drawing-tools-2 | done | - |
 | T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | done | - |
-| T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | in-progress | - |
+| T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | done | - |
 | T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | planned | - |
 | T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alert-mechanics | planned | - |
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | planned | - |
@@ -452,21 +452,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
   were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
   new user-facing UI string was introduced.
-
-## T-202 — Chart templates
-
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
-- **Origin:** the sweep — the chart face (type, indicators, scale) is per-symbol state; no
-  named presets exist.
-- **What:** save the current chart face (type, scale mode, indicators JSON, VWAP/volume-profile
-  toggles) as a named template; apply a template to the active symbol or as the default for new
-  symbols; templates live in the settings schema (versioned; export rides T-100).
-- **Scope:** the chart VM + the settings schema, a template manager in the chart toolbar's
-  flyout, resx en+ru, the next free alpha bump + the CHANGELOG section.
-- **Acceptance:** save, apply, rename and delete round-trip; applying resets exactly the
-  template's facets and nothing else; the default-for-new-symbols rule holds.
-- **Tests:** the template round-trip battery; the toolbar pins.
-- **Status:** planned.
 
 ## T-203 — Indicator-based alerts
 
