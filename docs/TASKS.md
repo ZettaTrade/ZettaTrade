@@ -206,7 +206,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | done | - |
 | T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/drawing-tools-2 | done | - |
 | T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | done | - |
-| T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | planned | - |
+| T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | in-progress | - |
 | T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | planned | - |
 | T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alert-mechanics | planned | - |
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | planned | - |
