@@ -39,6 +39,9 @@ public sealed class TestCandleCache : ICandleCache
     /// <summary>The newest page's size (trimmed to the series' own count).</summary>
     public int NewestPageSize { get; set; } = int.MaxValue;
 
+    /// <summary>How many newest reads have arrived (the sweep's load-once pin: the window loads one time, not per row).</summary>
+    public int NewestReadCount { get; private set; }
+
     /// <summary>The size of every older page (the cache's own stride).</summary>
     public int OlderPageSize { get; set; } = int.MaxValue;
 
@@ -77,6 +80,7 @@ public sealed class TestCandleCache : ICandleCache
     private async Task<IReadOnlyList<Bar>> NewestPageAsync(List<Bar> bars, int limit, CancellationToken cancellationToken)
     {
         _newestReadArrival.TrySetResult();
+        NewestReadCount++;
         await LoadHold.Task.ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 

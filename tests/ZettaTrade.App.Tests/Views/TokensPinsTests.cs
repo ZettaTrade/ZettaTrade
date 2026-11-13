@@ -82,7 +82,7 @@ public sealed class TokensPinsTests
         Regex.Matches(main, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(1, "the HUD's readout dedupes onto the token (its precedent)");
         Regex.Matches(backtest, "FontFamily=\"{StaticResource NumericFont}\"")
-            .Should().HaveCount(1, "the backtest report dedupes onto the token");
+            .Should().HaveCount(5, "the report box plus the sweep table's net/drawdown/win-rate/profit-factor columns carry the digits (T-212 adds the sweep table)");
         Regex.Matches(screener, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(4, "the screener table's price/change/volume/funding columns hold their digits (T-195; T-197 adds the funding cell)");
 

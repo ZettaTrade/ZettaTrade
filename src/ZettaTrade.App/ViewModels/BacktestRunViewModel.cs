@@ -51,6 +51,15 @@ public sealed class BacktestRunViewModel : ReactiveObject
     private const string StartFailedKey = "Backtest.Error.StartFailed";
     private const string NoStrategyKey = "Backtest.Error.NoStrategy";
     private const string SummaryFormatKey = "Backtest.Report.Summary.Format";
+    private const string SweepFractionParamKey = "Backtest.Sweep.Param.Fraction";
+    private const string SweepSlippageParamKey = "Backtest.Sweep.Param.Slippage";
+    private const string SweepErrorValuesKey = "Backtest.Sweep.Error.Values";
+    private const string SweepErrorSameParameterKey = "Backtest.Sweep.Error.SameParameter";
+    private const string SweepErrorParameterKey = "Backtest.Sweep.Error.Parameter";
+    private const string SweepErrorCountKey = "Backtest.Sweep.Error.Count";
+    private const string SweepErrorRangeKey = "Backtest.Sweep.Error.Range";
+    private const string SweepProgressFormatKey = "Backtest.Sweep.Progress.Format";
+    private const string SweepDoneFormatKey = "Backtest.Sweep.Done.Format";
 
     #endregion Resx Keys
 
@@ -61,6 +70,12 @@ public sealed class BacktestRunViewModel : ReactiveObject
 
     /// <summary>The slippage spelling that maps to zero (the paper reference fills).</summary>
     private const decimal DefaultFraction = BacktestRunRequest.DefaultLongNotionalFraction;
+
+    /// <summary>The first axis' values spelling the sweep form opens with (the sizing grid).</summary>
+    private const string SweepFirstValuesDefault = "0.25, 0.5, 0.75, 1";
+
+    /// <summary>The second axis' values spelling the sweep form opens with (the cost grid).</summary>
+    private const string SweepSecondValuesDefault = "0, 0.5, 1";
 
     #endregion Constants
 
@@ -92,6 +107,17 @@ public sealed class BacktestRunViewModel : ReactiveObject
     private string _summaryText = string.Empty;
     private IReadOnlyList<EquityCurvePoint> _equityPoints = [];
     private string? _errorMessage;
+    private IReadOnlyList<string> _sweepParameters = [];
+    private int _sweepFirstIndex;
+    private int _sweepSecondIndex = 1;
+    private string _sweepFirstValuesText = SweepFirstValuesDefault;
+    private string _sweepSecondValuesText = SweepSecondValuesDefault;
+    private IReadOnlyList<BacktestSweepRowViewModel> _sweepRows = [];
+    private BacktestSweepRowViewModel? _selectedSweepRow;
+    private int _sweepTotal;
+    private int _sweepCompletedRows;
+    private int? _sweepDoneRows;
+    private int? _sweepDoneTotal;
 
     #endregion Private Fields
 
@@ -122,6 +148,9 @@ public sealed class BacktestRunViewModel : ReactiveObject
         CancelCommand = ReactiveCommand.Create<RxVoid, RxVoid>(
             _ => HandleCancel(),
             canExecute: this.WhenAnyValue(x => x.IsRunning));
+        StartSweepCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, cancellationToken) => HandleStartSweepAsync(cancellationToken),
+            canExecute: this.WhenAnyValue(x => x.IsRunning).Select(static running => !running));
 
         // The strategy picker arms before any rendering: the catalog's scan
         // is a one-time session snapshot, so a cheap refetch is all the
@@ -206,6 +235,86 @@ public sealed class BacktestRunViewModel : ReactiveObject
     }
 
     #endregion Request Form
+
+    #region Sweep Form
+
+    /// <summary>The sweep picker's knob labels, declared order (the enum's defined values).</summary>
+    public IReadOnlyList<string> SweepParameters
+    {
+        get => _sweepParameters;
+        private set => this.RaiseAndSetIfChanged(ref _sweepParameters, value);
+    }
+
+    /// <summary>The first axis' knob (the picker's index into <see cref="SweepParameters"/>).</summary>
+    public int SweepFirstIndex
+    {
+        get => _sweepFirstIndex;
+        set => this.RaiseAndSetIfChanged(ref _sweepFirstIndex, value);
+    }
+
+    /// <summary>The second axis' knob (the picker's index into <see cref="SweepParameters"/>).</summary>
+    public int SweepSecondIndex
+    {
+        get => _sweepSecondIndex;
+        set => this.RaiseAndSetIfChanged(ref _sweepSecondIndex, value);
+    }
+
+    /// <summary>The first axis' values spelling (a comma-separated list, parsed at start).</summary>
+    public string SweepFirstValuesText
+    {
+        get => _sweepFirstValuesText;
+        set => this.RaiseAndSetIfChanged(ref _sweepFirstValuesText, value);
+    }
+
+    /// <summary>The second axis' values spelling (a comma-separated list, parsed at start).</summary>
+    public string SweepSecondValuesText
+    {
+        get => _sweepSecondValuesText;
+        set => this.RaiseAndSetIfChanged(ref _sweepSecondValuesText, value);
+    }
+
+    /// <summary>The ranked result table's rows (best net first; empty until a sweep produced rows).</summary>
+    public IReadOnlyList<BacktestSweepRowViewModel> SweepRows
+    {
+        get => _sweepRows;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _sweepRows, value);
+            this.RaisePropertyChanged(nameof(HasSweepRows));
+        }
+    }
+
+    /// <summary>True while the result table carries rows.</summary>
+    public bool HasSweepRows => _sweepRows.Count > 0;
+
+    /// <summary>
+    /// The table's selected row: the click-through — setting it swaps the
+    /// report surface over to the row's own complete single-run report
+    /// (the equity curve, the summary line and the canonical text).
+    /// </summary>
+    public BacktestSweepRowViewModel? SelectedSweepRow
+    {
+        get => _selectedSweepRow;
+        set
+        {
+            if (ReferenceEquals(_selectedSweepRow, value))
+            {
+                return;
+            }
+
+            _selectedSweepRow = value;
+            this.RaisePropertyChanged(nameof(SelectedSweepRow));
+            if (value is { } selected)
+            {
+                RenderReportSurface(selected.Row.Report);
+            }
+        }
+    }
+
+    /// <summary>Start one deterministic parameter sweep over the composed grid.</summary>
+    public ReactiveCommand<RxVoid, RxVoid> StartSweepCommand { get; }
+
+    #endregion Sweep Form
 
     #region Run Surface
 
@@ -379,6 +488,8 @@ public sealed class BacktestRunViewModel : ReactiveObject
         ReportText = string.Empty;
         SummaryText = string.Empty;
         EquityPoints = [];
+        SelectedSweepRow = null;
+        SweepRows = [];
         Phase = BacktestRunPhase.Running;
         _runCancellation = new CancellationTokenSource();
 
@@ -405,6 +516,72 @@ public sealed class BacktestRunViewModel : ReactiveObject
         {
             _runCancellation.Dispose();
             _runCancellation = null;
+            _sweepTotal = 0;
+            _sweepCompletedRows = 0;
+        }
+
+        return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// The sweep start: compose the grid from the sweep form (every spelling
+    /// parsed and range-checked explicitly — the standing refuse-not-default
+    /// rule), then run it through the harness's sweep lane. The same phase
+    /// machine, the same cancel command and the same report surface ride
+    /// along; the stop lands between parameterizations, so a cancelled sweep
+    /// keeps every row whose replay had completed.
+    /// </summary>
+    private async Task<RxVoid> HandleStartSweepAsync(CancellationToken ct)
+    {
+        if (!TryComposeSweep(out var sweep, out var inputError))
+        {
+            // The unparsable or malformed input is refused up front — nothing defaults.
+            ErrorMessage = inputError;
+            Phase = BacktestRunPhase.Failed;
+            return RxVoid.Default;
+        }
+
+        ErrorMessage = null;
+        ProgressText = string.Empty;
+        ProgressFraction = 0d;
+        LastReport = null;
+        ReportText = string.Empty;
+        SummaryText = string.Empty;
+        EquityPoints = [];
+        SelectedSweepRow = null;
+        SweepRows = [];
+        _sweepDoneRows = null;
+        _sweepDoneTotal = null;
+        Phase = BacktestRunPhase.Running;
+        _runCancellation = new CancellationTokenSource();
+        _sweepTotal = sweep.FirstAxis.Values.Count * sweep.SecondAxis.Values.Count;
+        _sweepCompletedRows = 0;
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runCancellation.Token);
+        try
+        {
+            var result = await _backtest.SweepAsync(sweep, linked.Token);
+            ApplySweep(result);
+        }
+        catch (OperationCanceledException) when (_runCancellation.IsCancellationRequested)
+        {
+            // The harness answers a boundary stop with the cancelled result;
+            // this catch only stands for an external stop (a closing window).
+            Phase = BacktestRunPhase.Cancelled;
+        }
+        catch (Exception ex)
+        {
+            // A refused or failed start says so explicitly (never defaults).
+            _logger.LogError(ex, "Backtest sweep failed for '{Strategy}'", sweep.Template.StrategyId);
+            ErrorMessage = _localization.GetString(StartFailedKey, ex.Message);
+            Phase = BacktestRunPhase.Failed;
+        }
+        finally
+        {
+            _runCancellation.Dispose();
+            _runCancellation = null;
+            _sweepTotal = 0;
+            _sweepCompletedRows = 0;
         }
 
         return RxVoid.Default;
@@ -421,18 +598,7 @@ public sealed class BacktestRunViewModel : ReactiveObject
     {
         if (result.IsCompleted && result.Report is { } report)
         {
-            LastReport = report;
-            ReportText = report.ToCanonicalText();
-            SummaryText = _localization.GetString(
-                SummaryFormatKey,
-                report.Statistics.Fills,
-                report.Statistics.Trades,
-                Render(report.Statistics.WinRate),
-                Render(report.Statistics.ProfitFactor),
-                Render(report.Statistics.MaxDrawdown),
-                Render(report.Statistics.FinalEquity),
-                Render(report.Request.InitialQuoteAmount));
-            EquityPoints = [.. report.Equity.Select(point => new EquityCurvePoint(point.Time, point.Value))];
+            RenderReportSurface(report);
             Phase = BacktestRunPhase.Completed;
         }
         else
@@ -443,18 +609,100 @@ public sealed class BacktestRunViewModel : ReactiveObject
         }
     }
 
+    /// <summary>
+    /// Swap the report surface over to one complete report: the canonical
+    /// text, the localized headline line and the equity curve (the
+    /// single-run completion and the sweep table's click-through share it).
+    /// </summary>
+    private void RenderReportSurface(BacktestReport report)
+    {
+        LastReport = report;
+        ReportText = report.ToCanonicalText();
+        SummaryText = _localization.GetString(
+            SummaryFormatKey,
+            report.Statistics.Fills,
+            report.Statistics.Trades,
+            Render(report.Statistics.WinRate),
+            Render(report.Statistics.ProfitFactor),
+            Render(report.Statistics.MaxDrawdown),
+            Render(report.Statistics.FinalEquity),
+            Render(report.Request.InitialQuoteAmount));
+        EquityPoints = [.. report.Equity.Select(point => new EquityCurvePoint(point.Time, point.Value))];
+    }
+
+    /// <summary>
+    /// Apply one sweep result: build the ranked table's rows, carry the
+    /// completed count into the done line, and carve the phase — a completed
+    /// sweep auto-selects rank 1 (its report becomes the report surface), a
+    /// cancelled sweep keeps the completed rows in the table and leaves the
+    /// report surface empty until a click-through fills it.
+    /// </summary>
+    private void ApplySweep(BacktestSweepResult result)
+    {
+        var firstParameter = result.Request.FirstAxis.Parameter;
+        var secondParameter = result.Request.SecondAxis.Parameter;
+        var total = result.Request.FirstAxis.Values.Count * result.Request.SecondAxis.Values.Count;
+
+        var rows = result.Rows
+            .Select(row => new BacktestSweepRowViewModel(row, firstParameter, secondParameter, _localization))
+            .ToArray();
+        SweepRows = rows;
+
+        _sweepDoneRows = result.Rows.Count;
+        _sweepDoneTotal = total;
+        RenderSweepDoneLine();
+        ProgressFraction = total > 0 ? Math.Clamp((double)result.Rows.Count / total, 0d, 1d) : 0d;
+
+        if (result.IsCompleted)
+        {
+            Phase = BacktestRunPhase.Completed;
+            if (rows.Length > 0)
+            {
+                SelectedSweepRow = rows[0];
+            }
+        }
+        else
+        {
+            // The stop is the outcome: the completed rows stay in the table,
+            // the report surface stays empty (nothing half-run is ever shown;
+            // a click-through only ever opens a COMPLETE row's report).
+            LastReport = null;
+            Phase = BacktestRunPhase.Cancelled;
+        }
+    }
+
     /// <summary>Apply one run-event: the progress line only (the terminal
-    /// states surface through the awaited result, never through the stream).</summary>
+    /// states surface through the awaited result, never through the stream).
+    /// While a sweep is in flight the per-row events wrap into the global
+    /// counter — "Row k of n: bars" and the fraction ((rows done) + row
+    /// fraction) / total — since each parameterization replays the full
+    /// window's bar line.</summary>
     private void OnRunEvent(BacktestRunEvent @event)
     {
         switch (@event.Kind)
         {
             case BacktestRunEventKind.Started:
+                if (_sweepTotal > 0)
+                {
+                    RenderSweepRowLine(_sweepCompletedRows + 1, _sweepCompletedRows, 0, @event.BarsRequested);
+                    break;
+                }
+
                 ProgressText = _localization.GetString(ProgressFormatKey, 0, @event.BarsRequested);
                 ProgressFraction = 0d;
                 break;
 
             case BacktestRunEventKind.Progress:
+                if (_sweepTotal > 0)
+                {
+                    RenderSweepRowLine(
+                        _sweepCompletedRows + 1,
+                        _sweepCompletedRows,
+                        @event.BarsProcessed,
+                        @event.BarsRequested);
+                    break;
+                }
+
                 ProgressText = _localization.GetString(ProgressFormatKey, @event.BarsProcessed, @event.BarsRequested);
                 ProgressFraction = @event.BarsRequested > 0
                     ? Math.Clamp((double)@event.BarsProcessed / @event.BarsRequested, 0d, 1d)
@@ -462,6 +710,20 @@ public sealed class BacktestRunViewModel : ReactiveObject
                 break;
 
             case BacktestRunEventKind.Completed:
+                if (_sweepTotal > 0)
+                {
+                    // The row is fully done: the event's bar count is the
+                    // full target, so the fraction lands exactly on
+                    // (rows done) / total, then the counter moves past it.
+                    RenderSweepRowLine(
+                        _sweepCompletedRows + 1,
+                        _sweepCompletedRows,
+                        @event.BarsProcessed,
+                        @event.BarsRequested);
+                    _sweepCompletedRows++;
+                    break;
+                }
+
                 ProgressText = _localization.GetString(ProgressFormatKey, @event.BarsProcessed, @event.BarsRequested);
                 ProgressFraction = @event.BarsRequested > 0
                     ? Math.Clamp((double)@event.BarsProcessed / @event.BarsRequested, 0d, 1d)
@@ -471,6 +733,8 @@ public sealed class BacktestRunViewModel : ReactiveObject
             case BacktestRunEventKind.Cancelled:
                 // The stop is the outcome: the phase carves the surface, the
                 // progress line stays honest about how far the replay got.
+                // (A sweep never publishes this: its rows ride no token and
+                // its stop is the result's outcome, never an event.)
                 ProgressText = _localization.GetString(ProgressFormatKey, @event.BarsProcessed, @event.BarsRequested);
                 break;
 
@@ -478,6 +742,25 @@ public sealed class BacktestRunViewModel : ReactiveObject
                 // An unknown event kind never defaults into a layout line.
                 break;
         }
+    }
+
+    /// <summary>Render one in-flight sweep row's line: "Row k of n: bars" and
+    /// the global fraction ((rows done so far) + this row's bar fraction) /
+    /// total, clamped — the honest fold of the per-row events.</summary>
+    /// <param name="row">The 1-based row the line names.</param>
+    /// <param name="rowsDone">How many rows count as done in the fraction.</param>
+    /// <param name="barsProcessed">The row's own bar count so far.</param>
+    /// <param name="barsRequested">The row's own bar target.</param>
+    private void RenderSweepRowLine(int row, int rowsDone, int barsProcessed, int barsRequested)
+    {
+        var barsLine = _localization.GetString(ProgressFormatKey, barsProcessed, barsRequested);
+        ProgressText = _localization.GetString(SweepProgressFormatKey, row, _sweepTotal, barsLine);
+        var barFraction = barsRequested > 0
+            ? Math.Clamp((double)barsProcessed / barsRequested, 0d, 1d)
+            : 0d;
+        ProgressFraction = _sweepTotal > 0
+            ? Math.Clamp((rowsDone + barFraction) / _sweepTotal, 0d, 1d)
+            : 0d;
     }
 
     #endregion Command Handlers
@@ -553,9 +836,161 @@ public sealed class BacktestRunViewModel : ReactiveObject
 
     #endregion Request Composition
 
+    #region Sweep Composition
+
+    /// <summary>
+    /// Compose the sweep request from the run form (the template) and the
+    /// sweep form (both axes): every spelling parsed and range-checked
+    /// explicitly — an unparsable list, a too-long axis, a duplicate-knob
+    /// grid or an out-of-range value is a refused start with its own
+    /// localized line, never a silently corrected or clamped input.
+    /// </summary>
+    private bool TryComposeSweep(out BacktestSweepRequest sweep, out string? inputError)
+    {
+        sweep = null!;
+        inputError = null;
+
+        // The template is the run form's own composition: strategy, series
+        // identity, bars, seed and base policy parse exactly as a single
+        // run would — an unparsable field refuses the sweep with the same
+        // line the run start would give.
+        if (!TryComposeRequest(out var template, out var requestError))
+        {
+            inputError = requestError;
+            return false;
+        }
+
+        if (!TryParseAxisValues(_sweepFirstValuesText, out var firstValues, out var firstValuesError))
+        {
+            inputError = firstValuesError;
+            return false;
+        }
+
+        if (!TryParseAxisValues(_sweepSecondValuesText, out var secondValues, out var secondValuesError))
+        {
+            inputError = secondValuesError;
+            return false;
+        }
+
+        // The pickers map onto the enum's declared order; an undefined
+        // picker state (a cleared selection) is a refused start, never a
+        // defaulted knob.
+        if (KnobOf(_sweepFirstIndex) is not { } firstParameter
+            || KnobOf(_sweepSecondIndex) is not { } secondParameter)
+        {
+            inputError = _localization.GetString(SweepErrorParameterKey);
+            return false;
+        }
+
+        if (firstParameter == secondParameter)
+        {
+            inputError = _localization.GetString(SweepErrorSameParameterKey);
+            return false;
+        }
+
+        if (firstValues.Count == 0 || firstValues.Count > BacktestSweepAxis.MaxValuesPerAxis)
+        {
+            inputError = _localization.GetString(SweepErrorCountKey, firstValues.Count, BacktestSweepAxis.MaxValuesPerAxis);
+            return false;
+        }
+
+        if (secondValues.Count == 0 || secondValues.Count > BacktestSweepAxis.MaxValuesPerAxis)
+        {
+            inputError = _localization.GetString(SweepErrorCountKey, secondValues.Count, BacktestSweepAxis.MaxValuesPerAxis);
+            return false;
+        }
+
+        foreach (var value in firstValues)
+        {
+            if (!InKnobRange(firstParameter, value))
+            {
+                inputError = _localization.GetString(SweepErrorRangeKey, Render(value), KnobLabel(firstParameter));
+                return false;
+            }
+        }
+
+        foreach (var value in secondValues)
+        {
+            if (!InKnobRange(secondParameter, value))
+            {
+                inputError = _localization.GetString(SweepErrorRangeKey, Render(value), KnobLabel(secondParameter));
+                return false;
+            }
+        }
+
+        sweep = new BacktestSweepRequest
+        {
+            Template = template,
+            FirstAxis = new BacktestSweepAxis(firstParameter, firstValues),
+            SecondAxis = new BacktestSweepAxis(secondParameter, secondValues),
+        };
+        return true;
+    }
+
+    /// <summary>Parse one axis' values spelling: a comma-separated list of
+    /// invariant numbers, kept in declaration order (duplicates stay — the
+    /// enumeration keeps the caller's grid, ties break by order).</summary>
+    private bool TryParseAxisValues(string text, out List<decimal> values, out string? inputError)
+    {
+        values = [];
+        inputError = null;
+
+        foreach (var token in text.Split(',', StringSplitOptions.TrimEntries))
+        {
+            if (!decimal.TryParse(
+                    token,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var value))
+            {
+                inputError = _localization.GetString(SweepErrorValuesKey, text);
+                return false;
+            }
+
+            values.Add(value);
+        }
+
+        return true;
+    }
+
+    /// <summary>Map a picker index onto its knob; anything outside the
+    /// declared list is no knob (the compose refuses it).</summary>
+    private static BacktestSweepParameter? KnobOf(int index) => index switch
+    {
+        0 => BacktestSweepParameter.LongNotionalFraction,
+        1 => BacktestSweepParameter.SlippageValue,
+        _ => null,
+    };
+
+    /// <summary>One knob's request range (the exact bounds the run request
+    /// and the sweep axis enforce: a fraction in (0, 1], a non-negative
+    /// slippage magnitude).</summary>
+    private static bool InKnobRange(BacktestSweepParameter parameter, decimal value) => parameter switch
+    {
+        BacktestSweepParameter.LongNotionalFraction => value > 0m && value <= 1m,
+        BacktestSweepParameter.SlippageValue => value >= 0m,
+        _ => throw new InvalidOperationException(
+            $"The sweep parameter '{parameter}' is not a defined knob; the value is refused, never defaulted."),
+    };
+
+    /// <summary>One knob's live label (the picker's own lines).</summary>
+    private string KnobLabel(BacktestSweepParameter parameter) => _localization.GetString(parameter switch
+    {
+        BacktestSweepParameter.LongNotionalFraction => SweepFractionParamKey,
+        BacktestSweepParameter.SlippageValue => SweepSlippageParamKey,
+        _ => throw new InvalidOperationException(
+            $"The sweep parameter '{parameter}' is not a defined knob; the label is refused, never defaulted."),
+    });
+
+    #endregion Sweep Composition
+
     #region Localized Render
 
-    private void RenderLocalizedState() => RenderPhaseText();
+    private void RenderLocalizedState()
+    {
+        RenderPhaseText();
+        RenderSweepState();
+    }
 
     private void RenderPhaseText()
     {
@@ -569,6 +1004,41 @@ public sealed class BacktestRunViewModel : ReactiveObject
             _ => StatusIdleKey,
         };
         StatusText = _localization.GetString(key);
+    }
+
+    /// <summary>
+    /// Re-render the sweep's localized surfaces: the picker's knob labels
+    /// (the selection indexes re-announced so the combos survive the list
+    /// swap), every table row's texts, and the done line while a sweep
+    /// result is showing — the never-a-static-localized-string lifecycle.
+    /// </summary>
+    private void RenderSweepState()
+    {
+        SweepParameters =
+        [
+            _localization.GetString(SweepFractionParamKey),
+            _localization.GetString(SweepSlippageParamKey),
+        ];
+        this.RaisePropertyChanged(nameof(SweepFirstIndex));
+        this.RaisePropertyChanged(nameof(SweepSecondIndex));
+
+        foreach (var row in _sweepRows)
+        {
+            row.Refresh(_localization);
+        }
+
+        RenderSweepDoneLine();
+    }
+
+    /// <summary>Render the sweep's done line ("Sweep finished: k of n
+    /// parameterizations replayed") while a sweep result is showing; the
+    /// counts ride the last applied result and clear on the next start.</summary>
+    private void RenderSweepDoneLine()
+    {
+        if (_sweepDoneRows is { } done && _sweepDoneTotal is { } doneTotal)
+        {
+            ProgressText = _localization.GetString(SweepDoneFormatKey, done, doneTotal);
+        }
     }
 
     /// <summary>Render one raw decimal for the localized summary (current culture).</summary>

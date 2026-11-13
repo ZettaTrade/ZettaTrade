@@ -2100,6 +2100,66 @@ Estimated fee: {10}</value>
   <data name="Backtest.Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="Backtest.Sweep.Title" xml:space="preserve">
+    <value>Parameter sweep</value>
+  </data>
+  <data name="Backtest.Sweep.Parameter" xml:space="preserve">
+    <value>Parameter</value>
+  </data>
+  <data name="Backtest.Sweep.Values" xml:space="preserve">
+    <value>Values</value>
+  </data>
+  <data name="Backtest.Sweep.Param.Fraction" xml:space="preserve">
+    <value>Long notional fraction</value>
+  </data>
+  <data name="Backtest.Sweep.Param.Slippage" xml:space="preserve">
+    <value>Slippage</value>
+  </data>
+  <data name="Backtest.Sweep.Start" xml:space="preserve">
+    <value>Sweep</value>
+  </data>
+  <data name="Backtest.Sweep.Error.Values" xml:space="preserve">
+    <value>'{0}' is not a comma-separated list of numbers.</value>
+  </data>
+  <data name="Backtest.Sweep.Error.Parameter" xml:space="preserve">
+    <value>The sweep parameter picker names no defined parameter.</value>
+  </data>
+  <data name="Backtest.Sweep.Error.SameParameter" xml:space="preserve">
+    <value>The two sweep axes must name different parameters.</value>
+  </data>
+  <data name="Backtest.Sweep.Error.Count" xml:space="preserve">
+    <value>An axis carries {0} values; the sweep accepts 1..{1} per axis.</value>
+  </data>
+  <data name="Backtest.Sweep.Error.Range" xml:space="preserve">
+    <value>Value {0} is out of range for {1}.</value>
+  </data>
+  <data name="Backtest.Sweep.Column.Rank" xml:space="preserve">
+    <value>Rank</value>
+  </data>
+  <data name="Backtest.Sweep.Column.Parameter" xml:space="preserve">
+    <value>Parameters</value>
+  </data>
+  <data name="Backtest.Sweep.Column.Net" xml:space="preserve">
+    <value>Net</value>
+  </data>
+  <data name="Backtest.Sweep.Column.Drawdown" xml:space="preserve">
+    <value>Drawdown</value>
+  </data>
+  <data name="Backtest.Sweep.Column.WinRate" xml:space="preserve">
+    <value>Win rate</value>
+  </data>
+  <data name="Backtest.Sweep.Column.ProfitFactor" xml:space="preserve">
+    <value>Profit factor</value>
+  </data>
+  <data name="Backtest.Sweep.Progress.Format" xml:space="preserve">
+    <value>Row {0} of {1}: {2}</value>
+  </data>
+  <data name="Backtest.Sweep.Done.Format" xml:space="preserve">
+    <value>Sweep finished: {0} of {1} parameterizations replayed.</value>
+  </data>
+  <data name="Backtest.Sweep.A11yRows" xml:space="preserve">
+    <value>Backtest sweep results</value>
+  </data>
   <data name="Backtest.Status.Idle" xml:space="preserve">
     <value>Ready — nothing replayed yet</value>
   </data>
