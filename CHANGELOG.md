@@ -1,3 +1,37 @@
+## [0.1.0-alpha.151] - 2026-11-13
+
+Build of board task T-207 (branch `feat/ai-provider-openai`): the second
+AI chat provider — an OpenAI-compatible endpoint becomes selectable, the
+shipped default stays Ollama.
+
+### Added
+- The chat provider seam: both chat surfaces route per request through a
+  provider router reading the new `AI/Provider` pick — a blank pick
+  falls back to the shipped Ollama default, the two known spellings
+  (case-insensitive) pick their providers, and an unknown pick is an
+  honest error naming the stored value (a typo never silently reroutes
+  the conversation). The pick is read per request, so a settings-file
+  flip switches the provider live.
+- The OpenAI-compatible provider: a one-shot completion and an SSE
+  stream over `POST {base}/chat/completions` (the base URL may carry a
+  version segment such as `/v1`). The answer is
+  `choices[0].message.content`; the stream yields each
+  `choices[0].delta.content` the moment its `data:` line arrives, the
+  `data: [DONE]` sentinel closes it, and the failure families match the
+  Ollama provider exactly (an error status is the unreachable-assistant
+  family, an unusable reply names the model). The endpoint and the model
+  are read per request; a blank base URL falls back to the shipped local
+  default (LM Studio's standard port — the local-first posture keeps a
+  second local server), while a blank model has NO default: the send
+  refuses honestly.
+- The API key's immediate commit: the settings window's key box commits
+  to the OS secret store per keystroke (the key's only home — it never
+  rides the settings file, the logs or the port export), a cleared box
+  removes it, a stored key rides every request as the Authorization
+  Bearer value, and an absent one leaves the request unauthenticated
+  (local servers need no key). The box re-seeds empty on every open —
+  the secret never echoes, and a re-seed never deletes the stored key.
+
 ## [0.1.0-alpha.150] - 2026-11-13
 
 Build of board task T-206 (branch `feat/ai-chat-history`): the persistent

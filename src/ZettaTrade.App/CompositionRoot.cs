@@ -266,7 +266,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ILogger<SettingsViewModel>>(),
                 sp.GetRequiredService<ThemeManager>().LoadErrorsChanged,
                 sp.GetRequiredService<SettingsPortService>(),
-                sp.GetRequiredService<IConfirmationService>()));
+                sp.GetRequiredService<IConfirmationService>(),
+                sp.GetRequiredService<ISecretStore>()));
         // The strategy-seam hosting (T-112): the composition owns the
         // series-load relay so the chart and the strategy service depend on
         // the relay, never on each other's construction (the cycle-free

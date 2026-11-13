@@ -235,6 +235,22 @@ public static class PortSettingsRegistry
         Text(AiSettingsKeys.Section, AiSettingsKeys.OllamaUrl, json: Json(AiSettingsKeys.DefaultOllamaUrl)),
         Text(AiSettingsKeys.Section, AiSettingsKeys.Model, json: Json(AiSettingsKeys.DefaultModel)),
 
+        // The AI chat provider pick (T-207): "Ollama" or "OpenAiCompatible"
+        // (the router's constants). A blank/absent pick resolves to the
+        // shipped default at the router; the reset stamps the default.
+        Text(AiSettingsKeys.Section, AiSettingsKeys.Provider, json: Json(AiSettingsKeys.DefaultProvider)),
+
+        // The OpenAI-compatible provider's own pieces (T-207): the base URL
+        // resets to the shipped local default; the model's default IS
+        // absence (an unset model is an honest send-time error — nothing to
+        // guess, so a reset removes the stored name). The API key is NOT
+        // here and can never be: it rides the secret store.
+        Text(
+            AiSettingsKeys.OpenAiCompatibleSection,
+            AiSettingsKeys.OpenAiCompatibleBaseUrl,
+            json: Json(AiSettingsKeys.DefaultOpenAiCompatibleBaseUrl)),
+        Text(AiSettingsKeys.OpenAiCompatibleSection, AiSettingsKeys.OpenAiCompatibleModel),
+
         // The candle cache policy (T-085).
         Switch(
             SqliteCandleCacheStore.SettingsSection,

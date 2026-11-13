@@ -3,10 +3,11 @@ namespace ZettaTrade.AI.Chat;
 using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Composition of the AI chat module: the named HttpClient the Ollama
-/// provider builds on and the provider itself (the one-shot completion and
-/// the streaming half ride the same singleton). Called from the composition
-/// root — one line for the module.
+/// Composition of the AI chat module: the two named HttpClients the
+/// providers build on, the providers themselves (the one-shot completion
+/// and the streaming half ride the same singletons) and the provider
+/// router both chat interfaces resolve to (T-207). Called from the
+/// composition root — one line for the module.
 /// </summary>
 public static class AiDependencyInjection
 {
@@ -19,10 +20,16 @@ public static class AiDependencyInjection
         {
             client.Timeout = OllamaChatCompletion.RequestTimeout;
         });
+        services.AddHttpClient(OpenAiCompatibleChatCompletion.HttpClientName, client =>
+        {
+            client.Timeout = OpenAiCompatibleChatCompletion.RequestTimeout;
+        });
 
         services.AddSingleton<OllamaChatCompletion>();
-        services.AddSingleton<IChatCompletion>(sp => sp.GetRequiredService<OllamaChatCompletion>());
-        services.AddSingleton<IStreamingChatCompletion>(sp => sp.GetRequiredService<OllamaChatCompletion>());
+        services.AddSingleton<OpenAiCompatibleChatCompletion>();
+        services.AddSingleton<ChatProviderRouter>();
+        services.AddSingleton<IChatCompletion>(sp => sp.GetRequiredService<ChatProviderRouter>());
+        services.AddSingleton<IStreamingChatCompletion>(sp => sp.GetRequiredService<ChatProviderRouter>());
 
         return services;
     }

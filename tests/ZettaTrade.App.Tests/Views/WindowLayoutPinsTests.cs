@@ -182,10 +182,10 @@ public sealed class WindowLayoutPinsTests
         var cards = SectionCardsXaml;
 
         Regex.Matches(source, "<Border Classes=\"section-card\"").Should().HaveCount(
-            6,
-            "the six sections: Appearance 1, Indicators 1, Integrations 2 (MCP + import/export), Workspace 2 (pairs + hotkeys)");
+            7,
+            "the seven sections: Appearance 1, Indicators 1, Integrations 3 (MCP + AI chat + import/export), Workspace 2 (pairs + hotkeys)");
         Regex.Matches(source, "<Border Classes=\"section-tick\" />").Should().HaveCount(
-            6,
+            7,
             "every section card carries the Accent tick header");
         source.Should().Contain(
             "<StyleInclude Source=\"avares://ZettaTrade.App/Themes/SectionCards.axaml\" />",
@@ -203,12 +203,13 @@ public sealed class WindowLayoutPinsTests
             "<Style Selector=\"TextBlock.section-header\">",
             "the section-header class carries the tracked uppercase caption");
 
-        // The six header keys ride the pages (one per card, exactly).
+        // The seven header keys ride the pages (one per card, exactly).
         foreach (var key in new[]
                  {
                      "Settings.Section.Appearance",
                      "Settings.Section.Indicators",
                      "Settings.Section.Mcp",
+                     "Settings.Section.Ai",
                      "Settings.Section.Port",
                      "Settings.Section.Pairs",
                      "Settings.Section.Hotkeys",
@@ -224,6 +225,7 @@ public sealed class WindowLayoutPinsTests
     [InlineData("Settings.Section.Appearance")]
     [InlineData("Settings.Section.Indicators")]
     [InlineData("Settings.Section.Mcp")]
+    [InlineData("Settings.Section.Ai")]
     [InlineData("Settings.Section.Port")]
     [InlineData("Settings.Section.Pairs")]
     [InlineData("Settings.Section.Hotkeys")]
