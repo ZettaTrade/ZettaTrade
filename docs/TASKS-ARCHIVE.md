@@ -3800,6 +3800,64 @@ the board and its section below.
   order at the tail; this close moved T-216 after T-200, restoring T-198 < T-199 < T-200
   < T-216.
 
+## T-201 — Multi-chart grid layout
+
+- **Branch:** `feat/multi-chart-grid` off `develop` (base `705a722`).
+- **Origin:** the sweep — one chart panel ships (detachable); no grid arrangement exists.
+- **What:** a workspace layout option rendering 1×2 and 2×2 chart slots with independent
+  symbols and timeframes; the boundaries ride the T-172 resize-handle discipline and persist; a
+  sync-crosshair toggle is optional polish, not scope-critical; the layout choice persists with
+  the workspace state.
+- **Scope:** App workspace composition (a chart-slot control generalizing the chart panel),
+  the settings persistence, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** each slot streams its own symbol; the splitters drag and persist; the
+  four-slot shape holds the pan budget (the perf HUD reads it).
+- **Tests:** the headless composition pins; a four-slot perf smoke.
+- **Status:** done - 0.1.0-alpha.145. Chain: claim `aa49b76` -> feat `d03fd51` -> close.
+  The View menu's three radio layout picks apply live and persist (`UI.ChartLayout`); the
+  startup walk restores the mode and the seam sizes before any window opens, and an
+  unrecognized stored or externally written mode keeps the standing one with a logged
+  warning (a restore falls back to the Single default), never a silent substitution. Every
+  slot is a full `ChartViewModel` (the lazy factory duplicates the primary's resolution list
+  with the slot number appended): its own symbol and time frame under
+  `UI.ChartSlot{N}SymbolId` / `UI.ChartSlot{N}TimeFrame`, its own drawings, compare chips,
+  pane heights and export routes; the shared workspace keys stay the primary's (the order
+  book, the tape and the order dialog follow the primary's pick, never a slot's); a slot's
+  chart-face picks stay in-session (the `_persistsFaceChoices` gate) so interleaved
+  whole-map writes cannot lose each other's entries; slots are never torn down within the
+  session — a switch back re-shows them exactly as they stood. The grid (`ChartSlotGrid`)
+  is code-built ("rows of stacks", the no-markup-binding discipline pinned by source): the
+  primary's swap host is reparented on the rebuild, never rebuilt (the detach coordinator's
+  reference stays); 1×2 is one row, 2×2 two rows sharing one slot column width so the
+  vertical seams stay one aligned line; the seams ride the T-172 handles (a star side
+  absorbs, the standard direction, the minimum clamps) and persist once per settled burst
+  (`UI.ChartSlotColumnWidth`, `UI.ChartGridTopRowHeight`) with the applied-lead cache
+  following the issued write; the external writers apply live. The slot faces collapse the
+  signal rail strip one-way (the primary's surface alone): the strip row's persisted clamps
+  drop to local zeros and the whole strip — the splitter track, the handle, the Border —
+  hides. The sync-crosshair toggle stayed out (the ticket marks it optional polish, not
+  scope-critical). Tests: 19 new facts — 11 layout-ViewModel persistence/slot facts, 8
+  headless window facts (incl. the four-face perf capture: 12 `CaptureRenderedFrame`
+  captures at 1920×1000, median ≤ 500 ms) and the source pin (the grid axaml carries no
+  markup binding and no declared rows). Suites on the feat tip: App 1872, UI 409,
+  Infrastructure 612, AdapterKit 48, E2E 6, Strategies 32, Backtest 29, Soak 17, Core 61 —
+  all green (the gate's solution-wide battery). GATE PASSED attempt 1 (-AllowProtected; 12
+  warn-level notes: [SCOPE] no agent-scope file + [TASK-FROMRESULT] on the NSubstitute Task
+  wrappers the interface shape requires). The launch smoke green on the feat tip's build
+  (the close is docs-only, the app content identical): ProductVersion
+  0.1.0-alpha.145+d03fd51, title held through the 12 s hold, 0 ERR/FTL,
+  ticker+screener+watchlist clean, palette refreshed (14 rows), strategies+indicators
+  provided. PRE-LANDING REVIEW FINDS, fixed in the feat: the layout persistence pipeline
+  never updated its applied-lead cache after an issued write (a pick back to the mode the
+  restore had applied would silently stop persisting — fixed to the width chains'
+  discipline, the cache follows the issued write); external-garbage layout writes collapsed
+  to Single contrary to their own comment (fixed to keep the standing mode); the route
+  factoring resolved the panel's chart ViewModel eagerly and the designer-shape
+  counterfactual died on it (fixed: the primary falls back to the window's chart, a panel
+  with neither logs and stays unwired). Headless grammar recorded: submenu items live in
+  the LOGICAL tree (not visual until the popup opens) and the items' Command reads must
+  ride the UI thread; Thumb drag deltas are cumulative, so the facts sweep single-step.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
