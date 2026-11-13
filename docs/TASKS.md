@@ -226,6 +226,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-219 Stream the statement export past the whole-journal materialization (queued from the 2026-11-13 review round) | feat/statement-stream | planned | - |
 | T-220 Non-blocking alert beep (queued from the 2026-11-13 review round) | fix/alert-beep-async | planned | - |
 | T-221 Stabilize the E2E DetachCycle flake (queued from the 2026-11-13 review round) | fix/e2e-detach-flake | planned | - |
+| T-222 The settings window re-rides the approved variant-A mockup: the rail's title-bar strip + icons + note, the compact per-section cards, the pinned footer chrome, the 880x640 frame (the user-reported T-184 gap) | fix/settings-rail-fix | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -622,5 +623,47 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   detach still fails bounded.
 - **Tests:** the family's own evidence-driven shape decided at implementation.
 - **Status:** planned.
+
+## T-222 — The settings window re-rides the approved variant-A mockup
+
+- **Branch:** queued 2026-11-13 (the user reported the landed T-184 window as "not at all
+  like the mockup"); the worktree `zt-settings-rail-fix`, base `develop`.
+- **Origin:** the T-184 window misses the approved variant A in the details the user sees.
+  The T-222 headless probes measured every fact before the fix: the template parts the
+  T-184 styles target EXIST (`PART_LayoutRoot`, `PART_SelectedPipe`), the selected tint
+  and the 3 px tick DO render (the derived ButtonHoverTint resolves wherever the theme
+  apply ran), so the rail's voice is fine — the deltas are the approved chrome the window
+  never adopted: the rail rides the window ground instead of the title-bar strip with its
+  right hairline, the items carry no icons and no bottom rail note, the tick sits 15 px
+  off the item's left edge (the padding-box inset, measured), the Appearance page is ONE
+  giant card instead of the compact per-section cards, the footer row is bare (no top
+  hairline, no strip fill, not full-width), and the window defaults to 880x720 instead of
+  the approved 880x640. The applied Fluent TabItem template renders NO Icon presenter
+  (measured), so the icons ride the headers as compositions.
+- **What:** the rail strip gains its approved chrome — a 190 px TitleBar-colored backing
+  with the right hairline and the rail note at its bottom; the four items carry 16 px
+  stroke icons beside their captions (the header TextBlocks keep the loc keys; the tab
+  helpers follow the header text); the item box insets 8 px inside the strip and re-pads
+  to the mockup's 12/9 with the tick pulled onto the item's left edge; the Appearance
+  page splits into the approved compact cards (appearance rows / theme folder / the
+  first-run wizard — every existing surface survives, one section header each); the card
+  radius steps to CornerM (4 px) per the mockup; the footer becomes the approved pinned
+  strip (full-width top hairline over the title-bar fill, quiet Close then the ONE
+  primary Save); the window defaults to 880x640, the body scroll staying the small
+  machines' safety net.
+- **Scope:** SettingsWindow.axaml, the SectionCards dictionary's radius, the loc catalogs
+  (two new section headers + the rail note, en+ru), the T-184 pin updates and the
+  tab-selection helpers; no Core/ViewModel contract change (the rail selection stays view
+  state).
+- **Acceptance:** the headless render pins measure the approved voice (the tint exactly
+  ButtonHoverTint, the tick 3 px on the item's left edge, the icons in every rail header,
+  the strip and the footer chrome); the bounds pin keeps every page inside its body
+  viewport at the default size; the T-184 migrated-surface pins stay green (nothing
+  dropped).
+- **Tests:** the rail render pins (the parts, the tint identity, the tick's edge
+  position, the icon compositions, the strip/footer chrome), the updated source pins (the
+  640 frame, the nine cards, the new header keys in both cultures), and the existing
+  settings suite (the gutter, polish and bounds facts) staying green.
+- **Status:** in-progress.
 
 
