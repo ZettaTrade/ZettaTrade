@@ -909,6 +909,24 @@
   <data name="Trading.ConfirmPlaceAlertFormat" xml:space="preserve">
     <value>Оповещение {1} ({0}) по {2} на уровне {3}?</value>
   </data>
+  <data name="Trading.BalancesValueHistoryHeader" xml:space="preserve">
+    <value>История стоимости</value>
+  </data>
+  <data name="Trading.BalancesValueHistoryA11y" xml:space="preserve">
+    <value>Стоимость портфеля во времени</value>
+  </data>
+  <data name="Trading.BalancesValueHistoryEmpty" xml:space="preserve">
+    <value>Истории стоимости пока нет — снапшоты накапливаются, пока запущено приложение.</value>
+  </data>
+  <data name="Trading.BalancesValueHistoryFailedFormat" xml:space="preserve">
+    <value>Не удалось прочитать историю стоимости: {0}</value>
+  </data>
+  <data name="Trading.BalancesAllocationValue" xml:space="preserve">
+    <value>Стоимость</value>
+  </data>
+  <data name="Trading.BalancesAllocationUnpriced" xml:space="preserve">
+    <value>без цены</value>
+  </data>
   <data name="Trading.ConfirmPlaceOrderDetailedFormat" xml:space="preserve">
     <value>Площадка: {5}
 Ордер {1}: {0} {2} {3} — {4}?

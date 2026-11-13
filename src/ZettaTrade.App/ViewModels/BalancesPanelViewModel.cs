@@ -7,6 +7,9 @@ using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ReactiveUI.Primitives;
 using ZettaTrade.App.Services;
+using ZettaTrade.Charting;
+using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// Balances panel view model (modal window). One aggregation snapshot per
@@ -14,8 +17,11 @@ using ZettaTrade.App.Services;
 /// — feeds both the per-exchange sections and the aggregated view. Every
 /// source displays what its adapter actually serves: provided rows, the
 /// explicit not-provided state, or the localized fault of a failed query;
-/// a zero is never substituted for absence or failure. Window plumbing
-/// stays in the View.
+/// a zero is never substituted for absence or failure. The paper account's
+/// value history (T-209) loads alongside: the stored snapshots become the
+/// curve and the newest one's allocation becomes the by-asset list — the
+/// history section's faults stay scoped to it. Window plumbing stays in
+/// the View.
 /// </summary>
 public sealed class BalancesPanelViewModel : ReactiveObject
 {
@@ -24,6 +30,8 @@ public sealed class BalancesPanelViewModel : ReactiveObject
     private const string LoadFailedKey = "Trading.BalancesLoadFailedFormat";
     private const string FetchFailedKey = "Trading.BalancesFetchFailedFormat";
     private const string ResetFailedKey = "Trading.PaperResetFailedFormat";
+    private const string ValueHistoryFailedKey = "Trading.BalancesValueHistoryFailedFormat";
+    private const string AllocationUnpricedKey = "Trading.BalancesAllocationUnpriced";
 
     #endregion Resx Keys
 
@@ -31,6 +39,8 @@ public sealed class BalancesPanelViewModel : ReactiveObject
 
     private readonly BalancesAggregationService _balances;
     private readonly IPaperResetService _paperReset;
+    private readonly IPortfolioValueStore _valueHistory;
+    private readonly PaperTradingAdapter _paper;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<BalancesPanelViewModel> _logger;
 
@@ -43,6 +53,11 @@ public sealed class BalancesPanelViewModel : ReactiveObject
     private string? _errorMessage;
     private IReadOnlyList<BalancesSourceViewModel> _sources = [];
     private IReadOnlyList<BalanceRowViewModel> _aggregated = [];
+    private IReadOnlyList<EquityCurvePoint> _valuePoints = [];
+    private IReadOnlyList<BalanceAllocationRowViewModel> _allocation = [];
+    private string? _valueHistoryQuote;
+    private string? _valueHistoryError;
+    private bool _hasValueHistory;
 
     /// <summary>True while a snapshot load is in flight (the loading state).</summary>
     public bool IsLoading
@@ -69,11 +84,93 @@ public sealed class BalancesPanelViewModel : ReactiveObject
     public IReadOnlyList<BalanceRowViewModel> Aggregated
     {
         get => _aggregated;
-        private set => this.RaiseAndSetIfChanged(ref _aggregated, value);
+        private set
+        {
+            _aggregated = value;
+            this.RaisePropertyChanged(nameof(Aggregated));
+            this.RaisePropertyChanged(nameof(HasAggregated));
+        }
     }
 
     /// <summary>True while <see cref="Aggregated"/> is non-empty; drives the aggregate table visibility.</summary>
     public bool HasAggregated => _aggregated.Count > 0;
+
+    /// <summary>The value-history curve's points (T-209): the paper account's stored snapshots, chronological.</summary>
+    public IReadOnlyList<EquityCurvePoint> ValuePoints
+    {
+        get => _valuePoints;
+        private set
+        {
+            _valuePoints = value;
+            this.RaisePropertyChanged(nameof(ValuePoints));
+            this.RaisePropertyChanged(nameof(HasValuePoints));
+        }
+    }
+
+    /// <summary>True while the curve carries at least one stored snapshot.</summary>
+    public bool HasValuePoints => _valuePoints.Count > 0;
+
+    /// <summary>The latest stored snapshot's allocation rows (T-209).</summary>
+    public IReadOnlyList<BalanceAllocationRowViewModel> Allocation
+    {
+        get => _allocation;
+        private set
+        {
+            _allocation = value;
+            this.RaisePropertyChanged(nameof(Allocation));
+            this.RaisePropertyChanged(nameof(HasAllocation));
+        }
+    }
+
+    /// <summary>True while the latest snapshot carries an allocation list.</summary>
+    public bool HasAllocation => _allocation.Count > 0;
+
+    /// <summary>The quote currency the curve's values ride in (e.g. "USDT").</summary>
+    public string? ValueHistoryQuote
+    {
+        get => _valueHistoryQuote;
+        private set
+        {
+            if (ValueHistoryQuote == value)
+            {
+                return;
+            }
+
+            _valueHistoryQuote = value;
+            this.RaisePropertyChanged(nameof(ValueHistoryQuote));
+            this.RaisePropertyChanged(nameof(HasValueHistoryQuote));
+        }
+    }
+
+    /// <summary>True while <see cref="ValueHistoryQuote"/> holds text; drives the quote disclosure line.</summary>
+    public bool HasValueHistoryQuote => _valueHistoryQuote is not null;
+
+    /// <summary>The value-history read's localized failure line (the aggregation display stays untouched).</summary>
+    public string? ValueHistoryError
+    {
+        get => _valueHistoryError;
+        private set
+        {
+            if (ValueHistoryError == value)
+            {
+                return;
+            }
+
+            _valueHistoryError = value;
+            this.RaisePropertyChanged(nameof(ValueHistoryError));
+            this.RaisePropertyChanged(nameof(HasValueHistoryError));
+        }
+    }
+
+    /// <summary>True while <see cref="ValueHistoryError"/> holds text; drives the fault line visibility.</summary>
+    public bool HasValueHistoryError => _valueHistoryError is not null;
+
+    /// <summary>True once the value history was attempted (loaded or faulted): drives the section's visibility.</summary>
+    public bool HasValueHistory
+    {
+        get => _hasValueHistory;
+        private set => this.RaiseAndSetIfChanged(ref _hasValueHistory, value);
+    }
 
     /// <summary>The whole-load failure line (a per-source fault is scoped to its source instead).</summary>
     public string? ErrorMessage
@@ -146,11 +243,15 @@ public sealed class BalancesPanelViewModel : ReactiveObject
     public BalancesPanelViewModel(
         BalancesAggregationService balances,
         IPaperResetService paperReset,
+        IPortfolioValueStore valueHistory,
+        PaperTradingAdapter paper,
         ILocalizationManager localization,
         ILogger<BalancesPanelViewModel> logger)
     {
         _balances = balances ?? throw new ArgumentNullException(nameof(balances));
         _paperReset = paperReset ?? throw new ArgumentNullException(nameof(paperReset));
+        _valueHistory = valueHistory ?? throw new ArgumentNullException(nameof(valueHistory));
+        _paper = paper ?? throw new ArgumentNullException(nameof(paper));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -248,6 +349,68 @@ public sealed class BalancesPanelViewModel : ReactiveObject
         {
             IsLoading = false;
         }
+
+        // The value history loads alongside the live figures (T-209): its
+        // fault stays scoped to the history section — the aggregation
+        // display above never depends on the store's health.
+        await LoadValueHistoryAsync(ct);
+    }
+
+    /// <summary>
+    /// Read the paper account's value history (T-209): the bounded recent
+    /// snapshots become the curve's chronological points, the newest row
+    /// becomes the allocation list, and a store fault rides the section's
+    /// own localized error line — a failed read never presents itself as
+    /// an absent history.
+    /// </summary>
+    private async Task LoadValueHistoryAsync(CancellationToken ct)
+    {
+        try
+        {
+            var rows = await _valueHistory.GetRecentAsync(
+                _paper.Id,
+                PortfolioValueStoreLimits.MaxRecentBatch,
+                ct);
+
+            ValuePoints = rows
+                .Select(row => new EquityCurvePoint(row.TimestampUtc, row.TotalValue))
+                .Reverse()
+                .ToArray();
+            ValueHistoryQuote = rows.Count > 0 ? rows[0].QuoteCurrency : null;
+            Allocation = rows.Count > 0 ? CreateAllocationRows(rows[0]) : [];
+            ValueHistoryError = null;
+        }
+        catch (Exception ex)
+        {
+            if (ex is OperationCanceledException)
+            {
+                throw;
+            }
+
+            _logger.LogError(ex, "Balances panel: the value history read failed");
+            ValueHistoryError = _localization.GetString(ValueHistoryFailedKey, ex.Message);
+        }
+        finally
+        {
+            HasValueHistory = true;
+        }
+    }
+
+    /// <summary>Build the display rows from the latest snapshot's allocation document.</summary>
+    private BalanceAllocationRowViewModel[] CreateAllocationRows(PortfolioValueSnapshotRow latestRow)
+    {
+        var entries = PortfolioValueAllocationEntry.ParseAllocation(latestRow.AllocationJson);
+        return entries
+            .Select(entry => new BalanceAllocationRowViewModel
+            {
+                Asset = entry.Asset,
+                Amount = entry.Amount.ToString(CultureInfo.InvariantCulture),
+                Value = entry.Priced
+                    ? entry.Value!.Value.ToString(CultureInfo.InvariantCulture)
+                    : _localization.GetString(AllocationUnpricedKey),
+                IsUnpriced = !entry.Priced,
+            })
+            .ToArray();
     }
 
     /// <summary>Build the section record for one source, with its served rows precomputed.</summary>

@@ -909,6 +909,24 @@
   <data name="Trading.ConfirmPlaceAlertFormat" xml:space="preserve">
     <value>Place a {0} {1} alert on {2} at {3}?</value>
   </data>
+  <data name="Trading.BalancesValueHistoryHeader" xml:space="preserve">
+    <value>Value history</value>
+  </data>
+  <data name="Trading.BalancesValueHistoryA11y" xml:space="preserve">
+    <value>Portfolio value over time</value>
+  </data>
+  <data name="Trading.BalancesValueHistoryEmpty" xml:space="preserve">
+    <value>No value history yet — the snapshots accumulate while the app runs.</value>
+  </data>
+  <data name="Trading.BalancesValueHistoryFailedFormat" xml:space="preserve">
+    <value>The value history read failed: {0}</value>
+  </data>
+  <data name="Trading.BalancesAllocationValue" xml:space="preserve">
+    <value>Value</value>
+  </data>
+  <data name="Trading.BalancesAllocationUnpriced" xml:space="preserve">
+    <value>not priced</value>
+  </data>
   <data name="Trading.ConfirmPlaceOrderDetailedFormat" xml:space="preserve">
     <value>Venue: {5}
 Place {0} {1} order {2} {3} at {4}?

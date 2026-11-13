@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:ZettaTrade.App.ViewModels"
         xmlns:loc="using:Livery.Localization"
+        xmlns:charting="using:ZettaTrade.UI.Charting"
         x:Class="ZettaTrade.App.Views.BalancesPanelWindow"
         Classes="chrome"
         Icon="/Assets/ZettaTrade.ico"
@@ -87,6 +88,52 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+
+                <!-- Value history (T-209): the paper account's stored
+                     snapshots ride the curve, the newest one's allocation
+                     rides the by-asset list; the section's own fault line
+                     scopes a failed read. -->
+                <StackPanel Spacing="{StaticResource SpaceXs}"
+                            IsVisible="{Binding HasValueHistory}">
+                    <TextBlock Text="{loc:Localized Trading.BalancesValueHistoryHeader}" FontWeight="Bold" />
+                    <TextBlock Text="{Binding ValueHistoryQuote}"
+                               IsVisible="{Binding HasValueHistoryQuote}"
+                               Foreground="{DynamicResource TextSecondary}" />
+                    <charting:EquityCurveChart Height="220"
+                                               AutomationProperties.Name="{loc:Localized Trading.BalancesValueHistoryA11y}"
+                                               Points="{Binding ValuePoints}"
+                                               IsVisible="{Binding HasValuePoints}" />
+                    <TextBlock Text="{loc:Localized Trading.BalancesValueHistoryEmpty}"
+                               IsVisible="{Binding !HasValuePoints}"
+                               Foreground="{DynamicResource TextSecondary}"
+                               TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="150,150,150"
+                          IsVisible="{Binding HasAllocation}">
+                        <TextBlock Grid.Column="0" Text="{loc:Localized Trading.BalancesAsset}" />
+                        <TextBlock Grid.Column="1" Text="{loc:Localized Trading.BalancesAmount}" />
+                        <TextBlock Grid.Column="2" Text="{loc:Localized Trading.BalancesAllocationValue}" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Allocation}"
+                                  IsVisible="{Binding HasAllocation}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BalanceAllocationRowViewModel">
+                                <Grid ColumnDefinitions="150,150,150">
+                                    <TextBlock Grid.Column="0" Text="{Binding Asset}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Amount}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Value}"
+                                               IsVisible="{Binding !IsUnpriced}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Value}"
+                                               Foreground="{DynamicResource TextSecondary}"
+                                               IsVisible="{Binding IsUnpriced}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding ValueHistoryError}"
+                               Foreground="{DynamicResource Error}"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding HasValueHistoryError}" />
                 </StackPanel>
 
             </StackPanel>

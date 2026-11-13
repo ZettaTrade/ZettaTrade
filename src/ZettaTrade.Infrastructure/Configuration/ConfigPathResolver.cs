@@ -120,6 +120,13 @@ public static class ConfigPathResolver
     public static string ChatHistoryDatabaseFile => Path.Combine(DataDirectory, "chat-history.db");
 
     /// <summary>
+    /// Path to the SQLite database holding the persistent portfolio-value
+    /// history (T-209): the trading accounts' periodic value snapshots —
+    /// the balances panel's curve and allocation ride them.
+    /// </summary>
+    public static string PortfolioValueDatabaseFile => Path.Combine(DataDirectory, "portfolio-value.db");
+
+    /// <summary>
     /// Ensure all required directories exist.
     /// </summary>
     public static void EnsureDirectoriesExist()
