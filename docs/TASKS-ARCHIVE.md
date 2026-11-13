@@ -4028,6 +4028,52 @@ the board and its section below.
   title held through the 12 s hold, 0 ERR/FTL, ticker+screener+watchlist clean,
   palette refreshed (14 rows), strategies+indicators provided.
 
+## T-205 - Streaming AI chat
+
+- **Branch:** feat/ai-streaming, worktree zt-ai-streaming, base develop@4a0c7aa.
+- **Origin:** the sweep — the Ollama route is one-shot non-streaming; the Stop button aborts a
+  whole response.
+- **What:** SSE streaming from the chat endpoint (`stream: true`), tokens appended live into
+  the bubble; Stop cuts the stream mid-flight cleanly; a non-streaming fallback rides a
+  settings key for endpoints that cannot stream.
+- **Scope:** ZettaTrade.AI (the streaming reader), the bubble's incremental render, the
+  settings key, tests, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a streamed reply renders progressively; Stop leaves no partial-corrupt
+  state; the fallback path keeps today's behavior verbatim.
+- **Tests:** the loopback SSE stub battery (chunk order, abort, malformed chunks).
+- **Status:** done - 0.1.0-alpha.149. Chain: claim `28c8071` -> feat `475cd47` -> close.
+  The board text's "SSE" was the sweep's placeholder: the shipped Ollama route speaks
+  NDJSON over chunked transfer, and the reader yields each delta the moment its line
+  arrives. The streamed read is taken at headers-read (`SendAsync` +
+  `HttpCompletionOption.ResponseHeadersRead`) — the `PostAsync` default
+  (`ResponseContentRead`) buffers the whole reply and nothing would ever stream; the
+  paced battery caught exactly that (the wedge first looked like an HttpListener flush
+  problem, and the raw-socket probe disproved it). It carries no client-side request
+  timeout: the Stop affordance and the caller's token govern it, so a token-by-token
+  generation can outlast the one-shot's cold-load budget legitimately.
+  The chat panel appends the deltas into ONE assistant bubble created on the first
+  delta (an immediately-failing stream never renders an empty bubble), every append
+  raising the content change so the bound text re-renders live; a Stop cut keeps the
+  arrived prefix with no error line (the T-158 semantics, the streamed prefix
+  included), a mid-flight fault keeps the prefix and adds the honest error line after
+  it, and the `AI/Streaming` key (read at issue time) rides the one-shot path
+  verbatim — a chat without the streaming capability cannot be turned on by the key.
+  No resx keys were added: no new user-facing string was introduced.
+  Tests: 14 new cases (7 provider facts over a paced loopback NDJSON harness — the
+  answered-stream wire shape, the first delta landing while the writer still parks,
+  closed-without-content, an unreadable line, a missing terminal line, the caller
+  cancel, an error status; 7 VM facts — the progressive render, the key flip between
+  sends, the Stop cut, the key-off fallback, the missing capability, the fault before
+  the first delta, the fault mid-flight). The loopback harness gained
+  `ServePacedAsync` with `SendChunked = true`: without it HTTP.sys holds the whole
+  response until the response closes (the Flush never reaches the socket) and no
+  pacing is observable. Suites on the feat tip: App 1976 (1962 at the T-204 tip; the
+  delta is exactly the 14 new cases) — green. GATE PASSED (-AllowProtected; the
+  SCOPE info + the local gitleaks skip are warn-level). The launch smoke green on the
+  committed feat tip: ProductVersion 0.1.0-alpha.149+475cd47, title held through the
+  12 s hold, 0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed (14 rows),
+  strategies+indicators provided.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
