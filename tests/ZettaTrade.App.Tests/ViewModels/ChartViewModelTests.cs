@@ -3418,12 +3418,11 @@ public sealed class ChartViewModelTests
         var changes = new Subject<SettingsChange>();
         settings.Changes.Returns(changes);
         settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
-            .Returns(call => Task.FromResult(
-                (string)call[1] == UiSettingsKeys.ChartIndicatorPaneHeights
-                    ? storedPaneHeights
-                    : string.Empty));
+            .Returns(call => (string)call[1] == UiSettingsKeys.ChartIndicatorPaneHeights
+                ? storedPaneHeights
+                : string.Empty);
         settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
+            .Returns(call => Task.CompletedTask);
 
         var chart = CreateChart(
             CreateService(new FakeMarketData(), new FakeMarketData(id: "fake2", name: "Fake2")),
