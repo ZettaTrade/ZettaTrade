@@ -45,7 +45,13 @@
                     <TextBlock Text="{loc:Localized Stats.FilterTo}" Margin="0,0,0,4" />
                     <DatePicker Width="165" SelectedDate="{Binding ToDate}" />
                 </StackPanel>
-                <StackPanel VerticalAlignment="Bottom">
+                <StackPanel VerticalAlignment="Bottom" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                    <Button Content="{loc:Localized Stats.ExportPositions}"
+                            Command="{Binding ExportPositionsCommand}"
+                            MinWidth="90" />
+                    <Button Content="{loc:Localized Stats.ExportStatement}"
+                            Command="{Binding ExportStatementCommand}"
+                            MinWidth="90" />
                     <Button Content="{loc:Localized Stats.Apply}"
                             Classes="primary"
                             Command="{Binding ApplyCommand}"

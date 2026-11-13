@@ -9,6 +9,7 @@ using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Export;
 
 /// <summary>
 /// Golden tests for the fill-pair aggregation math: open→close round trips
@@ -361,4 +362,78 @@ public sealed class TradeStatsAccumulatorTests
     }
 
     #endregion Input Guardians
+
+    #region Realized Ledger (T-210)
+
+    [Fact]
+    public void RealizedLedger_BooksOneRowPerClosingFill_WithTheFillPairMath()
+    {
+        // The flip walk (the golden above): three closing fills, three
+        // ledger rows — the exact outcomes the summary and the curve see.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 2m, 13m, 1),
+            Fill(OrderSide.Buy, 2m, 15m, 2),
+            Fill(OrderSide.Sell, 1m, 14m, 3),
+        ]);
+
+        var ledger = accumulator.GetRealizedTrades();
+
+        ledger.Should().Equal(
+            new StatementRealizedTrade(
+                BaseTime.AddMinutes(1), "paper", "BTC/USDT", "Sell",
+                1m, 10m, 13m, 3m, "USDT"),
+            new StatementRealizedTrade(
+                BaseTime.AddMinutes(2), "paper", "BTC/USDT", "Buy",
+                1m, 13m, 15m, -2m, "USDT"),
+            new StatementRealizedTrade(
+                BaseTime.AddMinutes(3), "paper", "BTC/USDT", "Sell",
+                1m, 15m, 14m, -1m, "USDT"));
+    }
+
+    [Fact]
+    public void RealizedLedger_SnapshotIsAFreshCopy_TheScanKeepsAppending()
+    {
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 1m, 12m, 1),
+        ]);
+
+        var first = accumulator.GetRealizedTrades();
+
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 2),
+            Fill(OrderSide.Sell, 1m, 9m, 3),
+        ]);
+
+        first.Should().HaveCount(1, "a snapshot must not see the rows booked after it");
+        accumulator.GetRealizedTrades().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void RealizedLedger_QuotelessSymbol_CarriesTheHonestUnknownQuote()
+    {
+        // A stock symbol carries no quote asset: the row books the outcome
+        // with a null quote currency — the honest unknown, never a
+        // fabricated currency.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 10m, 190m, 0, symbol: "AAPL"),
+            Fill(OrderSide.Sell, 10m, 195m, 1, symbol: "AAPL"),
+        ]);
+
+        var ledger = accumulator.GetRealizedTrades();
+
+        ledger.Should().ContainSingle().Which.QuoteCurrency.Should().BeNull();
+        ledger[0].RealizedPnl.Should().Be(50m);
+        ledger[0].Symbol.Should().Be("AAPL");
+    }
+
+    #endregion Realized Ledger (T-210)
 }

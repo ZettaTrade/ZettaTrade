@@ -1,10 +1,12 @@
 namespace ZettaTrade.App.Views;
 
-using System;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Livery.Extensions;
 using ReactiveUI;
 using ReactiveUI.Avalonia;
+using ReactiveUI.Primitives;
 using Serilog;
 using ZettaTrade.App.ViewModels;
 
@@ -28,12 +30,31 @@ public partial class TradeStatsWindow : ReactiveWindow<TradeStatsViewModel>
     {
         InitializeComponent();
 
-        // The explicit Action<Action<IDisposable>> delegate removes the
-        // WhenActivated overload ambiguity (the positions-panel pattern).
-        // The load runs once per window and errors land in the Subscribe
-        // callback; the disposal registration cancels the scan on close.
-        this.WhenActivated(new Action<Action<IDisposable>>(disposables =>
+        // The registrations live in the collection-based activation scope
+        // (the balances-panel pattern): the export handler registrations and
+        // the scan subscription die with the window, so closing it cancels
+        // an in-flight scan. The load runs once per window and errors land
+        // in the Subscribe callback.
+        this.WhenActivated(disposables =>
         {
+            // The export dialogs (T-210): picking a file is view behavior —
+            // the view model hands over the suggested name, the view asks
+            // the storage provider, the confirmed path (or the cancel)
+            // completes the interaction.
+            ViewModel?.SavePositionsCsvRequested.RegisterHandler(async context =>
+                {
+                    var path = await SaveFilePicker.PickAsync(this, context.Input, "csv", "CSV");
+                    context.SetOutput(path);
+                })
+                .DisposeWith(disposables);
+
+            ViewModel?.SaveStatementRequested.RegisterHandler(async context =>
+                {
+                    var path = await SaveFilePicker.PickAsync(this, context.Input, "json", "JSON");
+                    context.SetOutput(path);
+                })
+                .DisposeWith(disposables);
+
             if (_initialLoadQueued || ViewModel is null)
             {
                 return;
@@ -41,10 +62,11 @@ public partial class TradeStatsWindow : ReactiveWindow<TradeStatsViewModel>
 
             _initialLoadQueued = true;
 
-            disposables(ViewModel.ApplyCommand.Execute().Subscribe(
+            ViewModel.ApplyCommand.Execute().Subscribe(
                 _ => { },
-                error => Log.Error(error, "Trade statistics scan failed")));
-        }));
+                error => Log.Error(error, "Trade statistics scan failed"))
+                .DisposeWith(disposables);
+        });
     }
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();

@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.ViewModels;
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +12,9 @@ using ReactiveUI.Primitives;
 using ZettaTrade.App.Services;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
+using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
@@ -22,7 +25,12 @@ using ZettaTrade.Infrastructure.Persistence;
 /// (symbol, exchange, date range, paper-live tag) restart the scan; a scan
 /// abandons itself quietly when a newer one takes over. Display values are
 /// precomputed invariant-culture strings, exactly like the other panels'
-/// rows; the equity points bind the Skia chart.
+/// rows; the equity points bind the Skia chart. The export routes (T-210)
+/// ride the window's data sources: the traded surface's positions as one
+/// CSV, and the whole statement bundle (orders + fills + the fill-pair
+/// realized ledger + a balances snapshot, CSVs plus a JSON manifest) under
+/// the window's current filter — an empty range writes nothing, never a
+/// broken file.
 /// </summary>
 public sealed class TradeStatsViewModel : ReactiveObject
 {
@@ -32,6 +40,8 @@ public sealed class TradeStatsViewModel : ReactiveObject
     private const string InvalidSymbolKey = "Stats.InvalidSymbol";
     private const string ScanningKey = "Stats.Scanning";
     private const string ScannedKey = "Stats.Scanned";
+    private const string ExportFailedKey = "Stats.ExportFailedFormat";
+    private const string StatementEmptyKey = "Stats.StatementEmptyRange";
 
     #endregion Resx Keys
 
@@ -63,6 +73,9 @@ public sealed class TradeStatsViewModel : ReactiveObject
     #region Private Fields
 
     private readonly IOrderStatsQuery _query;
+    private readonly ITradingAdapter _trading;
+    private readonly ICsvExportService _csv;
+    private readonly IStatementExportService _statementExport;
     private readonly ILocalizationManager _localization;
     private readonly ILogger<TradeStatsViewModel> _logger;
 
@@ -260,6 +273,18 @@ public sealed class TradeStatsViewModel : ReactiveObject
     /// <summary>Applies the current filters: restarts the paged scan from scratch.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ApplyCommand { get; }
 
+    /// <summary>Exports the traded surface's current open positions as a positions CSV file (T-210).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ExportPositionsCommand { get; }
+
+    /// <summary>Exports the statement bundle (orders + fills + realized ledger + balances, CSVs plus a manifest) under the window's filter (T-210).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ExportStatementCommand { get; }
+
+    /// <summary>Asks the view for the positions CSV destination (a save-file dialog); null cancels.</summary>
+    public Interaction<string, string?> SavePositionsCsvRequested { get; }
+
+    /// <summary>Asks the view for the statement manifest destination (a save-file dialog); null cancels.</summary>
+    public Interaction<string, string?> SaveStatementRequested { get; }
+
     #endregion Properties
 
     #region Constructor
@@ -270,15 +295,27 @@ public sealed class TradeStatsViewModel : ReactiveObject
     /// </summary>
     public TradeStatsViewModel(
         IOrderStatsQuery query,
+        ITradingAdapter trading,
+        ICsvExportService csv,
+        IStatementExportService statementExport,
         ILocalizationManager localization,
         ILogger<TradeStatsViewModel> logger)
     {
         _query = query ?? throw new ArgumentNullException(nameof(query));
+        _trading = trading ?? throw new ArgumentNullException(nameof(trading));
+        _csv = csv ?? throw new ArgumentNullException(nameof(csv));
+        _statementExport = statementExport ?? throw new ArgumentNullException(nameof(statementExport));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         ApplyCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
             (_, ct) => HandleApplyAsync(ct));
+        ExportPositionsCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, ct) => HandleExportPositionsAsync(ct));
+        ExportStatementCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, ct) => HandleExportStatementAsync(ct));
+        SavePositionsCsvRequested = new Interaction<string, string?>();
+        SaveStatementRequested = new Interaction<string, string?>();
     }
 
     #endregion Constructor
@@ -350,6 +387,133 @@ public sealed class TradeStatsViewModel : ReactiveObject
             // usable with the error line and keeps the last honest snapshot.
             _logger.LogError(ex, "Trade statistics window: scan failed");
             ErrorMessage = _localization.GetString(LoadFailedKey, ex.Message);
+        }
+
+        return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// The positions export (T-210): the traded surface's current open
+    /// positions as one CSV file. The venue call comes first (the export's
+    /// data source), the destination dialog second — a cancelled dialog
+    /// exports nothing, a fault rides the window's error line.
+    /// </summary>
+    private async Task<RxVoid> HandleExportPositionsAsync(CancellationToken ct)
+    {
+        ErrorMessage = null;
+
+        try
+        {
+            var positions = await _trading.GetPositionsAsync(ct);
+
+            var path = await SavePositionsCsvRequested.Handle("positions.csv");
+            if (path is null)
+            {
+                _logger.LogInformation(
+                    "Trade statistics window: the positions export ended on a cancelled save dialog");
+                return RxVoid.Default;
+            }
+
+            await _csv.ExportPositionsAsync(path, positions, ct);
+            _logger.LogInformation(
+                "Trade statistics window: exported positions.csv to {Path} ({Positions} positions)",
+                path,
+                positions.Count);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Broader than the venue surfaces: the query can fault on the
+            // transport, the write on any local IO state; the window stays
+            // usable with its error line.
+            _logger.LogError(ex, "Trade statistics window: the positions export failed");
+            ErrorMessage = _localization.GetString(ExportFailedKey, ex.Message);
+        }
+
+        return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// The statement export (T-210): one fresh full scan under the window's
+    /// current filter becomes the statement bundle — orders.csv, fills.csv,
+    /// realized-pnl.csv, balances.csv and the manifest. An empty range
+    /// exports nothing (the localized refusal, never a broken bundle); the
+    /// manifest is written last, so an interrupted write leaves no manifest
+    /// on disk. The balance snapshot rides the traded surface's served
+    /// state at export time.
+    /// </summary>
+    private async Task<RxVoid> HandleExportStatementAsync(CancellationToken ct)
+    {
+        ErrorMessage = null;
+
+        try
+        {
+            if (!TryBuildFilter(out var filter, out var invalidSymbol))
+            {
+                ErrorMessage = _localization.GetString(InvalidSymbolKey, invalidSymbol);
+                return RxVoid.Default;
+            }
+
+            // The fresh full scan: the bundle's orders collect whole (the
+            // fill-pair ledger needs the full pass), the accumulator books
+            // the realized rows on the way.
+            var orders = new List<Order>();
+            var accumulator = new TradeStatsAccumulator();
+            Order? after = null;
+            while (true)
+            {
+                var page = await _query.ReadPageAsync(filter, after, PageSize, ct);
+                if (page.Count == 0)
+                {
+                    break;
+                }
+
+                orders.AddRange(page);
+                accumulator.Ingest(page);
+                after = page[^1];
+            }
+
+            if (orders.Count == 0)
+            {
+                // The empty range: nothing is written, never a broken file.
+                _logger.LogInformation(
+                    "Trade statistics window: the statement export found no orders in the filter");
+                ErrorMessage = _localization.GetString(StatementEmptyKey);
+                return RxVoid.Default;
+            }
+
+            var path = await SaveStatementRequested.Handle("trade-statement.json");
+            if (path is null)
+            {
+                _logger.LogInformation(
+                    "Trade statistics window: the statement export ended on a cancelled save dialog");
+                return RxVoid.Default;
+            }
+
+            var balances = await _trading.GetBalancesAsync(ct);
+            var statement = new StatementExport(
+                GeneratedAt: DateTimeOffset.UtcNow,
+                SymbolFilter: filter.Symbol,
+                ExchangeFilter: filter.Exchange,
+                FromUtc: filter.From,
+                ToUtc: filter.To,
+                IsPaperFilter: filter.IsPaper,
+                Orders: orders,
+                RealizedTrades: accumulator.GetRealizedTrades(),
+                Balances: balances);
+            await _statementExport.WriteAsync(path, statement, ct);
+            _logger.LogInformation(
+                "Trade statistics window: exported the statement bundle to {Path} ({Orders} orders, {Trades} realized trades)",
+                path,
+                orders.Count,
+                statement.RealizedTrades.Count);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Broader than the journal reads: the balance query rides the
+            // venue, the writes ride the local disk; the window stays
+            // usable with its error line.
+            _logger.LogError(ex, "Trade statistics window: the statement export failed");
+            ErrorMessage = _localization.GetString(ExportFailedKey, ex.Message);
         }
 
         return RxVoid.Default;

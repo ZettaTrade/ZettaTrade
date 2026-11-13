@@ -10,7 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class CsvExportDependencyInjection
 {
-    /// <summary>Register the CSV export service.</summary>
+    /// <summary>Register the CSV export service and the statement bundle writer.</summary>
     public static IServiceCollection AddCsvExportServices(this IServiceCollection services) => services
-        .AddSingleton<ICsvExportService, CsvExportService>();
+        .AddSingleton<ICsvExportService, CsvExportService>()
+        .AddSingleton<IStatementExportService, StatementExportService>();
 }

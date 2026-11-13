@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
+using ZettaTrade.Infrastructure.Export;
 
 /// <summary>
 /// Incremental aggregator for the trade-statistics dashboard: ingests
@@ -39,6 +40,13 @@ public sealed class TradeStatsAccumulator
 
     /// <summary>The equity curve so far: the zero anchor at the first fill's time, then one point per closing fill.</summary>
     private readonly List<EquityCurvePoint> _equity = [];
+
+    /// <summary>
+    /// The realized-trade ledger (T-210): one row per booked closing fill,
+    /// the same outcomes the summary and the curve derive from — the
+    /// statement's realized section reads exactly this.
+    /// </summary>
+    private readonly List<StatementRealizedTrade> _realizedTrades = [];
 
     private int _trades;
     private int _wins;
@@ -99,6 +107,13 @@ public sealed class TradeStatsAccumulator
             Equity: [.. _equity]);
     }
 
+    /// <summary>
+    /// The realized-trade ledger so far (T-210): a fresh copy, like the
+    /// summary's equity curve — the scan keeps appending, a snapshot must
+    /// not see later rows.
+    /// </summary>
+    public IReadOnlyList<StatementRealizedTrade> GetRealizedTrades() => [.. _realizedTrades];
+
     #endregion Public Methods
 
     #region Private Methods
@@ -149,23 +164,38 @@ public sealed class TradeStatsAccumulator
             return;
         }
 
-        BookClose(position, fillSign * filled, price, order.CreatedAt);
+        BookClose(position, order, price);
     }
 
     /// <summary>
     /// A closing fill: book the closing share of the position against its
     /// average entry, then hand the fill's remainder to the position state —
     /// nothing left on an exact close, a flipped remainder otherwise. One
-    /// fill = at most one trade outcome, per the fill-pair contract.
+    /// fill = at most one trade outcome, per the fill-pair contract; the
+    /// outcome lands in the realized-trade ledger exactly as the summary
+    /// and the curve see it (T-210).
     /// </summary>
-    private void BookClose(SymbolPosition position, decimal closingDelta, decimal price, DateTimeOffset time)
+    private void BookClose(SymbolPosition position, Order order, decimal price)
     {
+        var closingDelta = (order.Side == OrderSide.Buy ? 1m : -1m) * order.FilledQuantity.Value;
+        var time = order.CreatedAt;
+
         var closable = Math.Min(Math.Abs(closingDelta), Math.Abs(position.SignedQuantity));
         var direction = decimal.Sign(position.SignedQuantity);
         var realized = direction * (price - position.AverageEntry) * closable;
 
         _trades++;
         _realizedTotal += realized;
+        _realizedTrades.Add(new StatementRealizedTrade(
+            ClosedAt: time,
+            ExchangeId: order.ExchangeId,
+            Symbol: order.Symbol.Normalized,
+            ClosingSide: order.Side.ToString(),
+            Quantity: closable,
+            EntryPrice: position.AverageEntry,
+            ExitPrice: price,
+            RealizedPnl: realized,
+            QuoteCurrency: order.Symbol.QuoteAsset));
 
         if (realized > 0)
         {

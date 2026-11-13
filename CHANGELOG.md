@@ -1,3 +1,36 @@
+## [0.1.0-alpha.154] - 2026-11-13
+
+Build of board task T-210 (branch `feat/export-parity`): the trade
+statistics window exports the traded surface's positions as one CSV and
+the whole trade statement as a bundle (orders, fills, the realized-trade
+ledger, a balances snapshot — CSVs plus a JSON manifest).
+
+### Added
+- The positions CSV export (the `Stats.ExportPositions` route): one row
+  per open position, the venue's served fields plus the unrealized PnL
+  computed in the symbol's quote currency — an empty cell when the symbol
+  carries no quote asset (the honest unknown, never a fabricated
+  currency).
+- The trade statement bundle (the `Stats.ExportStatement` route): a fresh
+  full scan under the window's filter rides the existing accumulator
+  math, the fill ledger is extracted from the scanned orders, the
+  fill-pair realized rows are read from the same ledger the summary and
+  the equity curve derive from, and a balances snapshot is taken from the
+  traded surface at export time. The four CSV sections plus the JSON
+  manifest (camelCase, the filter echo, the per-file row counts) write
+  under one picked base name; the manifest is written LAST, so an
+  interrupted bundle leaves no manifest on disk.
+- The realized-trade ledger on the stats accumulator: one row per booked
+  closing fill (the fill-pair outcome exactly as the summary sees it),
+  with the quote currency carried as the honest null for quote-less
+  symbols.
+
+### Changed
+- An empty filter range exports nothing: the localized refusal, never a
+  broken file. A cancelled save dialog exports nothing. An export fault
+  (the venue, the journal read, the local IO) rides the window's error
+  line and the window stays usable.
+
 ## [0.1.0-alpha.153] - 2026-11-13
 
 Build of board task T-209 (branch `feat/portfolio-history`): the balances

@@ -11,7 +11,9 @@ using ZettaTrade.Infrastructure.Persistence;
 /// journal's registered <see cref="DbContextOptions{OrderHistoryDbContext}"/>
 /// (Infrastructure's <c>AddOrderHistory</c> owns that singleton); the view
 /// model is transient — every open starts a fresh scan of the journal as it
-/// stands right now.
+/// stands right now. The export routes (T-210) resolve the traded surface
+/// (the single <see cref="ZettaTrade.Core.Interfaces.ITradingAdapter"/>) and
+/// the Infrastructure export writers.
 /// </summary>
 public static class TradeStatsDependencyInjection
 {
