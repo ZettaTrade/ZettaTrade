@@ -325,6 +325,191 @@ public sealed class CsvExportServiceTests
 
     #endregion Candles
 
+    #region Positions (T-210)
+
+    [Fact]
+    public async Task ExportPositionsAsync_WritesTheGoldenHeaderAndRow()
+    {
+        await WithTempFileAsync(async path =>
+        {
+            var position = new Position
+            {
+                Id = "pos-1",
+                ExchangeId = "paper",
+                Symbol = Symbol.Parse("BTC/USDT"),
+                Side = OrderSide.Buy,
+                Quantity = new Quantity(0.5m),
+                EntryPrice = new Price(50_000m),
+                CurrentPrice = new Price(51_000m),
+                OpenedAt = BaseTime,
+                StopLoss = new Price(49_000m),
+                TakeProfit = new Price(53_000m),
+            };
+
+            await Service.ExportPositionsAsync(path, [position]);
+
+            (await File.ReadAllTextAsync(path)).Should().Be(
+                "id,exchange,symbol,side,quantity,entryPrice,currentPrice,openedAt,stopLoss,takeProfit,unrealizedPnl\r\n" +
+                "pos-1,paper,BTC/USDT,Buy,0.5,50000,51000,2026-01-01T12:00:00.000Z,49000,53000,500.0\r\n",
+                "the long's unrealized PnL books (51 000 - 50 000) × 0.5 in the quote");
+        });
+    }
+
+    [Fact]
+    public async Task ExportPositionsAsync_QuotelessSymbol_LeavesThePnlCellEmpty()
+    {
+        // A stock position carries no quote asset: the PnL is the honest
+        // unknown — an empty cell, never a fabricated currency.
+        await WithTempFileAsync(async path =>
+        {
+            var position = new Position
+            {
+                Id = "pos-2",
+                ExchangeId = "paper",
+                Symbol = Symbol.Parse("AAPL"),
+                Side = OrderSide.Sell,
+                Quantity = new Quantity(10m),
+                EntryPrice = new Price(190m),
+                CurrentPrice = new Price(185m),
+                OpenedAt = BaseTime.AddMinutes(5),
+            };
+
+            await Service.ExportPositionsAsync(path, [position]);
+
+            var lines = (await File.ReadAllLinesAsync(path)).Should().HaveCount(2).And.Subject.ToArray();
+            lines[1].Should().Be("pos-2,paper,AAPL,Sell,10,190,185,2026-01-01T12:05:00.000Z,,,");
+        });
+    }
+
+    [Fact]
+    public async Task ExportPositionsAsync_EmptySet_ProducesAHeaderOnlyFile()
+    {
+        await WithTempFileAsync(async path =>
+        {
+            await Service.ExportPositionsAsync(path, []);
+
+            (await File.ReadAllTextAsync(path)).Should().Be(
+                "id,exchange,symbol,side,quantity,entryPrice,currentPrice,openedAt,stopLoss,takeProfit,unrealizedPnl\r\n");
+        });
+    }
+
+    [Fact]
+    public async Task ExportPositionsAsync_WritesUtf8WithoutTheBom()
+    {
+        await WithTempFileAsync(async path =>
+        {
+            await Service.ExportPositionsAsync(path, []);
+
+            // The encoding discipline rides the shared writer: the first
+            // bytes must NOT spell the UTF-8 byte order mark.
+            var bytes = (await File.ReadAllBytesAsync(path)).Should().HaveCountGreaterThanOrEqualTo(3).And.Subject.ToArray();
+            (bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+                .Should().BeFalse("the file must not start with the UTF-8 BOM");
+        });
+    }
+
+    #endregion Positions (T-210)
+
+    #region Realized Trades (T-210)
+
+    [Fact]
+    public async Task ExportRealizedTradesAsync_WritesTheGoldenHeaderAndRow()
+    {
+        await WithTempFileAsync(async path =>
+        {
+            var trade = new Export.StatementRealizedTrade(
+                ClosedAt: BaseTime.AddMinutes(3),
+                ExchangeId: "paper",
+                Symbol: "BTC/USDT",
+                ClosingSide: "Sell",
+                Quantity: 0.02m,
+                EntryPrice: 50_100m,
+                ExitPrice: 50_300m,
+                RealizedPnl: 4m,
+                QuoteCurrency: "USDT");
+
+            await Service.ExportRealizedTradesAsync(path, [trade]);
+
+            (await File.ReadAllTextAsync(path)).Should().Be(
+                "closedAt,exchange,symbol,side,quantity,entryPrice,exitPrice,realizedPnl,quoteCurrency\r\n" +
+                "2026-01-01T12:03:00.000Z,paper,BTC/USDT,Sell,0.02,50100,50300,4,USDT\r\n");
+        });
+    }
+
+    [Fact]
+    public async Task ExportRealizedTradesAsync_QuotelessSymbol_LeavesTheCellEmpty()
+    {
+        await WithTempFileAsync(async path =>
+        {
+            var trade = new Export.StatementRealizedTrade(
+                ClosedAt: BaseTime,
+                ExchangeId: "paper",
+                Symbol: "AAPL",
+                ClosingSide: "Buy",
+                Quantity: 10m,
+                EntryPrice: 190m,
+                ExitPrice: 185m,
+                RealizedPnl: -50m,
+                QuoteCurrency: null);
+
+            await Service.ExportRealizedTradesAsync(path, [trade]);
+
+            var lines = (await File.ReadAllLinesAsync(path)).Should().HaveCount(2).And.Subject.ToArray();
+            lines[1].Should().EndWith(",-50,");
+        });
+    }
+
+    [Fact]
+    public async Task ExportRealizedTradesAsync_EmptySet_ProducesAHeaderOnlyFile()
+    {
+        await WithTempFileAsync(async path =>
+        {
+            await Service.ExportRealizedTradesAsync(path, []);
+
+            (await File.ReadAllTextAsync(path)).Should().Be(
+                "closedAt,exchange,symbol,side,quantity,entryPrice,exitPrice,realizedPnl,quoteCurrency\r\n");
+        });
+    }
+
+    #endregion Realized Trades (T-210)
+
+    #region Balances (T-210)
+
+    [Fact]
+    public async Task ExportBalancesAsync_WritesTheSnapshotInAssetOrder()
+    {
+        // The dictionary's insertion order is not a file contract: the
+        // asset-ordered snapshot stays stable whatever the caller's order.
+        await WithTempFileAsync(async path =>
+        {
+            var balances = new Dictionary<string, Money>
+            {
+                ["USDT"] = new(1_000m, "USDT"),
+                ["BTC"] = new(0.5m, "BTC"),
+            };
+
+            await Service.ExportBalancesAsync(path, balances);
+
+            (await File.ReadAllTextAsync(path)).Should().Be(
+                "asset,amount\r\n" +
+                "BTC,0.5\r\n" +
+                "USDT,1000\r\n");
+        });
+    }
+
+    [Fact]
+    public async Task ExportBalancesAsync_EmptySet_ProducesAHeaderOnlyFile()
+    {
+        await WithTempFileAsync(async path =>
+        {
+            await Service.ExportBalancesAsync(path, new Dictionary<string, Money>());
+
+            (await File.ReadAllTextAsync(path)).Should().Be("asset,amount\r\n");
+        });
+    }
+
+    #endregion Balances (T-210)
+
     #region Format
 
     [Fact]

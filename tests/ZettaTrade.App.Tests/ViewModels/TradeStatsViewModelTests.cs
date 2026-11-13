@@ -2,6 +2,7 @@ namespace ZettaTrade.App.Tests.ViewModels;
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading;
@@ -15,7 +16,9 @@ using Xunit;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
+using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
@@ -41,6 +44,9 @@ public sealed class TradeStatsViewModelTests
     #region Fixture
 
     private readonly IOrderStatsQuery _query = Substitute.For<IOrderStatsQuery>();
+    private readonly ITradingAdapter _trading = Substitute.For<ITradingAdapter>();
+    private readonly ICsvExportService _csv = Substitute.For<ICsvExportService>();
+    private readonly IStatementExportService _statementExport = Substitute.For<IStatementExportService>();
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
 
     public TradeStatsViewModelTests()
@@ -55,6 +61,9 @@ public sealed class TradeStatsViewModelTests
 
     private TradeStatsViewModel CreateViewModel() => new(
         _query,
+        _trading,
+        _csv,
+        _statementExport,
         _localization,
         NullLogger<TradeStatsViewModel>.Instance);
 
@@ -247,4 +256,212 @@ public sealed class TradeStatsViewModelTests
     }
 
     #endregion Input Guardians
+
+    #region Exports (T-210)
+
+    private static Position LongPosition(string symbol = "BTC/USDT") => new()
+    {
+        Id = "pos-1",
+        ExchangeId = "paper",
+        Symbol = Symbol.Parse(symbol),
+        Side = OrderSide.Buy,
+        Quantity = new Quantity(0.5m),
+        EntryPrice = new Price(50_000m),
+        CurrentPrice = new Price(51_000m),
+        OpenedAt = BaseTime,
+    };
+
+    private void PickPositionsPath(TradeStatsViewModel viewModel, string? path) =>
+        viewModel.SavePositionsCsvRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(path);
+            return Task.CompletedTask;
+        });
+
+    private void PickStatementPath(TradeStatsViewModel viewModel, string? path) =>
+        viewModel.SaveStatementRequested.RegisterHandler(context =>
+        {
+            context.SetOutput(path);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public async Task ExportPositions_WritesTheTradedSurfacesPositionsToThePickedPath()
+    {
+        var positions = new[] { LongPosition() };
+        _trading.GetPositionsAsync(Arg.Any<CancellationToken>()).Returns(positions);
+        var viewModel = CreateViewModel();
+        PickPositionsPath(viewModel, @"C:\exports\positions.csv");
+
+        await viewModel.ExportPositionsCommand.Execute(RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().BeNull();
+        await _csv.Received(1).ExportPositionsAsync(
+            @"C:\exports\positions.csv",
+            Arg.Is<IReadOnlyList<Position>>(list => list.SequenceEqual(positions)),
+            Arg.Any<CancellationToken>());
+        // The positions export reads the venue, never the journal scan.
+        _query.DidNotReceiveWithAnyArgs();
+    }
+
+    [Fact]
+    public async Task ExportPositions_CancelledDialog_ExportsNothing()
+    {
+        _trading.GetPositionsAsync(Arg.Any<CancellationToken>()).Returns(new[] { LongPosition() });
+        var viewModel = CreateViewModel();
+        PickPositionsPath(viewModel, null);
+
+        await viewModel.ExportPositionsCommand.Execute(RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().BeNull("a cancelled dialog is a quiet no-op, never an error");
+        await _csv.DidNotReceiveWithAnyArgs().ExportPositionsAsync(
+            default!, Arg.Any<IReadOnlyList<Position>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExportPositions_VenueFault_ReportsTheLocalizedFailureAndStaysUsable()
+    {
+        _trading.GetPositionsAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromException<IReadOnlyList<Position>>(
+                new InvalidOperationException("venue offline")));
+        var viewModel = CreateViewModel();
+        PickPositionsPath(viewModel, @"C:\exports\positions.csv");
+
+        await viewModel.ExportPositionsCommand.Execute(RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().Be("[Stats.ExportFailedFormat:venue offline]");
+        viewModel.HasErrorMessage.Should().BeTrue();
+
+        // The window stays usable: the next export clears the failure line.
+        _trading.GetPositionsAsync(Arg.Any<CancellationToken>()).Returns(new[] { LongPosition() });
+        await viewModel.ExportPositionsCommand.Execute(RxVoid.Default);
+        viewModel.ErrorMessage.Should().BeNull();
+        await _csv.Received(1).ExportPositionsAsync(
+            @"C:\exports\positions.csv",
+            Arg.Any<IReadOnlyList<Position>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExportStatement_WritesTheScannedBundleUnderTheWindowFilter()
+    {
+        var page = new[]
+        {
+            Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+            Fill(OrderSide.Sell, 1m, 12m, 1, "o-2"),
+        };
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(page, Array.Empty<Order>());
+        _trading.GetBalancesAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, Money>
+            {
+                ["USDT"] = new Money(1_000m, "USDT"),
+                ["BTC"] = new Money(0.5m, "BTC"),
+            });
+        var viewModel = CreateViewModel();
+        viewModel.SymbolFilterText = " btc/usdt ";
+        viewModel.VenueIndex = 1;
+        PickStatementPath(viewModel, @"C:\exports\trade-statement.json");
+        var captured = default(StatementExport);
+        _statementExport
+            .When(w => w.WriteAsync(
+                Arg.Any<string>(),
+                Arg.Any<StatementExport>(),
+                Arg.Any<CancellationToken>()))
+            .Do(call => captured = call.ArgAt<StatementExport>(1));
+
+        await viewModel.ExportStatementCommand.Execute(RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().BeNull();
+        await _statementExport.Received(1).WriteAsync(
+            @"C:\exports\trade-statement.json",
+            Arg.Any<StatementExport>(),
+            Arg.Any<CancellationToken>());
+        captured.Should().NotBeNull();
+        captured!.Orders.Should().Equal(page, "the bundle carries the scan's whole order set");
+        captured.SymbolFilter.Should().Be("BTC/USDT", "the filter echo carries the CORE spelling");
+        captured.ExchangeFilter.Should().BeNull();
+        captured.IsPaperFilter.Should().BeTrue("venue slot 1 is the paper tag");
+        captured.FromUtc.Should().BeNull();
+        captured.ToUtc.Should().BeNull();
+        captured.Balances.Should().HaveCount(2);
+        captured.Balances["USDT"].Amount.Should().Be(1_000m);
+        var trade = captured.RealizedTrades.Should().ContainSingle().Subject;
+        trade.Quantity.Should().Be(1m);
+        trade.EntryPrice.Should().Be(10m);
+        trade.ExitPrice.Should().Be(12m);
+        trade.RealizedPnl.Should().Be(2m);
+        trade.ClosingSide.Should().Be("Sell");
+        trade.Symbol.Should().Be("BTC/USDT");
+        trade.ExchangeId.Should().Be("paper");
+        trade.QuoteCurrency.Should().Be("USDT");
+        trade.ClosedAt.Should().Be(BaseTime.AddMinutes(1));
+    }
+
+    [Fact]
+    public async Task ExportStatement_EmptyRange_RefusesWithoutTouchingTheWriters()
+    {
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<Order>());
+        var viewModel = CreateViewModel();
+        PickStatementPath(viewModel, @"C:\exports\trade-statement.json");
+
+        await viewModel.ExportStatementCommand.Execute(RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().Be(
+            "[Stats.StatementEmptyRange]",
+            "an empty range exports nothing, never a broken bundle");
+        await _statementExport.DidNotReceiveWithAnyArgs().WriteAsync(
+            default!, Arg.Any<StatementExport>(), Arg.Any<CancellationToken>());
+        // The balance snapshot only rides a bundle that exists.
+        _trading.DidNotReceiveWithAnyArgs();
+    }
+
+    [Fact]
+    public async Task ExportStatement_UnparsableSymbol_ReportsAndNeverScans()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.SymbolFilterText = "btc / usdt";
+        PickStatementPath(viewModel, @"C:\exports\trade-statement.json");
+
+        await viewModel.ExportStatementCommand.Execute(RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().Be("[Stats.InvalidSymbol:btc / usdt]");
+        _query.DidNotReceiveWithAnyArgs();
+        await _statementExport.DidNotReceiveWithAnyArgs().WriteAsync(
+            default!, Arg.Any<StatementExport>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExportStatement_StorageFault_ReportsTheLocalizedFailure()
+    {
+        var page = new[] { Fill(OrderSide.Buy, 1m, 10m, 0, "o-1") };
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(page, Array.Empty<Order>());
+        _trading.GetBalancesAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, Money> { ["USDT"] = new Money(100m, "USDT") });
+        _statementExport
+            .WriteAsync(Arg.Any<string>(), Arg.Any<StatementExport>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromException(new IOException("disk full")));
+        var viewModel = CreateViewModel();
+        PickStatementPath(viewModel, @"C:\exports\trade-statement.json");
+
+        await viewModel.ExportStatementCommand.Execute(RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().Be("[Stats.ExportFailedFormat:disk full]");
+    }
+
+    #endregion Exports (T-210)
 }

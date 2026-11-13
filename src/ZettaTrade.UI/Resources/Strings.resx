@@ -1680,6 +1680,18 @@ Estimated fee: {10}</value>
   <data name="Stats.Apply" xml:space="preserve">
     <value>Apply</value>
   </data>
+  <data name="Stats.ExportPositions" xml:space="preserve">
+    <value>Export positions</value>
+  </data>
+  <data name="Stats.ExportStatement" xml:space="preserve">
+    <value>Export statement</value>
+  </data>
+  <data name="Stats.ExportFailedFormat" xml:space="preserve">
+    <value>The export failed: {0}</value>
+  </data>
+  <data name="Stats.StatementEmptyRange" xml:space="preserve">
+    <value>Nothing to export: the current filter has no orders.</value>
+  </data>
   <data name="Stats.Trades" xml:space="preserve">
     <value>Trades</value>
   </data>

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
+using ZettaTrade.Core.ValueObjects;
 
 /// <summary>
 /// The one CSV writer for every local export surface (orders, fills,
@@ -97,6 +98,46 @@ public sealed class CsvExportService : ICsvExportService
         "volume",
     ];
 
+    /// <summary>
+    /// Position columns: the venue's served fields plus the unrealized PnL
+    /// in the symbol's quote currency (T-210).
+    /// </summary>
+    private static readonly string[] PositionsHeader =
+    [
+        "id",
+        "exchange",
+        "symbol",
+        "side",
+        "quantity",
+        "entryPrice",
+        "currentPrice",
+        "openedAt",
+        "stopLoss",
+        "takeProfit",
+        "unrealizedPnl",
+    ];
+
+    /// <summary>Realized-trade columns: one closing fill's booked outcome (T-210).</summary>
+    private static readonly string[] RealizedTradesHeader =
+    [
+        "closedAt",
+        "exchange",
+        "symbol",
+        "side",
+        "quantity",
+        "entryPrice",
+        "exitPrice",
+        "realizedPnl",
+        "quoteCurrency",
+    ];
+
+    /// <summary>Balance snapshot columns: the asset and its served amount (T-210).</summary>
+    private static readonly string[] BalancesHeader =
+    [
+        "asset",
+        "amount",
+    ];
+
     #endregion Header Rows
 
     #region Public API
@@ -146,6 +187,54 @@ public sealed class CsvExportService : ICsvExportService
             path,
             CandlesHeader,
             bars.Select(BarToRow),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task ExportPositionsAsync(
+        string path,
+        IReadOnlyList<Position> positions,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(positions);
+
+        await WriteDocumentAsync(
+            path,
+            PositionsHeader,
+            positions.Select(PositionToRow),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task ExportRealizedTradesAsync(
+        string path,
+        IReadOnlyList<StatementRealizedTrade> trades,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(trades);
+
+        await WriteDocumentAsync(
+            path,
+            RealizedTradesHeader,
+            trades.Select(RealizedTradeToRow),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task ExportBalancesAsync(
+        string path,
+        IReadOnlyDictionary<string, Money> balances,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(balances);
+
+        await WriteDocumentAsync(
+            path,
+            BalancesHeader,
+            balances.Keys.Order(StringComparer.Ordinal).Select(asset => BalanceToRow(asset, balances[asset])),
             cancellationToken);
     }
 
@@ -296,9 +385,55 @@ public sealed class CsvExportService : ICsvExportService
     };
 
     /// <summary>Whether a journal order carries at least one execution.</summary>
-    private static bool HasExecution(Order order) =>
+    internal static bool HasExecution(Order order) =>
         order.Status is OrderStatus.Filled or OrderStatus.PartiallyFilled
         && order.FilledQuantity.Value > 0m;
+
+    /// <summary>
+    /// One open position as a CSV row: the venue's served fields plus the
+    /// unrealized PnL in the symbol's quote currency — an empty cell when
+    /// the symbol carries no quote asset (the PnL is undefined without one,
+    /// never a fabricated currency).
+    /// </summary>
+    private static string?[] PositionToRow(Position position)
+    {
+        var quote = position.Symbol.QuoteAsset;
+        return new string?[]
+        {
+            position.Id,
+            position.ExchangeId,
+            position.Symbol.Normalized,
+            position.Side.ToString(),
+            FormatAmount(position.Quantity.Value),
+            FormatAmount(position.EntryPrice.Value),
+            FormatAmount(position.CurrentPrice.Value),
+            FormatTimestamp(position.OpenedAt),
+            position.StopLoss is { } stop ? FormatAmount(stop.Value) : null,
+            position.TakeProfit is { } take ? FormatAmount(take.Value) : null,
+            quote is { } quoteAsset ? FormatAmount(position.UnrealizedPnl(quoteAsset).Amount) : null,
+        };
+    }
+
+    /// <summary>One booked closing fill's outcome as a CSV row.</summary>
+    private static string?[] RealizedTradeToRow(StatementRealizedTrade trade) => new string?[]
+    {
+        FormatTimestamp(trade.ClosedAt),
+        trade.ExchangeId,
+        trade.Symbol,
+        trade.ClosingSide,
+        FormatAmount(trade.Quantity),
+        FormatAmount(trade.EntryPrice),
+        FormatAmount(trade.ExitPrice),
+        FormatAmount(trade.RealizedPnl),
+        trade.QuoteCurrency,
+    };
+
+    /// <summary>One served balance as a CSV row (the key names the asset).</summary>
+    private static string?[] BalanceToRow(string asset, Money balance) => new string?[]
+    {
+        asset,
+        FormatAmount(balance.Amount),
+    };
 
     #endregion Row Mappers
 

@@ -1680,6 +1680,18 @@
   <data name="Stats.Apply" xml:space="preserve">
     <value>Применить</value>
   </data>
+  <data name="Stats.ExportPositions" xml:space="preserve">
+    <value>Экспорт позиций</value>
+  </data>
+  <data name="Stats.ExportStatement" xml:space="preserve">
+    <value>Экспорт отчёта</value>
+  </data>
+  <data name="Stats.ExportFailedFormat" xml:space="preserve">
+    <value>Не удалось выполнить экспорт: {0}</value>
+  </data>
+  <data name="Stats.StatementEmptyRange" xml:space="preserve">
+    <value>Экспортировать нечего: по текущему фильтру заявок нет.</value>
+  </data>
   <data name="Stats.Trades" xml:space="preserve">
     <value>Сделки</value>
   </data>
