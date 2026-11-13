@@ -221,6 +221,11 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | planned | - |
 | T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | planned | - |
 | T-216 Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses (queued from the T-193/T-194 gate fights) | feat/flaky-theme-drain | done | - |
+| T-217 Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot (the 2026-11-13 review round) | feat/perf-fixes | in-progress | - |
+| T-218 Virtualize the AI chat transcript (queued from the 2026-11-13 review round) | feat/chat-virtualization | planned | - |
+| T-219 Stream the statement export past the whole-journal materialization (queued from the 2026-11-13 review round) | feat/statement-stream | planned | - |
+| T-220 Non-blocking alert beep (queued from the 2026-11-13 review round) | fix/alert-beep-async | planned | - |
+| T-221 Stabilize the E2E DetachCycle flake (queued from the 2026-11-13 review round) | fix/e2e-detach-flake | planned | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -569,6 +574,89 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** a backup→restore round-trip restores the data stores; a corrupt archive
   refuses honestly; a pin proves the archive never carries secret material.
 - **Tests:** the round-trip battery; the corrupt-archive negative; the no-secrets pin.
+- **Status:** planned.
+
+## T-217 — Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot
+
+- **Branch:** feat/perf-fixes, worktree zt-perf-fixes, base develop@b92eb0e (claimed
+  2026-11-13 off the synced board — the 2026-11-13 code+performance review round: the
+  review pulled T-209/T-210 and chased the app's stall reports to two hot paths).
+- **Origin:** the review — the streamed reply (T-205) rebuilt and re-rendered the bound
+  text per token over a non-virtualized transcript, and the trade-statistics scan
+  re-copied its whole growing equity curve per published page.
+- **What:** the streamed reply's re-render throttles to a bounded cadence (the deltas
+  still append into the buffer every time; the settlement's final flush lands the tail
+  the throttle held back), and the accumulator's snapshot publishes a pinned
+  append-only equity view instead of a fresh copy per page.
+- **Scope:** ChatViewModel + TradeStatsAccumulator (App) and their test families; no
+  resx, no contracts, no UI shape change.
+- **Acceptance:** a rapid token stream settles with the full arrived answer (the
+  persisted turn included); a published curve never grows with the scan's later
+  appends; the T-205 progressive-render and T-206 persistence semantics hold unchanged.
+- **Tests:** the throttle-flush streaming fact; the snapshot-pinning and
+  index-guard accumulator facts.
+- **Status:** in-progress.
+
+## T-218 — Virtualize the AI chat transcript
+
+- **Branch:** queued 2026-11-13 (the 2026-11-13 review round).
+- **Origin:** the review — the transcript is a non-virtualized ItemsControl over a
+  growing ObservableCollection (AssistantPanelView), so every content change
+  re-measures the whole scroll content; long conversations pay for every bubble.
+- **What:** a virtualized host for the transcript — variable-height bubbles, the
+  copy-pin strip and the scrolled-to-bottom behavior preserved; the honest full-render
+  semantics stay.
+- **Scope:** AssistantPanelView (+ its code-behind plumbing) only; resx untouched.
+- **Acceptance:** a several-hundred-message conversation scrolls and streams without
+  the whole-list re-measure; the copy affordance and the auto-scroll hold.
+- **Tests:** the panel's existing interaction facts; a long-transcript render fact.
+- **Status:** planned.
+
+## T-219 — Stream the statement export past the whole-journal materialization
+
+- **Branch:** queued 2026-11-13 (the 2026-11-13 review round).
+- **Origin:** the review — the statement export collects every scanned order into a
+  list before writing, so a six-figure journal spikes the heap on an on-demand route.
+- **What:** the orders/fills sections stream page by page straight into their CSVs
+  during the one scan pass; the realized ledger and the balances ride the existing
+  end-of-scan reads; the manifest stays LAST (the completeness marker).
+- **Scope:** the statement export service + the stats VM export flow; the manifest
+  shape and the CSV contracts unchanged.
+- **Acceptance:** the bundle bytes stay identical to the materialized shape
+  (golden-locked); the peak memory stays bounded by one page plus the realized ledger.
+- **Tests:** the existing statement goldens hold byte-for-byte; a bounded-memory pin.
+- **Status:** planned.
+
+## T-220 — Non-blocking alert beep
+
+- **Branch:** queued 2026-11-13 (the 2026-11-13 review round).
+- **Origin:** the review — the Windows beep is a synchronous 180 ms kernel32 call on
+  the alert engine's consumer loop: a firing burst stalls the evaluation queue, not
+  the UI thread.
+- **What:** the beep leaves the fire path unblocked (fire-and-forget playback) while
+  the degrade contract stays honest (a failed playback still logs through the
+  engine's degrade lane) and the engine facts stay deterministic.
+- **Scope:** the alert engine's fire path + the beep player seam + the engine test rig.
+- **Acceptance:** a firing burst never delays the subsequent evaluations by the beep's
+  duration; a failed beep degrades with a logged warning exactly as today.
+- **Tests:** the engine's beep-fact determinism (the rig awaits the playback or the
+  dispatch is injectable).
+- **Status:** planned.
+
+## T-221 — Stabilize the E2E DetachCycle flake
+
+- **Branch:** queued 2026-11-13 (the 2026-11-13 review round).
+- **Origin:** the review round's gate runs — the DetachCycle family needed the gate's
+  flaky retry on both passes; it passed isolated on both the untouched base and the
+  fix tip.
+- **What:** the detach-cycle wait stops racing the tree's detach churn (the bounded
+  predicate retry's budget and poll cadence sized against the observed variance), so
+  the family passes a full gate first-run.
+- **Scope:** tests-only — the E2E detach-cycle family; no product surface, no bump,
+  no CHANGELOG (the T-216 precedent).
+- **Acceptance:** the family survives a full gate run first-try; a genuinely stuck
+  detach still fails bounded.
+- **Tests:** the family's own evidence-driven shape decided at implementation.
 - **Status:** planned.
 
 
