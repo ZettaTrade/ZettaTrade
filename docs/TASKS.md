@@ -213,7 +213,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | done | - |
 | T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-provider-openai | done | - |
 | T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | done | - |
-| T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | planned | - |
+| T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | in-progress | - |
 | T-210 Export parity: positions CSV + trade statement (backlog sweep 2026-11-12) | feat/export-parity | planned | - |
 | T-211 Trade notes and tags (backlog sweep 2026-11-12) | feat/trade-notes | planned | - |
 | T-212 Backtest parameter optimization (backlog sweep 2026-11-12) | feat/backtest-optimize | planned | - |
@@ -499,7 +499,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-209 — Portfolio value history
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/portfolio-history, worktree zt-portfolio-history, base develop@2c3e7a9
+  (claimed 2026-11-13 off the synced board).
 - **Origin:** the sweep — the PnL engine (T-082) and the stats equity curve (T-083) ship; the
   balances panel has no time dimension.
 - **What:** periodic portfolio-value snapshots per trading account (paper-first) persisted to
@@ -511,7 +512,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** the curve survives restart and reads the snapshot history; the allocation
   sums to the portfolio value; the snapshots stay cheap (a bounded write cadence).
 - **Tests:** the snapshot cadence battery; the store migration pins.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-210 — Export parity: positions CSV + trade statement
 
