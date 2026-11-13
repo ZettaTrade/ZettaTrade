@@ -344,6 +344,8 @@ public sealed class NotificationCenterTests
             .Should().Be(NotificationRoute.None, "the health strip lives in the status bar — no deeper panel exists to open");
         NotificationRouteMap.Map(NotificationKind.DoNotDisturbSummary)
             .Should().Be(NotificationRoute.HistoryDrawer, "the summary's readable surface is the notification history");
+        NotificationRouteMap.Map(NotificationKind.AlertFired)
+            .Should().Be(NotificationRoute.None, "the alerts manager opens from the Trading menu — a fire's click only dismisses");
 
         var act = () => NotificationRouteMap.Map((NotificationKind)int.MaxValue);
         act.Should().Throw<ArgumentOutOfRangeException>("an unnamed kind faults, never a silently substituted route");

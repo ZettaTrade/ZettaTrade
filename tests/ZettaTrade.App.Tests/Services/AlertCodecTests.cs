@@ -9,8 +9,9 @@ using Xunit;
 using ZettaTrade.App.Services;
 
 /// <summary>
-/// The alerts codec's persistence facts (T-096): a full roster round-trips
-/// every fact (both kinds, optional stamps survive), each stored entry is
+/// The alerts codec's persistence facts (T-096, T-204): a full roster round-trips
+/// every fact (both kinds, optional stamps survive, the re-arm facts ride
+/// version 3), each stored entry is
 /// exact-or-skipped (unknown kind/garbage enums/missing required facts skip
 /// with a count — no default-substituted rows), the percent kind's unused
 /// price facts are ignored harmlessly, stored member names and enums parse
@@ -171,6 +172,117 @@ public sealed class AlertCodecTests
         decoded.SkippedCount.Should().Be(0);
     }
 
+    [Fact]
+    public void RoundTrip_TheReArmFactsSurvive()
+    {
+        var roster = new[]
+        {
+            PriceAlert(),
+            PriceAlert() with
+            {
+                ReArm = AlertReArmMode.Cooldown,
+                CooldownMinutes = 5,
+                Sound = AlertSoundChoice.Silent,
+            },
+            PriceAlert() with { ReArm = AlertReArmMode.PerCross },
+        };
+
+        var decoded = AlertCodec.Decode(AlertCodec.Encode(roster));
+
+        decoded.SkippedCount.Should().Be(0, "version 3 carries the re-arm facts verbatim");
+        decoded.Valid.Should().Equal(roster);
+    }
+
+    [Fact]
+    public void AVersion2Roster_DecodesTheReArmFactsAsDefaults()
+    {
+        // The existing cross roster helper pins the version-2 shape: it
+        // predates the re-arm facts entirely, so they decode as the defaults
+        // (the terminal one-shot with the beep).
+        var decoded = AlertCodec.Decode(CrossRoster(
+            "{\"name\":\"RSI\",\"period\":14,\"source\":\"IndicatorValue\",\"level\":70}"));
+
+        decoded.SkippedCount.Should().Be(0);
+        var definition = decoded.Valid.Should().ContainSingle().Subject;
+        definition.ReArm.Should().Be(AlertReArmMode.OneShot);
+        definition.CooldownMinutes.Should().Be(0);
+        definition.Sound.Should().Be(AlertSoundChoice.Beep);
+    }
+
+    [Fact]
+    public void AVersion3PriceEntry_WithItsReArmFacts_DecodesWhole()
+    {
+        var payload = V3PriceRoster(Array.Empty<string>());
+
+        var decoded = AlertCodec.Decode(payload);
+
+        decoded.SkippedCount.Should().Be(0);
+        var definition = decoded.Valid.Should().ContainSingle().Subject;
+        definition.ReArm.Should().Be(AlertReArmMode.PerCross);
+        definition.CooldownMinutes.Should().Be(0);
+        definition.Sound.Should().Be(AlertSoundChoice.Silent);
+    }
+
+    [Theory]
+    [InlineData("reArm")]
+    [InlineData("sound")]
+    public void AVersion3Entry_MissingOneReArmFact_IsSkipped(string absentMember)
+    {
+        var decoded = AlertCodec.Decode(V3PriceRoster([absentMember]));
+
+        decoded.SkippedCount.Should().Be(1, "version 3 demands the re-arm facts by name, never defaults them");
+        decoded.Valid.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AVersion3CooldownEntry_WithoutItsMinutes_IsSkipped()
+    {
+        var decoded = AlertCodec.Decode(V3PriceRoster(["cooldownMinutes"], reArm: "Cooldown"));
+
+        decoded.SkippedCount.Should().Be(1, "a cooldown re-arm cannot be honored without its window");
+        decoded.Valid.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AVersion3CooldownEntry_WithItsMinutes_DecodesWhole()
+    {
+        var payload = V3PriceRoster(Array.Empty<string>(), reArm: "Cooldown", cooldownMinutes: "5", sound: "Silent");
+
+        var decoded = AlertCodec.Decode(payload);
+
+        decoded.SkippedCount.Should().Be(0);
+        var definition = decoded.Valid.Should().ContainSingle().Subject;
+        definition.ReArm.Should().Be(AlertReArmMode.Cooldown);
+        definition.CooldownMinutes.Should().Be(5);
+        definition.Sound.Should().Be(AlertSoundChoice.Silent);
+    }
+
+    [Fact]
+    public void AVersion3OneShotEntry_JunkInItsCooldownMinutes_DecodesVerbatim()
+    {
+        var payload = V3PriceRoster(Array.Empty<string>(), reArm: "OneShot", cooldownMinutes: "-77");
+
+        var decoded = AlertCodec.Decode(payload);
+
+        decoded.SkippedCount.Should().Be(0, "the other modes' cooldown minutes are unused facts, never demarking");
+        decoded.Valid.Should().ContainSingle()
+            .Which.CooldownMinutes.Should().Be(-77);
+    }
+
+    [Theory]
+    [InlineData("\"PerCross\"")]
+    [InlineData("\"percross\"")]
+    public void TheReArmEnums_ParseCaseInsensitively(string reArmJson)
+    {
+        var payload = V3PriceRoster(Array.Empty<string>(), reArm: null, reArmJson: reArmJson);
+
+        var decoded = AlertCodec.Decode(payload);
+
+        decoded.SkippedCount.Should().Be(0);
+        decoded.Valid.Should().ContainSingle()
+            .Which.ReArm.Should().Be(AlertReArmMode.PerCross);
+    }
+
     [Theory]
     [InlineData("id", "\"not-a-guid\"")]
     [InlineData("symbol", "\"\"")]
@@ -312,4 +424,35 @@ public sealed class AlertCodecTests
 
     private static string JoinMembers(IReadOnlyList<(string Member, string Json)> members) =>
         string.Join(",", members.Select(entry => $"\"{entry.Member}\":{entry.Json}"));
+
+    /// <summary>
+    /// Build one version-3 roster whose single entry is a Price alert with
+    /// the re-arm facts shaped in (or with named members absent — the skip
+    /// facts demand exact presence); the named overrides ride in as raw
+    /// JSON, the defaults are the codec's own spellings.
+    /// </summary>
+    private static string V3PriceRoster(
+        IReadOnlyCollection<string> absentMembers,
+        string? reArm = "PerCross",
+        string? cooldownMinutes = null,
+        string? sound = "Silent",
+        string? reArmJson = null)
+    {
+        var members = PriceMembers
+            .Select(entry => entry.Member == "createdUtc" ? (entry.Member, BaseTicksJson) : entry)
+            .ToList();
+        members.Add(("reArm", reArmJson ?? $"\"{reArm}\""));
+        if (cooldownMinutes is { } minutes)
+        {
+            members.Add(("cooldownMinutes", minutes));
+        }
+
+        if (sound is { } choice)
+        {
+            members.Add(("sound", $"\"{choice}\""));
+        }
+
+        var shaped = members.Where(entry => !absentMembers.Contains(entry.Member)).ToList();
+        return $"{{\"version\":3,\"alerts\":[{{\"kind\":\"Price\",{JoinMembers(shaped)}}}]}}";
+    }
 }

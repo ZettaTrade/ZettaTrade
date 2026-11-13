@@ -28,3 +28,20 @@ public sealed record AlertTriggerOption(AlertTrigger Trigger, string Label);
 /// <param name="Source">The canonical cross source the option carries.</param>
 /// <param name="Label">The localized display label.</param>
 public sealed record AlertSourceOption(AlertCrossSource Source, string Label);
+
+/// <summary>
+/// The editor's re-arm mode combo option (T-204): the canonical mode beside
+/// its localized label, the same presentation-only pairing as the kind
+/// options.
+/// </summary>
+/// <param name="Mode">The canonical re-arm mode the option carries.</param>
+/// <param name="Label">The localized display label.</param>
+public sealed record AlertReArmOption(AlertReArmMode Mode, string Label);
+
+/// <summary>
+/// The editor's sound choice combo option (T-204): the canonical choice
+/// beside its localized label, the same presentation-only pairing.
+/// </summary>
+/// <param name="Sound">The canonical sound choice the option carries.</param>
+/// <param name="Label">The localized display label.</param>
+public sealed record AlertSoundOption(AlertSoundChoice Sound, string Label);

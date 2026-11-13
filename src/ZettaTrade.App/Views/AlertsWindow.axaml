@@ -79,6 +79,8 @@
              here too). The kind's own fields show; the other kind's stay
              hidden. Every spelling parses at submit, nothing defaults. -->
         <Grid Grid.Row="1"
+              RowDefinitions="Auto,Auto"
+              RowSpacing="{StaticResource SpaceS}"
               ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*"
               ColumnSpacing="{StaticResource SpaceS}">
             <StackPanel Grid.Column="0">
@@ -158,6 +160,38 @@
             <StackPanel Grid.Column="10">
                 <TextBlock Text="{loc:Localized Alert.Editing.Note}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBox Text="{Binding NoteText}" />
+            </StackPanel>
+
+            <!-- The fire mechanics row (T-204): the re-arm mode, the cooldown
+                 window it names when selected, and the fire sound. -->
+            <StackPanel Grid.Row="1" Grid.Column="0">
+                <TextBlock Text="{loc:Localized Alert.Editing.ReArm}" FontSize="{StaticResource CaptionFontSize}" />
+                <ComboBox Width="150"
+                          ItemsSource="{Binding ReArmOptions}"
+                          SelectedItem="{Binding SelectedReArm, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AlertReArmOption">
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.Column="1"
+                        IsVisible="{Binding IsCooldownMode}">
+                <TextBlock Text="{loc:Localized Alert.Editing.Cooldown}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBox Width="70" Text="{Binding CooldownText}" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.Column="2">
+                <TextBlock Text="{loc:Localized Alert.Editing.Sound}" FontSize="{StaticResource CaptionFontSize}" />
+                <ComboBox Width="100"
+                          ItemsSource="{Binding SoundOptions}"
+                          SelectedItem="{Binding SelectedSound, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AlertSoundOption">
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
             </StackPanel>
         </Grid>
 

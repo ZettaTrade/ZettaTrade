@@ -2,8 +2,9 @@ namespace ZettaTrade.App;
 
 /// <summary>
 /// Settings keys of the notification center section (T-097): the
-/// Do-Not-Disturb flag and the four per-source mute toggles. Single source
-/// of truth for notification settings access; every flip writes through
+/// Do-Not-Disturb flag and the per-source mute toggles (the T-204 alert
+/// bridge rides the map too). Single source of truth for notification
+/// settings access; every flip writes through
 /// the reactive settings service, and readers compose the persisted values
 /// with the change stream (the T-053 reactive settings canon), so a flip
 /// written anywhere (a drawer toggle, a settings-file external edit) is
@@ -28,6 +29,9 @@ public static class NotificationSettingsKeys
 
     /// <summary>Settings key of the adapter-state-source mute (a bool).</summary>
     public const string MuteAdapterState = "MuteAdapterState";
+
+    /// <summary>Settings key of the alert-fire-source mute (T-204, a bool).</summary>
+    public const string MuteAlerts = "MuteAlerts";
 
     /// <summary>
     /// The Do-Not-Disturb flag applied until a stored value is loaded: off —

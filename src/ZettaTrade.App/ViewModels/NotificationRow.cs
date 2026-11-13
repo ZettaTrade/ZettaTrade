@@ -55,6 +55,12 @@ public sealed class NotificationRow : ReactiveObject
     /// <summary>The Do-Not-Disturb summary line: the missed-event count (history rows already carry the events).</summary>
     private const string DndSummaryKey = "Notif.DndSummary";
 
+    /// <summary>The alert-fire line: the symbol beside the alert's own condition line (the T-204 bridge).</summary>
+    private const string AlertFiredKey = "Notif.AlertFired";
+
+    /// <summary>The alert-fire digest line: burst count + the newest fire's line.</summary>
+    private const string AlertFiredDigestKey = "Notif.AlertFiredDigest";
+
     /// <summary>One unknown value's rendering: the honest localized dash (the fee column's precedent).</summary>
     private const string UnknownValueKey = "Fees.Unknown";
 
@@ -223,6 +229,17 @@ public sealed class NotificationRow : ReactiveObject
         NotificationKind.DoNotDisturbSummary => _localization.GetString(
             DndSummaryKey,
             Source.Count.ToString(CultureInfo.InvariantCulture)),
+        NotificationKind.AlertFired when Source.Alert is { } alert && !Source.IsDigest => _localization.GetString(
+            AlertFiredKey,
+            Source.SymbolName,
+            AlertConditionText.Compose(alert, _localization)),
+        NotificationKind.AlertFired when Source.Alert is { } alert => _localization.GetString(
+            AlertFiredDigestKey,
+            Source.Count.ToString(CultureInfo.InvariantCulture),
+            _localization.GetString(
+                AlertFiredKey,
+                Source.SymbolName,
+                AlertConditionText.Compose(alert, _localization))),
         _ => throw new ArgumentOutOfRangeException(
             nameof(Source),
             Source.Kind,

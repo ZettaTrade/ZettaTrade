@@ -23,7 +23,8 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// lane while the window stays (the attach/stopper pair the window's
 /// activation scope disposes; a duplicate publish between the attach and
 /// the seed lands once — the reference-identity guard). The Do-Not-Disturb
-/// flag and the four per-source mutes mirror the reactive settings state
+/// flag and the per-source mutes (five since T-204's alert bridge) mirror
+/// the reactive settings state
 /// read-only; their toggles write through the settings service and every
 /// re-application (drawer or external settings edit) rides the change
 /// stream without a restart.
@@ -43,6 +44,9 @@ public sealed class NotificationHistoryViewModel : ReactiveObject
 
     /// <summary>The adapter states source label.</summary>
     private const string SourceAdapterStatesKey = "Notif.SourceAdapterStates";
+
+    /// <summary>The alert fires source label (T-204).</summary>
+    private const string SourceAlertsKey = "Notif.SourceAlerts";
 
     /// <summary>The persisted Do-Not-Disturb flip fault (the rows and the toggles stay usable, the flag holds its state).</summary>
     private const string DndSaveFailedKey = "Notif.SaveFailed";
@@ -78,7 +82,7 @@ public sealed class NotificationHistoryViewModel : ReactiveObject
     /// <summary>The history rows, newest first; the live lane prepends while the window stays.</summary>
     public ObservableCollection<NotificationRow> Rows { get; } = new();
 
-    /// <summary>The four per-source mute rows (a fixed set, built once per open).</summary>
+    /// <summary>The per-source mute rows (a fixed set, built once per open).</summary>
     public IReadOnlyList<NotificationMuteRow> MuteRows { get; }
 
     /// <summary>Whether the history carries anything to show (the empty state's flag).</summary>
@@ -151,6 +155,7 @@ public sealed class NotificationHistoryViewModel : ReactiveObject
             BuildMuteRow(NotificationKind.OrderCancel, SourceCancelsKey),
             BuildMuteRow(NotificationKind.OrderReject, SourceRejectionsKey),
             BuildMuteRow(NotificationKind.AdapterState, SourceAdapterStatesKey),
+            BuildMuteRow(NotificationKind.AlertFired, SourceAlertsKey),
         ];
 
         // The mirrored streams: the app reads the reactive settings state
@@ -294,6 +299,7 @@ public sealed class NotificationHistoryViewModel : ReactiveObject
         NotificationKind.OrderCancel => NotificationSettingsKeys.MuteCancel,
         NotificationKind.OrderReject => NotificationSettingsKeys.MuteReject,
         NotificationKind.AdapterState => NotificationSettingsKeys.MuteAdapterState,
+        NotificationKind.AlertFired => NotificationSettingsKeys.MuteAlerts,
         _ => throw new ArgumentOutOfRangeException(
             nameof(kind),
             kind,

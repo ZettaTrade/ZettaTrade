@@ -1,3 +1,31 @@
+## [0.1.0-alpha.148] - 2026-11-13
+
+Build of board task T-204 (branch `feat/alerts-mechanics-2`): the alert
+mechanics' second wave — the fired alert becomes a notification-center
+toast, and every alert carries its own fire aftermath and sound.
+
+### Added
+- The per-alert re-arm (the fire's aftermath): the one-shot stays the
+  default and terminal; the per-cross re-arm re-arms at the fire and
+  fires again on every fresh crossing of the same condition (a price
+  held at the level never double-fires — only a leaving and re-crossing
+  one does); the cooldown snoozes at the fire for the stored N-minute
+  window and re-arms at its expiry (the first hit after the window
+  refires). Editing or deleting an alert clears its in-flight re-arm
+  state.
+- The per-alert sound choice: the beep (the default) or silent — silent
+  skips the player entirely; the best-effort path degrades honestly on
+  platforms without the beep and never blocks the trading thread.
+- The toast bridge: a fired alert surfaces through the notification
+  center (T-097) — a quiet session gets the toast, do-not-disturb
+  collapses it into the history digest, the alerts source mute (the
+  history's fifth mute row) and the standalone toasts toggle swallow it,
+  and the history keeps the row in every lane.
+- The manager editor's re-arm controls: the mode picker, the cooldown
+  window (whole minutes, shown only for the cooldown mode, refused when
+  not a positive whole number) and the sound picker; the roster
+  persistence reads and writes the new facts (a versioned roster codec).
+
 ## [0.1.0-alpha.147] - 2026-11-13
 
 Build of board task T-203 (branch `feat/indicator-alerts`): the

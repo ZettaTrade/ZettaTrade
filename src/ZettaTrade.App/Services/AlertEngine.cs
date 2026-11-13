@@ -40,9 +40,13 @@ using ZettaTrade.Plugins.Abstractions;
 /// goes live with an indicator alert), and every candle CLOSE is the
 /// evaluation event — a close the plugin set cannot honor pauses the alert,
 /// never guesses. A fire is persistent by design: the reached definition
-/// becomes Fired with the event's own stamp, the roster persists, the beep
-/// rides a degrade lane (a failed beep is a logged warning, never a broken
-/// evaluation or a crash), and a reload can never re-fire it.
+/// becomes the fire's own aftermath (the mode decides — T-204's terminal
+/// one-shot, per-crossing re-arm or cooldown snooze) with the event's own
+/// stamp, the roster persists, the beep rides a degrade lane (a failed beep
+/// is a logged warning, never a broken evaluation or a crash), the fire also
+/// surfaces as a notification-center toast through the T-204 bridge (a
+/// display fact handed over, never a blocking one), and a reload can never
+/// re-fire a one-shot.
 /// </remarks>
 public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 {
@@ -86,6 +90,7 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     private readonly IMarketDataAdapter _ticks;
     private readonly IIndicatorCatalog _indicators;
     private readonly IAlertSoundPlayer _sound;
+    private readonly NotificationCenter _notifications;
     private readonly TimeProvider _clock;
     private readonly ILogger<AlertEngine> _logger;
 
@@ -123,6 +128,16 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     /// honest Paused reason, not a per-close reflection storm).</summary>
     private readonly Dictionary<string, IIndicator?> _indicatorCache = [];
 
+    /// <summary>
+    /// The per-definition re-arm gate (T-204): the last evaluation's hit
+    /// state for every alert whose fire re-arms (a OneShot never tracks —
+    /// it dies at the fire). A missing entry is the unknown state: the FIRST
+    /// hit fires, the T-096 arming semantics — and a Cooldown's fire drops
+    /// its entry so the post-window first hit fires again. Session-scoped
+    /// like the window trail; an edit or a delete forgets the entry.
+    /// </summary>
+    private readonly Dictionary<Guid, bool> _reArmHitStates = [];
+
     /// <summary>The symbols whose M1 history seed already ran this session (one fetch per live
     /// subscription period: a dropped subscription forgets the symbol, the next arm re-seeds).</summary>
     private readonly HashSet<string> _seededSymbols = new(StringComparer.Ordinal);
@@ -140,6 +155,7 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     /// <param name="indicators">The loaded plugin indicator catalog (T-203): the indicator-cross
     /// evaluation builds its implementations from it, and a name it cannot resolve pauses the alert.</param>
     /// <param name="sound">The fired-alert beep seam (the engine owns the degrade lane).</param>
+    /// <param name="notifications">The notification center the fire's toast rides (the T-204 bridge; the publish never blocks).</param>
     /// <param name="clock">The time provider the manager ops stamp with (create, snooze).</param>
     /// <param name="logger">The engine's logger.</param>
     public AlertEngine(
@@ -147,6 +163,7 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
         IMarketDataAdapter ticks,
         IIndicatorCatalog indicators,
         IAlertSoundPlayer sound,
+        NotificationCenter notifications,
         TimeProvider clock,
         ILogger<AlertEngine> logger)
     {
@@ -154,6 +171,7 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
         _ticks = ticks ?? throw new ArgumentNullException(nameof(ticks));
         _indicators = indicators ?? throw new ArgumentNullException(nameof(indicators));
         _sound = sound ?? throw new ArgumentNullException(nameof(sound));
+        _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -229,7 +247,11 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
                 Status = AlertStatus.Armed,
                 SnoozedUntilUtc = null,
                 Indicator = draft.Indicator,
+                ReArm = draft.ReArm,
+                CooldownMinutes = draft.ReArm == AlertReArmMode.Cooldown ? draft.CooldownMinutes : 0,
+                Sound = draft.Sound,
             };
+            _reArmHitStates.Remove(id);
             await PersistAsync(cancellationToken).ConfigureAwait(false);
             await RecalculateSubscriptionsAsync(cancellationToken).ConfigureAwait(false);
             Publish(new AlertEvent(AlertEventKind.RosterChanged, null, null));
@@ -290,6 +312,7 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
             }
 
             _definitions.RemoveAt(index);
+            _reArmHitStates.Remove(id);
             await PersistAsync(cancellationToken).ConfigureAwait(false);
             await RecalculateSubscriptionsAsync(cancellationToken).ConfigureAwait(false);
             Publish(new AlertEvent(AlertEventKind.RosterChanged, null, null));
@@ -496,7 +519,29 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 
                 if (!IsReached(definition, observation))
                 {
+                    if (definition.ReArm != AlertReArmMode.OneShot)
+                    {
+                        // The re-arm gate tracks the last evaluation's hit
+                        // truth (T-204): the level left its edge, the held mark
+                        // clears, the next crossing is fresh.
+                        _reArmHitStates[definition.Id] = false;
+                    }
+
                     continue;
+                }
+
+                if (definition.ReArm != AlertReArmMode.OneShot)
+                {
+                    if (_reArmHitStates.TryGetValue(definition.Id, out var wasHit) && wasHit)
+                    {
+                        // The held mark: the condition never left its edge since
+                        // the last fire — the crossing is not fresh, no fire.
+                        continue;
+                    }
+
+                    // A missing entry is the unknown state (the T-096 arming
+                    // semantics: the FIRST hit fires); the hit marks itself.
+                    _reArmHitStates[definition.Id] = true;
                 }
 
                 Fire(definition, observation);
@@ -604,33 +649,60 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
         return TimeSpan.FromMinutes(widest + 1);
     }
 
-    /// <summary>Replace the definition the id names with its reached self (Fired) and make the firing honest about it.</summary>
+    /// <summary>
+    /// Replace the definition the id names with its post-fire self and make
+    /// the firing honest about it: the status the re-arm mode names (the
+    /// terminal Fired, the per-crossing Armed, the cooldown Snoozed with its
+    /// window at the fire moment plus the cooldown), the beep when the alert
+    /// chose it, and the toast bridged to the notification center (the T-204
+    /// lane — the publish never blocks, the display layer owns the rest).
+    /// </summary>
     private void Fire(AlertDefinition definition, AlertObservation observation)
     {
         var fired = definition with
         {
-            Status = AlertStatus.Fired,
+            Status = definition.ReArm switch
+            {
+                AlertReArmMode.PerCross => AlertStatus.Armed,
+                AlertReArmMode.Cooldown => AlertStatus.Snoozed,
+                _ => AlertStatus.Fired,
+            },
+            SnoozedUntilUtc = definition.ReArm == AlertReArmMode.Cooldown
+                ? observation.OccurredUtc.AddMinutes(definition.CooldownMinutes)
+                : null,
             LastFiredUtc = observation.OccurredUtc,
         };
         Replace(fired);
+        if (definition.ReArm == AlertReArmMode.Cooldown)
+        {
+            // The cooldown's suppression is its snooze window alone: the gate
+            // entry dies with the fire, so the first hit after the window
+            // fires again (the T-096 arming semantics for the re-arm).
+            _reArmHitStates.Remove(definition.Id);
+        }
 
         _logger.LogInformation(
-            "Alert '{Id}' on {Symbol} fired at {Price} (tick {OccurredUtc})",
+            "Alert '{Id}' on {Symbol} fired at {Price} ({OccurredUtc}, re-arm {ReArm})",
             fired.Id,
             fired.SymbolName,
             observation.Price,
-            observation.OccurredUtc);
+            observation.OccurredUtc,
+            definition.ReArm);
 
-        try
+        if (definition.Sound == AlertSoundChoice.Beep)
         {
-            _sound.Play();
-        }
-        catch (Exception ex)
-        {
-            // The degrade contract: a failed beep is a logged warning, never a broken evaluation.
-            _logger.LogWarning(ex, "The fired-alert beep failed and was degraded away");
+            try
+            {
+                _sound.Play();
+            }
+            catch (Exception ex)
+            {
+                // The degrade contract: a failed beep is a logged warning, never a broken evaluation.
+                _logger.LogWarning(ex, "The fired-alert beep failed and was degraded away");
+            }
         }
 
+        _notifications.Publish(Notification.ForAlertFire(fired, observation));
         Publish(new AlertEvent(AlertEventKind.Fired, fired, observation));
     }
 
@@ -827,7 +899,26 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
             };
             if (!hit)
             {
+                if (definition.ReArm != AlertReArmMode.OneShot)
+                {
+                    // The re-arm gate tracks the last close evaluation's hit
+                    // truth (T-204) exactly as the tick path does.
+                    _reArmHitStates[definition.Id] = false;
+                }
+
                 continue;
+            }
+
+            if (definition.ReArm != AlertReArmMode.OneShot)
+            {
+                if (_reArmHitStates.TryGetValue(definition.Id, out var wasHit) && wasHit)
+                {
+                    // The held mark: the crossing state never left since the
+                    // last fire — not fresh, no fire.
+                    continue;
+                }
+
+                _reArmHitStates[definition.Id] = true;
             }
 
             // The fire stamps the CLOSE: the bar's open minute plus the span —

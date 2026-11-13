@@ -6,16 +6,14 @@ using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Enums;
 
 /// <summary>
-/// The notification vocabulary (T-097). One record per notification event;
+/// The notification vocabulary (T-097): one record per notification event;
 /// the kinds mirror the sources the center actually serves: the journal's
-/// terminal order outcomes (fills, cancellations, rejections) and the
-/// adapter health flips riding the T-098 fold. A Do-Not-Disturb window
-/// close folds its missed events into one system summary toast — the
-/// summary is a notification of its own kind, while the missed events
-/// themselves stay the history's honest rows. The reserved context:
-/// order alerts (T-096, when landed) publish through the same publish
-/// surface with their own kind named there — this task neither fabricates
-/// an alert notification nor blocks that seam.
+/// terminal order outcomes (fills, cancellations, rejections), the
+/// adapter health flips riding the T-098 fold, and the price-alert fires
+/// bridged by the T-204 lane. A Do-Not-Disturb window close folds its
+/// missed events into one system summary toast — the summary is a
+/// notification of its own kind, while the missed events themselves stay
+/// the history's honest rows.
 /// </summary>
 public enum NotificationKind
 {
@@ -33,6 +31,9 @@ public enum NotificationKind
 
     /// <summary>The system summary a Do-Not-Disturb window close emits: N missed events are in history.</summary>
     DoNotDisturbSummary,
+
+    /// <summary>A price alert reached its condition (the T-204 bridge from the alert engine's fire path).</summary>
+    AlertFired,
 }
 
 /// <summary>
@@ -80,6 +81,7 @@ public static class NotificationRouteMap
         NotificationKind.OrderReject => NotificationRoute.OrderHistory,
         NotificationKind.AdapterState => NotificationRoute.None,
         NotificationKind.DoNotDisturbSummary => NotificationRoute.HistoryDrawer,
+        NotificationKind.AlertFired => NotificationRoute.None,
         _ => throw new ArgumentOutOfRangeException(
             nameof(kind),
             kind,
@@ -121,8 +123,9 @@ public interface INotificationRouteSink
 /// <param name="AdapterName">The adapter display name behind an adapter-state event; empty for the other kinds.</param>
 /// <param name="AdapterState">The adapter's strip state its notification reports; <see cref="AdapterHealthState.Unsupervised"/> (the honest "no transport fact rides here") for the other kinds.</param>
 /// <param name="Side">The fill's side (Buy/Sell) for a fill; unused (a plain Buy placeholder) for the rest.</param>
-/// <param name="Quantity">The fill's traded quantity for a fill; unused (zero) for the rest.</param>
+/// <param name="Quantity">The fill's traded quantity for a fill, the fired observation's price for an alert fire; unused (zero) for the rest.</param>
 /// <param name="Reason">The rejection reason for a rejection; empty for the rest.</param>
+/// <param name="Alert">The fired alert's definition for an alert fire (the row composes the alert's own condition line from it); null for the other kinds.</param>
 public sealed record Notification(
     NotificationKind Kind,
     NotificationRoute Route,
@@ -133,7 +136,8 @@ public sealed record Notification(
     AdapterHealthState AdapterState,
     OrderSide Side,
     decimal Quantity,
-    string Reason)
+    string Reason,
+    AlertDefinition? Alert = null)
 {
     /// <summary>The digest marker: a count above one renders the burst badge.</summary>
     public bool IsDigest => Count > 1;
@@ -196,6 +200,27 @@ public sealed record Notification(
             Reason: string.Empty);
 
     /// <summary>
+    /// One raw alert-fire notification (the T-204 bridge): the fired
+    /// definition rides along so the display row composes the alert's own
+    /// condition line from it, and the observation's price is the
+    /// structured fired fact.
+    /// </summary>
+    public static Notification ForAlertFire(
+        AlertDefinition definition,
+        AlertObservation observation) => new(
+            NotificationKind.AlertFired,
+            NotificationRouteMap.Map(NotificationKind.AlertFired),
+            Count: 1,
+            OccurredUtc: observation.OccurredUtc,
+            SymbolName: definition.SymbolName,
+            AdapterName: string.Empty,
+            AdapterState: AdapterHealthState.Unsupervised,
+            Side: OrderSide.Buy,
+            Quantity: observation.Price,
+            Reason: string.Empty,
+            Alert: definition);
+
+    /// <summary>
     /// Fold events of ONE kind arriving inside one coalescing window into
     /// their digest: the burst badge counts them, the per-event fields are
     /// the newest event's facts (the burst's "headline" preview) and the
@@ -221,7 +246,8 @@ public sealed record Notification(
             AdapterState: newest.AdapterState,
             Side: newest.Side,
             Quantity: newest.Quantity,
-            Reason: newest.Reason);
+            Reason: newest.Reason,
+            Alert: newest.Alert);
     }
 
     #endregion Factories
