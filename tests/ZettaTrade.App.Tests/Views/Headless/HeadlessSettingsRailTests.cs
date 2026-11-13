@@ -254,6 +254,52 @@ public sealed class HeadlessSettingsRailTests
     }
 
     /// <summary>
+    /// The rail captions ride the BodyFontSize step (T-223), measured: the
+    /// Fluent TabItem template sets its own large header type and the
+    /// header compositions never carried a FontSize, so the item's setter
+    /// is the only thing standing between the mockup's 13 px captions and
+    /// the template's default. The item carries the setter (the caption
+    /// inherits it) and the caption fits inside its item box at that step.
+    /// </summary>
+    [Fact]
+    public async Task TheRailCaptions_RideTheBodyTypeStep_AndFitTheirItems()
+    {
+        var manager = await RegisterDarkTheme();
+        var window = await ShowSettingsWindowAsync(ComposeSettingsViewModel(["SMA"]));
+        try
+        {
+            await Run(() => manager.ApplyThemeAsync("dark").GetAwaiter().GetResult());
+            await HeadlessWorld.OnUi(() =>
+            {
+                window.TryFindResource("BodyFontSize", out var stepValue).Should().BeTrue(
+                    "the ramp's BodyFontSize token ships in the app resources");
+                var step = (double)stepValue!;
+                step.Should().Be(13, "the ramp's BodyFontSize step is the mockup's rail type");
+
+                var tabs = HeadlessWorld.Descendants<TabItem>(window).ToList();
+                foreach (var (tab, key) in tabs.Zip(RailKeys))
+                {
+                    Avalonia.Controls.Documents.TextElement.GetFontSize(tab).Should().Be(
+                        step,
+                        "'{0}' rides the item's own type setter (the template's size would win otherwise)", key);
+
+                    var expected = LocalizationManager.Instance.GetString(key);
+                    var caption = HeadlessWorld.Descendants<TextBlock>(tab)
+                        .Single(text => text.Text == expected);
+                    caption.FontSize.Should().Be(step, "the caption inherits the item's BodyFontSize step");
+                    WindowRect(window, caption).Right.Should().BeLessThanOrEqualTo(
+                        WindowRect(window, tab).Right - 0.5,
+                        "'{0}'s caption fits inside its item box at the BodyFontSize step", key);
+                }
+            });
+        }
+        finally
+        {
+            await HeadlessWorld.CloseAndSettleAsync(window);
+        }
+    }
+
+    /// <summary>
     /// The rail strip rides the approved chrome: the 190 px backing
     /// touches the window's left and top edges, wears the dark palette's
     /// title-bar fill with its right hairline, and carries the rail note

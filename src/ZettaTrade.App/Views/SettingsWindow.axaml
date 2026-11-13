@@ -56,6 +56,11 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+            <!-- The caption's type (T-223): the Fluent template's own tab
+                 header size would win otherwise (the header compositions set
+                 no FontSize) — the mockup's rail type is the BodyFontSize
+                 step, and the header's TextBlock inherits it. -->
+            <Setter Property="FontSize" Value="{StaticResource BodyFontSize}" />
         </Style>
         <Style Selector="TabItem.rail-item /template/ Border#PART_LayoutRoot">
             <Setter Property="Background" Value="Transparent" />
@@ -191,11 +196,26 @@
                              clock format — the approved appearance section. -->
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                                    <Border Classes="section-tick" />
-                                    <TextBlock Classes="section-header"
-                                               Text="{loc:Localized Settings.Section.Appearance}" />
-                                </StackPanel>
+                                <!-- The section toggle (T-223): the header folds
+                                     the card's body; the binding is one-way and
+                                     the IsChecked explicit, so no null state
+                                     exists. -->
+                                <ToggleButton x:Name="AppearanceSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="True"
+                                              AutomationProperties.AutomationId="AppearanceSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Appearance}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="AppearanceSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #AppearanceSectionToggle.IsChecked}">
 
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceL}" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
                         <TextBlock Grid.Row="0" Grid.Column="0"
@@ -289,6 +309,7 @@
                                   HorizontalAlignment="Left" />
                     </Grid>
                             </StackPanel>
+                        </StackPanel>
                         </Border>
 
                         <!-- The theme folder card: customization is file-based, so
@@ -297,11 +318,22 @@
                              approved theme-folder section). -->
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                                    <Border Classes="section-tick" />
-                                    <TextBlock Classes="section-header"
-                                               Text="{loc:Localized Settings.Section.ThemesFolder}" />
-                                </StackPanel>
+                                <ToggleButton x:Name="ThemesFolderSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="ThemesFolderSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.ThemesFolder}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="ThemesFolderSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #ThemesFolderSectionToggle.IsChecked}">
 
                                 <Button Content="{loc:Localized Settings.ThemesFolder.Open}"
                                         Command="{Binding OpenThemesFolderCommand}"
@@ -334,6 +366,7 @@
                                     </ScrollViewer>
                                 </StackPanel>
                             </StackPanel>
+                        </StackPanel>
                         </Border>
 
                         <!-- The first-run wizard card (T-099): the board names the
@@ -344,11 +377,22 @@
                              ViewModel state involved. -->
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                                    <Border Classes="section-tick" />
-                                    <TextBlock Classes="section-header"
-                                               Text="{loc:Localized Settings.Section.Wizard}" />
-                                </StackPanel>
+                                <ToggleButton x:Name="WizardSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="WizardSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Wizard}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="WizardSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #WizardSectionToggle.IsChecked}">
 
                                 <TextBlock Text="{loc:Localized Settings.FirstRunWizard.Hint}"
                                            TextWrapping="Wrap"
@@ -359,6 +403,7 @@
                                         MinWidth="160"
                                         Click="OnFirstRunWizardClick" />
                             </StackPanel>
+                        </StackPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
@@ -385,11 +430,22 @@
                     <StackPanel Spacing="{StaticResource SpaceL}" Margin="{StaticResource InsetL}">
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                                    <Border Classes="section-tick" />
-                                    <TextBlock Classes="section-header"
-                                               Text="{loc:Localized Settings.Section.Indicators}" />
-                                </StackPanel>
+                                <ToggleButton x:Name="IndicatorsSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="True"
+                                              AutomationProperties.AutomationId="IndicatorsSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Indicators}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="IndicatorsSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #IndicatorsSectionToggle.IsChecked}">
                 <!-- The indicator overlay rows: a row renders only for a plugin
                      the scanned catalog actually loaded (the surface reflects
                      the real catalog, it never assumes a shipped assembly);
@@ -590,6 +646,7 @@
                                                TextWrapping="Wrap" />
                                 </Grid>
                             </StackPanel>
+                        </StackPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
@@ -632,11 +689,22 @@
                     <StackPanel Spacing="{StaticResource SpaceL}" Margin="{StaticResource InsetL}">
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                                    <Border Classes="section-tick" />
-                                    <TextBlock Classes="section-header"
-                                               Text="{loc:Localized Settings.Section.Mcp}" />
-                                </StackPanel>
+                                <ToggleButton x:Name="McpSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="True"
+                                              AutomationProperties.AutomationId="McpSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Mcp}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="McpSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #McpSectionToggle.IsChecked}">
                             <StackPanel Spacing="{StaticResource SpaceL}">
                                 <CheckBox Content="{loc:Localized Settings.Mcp.Enable}"
                                           IsChecked="{Binding IsMcpServerEnabled}" />
@@ -846,6 +914,7 @@
                                  window's own canon); the outcome surfaces are the
                                  error, preview and status rows below. -->
                             </StackPanel>
+                        </StackPanel>
                         </Border>
                         <!-- ==================== The AI chat section (T-207) ====================
                              The provider pick drafts like every other selection
@@ -862,11 +931,22 @@
                              box is the user's act, not the window's). -->
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                                    <Border Classes="section-tick" />
-                                    <TextBlock Classes="section-header"
-                                               Text="{loc:Localized Settings.Section.Ai}" />
-                                </StackPanel>
+                                <ToggleButton x:Name="AiSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="AiSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Ai}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="AiSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #AiSectionToggle.IsChecked}">
                                 <StackPanel Spacing="{StaticResource SpaceL}">
                                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
                                         <TextBlock Grid.Column="0"
@@ -939,15 +1019,27 @@
                                                    />
                                     </StackPanel>
                                 </StackPanel>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                         <Border Classes="section-card" IsVisible="{Binding IsPortAvailable}">
                             <StackPanel Spacing="{StaticResource SpaceM}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                                    <Border Classes="section-tick" />
-                                    <TextBlock Classes="section-header"
-                                               Text="{loc:Localized Settings.Section.Port}" />
-                                </StackPanel>
+                                <ToggleButton x:Name="PortSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="PortSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Port}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="PortSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #PortSectionToggle.IsChecked}">
                                 <StackPanel Spacing="{StaticResource SpaceL}">
 
                                 <!-- The export block: one button, the honest hint. -->
@@ -1043,6 +1135,7 @@
                                            />
                             </StackPanel>
                         </StackPanel>
+                        </StackPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
@@ -1091,11 +1184,22 @@
                     <StackPanel Spacing="{StaticResource SpaceL}" Margin="{StaticResource InsetL}">
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                                    <Border Classes="section-tick" />
-                                    <TextBlock Classes="section-header"
-                                               Text="{loc:Localized Settings.Section.Pairs}" />
-                                </StackPanel>
+                                <ToggleButton x:Name="PairsSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="True"
+                                              AutomationProperties.AutomationId="PairsSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Pairs}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="PairsSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #PairsSectionToggle.IsChecked}">
                                 <Grid Height="236"
                                       ColumnDefinitions="*,Auto,*"
                                       ColumnSpacing="{StaticResource SpaceM}"
@@ -1186,14 +1290,26 @@
                                            />
 
                             </StackPanel>
+                        </StackPanel>
                         </Border>
                         <Border Classes="section-card">
                             <StackPanel Spacing="{StaticResource SpaceM}">
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                                    <Border Classes="section-tick" />
-                                    <TextBlock Classes="section-header"
-                                               Text="{loc:Localized Settings.Section.Hotkeys}" />
-                                </StackPanel>
+                                <ToggleButton x:Name="HotkeysSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="HotkeysSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Hotkeys}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="HotkeysSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #HotkeysSectionToggle.IsChecked}">
                                 <StackPanel Spacing="{StaticResource SpaceL}"
                                             DataContext="{Binding Hotkeys, RelativeSource={RelativeSource AncestorType={x:Type views:SettingsWindow}}}">
                                 <TextBlock Text="{loc:Localized Hotkeys.Editor.Hint}"
@@ -1239,6 +1355,7 @@
                                 </ScrollViewer>
                             </StackPanel>
                             </StackPanel>
+                        </StackPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
