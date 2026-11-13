@@ -205,7 +205,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | done | - |
 | T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | done | - |
 | T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/drawing-tools-2 | done | - |
-| T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | planned | - |
+| T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | in-progress | - |
 | T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | planned | - |
 | T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | planned | - |
 | T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alert-mechanics | planned | - |
@@ -455,7 +455,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-201 — Multi-chart grid layout
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** `feat/multi-chart-grid` off `develop` (base `705a722`).
 - **Origin:** the sweep — one chart panel ships (detachable); no grid arrangement exists.
 - **What:** a workspace layout option rendering 1×2 and 2×2 chart slots with independent
   symbols and timeframes; the boundaries ride the T-172 resize-handle discipline and persist; a
@@ -466,7 +466,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** each slot streams its own symbol; the splitters drag and persist; the
   four-slot shape holds the pan budget (the perf HUD reads it).
 - **Tests:** the headless composition pins; a four-slot perf smoke.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-202 — Chart templates
 
