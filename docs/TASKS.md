@@ -209,7 +209,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | done | - |
 | T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | done | - |
 | T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alerts-mechanics-2 | done | - |
-| T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | planned | - |
+| T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | in-progress | - |
 | T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | planned | - |
 | T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-providers | planned | - |
 | T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | planned | - |
@@ -455,7 +455,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-205 — Streaming AI chat
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/ai-streaming, worktree zt-ai-streaming, base develop@4a0c7aa.
 - **Origin:** the sweep — the Ollama route is one-shot non-streaming; the Stop button aborts a
   whole response.
 - **What:** SSE streaming from the chat endpoint (`stream: true`), tokens appended live into
@@ -466,7 +466,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** a streamed reply renders progressively; Stop leaves no partial-corrupt
   state; the fallback path keeps today's behavior verbatim.
 - **Tests:** the loopback SSE stub battery (chunk order, abort, malformed chunks).
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-206 — Persistent chat history
 
