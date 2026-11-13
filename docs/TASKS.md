@@ -203,7 +203,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-196 User-managed watchlists (backlog sweep 2026-11-12) | feat/watchlist-edit | done | - |
 | T-197 Futures contour MVP: Bybit linear perps (backlog sweep 2026-11-12) | feat/futures-mvp | done | - |
 | T-198 Stocks MVP: a market-data adapter (backlog sweep 2026-11-12) | feat/stocks-mvp | done | - |
-| T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | in-progress | - |
+| T-199 Indicator panes: oscillator sub-charts (backlog sweep 2026-11-12) | feat/indicator-panes | done | - |
 | T-200 Drawing tools wave 2: zone, text, measure ruler (backlog sweep 2026-11-12) | feat/draw-tools-2 | planned | - |
 | T-201 Multi-chart grid layout (backlog sweep 2026-11-12) | feat/multi-chart-grid | planned | - |
 | T-202 Chart templates (backlog sweep 2026-11-12) | feat/chart-templates | planned | - |
@@ -452,24 +452,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   e2e facts; App arming pins for both venues incl. the cross-venue picker pin. No resx keys
   were added: the adapter's refusal/error strings stay English per the T-127 precedent and no
   new user-facing UI string was introduced.
-
-## T-199 — Indicator panes: oscillator sub-charts
-
-- **Branch:** `feat/indicator-panes` off `develop` (base `0d70ef0`).
-- **Origin:** the sweep — RSI and MACD draw on the price axis today; the overlay-only renderer
-  is wrong for oscillators.
-- **What:** indicators declare a pane kind (overlay vs oscillator) through the plugin
-  descriptor; oscillators render in their own sub-pane under the chart with their own Y scale
-  (0–100 for RSI), the pane resizing with the splitter discipline and persisting with the chart
-  indicators JSON; overlay indicators are untouched.
-- **Scope:** ZettaTrade.Charting (pane geometry), the CandlestickChart renderer, the SDK
-  descriptor's backward-compatible extension (`ZettaTrade.Plugins.Abstractions`), the Plugins
-  satellite's pane annotations ride its own package bump, resx en+ru, the next free alpha bump
-  + the CHANGELOG section.
-- **Acceptance:** RSI and MACD land in their own panes with correct scales; the pane resizes
-  and persists across restarts; the overlay shapes render exactly as before.
-- **Tests:** the renderer geometry pins; the pane-persistence battery.
-- **Status:** in-progress.
 
 ## T-200 — Drawing tools wave 2: zone, text, measure ruler
 
