@@ -146,7 +146,7 @@ public sealed class ChatViewModelHistoryTests
 
         internal IReadOnlyList<ChatHistoryMessage> Transcript(Guid conversationId) => _transcripts[conversationId];
 
-        public Task<IReadOnlyList<ChatConversation>> ListConversationsAsync(
+        public async Task<IReadOnlyList<ChatConversation>> ListConversationsAsync(
             CancellationToken cancellationToken = default)
         {
             if (ListFault is not null)
@@ -156,13 +156,12 @@ public sealed class ChatViewModelHistoryTests
 
             // Newest update first, in the seeded order on a tie (the tests
             // seed distinct moments, so the stable sort is a straight replay).
-            IReadOnlyList<ChatConversation> answer = _conversations
+            return _conversations
                 .OrderByDescending(conversation => conversation.UpdatedUtc)
                 .ToList();
-            return Task.FromResult(answer);
         }
 
-        public Task<IReadOnlyList<ChatHistoryMessage>> LoadMessagesAsync(
+        public async Task<IReadOnlyList<ChatHistoryMessage>> LoadMessagesAsync(
             Guid conversationId,
             CancellationToken cancellationToken = default)
         {
@@ -172,13 +171,12 @@ public sealed class ChatViewModelHistoryTests
                 throw LoadMessagesFault;
             }
 
-            IReadOnlyList<ChatHistoryMessage> answer = _transcripts.TryGetValue(conversationId, out var messages)
+            return _transcripts.TryGetValue(conversationId, out var messages)
                 ? messages.ToList()
                 : [];
-            return Task.FromResult(answer);
         }
 
-        public Task<ChatConversation> CreateConversationAsync(CancellationToken cancellationToken = default)
+        public async Task<ChatConversation> CreateConversationAsync(CancellationToken cancellationToken = default)
         {
             CreateCalls++;
             if (CreateFault is not null)
@@ -190,10 +188,10 @@ public sealed class ChatViewModelHistoryTests
             var conversation = new ChatConversation(Guid.NewGuid(), null, now, now);
             _conversations.Add(conversation);
             _transcripts[conversation.Id] = new List<ChatHistoryMessage>();
-            return Task.FromResult(conversation);
+            return conversation;
         }
 
-        public Task AppendMessageAsync(
+        public async Task AppendMessageAsync(
             Guid conversationId,
             ChatHistoryMessage message,
             CancellationToken cancellationToken = default)
@@ -206,16 +204,15 @@ public sealed class ChatViewModelHistoryTests
             var index = _conversations.FindIndex(conversation => conversation.Id == conversationId);
             if (index < 0)
             {
-                return Task.CompletedTask; // the store's honest drop
+                return; // the store's honest drop
             }
 
             AppendCalls++;
             _transcripts[conversationId].Add(message);
             _conversations[index] = _conversations[index] with { UpdatedUtc = DateTimeOffset.UtcNow };
-            return Task.CompletedTask;
         }
 
-        public Task RenameConversationAsync(
+        public async Task RenameConversationAsync(
             Guid conversationId,
             string? title,
             CancellationToken cancellationToken = default)
@@ -226,8 +223,6 @@ public sealed class ChatViewModelHistoryTests
             {
                 _conversations[index] = _conversations[index] with { Title = title };
             }
-
-            return Task.CompletedTask;
         }
     }
 
