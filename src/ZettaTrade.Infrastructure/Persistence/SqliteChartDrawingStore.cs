@@ -101,7 +101,15 @@ public sealed class SqliteChartDrawingStore(
                 continue;
             }
 
-            drawings.Add(new ChartDrawing { Id = ordered[0].DrawingId, Kind = kind, Anchors = anchors });
+            // The text annotation's string rides the drawing (every anchor
+            // row carries it; the first row's value reads back).
+            drawings.Add(new ChartDrawing
+            {
+                Id = ordered[0].DrawingId,
+                Kind = kind,
+                Anchors = anchors,
+                Text = ordered[0].Text,
+            });
         }
 
         return drawings;
@@ -154,6 +162,7 @@ public sealed class SqliteChartDrawingStore(
                     Kind = drawing.Kind.ToString(),
                     Time = drawing.Anchors[i].Time,
                     Price = drawing.Anchors[i].Price,
+                    Text = drawing.Text,
                 });
             }
         }

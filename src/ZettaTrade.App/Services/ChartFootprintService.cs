@@ -332,6 +332,18 @@ public sealed class ChartFootprintService(
                         Price = r.Price.Value,
                     }))
                 .OrderBy(static f => f.Marker.Time)
+                .ToArray(),
+            // The stop context (T-200): every working stop leg's trigger
+            // price — the measure ruler's R row reads the one nearest the
+            // position's entry (the protective stop's risk distance), the
+            // feed order standing in when the symbol shows no position.
+            openOrders
+                .Where(static o => o.StopPrice is { } stop &&
+                                   stop.Value > 0m &&
+                                   o.Type is OrderType.StopMarket
+                                       or OrderType.StopLimit
+                                       or OrderType.TrailingStop)
+                .Select(static o => new FootprintStop(o.Symbol.Normalized, o.StopPrice!.Value.Value))
                 .ToArray());
     }
 

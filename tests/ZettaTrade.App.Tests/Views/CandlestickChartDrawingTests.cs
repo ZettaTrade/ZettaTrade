@@ -233,4 +233,160 @@ public sealed class CandlestickChartDrawingTests
 
         second.Should().Equal(first, "a standing layer renders the same bytes every pass");
     }
+
+    /// <summary>
+    /// The wave-2 kinds' ink (T-200): the zone's band, the annotation's
+    /// marker-and-string and the ruler's segment all probe into the plot,
+    /// and the removal restores the plain frame byte-for-byte.
+    /// </summary>
+    [Fact]
+    public async Task TheWave2Kinds_InkTheirGeometry_AndTheRemovalRestoresTheFrameBitExact()
+    {
+        var (plain, drawn, restored) = await OnTheDispatcher(() =>
+        {
+            var chart = new CandlestickChart
+            {
+                Bars = new ObservableCollection<Bar>(
+                    [MainBar(0), MainBar(1), MainBar(2), MainBar(3), MainBar(4)]),
+            };
+            chart.Measure(new Size(320, 200));
+            chart.Arrange(new Rect(0, 0, 320, 200));
+
+            var plain = chart.RenderSnapshotPngBytes(null);
+
+            chart.Drawings =
+            [
+                new ChartDrawing
+                {
+                    Kind = ChartDrawingKind.Zone,
+                    Anchors =
+                    [
+                        new ChartDrawingAnchor(Hour(0), 100m),
+                        new ChartDrawingAnchor(Hour(3), 107m),
+                    ],
+                },
+                new ChartDrawing
+                {
+                    Kind = ChartDrawingKind.Text,
+                    Anchors = [new ChartDrawingAnchor(Hour(2), 103m)],
+                    Text = "retest",
+                },
+                new ChartDrawing
+                {
+                    Kind = ChartDrawingKind.Measure,
+                    Anchors =
+                    [
+                        new ChartDrawingAnchor(Hour(1), 100m),
+                        new ChartDrawingAnchor(Hour(3), 105m),
+                    ],
+                },
+            ];
+            var drawn = chart.RenderSnapshotPngBytes(null);
+
+            chart.Drawings = [];
+            var restored = chart.RenderSnapshotPngBytes(null);
+
+            return (plain, drawn, restored);
+        });
+
+        DrawingInkCount(drawn).Should().BeGreaterThan(0, "the wave-2 kinds carry their own annotation ink");
+        drawn.Should().NotEqual(plain, "the annotations layer changed the frame");
+        DrawingInkCount(restored).Should().Be(0, "the emptied layer leaves no stale ink");
+        restored.Should().Equal(plain, "removing the wave-2 drawings restores the single-series rendering bit-exact");
+    }
+
+    /// <summary>
+    /// The annotation's own string is the ink over the marker: an
+    /// unlabelled annotation still draws its marker dot, and the labelled
+    /// one inks strictly more (the string rides the render).
+    /// </summary>
+    [Fact]
+    public async Task TheTextAnnotation_StringAddsInk_OverTheMarkerAlone()
+    {
+        var (markerOnly, labelled) = await OnTheDispatcher(() =>
+        {
+            var chart = new CandlestickChart
+            {
+                Bars = new ObservableCollection<Bar>(
+                    [MainBar(0), MainBar(1), MainBar(2), MainBar(3), MainBar(4)]),
+                Drawings =
+                [
+                    new ChartDrawing
+                    {
+                        Kind = ChartDrawingKind.Text,
+                        Anchors = [new ChartDrawingAnchor(Hour(2), 103m)],
+                    },
+                ],
+            };
+            chart.Measure(new Size(320, 200));
+            chart.Arrange(new Rect(0, 0, 320, 200));
+            var markerOnly = chart.RenderSnapshotPngBytes(null);
+
+            chart.Drawings =
+            [
+                new ChartDrawing
+                {
+                    Kind = ChartDrawingKind.Text,
+                    Anchors = [new ChartDrawingAnchor(Hour(2), 103m)],
+                    Text = "retest",
+                },
+            ];
+            var labelled = chart.RenderSnapshotPngBytes(null);
+
+            return (markerOnly, labelled);
+        });
+
+        DrawingInkCount(markerOnly).Should().BeGreaterThan(0, "an unlabelled annotation still draws its marker");
+        DrawingInkCount(labelled).Should().BeGreaterThan(DrawingInkCount(markerOnly),
+            "the annotation's string is ink over the marker alone");
+    }
+
+    /// <summary>
+    /// The ruler's R row rides the stop context: a real stop inks the R
+    /// readout (the frames differ), and a stop ON the entry reads no R row
+    /// — the division refused at the render level too, byte-for-byte the
+    /// no-stop frame.
+    /// </summary>
+    [Fact]
+    public async Task TheMeasureReadout_RowsRideTheStopContext()
+    {
+        var (withoutStop, withStop, stopOnEntry) = await OnTheDispatcher(() =>
+        {
+            var chart = new CandlestickChart
+            {
+                Bars = new ObservableCollection<Bar>(
+                    [MainBar(0), MainBar(1), MainBar(2), MainBar(3), MainBar(4)]),
+                MeasureStopPrice = null,
+                Drawings =
+                [
+                    new ChartDrawing
+                    {
+                        Kind = ChartDrawingKind.Measure,
+                        Anchors =
+                        [
+                            new ChartDrawingAnchor(Hour(1), 100m),
+                            new ChartDrawingAnchor(Hour(3), 105m),
+                        ],
+                    },
+                ],
+            };
+            chart.Measure(new Size(320, 200));
+            chart.Arrange(new Rect(0, 0, 320, 200));
+
+            var withoutStop = chart.RenderSnapshotPngBytes(null);
+
+            chart.MeasureStopPrice = 98m;
+            var withStop = chart.RenderSnapshotPngBytes(null);
+
+            chart.MeasureStopPrice = 100m;
+            var stopOnEntry = chart.RenderSnapshotPngBytes(null);
+
+            return (withoutStop, withStop, stopOnEntry);
+        });
+
+        DrawingInkCount(withStop).Should().BeGreaterThan(0, "the ruler inks its readout either way");
+        withStop.Should().NotEqual(withoutStop, "the R row is ink the no-stop frame does not carry");
+        stopOnEntry.Should().Equal(withoutStop,
+            "a stop on the entry reads no R row — the division never fabricates a default");
+    }
 }

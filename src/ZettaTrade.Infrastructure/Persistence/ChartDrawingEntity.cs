@@ -33,4 +33,12 @@ public sealed class ChartDrawingEntity
 
     /// <summary>The anchor's price.</summary>
     public required decimal Price { get; set; }
+
+    /// <summary>
+    /// The annotation's text the drawing renders (the Text kind only,
+    /// T-200); null for every other kind. Every anchor row of one drawing
+    /// carries the same string (the drawing's attribute, not the
+    /// anchor's).
+    /// </summary>
+    public string? Text { get; set; }
 }

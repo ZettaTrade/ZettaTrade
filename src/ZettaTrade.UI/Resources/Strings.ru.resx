@@ -627,6 +627,36 @@
   <data name="Chart.Tool.Fib.Tip" xml:space="preserve">
     <value>Построить уровни Фибоначчи: нажмите на максимум свинга, протяните до минимума, отпустите (повторное нажатие выключает)</value>
   </data>
+  <data name="Chart.Tool.Zone" xml:space="preserve">
+    <value>Зона</value>
+  </data>
+  <data name="Chart.Tool.Zone.Tip" xml:space="preserve">
+    <value>Построить зону спроса/предложения: нажмите на угол, протяните до противоположного, отпустите (повторное нажатие выключает)</value>
+  </data>
+  <data name="Chart.Tool.Text" xml:space="preserve">
+    <value>Текст</value>
+  </data>
+  <data name="Chart.Tool.Text.Tip" xml:space="preserve">
+    <value>Поставить текстовую пометку: нажмите точку якоря, отпустите, введите текст в диалоге (повторное нажатие выключает)</value>
+  </data>
+  <data name="Chart.Tool.Measure" xml:space="preserve">
+    <value>Линейка</value>
+  </data>
+  <data name="Chart.Tool.Measure.Tip" xml:space="preserve">
+    <value>Измерить вход–выход: нажмите на вход, протяните до выхода, отпустите — на шкале будет ход относительно стопа заявки (повторное нажатие выключает)</value>
+  </data>
+  <data name="Chart.Text.PromptTitle" xml:space="preserve">
+    <value>Текстовая пометка</value>
+  </data>
+  <data name="Chart.Text.PromptLabel" xml:space="preserve">
+    <value>Текст пометки:</value>
+  </data>
+  <data name="Chart.Text.Place" xml:space="preserve">
+    <value>Поставить</value>
+  </data>
+  <data name="Chart.Text.Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
   <data name="Chart.Drawing.Delete" xml:space="preserve">
     <value>Удалить выбранный рисунок</value>
   </data>

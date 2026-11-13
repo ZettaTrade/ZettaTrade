@@ -1,3 +1,43 @@
+## [0.1.0-alpha.144] - 2026-11-13
+
+Build of board task T-200 (branch `feat/drawing-tools-2`): the drawing
+tools wave 2 — the supply/demand zone, the text annotation and the
+measure ruler — plus the ticket's stop context feeding the ruler's
+R-multiple row.
+
+### Added
+- The zone (renderer + store + palette): a translucent band between two
+  corner anchors (fill at alpha 40 under the kind's stroke), four
+  border-segment hit zones for the press resolve, and the same
+  press→drag→release placement machine wave 1 rides (a degenerate drag
+  cancels, the tool stays armed across commits).
+- The text annotation: one press anchor plus the annotation's string.
+  The commit prompts the view through the `TextAnnotationRequested`
+  interaction (a plain modal single-line entry — Enter places, Escape
+  cancels); a cancelled or empty answer places nothing (an annotation
+  never persists unlabelled). The string ships with the drawing through
+  the store (a new nullable `Text` column via EF migration
+  `AddDrawingText`, carried on every anchor row and read back from the
+  first) and renders one line right of the marker dot; an unlabelled
+  annotation draws its marker alone.
+- The measure ruler: two anchors frame the move; the readout caption
+  above the segment's midpoint shows the signed price delta, the
+  percentage off the entry and — when the stop context is real — the
+  signed R-multiple (`ChartMeasureReading`): the move divided by the
+  entry-to-stop risk distance. The division refuses loudly, never a
+  default substitution: a missing stop or a stop ON the entry reads no
+  R row, a zero entry price reads no percentage row.
+- The stop context (T-122's feed extension): the footprint snapshot's
+  new `Stops` member carries every working stop leg's trigger price
+  (StopMarket/StopLimit/TrailingStop, keyed by normalized symbol); the
+  chart VM picks the workspace symbol's stop nearest the position's
+  entry — the protective stop's own risk distance — or the first stop in
+  feed order when no position stands, and binds it to the chart control
+  (`MeasureStopPrice`), so the R row recomputes every render pass
+  without touching the stored drawing.
+- The palette buttons for the three tools, mirroring the wave-1 grammar
+  (armed state, tool tips, automation names), localized en and ru.
+
 ## [0.1.0-alpha.143] - 2026-11-13
 
 Build of board task T-199 (branch `feat/indicator-panes`): indicators

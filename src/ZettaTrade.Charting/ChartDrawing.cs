@@ -21,15 +21,28 @@ public sealed record ChartDrawing
     public required IReadOnlyList<ChartDrawingAnchor> Anchors { get; init; }
 
     /// <summary>
+    /// The text a <see cref="ChartDrawingKind.Text"/> annotation renders at
+    /// its anchor (T-200); every other kind carries null. The string ships
+    /// with the drawing through the store (the annotation prompt's answer)
+    /// — an annotation without text draws its marker alone.
+    /// </summary>
+    public string? Text { get; init; }
+
+    /// <summary>
     /// The exact anchor count each tool needs: a horizontal level pins one
     /// price; the trend line and the retracement carry two corners (the
-    /// retracement's levels derive from both).
+    /// retracement's levels derive from both); a text annotation pins one
+    /// spot; the zone's two corners bound the band; the measure ruler's two
+    /// ends frame the read move.
     /// </summary>
     public static int AnchorCount(ChartDrawingKind kind) => kind switch
     {
         ChartDrawingKind.TrendLine => 2,
         ChartDrawingKind.HorizontalLevel => 1,
         ChartDrawingKind.FibRetracement => 2,
+        ChartDrawingKind.Zone => 2,
+        ChartDrawingKind.Text => 1,
+        ChartDrawingKind.Measure => 2,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown drawing kind."),
     };
 

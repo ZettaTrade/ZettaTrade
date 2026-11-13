@@ -453,6 +453,17 @@ public class CandlestickChart : Control
             nameof(SelectedDrawingId),
             defaultValue: null);
 
+    /// <summary>
+    /// StyledProperty for the measure ruler's stop context (T-200): the
+    /// ticket's stop price the R-multiple reads against (the footprint
+    /// pipeline's working-stop pick). null - the default - reads the
+    /// ruler's Δprice and Δ% rows alone, the R row stays off.
+    /// </summary>
+    public static readonly StyledProperty<decimal?> MeasureStopPriceProperty =
+        AvaloniaProperty.Register<CandlestickChart, decimal?>(
+            nameof(MeasureStopPrice),
+            defaultValue: null);
+
     /// <summary>The annotation drawings the chart draws; a change re-inks on the next pass.</summary>
     public IReadOnlyList<ChartDrawing> Drawings
     {
@@ -472,6 +483,13 @@ public class CandlestickChart : Control
     {
         get => GetValue(SelectedDrawingIdProperty);
         set => SetValue(SelectedDrawingIdProperty, value);
+    }
+
+    /// <summary>The ticket's stop context the measure ruler's R row reads against; null reads no R row.</summary>
+    public decimal? MeasureStopPrice
+    {
+        get => GetValue(MeasureStopPriceProperty);
+        set => SetValue(MeasureStopPriceProperty, value);
     }
 
     /// <summary>
@@ -1397,7 +1415,8 @@ public class CandlestickChart : Control
             _placement.Tool == ActiveTool && _placement.Dragging ? _placement.PreviewAnchor : null,
             _drawingLineColor,
             _drawingSelectedColor,
-            _drawingDragPreview);
+            _drawingDragPreview,
+            MeasureStopPrice);
     }
 
     /// <summary>
@@ -1648,7 +1667,8 @@ public class CandlestickChart : Control
         ChartDrawingAnchor? PlacementPreviewAnchor,
         SKColor DrawingLine,
         SKColor DrawingSelected,
-        ChartDrawingPreviewOverride? DragPreview);
+        ChartDrawingPreviewOverride? DragPreview,
+        decimal? MeasureStopPrice);
 
     /// <summary>
     /// One aligned compare layer the draw pass consumes (T-124): the
@@ -1701,6 +1721,21 @@ public class CandlestickChart : Control
 
         /// <summary>The Fibonacci label's font size (px).</summary>
         private const float FibLabelFontSizePx = 9f;
+
+        /// <summary>The text annotation's font size (T-200, px).</summary>
+        private const float TextAnnotationFontSizePx = 12f;
+
+        /// <summary>How far (px) right of its anchor the annotation's text starts.</summary>
+        private const float TextAnnotationInsetPx = 9f;
+
+        /// <summary>The alpha (0-255) the zone's translucent fill paints at (T-200).</summary>
+        private const byte ZoneFillAlpha = 40;
+
+        /// <summary>How far (px) above the measure segment the readout's baseline rides (T-200).</summary>
+        private const float MeasureReadoutBaselinePx = 6f;
+
+        /// <summary>The measure readout's font size (px) — the fib label's small caption face.</summary>
+        private const float MeasureReadoutFontSizePx = 10f;
 
         /// <summary>
         /// The Fibonacci labels' number format: 0, 0.236, 0.382, 0.5, 0.618,
@@ -2649,7 +2684,8 @@ public class CandlestickChart : Control
                     drawing.Kind,
                     anchors,
                     selected,
-                    collectBodyHits: hits);
+                    collectBodyHits: hits,
+                    text: drawing.Text);
             }
 
             // The placement's in-flight preview (anchor #1 planted, the
@@ -2690,7 +2726,8 @@ public class CandlestickChart : Control
             ChartDrawingKind kind,
             IReadOnlyList<ChartDrawingAnchor> anchors,
             bool selected,
-            List<ChartDrawingHit>? collectBodyHits)
+            List<ChartDrawingHit>? collectBodyHits,
+            string? text = null)
         {
             try
             {
@@ -2749,6 +2786,24 @@ public class CandlestickChart : Control
                     case ChartDrawingKind.FibRetracement:
                         {
                             DrawFib(canvas, stroke, plotRect, points, anchors, minAxis, axisRange, id, collectBodyHits);
+                            break;
+                        }
+
+                    case ChartDrawingKind.Zone:
+                        {
+                            DrawZone(canvas, stroke, plotRect, points, id, collectBodyHits);
+                            break;
+                        }
+
+                    case ChartDrawingKind.Text:
+                        {
+                            DrawTextAnnotation(canvas, stroke, plotRect, points[0], text, id, collectBodyHits);
+                            break;
+                        }
+
+                    case ChartDrawingKind.Measure:
+                        {
+                            DrawMeasure(canvas, stroke, plotRect, points, anchors, minAxis, axisRange, id, collectBodyHits);
                             break;
                         }
                 }
@@ -2872,6 +2927,140 @@ public class CandlestickChart : Control
                     null,
                     [(new SKPoint(left, y), new SKPoint(right, y))]));
             }
+        }
+
+        /// <summary>
+        /// The zone (T-200): a translucent band between the two corners —
+        /// the fill paints at a low alpha of the drawing color, the border
+        /// strokes the rectangle, and the body zone (the press resolve)
+        /// rides the four border segments. The corners' order never
+        /// matters: the band reads off the mapped points' extremes.
+        /// </summary>
+        private void DrawZone(
+            SKCanvas canvas,
+            SKPaint stroke,
+            Rect plotRect,
+            SKPoint[] points,
+            Guid id,
+            List<ChartDrawingHit>? collectBodyHits)
+        {
+            var left = Math.Min(points[0].X, points[1].X);
+            var right = Math.Max(points[0].X, points[1].X);
+            var top = Math.Min(points[0].Y, points[1].Y);
+            var bottom = Math.Max(points[0].Y, points[1].Y);
+            var rect = new SKRect(left, top, right, bottom);
+
+            var color = stroke.Color;
+            using var fill = new SKPaint
+            {
+                Color = new SKColor(color.Red, color.Green, color.Blue, ZoneFillAlpha),
+                IsAntialias = true,
+            };
+            canvas.DrawRect(rect, fill);
+            canvas.DrawRect(rect, stroke);
+
+            collectBodyHits?.Add(new ChartDrawingHit(
+                id,
+                -1,
+                null,
+                [
+                    (new SKPoint(left, top), new SKPoint(right, top)),
+                    (new SKPoint(right, top), new SKPoint(right, bottom)),
+                    (new SKPoint(right, bottom), new SKPoint(left, bottom)),
+                    (new SKPoint(left, bottom), new SKPoint(left, top)),
+                ]));
+        }
+
+        /// <summary>
+        /// The text annotation (T-200): the anchor's marker dot plus the
+        /// annotation's own string to its right — an absent or empty string
+        /// draws the marker alone. The body zone (the press resolve) rides
+        /// a horizontal band under the text (or under the marker when the
+        /// string is empty).
+        /// </summary>
+        private void DrawTextAnnotation(
+            SKCanvas canvas,
+            SKPaint stroke,
+            Rect plotRect,
+            SKPoint anchor,
+            string? text,
+            Guid id,
+            List<ChartDrawingHit>? collectBodyHits)
+        {
+            var markerRadius = 3f;
+            using var marker = new SKPaint
+            {
+                Color = stroke.Color,
+                IsAntialias = true,
+            };
+            canvas.DrawCircle(anchor, markerRadius, marker);
+
+            var content = string.IsNullOrWhiteSpace(text) ? null : text!;
+            var reach = 2 * markerRadius;
+            if (content is not null)
+            {
+                using var textPaint = new SKPaint
+                {
+                    Color = stroke.Color,
+                    IsAntialias = true,
+                };
+                using var font = new SKFont(SKTypeface.Default, TextAnnotationFontSizePx);
+                canvas.DrawText(content, anchor.X + TextAnnotationInsetPx, anchor.Y, SKTextAlign.Left, font, textPaint);
+                var width = font.MeasureText(content, textPaint);
+                reach = TextAnnotationInsetPx + (float)width;
+            }
+
+            collectBodyHits?.Add(new ChartDrawingHit(
+                id,
+                -1,
+                null,
+                [(new SKPoint(anchor.X - reach, anchor.Y), new SKPoint(anchor.X + reach, anchor.Y))]));
+        }
+
+        /// <summary>
+        /// The measure ruler (T-200): the entry-to-exit segment with its
+        /// readout caption riding above the segment's midpoint — the price
+        /// delta, the percentage off the entry and, when the ticket's stop
+        /// context is present and the risk distance is real, the signed
+        /// R-multiple. The readout recomputes EVERY pass: a stop context
+        /// change re-inks the caption without touching the stored drawing.
+        /// </summary>
+        private void DrawMeasure(
+            SKCanvas canvas,
+            SKPaint stroke,
+            Rect plotRect,
+            SKPoint[] points,
+            IReadOnlyList<ChartDrawingAnchor> anchors,
+            decimal minAxis,
+            decimal axisRange,
+            Guid id,
+            List<ChartDrawingHit>? collectBodyHits)
+        {
+            canvas.DrawLine(points[0], points[1], stroke);
+            collectBodyHits?.Add(new ChartDrawingHit(id, -1, null, [(points[0], points[1])]));
+
+            var reading = ChartMeasureReading.Read(anchors[0], anchors[1], _snapshot.MeasureStopPrice);
+            var culture = _snapshot.Culture;
+            var caption = reading.DeltaPrice.ToString("+0.##;-0.##;0.##", culture);
+            if (reading.DeltaPercent is { } percent)
+            {
+                caption += "  " + percent.ToString("+0.##;-0.##;0.##", culture) + "%";
+            }
+
+            if (reading.RMultiple is { } multiple)
+            {
+                caption += "  R " + multiple.ToString("0.##", culture);
+            }
+
+            using var textPaint = new SKPaint
+            {
+                Color = stroke.Color,
+                IsAntialias = true,
+            };
+            using var font = new SKFont(SKTypeface.Default, MeasureReadoutFontSizePx);
+            var midX = (points[0].X + points[1].X) / 2f;
+            var midY = (points[0].Y + points[1].Y) / 2f - MeasureReadoutBaselinePx;
+            canvas.DrawText(caption, midX, midY, SKTextAlign.Center, font, textPaint);
         }
 
         /// <summary>Anchor grab handles (the drag affordance the selected drawing shows).</summary>

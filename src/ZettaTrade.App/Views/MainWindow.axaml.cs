@@ -309,6 +309,16 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             context.SetOutput(symbol);
         });
 
+        // The text annotation's prompt route (T-200): the chart's commit
+        // asks this window to run the annotation prompt — the answer
+        // becomes the annotation's string, a null output is the user
+        // cancelling (the placed anchor stands down, nothing persists).
+        ViewModel?.Chart.TextAnnotationRequested.RegisterHandler(async context =>
+        {
+            var text = await TextAnnotationWindow.PromptAsync(this);
+            context.SetOutput(text);
+        });
+
         // The watchlist add's route (T-196): the watchlist's add button asks
         // this window to open the palette in watchlist mode — the ride
         // completes with the picked symbol and the panel's catalog mutation

@@ -166,40 +166,58 @@ public sealed class CandlestickChartPaneTests
     /// <summary>
     /// The separator hairline spans the FULL control width (the price
     /// gutter included — a place the main pane's gridlines never reach),
-    /// so a frame with an oscillator paints border-colored ink at the far
-    /// right of some row; a frame without one paints none there.
+    /// so a frame with an oscillator paints ink at the far right of some
+    /// row that the pane-less frame does not carry, and the pane-less
+    /// world paints the same ink pass after pass. The probes compare the
+    /// frames AGAINST EACH OTHER instead of pinning literal ink: the
+    /// process-global application world (the theme facts' applied palette
+    /// persists in Application.Current) legally recolors the border ink —
+    /// the separator's presence is the semantic, whatever palette paints
+    /// it.
     /// </summary>
     [Fact]
     public async Task RenderSnapshotPng_TheSeparator_SpansTheFullWidth()
     {
-        var (withoutPane, withPane) = await OnTheDispatcher(() =>
+        var (paneDeltaRows, plainDeltaRows) = await OnTheDispatcher(() =>
         {
-            static bool RightmostBorderInk(SKBitmap probe)
-            {
-                // The gutter band: the last ~40 px of every row. The main
-                // gridlines stop at the plot's right edge; the separator
-                // crosses it.
-                var farRight = probe!.Width - 8;
-                for (var y = 0; y < probe.Height; y++)
-                {
-                    var color = probe.GetPixel(farRight, y);
-                    if (color.Red == 40 && color.Green == 40 && color.Blue == 50 && color.Alpha > 200)
-                    {
-                        return true;
-                    }
-                }
+            using var paneProbe = SKBitmap.Decode(BuildChart([OscillatorLine(50m, 0m, 100m, 4)]).RenderSnapshotPngBytes(null));
+            using var plainProbe = SKBitmap.Decode(BuildChart([]).RenderSnapshotPngBytes(null));
+            using var plainAgain = SKBitmap.Decode(BuildChart([]).RenderSnapshotPngBytes(null));
 
-                return false;
+            // The gutter band: the last ~40 px of every row. The main
+            // gridlines stop at the plot's right edge; the separator
+            // crosses it.
+            var farRight = paneProbe!.Width - 8;
+            static bool DiffersAt(SKBitmap probe, SKBitmap baseline, int farRight, int y)
+            {
+                var color = probe.GetPixel(farRight, y);
+                var baseColor = baseline.GetPixel(farRight, y);
+                return color.Red != baseColor.Red
+                    || color.Green != baseColor.Green
+                    || color.Blue != baseColor.Blue
+                    || color.Alpha != baseColor.Alpha;
             }
 
-            using var plainProbe = SKBitmap.Decode(BuildChart([]).RenderSnapshotPngBytes(null));
-            using var paneProbe = SKBitmap.Decode(BuildChart([OscillatorLine(50m, 0m, 100m, 4)]).RenderSnapshotPngBytes(null));
+            var paneDeltaRows = new List<int>();
+            var plainDeltaRows = new List<int>();
+            for (var y = 0; y < paneProbe.Height; y++)
+            {
+                if (DiffersAt(paneProbe, plainProbe!, farRight, y))
+                {
+                    paneDeltaRows.Add(y);
+                }
 
-            return (RightmostBorderInk(plainProbe!), RightmostBorderInk(paneProbe!));
+                if (DiffersAt(plainProbe!, plainAgain!, farRight, y))
+                {
+                    plainDeltaRows.Add(y);
+                }
+            }
+
+            return (paneDeltaRows, plainDeltaRows);
         });
 
-        withPane.Should().BeTrue("the separator hairline crosses the price gutter");
-        withoutPane.Should().BeFalse("without a pane nothing paints border ink in the gutter");
+        paneDeltaRows.Should().NotBeEmpty("the separator hairline crosses the price gutter — ink the pane-less frame does not carry");
+        plainDeltaRows.Should().BeEmpty("without a pane the gutter paints the same ink pass after pass — the pane's separator is the only far-right delta");
     }
 
     /// <summary>
@@ -208,7 +226,10 @@ public sealed class CandlestickChartPaneTests
     /// decimals in the shared gutter (the text-ink probe counts non-
     /// background pixels right of the plot edge inside the pane's band).
     /// A warmup-only line (every value null) still draws the pane's frame:
-    /// the neutral-unit ladder renders, no polyline ink appears.
+    /// the neutral-unit ladder renders, no polyline ink appears. The
+    /// separator's presence reads against the pane-less frame (the applied
+    /// theme world legally recolors the border ink — see the full-width
+    /// fact), the polyline's absence keeps the literal amber probe.
     /// </summary>
     [Fact]
     public async Task RenderSnapshotPng_AnAllWarmupOscillator_StillPaintsThePaneFrame()
@@ -222,19 +243,24 @@ public sealed class CandlestickChartPaneTests
                 0m,
                 100m);
             using var probe = SKBitmap.Decode(BuildChart([allWarmup]).RenderSnapshotPngBytes(null));
+            using var plain = SKBitmap.Decode(BuildChart([]).RenderSnapshotPngBytes(null));
 
             var separator = new List<int>();
-            var amber = new List<int>();
             var farRight = probe!.Width - 8;
             for (var y = 0; y < probe.Height; y++)
             {
                 var color = probe.GetPixel(farRight, y);
-                if (color.Red == 40 && color.Green == 40 && color.Blue == 50 && color.Alpha > 200)
+                var baseColor = plain!.GetPixel(farRight, y);
+                if (color.Red != baseColor.Red
+                    || color.Green != baseColor.Green
+                    || color.Blue != baseColor.Blue
+                    || color.Alpha != baseColor.Alpha)
                 {
                     separator.Add(y);
                 }
             }
 
+            var amber = new List<int>();
             amber.AddRange(AmberRows(probe));
 
             return (separator, amber);

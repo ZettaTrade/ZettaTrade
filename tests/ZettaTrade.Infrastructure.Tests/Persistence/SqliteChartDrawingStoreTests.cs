@@ -60,6 +60,33 @@ public sealed class SqliteChartDrawingStoreTests
         ],
     };
 
+    private static ChartDrawing Zone(decimal priceStep) => new()
+    {
+        Kind = ChartDrawingKind.Zone,
+        Anchors =
+        [
+            new ChartDrawingAnchor(BaseTime, 100m + priceStep),
+            new ChartDrawingAnchor(BaseTime.AddHours(2), 150m + priceStep),
+        ],
+    };
+
+    private static ChartDrawing Annotation(string? text, int hourOffset = 1) => new()
+    {
+        Kind = ChartDrawingKind.Text,
+        Anchors = [new ChartDrawingAnchor(BaseTime.AddHours(hourOffset), 120m)],
+        Text = text,
+    };
+
+    private static ChartDrawing Ruler(decimal priceStep) => new()
+    {
+        Kind = ChartDrawingKind.Measure,
+        Anchors =
+        [
+            new ChartDrawingAnchor(BaseTime.AddHours(4), 200m),
+            new ChartDrawingAnchor(BaseTime.AddHours(6), 200m + priceStep),
+        ],
+    };
+
     #endregion Test Data
 
     #region Helpers
@@ -310,6 +337,49 @@ public sealed class SqliteChartDrawingStoreTests
             loaded.Select(drawing => drawing.Id)
                 .Should().Equal((IEnumerable<Guid>)[saved[1].Id],
                     "a flipped segment reads backwards — the validation net drops it.");
+        });
+    }
+
+    [Fact]
+    public async Task SaveThenLoad_RoundTripsTheTextAnnotation()
+    {
+        await WithTempDatabaseAsync(async paths =>
+        {
+            var zone = Zone(2m);
+            var annotated = Annotation("supply above — wait for retest", hourOffset: 1);
+            var unlabelled = Annotation(null, hourOffset: 3);
+            var ruler = Ruler(5m);
+
+            var first = CreateStore(paths.File);
+            await first.InitializeAsync();
+            var saved = await first.SaveAsync(
+                DemoAdapter,
+                DemoSymbol,
+                TimeFrame.H1,
+                // Each drawing's first anchor owns a distinct time slot: the
+                // load order rides it, the fact's expected order never ties.
+                [zone, annotated, unlabelled, ruler]);
+
+            // The homecoming through a fresh store instance: the
+            // annotation's string rides the rows (every anchor row carries
+            // it), the plain kinds come back textless.
+            var second = CreateStore(paths.File);
+            await second.InitializeAsync();
+            var loaded = await second.LoadAsync(DemoAdapter, DemoSymbol, TimeFrame.H1);
+
+            loaded.Select(drawing => drawing.Id)
+                .Should().Equal(saved.Select(drawing => drawing.Id));
+            loaded.Single(drawing => drawing.Id == annotated.Id).Text
+                .Should().Be("supply above — wait for retest", "the prompt's answer outlives the process.");
+            loaded.Single(drawing => drawing.Id == unlabelled.Id).Text
+                .Should().BeNull("an unlabelled annotation reads back textless.");
+            loaded.Where(drawing => drawing.Kind is ChartDrawingKind.Zone or ChartDrawingKind.Measure)
+                .Select(drawing => drawing.Text)
+                .Should().HaveCount(2).And.OnlyContain(text => text == null, "only the annotation kind carries a string.");
+            loaded.Single(drawing => drawing.Kind == ChartDrawingKind.Zone).Anchors
+                .Should().BeEquivalentTo(zone.Anchors);
+            loaded.Single(drawing => drawing.Kind == ChartDrawingKind.Measure).Anchors
+                .Should().BeEquivalentTo(ruler.Anchors);
         });
     }
 
