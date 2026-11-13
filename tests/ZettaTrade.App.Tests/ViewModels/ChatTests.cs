@@ -94,10 +94,13 @@ internal static class ChatTests
 
     /// <summary>
     /// A fully wired chat: anonymous collaborators, an idle workspace, and
-    /// every substitute exposed for programming by the test.
+    /// every substitute exposed for programming by the test. The streaming
+    /// provider rides in only when a test asks for it — the default kit is
+    /// the pre-T-205 one-shot shape.
     /// </summary>
     internal static ChatKit CreateKit(
-        bool persistedVisibility = UiSettingsKeys.DefaultShowAiPanel)
+        bool persistedVisibility = UiSettingsKeys.DefaultShowAiPanel,
+        IStreamingChatCompletion? streaming = null)
     {
         var (settings, changes) = VisibilitySettings(persistedVisibility);
         var completion = Completion();
@@ -109,14 +112,16 @@ internal static class ChatTests
             IdleContext(),
             new WorkspacePromptComposer(),
             localization,
-            NullLogger<ChatViewModel>.Instance);
+            NullLogger<ChatViewModel>.Instance,
+            streaming: streaming);
 
         return new ChatKit(
             chat,
             settings,
             changes,
             completion,
-            localization);
+            localization,
+            streaming);
     }
 
     /// <summary>
@@ -132,12 +137,27 @@ internal static class ChatTests
 
 /// <summary>
 /// One wired chat with every substitute that drives it, so a test can assert
-/// against the pieces without wiring them again.
+/// against the pieces without wiring them again. The streaming provider is
+/// null unless the test passed one.
 /// </summary>
 internal sealed record ChatKit(
     ChatViewModel Chat,
     ISettingsService Settings,
     Subject<SettingsChange> Changes,
     IChatCompletion Completion,
-    ILocalizationManager Localization);
+    ILocalizationManager Localization,
+    IStreamingChatCompletion? Streaming = null)
+{
+    /// <summary>
+    /// The kit rides the streamed path only when the settings say so: this
+    /// stub pins the AI section's streaming key independent of the visibility
+    /// stub's any-key answer (the later setup wins for the matching call).
+    /// </summary>
+    internal void StreamPerSettings(bool enabled)
+    {
+        Settings
+            .GetAsync<bool>(AiSettingsKeys.Section, AiSettingsKeys.Streaming, Arg.Any<bool>())
+            .Returns(enabled);
+    }
+}
 

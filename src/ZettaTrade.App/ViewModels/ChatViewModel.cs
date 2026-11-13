@@ -2,6 +2,7 @@ namespace ZettaTrade.App.ViewModels;
 
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
+using System.Text;
 using Livery.Contracts;
 using Livery.Localization;
 using Microsoft.Extensions.Logging;
@@ -27,7 +28,12 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// assistant turn. When the user consented on the market-context chip, every
 /// send additionally carries the token-bounded market snapshot preamble
 /// (compacted fresh from the workspace moment) — un-consented sends keep the
-/// exact pre-consent wording. Unavailable assistant models surface honestly:
+/// exact pre-consent wording. The reply path streams when the provider
+/// offers it and the settings key allows (T-205): the deltas append into
+/// one assistant bubble while the answer is still being written, the Stop
+/// affordance cuts the stream mid-flight (the arrived prefix stays), and
+/// the non-streaming fallback rides the one-shot completion verbatim.
+/// Unavailable assistant models surface honestly:
 /// an in-chat error line with the underlying reason, never a silently
 /// swallowed send.
 /// </summary>
@@ -38,7 +44,7 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>In-chat failure line (the reason is appended by the UI).</summary>
     private const string ChatErrorKey = "AI.Chat.Error";
 
-    /// <summary>Display labels of the chat row roles.</summary>
+    /// <summary>Localized display labels of the chat row roles.</summary>
     private const string RoleUserKey = "AI.Chat.RoleUser";
     private const string RoleAssistantKey = "AI.Chat.RoleAssistant";
 
@@ -91,6 +97,14 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     private readonly ChatContextService _context;
     private readonly WorkspacePromptComposer _composer;
     private readonly MarketContextPreambleComposer? _momentComposer;
+
+    /// <summary>
+    /// The streaming half of the provider surface (T-205); without it the
+    /// chat always rides the one-shot completion, whatever the settings key
+    /// says — the key cannot turn a missing capability on.
+    /// </summary>
+    private readonly IStreamingChatCompletion? _streaming;
+
     private readonly ILocalizationManager _localization;
     private readonly ILogger<ChatViewModel> _logger;
 
@@ -113,6 +127,9 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
     /// <param name="momentComposer">The market-context preamble composer;
     /// without it the consent path degrades to no preamble (the consent
     /// chip still stores the preference, the send wording does not change).</param>
+    /// <param name="streaming">The streaming half of the provider surface
+    /// (T-205); without it every send rides the one-shot completion, whatever
+    /// the settings key says.</param>
     public ChatViewModel(
         ISettingsService settings,
         IChatCompletion completion,
@@ -120,7 +137,8 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         WorkspacePromptComposer composer,
         ILocalizationManager localization,
         ILogger<ChatViewModel> logger,
-        MarketContextPreambleComposer? momentComposer = null)
+        MarketContextPreambleComposer? momentComposer = null,
+        IStreamingChatCompletion? streaming = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _completion = completion ?? throw new ArgumentNullException(nameof(completion));
@@ -129,6 +147,7 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _momentComposer = momentComposer;
+        _streaming = streaming;
 
         // Persist every user flip immediately (the same real-difference
         // discipline the settings window applies): the cache LEADS the
@@ -424,9 +443,27 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
                         _momentComposer.Compose(workspace.ToMarketMoment()))
                     : _composer.Compose(workspace);
 
-                var reply = await _completion.CompleteAsync(systemPrompt, turns, inFlight.Token);
+                // The path is decided at issue time (the provider's own
+                // per-request settings discipline): a settings-file flip
+                // between sends changes exactly what the next send does.
+                // Without the streaming capability the key cannot turn the
+                // streamed path on — the one-shot completion is the standing
+                // shape.
+                var stream = _streaming is not null && await _settings.GetAsync<bool>(
+                    AiSettingsKeys.Section,
+                    AiSettingsKeys.Streaming,
+                    AiSettingsKeys.DefaultStreaming);
 
-                AddTurn(ChatMessageKind.AssistantTurn, reply, RoleAssistantKey);
+                if (stream)
+                {
+                    await StreamReplyAsync(systemPrompt, turns, inFlight.Token);
+                }
+                else
+                {
+                    var reply = await _completion.CompleteAsync(systemPrompt, turns, inFlight.Token);
+
+                    AddTurn(ChatMessageKind.AssistantTurn, reply, RoleAssistantKey);
+                }
             }
             finally
             {
@@ -442,7 +479,10 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         {
             // The request was abandoned (the user stopped it — T-158 — or the
             // shutdown/hot-reload path canceled it): the accepted turn stays
-            // in the chat, no answer and no error line follows. The stop
+            // in the chat, no answer and no error line follows. A streamed
+            // reply's arrived prefix (T-205) stays as the partial turn — the
+            // deltas are the model's real output, and the honest shape of a
+            // cut stream is "everything that made it". The stop
             // flag tells the two apart — the source is already cleared by
             // the time the cancellation unwinds, so the flag is the only
             // witness that survived the settlement; the click's own
@@ -491,6 +531,55 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         _userStopRequested = true;
         _logger.LogInformation("The user pressed Stop on the in-flight assistant reply");
         _inFlight.Cancel();
+    }
+
+    #endregion
+
+    #region Streamed Reply
+
+    /// <summary>
+    /// The streamed reply (T-205): the deltas append into ONE assistant
+    /// bubble created on the first delta — an immediately-failing stream
+    /// never renders an empty bubble — and the bubble grows while the answer
+    /// is still being written. Every append raises the content change, so
+    /// the bound text re-renders live. The reader's contract throws on a
+    /// stream that closes without any content, so a normal completion always
+    /// carries the full answer in the bubble (no second append happens).
+    /// A mid-flight fault keeps the arrived prefix in the bubble (the
+    /// deltas are the model's real output); the caller's catch renders the
+    /// error line after it — except a stop, which keeps the prefix with no
+    /// error line (the T-158 semantics, the streamed prefix included).
+    /// </summary>
+    /// <param name="systemPrompt">The composed workspace prompt.</param>
+    /// <param name="turns">The conversation history for the request.</param>
+    /// <param name="ct">The in-flight token (the Stop affordance cancels it).</param>
+    /// <returns>The completed stream (the bubble holds the full answer).</returns>
+    private async Task StreamReplyAsync(
+        string systemPrompt,
+        IReadOnlyList<ChatTurn> turns,
+        CancellationToken ct)
+    {
+        var content = new StringBuilder();
+        ChatMessageViewModel? bubble = null;
+
+        await foreach (var delta in _streaming!.StreamAsync(systemPrompt, turns, ct))
+        {
+            content.Append(delta);
+            if (bubble is null)
+            {
+                bubble = new ChatMessageViewModel
+                {
+                    Kind = ChatMessageKind.AssistantTurn,
+                    Role = _localization.GetString(RoleAssistantKey),
+                    Content = content.ToString(),
+                };
+                ChatMessages.Add(bubble);
+            }
+            else
+            {
+                bubble.Content = content.ToString();
+            }
+        }
     }
 
     #endregion
@@ -549,8 +638,18 @@ public sealed class ChatMessageViewModel : ReactiveObject
     /// <summary>Localized display label of the row's role.</summary>
     public required string Role { get; init; }
 
-    /// <summary>Message content.</summary>
-    public required string Content { get; init; }
+    private string _content = string.Empty;
+
+    /// <summary>
+    /// Message content. The streamed reply's bubble mutates it live while
+    /// the answer is still being written (T-205): every append raises the
+    /// change, so the bound text re-renders with the arrived prefix.
+    /// </summary>
+    public required string Content
+    {
+        get => _content;
+        set => this.RaiseAndSetIfChanged(ref _content, value);
+    }
 
     /// <summary>Message timestamp.</summary>
     public System.DateTimeOffset Timestamp { get; init; } = System.DateTimeOffset.Now;

@@ -1,3 +1,29 @@
+## [0.1.0-alpha.149] - 2026-11-13
+
+Build of board task T-205 (branch `feat/ai-streaming`): the streaming AI
+chat — the assistant's reply renders while it is still being written.
+
+### Added
+- The streaming half of the chat provider: the Ollama route posts the
+  same conversation with `stream: true` and reads the NDJSON reply line
+  by line, yielding each delta the moment its line arrives (the task
+  text's "SSE" was the sweep's placeholder — the shipped provider speaks
+  NDJSON). The streamed read carries no client-side request timeout: the
+  Stop affordance and the caller's token govern it, so a token-by-token
+  generation can outlast the one-shot's cold-load budget legitimately.
+- The chat panel's streamed render: the deltas append into ONE assistant
+  bubble created on the first delta (an immediately-failing stream never
+  renders an empty bubble), every append raising the content change so
+  the bound text re-renders live. A Stop cut keeps the arrived prefix
+  (the deltas are the model's real output) with no error line; a
+  mid-flight fault keeps the prefix and adds the honest error line after
+  it.
+- The non-streaming fallback on the `AI/Streaming` settings key: the key
+  is read at issue time (a settings-file flip between sends changes
+  exactly what the next send does), and a chat without the streaming
+  capability rides the one-shot completion whatever the key says. The
+  fallback path keeps the pre-T-205 behavior verbatim.
+
 ## [0.1.0-alpha.148] - 2026-11-13
 
 Build of board task T-204 (branch `feat/alerts-mechanics-2`): the alert

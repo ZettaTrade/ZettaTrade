@@ -228,7 +228,8 @@ internal static class CompositionRoot
                 sp.GetRequiredService<WorkspacePromptComposer>(),
                 sp.GetRequiredService<ILocalizationManager>(),
                 sp.GetRequiredService<ILogger<ChatViewModel>>(),
-                sp.GetRequiredService<MarketContextPreambleComposer>()));
+                sp.GetRequiredService<MarketContextPreambleComposer>(),
+                sp.GetRequiredService<IStreamingChatCompletion>()));
         // The detached-panel runtime (T-103): the one authority of the
         // detached state with its per-panel window shells. Registered
         // before the layout ViewModel — the layout mirror and the View
