@@ -436,4 +436,51 @@ public sealed class TradeStatsAccumulatorTests
     }
 
     #endregion Realized Ledger (T-210)
+
+    #region Snapshot Pinning
+
+    [Fact]
+    public void EquityCurve_SnapshotIsPinned_TheScanKeepsAppending()
+    {
+        // The dashboard publishes a snapshot after every page and keeps
+        // scanning: the published curve must stay exactly as it was at its
+        // publish (the anchor plus the closes booked so far), never grow
+        // with the scan's later appends.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 1m, 12m, 1),
+        ]);
+
+        var first = accumulator.Snapshot();
+
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 2),
+            Fill(OrderSide.Sell, 1m, 9m, 3),
+        ]);
+
+        first.Equity.Should().HaveCount(2, "the anchor plus the first close only");
+        first.Equity.Select(point => point.Value).Should().Equal([0m, 2m]);
+        accumulator.Snapshot().Equity.Should().HaveCount(3, "the anchor plus both closes");
+    }
+
+    [Fact]
+    public void EquityCurve_IndexOutOfRange_ThrowsTheHonestGuard()
+    {
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 1m, 12m, 1),
+        ]);
+
+        var pinned = accumulator.Snapshot().Equity;
+
+        var act = () => _ = pinned[2];
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    #endregion Snapshot Pinning
 }

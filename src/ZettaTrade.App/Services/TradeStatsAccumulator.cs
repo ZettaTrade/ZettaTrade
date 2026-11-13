@@ -1,7 +1,9 @@
 namespace ZettaTrade.App.Services;
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
@@ -85,8 +87,11 @@ public sealed class TradeStatsAccumulator
     }
 
     /// <summary>
-    /// The aggregate so far, including a fresh copy of the equity curve (the
-    /// scan keeps appending — a snapshot must not see later points).
+    /// The aggregate so far, including the equity curve as it was at this
+    /// moment: the scan keeps appending after a publish, and a snapshot
+    /// must not see later points — the pinned view guarantees exactly that
+    /// without copying the whole curve per publish (a six-figure scan
+    /// re-copied its whole growing curve every page before).
     /// </summary>
     public TradeStatsSummary Snapshot()
     {
@@ -104,7 +109,7 @@ public sealed class TradeStatsAccumulator
             AverageLoser: losses > 0 ? _grossLoss / losses : null,
             WinRate: wins + losses > 0 ? wins / (decimal)(wins + losses) : null,
             ProfitFactor: _grossLoss == 0 ? null : _grossProfit / -_grossLoss,
-            Equity: [.. _equity]);
+            Equity: new EquityView(_equity, _equity.Count));
     }
 
     /// <summary>
@@ -287,4 +292,31 @@ public sealed class TradeStatsAccumulator
     }
 
     #endregion Position State
+
+    #region Snapshot View
+
+    /// <summary>
+    /// The read-only window over the accumulator's append-only equity list,
+    /// pinned to the length at snapshot time: the scan keeps appending after
+    /// a snapshot published, and a published summary must never grow with
+    /// it — the pinned count guarantees exactly that without copying the
+    /// whole curve per publish. Reads stay single-threaded by the
+    /// accumulator's own contract: one scan ingests and publishes on its
+    /// continuation chain, and the chart copies the points it renders onto
+    /// its snapshot before the render thread sees any of them.
+    /// </summary>
+    private sealed class EquityView(List<EquityCurvePoint> points, int count) : IReadOnlyList<EquityCurvePoint>
+    {
+        public int Count => count;
+
+        public EquityCurvePoint this[int index] =>
+            index >= 0 && index < count ? points[index] : throw new ArgumentOutOfRangeException(nameof(index));
+
+        public IEnumerator<EquityCurvePoint> GetEnumerator() =>
+            points.Take(count).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    #endregion Snapshot View
 }
