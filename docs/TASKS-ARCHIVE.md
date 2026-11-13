@@ -4289,6 +4289,54 @@ the board and its section below.
   history store ready, "Portfolio value store ready" + portfolio-value.db verified, 0
   leftovers.
 
+## T-210 — Export parity: positions CSV + trade statement
+
+- **Branch:** feat/export-parity, worktree zt-export-parity, base develop@a45cb65
+  (claimed 2026-11-13 off the synced board; adopted from a dead session's draft and landed
+  supervisor-solo — the dead context was unreachable, the disk state was the single source
+  of truth).
+- **Origin:** the sweep — orders, fills and candles export (T-084); positions and the portfolio
+  do not, and no full statement exists.
+- **What:** a positions CSV export and a one-shot trade statement bundle (orders + fills +
+  realized PnL + a balances snapshot, CSV plus a JSON manifest) from the trade statistics
+  window; the T-084 CSV writer is reused, never re-implemented.
+- **Scope:** Infrastructure CSV service extensions + the stats VM routes, resx en+ru, the next
+  free alpha bump + the CHANGELOG section.
+- **Acceptance:** both exports open cleanly in a spreadsheet; the statement honors the date
+  filter; an empty range exports nothing rather than a broken file.
+- **Tests:** the export goldens (header stability, encoding, the empty-range negative).
+- **Status:** done - 0.1.0-alpha.154. Chain: claim `de3239b` -> feat `01107f0` -> close.
+  The positions CSV rides 11 columns (id, exchange, symbol, side, quantity, entryPrice,
+  currentPrice, openedAt, stopLoss, takeProfit, unrealizedPnl); the unrealized PnL books in
+  the symbol's quote currency and stays an empty cell when the symbol carries no quote asset
+  (the honest unknown, never a fabricated currency); every numeric cell goes through the
+  T-084 invariant writer. The statement bundle exports the scanned journal orders, the fill
+  ledger, the fill-pair realized-trade ledger and the traded surface's balances snapshot as
+  CSV sections plus a JSON manifest written LAST (a torn bundle has no manifest — the
+  completeness marker; a canceled write keeps the already-written files, tested), the
+  manifest-tie fact golden-pins the bundle. The stats window exposes the two routes behind
+  interaction handlers answered by the view's save-file picker; the date filter is honored;
+  an empty range sets the localized `Stats.StatementEmptyRange` refusal and never writes a
+  file; export faults surface as the localized `Stats.ExportFailedFormat` error line. The
+  accumulator's close-book computation moved through a behavior-preserving refactor (the
+  `fillSign * filled` form ≡ the recomputed form). Resx:
+  `Stats.ExportPositions/ExportStatement/ExportFailedFormat/StatementEmptyRange`, en+ru.
+  Tests: Infrastructure 639 (delta exactly 11 over T-209's 628 — 9 positions/realized/
+  balances golden facts + 2 statement facts), App 2092 (delta exactly 10 over T-209's 2082 —
+  7 VM export-flow facts + 3 realized-ledger accumulator facts); two draft-golden corrections
+  recorded (the unrealized PnL's invariant scale `500.0`, and the 11-field quoteless row
+  against the draft's stray 12th field). Suites: App 2092/2092, Infrastructure 639, UI 409,
+  Core 61, AdapterKit 48, Strategies 32, Backtest 29, Soak 17, E2E 5/6 —
+  `SplitterDragTests.TheHandleDrag_MovesTheBookColumnAndBack` lands ~30 px of the 60 px
+  stroke deterministically; reproduced on the untouched base a45cb65 with the identical -30
+  delta (environment drift since T-209's green gate — the T-210 diff touches no layout;
+  retried, recorded, not fixed in-flight). GATE PASSED attempt 2 (-AllowProtected; attempt 1
+  failed the HTML-ENTITY check on the statement interface's doc comment, fixed by rewording
+  without entities). The launch smoke green on the feat tip: ProductVersion
+  0.1.0-alpha.154+01107f0a8167ed6d2df3231a869b0ff4e366ee53 (the full 40-character sha),
+  title held through the 40 s hold, 0 ERR/FTL, ticker+screener+watchlist clean, palette 14
+  rows, strategies+indicators provided, chat history store ready, 0 leftovers.
+
 ## T-216 — Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
