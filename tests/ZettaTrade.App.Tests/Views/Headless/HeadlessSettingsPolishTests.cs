@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.VisualTree;
 using FluentAssertions;
 using Livery.Localization;
@@ -220,7 +221,10 @@ public sealed class HeadlessSettingsPolishTests
     /// The merged integrations tab's gutter fact: at minimum the tab body
     /// and the MCP client cards' viewport carry the same 16 px gutter —
     /// every scroll surface the tab materializes is pinned (the import
-    /// preview and the theme-error list join the shape wherever they show).
+    /// preview and the theme-error list join the shape wherever they
+    /// show). The T-223 folds hide the AI chat and the port sections by
+    /// default, so the fact unfolds them first: a hidden viewport reads
+    /// its margin fine, but the honest measure is the one the user sees.
     /// </summary>
     [Fact]
     public async Task TheIntegrationsTab_ScrollContents_ClearTheGutter()
@@ -230,6 +234,19 @@ public sealed class HeadlessSettingsPolishTests
         try
         {
             await SelectTabAsync(window, "Settings.Tab.Integrations");
+            await HeadlessWorld.OnUi(() =>
+            {
+                // The T-223 unfold: the AI chat and the port cards open
+                // collapsed, so their viewports measure hidden until the
+                // toggles flip.
+                foreach (var name in new[] { "AiSectionToggle", "PortSectionToggle" })
+                {
+                    HeadlessWorld.Descendants<ToggleButton>(window)
+                        .Single(toggle => toggle.Name == name)
+                        .IsChecked = true;
+                }
+            });
+            await AvaloniaDispatcherPump.DrainAsync();
             await HeadlessWorld.OnUi(() =>
             {
                 var gutted = ScrollContents(window);

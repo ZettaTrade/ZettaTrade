@@ -133,7 +133,7 @@
     <value>FIRST-RUN WIZARD</value>
   </data>
   <data name="Settings.Rail.Note" xml:space="preserve">
-    <value>Long lists scroll inside their own viewports — the window itself never scrolls.</value>
+    <value>Sections collapse; long lists scroll inside their own viewports — the window itself never scrolls.</value>
   </data>
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Indicators</value>

@@ -5,7 +5,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Media;
 using FluentAssertions;
 using Livery.Localization;
 using Xunit;
@@ -247,6 +249,112 @@ public sealed class HeadlessLayoutBoundsTests
             {
                 HeadlessWorld.Descendants<TabItem>(window).ToList()[0].IsSelected.Should().BeTrue(
                     "the Up arrow walks the rail back");
+            });
+        }
+        finally
+        {
+            await HeadlessWorld.CloseAndSettleAsync(window);
+        }
+    }
+
+    /// <summary>
+    /// The T-223 fold fact: every page's card headers are real toggles —
+    /// the four approved defaults open (the appearance card, the
+    /// indicators page's only card, MCP, pairs), five collapsed — and
+    /// flipping one unfolds its body: the one-way IsChecked binding drives
+    /// the body's visibility while the checked style rotates the chevron
+    /// down. The walk rides the pages: the TabControl materializes one
+    /// page's content at a time, so the nine toggles exist three at a
+    /// time (3 + 1 + 3 + 2 across the four pages).
+    /// </summary>
+    [Fact]
+    public async Task TheSectionToggles_FoldTheCards()
+    {
+        var world = await MainWorld.CreateAsync();
+        var window = await ShowSettingsWindowAsync(world.Main.Settings);
+        try
+        {
+            var defaults = new (string Key, string[] Open, string[] Collapsed)[]
+            {
+                ("Settings.Tab.Appearance",
+                    new[] { "AppearanceSectionToggle" },
+                    new[] { "ThemesFolderSectionToggle", "WizardSectionToggle" }),
+                ("Settings.Tab.Indicators",
+                    new[] { "IndicatorsSectionToggle" },
+                    Array.Empty<string>()),
+                ("Settings.Tab.Integrations",
+                    new[] { "McpSectionToggle" },
+                    new[] { "AiSectionToggle", "PortSectionToggle" }),
+                ("Settings.Tab.Workspace",
+                    new[] { "PairsSectionToggle" },
+                    new[] { "HotkeysSectionToggle" }),
+            };
+
+            var total = 0;
+            foreach (var (key, open, collapsed) in defaults)
+            {
+                await SelectTabAsync(window, key);
+                await HeadlessWorld.OnUi(() =>
+                {
+                    var toggles = HeadlessWorld.Descendants<ToggleButton>(window)
+                        .Where(toggle => toggle.Classes.Contains("section-toggle"))
+                        .ToList();
+                    toggles.Should().HaveCount(
+                        open.Length + collapsed.Length,
+                        "the '{0}' page carries exactly its own section toggles (the enable checkbox is a ToggleButton too, but carries no section-toggle class)", key);
+                    foreach (var name in open)
+                    {
+                        toggles.Single(toggle => toggle.Name == name).IsChecked.Should().BeTrue(
+                            "'{0}' rides the open-by-default set", name);
+                    }
+                    foreach (var name in collapsed)
+                    {
+                        toggles.Single(toggle => toggle.Name == name).IsChecked.Should().BeFalse(
+                            "'{0}' rides the collapsed-by-default set", name);
+                    }
+                    total += toggles.Count;
+                });
+            }
+
+            total.Should().Be(9, "every card header folds: the pages materialize nine toggles together");
+
+            // The fold itself: the appearance page's theme-folder card opens
+            // collapsed, so the flip makes the whole mechanics measurable —
+            // the body's visibility and the chevron's rotation.
+            await SelectTabAsync(window, "Settings.Tab.Appearance");
+            await HeadlessWorld.OnUi(() =>
+            {
+                var fold = HeadlessWorld.Descendants<ToggleButton>(window)
+                    .Single(toggle => toggle.Name == "ThemesFolderSectionToggle");
+                HeadlessWorld.FindDescendant<StackPanel>(window, "ThemesFolderSectionBody")!
+                    .IsVisible.Should().BeFalse("the collapsed default hides the body");
+
+                var chevron = HeadlessWorld.Descendants<Avalonia.Controls.Shapes.Path>(fold)
+                    .Single(path => path.Classes.Contains("section-chevron"));
+                chevron.RenderTransform.Should().BeNull("the collapsed mark points right");
+
+                fold.IsChecked = true;
+            });
+            await AvaloniaDispatcherPump.DrainAsync();
+            await HeadlessWorld.OnUi(() =>
+            {
+                HeadlessWorld.FindDescendant<StackPanel>(window, "ThemesFolderSectionBody")!
+                    .IsVisible.Should().BeTrue("the flip unfolds the body — the one-way IsChecked binding drives it");
+
+                var fold = HeadlessWorld.Descendants<ToggleButton>(window)
+                    .Single(toggle => toggle.Name == "ThemesFolderSectionToggle");
+                var chevron = HeadlessWorld.Descendants<Avalonia.Controls.Shapes.Path>(fold)
+                    .Single(path => path.Classes.Contains("section-chevron"));
+                chevron.RenderTransform.Should().BeOfType<RotateTransform>()
+                    .Which.Angle.Should().Be(90, "the checked state rotates the chevron down");
+
+                fold.IsChecked = false;
+            });
+            await AvaloniaDispatcherPump.DrainAsync();
+            await HeadlessWorld.OnUi(() =>
+            {
+                HeadlessWorld.FindDescendant<StackPanel>(window, "ThemesFolderSectionBody")!
+                    .IsVisible.Should().BeFalse("the flip back folds the body again");
             });
         }
         finally

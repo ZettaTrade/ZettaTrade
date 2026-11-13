@@ -133,7 +133,7 @@
     <value>МАСТЕР ПЕРВОГО ЗАПУСКА</value>
   </data>
   <data name="Settings.Rail.Note" xml:space="preserve">
-    <value>Длинные списки прокручиваются внутри своих областей — само окно настроек не прокручивается.</value>
+    <value>Секции сворачиваются; длинные списки прокручиваются внутри своих областей — само окно настроек не прокручивается.</value>
   </data>
   <data name="Settings.Tab.Indicators" xml:space="preserve">
     <value>Индикаторы</value>

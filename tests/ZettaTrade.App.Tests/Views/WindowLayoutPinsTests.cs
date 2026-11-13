@@ -172,6 +172,9 @@ public sealed class WindowLayoutPinsTests
         source.Should().Contain(
             "<Style Selector=\"TabItem.rail-item[TabStripPlacement=Left] /template/ Border#PART_SelectedPipe\">",
             "the selected tick is the theme's own left-pipe part, re-shaped (no template override)");
+        source.Should().Contain(
+            "<Setter Property=\"FontSize\" Value=\"{StaticResource BodyFontSize}\" />",
+            "the rail captions ride the BodyFontSize step (T-223) — the Fluent template's own header size would win otherwise, and the header compositions set no FontSize of their own");
     }
 
     [Fact]
@@ -231,6 +234,71 @@ public sealed class WindowLayoutPinsTests
         source.Should().Contain(
             "UpdateCheckEnabledCheckBox",
             "the update check's checkbox is the one pinned control of its row");
+    }
+
+    [Fact]
+    public void TheSettingsPages_FoldBehindTheSectionToggles()
+    {
+        var source = SettingsXaml;
+        var cards = SectionCardsXaml;
+
+        // The nine card headers fold (T-223): every header is a named
+        // section toggle with the right-edge chevron, and every card body
+        // rides its own toggle's IsChecked — one-way, with an explicit
+        // IsChecked so no null state exists.
+        Regex.Matches(source, "<ToggleButton x:Name=\"\\w+SectionToggle\"").Should().HaveCount(
+            9,
+            "every card header folds: nine named section toggles");
+        Regex.Matches(source, "<Path Classes=\"section-chevron\" Grid.Column=\"1\" />").Should().HaveCount(
+            9,
+            "every toggle carries the right-edge chevron mark");
+        Regex.Matches(source, "IsChecked=\"True\"").Should().HaveCount(
+            4,
+            "four cards open by default: the appearance card, the indicators page's only card, MCP, pairs");
+        Regex.Matches(source, "IsChecked=\"False\"").Should().HaveCount(
+            5,
+            "five cards open collapsed: theme folder, first-run wizard, AI chat, port, hotkeys");
+
+        foreach (var name in new[]
+                 {
+                     "Appearance", "ThemesFolder", "Wizard", "Indicators", "Mcp",
+                     "Ai", "Port", "Pairs", "Hotkeys",
+                 })
+        {
+            source.Should().Contain(
+                $"<ToggleButton x:Name=\"{name}SectionToggle\"",
+                "'{0}' carries its named section toggle", name);
+            source.Should().Contain(
+                $"<StackPanel x:Name=\"{name}SectionBody\"",
+                "'{0}' carries its named fold target", name);
+            source.Should().Contain(
+                $"IsVisible=\"{{Binding #{name}SectionToggle.IsChecked}}\"",
+                "'{0}'s body rides its toggle's IsChecked (one-way, no null state)", name);
+        }
+
+        cards.Should().Contain(
+            "<Style Selector=\"ToggleButton.section-toggle\">",
+            "the fold rides the shared dictionary — the shape is never re-declared window-side");
+        cards.Should().Contain(
+            "<Style Selector=\"ToggleButton.section-toggle:pointerover\">",
+            "the pointer answers with the kit's soft tint");
+        cards.Should().Contain(
+            "<Style Selector=\"ToggleButton.section-toggle:pressed\">",
+            "the press answers with the stronger tint");
+        cards.Should().Contain(
+            "<Style Selector=\"ToggleButton.section-toggle:checked Path.section-chevron\">",
+            "the checked state rotates the chevron down");
+    }
+
+    [Fact]
+    public void TheRailNote_SpeaksTheCollapseGrammar()
+    {
+        var en = Strings.ResourceManager.GetString("Settings.Rail.Note", CultureInfo.InvariantCulture);
+        var ru = Strings.ResourceManager.GetString("Settings.Rail.Note", CultureInfo.GetCultureInfo("ru-RU"));
+
+        en.Should().Contain("collapse", "the note speaks the collapse grammar (T-223)");
+        en.Should().Contain("never scrolls", "the window's own no-scroll discipline stays");
+        ru.Should().Contain("ворачиваются", "the ru note speaks the collapse grammar (T-223)");
     }
 
     [Fact]

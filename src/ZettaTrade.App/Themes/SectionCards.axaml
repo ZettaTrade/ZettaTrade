@@ -9,6 +9,12 @@
     theme palette's keys, so a user theme retints the cards live; the
     windows include this dictionary once (StyleInclude) and consume the
     classes (section-card, section-tick, section-header).
+    T-223 folds the cards: the header rides the section-toggle class
+    (a ToggleButton whose rest is the card's own ground, the pointer
+    answers with the kit's soft tints) with the section-chevron mark at
+    its right edge (the checked state rotates it down), and the card
+    bodies bind to the toggle's IsChecked (one-way), so a fold is pure
+    view state.
     -->
 
     <!-- The panel: the Surface fill, the hairline border, the compact
@@ -42,5 +48,52 @@
         <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
         <Setter Property="LetterSpacing" Value="0.8" />
         <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- The section toggle (T-223): the card header is a real control —
+         the whole header row folds and unfolds the card's body. The rest
+         is transparent (the card IS the ground, a slab would double it),
+         the pointer answers with the kit's soft tints, and the checked
+         state stays quiet: the fold state speaks through the chevron,
+         never through a fill. -->
+    <Style Selector="ToggleButton.section-toggle">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource CornerM}" />
+        <Setter Property="Padding" Value="4,2" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ToggleButton.section-toggle:checked">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ToggleButton.section-toggle:pointerover">
+        <Setter Property="Background" Value="{DynamicResource ButtonHoverTint}" />
+    </Style>
+    <Style Selector="ToggleButton.section-toggle:pressed">
+        <Setter Property="Background" Value="{DynamicResource ButtonPressedTint}" />
+    </Style>
+
+    <!-- The toggle's chevron: the right-pointing mark at the header's
+         right edge (the mockup's collapsible grammar), the secondary ink
+         so it never outshouts the caption; the checked state rotates it
+         down. The rotation rides the descendant selector — the chevron
+         is the toggle's content-side mark, not a template part. -->
+    <Style Selector="Path.section-chevron">
+        <Setter Property="Data" Value="M 3 3.5 L 7 6.5 L 3 9.5" />
+        <Setter Property="Stroke" Value="{DynamicResource TextSecondary}" />
+        <Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="StrokeLineCap" Value="Round" />
+        <Setter Property="Stretch" Value="None" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,2,0" />
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+    </Style>
+    <Style Selector="ToggleButton.section-toggle:checked Path.section-chevron">
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <RotateTransform Angle="90" />
+            </Setter.Value>
+        </Setter>
     </Style>
 </Styles>
