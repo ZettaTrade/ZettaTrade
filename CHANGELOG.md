@@ -1,3 +1,29 @@
+## [0.1.0-alpha.153] - 2026-11-13
+
+Build of board task T-209 (branch `feat/portfolio-history`): the balances
+panel grows a value history — periodic portfolio-value snapshots persisted
+to SQLite and read back as a curve plus an allocation list.
+
+### Added
+- The persistent portfolio-value history (the `portfolio-value.db`
+  store): the paper account's total value in its quote currency plus the
+  per-asset allocation (a camelCase JSON document whose priced entries sum
+  to the row's total) snapshotted per trading account on a bounded 30 s
+  cadence.
+- The snapshot discipline: the quote asset rides at par (the simulation's
+  unit of account — definitional, never a fabricated price), every other
+  asset rides the last price its facade ticker delivered, and an asset no
+  ticker priced stays in the allocation with its amount disclosed and out
+  of the total. A pass whose facts did not change since the last write is
+  skipped — the idle account writes one row, a moved market writes.
+
+### Changed
+- The balances panel reads the history on every load: the value-over-time
+  curve (the existing equity-curve widget), the latest snapshot's
+  allocation list with the honest not-priced state for unpriced assets,
+  and a section-scoped fault line — a failed history read never presents
+  itself as an absent history and never disturbs the live figures.
+
 ## [0.1.0-alpha.152] - 2026-11-13
 
 Build of board task T-208 (branch `feat/mcp-server-tools`): the MCP server

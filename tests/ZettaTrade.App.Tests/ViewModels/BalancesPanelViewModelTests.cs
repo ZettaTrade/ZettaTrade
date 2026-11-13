@@ -9,12 +9,17 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Livery.Localization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
+using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Fees;
+using ZettaTrade.Infrastructure.Persistence;
 
 /// <summary>
 /// Balances panel state machine: the panel starts unloaded, one load shows
@@ -26,12 +31,15 @@ using ZettaTrade.Core.ValueObjects;
 /// and the paper reset flow (T-192) hands the dialog's parsed choice to the
 /// reset service, reports the finished summary, reloads the figures, and
 /// stays silent on a declined dialog or a refused confirmation while a
-/// fault rides the localized failure line.
+/// fault rides the localized failure line; and the value history (T-209)
+/// maps the stored snapshots into the curve and the allocation rows, with
+/// the empty state honest and a read fault scoped to its own line.
 /// </summary>
 public sealed class BalancesPanelViewModelTests
 {
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
     private readonly IPaperResetService _paperReset = Substitute.For<IPaperResetService>();
+    private readonly IPortfolioValueStore _valueHistory = Substitute.For<IPortfolioValueStore>();
 
     public BalancesPanelViewModelTests()
     {
@@ -41,6 +49,12 @@ public sealed class BalancesPanelViewModelTests
             $"[{call.ArgAt<string>(0)}]");
         _localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
             $"[{call.ArgAt<string>(0)}:{FormatArgs(call.ArgAt<object[]>(1))}]");
+
+        // The history store's honest default: an account with no snapshots
+        // reads back an empty list.
+        _valueHistory
+            .GetRecentAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([]);
     }
 
     [Fact]
@@ -276,6 +290,130 @@ public sealed class BalancesPanelViewModelTests
         viewModel.OutcomeMessage.Should().BeNull();
     }
 
+    /// <summary>The empty history reads back as the section's honest empty state, never a fabricated curve.</summary>
+    [Fact]
+    public async Task Load_WhenTheAccountHasNoSnapshots_ShowsTheEmptyHistoryState()
+    {
+        // Arrange
+        var binance = CreateTrader("binance", "Binance", Balances(("USDT", 4000m)));
+        var viewModel = CreateViewModel([binance], CreatePaperTrader(("USDT", 1000m)));
+
+        // Act
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the section appeared (the load was attempted), but no
+        // points and no allocation are fabricated from the empty account.
+        viewModel.HasValueHistory.Should().BeTrue();
+        viewModel.HasValuePoints.Should().BeFalse();
+        viewModel.ValuePoints.Should().BeEmpty();
+        viewModel.HasAllocation.Should().BeFalse();
+        viewModel.HasValueHistoryQuote.Should().BeFalse();
+        viewModel.HasValueHistoryError.Should().BeFalse();
+    }
+
+    /// <summary>The stored snapshots become the curve's chronological points and the quote disclosure.</summary>
+    [Fact]
+    public async Task Load_WhenTheStoreCarriesSnapshots_MapsTheCurvePointsChronologically()
+    {
+        // Arrange: the store returns newest-first (the store's own order).
+        var binance = CreateTrader("binance", "Binance", Balances(("USDT", 4000m)));
+        var first = new PortfolioValueSnapshotRow(
+            "paper",
+            new DateTimeOffset(2026, 11, 13, 10, 0, 0, TimeSpan.Zero),
+            "USDT",
+            1000m,
+            PortfolioValueAllocationEntry.SerializeAllocation(
+            [new PortfolioValueAllocationEntry("USDT", 1000m, 1m, 1000m, Priced: true)]));
+        var second = new PortfolioValueSnapshotRow(
+            "paper",
+            new DateTimeOffset(2026, 11, 13, 10, 1, 0, TimeSpan.Zero),
+            "USDT",
+            1250m,
+            PortfolioValueAllocationEntry.SerializeAllocation(
+            [new PortfolioValueAllocationEntry("USDT", 1250m, 1m, 1250m, Priced: true)]));
+        _valueHistory
+            .GetRecentAsync("paper", PortfolioValueStoreLimits.MaxRecentBatch, Arg.Any<CancellationToken>())
+            .Returns([second, first]);
+        var viewModel = CreateViewModel([binance], CreatePaperTrader(("USDT", 1000m)));
+
+        // Act
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the curve reads oldest first, the quote rides disclosed.
+        viewModel.HasValuePoints.Should().BeTrue();
+        viewModel.ValuePoints.Should().HaveCount(2);
+        viewModel.ValuePoints[0].Time.Should().Be(first.TimestampUtc);
+        viewModel.ValuePoints[0].Value.Should().Be(1000m);
+        viewModel.ValuePoints[1].Time.Should().Be(second.TimestampUtc);
+        viewModel.ValuePoints[1].Value.Should().Be(1250m);
+        viewModel.ValueHistoryQuote.Should().Be("USDT");
+        viewModel.HasValueHistoryQuote.Should().BeTrue();
+        viewModel.HasValueHistoryError.Should().BeFalse();
+    }
+
+    /// <summary>The newest snapshot's allocation becomes the by-asset rows, with the honest unpriced state.</summary>
+    [Fact]
+    public async Task Load_WhenTheLatestSnapshotCarriesAnAllocation_BuildsTheByAssetRows()
+    {
+        // Arrange
+        var binance = CreateTrader("binance", "Binance", Balances(("USDT", 4000m)));
+        var latest = new PortfolioValueSnapshotRow(
+            "paper",
+            new DateTimeOffset(2026, 11, 13, 10, 0, 0, TimeSpan.Zero),
+            "USDT",
+            1100m,
+            PortfolioValueAllocationEntry.SerializeAllocation(
+            [
+                new PortfolioValueAllocationEntry("BTC", 0.01m, 50_000m, 500m, Priced: true),
+                new PortfolioValueAllocationEntry("USDT", 600m, 1m, 600m, Priced: true),
+                new PortfolioValueAllocationEntry("DOGE", 100m, null, null, Priced: false),
+            ]));
+        _valueHistory
+            .GetRecentAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([latest]);
+        var viewModel = CreateViewModel([binance], CreatePaperTrader(("USDT", 1000m)));
+
+        // Act
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the rows ride the amounts, the priced values and the
+        // localized not-priced cell for the unpriced asset.
+        viewModel.HasAllocation.Should().BeTrue();
+        viewModel.Allocation.Should().HaveCount(3);
+        viewModel.Allocation[0].Asset.Should().Be("BTC");
+        viewModel.Allocation[0].Amount.Should().Be("0.01");
+        viewModel.Allocation[0].Value.Should().Be("500");
+        viewModel.Allocation[0].IsUnpriced.Should().BeFalse();
+        viewModel.Allocation[2].Asset.Should().Be("DOGE");
+        viewModel.Allocation[2].IsUnpriced.Should().BeTrue();
+        viewModel.Allocation[2].Value.Should().Be("[Trading.BalancesAllocationUnpriced]");
+    }
+
+    /// <summary>A failed history read rides the section's own fault line and never disturbs the live figures.</summary>
+    [Fact]
+    public async Task Load_WhenTheHistoryReadFaults_ShowsTheScopedFaultAndKeepsTheFigures()
+    {
+        // Arrange
+        var binance = CreateTrader("binance", "Binance", Balances(("USDT", 4000m)));
+        _valueHistory
+            .GetRecentAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns<Task<IReadOnlyList<PortfolioValueSnapshotRow>>>(_ =>
+                throw new InvalidOperationException("store boom"));
+        var viewModel = CreateViewModel([binance], CreatePaperTrader(("USDT", 1000m)));
+
+        // Act
+        await viewModel.LoadCommand.Execute(ReactiveUI.Primitives.RxVoid.Default);
+
+        // Assert: the fault is scoped to the history section; the
+        // aggregation's own display stays whole.
+        viewModel.HasValueHistoryError.Should().BeTrue();
+        viewModel.ValueHistoryError.Should().StartWith("[Trading.BalancesValueHistoryFailedFormat:");
+        viewModel.ErrorMessage.Should().BeNull();
+        viewModel.HasLoaded.Should().BeTrue();
+        viewModel.Aggregated.Should().HaveCount(1);
+        viewModel.HasValuePoints.Should().BeFalse();
+    }
+
     private static BalancesAggregationService CreateService(
         IReadOnlyList<IMarketDataAdapter> registered,
         ITradingAdapter trading) =>
@@ -290,8 +428,20 @@ public sealed class BalancesPanelViewModelTests
         new(
             CreateService(registered, trading),
             _paperReset,
+            _valueHistory,
+            CreatePaperAdapter(),
             _localization,
             Substitute.For<ILogger<BalancesPanelViewModel>>());
+
+    /// <summary>
+    /// A real paper adapter (the VM's history section rides its account id
+    /// — the same concrete seam the paper reset uses): its balances are
+    /// irrelevant here, the aggregation's trader is the injected fake.
+    /// </summary>
+    private static PaperTradingAdapter CreatePaperAdapter() => new(
+        Substitute.For<IMarketDataAdapter>(),
+        Substitute.For<IFeeScheduleProvider>(),
+        NullLogger<PaperTradingAdapter>.Instance);
 
     private static ITradingAdapter CreateTrader(
         string id,

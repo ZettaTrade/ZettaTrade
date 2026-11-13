@@ -394,6 +394,12 @@ internal static class CompositionRoot
         // store before the engine's boot replay reads it.
         services.AddPnlServices();
 
+        // The portfolio-value history (T-209): the store migrates first
+        // (the walk's order), then the snapshot service's cadence loop
+        // starts — its first write rides the migrated schema.
+        services.AddPortfolioValueStore();
+        services.AddPortfolioValueServices();
+
         #region T-122: the chart footprint feed (my-activity overlays on the chart)
         services.AddChartFootprintServices(); // after the journals + PnL feed: the boot read wants them initialized first.
         #endregion
