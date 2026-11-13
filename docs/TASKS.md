@@ -227,6 +227,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-220 Non-blocking alert beep (queued from the 2026-11-13 review round) | fix/alert-beep-async | planned | - |
 | T-221 Stabilize the E2E DetachCycle flake (queued from the 2026-11-13 review round) | fix/e2e-detach-flake | planned | - |
 | T-222 The settings window re-rides the approved variant-A mockup: the rail's title-bar strip + icons + note, the compact per-section cards, the pinned footer chrome, the 880x640 frame (the user-reported T-184 gap) | fix/settings-rail-fix | done | - |
+| T-223 The settings pages collapse into the variant-A section grammar: the card headers become toggles (four open by default), the rail captions ride BodyFontSize, the quiet controls ride the Livery 0.1.12 surface-family keys (the user-reported T-222 gap) | feat/settings-collapse | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -594,5 +595,38 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   detach still fails bounded.
 - **Tests:** the family's own evidence-driven shape decided at implementation.
 - **Status:** planned.
+
+## T-223 — The settings pages collapse; the rail captions and the quiet controls ride the mockup
+
+- **Branch:** queued 2026-11-14 (the user reviewed the T-222 landing against the variant-A
+  mockup again: "there it is much better than after the last edits even").
+- **Origin:** the user's review found three deltas against the approved variant A. First,
+  the rail captions render in the Fluent TabItem template's large header type — the header
+  compositions never set a FontSize, so the template's own size wins. Second, the card
+  buttons' quiet rest (the T-183 transparent fill over the plain `Border` stroke) reads as
+  invisible chrome: the `Border` role vanishes against the very cards and strips the
+  buttons sit on. Third, the four category pages still scroll the whole window — the mockup
+  designs every category page short, and the real window carries more content, so the
+  pages must fold.
+- **What:** the rail captions ride the BodyFontSize step (13, the mockup's rail type); the
+  card headers become the section toggles (the tick + the caption + the right chevron, the
+  checked state rotates it down) and every card body binds to its toggle's IsChecked
+  (one-way, all nine explicit, no null state) — four open by default (the appearance card,
+  the indicators page's only card, the MCP card, the pairs card), five collapsed (the
+  theme-folder, wizard, AI, port and hotkey cards); the quiet buttons' stroke and the text
+  hosts' wells ride the Livery 0.1.12 surface-family keys (`ControlHairline` / `SurfaceHigh`
+  — the mockup's hand-picked stroke and well reads, derived in the satellite); the rail
+  note speaks the collapse grammar.
+- **Scope:** SettingsWindow.axaml, the SectionCards dictionary (the toggle styles + the
+  chevron), the rail note resx (en+ru), the LiveryVersion bump to 0.1.12; no
+  ViewModel/Core change (the collapse is view state, every toggle an explicit IsChecked).
+- **Acceptance:** the captions measure 13 px and fit their items; every card folds and
+  unfolds from its own header; at the default size each page fits its body viewport with
+  the defaults (the window itself never scrolls); the quiet buttons read as buttons over
+  the cards.
+- **Tests:** the rail type pin + the measured caption fact; the nine-toggle pins + the
+  toggle-expands-body fact; the updated viewport facts (their measures open the section
+  they touch first); the resx pins.
+- **Status:** in-progress.
 
 
