@@ -174,6 +174,13 @@ internal sealed record MainWorld(
             detacher,
             NullLogger<WorkspaceLayoutViewModel>.Instance);
         var menu = new MenuViewModel(chat, hud, hotkeys);
+        // The multi-chart grid's world twin (T-201): the slot factory rides
+        // the same chart recipe (its slotId lands in the per-slot keys), the
+        // rail stays the world's shared one — a slot's strip hides anyway.
+        var charts = new WorkspaceChartsViewModel(
+            settings,
+            slotId => CreateChart(activeExchanges, settings, rail, slotId),
+            NullLogger<WorkspaceChartsViewModel>.Instance);
 
         var main = new MainViewModel(
             menu,
@@ -186,6 +193,7 @@ internal sealed record MainWorld(
             watchlist,
             heatmap,
             layout,
+            charts,
             palette,
             toast,
             hud,
@@ -237,7 +245,8 @@ internal sealed record MainWorld(
     internal static ChartViewModel CreateChart(
         ActiveExchangeService service,
         ISettingsService settings,
-        SignalRailViewModel? rail = null)
+        SignalRailViewModel? rail = null,
+        string? slotId = null)
     {
         var relay = new SignalSeriesRelay();
         var signals = new StrategySignalService(
@@ -288,7 +297,8 @@ internal sealed record MainWorld(
             relay,
             // The T-122 seam rides silent in the window facts likewise.
             Observable.Empty<ChartFootprintSnapshot>(),
-            NullLogger<ChartViewModel>.Instance);
+            NullLogger<ChartViewModel>.Instance,
+            slotId);
     }
 
     /// <summary>One offline market-data fake: a fixed symbol catalog, silent feeds.</summary>

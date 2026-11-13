@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -74,6 +75,16 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         AssistantPanel = new AssistantPanelView(mainViewModel.Chat);
         AssistantPanel.Name = "AssistantPanel";
         AssistantPanelHost.Child = AssistantPanel;
+
+        // The multi-chart grid's handover (T-201): the host Border leaves
+        // its XAML parking spot for the grid's rebuilt primary cells (the
+        // detach coordinator's reference follows the same Border), and the
+        // slot-route wiring arms BEFORE the grid can attach — the attach
+        // walk's slot panels are wired the moment they are created.
+        ChartGrid.PrimaryContent = ChartPanelHost;
+        _slotPanelsWiring = ChartGrid.SlotPanelsAdded.Subscribe(
+            WireChartPanelRoutes,
+            ex => Log.Error(ex, "The chart slot panel stream failed"));
     }
 
     /// <summary>
@@ -99,6 +110,14 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         AssistantPanel = new AssistantPanelView(null);
         AssistantPanel.Name = "AssistantPanel";
         AssistantPanelHost.Child = AssistantPanel;
+
+        // The same handover the production ctor keeps (the grid's layout
+        // ViewModel is unbound on this route, so the grid stays in its
+        // single-chart shape and creates no slots).
+        ChartGrid.PrimaryContent = ChartPanelHost;
+        _slotPanelsWiring = ChartGrid.SlotPanelsAdded.Subscribe(
+            WireChartPanelRoutes,
+            ex => Log.Error(ex, "The chart slot panel stream failed"));
     }
 
     /// <inheritdoc/>
@@ -106,12 +125,17 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     {
         base.OnOpened(e);
 
-        // The performance HUD's chart tap (T-108): the panel owns the named
-        // control, so the drain rides here — one assignment at the open. The
-        // tap counts nothing until the HUD's visibility opens the chart's
-        // FrameTapEnabled branch (the styled gate rides the panel element's
-        // window-relative binding; a detached chart freezes the readout).
-        ViewModel?.Hud.AttachChartFrames(() => ChartPanel.ChartControl.TakeFrameTapCount());
+        // The performance HUD's chart tap (T-108): the panels own the named
+        // controls, so the drain rides here — one assignment at the open.
+        // The multi-chart grid's slots (T-201) sum into the same readout:
+        // every placed slot panel's tap count adds to the primary's. The
+        // tap counts nothing until the HUD's visibility opens each chart's
+        // FrameTapEnabled branch (the styled gate rides each panel
+        // element's window-relative binding; a detached chart freezes the
+        // readout).
+        ViewModel?.Hud.AttachChartFrames(() =>
+            ChartPanel.ChartControl.TakeFrameTapCount() +
+            ChartGrid.SlotPanels.Sum(panel => panel.ChartControl.TakeFrameTapCount()));
 
         // The detached-panel handover (T-103): the view lane registers the
         // panel slots with the coordinator (the panel controls stay exactly
@@ -168,16 +192,23 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             onError: ex => Log.Error(ex, "Signal rail prefill stream failed"));
         Closed += (_, _) => _railPrefills.Dispose();
 
-        // The same route serves the chart's older-history requests: a pan
-        // that reaches the loaded series' left edge asks the ViewModel for
-        // the previous bars window (SubscribeAsync keeps the route task
-        // based; stream failures land in the log via the error callback).
-        _olderHistoryRequests = ChartPanel.ChartControl.OlderHistoryRequested
-            .ObserveOnUiThread()
-            .SubscribeAsync(
-                request => ViewModel!.Chart.RequestOlderBarsAsync(),
-                onError: ex => Log.Error(ex, "Chart older history request stream failed"));
-        Closed += (_, _) => _olderHistoryRequests.Dispose();
+        // The chart routes (T-086 repairs, T-124 compare, T-199 pane
+        // settles, T-091/T-200 drawings): the factored wiring serves the
+        // primary panel here and every multi-chart slot the grid creates
+        // (T-201) — one grammar, each panel's routes reach the panel's own
+        // chart ViewModel. The subscriptions live in the shared list,
+        // disposed with the window.
+        WireChartPanelRoutes(ChartPanel);
+        Closed += (_, _) =>
+        {
+            _slotPanelsWiring?.Dispose();
+            foreach (var route in _chartRouteSubscriptions)
+            {
+                route.Dispose();
+            }
+
+            _chartRouteSubscriptions.Clear();
+        };
 
         // The heatmap tab's (T-121) pressed tiles ride the workspace symbol
         // route: the widget publishes just the tile's own text, the panel
@@ -190,134 +221,12 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
             onError: ex => Log.Error(ex, "Heatmap tile click stream failed"));
         Closed += (_, _) => _heatmapClicks.Dispose();
 
-        // The compare chips' detach presses (T-124) ride the removal route:
-        // the chart control reports which chip's × zone was pressed, the
-        // chart ViewModel owns the layer list (a removed label drops its
-        // layer and the next pass republishes the strip cache). SubscribeAsync
-        // keeps the route task-based (zero async void); stream failures land
-        // in the log via the error callback.
-        _compareRemovals = ChartPanel.ChartControl.CompareRemovals.SubscribeAsync(
-            label =>
-            {
-                ViewModel!.Chart.RemoveCompare(label);
-                return Task.CompletedTask;
-            },
-            onError: ex => Log.Error(ex, "Chart compare removal stream failed"));
-        Closed += (_, _) => _compareRemovals.Dispose();
-
-        // The oscillator panes' splitter settles (T-199): the chart control
-        // reports which pane's height the drag released at, the chart
-        // ViewModel owns the persistence (the sibling settings key rides
-        // the write-settle pipeline). SubscribeAsync keeps the route
-        // task-based (zero async void); stream failures land in the log
-        // via the error callback.
-        _paneHeightSettles = ChartPanel.ChartControl.PaneHeightSettles.SubscribeAsync(
-            settle =>
-            {
-                ViewModel!.Chart.SettleIndicatorPaneHeight(settle.Name, settle.Height);
-                return Task.CompletedTask;
-            },
-            onError: ex => Log.Error(ex, "Chart pane height settle stream failed"));
-        Closed += (_, _) => _paneHeightSettles.Dispose();
-
-        // The drawings layer's interaction mirror (T-091): the control owns
-        // the pointer routes (placement, drag, selection, delete) and the
-        // ViewModel owns the layer's persistence — the three state routes
-        // and the two lifecycle routes pair up per event (SubscribeAsync
-        // keeps every route task-based; stream failures land in the log
-        // via the error callback).
-        _drawingCommitted = ChartPanel.ChartControl.DrawingCommitted.SubscribeAsync(
-            request => ViewModel!.Chart.CommitDrawingAsync(request),
-            onError: ex => Log.Error(ex, "Chart drawing commit stream failed"));
-        Closed += (_, _) => _drawingCommitted.Dispose();
-        _drawingEdited = ChartPanel.ChartControl.DrawingEdited.SubscribeAsync(
-            request => ViewModel!.Chart.EditDrawingAsync(request),
-            onError: ex => Log.Error(ex, "Chart drawing edit stream failed"));
-        Closed += (_, _) => _drawingEdited.Dispose();
-        _drawingSelected = ChartPanel.ChartControl.DrawingSelected.SubscribeAsync(
-            id =>
-            {
-                ViewModel!.Chart.SelectDrawing(id);
-                return Task.CompletedTask;
-            },
-            onError: ex => Log.Error(ex, "Chart drawing select stream failed"));
-        Closed += (_, _) => _drawingSelected.Dispose();
-        _drawingDeleted = ChartPanel.ChartControl.DrawingDeleted.SubscribeAsync(
-            id => ViewModel!.Chart.DeleteDrawingAsync(id),
-            onError: ex => Log.Error(ex, "Chart drawing delete stream failed"));
-        Closed += (_, _) => _drawingDeleted.Dispose();
-
-        // The chart view model is an application-lifetime singleton living
-        // for the whole window's stay, so — like the menu handlers above —
-        // its save-dialog registration is registered here without disposal:
-        // the candles export asks THIS window for the destination (picking a
-        // file is view behavior).
-        ViewModel?.Chart.SaveCandlesCsvRequested.RegisterHandler(async context =>
-        {
-            var path = await SaveFilePicker.PickAsync(this, context.Input, "csv", "CSV");
-            context.SetOutput(path);
-        });
-
-        // The chart's snapshot export (T-094): the destination rides the
-        // same dialog discipline, and the render+write is VIEW behavior —
-        // the chart control owns its frame, so the handler drives it after
-        // the pick (a render or write fault propagates through the
-        // interaction into the ViewModel's error-line catch).
-        ViewModel?.Chart.ExportPngRequested.RegisterHandler(async context =>
-        {
-            var path = await SaveFilePicker.PickAsync(this, context.Input.SuggestedFileName, "png", "PNG");
-            if (path is null)
-            {
-                context.SetOutput(null);
-                return;
-            }
-
-            await ChartPanel.ChartControl.ExportSnapshotPngAsync(path, context.Input.Watermark);
-            context.SetOutput(path);
-        });
-
-        // The visible-range candles export (T-094): the destination plus the
-        // chart's own visible slice travel together (the slice is the
-        // control's state) — the ViewModel streams the handoff through the
-        // shared CSV writer.
-        ViewModel?.Chart.ExportVisibleCsvRequested.RegisterHandler(async context =>
-        {
-            var path = await SaveFilePicker.PickAsync(this, context.Input, "csv", "CSV");
-            if (path is null)
-            {
-                context.SetOutput(null);
-                return;
-            }
-
-            context.SetOutput(new VisibleCsvHandoff(path, ChartPanel.ChartControl.VisibleBarsSlice));
-        });
-
         // The T-095 palette's own route: its both interactions live for the
         // window's lifetime (a workspace singleton behind them), and the
         // overlay's key route is a routed-event handler added now and
         // removed with the window (AddHandler/RemoveHandler pair below).
         ViewModel?.Palette.FocusQueryRequested.RegisterHandler(FocusPaletteQueryAsync);
         ViewModel?.Palette.FocusReturnRequested.RegisterHandler(FocusReturnAsync);
-
-        // The compare pick's route (T-124): the chart's CompareCommand asks
-        // this window to open the palette in compare mode — the ride
-        // completes the interaction with the picked symbol (a null output
-        // is the user closing without a pick, never an error).
-        ViewModel?.Chart.PickCompareRequested.RegisterHandler(async context =>
-        {
-            var symbol = await ViewModel!.Palette.BeginComparePickAsync();
-            context.SetOutput(symbol);
-        });
-
-        // The text annotation's prompt route (T-200): the chart's commit
-        // asks this window to run the annotation prompt — the answer
-        // becomes the annotation's string, a null output is the user
-        // cancelling (the placed anchor stands down, nothing persists).
-        ViewModel?.Chart.TextAnnotationRequested.RegisterHandler(async context =>
-        {
-            var text = await TextAnnotationWindow.PromptAsync(this);
-            context.SetOutput(text);
-        });
 
         // The watchlist add's route (T-196): the watchlist's add button asks
         // this window to open the palette in watchlist mode — the ride
@@ -362,6 +271,161 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         Closed += (_, _) => this.RemoveHandler(InputElement.KeyDownEvent, OnGlobalKeyDown);
     }
 
+    #region Chart panel routes (T-086/T-091/T-124/T-199/T-200/T-201)
+
+    /// <summary>
+    /// Wire one chart panel's routes: the chart lanes (the older-history
+    /// repairs, the compare chips, the pane-height settles, the drawing
+    /// mirror and the export/save interactions) reach the panel's OWN
+    /// chart ViewModel — the primary's call in OnOpened and every
+    /// multi-chart slot the grid creates (T-201) share the same grammar,
+    /// so a slot's tools reach its slot's state. The stream
+    /// subscriptions land in the shared list (disposed with the window);
+    /// the interaction handlers live on the panel's application-lifetime
+    /// ViewModel, so they are never disposed — like the primary's own.
+    /// </summary>
+    private void WireChartPanelRoutes(ChartPanelView panel)
+    {
+        // The panel's OWN chart ViewModel (T-201: a slot's tools reach its
+        // slot's state). The designer's route (the T-175 counterfactual)
+        // constructs bare panels — its open must survive, so the primary's
+        // wiring falls back to the window's chart; the production ctor
+        // always carries the panel's own, and a panel without either logs
+        // and stays unwired (no routes to serve without a state to serve).
+        var chart = panel.DataContext as ChartViewModel ?? ViewModel?.Chart;
+        if (chart is null)
+        {
+            Log.Warning(
+                "The chart panel {PanelName} carries no chart ViewModel; its routes stay unwired",
+                panel.Name ?? panel.GetType().Name);
+            return;
+        }
+
+        var control = panel.ChartControl;
+
+        // The older-history requests: a pan that reaches the loaded
+        // series' left edge asks the panel's ViewModel for the previous
+        // bars window (SubscribeAsync keeps the route task based; stream
+        // failures land in the log via the error callback).
+        _chartRouteSubscriptions.Add(control.OlderHistoryRequested
+            .ObserveOnUiThread()
+            .SubscribeAsync(
+                request => chart.RequestOlderBarsAsync(),
+                onError: ex => Log.Error(ex, "Chart older history request stream failed")));
+
+        // The compare chips' detach presses (T-124) ride the removal
+        // route: the chart control reports which chip's × zone was
+        // pressed, the panel's ViewModel owns the layer list (a removed
+        // label drops its layer and the next pass republishes the strip
+        // cache).
+        _chartRouteSubscriptions.Add(control.CompareRemovals.SubscribeAsync(
+            label =>
+            {
+                chart.RemoveCompare(label);
+                return Task.CompletedTask;
+            },
+            onError: ex => Log.Error(ex, "Chart compare removal stream failed")));
+
+        // The oscillator panes' splitter settles (T-199): the chart
+        // control reports which pane's height the drag released at, the
+        // panel's ViewModel owns the persistence (the sibling settings
+        // key rides the write-settle pipeline — the slots' picks stay
+        // in-session, the primary's persist).
+        _chartRouteSubscriptions.Add(control.PaneHeightSettles.SubscribeAsync(
+            settle =>
+            {
+                chart.SettleIndicatorPaneHeight(settle.Name, settle.Height);
+                return Task.CompletedTask;
+            },
+            onError: ex => Log.Error(ex, "Chart pane height settle stream failed")));
+
+        // The drawings layer's interaction mirror (T-091): the control
+        // owns the pointer routes (placement, drag, selection, delete)
+        // and the panel's ViewModel owns the layer's persistence — the
+        // three state routes and the two lifecycle routes pair up per
+        // event.
+        _chartRouteSubscriptions.Add(control.DrawingCommitted.SubscribeAsync(
+            request => chart.CommitDrawingAsync(request),
+            onError: ex => Log.Error(ex, "Chart drawing commit stream failed")));
+        _chartRouteSubscriptions.Add(control.DrawingEdited.SubscribeAsync(
+            request => chart.EditDrawingAsync(request),
+            onError: ex => Log.Error(ex, "Chart drawing edit stream failed")));
+        _chartRouteSubscriptions.Add(control.DrawingSelected.SubscribeAsync(
+            id =>
+            {
+                chart.SelectDrawing(id);
+                return Task.CompletedTask;
+            },
+            onError: ex => Log.Error(ex, "Chart drawing select stream failed")));
+        _chartRouteSubscriptions.Add(control.DrawingDeleted.SubscribeAsync(
+            id => chart.DeleteDrawingAsync(id),
+            onError: ex => Log.Error(ex, "Chart drawing delete stream failed")));
+
+        // The save-dialog registration: the candles export asks THIS
+        // window for the destination (picking a file is view behavior).
+        chart.SaveCandlesCsvRequested.RegisterHandler(async context =>
+        {
+            var path = await SaveFilePicker.PickAsync(this, context.Input, "csv", "CSV");
+            context.SetOutput(path);
+        });
+
+        // The chart's snapshot export (T-094): the destination rides the
+        // same dialog discipline, and the render+write is VIEW behavior —
+        // the chart control owns its frame, so the handler drives it after
+        // the pick (a render or write fault propagates through the
+        // interaction into the ViewModel's error-line catch).
+        chart.ExportPngRequested.RegisterHandler(async context =>
+        {
+            var path = await SaveFilePicker.PickAsync(this, context.Input.SuggestedFileName, "png", "PNG");
+            if (path is null)
+            {
+                context.SetOutput(null);
+                return;
+            }
+
+            await control.ExportSnapshotPngAsync(path, context.Input.Watermark);
+            context.SetOutput(path);
+        });
+
+        // The visible-range candles export (T-094): the destination plus
+        // the chart's own visible slice travel together (the slice is the
+        // control's state) — the ViewModel streams the handoff through
+        // the shared CSV writer.
+        chart.ExportVisibleCsvRequested.RegisterHandler(async context =>
+        {
+            var path = await SaveFilePicker.PickAsync(this, context.Input, "csv", "CSV");
+            if (path is null)
+            {
+                context.SetOutput(null);
+                return;
+            }
+
+            context.SetOutput(new VisibleCsvHandoff(path, control.VisibleBarsSlice));
+        });
+
+        // The compare pick's route (T-124): the chart's CompareCommand
+        // asks this window to open the palette in compare mode — the ride
+        // completes the interaction with the picked symbol (a null output
+        // is the user closing without a pick, never an error).
+        chart.PickCompareRequested.RegisterHandler(async context =>
+        {
+            var symbol = await ViewModel!.Palette.BeginComparePickAsync();
+            context.SetOutput(symbol);
+        });
+
+        // The text annotation's prompt route (T-200): the chart's commit
+        // asks this window to run the annotation prompt — the answer
+        // becomes the annotation's string, a null output is the user
+        // cancelling (the placed anchor stands down, nothing persists).
+        chart.TextAnnotationRequested.RegisterHandler(async context =>
+        {
+            var text = await TextAnnotationWindow.PromptAsync(this);
+            context.SetOutput(text);
+        });
+    }
+
+    #endregion
+
     /// <summary>Subscription of the book level click stream; disposed with the window.</summary>
     private IDisposable? _bookClicks;
 
@@ -371,21 +435,11 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     /// <summary>Subscription of the heatmap tab's tile-press stream (T-121); disposed with the window.</summary>
     private IDisposable? _heatmapClicks;
 
-    /// <summary>Subscription of the chart older-history request stream; disposed with the window.</summary>
-    private IDisposable? _olderHistoryRequests;
+    /// <summary>The chart panels' route subscriptions (the primary's and every grid slot's — the factored wiring feeds the list); disposed with the window.</summary>
+    private readonly List<IDisposable> _chartRouteSubscriptions = [];
 
-    /// <summary>Subscription of the compare chips' removal stream (T-124); disposed with the window.</summary>
-    private IDisposable? _compareRemovals;
-
-    private IDisposable? _paneHeightSettles;
-
-    private IDisposable? _drawingCommitted;
-
-    private IDisposable? _drawingEdited;
-
-    private IDisposable? _drawingSelected;
-
-    private IDisposable? _drawingDeleted;
+    /// <summary>The multi-chart grid's slot-panel stream (T-201): each created slot's routes wire through it; disposed with the window.</summary>
+    private IDisposable? _slotPanelsWiring;
 
     /// <summary>Subscription of the detached-layout restore leg (T-103); disposed with the window.</summary>
     private IDisposable? _detachedRestore;

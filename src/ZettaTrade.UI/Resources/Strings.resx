@@ -93,6 +93,18 @@
   <data name="Menu.View.Assistant" xml:space="preserve">
     <value>Assistant in its own window</value>
   </data>
+  <data name="Menu.View.Layout" xml:space="preserve">
+    <value>Chart grid</value>
+  </data>
+  <data name="Menu.View.Layout.Single" xml:space="preserve">
+    <value>Single chart</value>
+  </data>
+  <data name="Menu.View.Layout.OneByTwo" xml:space="preserve">
+    <value>Two charts (1×2)</value>
+  </data>
+  <data name="Menu.View.Layout.TwoByTwo" xml:space="preserve">
+    <value>Four charts (2×2)</value>
+  </data>
   <data name="Chrome.DetachNote" xml:space="preserve">
     <value>This panel is open in its own window (View menu). Close that window to bring it back here.</value>
   </data>

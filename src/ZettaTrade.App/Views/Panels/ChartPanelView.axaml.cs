@@ -28,6 +28,24 @@ public partial class ChartPanelView : UserControl
         AvaloniaProperty.Register<ChartPanelView, bool>(nameof(HudFrameTapSource));
 
     /// <summary>
+    /// Whether the panel renders its signal-rail strip (T-201): the primary
+    /// panel keeps the default <c>true</c>; a multi-chart grid's secondary
+    /// slot sets <c>false</c> at construction - the rail reads the
+    /// workspace's signal feed (the strip is the primary's surface), and a
+    /// slot repeating it under another symbol would show foreign rows. The
+    /// collapse is one-way by design: the strip row's bound Min/Max clamps
+    /// drop to local zeros - their constant sources publish once, so the
+    /// locals stick for the instance's lifetime - and the TwoWay Height
+    /// binding is left alone on purpose: a local Height zero would write
+    /// back into the shared rail VM and corrupt the primary rail's
+    /// persisted height (the persisted write clamps it, but the primary
+    /// rail would still shrink). The track row's plain 8px height and the
+    /// handle and the strip Border hide with it.
+    /// </summary>
+    public static readonly StyledProperty<bool> ShowSignalRailProperty =
+        AvaloniaProperty.Register<ChartPanelView, bool>(nameof(ShowSignalRail), true);
+
+    /// <summary>
     /// Create the chart workspace panel around its view model (T-175): the
     /// DataContext is a LocalValue from the panel's own construction, so the
     /// subtree's compiled bindings evaluate against the chart VM from their
@@ -81,6 +99,45 @@ public partial class ChartPanelView : UserControl
     {
         get => GetValue(HudFrameTapSourceProperty);
         set => SetValue(HudFrameTapSourceProperty, value);
+    }
+
+    /// <summary>See <see cref="ShowSignalRailProperty"/>.</summary>
+    public bool ShowSignalRail
+    {
+        get => GetValue(ShowSignalRailProperty);
+        set => SetValue(ShowSignalRailProperty, value);
+    }
+
+    /// <inheritdoc/>
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+
+        if (e.Property == ShowSignalRailProperty && !ShowSignalRail)
+        {
+            CollapseSignalRail();
+        }
+    }
+
+    /// <summary>
+    /// The slot's one-way rail collapse (T-201), fired when
+    /// <see cref="ShowSignalRailProperty"/> turns false: the strip row's
+    /// bound Min/Max clamps drop to local zeros and the whole strip - the
+    /// splitter track, the handle, the Border - hides. IsVisible alone
+    /// would not be enough: the track row's plain 8px height and the
+    /// strip row's persisted-height minimum would keep eating panel
+    /// height, and the T-038 row binding would keep its TwoWay writeback
+    /// (so the Height itself is left untouched - see the property's doc).
+    /// The collapse never reverts: slots construct rail-less by design.
+    /// </summary>
+    private void CollapseSignalRail()
+    {
+        var rows = PanelGrid.RowDefinitions;
+        rows[4].Height = new GridLength(0);
+        rows[5].MinHeight = 0;
+        rows[5].MaxHeight = 0;
+        RailRowHandle.IsVisible = false;
+        RailBorder.IsVisible = false;
     }
 
     /// <summary>The chart control itself: the HUD's frame-tap drain and the export routes read it here (the named control lives inside this panel's namescope now).</summary>

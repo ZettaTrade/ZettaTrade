@@ -62,7 +62,7 @@
          freezes while the chart lives in its own window (the HUD is a
          main-window overlay; its detached counterpart is out of T-103
          scope). -->
-    <Grid>
+    <Grid x:Name="PanelGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -390,8 +390,9 @@
              TwoWay RailHeight binding above, the splitter
              track row feeds the drags in, and the overflow
              scrolls once the rows outgrow the rail. -->
-        <controls:RowResizeHandle Grid.Row="4" />
-        <Border Grid.Row="5"
+        <controls:RowResizeHandle x:Name="RailRowHandle" Grid.Row="4" />
+        <Border x:Name="RailBorder"
+                Grid.Row="5"
                 Padding="4,4,4,0"
                 BorderBrush="{DynamicResource Border}"
                 BorderThickness="0,1,0,0"
