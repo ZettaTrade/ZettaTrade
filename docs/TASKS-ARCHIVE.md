@@ -4517,6 +4517,63 @@ the board and its section below.
   0.1.0-alpha.159+00770d5f74b734ebf0400c4e5fcaa47af87ec335 (the full 40-character sha),
   alive through the 40 s hold, 0 ERR/FTL in the run slice, 0 leftovers.
 
+## T-214 — Tray icon
+
+- **Branch:** feat/tray-icon, worktree zt-tray-icon, base develop@7b3c7d3
+  (claimed 2026-11-14 off the synced board).
+- **Origin:** the sweep — no tray presence exists.
+- **What:** a tray icon with a minimal menu (show/hide the main window, the DND toggle, exit);
+  an option to keep running in the tray on close (off by default); fired alerts route through
+  the tray when the window is hidden (Windows first; Linux/macOS ride the platform support
+  honestly or degrade to the notification center).
+- **Scope:** App tray service + the window-close policy, settings keys
+  (`App.TrayCloseBehavior`), resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** close-to-tray keeps the session alive and the single-instance hand-off
+  intact; exit from the tray fully exits; the off state changes nothing.
+- **Tests:** the close-policy headless pins; the single-instance interaction pin.
+- **Status:** done - 0.1.0-alpha.161. Chain: claim `c664ad0` -> feat `09b9d4c` -> close.
+  Concurrent-landing note: origin/develop moved mid-task once (the T-223 settings collapse
+  landed `1d710e0` taking alpha.160), the branch rebased onto it — the version re-taken as
+  alpha.161 (never renumber a shipped landing), the CHANGELOG section stacked above T-223's,
+  the merged tree re-proven by the gate.
+  The shipped close semantics never change: `TrayCloseMode.Exit` is the default and a close
+  IS the exit until the user asks for the tray. The policy (`TrayClosePolicy`,
+  `IAsyncInitializable`) settles its seed read INLINE (the first close gesture must see the
+  stored mode, never the default racing it); an unparsable seed keeps the default and logs,
+  a garbage live payload keeps the standing mode (logged) — `TryParseMode` serves both
+  readers. `MinimizeToTray` turns a plain user close into a hide: the main window's
+  `OnClosing` intercepts only when the policy refuses the close (an earlier cancellation
+  keeps its say), so the exchanges, the risk gates and the single-instance dispatch pipe
+  keep running behind the tray icon. Every explicit exit path arms the policy first: the
+  tray's Exit, the File menu's Exit (the menu holds an optional policy reference — the
+  tests keep the shipped lifetime route when absent) and the OS session end
+  (`ShutdownRequested` arms, the window attaches before Show). The tray icon
+  (`TrayIconService`) mirrors the WINDOW's own icon — `new WindowIcon("avares://…")` treats
+  the URI as a file path (the IOException startup crash the E2E caught; no second asset
+  route), and a platform without tray support logs a warning and continues. Its menu: the
+  show/hide toggle, the close-to-tray checkable (mirrored live from the settings stream),
+  the DND checkable (the notification center's own truth — a ctor-time subscription rides
+  it into a standing bool; the toggle flips the mirrored truth instead of re-reading the
+  stubbed `GetAsync`) and the Exit. Balloons do not exist on the tray surface: fired
+  alerts keep landing in the notification center. `AddTrayServices()` follows
+  `AddUpdateServices()` in the composition root (the startup walk initializes every
+  `IAsyncInitializable` in registration order, so the seed settles before the first close
+  gesture). resx: `Tray.ShowHide`/`Tray.CloseToTray` new (en+ru), `Notif.DndToggle` and
+  `Menu.File.Exit` reused by design (one truth per surface); `check-resx.ps1` grew the
+  `Tray.` prefix. Tests: App 2171 (delta +12 over the ship point — the 7 policy
+  parse/hold/exit-arm facts + the 5 headless close facts: the interception, the exit arm,
+  the earlier cancellation). Gate GATE PASSED. The launch smoke green on the feat tip
+  `09b9d4c` in two phases (the close commit touches only the board docs — the binary is
+  the same content): ProductVersion 0.1.0-alpha.161+09b9d4cff2af…, Phase A the shipped
+  default — a close exits cleanly (code 0), no leftovers; Phase B the seeded
+  `MinimizeToTray` — a close HIDES the main window and the process stays alive with 0
+  ERR/FTL in both slices, 0 ticker failures, 0 no-tray-support warnings, the palette walk
+  reached. The smoke itself learned two windows-level facts worth keeping:
+  `Process.CloseMainWindow()` posts WM_SYSCOMMAND/SC_CLOSE, which Avalonia's custom-chrome
+  window ignores (the working gesture is a plain WM_CLOSE posted to the top-level window
+  titled exactly `ZettaTrade`), and the first-run disclaimer owns `Process.MainWindowHandle`
+  in fresh profiles (the smoke pre-seeds `UI.DisclaimerVersion`).
+
 ## T-216 - Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).
