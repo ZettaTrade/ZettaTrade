@@ -210,7 +210,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-203 Indicator-based alerts (backlog sweep 2026-11-12) | feat/indicator-alerts | done | - |
 | T-204 Alert mechanics 2.0: toasts, re-arm, sound (backlog sweep 2026-11-12) | feat/alerts-mechanics-2 | done | - |
 | T-205 Streaming AI chat (backlog sweep 2026-11-12) | feat/ai-streaming | done | - |
-| T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | planned | - |
+| T-206 Persistent chat history (backlog sweep 2026-11-12) | feat/ai-chat-history | in-progress | - |
 | T-207 Second AI provider: OpenAI-compatible (backlog sweep 2026-11-12) | feat/ai-providers | planned | - |
 | T-208 MCP server expansion: resources, prompts, tools (backlog sweep 2026-11-12) | feat/mcp-server-tools | planned | - |
 | T-209 Portfolio value history (backlog sweep 2026-11-12) | feat/portfolio-history | planned | - |
@@ -455,7 +455,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-206 — Persistent chat history
 
-- **Branch:** queued 2026-11-12 (the 2026-11-12 backlog sweep).
+- **Branch:** feat/ai-chat-history, worktree zt-ai-chat-history, base develop@dd67253.
 - **Origin:** the sweep — the chat history lives in memory only and dies with the process.
 - **What:** conversations persist to SQLite; several named conversations with a session picker;
   a conversation exports to Markdown; the market-context injection and the consent chip (T-114)
@@ -465,7 +465,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** the history survives restart; a picked conversation restores its bubbles; the
   export writes a readable Markdown file; the consent chip still gates the context injection.
 - **Tests:** the persistence round-trip battery; the export golden.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-207 — Second AI provider: OpenAI-compatible
 
