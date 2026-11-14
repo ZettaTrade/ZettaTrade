@@ -1,13 +1,9 @@
 ## [0.1.0-alpha.175] - 2026-11-14
 
-Build of board tasks T-234 and T-235 (branches `feat/windows-unify` and
-`feat/affordances`): the window family rides the settings' variant-A
-grammar — the dialog family resizes, the confirm strips unify on the
-footer's shape, the ticket and the wizard card their field groups, the
-toolbar widths normalize — and the controls answer the pointer: the
-kit's icon buttons speak a visible hover/pressed tint, the pairs
-transfer arrows read as buttons at rest, the alerts editor's captions
-clear their fields, and the screener rows ride the header's column plan.
+Build of board task T-234 (branch `feat/windows-unify`): the window family
+rides the settings' variant-A grammar — the dialog family resizes, the
+confirm strips unify on the footer's shape, the ticket and the wizard
+card their field groups, the toolbar widths normalize.
 
 ### Changed
 - The dialog family resizes: every window that shipped the fixed frame
@@ -38,6 +34,31 @@ clear their fields, and the screener rows ride the header's column plan.
   toolbar's commands ride the 110 command width (the create carries the
   row's ONE primary), the close the 90 quiet width, the row's own column
   spacing clears the gaps; the fresh backtest reference stays pinned.
+
+### Tests
+- The `DialogGrammarPinsTests` hold the grammar at the source of truth:
+  the fixed-frame era ends app-wide, the paired strips measure
+  quiet-first/primary-last at the 90 strip with the gate's honest
+  equal-weight exception, the strip-gap margin hacks stay gone, the
+  carded surfaces speak the section voice with the uppercase header
+  captions in both cultures, the annotation prompt rides the compact
+  chrome, the wizard's nav reads one strip, the toolbars ride the
+  T-212 widths.
+- The `HeadlessDialogGrammarTests` materialize the dialog family without
+  a view model and MEASURE the grammar on the real layout: every window
+  answers `CanResize == true`, the paired strips measure the 90 buttons,
+  the quiet-before-primary order and the row inside the client area, and
+  the annotation prompt carries the compact chrome class.
+
+## [0.1.0-alpha.176] - 2026-11-14
+
+Build of board task T-235 (branch `feat/windows-unify`, stacked on the
+unlanded T-234): the controls answer the pointer — the kit's icon buttons
+speak a visible hover/pressed tint, the pairs transfer arrows read as
+buttons at rest, the alerts editor's captions clear their fields, and the
+screener rows ride the header's column plan.
+
+### Changed
 - The icon buttons answer the pointer (the Livery 0.1.14 bump): the hover
   paints the button family's soft tint step (ButtonHoverTint) and the
   press the stronger step (ButtonPressedTint) on the template's
@@ -82,19 +103,6 @@ clear their fields, and the screener rows ride the header's column plan.
   re-arms through :focus.
 
 ### Tests
-- The `DialogGrammarPinsTests` hold the grammar at the source of truth:
-  the fixed-frame era ends app-wide, the paired strips measure
-  quiet-first/primary-last at the 90 strip with the gate's honest
-  equal-weight exception, the strip-gap margin hacks stay gone, the
-  carded surfaces speak the section voice with the uppercase header
-  captions in both cultures, the annotation prompt rides the compact
-  chrome, the wizard's nav reads one strip, the toolbars ride the
-  T-212 widths.
-- The `HeadlessDialogGrammarTests` materialize the dialog family without
-  a view model and MEASURE the grammar on the real layout: every window
-  answers `CanResize == true`, the paired strips measure the 90 buttons,
-  the quiet-before-primary order and the row inside the client area, and
-  the annotation prompt carries the compact chrome class.
 - The `FieldGrammarPinsTests` hold the shared cell class and the content
   widths at the source of truth: the include, the 14 cells, the caption
   copies gone, the no-fixed-width-combo fact, the transfer pair's
@@ -630,20 +638,20 @@ from the trade statistics and order history windows.
 ## [0.1.0-alpha.155] - 2026-11-13
 
 Build of board task T-217 (branch `feat/perf-fixes`): two performance fixes
-from the 2026-11-13 code+performance review round тАФ the streamed chat reply
+from the 2026-11-13 code+performance review round — the streamed chat reply
 stops re-rendering per token, and the trade-statistics scan stops
 re-copying its equity curve per page.
 
 ### Fixed
 - The streamed chat reply (the T-205 semantics kept): the arrived deltas
   still append in full, but the bubble's re-render throttles to a bounded
-  cadence with a settlement flush тАФ a fast token stream no longer rebuilds
+  cadence with a settlement flush — a fast token stream no longer rebuilds
   the bound text and re-measures the non-virtualized transcript per token,
   which stuttered the panel on long answers. The first delta still renders
   immediately, an immediately-failing stream still renders no bubble, and
   the persisted turn carries everything that arrived.
 - The trade-statistics scan: the accumulator's snapshot publishes a pinned
-  append-only view of the equity curve instead of a fresh copy per page тАФ
+  append-only view of the equity curve instead of a fresh copy per page —
   a six-figure journal no longer pays an O(pages ├Ч curve) copy churn while
   the scan runs, and a published curve still never grows with the scan's
   later appends.

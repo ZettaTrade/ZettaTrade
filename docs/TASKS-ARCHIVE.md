@@ -5429,7 +5429,7 @@ the board and its section below.
 - **Tests:** the kit's icon-affordance pins (the Livery battery), the App's
   editor-cell and combo-width pins, the screener row facts (the stretch + the
   chrome, headless-measured).
-- **Status:** done - 0.1.0-alpha.175 (on the branch; the landing awaits the user's
+- **Status:** done - 0.1.0-alpha.176 (on the branch; the landing awaits the user's
   review). Chain: docs(claim) `c820654` -> feat `81edc36` -> docs(close) -> bump.
   Shipped: the kit's icon buttons answer the pointer with the family's tint language
   (the hover ButtonHoverTint step, the press the stronger ButtonPressedTint step, the
