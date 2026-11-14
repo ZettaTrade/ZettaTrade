@@ -207,8 +207,8 @@ public sealed class PluginCatalogPackRegistrationTests
             ["SMA", "EMA", "WMA", "RSI", "MACD", "ATR", "BOLL"],
             "a non-plugin neighbor never adds a name, the pack never loses one");
         spy.Entries.Should().Contain(entry =>
-            entry.Level == LogLevel.Warning && entry.Message.Contains("not-a-plugin.dll"),
-            "the garbage neighbor keeps its own warning");
+            entry.Level == LogLevel.Debug && entry.Message.Contains("not-a-plugin.dll"),
+            "the garbage neighbor drops on the debug level (T-229)");
         spy.Entries.Should().NotContain(entry =>
             entry.Level == LogLevel.Warning && entry.Message.Contains("ZettaTrade.Plugins."),
             "the warnings are per-file precise: the pack is never accused");

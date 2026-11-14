@@ -310,11 +310,25 @@ public sealed class PluginSdkHost(
             {
                 assembly = Assembly.LoadFrom(filePath);
             }
+            catch (BadImageFormatException fault)
+            {
+                // The honest drop (T-229): a file that is not a loadable
+                // assembly at all — a stray dll, a native helper, a
+                // corrupted download — rides the debug level. The scan
+                // directory may carry non-plugin files by design; the
+                // scan's job is the folder's real packs.
+                logger.LogDebug(
+                    fault,
+                    "The plugin SDK skipped '{FilePath}': not a loadable assembly.",
+                    filePath);
+                continue;
+            }
             catch (Exception fault) when (
-                fault is BadImageFormatException
-                    or IOException
+                fault is IOException
                     or UnauthorizedAccessException)
             {
+                // A file the OS could not hand over (locked, inaccessible)
+                // is a real environment failure and stays loud.
                 logger.LogWarning(
                     fault,
                     "The plugin SDK skipped '{FilePath}': not a readable assembly.",

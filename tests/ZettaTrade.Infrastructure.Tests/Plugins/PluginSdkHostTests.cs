@@ -16,7 +16,8 @@ using ZettaTrade.Plugins.Fixtures.Hazards;
 /// chain award their loads and publish the registry, the hazard shapes —
 /// duplicate ids, missing dependencies, unparsable versions,
 /// manifest-less entries, cycles, garbage dlls, partly unreadable
-/// assemblies — refuse loudly without harming the survivors, a missing
+/// assemblies — refuse loudly without harming the survivors (a garbage
+/// dll drops on the debug level, T-229), a missing
 /// plugins directory means nothing but an empty report, and the DI shape
 /// wires the whole family through one registration.
 /// </summary>
@@ -162,7 +163,7 @@ public sealed class PluginSdkHostTests
     }
 
     [Fact]
-    public async Task GarbageAssemblyWarnsAndTheScanContinues()
+    public async Task GarbageAssemblyDropsOnTheDebugLevelAndTheScanContinues()
     {
         using var stage = new PluginSdkStage();
         stage.StageGarbage();
@@ -170,11 +171,15 @@ public sealed class PluginSdkHostTests
 
         var (host, provider, registry) = await stage.RunAsync();
 
-        host.Report.Errors.Should().BeEmpty("a garbage dll is a warning, not a refusal.");
+        host.Report.Errors.Should().BeEmpty("a garbage dll is a debug-level drop, not a refusal.");
         host.Report.LoadedPluginIds.Should().Equal((IEnumerable<string>)["fx.alpha", "fx.beta", "fx.sample"],
             "the scan continues past the garbage file.");
-        stage.Loggers.Faults.Should().Contain(f => f is BadImageFormatException,
-            "the garbage file's read fault reached the log.");
+        stage.Loggers.Faults.Should().Contain(
+            f => f.Fault is BadImageFormatException && f.Level == LogLevel.Debug,
+            "the not-an-assembly drop rides the debug level (T-229).");
+        stage.Loggers.Faults.Should().NotContain(
+            f => f.Fault is BadImageFormatException && f.Level == LogLevel.Warning,
+            "a stray file in the scan directory is never a warning family (T-229).");
 
         using (provider)
         {

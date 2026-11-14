@@ -11,10 +11,11 @@ using ZettaTrade.Plugins.Sma;
 /// <summary>
 /// The plugin loader matrix: a valid plugin assembly resolves (the
 /// ctor(int) convention preferred), a rejected period skips with a logged
-/// warning, an unknown name resolves quietly to null, a garbage dll warns
-/// without crashing the scan, a plugin with a missing dependency fails the
-/// GetTypes() step and skips loudly (BUG-014) and a missing plugins
-/// directory means no indicators at all. The scan loads the dlls (the file
+/// warning, an unknown name resolves quietly to null, a garbage dll drops
+/// on the debug level (T-229) without crashing the scan, a plugin with a
+/// missing dependency fails the GetTypes() step and skips loudly (BUG-014)
+/// and a missing plugins directory means no indicators at all. The scan
+/// loads the dlls (the file
 /// stays locked for the process lifetime), so the temp fixtures clean up
 /// what they can and tolerate the locked leftovers.
 /// </summary>
@@ -188,7 +189,7 @@ public sealed class PluginIndicatorCatalogTests
     }
 
     [Fact]
-    public void Scan_AGarbageDll_WarnsAndKeepsWorking()
+    public void Scan_AGarbageDll_DropsItOnTheDebugLevelAndKeepsWorking()
     {
         using var fixture = new PluginsDirectoryFixture();
         fixture.StageValidSmaPlugin();
@@ -199,9 +200,13 @@ public sealed class PluginIndicatorCatalogTests
 
         catalog.Create("SMA", 20).Should().NotBeNull("the malformed neighbor never breaks the scan");
         logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Debug &&
+            entry.Message.Contains("not-a-plugin.dll"),
+            "a file that is not a loadable assembly is the scan's routine cargo and drops on the debug level (T-229)");
+        logger.Entries.Should().NotContain(entry =>
             entry.Level == LogLevel.Warning &&
             entry.Message.Contains("not-a-plugin.dll"),
-            "the malformed assembly skips loudly");
+            "a stray file in the plugins folder is never a warning family (T-229)");
     }
 
     /// <summary>
@@ -228,9 +233,9 @@ public sealed class PluginIndicatorCatalogTests
             entry.Message.Contains("fail to load"),
             "the dependency-missing plugin skips loudly, not silently");
         logger.Entries.Should().Contain(entry =>
-            entry.Level == LogLevel.Warning &&
+            entry.Level == LogLevel.Debug &&
             entry.Message.Contains("not-a-plugin.dll"),
-            "the garbage neighbor keeps its own warning");
+            "the garbage neighbor drops on the debug level (T-229)");
     }
 
     /// <summary>
