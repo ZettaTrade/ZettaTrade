@@ -5155,3 +5155,36 @@ the board and its section below.
   smoke green on the fix tip: ProductVersion 0.1.0-alpha.169+e549a912, the 12 s hold held
   the main window, 0 ERR/FTL, exactly one quiet-absence INF, zero Alpaca palette warnings,
   zero seed failures, the sandbox discarded.
+
+## T-229 - The plugin scanner's not-a-plugin drop stops logging as a failure
+
+- **Branch:** fix/not-a-plugin-log-noise, worktree zt-not-a-plugin-log-noise, base
+  develop@9909e81 (claimed 2026-11-14; the T-226 follow-up sweep).
+- **Origin:** the T-226 profiling — the plugin scan logs every non-plugin dll it meets in
+  the plugins folder as an error-ish line each launch; a dll that is not a plugin is the
+  scan's honest drop, never a failure.
+- **What:** the scanner logs the drop at debug level (or one info line per scan, not per
+  dll), while the folder's real packs still load unchanged.
+- **Scope:** the Infrastructure plugin scanner's logging; no scanner semantics.
+- **Acceptance:** a launch log over the shipped plugins folder carries no not-a-plugin
+  error lines; the standard pack still loads.
+- **Tests:** the scanner's drop-level fact.
+- **Status:** done - 0.1.0-alpha.170. Chain: claim `1f8b864` -> fix `31dad0d` -> release
+  `29fc22f` -> close. Canon: all three scanners sharing the plugins folder (the indicator
+  catalog, the strategy catalog, the SDK host's Scan) split the LoadFrom catch by
+  exception type — a BadImageFormatException (a file that is not a loadable assembly at
+  all: a stray dll, a native helper, a corrupted download) rides the DEBUG level (the
+  production Serilog minimum is Information, so the drop is silent in the shipped log and
+  the summary line's missing name is the only trace of it); a file the OS could not hand
+  over (IOException/UnauthorizedAccessException) keeps its warning; the
+  ReflectionTypeLoadException "types fail to load" and "could not be inspected" families
+  stay loud (real diagnostics). Tests: the drop-level facts in all three catalogs' suites
+  (the debug pin + the no-warning pin; the SDK stage's RecordingLoggerFactory Faults grew
+  to (level, fault) pairs) plus the App-level pack-registration fact's pin moved to the
+  debug drop — the missed fourth consumer, caught by the gate's first attempt. 27 facts
+  over the three affected classes green; 2203 App + 675 Infrastructure green in the gate.
+  GATE PASSED (-AllowProtected) attempt 2. The launch smoke green: a sandbox seeded with
+  the real standard pack (12 dlls) + a hand-staged garbage not-a-plugin.dll — the drop
+  rides silent (zero not-a-plugin WRN lines), the pack reports its full name list (ATR,
+  BOLL, EMA, MACD, RSI, SMA, WMA + 4 strategies), 0 ERR/FTL, the 12 s hold held,
+  ProductVersion 0.1.0-alpha.170+29fc22f, zero leftovers, the sandbox discarded.

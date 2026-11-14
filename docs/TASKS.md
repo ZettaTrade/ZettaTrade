@@ -233,7 +233,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-226 Startup latency: the walk batches the five SQLite stores concurrently + the chart prewarms from the persisted symbol while the instruments fetch is in flight (the user-reported blank-chart wait) | feat/startup-latency | done | - |
 | T-227 Exchange API-key authorization in the settings window: per-venue keys persist through ISecretStore, adapters read them at start, the Alpaca data adapter authenticates when keys are present and quiets its no-key noise when absent (the user's ask, the T-226 profiling follow-up) | feat/exchange-auth-settings | done | - |
 | T-228 One instruments-info fetch per exchange per session: the startup warm-up and the chart's bootstrap share the provider cache instead of double-fetching (the T-226 profiling follow-up) | feat/instruments-fetch-dedupe | planned | - |
-| T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | in-progress | - |
+| T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | done | - |
 | T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | planned | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
@@ -526,21 +526,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   log; the chart's first delivery timing does not regress.
 - **Tests:** the provider fetch-count facts; the walk's warm-up pin.
 - **Status:** planned.
-
-## T-229 - The plugin scanner's not-a-plugin drop stops logging as a failure
-
-- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep).
-- **Origin:** the T-226 profiling — the plugin scan logs every non-plugin dll it meets in
-  the plugins folder as an error-ish line each launch; a dll that is not a plugin is the
-  scan's honest drop, never a failure.
-- **What:** the scanner logs the drop at debug level (or one info line per scan, not per
-  dll), while the folder's real packs still load unchanged.
-- **Scope:** the Infrastructure plugin scanner's logging; no scanner semantics.
-- **Acceptance:** a launch log over the shipped plugins folder carries no not-a-plugin
-  error lines; the standard pack still loads.
-- **Tests:** the scanner's drop-level fact.
-- **Status:** in-progress (worktree zt-not-a-plugin-log-noise, branch
-  fix/not-a-plugin-log-noise, base develop@9909e81, claimed 2026-11-14).
 
 ## T-230 - The update checker's no-release 404 is the quiet no-update state
 
