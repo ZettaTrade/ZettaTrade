@@ -1,3 +1,26 @@
+## [0.1.0-alpha.166] - 2026-11-14
+
+Build of board task T-220 (branch `fix/alert-beep-async`): the alert beep
+stops blocking the engine's fire path — the tone dispatches to the worker
+pool and a firing burst never delays the evaluations behind it.
+
+### Changed
+- The beep player (the T-096 `IAlertSoundPlayer` seam) dispatches the
+  platform tone off the caller's path: the kernel32 beep is a synchronous
+  ~180 ms call the alert engine's consumer loop used to wait out on every
+  firing burst, stalling the evaluation queue for its full duration.
+  `Play()` now returns promptly and the playback completes in the
+  background; a failed playback degrades through the player's own warning
+  lane (the T-096 contract relocated with the playback — a failed beep is
+  a logged warning, never an unobserved fault, never a broken evaluation),
+  and the engine's own degrade catch stays for a failing dispatch attempt.
+- The facts: the player's seam tests prove the prompt dispatch, the
+  degrade-lane logging and the burst's per-fire dispatches deterministically
+  (an injected dispatch/attempt seam — no real tone, no wall-clock wait);
+  the engine's burst fact proves the next evaluation surfaces while the
+  first playback is still in flight, and the engine's degrade fact now
+  pins the logged warning it always emitted.
+
 ## [0.1.0-alpha.165] - 2026-11-14
 
 Build of board task T-218 (branch `feat/chat-virtualization`): the AI chat

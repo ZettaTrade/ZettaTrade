@@ -9,6 +9,7 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using ZettaTrade.App.Services;
@@ -136,6 +137,17 @@ public sealed class AlertEngineTests
 
         public bool ThrowOnPlay { get; set; }
 
+        /// <summary>
+        /// The T-220 burst facts' switch: when armed, Play() dispatches the
+        /// tone off the caller's path (the real player's new shape — the
+        /// call returns immediately) and the rig awaits/releases the
+        /// in-flight playbacks through the fixture.
+        /// </summary>
+        public bool DispatchInBackground { get; set; }
+
+        /// <summary>The dispatched playbacks nobody released (the burst fact's in-flight probe).</summary>
+        private readonly ConcurrentQueue<TaskCompletionSource> _backgroundPlaybacks = new();
+
         public void Play()
         {
             Played++;
@@ -143,7 +155,50 @@ public sealed class AlertEngineTests
             {
                 throw new InvalidOperationException("The platform tone refused to sound (test fixture).");
             }
+
+            if (DispatchInBackground)
+            {
+                // The real player's T-220 shape: the caller is back
+                // immediately, the tone completes in the background (the
+                // rig releases it when the fact's ordering is pinned).
+                _backgroundPlaybacks.Enqueue(new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+            }
         }
+
+        /// <summary>Has the fixture dispatched a playback nothing waited for (the burst fact's probe)?</summary>
+        public bool HasUnreleasedBackgroundPlaybacks => _backgroundPlaybacks.IsEmpty is false;
+
+        /// <summary>Release every dispatched playback and await them (the rig's await point — the determinism the seam owes the facts).</summary>
+        public async Task ReleaseBackgroundPlaybacksAsync()
+        {
+            var playbacks = new List<Task>();
+            while (_backgroundPlaybacks.TryDequeue(out var playback))
+            {
+                playback.TrySetResult();
+                playbacks.Add(playback.Task);
+            }
+
+            await Task.WhenAll(playbacks).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>The engine's logger spy: records the level + message + exception triples (the degrade lane's probe).</summary>
+    private sealed class SpyLogger : ILogger<AlertEngine>
+    {
+        public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception), exception));
     }
 
     /// <summary>The indicator catalog fixture: the scripted implementations it carries resolve by name, a non-positive period resolves to nothing.</summary>
@@ -195,7 +250,8 @@ public sealed class AlertEngineTests
     private static Rig BuildRig(
         TestSettings? settings = null,
         TestAdapter? adapter = null,
-        IIndicatorCatalog? indicators = null)
+        IIndicatorCatalog? indicators = null,
+        ILogger<AlertEngine>? logger = null)
     {
         settings ??= new TestSettings();
         adapter ??= new TestAdapter();
@@ -209,7 +265,7 @@ public sealed class AlertEngineTests
             sound,
             center,
             clock,
-            NullLogger<AlertEngine>.Instance);
+            logger ?? NullLogger<AlertEngine>.Instance);
         return new Rig(engine, settings, adapter, sound, clock, center);
     }
 
@@ -454,7 +510,8 @@ public sealed class AlertEngineTests
     [Fact]
     public async Task SoundFailure_DegradesIntoACompletedFire()
     {
-        var rig = BuildRig();
+        var soundLogger = new SpyLogger();
+        var rig = BuildRig(logger: soundLogger);
         rig.Sound.ThrowOnPlay = true;
         await rig.Engine.InitializeAsync();
         await rig.Engine.CreateAsync(PriceDraft(110m, AlertTrigger.Above));
@@ -466,6 +523,11 @@ public sealed class AlertEngineTests
             .Should().Be(AlertStatus.Fired, "a failed beep never breaks an evaluation");
         rig.Sound.Played.Should().Be(1);
         CountFires(census).Should().Be(1);
+        soundLogger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("degraded away", StringComparison.Ordinal) &&
+            entry.Exception is InvalidOperationException,
+            "the engine's degrade lane logs the failed beep exactly as today");
         await rig.Engine.DisposeAsync();
     }
 
@@ -1162,6 +1224,41 @@ public sealed class AlertEngineTests
     }
 
     #endregion Toast bridge (T-204)
+
+    #region The non-blocking beep (T-220)
+
+    [Fact]
+    public async Task ABeepBurst_TheNextEvaluationSurfacesWhileTheFirstPlaybackIsStillInFlight()
+    {
+        var rig = BuildRig();
+        rig.Sound.DispatchInBackground = true;
+        await rig.Engine.InitializeAsync();
+        var first = await rig.Engine.CreateAsync(ReArmingPriceDraft(110m, AlertTrigger.Above, AlertReArmMode.OneShot));
+        var second = await rig.Engine.CreateAsync(ReArmingPriceDraft(111m, AlertTrigger.Above, AlertReArmMode.OneShot));
+        var (census, _) = WireFiredLatch(rig.Engine);
+
+        // The burst: the first fire dispatches its tone, the second fires
+        // while the first playback is still parked — the consumer never
+        // waits for the beep (the T-220 acceptance; the parked playback
+        // stands in for any tone duration, the kernel32 180 ms included —
+        // an engine that ever joined the playback would hang this fact
+        // into the budget's timeout instead).
+        PushTick(rig.Adapter, 111m, Base.AddMinutes(1));
+        await WaitFiresAsync(census, 1);
+        PushTick(rig.Adapter, 112m, Base.AddMinutes(2));
+        await WaitFiresAsync(census, 2);
+        var secondFire = census.Where(@event => @event.Kind == AlertEventKind.Fired).Last();
+        secondFire.Definition!.Id.Should().Be(second.Id, "the second evaluation surfaced behind the burst's first fire");
+        rig.Sound.HasUnreleasedBackgroundPlaybacks.Should().BeTrue(
+            "the first playback was never awaited — the second fire surfaced while it was still in flight");
+        rig.Sound.Played.Should().Be(2, "every fire of a beep alert dispatches its tone");
+
+        // The rig awaits the dispatched playbacks (the determinism the seam owes the facts).
+        await rig.Sound.ReleaseBackgroundPlaybacksAsync();
+        await rig.Engine.DisposeAsync();
+    }
+
+    #endregion The non-blocking beep (T-220)
 
     /// <summary>The latch settles on the first roster change (the pause path's own publish; wire it after the create).</summary>
     private static TaskCompletionSource<AlertEvent> WireRosterLatch(AlertEngine engine)
