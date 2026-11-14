@@ -4698,6 +4698,43 @@ the board and its section below.
   [PROTECTED] check on the rule-6 version bump in Directory.Build.props — the bump is
   the board task's sanctioned change, the same shape the T-210 landing rode.
 
+## T-218 — Virtualize the AI chat transcript
+
+- **Branch:** feat/chat-virtualization, worktree zt-chat-virtualization, base develop@0da6677
+  (claimed 2026-11-14 off the synced board).
+- **Origin:** the review — the transcript is a non-virtualized ItemsControl over a
+  growing ObservableCollection (AssistantPanelView), so every content change
+  re-measures the whole scroll content; long conversations pay for every bubble.
+- **What:** a virtualized host for the transcript — variable-height bubbles, the
+  copy-pin strip and the scrolled-to-bottom behavior preserved; the honest full-render
+  semantics stay.
+- **Scope:** AssistantPanelView (+ its code-behind plumbing) only; resx untouched.
+- **Acceptance:** a several-hundred-message conversation scrolls and streams without
+  the whole-list re-measure; the copy affordance and the auto-scroll hold.
+- **Tests:** the panel's existing interaction facts; a long-transcript render fact.
+- **Status:** done - 0.1.0-alpha.165. Chain: claim `5f803aa` -> feat `05db088` -> close.
+  Concurrent-landing note: the branch rebased onto the landed T-219 tip
+  (develop@a64c3a8) — the bump re-took the next free alpha.165 (alpha.164 had just
+  shipped; the worker's take was 163) and the CHANGELOG sections stack
+  newest-first (165 over 164 over 162).
+  The items panel rides the `VirtualizingStackPanel` and the row gap moves onto the
+  bubble's tail margin (the virtualizing panel carries no `Spacing` of its own; the
+  insets are uniform-only tokens, so the step carries raw the same way the panel's
+  other unscaled insets do). The scroll semantics were probed headlessly before the
+  swap and pinned after it: the app has no auto-follow anywhere (the view model never
+  touches the scroll; the observed follow-after-ScrollToEnd is the ScrollViewer's
+  overscroll coercion chasing the extent, one-shot by its own landing), so the
+  preserved shape is — a scroll-to-end lands on the true bottom and stays there, one
+  appended turn follows to the new max, a turn appended at a finite bottom stays
+  below the fold, and the streamed tail growth holds the reader steady (the
+  anchoring rebases the offset while the visible turn keeps its exact viewport
+  position — measured, not assumed). Realization is bounded: 6-8 containers for a
+  300-turn conversation where the plain stack realized all 300. Resx: none (zero
+  edits, as scoped). Tests: App 2176 (delta +5 over T-214's 2171 — the headless
+  transcript family: the bounded realized window, the stable bottom landing, the
+  one-shot chase, the finite-bottom hold, the streamed-growth anchor). GATE PASSED
+  (-BaseBranch develop -AllowProtected: the rule-6 bump rides the board task).
+
 ## T-219 — Stream the statement export past the whole-journal materialization
 
 - **Branch:** feat/statement-stream, worktree zt-statement-stream, base develop@0da6677 (claimed 2026-11-14 off the synced board).
