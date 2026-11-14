@@ -235,6 +235,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-228 One instruments-info fetch per exchange per session: the startup warm-up and the chart's bootstrap share the provider cache instead of double-fetching (the T-226 profiling follow-up) | feat/instruments-fetch-dedupe | planned | - |
 | T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | done | - |
 | T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | done | - |
+| T-231 The watchlist ticker stream retries its stream failures with a bounded backoff instead of dying stale, and the Binance instruments parse takes the unrecognized quote-asset drop at the debug level (filed from the user's log analysis) | feat/watchlist-ticker-retry | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -526,5 +527,27 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   log; the chart's first delivery timing does not regress.
 - **Tests:** the provider fetch-count facts; the walk's warm-up pin.
 - **Status:** planned.
+
+## T-231 - The watchlist ticker stream retries its failures; the Binance quote-asset drop de-noises
+
+- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep; filed from the user's log analysis).
+- **Origin:** the user's real log analysis (2026-11-11..14): the watchlist ticker stream dies
+  on a stream error and nothing re-arms it — the 2026-11-11 log shows six symbols
+  (ADA/DOGE/BNB/LINK/AVAX/LTC over USDT) failing as a family on every Bybit socket
+  force-cycle, the rows keeping their stale data until a UI-driven row-set change; the
+  Binance instruments parse warns about its 52-symbol unrecognized quote-asset drop EVERY
+  launch (9 warnings on 2026-11-14 alone, a stable standing fact).
+- **What:** a ticker stream failure re-arms its row with a bounded retry (backoff), so the
+  row revives after the venue's socket force-cycle without a UI nudge; the Binance
+  unrecognized quote-asset drop rides the debug level (the T-229 canon: the routine
+  data-shape cargo is not a failure family).
+- **Scope:** the WatchlistFeedService row pump's error path; the BinanceAdapter's
+  instruments parse log level; no adapter semantics.
+- **Acceptance:** a forced ticker stream failure recovers on its own (the row prices
+  again); the launch log over the Binance parse carries no unrecognized quote-asset
+  warning.
+- **Tests:** the row pump's retry facts; the Binance parse level pin.
+- **Status:** in-progress (worktree zt-watchlist-ticker-retry, branch
+  feat/watchlist-ticker-retry, base develop@e2a51a0, claimed 2026-11-14).
 
 
