@@ -324,6 +324,9 @@
   <data name="Settings.Section.Port" xml:space="preserve">
     <value>ИМПОРТ / ЭКСПОРТ</value>
   </data>
+  <data name="Settings.Section.Backup" xml:space="preserve">
+    <value>РЕЗЕРВНАЯ КОПИЯ ПРОФИЛЯ</value>
+  </data>
   <data name="Port.Export" xml:space="preserve">
     <value>Экспортировать настройки…</value>
   </data>
@@ -404,6 +407,84 @@
   </data>
   <data name="Port.Error.WrongType" xml:space="preserve">
     <value>Файл содержит значение, не соответствующее своему типу. Ничего не изменено — ничего не угадано и не подменено значением по умолчанию.</value>
+  </data>
+  <data name="Backup.Backup" xml:space="preserve">
+    <value>Создать резервную копию профиля…</value>
+  </data>
+  <data name="Backup.Hint" xml:space="preserve">
+    <value>Записывает один архив с вашими настройками и хранилищами данных — историей ордеров, реализованным PnL, кэшем свечей, рисунками на графиках, историей ИИ-чата и историей стоимости портфеля. Секреты и API-ключи никогда не включаются.</value>
+  </data>
+  <data name="Backup.Restore" xml:space="preserve">
+    <value>Восстановить профиль…</value>
+  </data>
+  <data name="Backup.Restore.Hint" xml:space="preserve">
+    <value>Возвращает архив резервной копии поверх живого профиля: каждый перечисленный файл заменяется целиком, после вашего подтверждения. В архиве нет секретов, поэтому API-ключи после восстановления нужно ввести заново.</value>
+  </data>
+  <data name="Backup.PreviewHeader" xml:space="preserve">
+    <value>Это восстановление заменит:</value>
+  </data>
+  <data name="Backup.Apply" xml:space="preserve">
+    <value>Применить восстановление</value>
+  </data>
+  <data name="Backup.Entry.Settings" xml:space="preserve">
+    <value>Настройки</value>
+  </data>
+  <data name="Backup.Entry.Orders" xml:space="preserve">
+    <value>История ордеров</value>
+  </data>
+  <data name="Backup.Entry.Pnl" xml:space="preserve">
+    <value>Реализованный PnL</value>
+  </data>
+  <data name="Backup.Entry.Candles" xml:space="preserve">
+    <value>Кэш свечей</value>
+  </data>
+  <data name="Backup.Entry.Drawings" xml:space="preserve">
+    <value>Рисунки на графиках</value>
+  </data>
+  <data name="Backup.Entry.Chat" xml:space="preserve">
+    <value>История ИИ-чата</value>
+  </data>
+  <data name="Backup.Entry.PortfolioValue" xml:space="preserve">
+    <value>История стоимости портфеля</value>
+  </data>
+  <data name="Backup.Row.Bytes" xml:space="preserve">
+    <value>Размер: {0}</value>
+  </data>
+  <data name="Backup.Status.BackupDone" xml:space="preserve">
+    <value>Профиль сохранён в {0}.</value>
+  </data>
+  <data name="Backup.Status.RestoreDone" xml:space="preserve">
+    <value>Восстановление применено; каждый перечисленный файл заменён, восстановленное состояние уже активно.</value>
+  </data>
+  <data name="Backup.Status.RestoreDeclined" xml:space="preserve">
+    <value>Восстановление отклонено — ничего не изменилось.</value>
+  </data>
+  <data name="Backup.Error.BackupFailed" xml:space="preserve">
+    <value>Создание копии не удалось; ничего не записано. Подробности в журнале.</value>
+  </data>
+  <data name="Backup.Error.RestoreFailed" xml:space="preserve">
+    <value>Восстановление отклонено.</value>
+  </data>
+  <data name="Backup.Error.Malformed" xml:space="preserve">
+    <value>Файл не является читаемым резервным архивом.</value>
+  </data>
+  <data name="Backup.Error.Schema" xml:space="preserve">
+    <value>Файл не является резервной копией профиля ZettaTrade (неизвестная схема).</value>
+  </data>
+  <data name="Backup.Error.Version" xml:space="preserve">
+    <value>Версия схемы архива не поддерживается. ZettaTrade не может угадать смысл чужой версии — ничего не изменено.</value>
+  </data>
+  <data name="Backup.Error.Manifest" xml:space="preserve">
+    <value>Архив не соответствует своему манифесту (отсутствующая или чужая запись, несовпадение размера или архив изменился после предпросмотра). Ничего не изменено.</value>
+  </data>
+  <data name="Backup.Error.Empty" xml:space="preserve">
+    <value>Архив проходит проверку, но в нём нечего восстанавливать.</value>
+  </data>
+  <data name="Backup.Error.Locked" xml:space="preserve">
+    <value>Хранилище данных, которое должно заменить восстановление, удерживается открытой операцией. Ничего не изменено — дождитесь завершения операции и повторите.</value>
+  </data>
+  <data name="Backup.RestoreConfirm" xml:space="preserve">
+    <value>Заменить живые файлы профиля снимками из архива? Настройки, история ордеров, реализованный PnL, кэш свечей, рисунки на графиках, история ИИ-чата и история стоимости портфеля вернутся к состоянию резервной копии. Секреты и API-ключи останутся нетронутыми.</value>
   </data>
   <data name="Order.Buy" xml:space="preserve">
     <value>Купить</value>

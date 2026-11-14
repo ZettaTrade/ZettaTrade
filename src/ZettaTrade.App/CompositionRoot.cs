@@ -14,6 +14,7 @@ using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
+using ZettaTrade.Infrastructure.Backup;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Export;
@@ -63,6 +64,7 @@ internal static class CompositionRoot
 
         services.AddSettingsStoreServices(); // T-137: one concrete store singleton, forwarded as ISettingsService — the port resolves.
         services.AddSettingsPortServices(); // T-100: settings import/export + factory reset over the store above.
+        services.AddProfileBackupServices(); // T-215: profile backup/restore over the resolved paths.
 
         // ThemeManager is registered both by its concrete type (the read-only
         // diagnostics surface — LoadErrors/LoadErrorsChanged — lives there,
@@ -270,6 +272,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<ThemeManager>().LoadErrorsChanged,
                 sp.GetRequiredService<SettingsPortService>(),
                 sp.GetRequiredService<IConfirmationService>(),
+                sp.GetRequiredService<ProfileBackupService>(),
                 sp.GetRequiredService<ISecretStore>()));
         // The strategy-seam hosting (T-112): the composition owns the
         // series-load relay so the chart and the strategy service depend on

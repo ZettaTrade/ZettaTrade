@@ -184,10 +184,10 @@ public sealed class WindowLayoutPinsTests
         var cards = SectionCardsXaml;
 
         Regex.Matches(source, "<Border Classes=\"section-card\"").Should().HaveCount(
-            9,
-            "the nine sections: Appearance 3 (appearance + theme folder + first-run wizard), Indicators 1, Integrations 3 (MCP + AI chat + import/export), Workspace 2 (pairs + hotkeys)");
+            10,
+            "the ten sections: Appearance 3 (appearance + theme folder + first-run wizard), Indicators 1, Integrations 4 (MCP + AI chat + import/export + profile backup), Workspace 2 (pairs + hotkeys)");
         Regex.Matches(source, "<Border Classes=\"section-tick\" />").Should().HaveCount(
-            9,
+            10,
             "every section card carries the Accent tick header");
         source.Should().Contain(
             "<StyleInclude Source=\"avares://ZettaTrade.App/Themes/SectionCards.axaml\" />",
@@ -208,7 +208,7 @@ public sealed class WindowLayoutPinsTests
             "<Setter Property=\"CornerRadius\" Value=\"{StaticResource CornerM}\" />",
             "the cards ride the approved compact CornerM rounding (the variant-A card step, T-222)");
 
-        // The nine header keys ride the pages (one per card, exactly).
+        // The ten header keys ride the pages (one per card, exactly).
         foreach (var key in new[]
                  {
                      "Settings.Section.Appearance",
@@ -218,6 +218,7 @@ public sealed class WindowLayoutPinsTests
                      "Settings.Section.Mcp",
                      "Settings.Section.Ai",
                      "Settings.Section.Port",
+                     "Settings.Section.Backup",
                      "Settings.Section.Pairs",
                      "Settings.Section.Hotkeys",
                  })
@@ -242,27 +243,27 @@ public sealed class WindowLayoutPinsTests
         var source = SettingsXaml;
         var cards = SectionCardsXaml;
 
-        // The nine card headers fold (T-223): every header is a named
+        // The ten card headers fold (T-223): every header is a named
         // section toggle with the right-edge chevron, and every card body
         // rides its own toggle's IsChecked — one-way, with an explicit
         // IsChecked so no null state exists.
         Regex.Matches(source, "<ToggleButton x:Name=\"\\w+SectionToggle\"").Should().HaveCount(
-            9,
-            "every card header folds: nine named section toggles");
+            10,
+            "every card header folds: ten named section toggles");
         Regex.Matches(source, "<Path Classes=\"section-chevron\" Grid.Column=\"1\" />").Should().HaveCount(
-            9,
+            10,
             "every toggle carries the right-edge chevron mark");
         Regex.Matches(source, "IsChecked=\"True\"").Should().HaveCount(
             4,
             "four cards open by default: the appearance card, the indicators page's only card, MCP, pairs");
         Regex.Matches(source, "IsChecked=\"False\"").Should().HaveCount(
-            5,
-            "five cards open collapsed: theme folder, first-run wizard, AI chat, port, hotkeys");
+            6,
+            "six cards open collapsed: theme folder, first-run wizard, AI chat, port, profile backup, hotkeys");
 
         foreach (var name in new[]
                  {
                      "Appearance", "ThemesFolder", "Wizard", "Indicators", "Mcp",
-                     "Ai", "Port", "Pairs", "Hotkeys",
+                     "Ai", "Port", "Backup", "Pairs", "Hotkeys",
                  })
         {
             source.Should().Contain(
