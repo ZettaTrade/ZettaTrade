@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-    The shared field-cell grammar (T-232): the caption-over-field cell —
+    The shared field-cell grammar (T-235): the caption-over-field cell —
     the StackPanel that hosts an editor's labeled control — rides one
     class so the caption never sits on its field: the spacing between
     them is the small step (SpaceS) and the caption carries the caption

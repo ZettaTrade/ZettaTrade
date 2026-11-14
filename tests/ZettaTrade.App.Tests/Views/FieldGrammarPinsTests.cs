@@ -8,7 +8,7 @@ using FluentAssertions;
 using Xunit;
 
 /// <summary>
-/// The field-cell grammar pins (T-232): the editors' caption-over-field
+/// The field-cell grammar pins (T-235): the editors' caption-over-field
 /// cells ride ONE shared class — the FieldGrammar dictionary owns the
 /// caption gap (the SpaceS step) and the caption size, the windows include
 /// it once (the RowGrammar precedent), and the alerts editor carries no

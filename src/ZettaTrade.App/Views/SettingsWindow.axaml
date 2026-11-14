@@ -1418,7 +1418,7 @@
                                                 VerticalAlignment="Center"
                                                 Spacing="{StaticResource SpaceS}">
                                         <!-- The transfer pair rides the chrome kit's icon
-                                             button in its framed chip composition (T-232,
+                                             button in its framed chip composition (T-235,
                                              the review round): the free-standing action
                                              reads as a button at rest through the plate
                                              fill under the family's hairline, the hover

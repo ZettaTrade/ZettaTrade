@@ -12,7 +12,7 @@ using Xunit;
 using ZettaTrade.App.Views;
 
 /// <summary>
-/// The headless dialog-grammar facts (T-231): the REAL dialog windows
+/// The headless dialog-grammar facts (T-234): the REAL dialog windows
 /// materialize headlessly and the grammar is MEASURED, not just
 /// source-pinned — the fixed-frame era's end is the window's own
 /// CanResize answer, the paired confirm strips measure quiet-first and
@@ -48,7 +48,7 @@ public sealed class HeadlessDialogGrammarTests
 
     /// <summary>
     /// The dialog family the task unified — every window that shipped the
-    /// fixed frame before T-231 materializes with the resizable frame on
+    /// fixed frame before T-234 materializes with the resizable frame on
     /// the real object, not just in the source.
     /// </summary>
     [Fact]

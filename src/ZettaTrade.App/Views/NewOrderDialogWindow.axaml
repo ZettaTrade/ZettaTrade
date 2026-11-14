@@ -15,7 +15,7 @@
         Background="{DynamicResource Background}">
 
     <Window.Styles>
-        <!-- The section-card grammar (T-231): the sizer group rides the
+        <!-- The section-card grammar (T-234): the sizer group rides the
              settings' card voice — the Surface panel with the tick and the
              tracked caption. -->
         <StyleInclude Source="avares://ZettaTrade.App/Themes/SectionCards.axaml" />
@@ -324,7 +324,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- The quick-size card (T-231): the sizer group rides the settings'
+        <!-- The quick-size card (T-234): the sizer group rides the settings'
              card voice — the tick-and-caption header over the preset chips.
              The row only PROPOSES — every proposal lands in the quantity
              field above and rides the ticket's own parse → risk →
@@ -417,7 +417,7 @@
                    TextWrapping="Wrap"
                    IsVisible="{Binding HasSummaryError}" />
 
-        <!-- The confirm strip (T-231): the settings footer's shape — the
+        <!-- The confirm strip (T-234): the settings footer's shape — the
              quiet cancel first, the ONE primary cta last (the side fill
              stays the cta's own vocabulary, T-156), both riding the 90
              strip and the row's own spacing. -->

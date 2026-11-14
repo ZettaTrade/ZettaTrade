@@ -17,7 +17,7 @@
         Background="{DynamicResource Background}">
 
     <Window.Styles>
-        <!-- The section-card grammar (T-231): the three steps ride the
+        <!-- The section-card grammar (T-234): the three steps ride the
              settings' card voice — the tick-and-caption header over each
              step's pick. -->
         <StyleInclude Source="avares://ZettaTrade.App/Themes/SectionCards.axaml" />
@@ -38,7 +38,7 @@
                    FontSize="{StaticResource CaptionFontSize}" />
 
         <!-- Step one: the theme pick. The step body rides the card voice
-             (T-231): the tick-and-caption header over the step's pick. -->
+             (T-234): the tick-and-caption header over the step's pick. -->
         <Border Classes="section-card" IsVisible="{Binding IsThemeStepVisible}">
             <StackPanel Spacing="{StaticResource SpaceM}">
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
@@ -90,7 +90,7 @@
 
         <!-- Step two: the adapter pick. Demo stays the default lane; the
              keys note is text only — the wizard never collects secrets.
-             The step body rides the card voice (T-231). -->
+             The step body rides the card voice (T-234). -->
         <Border Classes="section-card" IsVisible="{Binding IsAdapterStepVisible}">
             <StackPanel Spacing="{StaticResource SpaceM}">
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
@@ -121,7 +121,7 @@
 
         <!-- Step three: the first symbol pick, refilled on every draft-adapter
              selection; the list scrolls inside its own viewport. The step
-             body rides the card voice (T-231). -->
+             body rides the card voice (T-234). -->
         <Border Classes="section-card" IsVisible="{Binding IsSymbolStepVisible}">
             <StackPanel Spacing="{StaticResource SpaceM}">
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
@@ -140,7 +140,7 @@
             </StackPanel>
         </Border>
 
-        <!-- The nav row (T-231): one strip — the quiet walks (back, skip)
+        <!-- The nav row (T-234): one strip — the quiet walks (back, skip)
              at the left edge, the advance and the ONE primary finish at
              the right edge, all riding the 90 strip. Back walks the
              drafts, next advances, finish is the last step's confirm, skip

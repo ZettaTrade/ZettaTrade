@@ -32,7 +32,7 @@
                    Foreground="{DynamicResource TextSecondary}"
                    TextWrapping="Wrap" />
 
-        <!-- The confirm strip (T-231): the settings footer's shape — the
+        <!-- The confirm strip (T-234): the settings footer's shape — the
              quiet cancel first, the ONE primary apply last, both riding
              the 90 strip and the row's own spacing. -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource SpaceM}">

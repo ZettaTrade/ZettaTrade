@@ -31,7 +31,7 @@ using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Shell;
 
 /// <summary>
-/// The transfer chip's live facts (T-232's review round): the REAL settings
+/// The transfer chip's live facts (T-235's review round): the REAL settings
 /// window materializes over a REAL SettingsViewModel exactly as the main
 /// window's open path builds it (the bare window's failed command bindings
 /// turned the chips effectively disabled — a binding-error artifact, not

@@ -15,7 +15,7 @@
         Background="{DynamicResource Background}">
 
     <Window.Styles>
-        <!-- T-232: the editor's labeled cells ride the shared field-cell
+        <!-- T-235: the editor's labeled cells ride the shared field-cell
              grammar (the caption gap and the caption size ride the
              dictionary), the field widths stay the editor's own. -->
         <StyleInclude Source="avares://ZettaTrade.App/Themes/FieldGrammar.axaml" />
@@ -211,7 +211,7 @@
                    TextWrapping="Wrap"
                    IsVisible="{Binding HasErrorMessage}" />
 
-        <!-- The command toolbar (T-231): the row's own column spacing
+        <!-- The command toolbar (T-234): the row's own column spacing
              clears the gaps, the commands ride the 110 command width, the
              close the 90 quiet width. Create is the row's ONE primary. -->
         <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceS}">

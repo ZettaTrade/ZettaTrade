@@ -5373,7 +5373,7 @@ the board and its section below.
   ticket fact (the ticket opens at its minimum, the strip stays inside, the cta rides
   the side fill).
 - **Status:** done - 0.1.0-alpha.175 (on the branch; the landing awaits the user's
-  review). Chain: docs(claim) `1d64cdd` -> feat `b8266d8` -> docs(close) -> bump. Shipped:
+  review). Chain: docs(claim) `6b3df09` -> feat `df24462` -> docs(close) -> bump. Shipped:
   the fixed-frame era ends app-wide (no `CanResize="False"` remains; every dialog
   declares the resizable frame); the paired confirm strips unify on the settings
   footer's shape (one right-aligned row riding its own spacing, the quiet button first,
@@ -5430,7 +5430,7 @@ the board and its section below.
   editor-cell and combo-width pins, the screener row facts (the stretch + the
   chrome, headless-measured).
 - **Status:** done - 0.1.0-alpha.175 (on the branch; the landing awaits the user's
-  review). Chain: docs(claim) `9a6e598` -> feat `1953dfc` -> docs(close) -> bump.
+  review). Chain: docs(claim) `c820654` -> feat `81edc36` -> docs(close) -> bump.
   Shipped: the kit's icon buttons answer the pointer with the family's tint language
   (the hover ButtonHoverTint step, the press the stronger ButtonPressedTint step, the
   keyboard focus ring — all painted on the template presenter; the old opacity nudge
