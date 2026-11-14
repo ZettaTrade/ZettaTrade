@@ -1,3 +1,31 @@
+## [0.2.2] - 2026-11-15
+
+Build of board task T-263 (branch `feat/backtest-perf`): the parameter
+sweep's retained result stops paying for P full reports.
+
+### Changed
+- The sweep result's rows carry the cell's own parameterized request and
+  the replay's aggregate statistics — metrics only, no per-row reports
+  (T-263). A sweep of P parameterizations over N candles retains O(P + N)
+  instead of O(P × N): the worst case (the 8×8 grid over the 100k-bar cap)
+  drops from ~300+ MB of retained equity points to ~25 MB (one best
+  report), inside the <500 MB app budget. Every consumer outside the one
+  selected row read only `Statistics` before — the table's rendering and
+  the sweep's own canonical text (byte-identical shape, the row lines
+  unchanged) — so nothing loses a fact it used.
+- The completed sweep carries the rank-1 row's FULL report as
+  `BacktestSweepResult.BestReport`, folded by one silent re-replay of that
+  parameterization on the sweep's own loaded window — the same seed and
+  the same bars produce the byte-identical report, so the auto-selected
+  report surface stays the sweep's own fact with zero drift. A cancelled
+  sweep carries no best report (the completed rows keep their metrics).
+- The sweep table's click-through: rank 1 renders the sweep's own best
+  report with no second run; any deeper row re-replays its
+  parameterization through the single-run lane and swaps the report in
+  when the replay completes (the report's own request echo is its
+  provenance; a replay in flight owns the surface — a newer open request
+  supersedes it, a click while one runs waits).
+
 ## [0.2.1] - 2026-11-15
 
 Build of board task T-041 (branch `feat/telegram-notifier`): the journal

@@ -266,7 +266,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | planned | — |
 | T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | planned | T-260 |
 | T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | planned | T-260 |
-| T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | in-progress | — |
+| T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | done | — |
 | T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | feat/backtest-perf | planned | — |
 | T-265 Backtest load assembles the walk-back pages in one pass (the perf sweep 2026-11-15) | feat/backtest-perf | planned | — |
 
