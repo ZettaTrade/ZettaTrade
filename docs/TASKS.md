@@ -239,6 +239,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-233 The adapters' construction-time Disconnected snapshots stop carrying real-exchange endpoints into a demo-only run's log: a connection-state line rides a real lifecycle transition, and the soak census's host list covers every shipped venue (the T-232 finale's soak finding) | fix/adapter-state-log-leak | done | - |
 | T-234 The window family rides the variant-A grammar: the dialog family resizes (the fixed-frame era ends app-wide), the confirm strips unify on the settings shape (the quiet button first, the ONE primary last, the 90 strip), the ticket/wizard/license bodies card, the toolbar widths and the pre-strip gaps normalize (the user's T-223 follow-up; renumbered off T-231 - the number collided with the landed ticker-retry task) | feat/windows-unify | done | 0.1.0-alpha.175 |
 | T-235 The controls answer the pointer: the kit's icon buttons speak a visible hover/pressed tint, the pairs transfer arrows read as buttons, the alerts editor's captions clear their fields (the Edge combo stops clipping), and the screener rows stretch to the header plan without the button chrome (the user's T-223 follow-up sweep; renumbered off T-232 - the number was skipped on the synced board) | feat/affordances | done | 0.1.0-alpha.176 |
+| T-237 The cold start meets the 3 s budget on the soak lane: the spawn-to-window wall (runtime spin-up + service assemblies + the window build) gets the dedicated startup-optimization pass first noted at the T-109 close (the T-236 readiness record's disclosed breach; renumbered off T-234 - the number was taken by the landed windows-unify task) | feat/startup-optimization | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -319,5 +320,32 @@ protective orders, risk, venues), then market data, the chart stack, alerts, AI/
 and reporting, and the platform tail. All rows start `planned`; the human prioritizes the
 lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by default. The
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
+
+---
+
+## T-237 - The cold start meets the 3 s budget on the soak lane
+
+- **Branch:** queued 2026-11-14 (filed by the T-236 readiness record; the follow-up candidate
+  noted at the T-109 close, re-owned by the T-233 canon).
+- **Origin:** the soak `ColdStartMs` budget has been disclosed as breached on the Debug lane
+  since T-109's own acceptance run (3,999.3 ms there; the T-236 finale pass 5,394 ms; the
+  T-233 soak re-runs 4,562-9,977 ms across four runs; the 2026-11-10 shakedown 3.9 s warm).
+  The spawn-to-window wall decomposes as ~1.6 s to the runtime, ~1.7 s to the service
+  assemblies, the rest to the window build; the spread is machine-load sensitivity, pre- and
+  post-T-233 runs measure alike.
+- **What:** a dedicated startup-optimization pass over the app's walk to the first window —
+  the runtime/assembly warm shape, the store walk's batching (the T-226 batch), the chart
+  prewarm, the composition's eager adapter resolution — re-measured on the soak lane with a
+  Release-lane cross-check where the harness allows; the enforcement posture stays (the CI
+  lane keeps the cold start advisory).
+- **Scope:** the app startup path; `scripts/soak.ps1` budget files only if the budget
+  definition itself changes (protected); tests for whatever the walk reorders.
+- **Acceptance:** the soak `ColdStartMs` budget passes on the landing lane (or the budget is
+  re-defined by a recorded decision with the honest reasons); no regression in the other
+  budget families.
+- **Tests:** the startup-order facts the change introduces; the existing suite stays green.
+- **Status:** in-progress (worktree zt-startup-optimization, branch feat/startup-optimization,
+  base develop@7fc205d, claimed 2026-11-14; renumbered off T-234 the same day - the number
+  was taken by the landed windows-unify task).
 
 ---
