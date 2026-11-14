@@ -443,7 +443,14 @@ internal static class CompositionRoot
 
         var provider = services.BuildServiceProvider();
 
-        await InitializeRegisteredServicesAsync(provider, services, ct);
+        // The walk batches the SQLite stores (T-226): their migrations are
+        // mutually independent database files, so they warm concurrently at
+        // the earliest store's walk position instead of paying the sum.
+        await InitializeRegisteredServicesAsync(
+            provider,
+            services,
+            ct,
+            static serviceType => StoreInitBatchTypes.Contains(serviceType));
 
         // MCP trading tools: registered once, against the paper trading adapter
         // (mock surface; real exchange adapters are plugged in as plugins later).
@@ -484,13 +491,37 @@ internal static class CompositionRoot
     }
 
     /// <summary>
+    /// The SQLite stores whose <see cref="IAsyncInitializable"/> migrations
+    /// are mutually independent (one database file each): the walk starts
+    /// the whole batch CONCURRENTLY at the earliest store's walk position
+    /// and awaits it there, so every later walk step still sees every store
+    /// ready while the batch's wall time becomes the slowest store instead
+    /// of the sum (T-226 — the chat history spot's ~0.85 s serialized the
+    /// walk, and the first store also paid the one-time EF Core internal
+    /// warm-up that every other store then reused).
+    /// </summary>
+    internal static readonly Type[] StoreInitBatchTypes =
+    [
+        typeof(IChatHistoryStore),
+        typeof(IOrderHistoryStore),
+        typeof(IPortfolioValueStore),
+        typeof(ICandleCache),
+        typeof(IChartDrawingStore),
+    ];
+
+    /// <summary>
     /// Initialize every registered service instance implementing
     /// <see cref="IAsyncInitializable"/>, in registration order, once per instance.
+    /// The optional <paramref name="storeBatch"/> predicate marks service types
+    /// whose initialization batches concurrently (T-226): the first matching
+    /// descriptor's walk position starts and awaits the whole batch, later
+    /// matches skip (the walk's once-per-instance dedup holds).
     /// </summary>
-    private static async Task InitializeRegisteredServicesAsync(
+    internal static async Task InitializeRegisteredServicesAsync(
         IServiceProvider provider,
         IServiceCollection registrations,
-        CancellationToken ct)
+        CancellationToken ct,
+        Func<Type, bool>? storeBatch = null)
     {
         var initialized = new HashSet<object>(ReferenceEqualityComparer.Instance);
 
@@ -506,6 +537,16 @@ internal static class CompositionRoot
                 continue;
             }
 
+            if (storeBatch?.Invoke(descriptor.ServiceType) == true)
+            {
+                // The batch resolves every store instance fresh (the
+                // triggering one included — it is not in the dedup set yet),
+                // starts them all concurrently and awaits HERE: everything
+                // the walk visits after this descriptor sees the batch done.
+                await InitializeStoreBatchAsync(provider, initialized, ct);
+                continue;
+            }
+
             if (!initialized.Add(service))
             {
                 continue;
@@ -513,6 +554,34 @@ internal static class CompositionRoot
 
             await service.InitializeAsync(ct);
         }
+    }
+
+    /// <summary>
+    /// Start every batched store's initialization concurrently and await the
+    /// whole batch at the caller's walk position. Instances the walk already
+    /// initialized (a repeated batch descriptor) drop; a missing registration
+    /// drops silently (GetService answers null — the predicate's own types
+    /// always register, so the miss is theoretical). Failures surface through
+    /// <see cref="Task.WhenAll"/>'s first exception — the walk's fail-fast
+    /// contract (BUG-019) stays exactly as it was.
+    /// </summary>
+    private static async Task InitializeStoreBatchAsync(
+        IServiceProvider provider,
+        HashSet<object> initialized,
+        CancellationToken ct)
+    {
+        var batch = StoreInitBatchTypes
+            .Select(provider.GetService)
+            .OfType<IAsyncInitializable>()
+            .Where(initialized.Add)
+            .ToList();
+
+        if (batch.Count == 0)
+        {
+            return;
+        }
+
+        await Task.WhenAll(batch.Select(service => service.InitializeAsync(ct)));
     }
 
     /// <summary>
