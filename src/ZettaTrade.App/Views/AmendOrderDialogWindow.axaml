@@ -9,7 +9,7 @@
         Title="{loc:Localized Positions.AmendTitle}"
         Width="420" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
-        CanResize="False"
+        CanResize="True"
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
@@ -39,14 +39,17 @@
                    TextWrapping="Wrap"
                    IsVisible="{Binding HasErrorMessage}" />
 
-        <UniformGrid Columns="2" HorizontalAlignment="Right" Margin="0,8,0,0">
-            <Button Click="OnAmendClick"
-                    Classes="primary"
-                    Content="{loc:Localized Positions.Amend}"
-                    MinWidth="120" Margin="0,0,8,0" />
+        <!-- The confirm strip (T-231): the settings footer's shape — the
+             quiet cancel first, the ONE primary amend last, both riding
+             the 90 strip and the row's own spacing. -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource SpaceM}">
             <Button Content="{loc:Localized Trading.Cancel}"
                     Click="OnCancelClick"
                     MinWidth="90" />
-        </UniformGrid>
+            <Button Click="OnAmendClick"
+                    Classes="primary"
+                    Content="{loc:Localized Positions.Amend}"
+                    MinWidth="90" />
+        </StackPanel>
     </StackPanel>
 </Window>

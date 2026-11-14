@@ -1243,7 +1243,7 @@ Estimated fee: {10}</value>
     <value>· {0}</value>
   </data>
   <data name="NewOrder.SizerBalanceCaption" xml:space="preserve">
-    <value>Share of the available balance</value>
+    <value>SHARE OF THE AVAILABLE BALANCE</value>
   </data>
   <data name="NewOrder.SizerQuarter" xml:space="preserve">
     <value>25 %</value>
@@ -2137,13 +2137,13 @@ Estimated fee: {10}</value>
     <value>Step {0} of {1}</value>
   </data>
   <data name="Wizard.Theme.Header" xml:space="preserve">
-    <value>Pick a look</value>
+    <value>PICK A LOOK</value>
   </data>
   <data name="Wizard.Theme.Caption" xml:space="preserve">
     <value>Choose the color theme for the workspace; you can change it any time in Settings.</value>
   </data>
   <data name="Wizard.Adapter.Header" xml:space="preserve">
-    <value>Pick an exchange</value>
+    <value>PICK AN EXCHANGE</value>
   </data>
   <data name="Wizard.Adapter.Caption" xml:space="preserve">
     <value>The demo lane ships by default — a paper-trading simulator that never touches real funds. A venue's real adapter can be selected here as well.</value>
@@ -2152,7 +2152,7 @@ Estimated fee: {10}</value>
     <value>API keys never travel through this wizard: they reach the adapters only through the app's per-machine secret store.</value>
   </data>
   <data name="Wizard.Symbol.Header" xml:space="preserve">
-    <value>Pick a first symbol</value>
+    <value>PICK A FIRST SYMBOL</value>
   </data>
   <data name="Wizard.Symbol.Caption" xml:space="preserve">
     <value>The chart opens on this symbol of the picked exchange at the next launch.</value>

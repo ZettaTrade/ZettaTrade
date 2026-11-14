@@ -10,7 +10,7 @@
         Title="{loc:Localized Trading.KillSwitchReportTitle}"
         Width="480" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
-        CanResize="False"
+        CanResize="True"
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
@@ -22,10 +22,12 @@
                    TextWrapping="Wrap"
                    AutomationProperties.AutomationId="KillSwitchReportSummary" />
 
+        <!-- The confirm strip (T-231): the quiet close rides the 90 strip
+             at the right edge (a report's only action, no primary). -->
         <Button Name="CloseButton"
                 Content="{loc:Localized Chrome.Close}"
-                MinWidth="100"
-                HorizontalAlignment="Center"
+                MinWidth="90"
+                HorizontalAlignment="Right"
                 AutomationProperties.AutomationId="KillSwitchReportCloseButton"
                 Click="OnCloseClick" />
     </StackPanel>
