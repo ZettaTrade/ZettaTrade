@@ -4774,6 +4774,44 @@ the board and its section below.
   the IOrderSectionStream.cs filename (the `*Order*` pattern), not trading
   logic — the surface writes export files only.
 
+## T-220 — Non-blocking alert beep
+
+- **Branch:** fix/alert-beep-async, worktree zt-alert-beep-async, base develop@d2a8d5a
+  (claimed 2026-11-14 off the synced board).
+- **Origin:** the review — the Windows beep is a synchronous 180 ms kernel32 call on
+  the alert engine's consumer loop: a firing burst stalls the evaluation queue, not
+  the UI thread.
+- **What:** the beep leaves the fire path unblocked (fire-and-forget playback) while
+  the degrade contract stays honest (a failed playback still logs through the
+  engine's degrade lane) and the engine facts stay deterministic.
+- **Scope:** the alert engine's fire path + the beep player seam + the engine test rig.
+- **Acceptance:** a firing burst never delays the subsequent evaluations by the beep's
+  duration; a failed beep degrades with a logged warning exactly as today.
+- **Tests:** the engine's beep-fact determinism (the rig awaits the playback or the
+  dispatch is injectable).
+- **Status:** done - 0.1.0-alpha.166. Chain: claim `fafc79f` -> feat `4c2c846` -> close.
+  Canon: the seam's shape — AlertBeepPlayer owns the playback's dispatch: Play()
+  hands the platform attempt to the worker pool (Task.Run in production) and returns
+  promptly; the dispatched body wraps the attempt whole and degrades every fault
+  into the player's own warning lane ("The alert beep's playback failed and was
+  degraded away"), so no task carries an unobserved fault and no caller waits for a
+  tone; the internal test-seam ctor injects the dispatch + the attempt (no real
+  tone, no wall-clock race). The interface contract (IAlertSoundPlayer) moved with
+  the playback: the implementation owns the dispatch off the caller's path and the
+  playback's degrade lane; the engine's catch STAYS for a failing dispatch attempt
+  (its own log line unchanged). DI untouched (the standard ILogger<T> resolves).
+  Facts: Infrastructure AlertBeepPlayerTests 3 (dispatch returns before the playback
+  completes, the fault logs through the player's lane and never throws out of Play,
+  two plays = two dispatches — no most-recent-only slot); App: the in-flight burst
+  fact (the second evaluation surfaces while the first playback is still parked —
+  an engine that ever joined the playback would hang the fact) and the degrade fact
+  now pins the engine's logged warning; AlertEngineTests 35/35. GATE PASSED
+  attempt 1 (-AllowProtected; SCOPE + gitleaks advisories). Smoke PASSED
+  (smoke-t220.ps1): ProductVersion 0.1.0-alpha.166+4c2c846..., title held, clean
+  WM_CLOSE exit 0, 0 ERR/FTL, 0 ticker failures, palette 14 rows, 0 leftovers —
+  the beep never sounds in a smoke run (no alerts fire); the semantics ride the
+  battery.
+
 ## T-222 — The settings window re-rides the approved variant-A mockup
 
 - **Branch:** queued 2026-11-13 (the user reported the landed T-184 window as "not at all

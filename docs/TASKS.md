@@ -224,7 +224,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-217 Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot (the 2026-11-13 review round) | feat/perf-fixes | done | - |
 | T-218 Virtualize the AI chat transcript (queued from the 2026-11-13 review round) | feat/chat-virtualization | done | - |
 | T-219 Stream the statement export past the whole-journal materialization (queued from the 2026-11-13 review round) | feat/statement-stream | done | - |
-| T-220 Non-blocking alert beep (queued from the 2026-11-13 review round) | fix/alert-beep-async | in-progress | - |
+| T-220 Non-blocking alert beep (queued from the 2026-11-13 review round) | fix/alert-beep-async | done | - |
 | T-221 Stabilize the E2E DetachCycle flake (queued from the 2026-11-13 review round) | fix/e2e-detach-flake | planned | - |
 | T-222 The settings window re-rides the approved variant-A mockup: the rail's title-bar strip + icons + note, the compact per-section cards, the pinned footer chrome, the 880x640 frame (the user-reported T-184 gap) | fix/settings-rail-fix | done | - |
 | T-223 The settings pages collapse into the variant-A section grammar: the card headers become toggles (four open by default), the rail captions ride BodyFontSize, the quiet controls ride the Livery 0.1.13 surface-family keys (the user-reported T-222 gap) | feat/settings-collapse | done | - |
@@ -503,23 +503,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
-
-## T-220 — Non-blocking alert beep
-
-- **Branch:** fix/alert-beep-async, worktree zt-alert-beep-async, base develop@d2a8d5a
-  (claimed 2026-11-14 off the synced board).
-- **Origin:** the review — the Windows beep is a synchronous 180 ms kernel32 call on
-  the alert engine's consumer loop: a firing burst stalls the evaluation queue, not
-  the UI thread.
-- **What:** the beep leaves the fire path unblocked (fire-and-forget playback) while
-  the degrade contract stays honest (a failed playback still logs through the
-  engine's degrade lane) and the engine facts stay deterministic.
-- **Scope:** the alert engine's fire path + the beep player seam + the engine test rig.
-- **Acceptance:** a firing burst never delays the subsequent evaluations by the beep's
-  duration; a failed beep degrades with a logged warning exactly as today.
-- **Tests:** the engine's beep-fact determinism (the rig awaits the playback or the
-  dispatch is injectable).
-- **Status:** in-progress.
 
 ## T-221 — Stabilize the E2E DetachCycle flake
 
