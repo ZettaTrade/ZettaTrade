@@ -244,6 +244,7 @@ public sealed class HeatmapFeedServiceTests
         ActiveExchangeService service,
         Subject<long>? pulse = null) => new(
         service,
+        new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
         NullLogger<HeatmapFeedService>.Instance,
         pulse ?? new Subject<long>());
 
@@ -455,7 +456,11 @@ public sealed class HeatmapFeedServiceTests
         var feedProbe = new ProbeLogger<HeatmapFeedService>();
         var service = BuildService(facadeProbe, binance, demo);
         var pulse = new Subject<long>();
-        var feed = new HeatmapFeedService(service, feedProbe, pulse);
+        var feed = new HeatmapFeedService(
+            service,
+            new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
+            feedProbe,
+            pulse);
         await feed.InitializeAsync(); // the warm-up parks inside binance's first fetch.
 
         await service.SwitchToAsync("demo"); // the epoch bump + the queued re-fetch.

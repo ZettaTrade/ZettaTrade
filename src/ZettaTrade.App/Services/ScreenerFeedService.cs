@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Livery.Contracts;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
@@ -98,6 +99,13 @@ public sealed class ScreenerFeedService : IAsyncInitializable
     /// <summary>The facade: the universe fetch and every candidate pump ride.</summary>
     private readonly ActiveExchangeService _activeExchanges;
 
+    /// <summary>
+    /// The per-exchange instrument cache: the universe fetch answers from
+    /// the session cache (one instruments fetch per exchange per session,
+    /// T-228) instead of sweeping the venue on every re-composition.
+    /// </summary>
+    private readonly SymbolListProvider _symbolList;
+
     /// <summary>The feed's own logging lane.</summary>
     private readonly ILogger<ScreenerFeedService> _logger;
 
@@ -124,14 +132,19 @@ public sealed class ScreenerFeedService : IAsyncInitializable
     /// Create the feed: compose the coalesced page stream over the pulse and
     /// arm the adapter-change re-fetch. The candidate window itself arms in
     /// <see cref="InitializeAsync"/> (the startup walk owns the warm-up
-    /// fetch) — never a blocking constructor network call.
+    /// fetch) — never a blocking constructor network call. The universe
+    /// fetch rides the <see cref="SymbolListProvider"/>'s per-exchange
+    /// cache: the startup warm-up pays the venue once per exchange, and
+    /// every later re-composition answers from the session cache.
     /// </summary>
     public ScreenerFeedService(
         ActiveExchangeService activeExchanges,
+        SymbolListProvider symbolList,
         ILogger<ScreenerFeedService> logger,
         IObservable<long>? pulse = null)
     {
         _activeExchanges = activeExchanges ?? throw new ArgumentNullException(nameof(activeExchanges));
+        _symbolList = symbolList ?? throw new ArgumentNullException(nameof(symbolList));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _pulse = pulse ?? Observable.Interval(PulseInterval);
 
@@ -165,9 +178,11 @@ public sealed class ScreenerFeedService : IAsyncInitializable
     #region Public Methods
 
     /// <summary>
-    /// The warm-up fetch: arm the candidate window once without blocking the
-    /// startup walk. A failure only means the reason line until an adapter
-    /// change re-composes.
+    /// The warm-up: arm the candidate window once without blocking the
+    /// startup walk, the ask riding the provider's per-exchange cache — the
+    /// composition answers from the session list (one instruments fetch per
+    /// exchange per session, T-228). A failure only means the reason line
+    /// until an adapter change re-composes.
     /// </summary>
     public Task InitializeAsync(CancellationToken ct = default)
     {
@@ -175,7 +190,9 @@ public sealed class ScreenerFeedService : IAsyncInitializable
         // outlives initialization (it is the panel's session source) and an
         // abandoned half-fetch on shutdown is harmless.
         Observable
-            .FromAsync(_ => RefreshOnceAsync(CancellationToken.None))
+            .FromAsync(_ => RunCompositionAsync(
+                CancellationToken.None,
+                adapter => _symbolList.GetAdapterSymbolsAsync(adapter, CancellationToken.None)))
             .Subscribe(
                 _ => { },
                 ex => _logger.LogWarning(ex, "Screener universe warm-up failed; the next adapter change re-fetches"));
@@ -214,19 +231,33 @@ public sealed class ScreenerFeedService : IAsyncInitializable
     }
 
     /// <summary>
-    /// One refresh attempt: take the active adapter's symbol list, swap the
-    /// candidate window and its pumps atomically (the previous exchange's
-    /// ticker state dies with the old window), then publish the fresh page —
-    /// a switch renders the honest waiting state immediately and lets the
-    /// new candidate tickers fill it. A stale attempt (a newer switch
-    /// arrived in flight) is dropped at its finish: nothing of the
-    /// superseded composition publishes.
+    /// One refresh attempt: take the active adapter's symbol list with a
+    /// fresh direct ask, swap the candidate window and its pumps atomically
+    /// (the previous exchange's ticker state dies with the old window), then
+    /// publish the fresh page — a switch renders the honest waiting state
+    /// immediately and lets the new candidate tickers fill it. A stale
+    /// attempt (a newer switch arrived in flight) is dropped at its finish:
+    /// nothing of the superseded composition publishes. The ask stays
+    /// direct on purpose: a re-composition must reflect the roster's live
+    /// state, not a list cached before the change.
     /// </summary>
     /// <remarks>
     /// Public on purpose: the subscription paths only kick it and guard
     /// their own errors, and the tests await it for a deterministic settle.
     /// </remarks>
-    public async Task RefreshOnceAsync(CancellationToken ct)
+    public Task RefreshOnceAsync(CancellationToken ct) =>
+        RunCompositionAsync(ct, adapter => adapter.GetSymbolsAsync(ct));
+
+    /// <summary>
+    /// The shared composition body behind both fetch paths: one gate-held
+    /// swap of the candidate window, the ask delegated to the path's fetch
+    /// function (the warm-up delegates to the provider's per-exchange
+    /// cache, the adapter-change refresh asks the adapter directly), then
+    /// the epoch-guarded rebuild.
+    /// </summary>
+    private async Task RunCompositionAsync(
+        CancellationToken ct,
+        Func<IMarketDataAdapter, Task<IReadOnlyList<Symbol>>> fetch)
     {
         await _gate.WaitAsync(ct);
         try
@@ -240,7 +271,7 @@ public sealed class ScreenerFeedService : IAsyncInitializable
             IReadOnlyList<Symbol> symbols;
             try
             {
-                symbols = await _activeExchanges.GetSymbolsAsync(ct);
+                symbols = await fetch(_activeExchanges.Current);
             }
             catch (Exception ex)
             {

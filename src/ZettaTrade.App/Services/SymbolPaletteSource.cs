@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Livery.Contracts;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Exchange;
 
@@ -19,10 +20,13 @@ using ZettaTrade.Infrastructure.Exchange;
 /// which rides the active adapter only.
 /// </summary>
 /// <remarks>
-/// Lifecycle: the warm-up fetch rides <see cref="IAsyncInitializable"/>
-/// (non-blocking, the SymbolListProvider pattern), and every
+/// Lifecycle: the warm-up rides <see cref="IAsyncInitializable"/> through
+/// the <see cref="SymbolListProvider"/>'s per-exchange cache — one
+/// instruments fetch per exchange per session (T-228; the palette's
+/// composition answers from the warmed lists) — and every
 /// <see cref="ActiveExchangeService.AdapterChanges"/> emission kicks a
-/// re-fetch — an adapter joining or leaving re-composes the palette. A
+/// re-fetch with its own fresh per-adapter asks (an adapter joining or
+/// leaving re-composes the palette against the live roster). A
 /// refresh that races another is recognized by an epoch counter and
 /// dropped before it publishes (the stale result of an earlier composition
 /// never lands). A failing adapter contributes zero rows and logs — never
@@ -32,6 +36,7 @@ using ZettaTrade.Infrastructure.Exchange;
 public sealed class SymbolPaletteSource : IAsyncInitializable
 {
     private readonly ActiveExchangeService _activeExchanges;
+    private readonly SymbolListProvider _symbolList;
     private readonly ILogger<SymbolPaletteSource> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly BehaviorSubject<PaletteSnapshot> _updates = new(new PaletteSnapshot([], Settled: false));
@@ -42,13 +47,17 @@ public sealed class SymbolPaletteSource : IAsyncInitializable
     /// <summary>
     /// Create the source with an empty, unsettled behavioral subject and
     /// the live re-fetch stream; the composition root warms it during
-    /// startup through <see cref="InitializeAsync"/>.
+    /// startup through <see cref="InitializeAsync"/>. The warm-up fetches
+    /// ride the provider's per-exchange cache, so the palette never pays a
+    /// second catalog sweep per exchange.
     /// </summary>
     public SymbolPaletteSource(
         ActiveExchangeService activeExchanges,
+        SymbolListProvider symbolList,
         ILogger<SymbolPaletteSource> logger)
     {
         _activeExchanges = activeExchanges ?? throw new ArgumentNullException(nameof(activeExchanges));
+        _symbolList = symbolList ?? throw new ArgumentNullException(nameof(symbolList));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         // A single behavioral subscription: every adapter change starts a
@@ -75,17 +84,21 @@ public sealed class SymbolPaletteSource : IAsyncInitializable
     public IObservable<PaletteSnapshot> Snapshots => _updates;
 
     /// <summary>
-    /// Kick off the warm-up fetch without blocking startup: a failure only
-    /// means the palette opens onto the loading state until an adapter
-    /// change re-composes.
+    /// Kick off the warm-up without blocking startup: every registered
+    /// exchange's list warms through the provider's cache (one fetch per
+    /// exchange per session), then the settled composition publishes. A
+    /// failure only means the palette opens onto the loading state until an
+    /// adapter change re-composes.
     /// </summary>
     public Task InitializeAsync(CancellationToken ct = default)
     {
-        // The warm-up intentionally ignores the startup token: the fetch
-        // outlives initialization (it is the palette's session source) and
+        // The warm-up intentionally ignores the startup token: the fetches
+        // outlive initialization (they are the palette's session source) and
         // an abandoned half-fetch on shutdown is harmless.
         Observable
-            .FromAsync(_ => RefreshOnceAsync(CancellationToken.None))
+            .FromAsync(_ => RunCompositionAsync(
+                CancellationToken.None,
+                adapter => _symbolList.GetAdapterSymbolsAsync(adapter, CancellationToken.None)))
             .Subscribe(
                 _ => { },
                 ex => _logger.LogWarning(
@@ -96,17 +109,32 @@ public sealed class SymbolPaletteSource : IAsyncInitializable
     }
 
     /// <summary>
-    /// One refresh attempt: fetch every registered adapter's symbols
-    /// (failures contribute zero rows), then publish the settled aggregate
-    /// — unless a newer attempt superseded this one first (the epoch drop;
-    /// the newer attempt's publish carries the composition).
+    /// One refresh attempt: fetch every registered adapter's symbols with
+    /// fresh direct asks (failures contribute zero rows), then publish the
+    /// settled aggregate — unless a newer attempt superseded this one first
+    /// (the epoch drop; the newer attempt's publish carries the
+    /// composition). The adapter-change path stays direct on purpose: a
+    /// re-composition must reflect the roster's live state, not a cache
+    /// warmed before the change.
     /// </summary>
     /// <remarks>
     /// Public on purpose: the subscription paths only kick it and guard
     /// their own errors, and the tests await it for a deterministic
     /// settle.
     /// </remarks>
-    public async Task RefreshOnceAsync(CancellationToken ct)
+    public Task RefreshOnceAsync(CancellationToken ct) =>
+        RunCompositionAsync(ct, adapter => adapter.GetSymbolsAsync(ct));
+
+    /// <summary>
+    /// The shared composition body behind both fetch paths: one gate-held
+    /// sweep over the registered adapters, each ask delegated to the path's
+    /// fetch function (the warm-up delegates to the provider's per-exchange
+    /// cache, the adapter-change refresh asks the adapters directly), then
+    /// the epoch-guarded publish.
+    /// </summary>
+    private async Task RunCompositionAsync(
+        CancellationToken ct,
+        Func<IMarketDataAdapter, Task<IReadOnlyList<Symbol>>> fetch)
     {
         await _gate.WaitAsync(ct);
         try
@@ -120,7 +148,7 @@ public sealed class SymbolPaletteSource : IAsyncInitializable
                 IReadOnlyList<Symbol> symbols;
                 try
                 {
-                    symbols = await adapter.GetSymbolsAsync(ct);
+                    symbols = await fetch(adapter);
                 }
                 catch (AdapterCredentialsMissingException ex)
                 {

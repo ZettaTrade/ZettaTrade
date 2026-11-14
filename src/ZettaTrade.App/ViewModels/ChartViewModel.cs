@@ -3010,10 +3010,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>
     /// Fetch the symbol list through the shared
     /// <see cref="SymbolListProvider"/> (one <c>exchangeInfo</c> fetch per
-    /// application run per exchange serves the chart combo and the order
-    /// dialog autocomplete alike; the provider is warmed at startup and
-    /// flushed on every exchange switch, so this bootstrap usually awaits a
-    /// fetch or a ready cache). The FULL parsed list returns — the marks
+    /// exchange per session serves the chart combo and the order dialog
+    /// autocomplete alike; the provider warms every registered exchange at
+    /// startup and keeps each list for the session, so this bootstrap
+    /// usually answers from the ready cache). The FULL parsed list
+    /// returns — the marks
     /// sort runs before the combo cap (a favorite deep in the exchange's
     /// order still pins to the head). Failures belong to the subscribe side
     /// (logged there, the combo stays empty).

@@ -110,7 +110,10 @@ internal sealed record MainWorld(
         var chart = CreateChart(activeExchanges, settings, rail, templates: templates);
         var palette = new SymbolPaletteViewModel(
             activeExchanges,
-            new SymbolPaletteSource(activeExchanges, NullLogger<SymbolPaletteSource>.Instance),
+            new SymbolPaletteSource(
+                activeExchanges,
+                new SymbolListProvider(activeExchanges, NullLogger<SymbolListProvider>.Instance),
+                NullLogger<SymbolPaletteSource>.Instance),
             settings,
             chart,
             localization,
@@ -154,7 +157,10 @@ internal sealed record MainWorld(
             localization,
             NullLogger<WatchlistViewModel>.Instance);
         var heatmap = new HeatmapViewModel(
-            new HeatmapFeedService(activeExchanges, NullLogger<HeatmapFeedService>.Instance),
+            new HeatmapFeedService(
+                activeExchanges,
+                new SymbolListProvider(activeExchanges, NullLogger<SymbolListProvider>.Instance),
+                NullLogger<HeatmapFeedService>.Instance),
             chart,
             NullLogger<HeatmapViewModel>.Instance);
         var toast = new NotificationToastHostViewModel(

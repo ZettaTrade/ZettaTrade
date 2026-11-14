@@ -209,6 +209,7 @@ public sealed class SymbolPaletteViewModelTests
             Chart = CreateChart(Exchange, Settings);
             Source = new SymbolPaletteSource(
                 Exchange,
+                new SymbolListProvider(Exchange, NullLogger<SymbolListProvider>.Instance),
                 NullLogger<SymbolPaletteSource>.Instance);
             Palette = new SymbolPaletteViewModel(
                 Exchange,

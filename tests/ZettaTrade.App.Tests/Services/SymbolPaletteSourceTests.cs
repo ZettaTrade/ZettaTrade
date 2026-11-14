@@ -160,6 +160,7 @@ public sealed class SymbolPaletteSourceTests
 
     private static SymbolPaletteSource BuildSource(ActiveExchangeService service) => new(
         service,
+        new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
         NullLogger<SymbolPaletteSource>.Instance);
 
     /// <summary>
@@ -295,7 +296,10 @@ public sealed class SymbolPaletteSourceTests
         var service = BuildService(
             new FakeMarketData("beta", "Beta", throwMissingCredentialsEveryFetch: true),
             new FakeMarketData("alpha", "Alpha", standingSymbols: ["SOL/USDC"]));
-        var source = new SymbolPaletteSource(service, recording);
+        var source = new SymbolPaletteSource(
+            service,
+            new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
+            recording);
 
         await source.RefreshOnceAsync(CancellationToken.None);
         var snapshot = await CurrentSnapshotAsync(source);

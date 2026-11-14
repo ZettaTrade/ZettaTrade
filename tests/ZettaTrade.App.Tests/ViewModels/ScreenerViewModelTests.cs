@@ -61,6 +61,7 @@ public sealed class ScreenerViewModelTests
             // the facts drive ApplySnapshot directly - no clock, no races.
             Feed = new ScreenerFeedService(
                 Exchange,
+                new SymbolListProvider(Exchange, NullLogger<SymbolListProvider>.Instance),
                 NullLogger<ScreenerFeedService>.Instance,
                 Observable.Never<long>());
             Chart = CreateChart(Exchange, settings);
