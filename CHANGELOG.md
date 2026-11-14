@@ -84,7 +84,11 @@ screener rows ride the header's column plan.
   and the header's sort buttons take the stretch explicitly and trade
   the fluent chrome for the row grammar's look: the bottom hairline
   separator, square corners, the opacity-dim press without the scale
-  squish.
+  squish. The review round unboxes the sort captions — the kit's rest
+  hairline framed every header caption and the right-aligned text sat
+  flush against its border; the captions read as captions over the
+  header hairline (the Funding caption's own look), the focus ring
+  re-arms through :focus.
 
 ### Tests
 - The Livery battery carries the icon-affordance pins (the tint steps,
