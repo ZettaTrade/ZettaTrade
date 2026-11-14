@@ -312,7 +312,7 @@ public sealed class BacktestSweepViewModelTests
                 // The engine's own best report: rank 1's replay (T-263).
                 firstReport));
         backtest.RunAsync(Arg.Any<BacktestRunRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new BacktestRunResult(BacktestRunOutcome.Completed, secondReport)));
+            .Returns(new BacktestRunResult(BacktestRunOutcome.Completed, secondReport));
         model.SweepFirstValuesText = "0.25, 0.5";
         model.SweepSecondValuesText = "1";
 

@@ -2,6 +2,7 @@ namespace ZettaTrade.App.ViewModels;
 
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 using Livery.Extensions;
 using Livery.Localization;
 using Microsoft.Extensions.Logging;
@@ -333,7 +334,12 @@ public sealed class BacktestRunViewModel : ReactiveObject
             this.RaisePropertyChanged(nameof(SelectedSweepRow));
             if (value is { } selected)
             {
-                _ = OpenSweepRowReportAsync(selected);
+                // The click-through's task is observed, never discarded: the
+                // handler logs what the method's own catches could not (the
+                // standing no-fire-and-forget rule).
+                OpenSweepRowReportAsync(selected).ToObservable().Subscribe(
+                    _ => { },
+                    ex => _logger.LogError(ex, "The sweep row click-through stopped unexpectedly"));
             }
         }
     }
