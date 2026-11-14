@@ -5057,3 +5057,50 @@ the board and its section below.
   E2E AlertsWindowOpenTests round green on the fix tip. GATE PASSED (-AllowProtected)
   attempt 1. The launch smoke green: ProductVersion 0.1.0-alpha.167+b093edf, the 12 s
   hold held the main window, 0 ERR/FTL, every store ready.
+
+## T-226 — Startup latency: parallel store warm-up + chart prewarm
+
+- **Branch:** feat/startup-latency, worktree zt-startup-latency, base develop@4866658.
+- **Origin:** the user-reported wait — the window shows, then the chart stays blank ~1.5 s
+  before the first candles. Profiling real launches (Serilog logs of Debug + Release runs,
+  plus a dotnet-trace/Speedscope profile of the Release build) showed the startup walk
+  serializing five mutually independent SQLite store initializations (~0.85 s at the
+  chat-history spot, the first store also paying the one-time EF Core warm-up the rest reuse)
+  and the chart waiting for the exchange instruments list (~1.5 s) before its first render.
+  Startup is IO-bound, not compute-bound (CPU ~0.5 s across all threads in the first 5 s,
+  near-identical Debug and Debug-vs-Release walk shapes) — no out-of-process or
+  other-language rewrite is justified.
+- **What:** the composition root's startup walk batches the five independent SQLite stores
+  (chat history, order history, portfolio value, candle cache, chart drawings) concurrently
+  at the earliest store's walk position — every later step still sees every store ready while
+  the batch's wall time becomes the slowest store instead of the sum, and a store's failure
+  still fails fast (BUG-019). The chart VM prewarms: the persisted workspace symbol reads
+  BEFORE the symbols fetch and applies through the UI marshal while the fetch is in flight,
+  so the first render comes from the candle cache without waiting for the instrument list.
+  The apply rides the bootstrap gate (a restore is a read, not an edit), carries the
+  bootstrap's epoch (BUG-016's guard) and holds behind the persisted time-frame restore, so
+  the persisted symbol never loads against the constructor-default H1; the delivery later
+  re-applies the same preference and the equal raise reloads nothing.
+- **Scope:** the App CompositionRoot + the chart VM, the walk + prewarm test batteries, the
+  next free alpha bump + the CHANGELOG section.
+- **Acceptance:** the walk still initializes every store exactly once and sees the batch done
+  before later steps; the prewarmed start costs exactly one bars load and never rewrites the
+  preference; a newer bootstrap drops the stale prewarm; every existing bootstrap fact holds
+  untouched.
+- **Tests:** the walk battery (batch concurrency via a store parked on the sibling's start —
+  a serialized walk would deadlock; fail-fast propagation through the batch; the five-store
+  list pin; the dedup on later batched descriptors) and the chart prewarm facts (renders
+  while the fetch is parked, the epoch drop, the honest nothing-to-prewarm shape). 2192 App
+  facts green.
+- **Claim note:** the number was double-claimed off the synced board (the other session's
+  alerts-window fix landed first as T-225); this task renumbered to T-226 on the rebase.
+- **Status:** done - 0.1.0-alpha.168. Chain: feat `67ec998` -> docs(claim) `da067a1` -> bump
+  `5bfb0a8` -> close. The branch landed as two commits (the feat carries the walk batch +
+  prewarm with the renumbered T-226 comments; the docs commit pins the board row, the
+  section and the alpha.168 CHANGELOG section). Tests: the walk battery (batch concurrency,
+  fail-fast through the batch, the five-store list pin, the dedup on later batched
+  descriptors) + the chart prewarm facts (renders while the fetch is parked, the epoch drop
+  on a newer bootstrap, the honest nothing-to-prewarm shape); the full App battery green at
+  the branch tip. GATE PASSED (post-rebase; the develop sync fast-forwarded first). The
+  follow-up sweep items (duplicate instruments-info fetches, the Alpaca no-key noise, the
+  not-a-plugin.dll logs, the update-checker 404) stay out of scope, uncommitted to this task.
