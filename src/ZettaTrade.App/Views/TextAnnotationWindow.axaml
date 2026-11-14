@@ -28,7 +28,7 @@
         <TextBox x:Name="AnnotationInput"
                  MaxLength="120"
                  AutomationProperties.AutomationId="TextAnnotationInput" />
-        <!-- The confirm strip (T-231): the settings footer's shape — the
+        <!-- The confirm strip (T-234): the settings footer's shape — the
              quiet cancel first, the ONE primary place last, both riding
              the 90 strip. -->
         <StackPanel Orientation="Horizontal"

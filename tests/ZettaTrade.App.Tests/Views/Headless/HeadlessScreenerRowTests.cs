@@ -15,9 +15,9 @@ using ZettaTrade.App.ViewModels;
 using ZettaTrade.App.Views;
 
 /// <summary>
-/// The headless screener-row facts (T-232): the REAL screener window
+/// The headless screener-row facts (T-235): the REAL screener window
 /// materializes without a view model, the rows ride in through a direct
-/// ItemsSource, and the row press target is MEASURED — the T-232 probe
+/// ItemsSource, and the row press target is MEASURED — the T-235 probe
 /// named the failure (Avalonia 12's fluent ControlTheme carries
 /// HorizontalAlignment=Left on every button, so the T-195
 /// content-alignment setter stretched only the row's content and every
@@ -27,7 +27,7 @@ using ZettaTrade.App.Views;
 /// (square corners, the bottom separator), and the header's sort buttons
 /// ride the same stretch so the captions align over the data columns.
 /// The window materializes WITHOUT a view model: the bindings fail
-/// silently (the T-231 dialog precedent), and every window touch rides
+/// silently (the T-234 dialog precedent), and every window touch rides
 /// the world's user-interface lane. The facts share the
 /// LocalizationManager singleton, so the class rides the
 /// LocalizationManagerSingleton collection.

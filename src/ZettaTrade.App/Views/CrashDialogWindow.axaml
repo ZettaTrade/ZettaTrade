@@ -34,7 +34,7 @@
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource TextSecondary}" />
 
-        <!-- The confirm strip (T-231): the ONE primary dismiss rides the
+        <!-- The confirm strip (T-234): the ONE primary dismiss rides the
              90 strip at the right edge. -->
         <Button Content="{loc:Localized Log.Crash.Dismiss}"
                 Classes="primary"

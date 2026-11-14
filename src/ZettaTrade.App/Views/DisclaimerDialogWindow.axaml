@@ -39,7 +39,7 @@
             <TextBlock Text="{loc:Localized Trading.Disclaimer.Version}" />
             <TextBlock Text="{Binding VersionText}" />
         </StackPanel>
-        <!-- The confirm strip (T-231): the settings footer's shape — the
+        <!-- The confirm strip (T-234): the settings footer's shape — the
              ONE primary acknowledge rides the 90 strip at the right edge,
              the row's own spacing clears the gap. -->
         <Button Content="{loc:Localized Trading.Disclaimer.Acknowledge}"

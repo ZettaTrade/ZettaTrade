@@ -22,7 +22,7 @@
                    TextWrapping="Wrap"
                    AutomationProperties.AutomationId="KillSwitchReportSummary" />
 
-        <!-- The confirm strip (T-231): the quiet close rides the 90 strip
+        <!-- The confirm strip (T-234): the quiet close rides the 90 strip
              at the right edge (a report's only action, no primary). -->
         <Button Name="CloseButton"
                 Content="{loc:Localized Chrome.Close}"

@@ -9,7 +9,7 @@ using FluentAssertions;
 using Xunit;
 
 /// <summary>
-/// The dialog-grammar pins (T-231): the window family rides the settings'
+/// The dialog-grammar pins (T-234): the window family rides the settings'
 /// variant-A grammar (the T-222/T-223 approved reference). The fixed-frame
 /// era ends app-wide — no view ships <c>CanResize="False"</c> and every
 /// dialog declares the resizable one; the paired confirm strips speak the
@@ -34,7 +34,7 @@ public sealed class DialogGrammarPinsTests
 
     /// <summary>
     /// The dialog family the task unified — every window that shipped the
-    /// fixed frame before T-231.
+    /// fixed frame before T-234.
     /// </summary>
     private static readonly string[] DialogFamily =
     [
@@ -169,10 +169,10 @@ public sealed class DialogGrammarPinsTests
         {
             source.Should().NotContain(
                 "Margin=\"0,8,0,0\"",
-                "a pre-strip gap rides the parent row's spacing, never a composite margin (T-231)");
+                "a pre-strip gap rides the parent row's spacing, never a composite margin (T-234)");
             source.Should().NotContain(
                 "Margin=\"0,0,8,0\"",
-                "an intra-pair gap rides the strip's spacing, never a composite margin (T-231)");
+                "an intra-pair gap rides the strip's spacing, never a composite margin (T-234)");
         }
     }
 
@@ -257,7 +257,7 @@ public sealed class DialogGrammarPinsTests
     {
         var alerts = ViewSource("AlertsWindow");
 
-        // T-232: the editor's combos joined the MinWidth vocabulary (the
+        // T-235: the editor's combos joined the MinWidth vocabulary (the
         // content-width floors), so the toolbar widths count their own
         // strip — the T-212 language is the toolbar's, the editor's floors
         // are another lane (the FieldGrammarPinsTests hold those).
@@ -301,7 +301,7 @@ public sealed class DialogGrammarPinsTests
     /// <summary>
     /// The command toolbar region: from the T-212 widths grid's opening
     /// tag to its closing tag (the window-wide MinWidth counts went
-    /// brittle when the T-232 editor combos joined the MinWidth
+    /// brittle when the T-235 editor combos joined the MinWidth
     /// vocabulary — the toolbar pins count their own strip, the editor's
     /// content-width floors are another lane).
     /// </summary>

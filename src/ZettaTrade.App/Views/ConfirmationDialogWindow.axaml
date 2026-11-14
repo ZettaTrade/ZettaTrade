@@ -15,7 +15,7 @@
 
     <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceL}">
         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
-        <!-- The confirm strip (T-231): the settings footer's shape — the row
+        <!-- The confirm strip (T-234): the settings footer's shape — the row
              rides its own spacing at the right edge, both buttons the 90
              strip. The gate stays equal-weight (the T-183 discipline: a
              safety gate never steers the user toward the risky choice —
