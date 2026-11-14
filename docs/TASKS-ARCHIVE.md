@@ -5579,3 +5579,46 @@ the board and its section below.
   123.5 MB, leak slope 0.00 MB/h on both series, the isolation census clean). Gate:
   `GATE PASSED` (`-AllowProtected`), 3,541 facts green (61 Core + 17 Soak + 32 Strategies
   + 53 Backtest + 48 AdapterKit + 409 UI + 683 Infrastructure + 7 E2E + 2,231 App).
+
+## T-238 - The beta flip: the version line moves to plain 0.2.x
+
+- **Branch:** queued 2026-11-15 (the user's board decision: the beta version line is 0.2.x,
+  the first beta assigned by the supervisor; the main sync stays the user's manual step).
+- **Origin:** the T-236 readiness record's beta-flip pointer resolved: the version line and
+  the versioning order are decided; the signing/notarization flip stays a follow-up gated on
+  the user-side certificate provisioning (docs/SECURITY.md keeps the hash-only posture).
+- **What:** set the version line - `Directory.Build.props` VersionPrefix `0.1.0` +
+  VersionSuffix `alpha.177` -> VersionPrefix `0.2.0`, the VersionSuffix element retired;
+  record the versioning order in the canon anchors (the props comment, AGENTS.md rule 6,
+  the supervisor skill's bump + rebase lines, the orchestrator's wave pre-assign line,
+  release.yml's and docs/SECURITY.md's artifact notes); add the CHANGELOG.md `## [0.2.0]`
+  head section; note the decision in docs/BETA-READINESS.md's addendum.
+- **Scope:** docs + the version metadata; no product code, no pipeline behavior change (the
+  version parser reads the suffix-less shape as-is).
+- **Acceptance:** the release dry run parses `0.2.0` and matches the CHANGELOG head; the
+  versioning order reads from the canon anchors; the launch smoke binds `0.2.0+<sha>`; the
+  gate stays green.
+- **Tests:** none new (version metadata; the dry run + the launch smoke are the checks).
+- **Status:** done - 0.2.0, the first beta (the version line now plain `0.2.x`, no
+  prerelease suffix; the third number rides the app-changing landings). Chain: docs(claim)
+  `fa888ec` -> chore(release) `e170158` -> this close, on the base develop@30eb0c3. Shipped:
+  the VersionPrefix `0.2.0` (the VersionSuffix element retired - the version parsers in
+  release.yml and release-dry-run.ps1 read the suffix-less shape as-is, zero behavior
+  change); the versioning order recorded in the canon anchors (the props comment, AGENTS.md
+  rule 6, the supervisor skill's bump + rebase lines, the orchestrator's wave pre-assign
+  line, release.yml's + docs/SECURITY.md's artifact notes): one release per board task that
+  changes the app, `0.2.N -> 0.2.N+1`, docs-only tasks do not bump, a landing conflict keeps
+  the higher number, the release commit title follows the `chore(release): 0.2.N` shape;
+  the CHANGELOG `## [0.2.0]` head section opens the beta line (what the `0.1.0-alpha` line
+  shipped stays in, the per-task sections below carry the detail); docs/SECURITY.md's
+  artifact notes updated honestly (the beta opened hash-only - the signing/notarization
+  flip stays a follow-up gated on the user-side certificate provisioning, the hashes stay
+  as the cross-check); docs/BETA-READINESS.md's addendum carries the decided line.
+  Acceptance evidence: the release dry run parsed `0.2.0` (prefix '0.2.0', suffix ''), matched
+  the `## [0.2.0] - 2026-11-15` head (16 lines), published 290 files in 34.5 s and the
+  embedded informational version bound `0.2.0+e170158...`; the launch smoke met the
+  standing bar (the window shown and held, 0 startup failures in the day-file slice, the
+  process stopped clean); the gate `GATE PASSED` (`-AllowProtected` - the props + AGENTS.md
+  shields). The user tags `v0.2.0` on `main` after their manual sync - the release pipeline
+  builds the tag's tree and the tag must match the version commit (`v0.2.0`). Free filing
+  number after this task: T-239.
