@@ -1,3 +1,26 @@
+## [0.1.0-alpha.172] - 2026-11-14
+
+Build of board task T-231 (branch `feat/watchlist-ticker-retry`): the
+watchlist ticker stream retries its failures, and the Binance quote-asset
+drop de-noises.
+
+### Added
+- The watchlist's per-row ticker pump re-arms itself on a bounded backoff
+  ladder (two seconds doubling to a thirty-second cap, off the adapters'
+  `ReconnectPolicy`): a venue socket force-cycle no longer leaves rows
+  stale forever — the row revives and re-prices on its own, keeping its
+  sparkline history across the outage. A stream death logs ONE warning;
+  the ladder's own churn rides the debug level; a revived stream resets
+  the attempts; a synchronous no-ticker refusal stays a one-line log and
+  never spins; a retired row's pending retry dies with the row.
+
+### Changed
+- The Binance instruments parse logs its unrecognized quote-asset drop at
+  the debug level: the venue's full spot list always carries the same
+  standing set of non-tracked quotes (a stable per-launch fact, not a
+  failure family). The symbol summary stays the catalog's only production
+  trace of the drop.
+
 ## [0.1.0-alpha.171] - 2026-11-14
 
 Build of board task T-230 (branch `fix/update-checker-404`): the update
