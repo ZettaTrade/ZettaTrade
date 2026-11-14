@@ -45,7 +45,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-038 Draggable splitters: resize the chart / depth / assistant columns (user-reported) | feat/layout-splitters | done | - |
 | T-039 Symbol favorites (star badge, pinned on top) + hiding pairs (user idea) | feat/symbol-favorites | done | - |
 | T-040 MCP server settings in the settings window (user idea) | feat/mcp-settings | done | - |
-| T-041 Telegram trade notifications (user idea, post-beta) | feat/telegram-notifier | in-progress | - |
+| T-041 Telegram trade notifications (user idea, post-beta) | feat/telegram-notifier | done | 0.2.1 |
 | T-042 Settings window polish: the time-format label collision + the SMA tooltip (user-reported) | feat/settings-window-polish | done | - |
 | T-043 Settings window: split the sections into tabs (user-reported) | feat/settings-tabs | done | - |
 | T-044 UI color hygiene: XAML literals and HTML entities out, colors into constants/themes (supervisor-direct) | feat/ui-colors | done | - |
@@ -280,18 +280,6 @@ the end of that file, so no effort is duplicated.
 
 ---
 
-
-## T-041 — Telegram trade notifications (post-beta)
-
-- **Branch:** feat/telegram-notifier (claimed 2026-11-15; queued 2026-11-04 — user idea, translated from the original: "later I want the app to push trade information to Telegram — not urgent, after reaching beta") — deliberately parked after the beta milestone.
-- **Origin:** fills and order events land only in the journal and the logs today; the trader wants them pushed where he actually reads.
-- **What:** a notification sink that sends order/fill event messages (symbol, side, price, quantity, exchange, paper/live tag) to a user's Telegram chat through a bot token stored in `ISecretStore` (a token never travels as a command-line argument — stdin/secret-store only, the standing security rules). Opt-in per event type (fills, cancels, rejections), async and BEST-EFFORT: a failed send logs a warning and never blocks, retries or corrupts the trading flow; no third-party middleman services — the token is the user's own bot.
-- **Scope:** a new notification service in Infrastructure riding the existing trading/journal event surface, the settings keys (`Notifications.*`), `ISecretStore` token, resx en+ru message templates, tests.
-- **Acceptance:** e2e probe against a LOOPBACK Telegram API stub (the T-032 harness pattern): a fill event produces the expected message POST; a stub 500/timeout degrades to a logged warning with the trading flow untouched; the flag off or the token missing means quietly no sink.
-- **Tests:** the message composition golden (en/ru templates), the event filtering, the best-effort failure matrix (timeout, 5xx, malformed response).
-- **Status:** in-progress.
-
----
 
 ## UI design review 2026-11-10 — findings index (source of T-150…T-162)
 
