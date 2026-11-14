@@ -1,3 +1,36 @@
+## [0.1.0-alpha.167] - 2026-11-14
+
+Build of board task T-225 (branch `fix/alerts-window-crash`): selecting
+Trading → Price alerts stops killing the process — the pickers' TwoWay
+SelectedItem bindings can no longer null out the editor's standing options
+during the bind/init race, and the whole app's same-shape bindings get the
+shared defense.
+
+### Fixed
+- The alerts editor's crash (the user-reported `NullReferenceException` at
+  `AlertsViewModel.get_IsPriceKind`): the pickers' `SelectedItem` TwoWay
+  bindings wrote `null` into the view model while their items were still
+  empty or coercing, and the kind flags dereferenced the standing option
+  unguarded. The setters now reject the null write (a null is never a user
+  choice — the standing option stays and one deferred raise pushes it back
+  into the picker once its items exist, the shared `SelectionReAssert`
+  coalescing bound), the kind flags read null-safely, and the draft
+  composer refuses an unset selection with its own line instead of a
+  silently defaulted alert.
+- The same-shape sweep over every window's `SelectedItem` bindings fixed
+  the found instances alike: the backtest run's strategy id (a latent null
+  dereference on the run-start guard) and the status bar's exchange picker
+  (the trading-adjacent selection keeps its standing name).
+
+### Tests
+- The null-option matrix facts (the standing options survive the null
+  writes, the flags answer from them, one coalesced deferred re-assert per
+  race, the defense re-arms for the next race) and the same-shape facts for
+  the backtest strategy id and the status bar exchange picker.
+- The new E2E open round drives the real process through the Trading menu
+  into the alerts manager window and out again — a window that kills the
+  process surfaces as the exited-process fact, never a starving lookup.
+
 ## [0.1.0-alpha.166] - 2026-11-14
 
 Build of board task T-220 (branch `fix/alert-beep-async`): the alert beep
