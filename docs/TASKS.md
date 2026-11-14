@@ -241,6 +241,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-235 The controls answer the pointer: the kit's icon buttons speak a visible hover/pressed tint, the pairs transfer arrows read as buttons, the alerts editor's captions clear their fields (the Edge combo stops clipping), and the screener rows stretch to the header plan without the button chrome (the user's T-223 follow-up sweep; renumbered off T-232 - the number was skipped on the synced board) | feat/affordances | done | 0.1.0-alpha.176 |
 | T-236 Beta-prep finale: the full E2E/soak pass + the release readiness checklist recorded on the beta-prep tip (the beta-prep wave's closer; renumbered off T-232 - the number collided with the landed controls task) | feat/beta-prep-finale | done | - |
 | T-237 The cold start meets the 3 s budget on the soak lane: the spawn-to-window wall (runtime spin-up + service assemblies + the window build) gets the dedicated startup-optimization pass first noted at the T-109 close (the T-236 readiness record's disclosed breach; renumbered off T-234 - the number was taken by the landed windows-unify task) | feat/startup-optimization | done | - |
+| T-238 The beta flip: the version line moves to plain 0.2.x - the first beta 0.2.0, the third number rides the app-changing landings (the user's board decision; the signing flip stays a follow-up per docs/SECURITY.md) | feat/beta-flip | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -321,5 +322,29 @@ protective orders, risk, venues), then market data, the chart stack, alerts, AI/
 and reporting, and the platform tail. All rows start `planned`; the human prioritizes the
 lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by default. The
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
+
+---
+
+## T-238 - The beta flip: the version line moves to plain 0.2.x
+
+- **Branch:** queued 2026-11-15 (the user's board decision: the beta version line is 0.2.x,
+  the first beta assigned by the supervisor; the main sync stays the user's manual step).
+- **Origin:** the T-236 readiness record's beta-flip pointer resolved: the version line and
+  the versioning order are decided; the signing/notarization flip stays a follow-up gated on
+  the user-side certificate provisioning (docs/SECURITY.md keeps the hash-only posture).
+- **What:** set the version line - `Directory.Build.props` VersionPrefix `0.1.0` +
+  VersionSuffix `alpha.177` -> VersionPrefix `0.2.0`, the VersionSuffix element retired;
+  record the versioning order in the canon anchors (the props comment, AGENTS.md rule 6,
+  the supervisor skill's bump + rebase lines, the orchestrator's wave pre-assign line,
+  release.yml's and docs/SECURITY.md's artifact notes); add the CHANGELOG.md `## [0.2.0]`
+  head section; note the decision in docs/BETA-READINESS.md's addendum.
+- **Scope:** docs + the version metadata; no product code, no pipeline behavior change (the
+  version parser reads the suffix-less shape as-is).
+- **Acceptance:** the release dry run parses `0.2.0` and matches the CHANGELOG head; the
+  versioning order reads from the canon anchors; the launch smoke binds `0.2.0+<sha>`; the
+  gate stays green.
+- **Tests:** none new (version metadata; the dry run + the launch smoke are the checks).
+- **Status:** in-progress (worktree zt-beta-flip, branch feat/beta-flip, base
+  develop@30eb0c3, claimed 2026-11-15).
 
 ---
