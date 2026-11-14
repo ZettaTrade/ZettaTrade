@@ -236,6 +236,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | done | - |
 | T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | done | - |
 | T-231 The watchlist ticker stream retries its stream failures with a bounded backoff instead of dying stale, and the Binance instruments parse takes the unrecognized quote-asset drop at the debug level (filed from the user's log analysis) | feat/watchlist-ticker-retry | done | - |
+| T-232 Beta-prep finale: the full E2E/soak pass + the release readiness checklist recorded on the beta-prep tip (the beta-prep wave's closer) | feat/beta-prep-finale | in-progress | - |
 | T-233 The adapters' construction-time Disconnected snapshots stop carrying real-exchange endpoints into a demo-only run's log: a connection-state line rides a real lifecycle transition, and the soak census's host list covers every shipped venue (the T-232 finale's soak finding) | fix/adapter-state-log-leak | done | - |
 | T-234 The window family rides the variant-A grammar: the dialog family resizes (the fixed-frame era ends app-wide), the confirm strips unify on the settings shape (the quiet button first, the ONE primary last, the 90 strip), the ticket/wizard/license bodies card, the toolbar widths and the pre-strip gaps normalize (the user's T-223 follow-up; renumbered off T-231 - the number collided with the landed ticker-retry task) | feat/windows-unify | done | 0.1.0-alpha.175 |
 | T-235 The controls answer the pointer: the kit's icon buttons speak a visible hover/pressed tint, the pairs transfer arrows read as buttons, the alerts editor's captions clear their fields (the Edge combo stops clipping), and the screener rows stretch to the header plan without the button chrome (the user's T-223 follow-up sweep; renumbered off T-232 - the number was skipped on the synced board) | feat/affordances | done | 0.1.0-alpha.176 |
@@ -322,3 +323,25 @@ lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by de
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
 
 ---
+
+## T-232 - Beta-prep finale: the full E2E/soak pass + the release readiness checklist
+
+- **Branch:** queued 2026-11-14 (the beta-prep wave's closer).
+- **Origin:** the beta-prep wave (T-226, T-229, T-230, T-231, T-228) closed its fixes; the beta
+  milestone needs one consolidated readiness pass — the long-tail families a per-task gate does
+  not fully exercise (the E2E lane, the soak budget gates) and the release path (the T-125 dry
+  run) verified once on the final tip.
+- **What:** run the full E2E + soak families on the beta-prep tip — the soak harness
+  (`scripts/soak.ps1 -Minutes 5`, the cold start < 3 s and memory < 500 MB budget gates), the E2E
+  suite, and the release dry run (`scripts/release-dry-run.ps1`); record the verdicts in a beta
+  readiness document with the standing flake-family notes (record, never fix in-flight), the
+  parked item (T-041 post-beta) and the beta-flip pointer (`docs/SECURITY.md` — the signing/
+  notarization flip stays a board decision).
+- **Scope:** docs (the readiness record) + the verification runs; no product code, no version
+  bump (a docs-only task).
+- **Acceptance:** the soak budget gates pass on the tip; the E2E family's verdict recorded with
+  any flake families named; the dry run exits 0; the readiness document names the beta state
+  honestly.
+- **Tests:** none new (verification-only; the families run as-is).
+- **Status:** in-progress (worktree zt-beta-prep-finale, branch feat/beta-prep-finale, base
+  develop@5194f10, claimed 2026-11-14).
