@@ -25,6 +25,7 @@ public static class HeatmapDependencyInjection
         .AddSingleton<HeatmapFeedService>(sp =>
             new HeatmapFeedService(
                 sp.GetRequiredService<ActiveExchangeService>(),
+                sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ILogger<HeatmapFeedService>>()))
         .AddSingleton<HeatmapViewModel>(sp =>
             new HeatmapViewModel(

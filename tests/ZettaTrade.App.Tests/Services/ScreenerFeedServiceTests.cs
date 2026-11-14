@@ -247,6 +247,7 @@ public sealed class ScreenerFeedServiceTests
         ActiveExchangeService service,
         Subject<long>? pulse = null) => new(
         service,
+        new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
         NullLogger<ScreenerFeedService>.Instance,
         pulse ?? new Subject<long>());
 
@@ -478,7 +479,11 @@ public sealed class ScreenerFeedServiceTests
         var feedProbe = new ProbeLogger<ScreenerFeedService>();
         var service = BuildService(facadeProbe, binance, demo);
         var pulse = new Subject<long>();
-        var feed = new ScreenerFeedService(service, feedProbe, pulse);
+        var feed = new ScreenerFeedService(
+            service,
+            new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
+            feedProbe,
+            pulse);
         await feed.InitializeAsync(); // the warm-up parks inside binance's first fetch.
 
         await service.SwitchToAsync("demo"); // the epoch bump + the queued re-fetch.

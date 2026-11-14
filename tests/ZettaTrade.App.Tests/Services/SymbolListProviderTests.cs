@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -14,14 +15,15 @@ using ZettaTrade.App.Services;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
-/// Tests for the symbol list cache: the active adapter must be hit exactly
-/// once across one exchange's lifetime, a failed fetch must never be cached
-/// (the next dialog open retries), the warm-up path keeps startup
-/// non-blocking, and an adapter change flushes the cache so the next fetch
-/// targets the exchange the selector picked — a fetch racing a switch
-/// returns its stale data but never poisons the cache with it.
+/// Tests for the symbol list cache (T-228): each exchange's list is fetched
+/// exactly once per session and every later ask answers from that cache, a
+/// failed fetch is never cached (the next ask retries), the warm-up covers
+/// every registered exchange without blocking startup, and a switch targets
+/// the picked exchange's own entry — a late fetch still returns its data to
+/// its asker and caches it under its own exchange id.
 /// </summary>
 public sealed class SymbolListProviderTests
 {
@@ -167,5 +169,100 @@ public sealed class SymbolListProviderTests
         await _binance.Received(1).GetSymbolsAsync(Arg.Any<CancellationToken>());
         // The retry after the switch targets the active exchange.
         await _demo.Received(1).GetSymbolsAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetAdapterSymbolsAsync_Twice_FetchesOncePerExchange()
+    {
+        // The per-exchange surface the palette's warm-up and the
+        // heatmap/screener universes ride: one ask per adapter per session.
+        var provider = CreateProvider(CreateService());
+
+        var first = await provider.GetAdapterSymbolsAsync(_binance, CancellationToken.None);
+        var second = await provider.GetAdapterSymbolsAsync(_binance, CancellationToken.None);
+        var demo = await provider.GetAdapterSymbolsAsync(_demo, CancellationToken.None);
+
+        await _binance.Received(1).GetSymbolsAsync(Arg.Any<CancellationToken>());
+        await _demo.Received(1).GetSymbolsAsync(Arg.Any<CancellationToken>());
+        second.Should().BeSameAs(first, "the cache answers the second ask with the warmed list");
+        first.Select(symbol => symbol.Normalized).Should().Equal("BTC/USDT", "ETH/BTC");
+        demo.Select(symbol => symbol.Normalized).Should().Equal("SOL/USDC");
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WarmsEveryRegisteredExchange_InOneFetchEach()
+    {
+        // The warm-up covers the whole roster in parallel — every later
+        // consumer (the palette, the heatmap, the screener, the
+        // autocomplete) answers from these entries, so the venue is hit
+        // exactly once per exchange per session (T-228's whole point).
+        var provider = CreateProvider(CreateService());
+
+        provider.InitializeAsync().IsCompleted.Should().BeTrue("startup must not await the network");
+
+        // Join the warm-up: each ask shares the in-flight fetch or answers
+        // from the cache already warmed.
+        var binance = await provider.GetAdapterSymbolsAsync(_binance, CancellationToken.None);
+        var demo = await provider.GetAdapterSymbolsAsync(_demo, CancellationToken.None);
+
+        await _binance.Received(1).GetSymbolsAsync(Arg.Any<CancellationToken>());
+        await _demo.Received(1).GetSymbolsAsync(Arg.Any<CancellationToken>());
+        binance.Should().Contain(symbol => symbol.Normalized == "BTC/USDT");
+        demo.Should().Contain(symbol => symbol.Normalized == "SOL/USDC");
+    }
+
+    [Fact]
+    public async Task TheWarmUp_MissingCredentials_StayQuietOnTheDebugLevel()
+    {
+        // The T-227 canon: the adapter's no-key standing absence rides the
+        // debug lane, never a warning family — a configuration state the
+        // user chose must not paint the launch log red at every start.
+        var logger = new SpyLogger();
+        var provider = new SymbolListProvider(CreateService(), logger);
+        _binance.GetSymbolsAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromException<IReadOnlyList<Symbol>>(
+                new AdapterCredentialsMissingException("binance", "binanceApiKey")));
+
+        var initialization = provider.InitializeAsync();
+        initialization.IsCompleted.Should().BeTrue("startup must not await the network");
+
+        // The ask after the warm-up re-fetches (a failed list is never
+        // cached) and reports the standing absence to its own asker.
+        var ask = () => provider.GetAdapterSymbolsAsync(_binance, CancellationToken.None);
+        await ask.Should().ThrowAsync<AdapterCredentialsMissingException>();
+
+        logger.Entries.Should().NotContain(
+            entry => entry.Level == LogLevel.Warning,
+            "the no-key standing absence never paints the log red");
+        logger.Entries.Should().Contain(
+            entry => entry.Level == LogLevel.Debug && entry.Message.Contains("runs without credentials"),
+            "the quiet-absence lane is the warm-up's only trace");
+    }
+
+    /// <summary>
+    /// A capturing logger: the warm-up's level families (the debug quiet
+    /// absence, the warning for a real fault) stay assertable.
+    /// </summary>
+    private sealed class SpyLogger : ILogger<SymbolListProvider>
+    {
+        /// <summary>Every logged entry so far, in arrival order.</summary>
+        public List<(LogLevel Level, string Message)> Entries { get; } = new();
+
+        /// <inheritdoc/>
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        /// <inheritdoc/>
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        /// <inheritdoc/>
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add((logLevel, formatter(state, exception)));
+        }
     }
 }
