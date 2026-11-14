@@ -259,6 +259,13 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-253 Cross-venue spread + the perp-spot basis view over the three shipped adapters (the analytics sweep 2026-11-14) | feat/venue-spread | planned | — |
 | T-254 Backtest robustness: Monte Carlo over the trade sequence + walk-forward splits (the analytics sweep 2026-11-14) | feat/backtest-robustness | planned | — |
 | T-255 AI trade review: journal-backed post-trade analysis through the chat (the analytics sweep 2026-11-14) | feat/ai-trade-review | planned | — |
+| T-256 Windows installer: Inno Setup over the T-125 artifacts (the beta-2 sweep 2026-11-15) | feat/windows-installer | planned | — |
+| T-257 macOS .dmg + Linux AppImage/.deb packaging (the beta-2 sweep 2026-11-15) | feat/mac-linux-packaging | planned | — |
+| T-258 Auto-update: download, verify, staged swap, rollback (the beta-2 sweep 2026-11-15) | feat/auto-update | planned | — |
+| T-259 GitHub Pages publish automation + the beta site content (the beta-2 sweep 2026-11-15) | feat/pages-publish | planned | — |
+| T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | planned | — |
+| T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | planned | T-260 |
+| T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | planned | T-260 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -604,5 +611,139 @@ original numbers.
 - **Acceptance:** works with the local model and the OpenAI-compatible provider; a provider
   failure is a localized error, never silence.
 - **Tests:** prompt-composition goldens, the provider-failure matrix, the read-only guarantee.
+
+---
+
+## Beta-2 sweep 2026-11-15 — distribution + notifications (source of T-256…T-262)
+
+The user's ask, the second backlog cut on top of the analytics sweep (T-239…T-255): the beta
+line has opened (T-238, 0.2.0) — distribution and notifications are next. A fact-check against
+the shipped inventory shaped the batch as deltas, not rewrites: the release pipeline already
+publishes three-OS artifacts with sha256 (T-125, signing/notarization deliberately deferred
+past the alpha with the checklist in docs/SECURITY.md), the landing rides the Vite docs-site
+(T-126) yet no Pages deploy workflow or gh-pages branch exists on origin, the update checker
+only surfaces a chip and a link (T-213, the documented pre-beta posture), and messaging is
+only the parked T-041. Filed as T-256…T-262: installers, the auto-update loop, the Pages
+publication, and the notification-sink lane (abstraction + Telegram, then the webhook batch
+and Matrix/email); the batch originally carried the beta cut itself — it landed separately as
+T-238 by the concurrent session before this batch could. Messenger verdicts recorded with the
+user: Discord, Slack and ntfy webhooks plus Matrix and email ride free public APIs or the
+user's own credentials — WhatsApp stays out (its official API is a paid Business flow;
+unofficial bridges are middlemen) and Signal stays out (no official bot API) per the T-041
+no-middleman canon. The messenger sinks stay free (the user's call). All rows start `planned`;
+the human prioritizes the lanes.
+
+---
+
+## T-256 — Windows installer: Inno Setup over the T-125 artifacts
+
+- **Branch:** `feat/windows-installer` off `develop` (queued 2026-11-15, the beta-2 sweep).
+- **Origin:** T-125 ships a bare zip; a desktop terminal needs a setup door (the user's ask).
+- **What:** an Inno Setup script consuming the win-x64 publish: per-user and per-machine modes,
+  shortcuts, an uninstaller that leaves the settings/profile data intact (the user data never
+  dies with the app), version metadata from Directory.Build.props; unsigned builds carry the
+  documented SmartScreen caveat (the Authenticode certificate is a separate acquisition
+  decision — the T-125 checklist pointer).
+- **Scope:** the setup script + a release.yml leg producing the installer next to the zip, the
+  docs note, tests.
+- **Acceptance:** a clean environment installs, launches, uninstalls — the profile survives the
+  uninstall.
+- **Tests:** the script's lint/build smoke; the CI leg asserts the installer artifact exists.
+
+---
+
+## T-257 — macOS .dmg + Linux AppImage/.deb packaging
+
+- **Branch:** `feat/mac-linux-packaging` off `develop` (queued 2026-11-15, the beta-2 sweep).
+- **Origin:** the osx/linux legs ship bare archives (T-125); the platform-native doors are the
+  norm on each OS.
+- **What:** a .dmg for macOS (the app bundle layout, the Gatekeeper right-click-open caveat
+  documented — notarization stays deferred until the Apple Developer account decision), an
+  AppImage and a .deb for Linux (desktop entries, the icon).
+- **Scope:** the packaging scripts + release.yml matrix legs + the docs caveats, tests.
+- **Acceptance:** each artifact installs/launches on its OS; the caveats say exactly what is
+  unsigned.
+- **Tests:** CI leg presence asserts; the script smoke mirrors the T-125 dry-run pattern.
+
+---
+
+## T-258 — Auto-update: download, verify, staged swap, rollback
+
+- **Branch:** `feat/auto-update` off `develop` (queued 2026-11-15, the beta-2 sweep).
+- **Origin:** the checker (T-213) stops at a chip and a link; the beta posture needs the loop.
+- **What:** from the checker's verdict: download the release asset for the running RID, verify
+  SHA-256 against the release's `zettatrade-<version>-sha256.txt` (HTTPS only, the hash pinned
+  from the release metadata), stage it, and swap on the next start with a rollback to the
+  previous build when the new one fails to launch; a settings channel switch (stable/beta) and
+  an off switch; the consent prompt never silently kills a session with open positions or
+  working orders — confirmation is the trading-safety rule.
+- **Scope:** the updater service (bounded downloads, the T-105/T-106 lessons), the settings
+  keys, resx en+ru, tests.
+- **Acceptance:** an update applies without user-file loss and rolls back on a corrupted
+  download or a failed launch; the consent gate holds with open positions.
+- **Tests:** the hash-verify matrix, the staged-swap/rollback goldens, the consent-gate pin.
+
+---
+
+## T-259 — GitHub Pages publish automation + the beta site content
+
+- **Branch:** `feat/pages-publish` off `develop` (queued 2026-11-15, the beta-2 sweep).
+- **Origin:** the docs-site (T-126) has no deploy workflow and origin carries no gh-pages branch
+  — the landing exists but does not publish.
+- **What:** a Pages deploy workflow building the Vite docs-site on main pushes; the beta content
+  pass: the download section resolves the latest release assets per OS, a changelog page
+  rendered from CHANGELOG.md, the user manual (T-115) published, the OG meta and the favicon.
+- **Scope:** the workflow + the docs-site content/links, no product code.
+- **Acceptance:** the site is reachable on Pages; every download link lands on the matching
+  latest artifact; the link checks pass.
+- **Tests:** the link-check smoke in CI (the T-126 precedent).
+
+---
+
+## T-260 — Notification sink abstraction + Telegram (the parked T-041 activated)
+
+- **Branch:** `feat/notify-sinks` off `develop` (queued 2026-11-15, the beta-2 sweep).
+- **Origin:** T-041 (queued post-beta) carries the standing spec; the beta window opens it.
+- **What:** the sink abstraction over the trading/journal event surface (opt-in per event type,
+  async best-effort, the T-041 security rules: the user's own bot token through ISecretStore,
+  never command-line arguments, no middleman services) with Telegram as the first sink; the
+  per-channel event routing settings.
+- **Scope:** the sink service (Infrastructure) + the Telegram sink + the routing settings +
+  resx en+ru (the message templates en+ru) + tests.
+- **Acceptance:** a fill event produces the expected Telegram POST; a stub failure degrades to a
+  logged warning with the trading flow untouched; the routing persists.
+- **Tests:** the T-041 test matrix verbatim (the loopback Telegram stub, the template goldens,
+  the best-effort failure matrix, the routing).
+
+---
+
+## T-261 — Webhook sinks: Discord, Slack, ntfy
+
+- **Branch:** `feat/webhook-sinks` off `develop` (queued 2026-11-15, the beta-2 sweep).
+- **Origin:** the transport class of T-260 generalizes to webhooks at near-zero marginal cost.
+- **What:** three webhook sinks over the same event surface: Discord (embeds, color by
+  severity), Slack (the incoming webhook), ntfy (the phone-push lane, the user's own server
+  option); the URL/credentials through ISecretStore or the settings webhook URL (a public URL
+  by design — a secret only when the channel demands one).
+- **Scope:** the three sinks + settings + resx en+ru + tests.
+- **Acceptance:** each channel receives the templated event; a failing channel never touches the
+  trading flow or the other channels.
+- **Tests:** the per-channel template goldens, the best-effort failure matrix, the isolation pin.
+
+---
+
+## T-262 — Matrix + email sinks
+
+- **Branch:** `feat/matrix-email-sinks` off `develop` (queued 2026-11-15, the beta-2 sweep).
+- **Origin:** the second transport class after the webhook batch (the T-260 abstraction).
+- **What:** a Matrix sink (the bot access token through ISecretStore, the room routing) and an
+  email sink (SMTP with the user's credentials through ISecretStore, throttled, plain-text
+  templates); the recorded exclusion stays: WhatsApp and Signal stay out (no official free bot
+  APIs; unofficial bridges are middlemen — the T-041 canon).
+- **Scope:** the two sinks + settings + resx en+ru + tests.
+- **Acceptance:** both channels deliver; credential failures degrade to logged warnings; no
+  secret ever lands in logs or command lines.
+- **Tests:** the loopback stubs (a Matrix client stub, an SMTP stub), the template goldens, the
+  throttling pin.
 
 ---
