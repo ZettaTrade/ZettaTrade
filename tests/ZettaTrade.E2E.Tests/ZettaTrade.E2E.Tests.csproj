@@ -23,6 +23,17 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!-- T-227: the settings round-trip now walks the secret store at open
+         (the per-venue presence seed), so the DPAPI package must ship in
+         this bin. The direct reference alone is NOT enough: this lane's
+         runtime closure prunes it, because the test runtimeconfig declares
+         the WindowsDesktop framework (its 10.0.14 pack serves the assembly)
+         - but the staged app process resolves through its OWN runtimeconfig
+         under Microsoft.NETCore.App only, so the file must sit next to the
+         exe. The explicit copy ships it deterministically; the version pins
+         the Infrastructure reference (a bump there moves this line too). -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.13" />
+    <None Include="$(NuGetPackageRoot)system.security.cryptography.protecteddata\10.0.13\lib\net10.0\System.Security.Cryptography.ProtectedData.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>

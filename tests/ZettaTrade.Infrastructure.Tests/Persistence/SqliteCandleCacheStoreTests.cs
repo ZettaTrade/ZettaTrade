@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -59,14 +60,17 @@ public sealed class SqliteCandleCacheStoreTests
         }
     }
 
-    private static SqliteCandleCacheStore CreateStore(string databaseFile, ISettingsService settings) => new(
+    private static SqliteCandleCacheStore CreateStore(
+        string databaseFile,
+        ISettingsService settings,
+        ILogger<SqliteCandleCacheStore>? logger = null) => new(
         new DbContextOptionsBuilder<CandleCacheDbContext>()
             // Pooling=false: after each context disposes, its SQLite
             // connection closes, so the temp database file is unlocked.
             .UseSqlite($"Data Source={databaseFile};Pooling=false")
             .Options,
         settings,
-        NullLogger<SqliteCandleCacheStore>.Instance);
+        logger ?? NullLogger<SqliteCandleCacheStore>.Instance);
 
     /// <summary>
     /// A settings substitute polluting nothing: the Get answers echo the
@@ -461,4 +465,72 @@ public sealed class SqliteCandleCacheStoreTests
     }
 
     #endregion Older-than Probe (T-086)
+
+    #region Query-Plan Warm-up (T-237)
+
+    [Fact]
+    public async Task InitializeAsync_WarmsTheFirstQueryPlan_AndStaysSilentAboveDebug()
+    {
+        await WithTempDatabaseAsync(async file =>
+        {
+            var spy = new SpyLogger();
+            var store = CreateStore(file, CreateSettings(), spy);
+            await store.InitializeAsync();
+
+            // The warm-up rode the store's own read shape: the benign
+            // never-stored series answers empty and persists nothing.
+            (await store.GetLatestAsync(
+                SqliteCandleCacheStore.WarmupAdapterId,
+                Symbol.Parse(SqliteCandleCacheStore.WarmupSymbol),
+                TimeFrame.H1,
+                10))
+                .Should().BeEmpty("the warm-up reads its benign series, it never writes one");
+
+            spy.Entries.Count(entry => entry.Level == LogLevel.Debug && entry.Message.Contains("warmed"))
+                .Should().Be(1, "one Debug receipt reports the plan warm-up");
+            spy.Entries.Should().NotContain(
+                entry => entry.Level >= LogLevel.Warning,
+                "the warm-up stays silent at the shipped log floor (the T-229 canon): the store's own information lines are its only voice above debug");
+        });
+    }
+
+    [Fact]
+    public async Task InitializeAsync_DisabledCache_SkipsThePlanWarmup()
+    {
+        await WithTempDatabaseAsync(async file =>
+        {
+            var settings = CreateSettings();
+            settings
+                .GetAsync<bool>(Arg.Is(SqliteCandleCacheStore.SettingsSection), Arg.Is(SqliteCandleCacheStore.EnabledSettingsKey), Arg.Any<bool>())
+                .Returns(false);
+            var spy = new SpyLogger();
+            var disabled = CreateStore(file, settings, spy);
+            await disabled.InitializeAsync();
+
+            spy.Entries.Should().NotContain(
+                entry => entry.Message.Contains("warmed"),
+                "the disabled cache skips the plan warm-up - the chart's own first call would be a no-op anyway");
+        });
+    }
+
+    /// <summary>The logger spy: records the level + message + exception triples (the warm-up receipt's probe).</summary>
+    private sealed class SpyLogger : ILogger<SqliteCandleCacheStore>
+    {
+        public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception), exception));
+    }
+
+    #endregion Query-Plan Warm-up (T-237)
 }

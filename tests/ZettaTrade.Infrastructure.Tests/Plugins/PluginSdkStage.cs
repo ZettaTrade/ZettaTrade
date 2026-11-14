@@ -101,8 +101,8 @@ internal sealed class PluginSdkStage : IDisposable
 /// <summary>A logger factory recording faults, so the log-side behavior stays assertable.</summary>
 internal sealed class RecordingLoggerFactory : ILoggerFactory
 {
-    /// <summary>Every exception the host ever logged with a fault attached.</summary>
-    public List<Exception> Faults { get; } = [];
+    /// <summary>Every (level, fault) pair the host ever logged with a fault attached.</summary>
+    public List<(LogLevel Level, Exception Fault)> Faults { get; } = [];
 
     public ILogger CreateLogger(string categoryName) => new RecordingSink(this);
 
@@ -130,7 +130,7 @@ internal sealed class RecordingLoggerFactory : ILoggerFactory
         {
             if (exception is { } fault)
             {
-                owner.Faults.Add(fault);
+                owner.Faults.Add((logLevel, fault));
             }
         }
     }

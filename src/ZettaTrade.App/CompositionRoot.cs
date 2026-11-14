@@ -31,6 +31,24 @@ using ZettaTrade.Strategies;
 /// </summary>
 internal static class CompositionRoot
 {
+    /// <summary>The observed pre-warm receipt task (the T-231 pump canon:
+    /// a fire-and-forget rides a field, never a naked discard).</summary>
+    private static Task? _prewarmReceipt;
+
+    /// <summary>One Debug receipt for the model pre-warm (T-237): the
+    /// builds settle off the critical path, so the line logs whenever they
+    /// are done. The outcome task never faults.</summary>
+    private static async Task ReportPrewarmReceiptAsync()
+    {
+        var outcome = await PersistenceModelPrewarm.Outcome;
+        Log.Debug(
+            "Startup model pre-warm: {Warmed}/{Total} models warm ({WallMs:F0} ms, {Failed} degraded)",
+            outcome.Warmed,
+            outcome.Warmed + outcome.Failed,
+            outcome.WallMs,
+            outcome.Failed);
+    }
+
     /// <summary>
     /// Build and configure the service provider, initializing all services
     /// that implement <see cref="IAsyncInitializable"/>.
@@ -452,6 +470,15 @@ internal static class CompositionRoot
             ct,
             static serviceType => StoreInitBatchTypes.Contains(serviceType));
 
+        // T-237: the model pre-warm's one receipt (Debug) — a stored task
+        // keeps the fire-and-forget observed (the T-231 pump canon): the
+        // receipt logs whenever the builds settle, never blocking the
+        // composition. Gated on the kick: a process that never started
+        // the warm-up holds no pending outcome.
+        if (PersistenceModelPrewarm.Started)
+        {
+            _prewarmReceipt = ReportPrewarmReceiptAsync();
+        }
         // MCP trading tools: registered once, against the paper trading adapter
         // (mock surface; real exchange adapters are plugged in as plugins later).
         // Registration runs AFTER the startup walk: resolving the tool lane's

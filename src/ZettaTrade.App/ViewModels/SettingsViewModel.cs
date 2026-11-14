@@ -16,6 +16,7 @@ using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Backup;
 using ZettaTrade.Infrastructure.Configuration;
+using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Shell;
 using ZettaTrade.UI.Extensions;
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
@@ -450,6 +451,14 @@ public sealed class SettingsViewModel : ReactiveObject
 
     /// <summary>The MCP tab's honest failed row: the apply did not reach the server, the stored choice applies next launch.</summary>
     public bool IsMcpFailed => _mcpHostState == McpHostState.Failed;
+
+    /// <summary>
+    /// The exchange-credentials section's per-venue rows (T-227): each row
+    /// owns its pair's masked drafts and its immediate store commits; the
+    /// list is fixed at construction (the adapters' key names are constants)
+    /// and only the rows' status chips refresh on every window open.
+    /// </summary>
+    public IReadOnlyList<CredentialSlot> CredentialSlots { get; }
 
     /// <summary>
     /// The external-servers block's draft rows: the editor surface for the
@@ -968,6 +977,23 @@ public sealed class SettingsViewModel : ReactiveObject
         _profileBackup = profileBackup;
         _secrets = secrets;
 
+        // The exchange-credentials rows (T-227): one per secret-key pair the
+        // adapters read, the venue captions carrying the adapters' own proper
+        // names (the T-127 English precedent). The store rides the slot (the
+        // pair's only home); the presence seed lands through the async lane
+        // beside the other seeded reads.
+        CredentialSlots =
+        [
+            new("Alpaca", AlpacaAdapter.ApiKeySecretKey, AlpacaAdapter.ApiSecretSecretKey, _secrets, _localization, _logger),
+            new("Bybit Testnet", BybitTradingAdapter.ApiKeySecretKey, BybitTradingAdapter.ApiSecretSecretKey, _secrets, _localization, _logger),
+            new("Binance Testnet", BinanceTradingAdapter.ApiKeySecretKey, BinanceTradingAdapter.ApiSecretSecretKey, _secrets, _localization, _logger),
+        ];
+        Observable
+            .FromAsync((CancellationToken ct) => RefreshCredentialSlotsAsync(ct))
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The exchange-credentials presence seed failed"));
+
         // The plugin surface is settled at construction (the scan runs at
         // startup only): the SMA row renders only when the catalog holds
         // the plugin; a nameless (null) set reads as an empty one. A
@@ -1311,6 +1337,20 @@ public sealed class SettingsViewModel : ReactiveObject
         ResetAppearanceSelections();
         await RefreshSymbolPairsAsync(ct);
         await RefreshMcpClientRowsAsync(ct);
+        await RefreshCredentialSlotsAsync(ct);
+    }
+
+    /// <summary>
+    /// Read every credentials row' status from the store (the pair's
+    /// presence, never its values — the secret never echoes): the window
+    /// open and the post-save refreshes both ride this one path.
+    /// </summary>
+    private async Task RefreshCredentialSlotsAsync(CancellationToken ct)
+    {
+        foreach (var slot in CredentialSlots)
+        {
+            await slot.RefreshAsync(ct);
+        }
     }
 
     /// <summary>

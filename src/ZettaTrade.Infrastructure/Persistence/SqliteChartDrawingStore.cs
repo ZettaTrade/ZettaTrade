@@ -2,6 +2,7 @@ namespace ZettaTrade.Infrastructure.Persistence;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,11 +32,44 @@ public sealed class SqliteChartDrawingStore(
     /// <summary>Whether the data directory and schema are proven ready.</summary>
     private bool _ready;
 
+    /// <summary>The query-plan warm-up's benign adapter id and symbol
+    /// (T-237): real but never-stored values — the read answers zero rows
+    /// and warms the exact plan the chart's first load reuses.</summary>
+    public const string WarmupAdapterId = "warmup";
+
     #region Public Methods
 
     /// <inheritdoc/>
-    public Task InitializeAsync(CancellationToken cancellationToken = default) =>
-        EnsureReadyAsync(cancellationToken);
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureReadyAsync(cancellationToken);
+
+        // T-237: the same first-query warm-up the candle cache pays — the
+        // chart's first LoadAsync compiles the EF query plan (Debug-lane
+        // hundreds of milliseconds) inside its constructor, right before
+        // the window shows. Pay it here, right after the one-time
+        // migration, with the store's own read shape: a benign adapter id
+        // and symbol read zero rows and warm the exact plan the chart
+        // reuses. A degraded warm-up only delays nothing — the chart's own
+        // first call then compiles the plan exactly as before.
+        var warmup = Stopwatch.StartNew();
+        try
+        {
+            _ = await LoadAsync(WarmupAdapterId, WarmupAdapterId, TimeFrame.H1, cancellationToken);
+            logger.LogDebug(
+                "Chart drawings: the first-query plan warmed in {WarmupMs:F0} ms",
+                warmup.Elapsed.TotalMilliseconds);
+        }
+        catch (OperationCanceledException)
+        {
+            // The walk's cancellation: the chart's own first call warms
+            // the plan as before.
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Chart drawings: the query-plan warm-up degraded");
+        }
+    }
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<ChartDrawing>> LoadAsync(

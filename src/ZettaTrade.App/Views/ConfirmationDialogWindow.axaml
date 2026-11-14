@@ -9,21 +9,26 @@
         Title="{loc:Localized Trading.ConfirmationTitle}"
         Width="400" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
-        CanResize="False"
+        CanResize="True"
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
     <StackPanel Margin="{StaticResource InsetL}" Spacing="{StaticResource SpaceL}">
         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="{StaticResource SpaceM}">
-            <Button x:Name="ConfirmButton"
-                    Content="{loc:Localized Trading.Confirm}"
-                    MinWidth="100"
-                    Click="OnConfirmClick" />
+        <!-- The confirm strip (T-234): the settings footer's shape — the row
+             rides its own spacing at the right edge, both buttons the 90
+             strip. The gate stays equal-weight (the T-183 discipline: a
+             safety gate never steers the user toward the risky choice —
+             the window carries no primary on purpose). -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource SpaceM}">
             <Button x:Name="CancelButton"
                     Content="{loc:Localized Trading.Cancel}"
-                    MinWidth="100"
+                    MinWidth="90"
                     Click="OnCancelClick" />
+            <Button x:Name="ConfirmButton"
+                    Content="{loc:Localized Trading.Confirm}"
+                    MinWidth="90"
+                    Click="OnConfirmClick" />
         </StackPanel>
     </StackPanel>
 </Window>

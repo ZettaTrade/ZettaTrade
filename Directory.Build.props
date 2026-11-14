@@ -29,19 +29,17 @@
     <RepositoryUrl>https://github.com/zettatrade/zettatrade</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
 
-    <!-- App version: 0.1.0 while in alpha. One alpha release per board task
-         that changes the app; docs-only tasks do not bump the version. Rule:
-         VersionSuffix moves alpha.N -> alpha.N+1 and the release commit
-         (its title follows the "chore: ship T-0NN as 0.1.0-alpha.NN" shape)
-         carries the bump, the matching CHANGELOG.md section and the board
-         flip. The beta flip happens by a board decision and is traced in
-         the docs when it does. The version shows in the exe file
-         properties (Product version), in NuGet metadata and in Help/About
-         (T-153 moved it off the status strip). -->
-    <VersionPrefix>0.1.0</VersionPrefix>
-
-
-    <VersionSuffix>alpha.168</VersionSuffix>
+    <!-- App version: 0.2.0 is the first beta. One release per board task
+         that changes the app; docs-only tasks do not bump the version.
+         Rule: the version line is plain 0.2.x (no prerelease suffix - the
+         beta state is the milestone, not part of the version string); the
+         third number moves 0.2.N -> 0.2.N+1 and the release commit (its
+         title follows the "chore(release): 0.2.N" shape) carries the
+         bump, the matching CHANGELOG.md section and the board flip; a
+         landing conflict keeps the higher number. The version shows in
+         the exe file properties (Product version), in NuGet metadata and
+         in Help/About (T-153 moved it off the status strip). -->
+    <VersionPrefix>0.2.0</VersionPrefix>
 
   </PropertyGroup>
 
@@ -51,7 +49,7 @@
        version fact: bump this single line when a new package release
        lands, never the five consumers. -->
   <PropertyGroup>
-    <LiveryVersion>0.1.13</LiveryVersion>
+    <LiveryVersion>0.1.17</LiveryVersion>
   </PropertyGroup>
 
   <!-- The standard indicator pack ships as a package (T-163): the

@@ -25,6 +25,7 @@ public static class ScreenerDependencyInjection
         .AddSingleton<ScreenerFeedService>(sp =>
             new ScreenerFeedService(
                 sp.GetRequiredService<ActiveExchangeService>(),
+                sp.GetRequiredService<SymbolListProvider>(),
                 sp.GetRequiredService<ILogger<ScreenerFeedService>>()))
         .AddSingleton<ScreenerViewModel>(sp =>
             new ScreenerViewModel(

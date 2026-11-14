@@ -7,6 +7,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -15,6 +16,7 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
 /// The palette's instrument source (T-095): ONE snapshot aggregating ALL
@@ -45,7 +47,8 @@ public sealed class SymbolPaletteSourceTests
             IReadOnlyList<string>? standingSymbols = null,
             IReadOnlyList<IReadOnlyList<Symbol>>? symbolPlan = null,
             TaskCompletionSource? parkFirstFetch = null,
-            bool throwOnFirstFetch = false)
+            bool throwOnFirstFetch = false,
+            bool throwMissingCredentialsEveryFetch = false)
         {
             Id = id;
             Name = name;
@@ -64,6 +67,7 @@ public sealed class SymbolPaletteSourceTests
 
             ParkFirstFetch = parkFirstFetch;
             ThrowOnFirstFetch = throwOnFirstFetch;
+            ThrowMissingCredentialsEveryFetch = throwMissingCredentialsEveryFetch;
         }
 
         public string Id { get; }
@@ -82,10 +86,18 @@ public sealed class SymbolPaletteSourceTests
         /// <summary>The first attempt faults (a one-shot network blip).</summary>
         private bool ThrowOnFirstFetch { get; }
 
+        /// <summary>Every fetch faults with the standing no-credentials error (the T-227 typed absence).</summary>
+        private bool ThrowMissingCredentialsEveryFetch { get; }
+
         public async Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default)
         {
             _fetches++;
             SymbolFetches = _fetches;
+
+            if (ThrowMissingCredentialsEveryFetch)
+            {
+                throw new AdapterCredentialsMissingException(Id, AlpacaAdapter.ApiKeySecretKey);
+            }
 
             if (_fetches == 1 && ThrowOnFirstFetch)
             {
@@ -148,6 +160,7 @@ public sealed class SymbolPaletteSourceTests
 
     private static SymbolPaletteSource BuildSource(ActiveExchangeService service) => new(
         service,
+        new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
         NullLogger<SymbolPaletteSource>.Instance);
 
     /// <summary>
@@ -270,6 +283,35 @@ public sealed class SymbolPaletteSourceTests
         snapshot.Settled.Should().BeTrue();
         snapshot.Instruments.Should().BeEmpty(
             "empty adapters are a settled-empty aggregate, not a loading one");
+    }
+
+    [Fact]
+    public async Task ACredentialsMissingAdapter_ContributesZeroRows_Quietly()
+    {
+        // The standing absence (T-227): the no-key adapter contributes zero
+        // rows without a single warning — the adapter reports the absence
+        // itself once per session, the palette's repeated refreshes ride
+        // the debug level silently.
+        var recording = new RecordingLogger();
+        var service = BuildService(
+            new FakeMarketData("beta", "Beta", throwMissingCredentialsEveryFetch: true),
+            new FakeMarketData("alpha", "Alpha", standingSymbols: ["SOL/USDC"]));
+        var source = new SymbolPaletteSource(
+            service,
+            new SymbolListProvider(service, NullLogger<SymbolListProvider>.Instance),
+            recording);
+
+        await source.RefreshOnceAsync(CancellationToken.None);
+        var snapshot = await CurrentSnapshotAsync(source);
+
+        snapshot.Settled.Should().BeTrue();
+        RowNames(snapshot).Should().Equal("alpha:SOL/USDC");
+        recording.Entries
+            .Where(entry => entry.Level >= LogLevel.Warning)
+            .Should().BeEmpty("a standing absence is not a failure family");
+        recording.Entries.Should().Contain(
+            entry => entry.Level == LogLevel.Debug && entry.Message.Contains("beta"),
+            "the absence rides debug for the test runs");
     }
 
     #endregion Fault containment
@@ -431,4 +473,35 @@ public sealed class SymbolPaletteSourceTests
     }
 
     #endregion The warm-up
+
+    #region The recording logger
+
+    /// <summary>
+    /// A capturing logger: the quiet-absence pin asserts the level family
+    /// (warnings absent, debug present) rather than any exact wording.
+    /// </summary>
+    private sealed class RecordingLogger : ILogger<SymbolPaletteSource>
+    {
+        /// <summary>Every logged entry so far, in arrival order.</summary>
+        public List<(LogLevel Level, string Message)> Entries { get; } = new();
+
+        /// <inheritdoc/>
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        /// <inheritdoc/>
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        /// <inheritdoc/>
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add((logLevel, formatter(state, exception)));
+        }
+    }
+
+    #endregion The recording logger
 }

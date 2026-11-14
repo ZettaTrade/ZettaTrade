@@ -119,6 +119,13 @@ public sealed class AlpacaAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// <summary>ISecretStore key of the Alpaca API secret.</summary>
     public const string ApiSecretSecretKey = "alpaca.api-secret";
 
+    /// <summary>
+    /// The standing no-credentials line's once-per-session gate (T-227):
+    /// 0 = pending, 1 = fired. The absence is a standing fact, not an
+    /// error per call — the repeated refusals ride silently.
+    /// </summary>
+    private int _absenceLogged;
+
     /// <summary>The order book depth the provider serves: top of book only (one level per active side).</summary>
     private const int TopOfBookDepth = 1;
 
@@ -509,9 +516,7 @@ public sealed class AlpacaAdapter : ExchangeAdapterBase, IMarketDataAdapter
         var apiSecret = await _secrets.GetAsync(ApiSecretSecretKey, ct);
         if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(apiSecret))
         {
-            throw new InvalidOperationException(
-                $"Alpaca market-data credentials are not available in the secret store (keys '{ApiKeySecretKey}' and '{ApiSecretSecretKey}'); " +
-                "save the pair through the secret store — keys are never passed as command-line arguments");
+            throw RefuseAbsentCredentials([ApiKeySecretKey, ApiSecretSecretKey]);
         }
 
         // The ack signal exists BEFORE the frame is sent: the handler must
@@ -611,13 +616,26 @@ public sealed class AlpacaAdapter : ExchangeAdapterBase, IMarketDataAdapter
         }
     }
 
+    /// <summary>
+    /// The last logged connection state: a connection-state line is a TRANSITION (T-233) —
+    /// the WS client's subject seeds the pre-dial <c>false</c> at subscription, and logging
+    /// that sync would print this adapter's real endpoint into a session that never dialed
+    /// (the T-141 isolation census's property). The false-after-false repeats stay silent
+    /// too: the transport's own per-attempt warnings already carry them.
+    /// </summary>
+    private bool _lastLoggedConnectionState;
+
     private void HandleConnectionStateChanged(bool isConnected)
     {
         IsConnected = _wsClient.IsConnected;
-        Logger.LogInformation(
-            "Alpaca market-data stream connection state: {State} at {Url}",
-            isConnected ? "Connected" : "Disconnected",
-            _wsUrl);
+        if (isConnected != _lastLoggedConnectionState)
+        {
+            _lastLoggedConnectionState = isConnected;
+            Logger.LogInformation(
+                "Alpaca market-data stream connection state: {State} at {Url}",
+                isConnected ? "Connected" : "Disconnected",
+                _wsUrl);
+        }
 
         if (!isConnected)
         {
@@ -993,9 +1011,7 @@ public sealed class AlpacaAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         var key = await _secrets.GetAsync(ApiKeySecretKey, ct);
         return string.IsNullOrWhiteSpace(key)
-            ? throw new InvalidOperationException(
-                $"Alpaca market-data credentials are not available in the secret store (key '{ApiKeySecretKey}'); " +
-                "save the pair through the secret store — keys are never passed as command-line arguments")
+            ? throw RefuseAbsentCredentials([ApiKeySecretKey])
             : key;
     }
 
@@ -1003,10 +1019,26 @@ public sealed class AlpacaAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         var secret = await _secrets.GetAsync(ApiSecretSecretKey, ct);
         return string.IsNullOrWhiteSpace(secret)
-            ? throw new InvalidOperationException(
-                $"Alpaca market-data credentials are not available in the secret store (key '{ApiSecretSecretKey}'); " +
-                "save the pair through the secret store — keys are never passed as command-line arguments")
+            ? throw RefuseAbsentCredentials([ApiKeySecretKey, ApiSecretSecretKey])
             : secret;
+    }
+
+    /// <summary>
+    /// Refuse one authorized surface with the standing absence error
+    /// (T-227): the typed exception lets the consumers tell the standing
+    /// absence from a real failure, and the session's first absence fires
+    /// the one quiet information line — the repeated refusals never log.
+    /// </summary>
+    /// <param name="missedKeys">The ISecretStore keys the store missed.</param>
+    private AdapterCredentialsMissingException RefuseAbsentCredentials(IReadOnlyList<string> missedKeys)
+    {
+        if (Interlocked.Exchange(ref _absenceLogged, 1) == 0)
+        {
+            Logger.LogInformation(
+                "Alpaca runs without market-data credentials; the data surface stays unavailable until the pair is saved through the settings' exchange-credentials section");
+        }
+
+        return new AdapterCredentialsMissingException(Id, [.. missedKeys]);
     }
 
     /// <summary>The bars request's timestamp text: RFC-3339 in UTC (the v2 API's own form).</summary>

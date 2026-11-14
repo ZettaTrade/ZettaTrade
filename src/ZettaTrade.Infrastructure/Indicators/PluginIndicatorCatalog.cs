@@ -10,9 +10,12 @@ using ZettaTrade.Plugins.Abstractions;
 /// <summary>
 /// The plugin loader of the indicator seam (T-034): every <c>*.dll</c> in
 /// the plugins directory is scanned once for <see cref="IIndicator"/>
-/// implementations. A malformed or non-plugin assembly is skipped with a
-/// logged warning and the chart keeps working - the loader never throws.
-/// The scan runs at startup only: the plugin set is fixed for the session.
+/// implementations. A malformed or non-plugin assembly is skipped and the
+/// chart keeps working — the not-an-assembly drop rides the debug level
+/// (T-229: a stray file in the plugins folder is the scan's routine cargo,
+/// never a failure family), a real inspection failure stays a warning; the
+/// loader never throws. The scan runs at startup only: the plugin set is
+/// fixed for the session.
 /// </summary>
 /// <remarks>
 /// The documented ctor convention decides how an implementation is built
@@ -134,8 +137,21 @@ public sealed class PluginIndicatorCatalog : IIndicatorCatalog
         {
             assembly = Assembly.LoadFrom(filePath);
         }
+        catch (BadImageFormatException ex)
+        {
+            // The honest drop (T-229): a file that is not a loadable
+            // assembly at all — a stray dll, a native helper, a corrupted
+            // download — rides the debug level. The plugins folder may
+            // carry non-plugin files by design; the scan's job is the
+            // folder's real packs, and the summary line's missing name is
+            // the only production trace of a dropped file.
+            _logger.LogDebug(ex, "Plugin assembly {Path} is not a loadable assembly and is skipped", filePath);
+            return;
+        }
         catch (Exception ex)
         {
+            // A file the OS could not hand over (locked, inaccessible) is a
+            // real environment failure and stays loud.
             _logger.LogWarning(ex, "Plugin assembly {Path} failed to load and is skipped", filePath);
             return;
         }

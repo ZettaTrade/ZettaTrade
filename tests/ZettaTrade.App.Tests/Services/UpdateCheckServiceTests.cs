@@ -23,7 +23,8 @@ using ZettaTrade.Core.Interfaces;
 /// the announcement, and the degraded states (a failing endpoint, a
 /// malformed payload, the off switch) stay exactly as honest as the
 /// acceptance names: nothing emits, nothing requests, the standing
-/// verdict never flaps.
+/// verdict never flaps. The feed's no-release 404 is the opposite
+/// shape: the honest no-update verdict, a completed check (T-230).
 /// </summary>
 /// <remarks>
 /// Every fact drives the checker deterministically: both lanes subscribe
@@ -148,6 +149,36 @@ public sealed class UpdateCheckServiceTests
 
         verdicts.Should().HaveCount(2, "the failed check emits NOTHING — the standing verdict stays, the chip never flaps");
         harness.Handler.Requests.Should().Be(2, "the failed check still made its request (the network was reached)");
+    }
+
+    /// <summary>
+    /// The feed's no-release 404 is the honest no-update state (T-230):
+    /// the check completes with the empty verdict — not a degraded
+    /// check, no warning family, nothing announced.
+    /// </summary>
+    [Fact]
+    public async Task TheNoRelease404_CompletesAsTheHonestEmptyVerdict()
+    {
+        var harness = await CreateHarnessAsync(
+            currentVersion: "0.1.0-alpha.158",
+            payloadJson: ReleasesJson(Release("v0.1.0-alpha.159")));
+        harness.Handler.StatusCode = HttpStatusCode.NotFound;
+
+        var verdicts = new List<UpdateRelease?>();
+        using var subscription = harness.Service.Results.Subscribe(verdicts.Add);
+        var events = new List<Notification>();
+        using var eventsSubscription = harness.Center.Events.Subscribe(events.Add);
+
+        await harness.Service.InitializeAsync();
+        await harness.Service.FirstCheckForTests!;
+        await harness.Service.CheckNowAsync();
+
+        verdicts.Should().HaveCount(3, "the replay + the two COMPLETED checks — the 404 never degrades them");
+        verdicts[1].Should().BeNull("the no-release feed is the honest empty verdict, not a failed check");
+        verdicts[2].Should().BeNull("the repeat check answers the same honest empty verdict");
+        harness.Service.Latest.Should().BeNull();
+        events.Should().BeEmpty("nothing published, nothing announced");
+        harness.Handler.Requests.Should().Be(2, "the 404 check still asked the feed (and will again — an honest ask)");
     }
 
     /// <summary>A malformed payload degrades the same way: a warning, no emission.</summary>

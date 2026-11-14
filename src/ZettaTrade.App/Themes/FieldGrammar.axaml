@@ -1,0 +1,20 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+    The shared field-cell grammar (T-235): the caption-over-field cell —
+    the StackPanel that hosts an editor's labeled control — rides one
+    class so the caption never sits on its field: the spacing between
+    them is the small step (SpaceS) and the caption carries the caption
+    size. The windows include this dictionary once (StyleInclude); the
+    field widths stay the window's own (the content decides what fits),
+    this grammar only owns the cell's shape.
+    -->
+
+    <Style Selector="StackPanel.field-cell">
+        <Setter Property="Spacing" Value="{StaticResource SpaceS}" />
+    </Style>
+    <Style Selector="StackPanel.field-cell > TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+    </Style>
+</Styles>

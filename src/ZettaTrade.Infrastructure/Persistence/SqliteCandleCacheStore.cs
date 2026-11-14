@@ -2,6 +2,7 @@ namespace ZettaTrade.Infrastructure.Persistence;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
@@ -54,6 +55,15 @@ public sealed class SqliteCandleCacheStore(
 
     /// <summary>Growth cap of one <see cref="GetLatestAsync"/> answer.</summary>
     private const int MaxLatestBatch = 1_000;
+
+    /// <summary>The query-plan warm-up's benign adapter id (T-237): a real
+    /// but never-stored id — the read answers zero rows, the compiled plan
+    /// is the exact one the chart's first load reuses.</summary>
+    public const string WarmupAdapterId = "warmup";
+
+    /// <summary>The warm-up's benign symbol: a known quote asset so
+    /// <see cref="Symbol.Parse"/> accepts it; never stored either.</summary>
+    public const string WarmupSymbol = "WARM/USDT";
 
     /// <summary>
     /// The model converters, compiled once, for the raw upsert statements
@@ -120,6 +130,40 @@ public sealed class SqliteCandleCacheStore(
 
         await dbContext.Database.MigrateAsync(ct);
         await LoadPolicyAsync(ct);
+
+        // T-237: the first query on this context compiles the EF query
+        // plan — Debug-lane hundreds of milliseconds the chart's first
+        // load otherwise pays inside its constructor, right before the
+        // window shows. Pay it here, inside the store batch's concurrent
+        // window, with the store's own read shape: a benign adapter id
+        // reads zero rows and warms the exact plan the chart reuses. A
+        // degraded warm-up only delays nothing — the chart's own first
+        // call then compiles the plan exactly as before.
+        if (_enabled)
+        {
+            var warmup = Stopwatch.StartNew();
+            try
+            {
+                _ = await GetLatestAsync(
+                    WarmupAdapterId,
+                    Symbol.Parse(WarmupSymbol),
+                    TimeFrame.H1,
+                    1,
+                    ct);
+                logger.LogDebug(
+                    "Candle cache: the first-query plan warmed in {WarmupMs:F0} ms",
+                    warmup.Elapsed.TotalMilliseconds);
+            }
+            catch (OperationCanceledException)
+            {
+                // The walk's cancellation: the chart's own first call
+                // warms the plan as before.
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Candle cache: the query-plan warm-up degraded");
+            }
+        }
 
         // Settings changes re-read the section: each change becomes one
         // read+swap in the reactive pipeline, strictly serialized by the

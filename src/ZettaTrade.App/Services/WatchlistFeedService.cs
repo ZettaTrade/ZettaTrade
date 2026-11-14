@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.UI.Extensions;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
@@ -24,7 +25,10 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// per-row price ring for the sparkline, and ONE coalesced snapshot stream
 /// at the panel cadence — a wire quote storm can never storm the panel,
 /// because the pulses ship the whole row set while the wire ticks stay
-/// inside the service.
+/// inside the service. A stream failure re-arms its row on a bounded
+/// backoff ladder (T-231): a venue socket force-cycle may kill the
+/// adapter's stream start, and the row revives on its own without a UI
+/// nudge.
 /// <para>
 /// The row set is the user's watchlist catalog's ACTIVE list (T-196): the
 /// rows ride the list's stored order, a list edit re-arms the set in place
@@ -57,6 +61,22 @@ public sealed class WatchlistFeedService : IAsyncInitializable
 
     /// <summary>The panel cadence: full snapshots at this rate only.</summary>
     private static readonly TimeSpan PulseInterval = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// The row pump's retry ladder (T-231): the first re-arm waits two
+    /// seconds and doubles to a thirty-second cap — the venue's socket
+    /// force-cycle revives on the adapters' own reconnect schedule, and the
+    /// row's ladder just has to outlast it. Jitter stays off: the re-arm is
+    /// in-process bookkeeping (no wire dial), the anti-herd jitter is the
+    /// adapters' concern.
+    /// </summary>
+    public static readonly ReconnectPolicy TickerRetryPolicy = new()
+    {
+        InitialDelay = TimeSpan.FromSeconds(2),
+        MaxDelay = TimeSpan.FromSeconds(30),
+        BackoffMultiplier = 2.0,
+        JitterFraction = 0.0,
+    };
 
     #endregion Constants
 
@@ -102,6 +122,9 @@ public sealed class WatchlistFeedService : IAsyncInitializable
     /// <summary>The pulse source: the default Rx interval clock or the test seam.</summary>
     private readonly IObservable<long> _pulse;
 
+    /// <summary>The retry ladder the row pumps re-arm on (the ctor seam for the deterministic facts).</summary>
+    private readonly ReconnectPolicy _tickerRetryPolicy;
+
     /// <summary>The facade every row's ticker pump rides.</summary>
     private readonly IMarketDataAdapter _marketData;
 
@@ -134,19 +157,23 @@ public sealed class WatchlistFeedService : IAsyncInitializable
     /// workspace selection pins its overlay row, and the coalesced
     /// snapshot stream composes over the pulse. The per-row subscriptions
     /// ride the active-exchange facade, so an exchange switch re-arms them
-    /// without touching the row set.
+    /// without touching the row set. The optional retry-ladder seam
+    /// injects a controllable backoff for the deterministic facts (the
+    /// default is the shipped ladder).
     /// </summary>
     public WatchlistFeedService(
         IMarketDataAdapter marketData,
         IObservable<Symbol> workspaceSelections,
         WatchlistCatalogService catalog,
         ILogger<WatchlistFeedService> logger,
-        IObservable<long>? pulse = null)
+        IObservable<long>? pulse = null,
+        ReconnectPolicy? tickerRetryPolicy = null)
     {
         _marketData = marketData ?? throw new ArgumentNullException(nameof(marketData));
         catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _pulse = pulse ?? Observable.Interval(PulseInterval);
+        _tickerRetryPolicy = tickerRetryPolicy ?? TickerRetryPolicy;
 
         Quotes = _dataTick
             .StartWith(RxVoid.Default)
@@ -364,45 +391,19 @@ public sealed class WatchlistFeedService : IAsyncInitializable
     /// (the handler owns the growth — Rx serializes each stream's
     /// notifications, so the list never sees concurrent writes) and flips
     /// the row's immutable tick snapshot with one atomic write. A stream
-    /// failure leaves the row on its last served data (the honest value it
-    /// already had), logged — and the facade's switch re-arms it anyway.
+    /// failure logs ONCE at warning (the row keeps its last served data —
+    /// the honest value it already had) and the pump re-arms itself on a
+    /// bounded backoff ladder (T-231): a venue socket force-cycle kills the
+    /// adapter's stream start, and the re-run start revives the row without
+    /// a UI nudge. A synchronous no-ticker refusal (a symbol the adapter
+    /// cannot price) stays a one-line log and never enters the ladder — a
+    /// permanent refusal must not spin.
     /// </summary>
     private IDisposable SubscribeRow(RowState row)
     {
-        var ring = new List<decimal>(SparklineCapacity);
-
-        try
-        {
-            return _marketData.SubscribeTicker(row.Symbol).Subscribe(
-                ticker =>
-                {
-                    ring.Add(ticker.LastPrice);
-                    if (ring.Count > SparklineCapacity)
-                    {
-                        ring.RemoveAt(0);
-                    }
-
-                    row.Apply(new WatchlistTick(
-                        ticker.LastPrice,
-                        ticker.PriceChange24hPercent,
-                        ticker.Volume24h,
-                        ring.ToArray(),
-                        ticker.FundingRate));
-                    _dataTick.OnNext(RxVoid.Default);
-                },
-                error => _logger.LogWarning(
-                    error,
-                    "Watchlist: ticker stream for {Symbol} failed; the row keeps its last served data",
-                    row.SymbolText));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Watchlist: no ticker available for {Symbol}; the row stays unpriced",
-                row.SymbolText);
-            return Disposable.Empty;
-        }
+        var pump = new TickerPump(this, row);
+        pump.Start();
+        return pump;
     }
 
     /// <summary>
@@ -435,6 +436,138 @@ public sealed class WatchlistFeedService : IAsyncInitializable
     #endregion Private Methods
 
     #region Row State
+
+    /// <summary>
+    /// One row's ticker pump with its own retry ladder (T-231): the first
+    /// stream failure logs once at warning and schedules the re-arm, a
+    /// revived stream resets the ladder, and a death during disposal never
+    /// resurrects (a pending re-arm checks the lifetime token on wake — a
+    /// retired row must not leave a re-started adapter stream behind). The
+    /// sparkline ring survives the retries: the row keeps its price
+    /// history across a socket force-cycle.
+    /// </summary>
+    private sealed class TickerPump(WatchlistFeedService owner, RowState row) : IDisposable
+    {
+        private readonly List<decimal> _ring = new(SparklineCapacity);
+        private readonly CancellationTokenSource _lifetime = new();
+        private readonly ReconnectPolicy _retryPolicy = owner._tickerRetryPolicy;
+        private int _consecutiveFailures;
+        private IDisposable? _current;
+
+        /// <summary>The parked re-arm task (at most one at a time; cancelled with the pump).</summary>
+        private Task? _retryTask;
+
+        public void Start() => _current = Subscribe();
+
+        public void Dispose()
+        {
+            _lifetime.Cancel();
+            Interlocked.Exchange(ref _current, null)?.Dispose();
+            _lifetime.Dispose();
+        }
+
+        private IDisposable Subscribe()
+        {
+            try
+            {
+                return owner._marketData.SubscribeTicker(row.Symbol).Subscribe(
+                    HandleTick,
+                    HandleError);
+            }
+            catch (Exception ex)
+            {
+                owner._logger.LogWarning(
+                    ex,
+                    "Watchlist: no ticker available for {Symbol}; the row stays unpriced",
+                    row.SymbolText);
+                return Disposable.Empty;
+            }
+        }
+
+        private void HandleTick(Ticker ticker)
+        {
+            Volatile.Write(ref _consecutiveFailures, 0);
+            _ring.Add(ticker.LastPrice);
+            if (_ring.Count > SparklineCapacity)
+            {
+                _ring.RemoveAt(0);
+            }
+
+            row.Apply(new WatchlistTick(
+                ticker.LastPrice,
+                ticker.PriceChange24hPercent,
+                ticker.Volume24h,
+                _ring.ToArray(),
+                ticker.FundingRate));
+            owner._dataTick.OnNext(RxVoid.Default);
+        }
+
+        private void HandleError(Exception error)
+        {
+            if (_lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var attempt = Interlocked.Increment(ref _consecutiveFailures);
+            if (attempt == 1)
+            {
+                // The stream died: ONE honest warning per death. The retry
+                // ladder's own churn stays debug-level — the socket's
+                // revival is the adapters' reconnect job, the ladder just
+                // has to outlast it.
+                owner._logger.LogWarning(
+                    error,
+                    "Watchlist: ticker stream for {Symbol} failed; the row keeps its last served data and re-arms on the backoff ladder",
+                    row.SymbolText);
+            }
+            else
+            {
+                owner._logger.LogDebug(
+                    error,
+                    "Watchlist: ticker stream for {Symbol} failed again (attempt {Attempt}); the ladder backs off",
+                    row.SymbolText,
+                    attempt);
+            }
+
+            Interlocked.Exchange(ref _current, null)?.Dispose();
+            Volatile.Write(ref _retryTask, RetryAfterAsync(_retryPolicy.ComputeDelay(attempt, jitterSample: 0.5)));
+        }
+
+        private async Task RetryAfterAsync(TimeSpan delay)
+        {
+            try
+            {
+                await Task.Delay(delay, _lifetime.Token).ConfigureAwait(false);
+                var fresh = Subscribe();
+                if (_lifetime.IsCancellationRequested)
+                {
+                    // The pump died while the retry waited: the row is
+                    // retired, stay dead — and do not leave a freshly
+                    // started adapter stream running with no owner.
+                    fresh.Dispose();
+                    return;
+                }
+
+                Interlocked.Exchange(ref _current, fresh);
+            }
+            catch (OperationCanceledException)
+            {
+                // The pump died while the retry waited: the row is retired,
+                // stay dead.
+            }
+            catch (Exception fault)
+            {
+                // An unforeseen re-arm fault leaves the row on its stale
+                // data and the log line is its only trace: never an
+                // unobserved task exception, never a throw into the wire.
+                owner._logger.LogWarning(
+                    fault,
+                    "Watchlist: the ticker re-arm for {Symbol} failed; the row stays on its last served data",
+                    row.SymbolText);
+            }
+        }
+    }
 
     /// <summary>
     /// One panel row's self-coherent state: the ticker handler swaps one

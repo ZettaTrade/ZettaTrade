@@ -57,6 +57,7 @@ public sealed class HeatmapViewModelTests
             // the facts drive ApplySnapshot directly - no clock, no races.
             Feed = new HeatmapFeedService(
                 Exchange,
+                new SymbolListProvider(Exchange, NullLogger<SymbolListProvider>.Instance),
                 NullLogger<HeatmapFeedService>.Instance,
                 Observable.Never<long>());
             Chart = CreateChart(Exchange, settings);

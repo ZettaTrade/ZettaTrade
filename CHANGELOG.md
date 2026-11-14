@@ -1,3 +1,300 @@
+## [0.2.0] - 2026-11-15
+
+The first beta release (board task T-238). The version line moves to plain `0.2.x` — no
+prerelease suffix: the beta state is the milestone, not part of the version string.
+Versioning order: one release per board task that changes the app, the third number
+increments (`0.2.0` → `0.2.1` → …), docs-only tasks do not bump, and a landing conflict
+keeps the higher number.
+
+Everything the `0.1.0-alpha` line shipped rides in (the sections below carry the per-task
+detail), headlined by the beta-prep wave's verified readiness — the isolation census, both
+memory budgets, the E2E family and the release dry run pass on the consolidated tip
+(`docs/BETA-READINESS.md`), and the cold-start budget re-defined 3000 → 5000 ms by a
+recorded decision (T-237). Integrity stays by hash, not by signature — the sums file ships
+with every release; the signing/notarization flip is a follow-up gated on the user-side
+certificate provisioning (`docs/SECURITY.md`).
+
+## [0.1.0-alpha.177] - 2026-11-14
+
+Build of board task T-237 (branch `feat/startup-optimization`, rebased onto
+develop@7fc205d): the cold start's persistence walk stops paying the EF
+model builds — they race the UI bootstrap off the walk — and the chart's
+two stores warm their first-query query plans inside the store batch's
+concurrent window, so the chart's first load never compiles a plan right
+in front of the window.
+
+### Added
+- The startup model pre-warm (`PersistenceModelPrewarm`): one kick per
+  process starts all six SQLite contexts' model builds on worker threads
+  in `RunDesktopLifetime`, before `BuildAvaloniaApp` — throwaway
+  in-memory options (no connection, no file, no data), a CAS-latched
+  start, and a settled outcome (`Warmed/Failed/WallMs`) that never
+  faults. The composition logs one Debug receipt when the builds settle
+  (the T-231 fire-and-forget canon: the receipt task rides a field). A
+  degraded build delays nothing: the walk's own first touch builds the
+  model exactly as before, so correctness never depends on the helper.
+
+### Changed
+- The candle cache's and the chart drawings' `InitializeAsync` pay the
+  first-query plan warm-up right after their one-time migration, with
+  each store's own read shape over a benign never-stored series (the
+  read answers zero rows), inside the T-226 store batch's concurrent
+  window — the plan compile (Debug-lane hundreds of milliseconds) leaves
+  the chart constructor's critical path. The warm-ups stay silent above
+  Debug (the T-229 log floor) and degrade harmlessly.
+
+## [0.1.0-alpha.176] - 2026-11-14
+
+Build of board task T-235 (branch `feat/windows-unify`, stacked on the
+unlanded T-234): the controls answer the pointer — the kit's icon buttons
+speak a visible hover/pressed tint, the pairs transfer arrows read as
+buttons at rest, the alerts editor's captions clear their fields, and the
+screener rows ride the header's column plan.
+
+### Changed
+- The icon buttons answer the pointer (the Livery 0.1.14 bump): the hover
+  paints the button family's soft tint step (ButtonHoverTint) and the
+  press the stronger step (ButtonPressedTint) on the template's
+  presenter — the old opacity nudge (0.85 → 1.0) never read as feedback,
+  so every borderless icon action (the pairs transfers, the chart's
+  drawing tools, the toolbar glyphs) read as static marks. Keyboard
+  focus draws the family's ring on the presenter. The armed `.on`
+  contrast stands on the kept rest dimming.
+- The pairs transfer arrows ride the kit's framed chip (the review
+  rounds' chosen mockup): the free-standing action between the settings'
+  pair lists reads as a button at rest through the plate fill under the
+  family's hairline — the plate lifts the Surface 7% toward its own pole
+  (midnight #262b31, 1.21:1 over the card), because the wells' 3% step
+  sat 1.08:1 over the section card's own Surface plane and read as
+  nothing (the mockup promised the 1.18 plate read). The hover answers
+  with the Highlight stroke and keeps the fill, the press dims the chip,
+  the chevron strokes step to the bold 2px weight, and the glyph
+  geometry starts at the origin with the control centered — the
+  Stretch="None" data-coordinate ink painted at its corner (the review's
+  own screenshot). The gate-disabled chip (no pick yet — the transfer
+  commands act on a picked pair) reads asleep at Opacity 0.55: a
+  disabled control never arms the pointer, and the kit had no disabled
+  read at all, so a full-bright chip sat there answering nothing (the
+  broken-hover read the second review caught).
+- The alerts editor's cells ride one shared field-cell grammar (the new
+  FieldGrammar dictionary): the captions clear their fields at the small
+  step and lose their per-cell FontSize copies. The editor's combos ride
+  content widths (MinWidth over Width) — a combo's chrome eats ~45px of
+  a fixed width, so "Falls below" and the ru trigger labels clipped at
+  every culture.
+- The screener rows ride the header's column plan: Avalonia 12's fluent
+  ControlTheme defaults every button to Left (the T-195 era stretched
+  only the row's content — the headless probe measured every row at its
+  own width under the shared header plan), so the whole-row press target
+  and the header's sort buttons take the stretch explicitly and trade
+  the fluent chrome for the row grammar's look: the bottom hairline
+  separator, square corners, the opacity-dim press without the scale
+  squish. The review round unboxes the sort captions — the kit's rest
+  hairline framed every header caption and the right-aligned text sat
+  flush against its border; the captions read as captions over the
+  header hairline (the Funding caption's own look), the focus ring
+  re-arms through :focus.
+
+### Tests
+- The `FieldGrammarPinsTests` hold the shared cell class and the content
+  widths at the source of truth: the include, the 14 cells, the caption
+  copies gone, the no-fixed-width-combo fact, the transfer pair's
+  framed composition.
+- The `HeadlessScreenerRowTests` measure the stretch on the real window
+  materialized without a view model: the rows equal the header plan,
+  the chrome is the row hairline, the sort captions align over the data
+  columns. The T-234 toolbar pins ride their own strip (the toolbar's
+  T-212 widths and the editor's content floors are two lanes).
+- The `HeadlessTransferChipTests` materialize the settings window over a
+  REAL ViewModel (the main window's open path — the bare window's failed
+  command bindings turned the chips effectively disabled and masked
+  every pointer fact) and measure the review round's four facts: the
+  chevron ink sits at the chip's center, the rest fill clears the
+  approved mockup's 1.18 plate contrast over the plane the chip really
+  sits on (the section card's Surface), the enabled chip's pointer
+  answers with the Highlight stroke while the fill holds, and the
+  gate-disabled chip reads asleep and never arms the hover.
+- The Livery battery carries the icon-affordance, framed-chip and plate
+  pins — the satellite's facts ride each kit release.
+
+## [0.1.0-alpha.175] - 2026-11-14
+
+Build of board task T-234 (branch `feat/windows-unify`): the window family
+rides the settings' variant-A grammar — the dialog family resizes, the
+confirm strips unify on the footer's shape, the ticket and the wizard
+card their field groups, the toolbar widths normalize.
+
+### Changed
+- The dialog family resizes: every window that shipped the fixed frame
+  (`CanResize="False"` — amend, confirm, crash, disclaimer, first-run
+  wizard, kill-switch report, license activation, the ticket, paper
+  reset, protective levels, the annotation prompt, the trade note) now
+  declares the resizable frame; the pinned strips stay pinned while the
+  user widens a cramped field.
+- The paired confirm strips speak the settings footer's shape: one
+  right-aligned row riding its own spacing (the pre-strip gap margins
+  are gone), the quiet button first, the ONE primary last, both riding
+  the 90 strip (the UniformGrid pairs and the scattered
+  100/120/140 widths retire). The confirmation gate keeps its
+  equal-weight buttons on purpose — the T-183 discipline (a safety gate
+  never steers) pins it primary-free while the strip still unifies.
+- The carded surfaces join the section grammar: the wizard's three steps
+  wrap in the section-card voice (the tick-and-caption header replaces
+  the Bold+Title captions, the resx headers ship the tracked uppercase
+  in both cultures, the nav row is one strip — the quiet walks at the
+  left edge, the advance and the ONE primary finish at the right), and
+  the ticket's quick-size block wraps in the same card (the preset chips
+  ride a real spacing row, the refresh/apply commands ride the 90).
+- The annotation prompt joins the styled chrome: the bare
+  `WindowDecorations="Full"` shape retires for the `chrome-compact`
+  every dialog speaks, its dead `accent` button class becomes the
+  `primary`, its margin hacks ride the parent spacing.
+- The command toolbars normalize on the T-212 widths: the alerts
+  toolbar's commands ride the 110 command width (the create carries the
+  row's ONE primary), the close the 90 quiet width, the row's own column
+  spacing clears the gaps; the fresh backtest reference stays pinned.
+
+### Tests
+- The `DialogGrammarPinsTests` hold the grammar at the source of truth:
+  the fixed-frame era ends app-wide, the paired strips measure
+  quiet-first/primary-last at the 90 strip with the gate's honest
+  equal-weight exception, the strip-gap margin hacks stay gone, the
+  carded surfaces speak the section voice with the uppercase header
+  captions in both cultures, the annotation prompt rides the compact
+  chrome, the wizard's nav reads one strip, the toolbars ride the
+  T-212 widths.
+- The `HeadlessDialogGrammarTests` materialize the dialog family without
+  a view model and MEASURE the grammar on the real layout: every window
+  answers `CanResize == true`, the paired strips measure the 90 buttons,
+  the quiet-before-primary order and the row inside the client area, and
+  the annotation prompt carries the compact chrome class.
+
+## [0.1.0-alpha.174] - 2026-11-14
+
+Build of board task T-233 (branch `fix/adapter-state-log-leak`): a
+connection-state log line is a real lifecycle transition, never the
+transport's seeded pre-dial state.
+
+### Fixed
+- The four market adapters (Binance, Bybit, OKX, Alpaca) stop logging the
+  WebSocket client's seeded pre-dial `Disconnected` snapshot at
+  construction: the subject's initial `false` is a state sync, not a
+  transition, and the line carried the adapter's real endpoint
+  (`wss://stream.bybit.com/...`) into a session that never dialed — the
+  T-141 soak isolation census caught it in a demo-only run (the T-232
+  finale finding). Real lifecycle changes (a dial's connect, a drop, a
+  teardown) keep their lines verbatim; the false-after-false repeats stay
+  silent — the transport's per-attempt warnings already carry them.
+- The soak isolation census's real-exchange host list covers every shipped
+  venue: bybit.com, binance.com, alpaca.markets, okx.com.
+
+## [0.1.0-alpha.173] - 2026-11-14
+
+Build of board task T-228 (branch `feat/instruments-fetch-dedupe`): the
+exchange instrument catalogs pay the venue once per session.
+
+### Added
+- The symbol list provider is a per-exchange session cache: the startup
+  warm-up fetches every registered exchange's catalog exactly once (a
+  failed fetch stays uncached and the next ask retries; concurrent asks
+  for one exchange share the in-flight fetch through the entry's
+  semaphore), and a new `GetAdapterSymbolsAsync` seam serves the symbol
+  palette's warm-up and the heatmap/screener universes from the same
+  single path — the venue's instruments endpoint is hit exactly once per
+  exchange per session instead of once per consumer.
+
+### Changed
+- The symbol palette's, the heatmap's and the screener's adapter-change
+  refreshes keep their fresh per-adapter asks on purpose: a
+  re-composition must reflect the roster's live state, not a list cached
+  before the change. The provider's old epoch/flush mechanics are gone —
+  caching under the fetch's own adapter id makes the exchange-switch race
+  moot, and a late fetch caches under its own exchange id where it
+  belongs.
+
+## [0.1.0-alpha.172] - 2026-11-14
+
+Build of board task T-231 (branch `feat/watchlist-ticker-retry`): the
+watchlist ticker stream retries its failures, and the Binance quote-asset
+drop de-noises.
+
+### Added
+- The watchlist's per-row ticker pump re-arms itself on a bounded backoff
+  ladder (two seconds doubling to a thirty-second cap, off the adapters'
+  `ReconnectPolicy`): a venue socket force-cycle no longer leaves rows
+  stale forever — the row revives and re-prices on its own, keeping its
+  sparkline history across the outage. A stream death logs ONE warning;
+  the ladder's own churn rides the debug level; a revived stream resets
+  the attempts; a synchronous no-ticker refusal stays a one-line log and
+  never spins; a retired row's pending retry dies with the row.
+
+### Changed
+- The Binance instruments parse logs its unrecognized quote-asset drop at
+  the debug level: the venue's full spot list always carries the same
+  standing set of non-tracked quotes (a stable per-launch fact, not a
+  failure family). The symbol summary stays the catalog's only production
+  trace of the drop.
+
+## [0.1.0-alpha.171] - 2026-11-14
+
+Build of board task T-230 (branch `fix/update-checker-404`): the update
+checker reads the private feed's no-release 404 as the honest no-update
+state.
+
+### Changed
+- The update checker maps the releases feed's no-release 404 onto the
+  honest empty verdict (the quiet no-update state) instead of the
+  per-launch "the update check failed" warning — a repository without
+  published releases answers every check with a 404, and that answer is
+  the no-update truth, not an error. Real failures keep their warning
+  lane (rate limits, server faults, network), and a genuinely published
+  update still surfaces exactly as before.
+
+## [0.1.0-alpha.170] - 2026-11-14
+
+Build of board task T-229 (branch `fix/not-a-plugin-log-noise`): the
+plugin scanners stop warning about files that are not assemblies.
+
+### Changed
+- A file that is not a loadable .NET assembly (a stray dll, a native
+  helper, a corrupted download) drops on the DEBUG level in all three
+  plugin scanners — the indicator catalog, the strategy catalog and the
+  SDK host. The plugins folder may carry non-plugin files by design; the
+  per-launch warning noise is gone, and the summary line's missing name
+  stays the only production trace of a dropped file. A file the OS could
+  not hand over (locked, inaccessible) keeps its warning, as do the
+  types-fail-to-load and could-not-be-inspected families: the real
+  diagnostics stay loud.
+
+## [0.1.0-alpha.169] - 2026-11-14
+
+Build of board task T-227 (branch `feat/exchange-auth-settings`): the
+exchange API-key authorization rides the settings window, the adapters
+read the pairs at start and the Alpaca no-key noise goes quiet.
+
+### Added
+- The settings window's Integrations tab grows the exchange-credentials
+  section (collapsed by default): a per-venue row per key pair — Alpaca,
+  Bybit Testnet, Binance Testnet (the adapters' own store-key spellings).
+  The Save commits BOTH keys to the secret store atomically (a half-typed
+  pair never reaches the store — the adapters refuse any missing half
+  exactly like a full absence), Clear removes the pair, the boxes re-seed
+  empty on every window open (the secret never echoes), and the status
+  chip answers from the store's presence only. The secret store is the
+  pair's only home — never the settings file, the logs or the export.
+- The adapters' missing-credential refusal is now the typed
+  `AdapterCredentialsMissingException` (Alpaca), so the consumers can tell
+  the standing absence from a real failure.
+
+### Changed
+- The Alpaca adapter reports the no-key state ONE information line per
+  session (a standing fact, not a per-call failure family); the repeated
+  authorized-surface refusals ride silently. The palette's repeated
+  refreshes take the absence at the debug level — the shipped log keeps
+  the zero-row contribution quiet. The Bybit/Binance testnet trading
+  adapters keep their existing refusal shape (the user's bybit face is
+  not in the noise family).
+
 ## [0.1.0-alpha.168] - 2026-11-14
 
 Build of board task T-226 (branch `feat/startup-latency`): the cold start
@@ -386,21 +683,21 @@ from the trade statistics and order history windows.
 ## [0.1.0-alpha.155] - 2026-11-13
 
 Build of board task T-217 (branch `feat/perf-fixes`): two performance fixes
-from the 2026-11-13 code+performance review round тАФ the streamed chat reply
+from the 2026-11-13 code+performance review round — the streamed chat reply
 stops re-rendering per token, and the trade-statistics scan stops
 re-copying its equity curve per page.
 
 ### Fixed
 - The streamed chat reply (the T-205 semantics kept): the arrived deltas
   still append in full, but the bubble's re-render throttles to a bounded
-  cadence with a settlement flush тАФ a fast token stream no longer rebuilds
+  cadence with a settlement flush — a fast token stream no longer rebuilds
   the bound text and re-measures the non-virtualized transcript per token,
   which stuttered the panel on long answers. The first delta still renders
   immediately, an immediately-failing stream still renders no bubble, and
   the persisted turn carries everything that arrived.
 - The trade-statistics scan: the accumulator's snapshot publishes a pinned
-  append-only view of the equity curve instead of a fresh copy per page тАФ
-  a six-figure journal no longer pays an O(pages ├Ч curve) copy churn while
+  append-only view of the equity curve instead of a fresh copy per page —
+  a six-figure journal no longer pays an O(pages × curve) copy churn while
   the scan runs, and a published curve still never grows with the scan's
   later appends.
 

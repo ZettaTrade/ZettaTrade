@@ -14,6 +14,13 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
+    <Window.Styles>
+        <!-- T-235: the editor's labeled cells ride the shared field-cell
+             grammar (the caption gap and the caption size ride the
+             dictionary), the field widths stay the editor's own. -->
+        <StyleInclude Source="avares://ZettaTrade.App/Themes/FieldGrammar.axaml" />
+    </Window.Styles>
+
     <Grid Margin="{StaticResource InsetL}" RowDefinitions="*,Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <!-- The manager table: the engine's roster, one row per alert. Every
@@ -84,9 +91,9 @@
               RowSpacing="{StaticResource SpaceS}"
               ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*"
               ColumnSpacing="{StaticResource SpaceS}">
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="{loc:Localized Alert.Editing.Kind}" FontSize="{StaticResource CaptionFontSize}" />
-                <ComboBox Width="130"
+            <StackPanel Grid.Column="0" Classes="field-cell">
+                <TextBlock Text="{loc:Localized Alert.Editing.Kind}" />
+                <ComboBox MinWidth="130"
                           ItemsSource="{Binding KindOptions}"
                           SelectedItem="{Binding SelectedKind, Mode=TwoWay}">
                     <ComboBox.ItemTemplate>
@@ -96,10 +103,10 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
             </StackPanel>
-            <StackPanel Grid.Column="1"
+            <StackPanel Grid.Column="1" Classes="field-cell"
                         IsVisible="{Binding ShowsTrigger}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Trigger}" FontSize="{StaticResource CaptionFontSize}" />
-                <ComboBox Width="100"
+                <TextBlock Text="{loc:Localized Alert.Editing.Trigger}" />
+                <ComboBox MinWidth="100"
                           ItemsSource="{Binding VisibleTriggerOptions}"
                           SelectedItem="{Binding SelectedTrigger, Mode=TwoWay}">
                     <ComboBox.ItemTemplate>
@@ -109,27 +116,27 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
             </StackPanel>
-            <StackPanel Grid.Column="2"
+            <StackPanel Grid.Column="2" Classes="field-cell"
                         IsVisible="{Binding IsPriceKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Target}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Target}" />
                 <TextBox Width="100" Text="{Binding TargetText}" />
             </StackPanel>
-            <StackPanel Grid.Column="3"
+            <StackPanel Grid.Column="3" Classes="field-cell"
                         IsVisible="{Binding IsIndicatorKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Indicator}" FontSize="{StaticResource CaptionFontSize}" />
-                <ComboBox Width="110"
+                <TextBlock Text="{loc:Localized Alert.Editing.Indicator}" />
+                <ComboBox MinWidth="110"
                           ItemsSource="{Binding IndicatorOptions}"
                           SelectedItem="{Binding SelectedIndicatorName, Mode=TwoWay}" />
             </StackPanel>
-            <StackPanel Grid.Column="4"
+            <StackPanel Grid.Column="4" Classes="field-cell"
                         IsVisible="{Binding IsIndicatorKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Period}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Period}" />
                 <TextBox Width="60" Text="{Binding PeriodText}" />
             </StackPanel>
-            <StackPanel Grid.Column="5"
+            <StackPanel Grid.Column="5" Classes="field-cell"
                         IsVisible="{Binding IsIndicatorKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Source}" FontSize="{StaticResource CaptionFontSize}" />
-                <ComboBox Width="120"
+                <TextBlock Text="{loc:Localized Alert.Editing.Source}" />
+                <ComboBox MinWidth="120"
                           ItemsSource="{Binding SourceOptions}"
                           SelectedItem="{Binding SelectedSource, Mode=TwoWay}">
                     <ComboBox.ItemTemplate>
@@ -139,35 +146,35 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
             </StackPanel>
-            <StackPanel Grid.Column="6"
+            <StackPanel Grid.Column="6" Classes="field-cell"
                         IsVisible="{Binding IsIndicatorValueSource}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Level}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Level}" />
                 <TextBox Width="90" Text="{Binding LevelText}" />
             </StackPanel>
-            <StackPanel Grid.Column="7"
+            <StackPanel Grid.Column="7" Classes="field-cell"
                         IsVisible="{Binding IsPercentKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Percent}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Percent}" />
                 <TextBox Width="80" Text="{Binding PercentText}" />
             </StackPanel>
-            <StackPanel Grid.Column="8"
+            <StackPanel Grid.Column="8" Classes="field-cell"
                         IsVisible="{Binding IsPercentKind}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Window}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Window}" />
                 <TextBox Width="70" Text="{Binding WindowText}" />
             </StackPanel>
-            <StackPanel Grid.Column="9">
-                <TextBlock Text="{loc:Localized Alert.Editing.Symbol}" FontSize="{StaticResource CaptionFontSize}" />
+            <StackPanel Grid.Column="9" Classes="field-cell">
+                <TextBlock Text="{loc:Localized Alert.Editing.Symbol}" />
                 <TextBox Width="120" Text="{Binding SymbolText}" />
             </StackPanel>
-            <StackPanel Grid.Column="10">
-                <TextBlock Text="{loc:Localized Alert.Editing.Note}" FontSize="{StaticResource CaptionFontSize}" />
+            <StackPanel Grid.Column="10" Classes="field-cell">
+                <TextBlock Text="{loc:Localized Alert.Editing.Note}" />
                 <TextBox Text="{Binding NoteText}" />
             </StackPanel>
 
             <!-- The fire mechanics row (T-204): the re-arm mode, the cooldown
                  window it names when selected, and the fire sound. -->
-            <StackPanel Grid.Row="1" Grid.Column="0">
-                <TextBlock Text="{loc:Localized Alert.Editing.ReArm}" FontSize="{StaticResource CaptionFontSize}" />
-                <ComboBox Width="150"
+            <StackPanel Grid.Row="1" Grid.Column="0" Classes="field-cell">
+                <TextBlock Text="{loc:Localized Alert.Editing.ReArm}" />
+                <ComboBox MinWidth="150"
                           ItemsSource="{Binding ReArmOptions}"
                           SelectedItem="{Binding SelectedReArm, Mode=TwoWay}">
                     <ComboBox.ItemTemplate>
@@ -177,14 +184,14 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
             </StackPanel>
-            <StackPanel Grid.Row="1" Grid.Column="1"
+            <StackPanel Grid.Row="1" Grid.Column="1" Classes="field-cell"
                         IsVisible="{Binding IsCooldownMode}">
-                <TextBlock Text="{loc:Localized Alert.Editing.Cooldown}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBlock Text="{loc:Localized Alert.Editing.Cooldown}" />
                 <TextBox Width="70" Text="{Binding CooldownText}" />
             </StackPanel>
-            <StackPanel Grid.Row="1" Grid.Column="2">
-                <TextBlock Text="{loc:Localized Alert.Editing.Sound}" FontSize="{StaticResource CaptionFontSize}" />
-                <ComboBox Width="100"
+            <StackPanel Grid.Row="1" Grid.Column="2" Classes="field-cell">
+                <TextBlock Text="{loc:Localized Alert.Editing.Sound}" />
+                <ComboBox MinWidth="100"
                           ItemsSource="{Binding SoundOptions}"
                           SelectedItem="{Binding SelectedSound, Mode=TwoWay}">
                     <ComboBox.ItemTemplate>
@@ -204,29 +211,32 @@
                    TextWrapping="Wrap"
                    IsVisible="{Binding HasErrorMessage}" />
 
-        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+        <!-- The command toolbar (T-234): the row's own column spacing
+             clears the gaps, the commands ride the 110 command width, the
+             close the 90 quiet width. Create is the row's ONE primary. -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceS}">
             <Button Grid.Column="1"
+                    Classes="primary"
                     Content="{loc:Localized Alert.Create}"
                     Command="{Binding CreateCommand}"
-                    MinWidth="100" />
+                    MinWidth="110" />
             <Button Grid.Column="2"
                     Content="{loc:Localized Alert.UpdateSelected}"
                     Command="{Binding UpdateSelectedCommand}"
-                    MinWidth="100" />
+                    MinWidth="110" />
             <Button Grid.Column="3"
                     Content="{loc:Localized Alert.SnoozeSelected}"
                     Command="{Binding SnoozeSelectedCommand}"
-                    MinWidth="100" />
+                    MinWidth="110" />
             <Button Grid.Column="4"
                     Content="{loc:Localized Alert.DeleteSelected}"
                     Command="{Binding DeleteSelectedCommand}"
-                    MinWidth="100" />
+                    MinWidth="110" />
             <Button Grid.Column="5"
                     Content="{loc:Localized Alert.Close}"
                     Click="OnCloseClick"
                     AutomationProperties.AutomationId="AlertsCloseButton"
-                    MinWidth="90"
-                    Margin="8,0,0,0" />
+                    MinWidth="90" />
         </Grid>
     </Grid>
 </Window>

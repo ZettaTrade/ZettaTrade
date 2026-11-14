@@ -1022,6 +1022,86 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
+                        <!-- The exchange-credentials section (T-227): the
+                             adapters' per-venue key pairs commit to the
+                             secret store (the pair's only home), each row's
+                             Save applies its own whole pair atomically and
+                             the secret never echoes — the boxes re-seed
+                             empty on every window open. -->
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <ToggleButton x:Name="CredentialsSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="CredentialsSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Credentials}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="CredentialsSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #CredentialsSectionToggle.IsChecked}">
+                                    <TextBlock Text="{loc:Localized Settings.Credentials.Hint}"
+                                               TextWrapping="Wrap" />
+                                    <ItemsControl ItemsSource="{Binding CredentialSlots}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:CredentialSlot">
+                                                <Border BorderThickness="1"
+                                                        BorderBrush="{DynamicResource Border}"
+                                                        CornerRadius="4"
+                                                        Padding="{StaticResource InsetM}"
+                                                        Margin="0,0,4,0">
+                                                    <StackPanel Spacing="{StaticResource SpaceS}">
+                                                        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceS}">
+                                                            <TextBlock Grid.Column="0"
+                                                                       Classes="section-header"
+                                                                       Text="{Binding VenueTitle}"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding StatusText}"
+                                                                       VerticalAlignment="Center" />
+                                                            <Button Grid.Column="2"
+                                                                    Content="{loc:Localized Settings.Credentials.Clear}"
+                                                                    Command="{Binding ClearCommand}"
+                                                                    AutomationProperties.AutomationId="CredentialClearButton"
+                                                                    MinWidth="80" />
+                                                            <Button Grid.Column="3"
+                                                                    Content="{loc:Localized Settings.Credentials.Save}"
+                                                                    Command="{Binding SaveCommand}"
+                                                                    AutomationProperties.AutomationId="CredentialSaveButton"
+                                                                    MinWidth="80" />
+                                                        </Grid>
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="{loc:Localized Settings.Credentials.Key}"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBox Grid.Column="1"
+                                                                     Text="{Binding KeyText}"
+                                                                     PasswordChar="●"
+                                                                     ToolTip.Tip="{Binding KeySecretName}" />
+                                                        </Grid>
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceS}">
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="{loc:Localized Settings.Credentials.Secret}"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBox Grid.Column="1"
+                                                                     Text="{Binding SecretText}"
+                                                                     PasswordChar="●"
+                                                                     ToolTip.Tip="{Binding SecretSecretName}" />
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                         <Border Classes="section-card" IsVisible="{Binding IsPortAvailable}">
                             <StackPanel Spacing="{StaticResource SpaceM}">
                                 <ToggleButton x:Name="PortSectionToggle"
@@ -1338,33 +1418,49 @@
                                                 VerticalAlignment="Center"
                                                 Spacing="{StaticResource SpaceS}">
                                         <!-- The transfer pair rides the chrome kit's icon
-                                             button (T-154, consumed as-is): borderless,
-                                             state fill suppressed, the strip's opacity
-                                             feedback. The chevron Path carries the flow
-                                             direction like the title-bar strip's glyphs
-                                             (explicit strokes, no inheritance chain); the
-                                             readable captions ride the automation name and
-                                             the tooltip (assistive tech and hover alike) —
-                                             the glyph alone never carries meaning. -->
-                                        <Button Classes="icon"
+                                             button in its framed chip composition (T-235,
+                                             the review round): the free-standing action
+                                             reads as a button at rest through the plate
+                                             fill under the family's hairline, the hover
+                                             answers with the Highlight stroke, the press
+                                             dims the chip. The chevron Path carries the
+                                             flow direction like the title-bar strip's
+                                             glyphs (explicit strokes, no inheritance
+                                             chain; the 2px step is the bold weight the
+                                             mockup round chose) and its geometry starts
+                                             at the origin with the control itself
+                                             centered: a Stretch="None" glyph painted at
+                                             its data coordinates inside a stretched
+                                             control leaves the ink in the corner (the
+                                             review round's own screenshot), so the
+                                             centered 4.5x8 ink rides the mockup's
+                                             proportions. The readable captions ride the
+                                             automation name and the tooltip (assistive
+                                             tech and hover alike) — the glyph alone
+                                             never carries meaning. -->
+                                        <Button Classes="icon framed"
                                                 Width="34" Height="30" Padding="0"
                                                 ToolTip.Tip="{loc:Localized Settings.Pairs.Hide}"
                                                 AutomationProperties.Name="{loc:Localized Settings.Pairs.Hide}"
                                                 Command="{Binding HidePairCommand}">
                                             <Path Stretch="None"
-                                                  StrokeThickness="1.5"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  StrokeThickness="2"
                                                   Stroke="{DynamicResource TextPrimary}"
-                                                  Data="M 4.5 2.5 L 9.5 6 L 4.5 9.5" />
+                                                  Data="M 0 0 L 4.5 4 L 0 8" />
                                         </Button>
-                                        <Button Classes="icon"
+                                        <Button Classes="icon framed"
                                                 Width="34" Height="30" Padding="0"
                                                 ToolTip.Tip="{loc:Localized Settings.Pairs.Reveal}"
                                                 AutomationProperties.Name="{loc:Localized Settings.Pairs.Reveal}"
                                                 Command="{Binding RevealPairCommand}">
                                             <Path Stretch="None"
-                                                  StrokeThickness="1.5"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  StrokeThickness="2"
                                                   Stroke="{DynamicResource TextPrimary}"
-                                                  Data="M 9.5 2.5 L 4.5 6 L 9.5 9.5" />
+                                                  Data="M 4.5 0 L 0 4 L 4.5 8" />
                                         </Button>
                                     </StackPanel>
                                 </Grid>

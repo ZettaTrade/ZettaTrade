@@ -5104,3 +5104,521 @@ the board and its section below.
   the branch tip. GATE PASSED (post-rebase; the develop sync fast-forwarded first). The
   follow-up sweep items (duplicate instruments-info fetches, the Alpaca no-key noise, the
   not-a-plugin.dll logs, the update-checker 404) stay out of scope, uncommitted to this task.
+
+## T-227 - Exchange API-key authorization in the settings window (the Alpaca no-key noise is the driver)
+
+- **Branch:** feat/exchange-auth-settings, worktree zt-exchange-auth, base develop@9350870
+  (claimed 2026-11-14; the user's ask + the T-226 profiling's driver case).
+- **Origin:** the user's ask — venues whose API requires authorization get it through the
+  settings finally: the key is entered once and taken from the settings, not hand-carried.
+  The T-226 profiling's driver case: the Alpaca adapter runs unauthenticated today and
+  floods the log with no-key noise every launch — Alpaca's data API wants a key even for
+  market data, so an unauthenticated adapter is both noisy and degraded.
+- **What:** the settings window grows a per-venue credentials section (key/secret pairs);
+  the values persist through `ISecretStore` (the encrypted store — the trading-safety rule:
+  secrets only there, saved immediately, never a command-line argument, never stdout). The
+  adapters read their credentials at start; when keys are present the Alpaca adapter
+  authenticates its data requests/stream, when absent it drops the noise to a single quiet
+  line instead of a repeated error family. Other venues that require auth get the same
+  shape.
+- **Scope:** the settings window's credentials section + the adapter credential plumbing
+  through `ISecretStore`, the Alpaca adapter's auth path, resx en+ru, the next free alpha
+  bump + the CHANGELOG section.
+- **Acceptance:** keys entered once survive the restart; the Alpaca noise disappears with
+  keys and is one quiet line without; no key ever reaches a log or an argument.
+- **Tests:** the settings round-trip through `ISecretStore`; the adapter's
+  authenticated/absent facts; the log-quiet pin.
+- **Status:** done - 0.1.0-alpha.169. Chain: claim `e9ee2f6` -> feat `bfd54a4` -> release
+  `5b493cd` -> e2e fix `e549a91` -> close. Canon: the refusal shape is the typed
+  `AdapterCredentialsMissingException` (AdapterId + SecretKeys); the Alpaca adapter reports
+  the absence ONE information line per session (an Interlocked-guarded flag) and the
+  palette takes the standing absence at debug level — the repeated authorized-surface
+  refusals and the palette's per-refresh warnings never log; the Bybit/Binance testnet
+  trading adapters keep their existing refusal shape. The credentials rows ride the
+  adapters' public store-key consts (`alpaca.api-key`/-secret, `bybit.testnet.*`,
+  `binance.testnet.*`), the Save commits both keys atomically (a half-typed pair never
+  reaches the store), the boxes re-seed empty on every window open, the status chip answers
+  from the store's presence only, and the section rides the Integrations tab collapsed by
+  default. Tests: 5 `CredentialSlot` facts (the atomic save, the half-pair refusal, the
+  clear round-trip, the canExecute gates, the store-less honesty) + the palette
+  quiet-absence fact; 3 Alpaca credentials facts (the typed refusal that never dials the
+  wire, the one-quiet-line-per-session pin, the authenticated pair that serves quietly);
+  the fold pins moved to the eleven-card map (WindowLayoutPinsTests counts + header keys,
+  HeadlessLayoutBoundsTests collapsed set + total). 2203 App facts + 675 Infrastructure
+  facts green. GATE PASSED (-AllowProtected) attempt 2 — attempt 1 failed on the E2E pair
+  and exposed a latent deployment defect of the E2E lane: the lane's runtime closure pruned
+  the DPAPI package (the test runtimeconfig declares WindowsDesktop.App, whose 10.0.14 pack
+  serves the assembly), while the staged app process resolves under Microsoft.NETCore.App
+  only — the settings open's secret-store presence seed was the first consumer, surfacing a
+  FileNotFoundException at the DPAPI load. The explicit copy ships the file next to the
+  staged exe; the settings round-trip + hotkey E2E rounds green on the fix tip. The launch
+  smoke green on the fix tip: ProductVersion 0.1.0-alpha.169+e549a912, the 12 s hold held
+  the main window, 0 ERR/FTL, exactly one quiet-absence INF, zero Alpaca palette warnings,
+  zero seed failures, the sandbox discarded.
+
+## T-228 - One instruments-info fetch per exchange per session
+
+- **Branch:** feat/instruments-fetch-dedupe, worktree zt-instruments-fetch-dedupe, base
+  develop@b96ef3e (claimed 2026-11-14; the T-226 follow-up sweep).
+- **Origin:** the T-226 profiling — the exchange instruments list is fetched more than once
+  per start (the provider's startup warm-up and the chart's own bootstrap path both reach
+  the venue), paying the network cost twice against the T-225 lesson the provider exists
+  for.
+- **What:** every consumer rides the `SymbolListProvider` cache — one fetch per exchange
+  per session, the warm-up answers the chart's bootstrap, and a switch re-fetches through
+  the same single path.
+- **Scope:** the App startup walk + the chart bootstrap's fetch path; no adapter changes.
+- **Acceptance:** exactly one instruments call per exchange per session in the real launch
+  log; the chart's first delivery timing does not regress.
+- **Tests:** the provider fetch-count facts; the walk's warm-up pin.
+- **Status:** done. Canon: the chain `60c7bdf` (claim) -> `be70385` (feat, 15 files
+  +380/-130) -> `fe0afb2` (release, 0.1.0-alpha.173) -> this close; the worktree was
+  adopted from a dead session whose claim->feat->release commits were already on the
+  branch, the diff reviewed clean, and the feat additionally folds the stale doc-comment on
+  `ChartViewModel.LoadSymbolsAsync` (the removed "flushed on every exchange switch"
+  mechanic). The mechanism: `SymbolListProvider` keys its cache per exchange id — the
+  startup walk's warm-up and the chart's bootstrap share the provider, so a session pays
+  one instruments fetch per exchange; the palette, the heatmap and the screener keep their
+  DIRECT re-fetch on an adapter switch deliberately (they must reflect the live roster) —
+  documented in code and the CHANGELOG; the facade registers before the consumers and the
+  restore-switch emission rides Skip(1), so the start's restore switch fires no direct
+  re-fetch. Acceptance evidence: GATE PASSED (-AllowProtected) attempt 1 on the release tip
+  (the SCOPE info + the gitleaks advisory only); the launch smoke PASSED on the T-166 bar —
+  the title held through the 12 s watchlist hold, 0 ERR/FTL, 0 ticker-failure WRN,
+  CACHE_PER_EXCHANGE demo=1, binance=1, okx=1, bybit=1 (the one-fetch acceptance fact),
+  PALETTE_LINES=1, ProductVersion 0.1.0-alpha.173+fe0afb20…, no leftovers, the sandbox
+  discarded. Hazards: none new.
+
+## T-229 - The plugin scanner's not-a-plugin drop stops logging as a failure
+
+- **Branch:** fix/not-a-plugin-log-noise, worktree zt-not-a-plugin-log-noise, base
+  develop@9909e81 (claimed 2026-11-14; the T-226 follow-up sweep).
+- **Origin:** the T-226 profiling — the plugin scan logs every non-plugin dll it meets in
+  the plugins folder as an error-ish line each launch; a dll that is not a plugin is the
+  scan's honest drop, never a failure.
+- **What:** the scanner logs the drop at debug level (or one info line per scan, not per
+  dll), while the folder's real packs still load unchanged.
+- **Scope:** the Infrastructure plugin scanner's logging; no scanner semantics.
+- **Acceptance:** a launch log over the shipped plugins folder carries no not-a-plugin
+  error lines; the standard pack still loads.
+- **Tests:** the scanner's drop-level fact.
+- **Status:** done - 0.1.0-alpha.170. Chain: claim `1f8b864` -> fix `31dad0d` -> release
+  `29fc22f` -> close. Canon: all three scanners sharing the plugins folder (the indicator
+  catalog, the strategy catalog, the SDK host's Scan) split the LoadFrom catch by
+  exception type — a BadImageFormatException (a file that is not a loadable assembly at
+  all: a stray dll, a native helper, a corrupted download) rides the DEBUG level (the
+  production Serilog minimum is Information, so the drop is silent in the shipped log and
+  the summary line's missing name is the only trace of it); a file the OS could not hand
+  over (IOException/UnauthorizedAccessException) keeps its warning; the
+  ReflectionTypeLoadException "types fail to load" and "could not be inspected" families
+  stay loud (real diagnostics). Tests: the drop-level facts in all three catalogs' suites
+  (the debug pin + the no-warning pin; the SDK stage's RecordingLoggerFactory Faults grew
+  to (level, fault) pairs) plus the App-level pack-registration fact's pin moved to the
+  debug drop — the missed fourth consumer, caught by the gate's first attempt. 27 facts
+  over the three affected classes green; 2203 App + 675 Infrastructure green in the gate.
+  GATE PASSED (-AllowProtected) attempt 2. The launch smoke green: a sandbox seeded with
+  the real standard pack (12 dlls) + a hand-staged garbage not-a-plugin.dll — the drop
+  rides silent (zero not-a-plugin WRN lines), the pack reports its full name list (ATR,
+  BOLL, EMA, MACD, RSI, SMA, WMA + 4 strategies), 0 ERR/FTL, the 12 s hold held,
+  ProductVersion 0.1.0-alpha.170+29fc22f, zero leftovers, the sandbox discarded.
+
+## T-230 - The update checker's no-release 404 is the quiet no-update state
+
+- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep).
+- **Origin:** the T-226 profiling — the update checker logs a 404 against the private feed
+  every launch while no release artifact is published at the checked URL; a feed without a
+  release is the honest no-update answer, not an error.
+- **What:** the check maps the feed's no-release answer (the 404 family) onto the
+  no-update quiet state; a real failure (network, malformed feed) keeps its error lane.
+- **Scope:** the update checker's response handling.
+- **Acceptance:** a launch log over the unpublished feed carries no 404 error entries; the
+  checker still surfaces a real published update.
+- **Tests:** the checker's no-release fact.
+- **Status:** done - 0.1.0-alpha.171. Chain: claim `e7413e6` -> fix `a14a720` -> release
+  `3c71b86` -> close. Canon: the releases fetch answers the no-release 404 with the honest
+  empty list — the feed without published releases is the quiet no-update state, not an
+  error family; the debug note is the only trace in the dev logs. Real failures keep
+  their warning lane: every other non-success status (rate limits, server faults) still
+  throws into the standing warning shape, and the network/parse faults degrade exactly as
+  before (the verdict stream never flaps). Tests: the loopback battery's
+  `TheNoRelease404_CompletesAsTheHonestEmptyVerdict` (the 404 completes BOTH checks with
+  the empty verdict, zero announcements, the asks still made) rides the existing stub's
+  status-code seam; the 500-family and malformed-payload degradation facts stay pinned
+  green. 8/8 UpdateCheckService facts green. GATE PASSED (-AllowProtected) attempt 1. The
+  launch smoke green: the sandbox carries no update-checker failure WRNs (the
+  unpublished-feed launch rides the quiet state), 0 ERR/FTL, the 12 s hold held,
+  ProductVersion 0.1.0-alpha.171+3c71b86, zero leftovers, the sandbox discarded.
+
+## T-231 - The watchlist ticker stream retries its failures; the Binance quote-asset drop de-noises
+
+- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep; filed from the user's log analysis).
+- **Origin:** the user's real log analysis (2026-11-11..14): the watchlist ticker stream dies
+  on a stream error and nothing re-arms it — the 2026-11-11 log shows six symbols
+  (ADA/DOGE/BNB/LINK/AVAX/LTC over USDT) failing as a family on every Bybit socket
+  force-cycle, the rows keeping their stale data until a UI-driven row-set change; the
+  Binance instruments parse warns about its 52-symbol unrecognized quote-asset drop EVERY
+  launch (9 warnings on 2026-11-14 alone, a stable standing fact).
+- **What:** a ticker stream failure re-arms its row with a bounded retry (backoff), so the
+  row revives after the venue's socket force-cycle without a UI nudge; the Binance
+  unrecognized quote-asset drop rides the debug level (the T-229 canon: the routine
+  data-shape cargo is not a failure family).
+- **Scope:** the WatchlistFeedService row pump's error path; the BinanceAdapter's
+  instruments parse log level; no adapter semantics.
+- **Acceptance:** a forced ticker stream failure recovers on its own (the row prices
+  again); the launch log over the Binance parse carries no unrecognized quote-asset
+  warning.
+- **Tests:** the row pump's retry facts; the Binance parse level pin.
+- **Status:** done - 0.1.0-alpha.172. Chain: file `764f050` -> fix `c9466be` -> release
+  `c8d442f` -> close. Canon: the watchlist's per-row ticker pump carries its own bounded
+  retry ladder (the adapters' `ReconnectPolicy` value object: 2 s initial doubling to a
+  30 s cap, jitter off — the re-arm is in-process bookkeeping, the anti-herd jitter is the
+  adapters' concern) shipped as the static `TickerRetryPolicy` + the optional ctor seam;
+  a stream death logs ONE warning, the ladder's churn rides the debug level, a revived
+  stream resets the attempts, the row keeps its sparkline history across the outage, and
+  a retired row's parked retry dies with the row (no resurrection). The Binance
+  unrecognized quote-asset drop rides the debug level per the T-229 canon (the standing
+  data-shape cargo; the symbol summary stays the only production trace). Tests: four
+  retry facts in WatchlistFeedServiceTests (the death-once + revival, the ladder reset on
+  a revived stream, the persistent-failure debug churn, the no-resurrection pin over a
+  parked retry retired mid-ladder) over the fresh-lane Fixture (a ConcurrentDictionary
+  lane cache with per-subscribe fresh lanes + a subscribe counter + a RecordingLogger),
+  plus the Binance parse level pin (Debug yes, Warning never). 14/14 Watchlist + 7/7
+  BinanceAdapterParsing facts green. GATE PASSED (-AllowProtected) attempt 2 (attempt 1
+  caught the FIRE-FORGET lint: the parked retry task now lives in the pump's `_retryTask`
+  field per the `_pumpTask` canon, and the re-arm body gained the catch-all warning so a
+  task never dies unobserved). The launch smoke green: 0 ERR/FTL, zero Binance
+  quote-asset WRN families, zero watchlist ticker WRN families, the 12 s hold held,
+  ProductVersion 0.1.0-alpha.172+c8d442f, zero leftovers, the sandbox discarded.
+
+## T-233 - The adapters' pre-dial Disconnected snapshots stop logging real-exchange endpoints
+
+- **Branch:** fix/adapter-state-log-leak, worktree zt-adapter-state-log-leak, base
+  develop@5194f10 (claimed 2026-11-14; the T-232 beta-prep finale's soak finding).
+- **Origin:** the T-232 finale's soak run (`scripts/soak.ps1 -Minutes 5` on the beta-prep tip,
+  alpha.173) failed at the T-141 isolation census — a demo-only run's log carried `bybit.com`.
+  A kept-log repro named the mechanism exactly: `AddActiveExchange` composes the market-data
+  catalog by eagerly resolving all five adapters, each real adapter's constructor subscribes its
+  WS client's `ConnectionStateStream`, the `BehaviorSubject<bool>(false)` seeds the initial
+  `false` at subscription, and the market adapters' handlers log it at Information
+  (`... connection state: Disconnected at <url>`) — an adapter that never dials still prints its
+  real endpoint. The census caught bybit.com twice (the spot and the linear URLs); the alpaca
+  and okx construction lines escaped only because the census's host list knows bybit.com and
+  binance.com only.
+- **What:** the four market adapters' connection-state handlers log real lifecycle transitions
+  only — the seeded pre-dial `false` (a state sync, not a transition) stops logging, and so do
+  the false-after-false repeats the transport's own per-attempt warnings already carry; every
+  real change (a dial's connect, a drop, a teardown) keeps its line verbatim. The census's host
+  list grows to every shipped real-exchange host. The transport's seed-at-subscription
+  semantics stay (the WebSocketClientTests fact pins them).
+- **Scope:** the four Infrastructure market adapters' state handlers; the census host list in
+  `scripts/soak.ps1` (protected — the gate rides -AllowProtected); the next free alpha bump + the
+  CHANGELOG section.
+- **Acceptance:** a constructed-but-never-dialed adapter logs zero connection-state lines (the
+  new fact); the adapters' real-dial lifecycle lines stay (the existing suite); the soak census
+  passes on a demo-only run and the budget verdicts report on the fixed tip.
+- **Tests:** the no-dial log-absence facts over the market adapters; the seed-at-subscription
+  pin stays green untouched.
+- **Status:** done. Canon: the chain `1c9ddd2` (claim) -> `8228c0c` (feat, 8 files, ships as
+  0.1.0-alpha.174) -> this close. The fix: each market adapter tracks its last logged connection
+  state (Bybit per category context) and logs only a real transition — the WS client's
+  `BehaviorSubject` seed (the pre-dial `false` at subscription) stops printing the endpoint, and
+  the false-after-false repeats go with it (the transport's per-attempt warnings already carry
+  them); a real dial's connect/drop/teardown lines stay verbatim. The T-232 finale's kept-log
+  repro had named the mechanism: `AddActiveExchange` eagerly resolves all five adapters, so the
+  four real ones construct in every composition (including the demo-only soak lane) and their
+  seeded syncs logged `wss://stream.bybit.com/...` at Information — the T-141 census caught
+  bybit.com twice and its host list knew only bybit.com/binance.com, so the alpaca/okx lines
+  escaped; the census's list now covers bybit.com, binance.com, alpaca.markets and okx.com.
+  Evidence: the 4 no-dial log-absence facts (`AdapterConnectionStateLogTests`) first-try green +
+  the `WebSocketClientTests` seed pin untouched (9/9); GATE PASSED (-AllowProtected) attempt 1 on
+  the feat — the full suite 3517 green (Core 61, Soak 17, Strategies 32, Backtest 53, AdapterKit
+  48, UI 409, Infrastructure 679, E2E 7, App 2211); the soak re-run on the fixed tip: the census
+  green across three runs (0 real-exchange host hits, the sandbox settings load confirmed, no
+  fallback warnings), the memory budgets hold (working set mean 253.4 MB / peak 257.2 against
+  400/500, private mean 120.1 MB, the leak slope 0.00 MB/h), zero leftover processes. Hazards:
+  the soak's cold-start budget reports a breach on the Debug lane (4,562-9,977 ms against the
+  3 s target across four runs; the 2026-11-10 shakedown's 3.9 s warm; the wide spread is
+  machine-load sensitivity — the pre-fix and post-fix runs measure alike, the fix touches only
+  logging) — reported per the T-109 canon, owned by the readiness record (T-232) and its
+  follow-up.
+
+## T-234 - The window family rides the variant-A grammar; the dialog paddings and widths unify
+
+- **Branch:** queued 2026-11-14 (the user's review of the T-223 landing: "теперь мне
+  нравится как в настройках сделано... остальные окна унифицировать... посмотри местами
+  отступы и размер текста"). The worktree `zt-windows-unify`, base `develop`@9350870.
+- **Origin:** the settings window (T-184/T-222/T-223) is the approved reference; the rest
+  of the window family predates it. The survey: 12 windows still ride fixed frames
+  (`CanResize="False"` — the settings pin declared that era over at T-222); the dialog
+  strips drift (the primary sits LEFT of the quiet button in the UniformGrid pairs, the
+  widths scatter 90/100/110/120/140/240, the rows carry raw composite margins
+  `0,8,0,0` / `0,0,8,0` beside a missing row Spacing, the Alerts row spaces through a
+  `8,0,0,0` margin hack); the ticket/wizard/license bodies carry no section cards; the
+  type ramp and the spacing tokens already hold app-wide (the T-155 pins enforce them).
+- **What:** every dialog resizes (the pinned strip stays pinned); the confirm strips
+  become the settings shape — a right-aligned row riding its own Spacing, the quiet
+  button first (90), the ONE primary last (90, the cta keeps its side fill); the command
+  toolbars (Alerts, Backtest) normalize onto the fresh T-212 widths (110 command, 90
+  quiet) with real row Spacing; the ticket, the first-run wizard and the license window
+  wrap their field groups in the section-card + tick + header grammar (static headers —
+  short bodies need no folding); the pre-strip gaps ride the parent Spacing.
+- **Scope:** the View layer only (axaml + the pins); no ViewModel/Core change; the
+  scroll-gutter `0,0,16,0` margins stay (the T-170 canonical gutters).
+- **Acceptance:** no `CanResize="False"` remains in the App views; every confirm strip
+  reads quiet-first/primary-last at 90; the toolbars carry no raw gap margins; the
+  carded windows carry the section grammar; the existing headless bounds/gutter facts
+  stay green at the new resizable shapes.
+- **Tests:** the strip/resize pins per window family (source of truth, the T-145
+  precedent), the card pins for the carded three, the toolbar width pins; the headless
+  ticket fact (the ticket opens at its minimum, the strip stays inside, the cta rides
+  the side fill).
+- **Status:** done - 0.1.0-alpha.175 (on the branch; the landing awaits the user's
+  review). Chain: docs(claim) `6b3df09` -> feat `df24462` -> docs(close) -> bump. Shipped:
+  the fixed-frame era ends app-wide (no `CanResize="False"` remains; every dialog
+  declares the resizable frame); the paired confirm strips unify on the settings
+  footer's shape (one right-aligned row riding its own spacing, the quiet button first,
+  the ONE primary last, the 90 strip; the UniformGrid pairs and the scattered
+  100/120/140 widths retire) with the confirmation gate the honest equal-weight
+  exception (the T-183 discipline pins it primary-free while the strip still unifies —
+  the claim-time "the gate rides primary" reading is wrong against the canon); the
+  wizard's three steps and the ticket's quick-size block card into the section-card
+  voice (the tick-and-caption headers, the uppercase header captions in both cultures,
+  the nav row one strip: quiet walks left, the advance and the ONE primary finish
+  right); the annotation prompt joins the styled chrome (the bare
+  `WindowDecorations="Full"` retires, the dead `accent` class becomes the `primary`,
+  the margin hacks ride the parent spacing); the alerts toolbar rides the T-212 widths
+  (110 commands, the create the row's ONE primary, the 90 close, real column spacing);
+  the license window's verdict reads above the rebuilt strip. Tests: the
+  `DialogGrammarPinsTests` (the resize era, the strip shape with the gate exception,
+  the gap-hack ban, the carded grammar, the uppercase header captions, the wizard nav,
+  the toolbar widths) + the `HeadlessDialogGrammarTests` (the family materializes
+  without a view model, every window answers `CanResize == true`, the paired strips
+  measure the 90 buttons, the quiet-before-primary order and the row inside the client
+  area, the annotation prompt carries the compact chrome). 2208 App facts green.
+
+## T-235 - The controls answer the pointer; the screener rows ride the table plan
+
+- **Branch:** queued 2026-11-14 (the user's review sweep over the T-234 build: the
+  alerts editor's captions sit on their fields and the Edge combo clips "Falls below";
+  the settings Pairs transfer arrows are unrecognizable as buttons; the chart's
+  drawing-tool icons give no pointer answer; the screener's rows draw the button
+  chrome at content width instead of the header plan). Stacked on `feat/windows-unify`
+  (the T-234 landing awaits the same review).
+- **Origin:** the kit's icon-button affordance is an opacity nudge (0.85 rest, 1.0
+  hover) — imperceptible on the pointer, so every borderless icon button (the Pairs
+  transfers, the chart's drawing tools, the toolbar glyphs) reads as a static mark;
+  the alerts editor's field cells carry no caption gap and their combos fix their
+  widths below the localized content (the ru strings clip in every culture); the
+  screener's whole-row press target draws the Fluent button chrome and does not
+  stretch to the shared column plan.
+- **What:** the kit's `Button.icon` speaks the family's soft-tint hover and the
+  pressed step (the section-toggle's own pointer language) instead of the opacity
+  race, with an explicit framed rest composition for the free-standing transfers;
+  the alerts editor's cells ride a shared field-cell class (the caption gap), the
+  kind/trigger/source combos ride content widths; the screener rows ride the
+  hairline row grammar at the header's column plan (stretched, chrome-free, the
+  hover Surface stays).
+- **Scope:** the Livery kit's icon-button block (the satellite bump, 0.1.13 ->
+  0.1.14), the App's alerts editor + settings Pairs + screener view; no
+  ViewModel/Core change.
+- **Acceptance:** every icon button answers the pointer visibly (hover tint, press
+  step, the armed state unchanged); the pairs transfers read as buttons at rest; the
+  alerts captions clear their fields and no editor combo clips its localized items;
+  the screener's rows align under their headers at the shared plan with the hairline
+  chrome; the existing pins stay green.
+- **Tests:** the kit's icon-affordance pins (the Livery battery), the App's
+  editor-cell and combo-width pins, the screener row facts (the stretch + the
+  chrome, headless-measured).
+- **Status:** done - 0.1.0-alpha.176 (on the branch; the landing awaits the user's
+  review). Chain: docs(claim) `c820654` -> feat `81edc36` -> docs(close) -> bump.
+  Shipped: the kit's icon buttons answer the pointer with the family's tint language
+  (the hover ButtonHoverTint step, the press the stronger ButtonPressedTint step, the
+  keyboard focus ring — all painted on the template presenter; the old opacity nudge
+  retires; the armed `.on` contrast stands on the kept rest dimming) — the Livery
+  0.1.14 release, the tags ride `main` now; the pairs transfers read as buttons at
+  rest through the new `icon framed` composition (the family hairline rest outline,
+  the Highlight hover stroke; the review round turned the composition into the framed
+  chip — the raised SurfaceHigh fill under the hairline at rest (the plain Surface
+  fill sat 1:1 against the window background and read as nothing), the Highlight
+  hover stroke, the press dimming the chip, the chevron strokes at the bold 2px
+  weight — the Livery 0.1.15 and 0.1.16 releases); the second review round closed the
+  two remaining reads: the plate fill rides the derived SurfacePlate — the wells' 3%
+  step sat 1.08:1 over the section card's own Surface plane and read as nothing (the
+  mockup promised the 1.18 plate read), so the plate key lifts the Surface 7% toward
+  its own pole (midnight #262b31, 1.21:1 over the card; the floor walk keeps it on
+  the extreme grounds, the wells keep their 3% — the Livery 0.1.17 release), and the
+  gate-disabled chip reads asleep at Opacity 0.55 (the transfer commands'
+  CanExecute gates shut the chips before any pick exists, a disabled control never
+  arms the pointer, and the kit had no disabled read at all — a full-bright chip sat
+  there answering nothing: the broken-hover read the second review caught); the
+  chevron geometry starts at the origin with the control centered — the
+  Stretch="None" glyph painted at its data coordinates inside the stretched control
+  left the ink in the chip's corner (the review's own screenshot; the centered 4.5x8
+  ink rides the mockup's proportions); the alerts editor's 14 cells ride the shared
+  FieldGrammar dictionary (the SpaceS caption gap, the caption size in the class, the
+  per-cell FontSize copies die) and every editor combo rides content widths (MinWidth
+  over Width — a combo's chrome eats ~45px of a fixed width, so "Falls below" and the
+  ru trigger labels clipped at every culture; the numeric wells keep their deliberate
+  widths); the screener's rows stretch to the header plan (the T-235 probe named the
+  root: Avalonia 12's fluent ControlTheme carries HorizontalAlignment=Left on every
+  button, so the T-195 era stretched only the row's content — the whole-row press
+  target and the header's sort buttons take the stretch explicitly) and trade the
+  fluent chrome for the row grammar's look (the bottom hairline separator, square
+  corners, the opacity-dim press without the scale squish); the review round unboxes
+  the sort captions (the kit's rest hairline framed every header caption and the
+  right-aligned text sat flush against its border — the captions read as captions
+  over the header hairline, the T-110 focus ring re-arms through :focus). Tests: the Livery
+  battery's icon-affordance pins (the tint steps, the presenter focus ring, the
+  framed composition, the plate pins, the asleep pin); the `FieldGrammarPinsTests` (the
+  include, the 14 cells, the caption copies gone, the no-fixed-width-combo fact, the
+  transfer pair's framed composition); the `HeadlessScreenerRowTests` (the real window
+  materialized without a view model — the rows equal the header plan, the chrome is the
+  row hairline, the sort captions align over the data columns); the
+  `HeadlessTransferChipTests` (the settings window materialized over a REAL ViewModel
+  — the main window's open path; the bare window's failed command bindings turned the
+  chips effectively disabled and masked every pointer fact: Avalonia's Button stamps
+  `:disabled` off a failed Command binding, a disabled control never arms the pointer,
+  and the kit had no disabled read — the four facts measure the chevron ink at the
+  chip's center, the rest fill over the plane the chip really sits on, the enabled
+  chip's Highlight hover answer with the fill held, and the gate-disabled chip asleep
+  and silent); the T-234 toolbar pins ride their own strip (the toolbar's T-212 widths
+  and the editor's content floors are two lanes). 2224 App facts green, the Livery 63.
+
+## T-236 - Beta-prep finale: the full E2E/soak pass + the release readiness checklist
+
+- **Branch:** queued 2026-11-14 (the beta-prep wave's closer; renumbered off T-232 - the
+  number collided with the landed controls task).
+- **Origin:** the beta-prep wave (T-226, T-229, T-230, T-231, T-228) closed its fixes; the beta
+  milestone needs one consolidated readiness pass — the long-tail families a per-task gate does
+  not fully exercise (the E2E lane, the soak budget gates) and the release path (the T-125 dry
+  run) verified once on the final tip.
+- **What:** run the full E2E + soak families on the beta-prep tip — the soak harness
+  (`scripts/soak.ps1 -Minutes 5`, the cold start < 3 s and memory < 500 MB budget gates), the E2E
+  suite, and the release dry run (`scripts/release-dry-run.ps1`); record the verdicts in a beta
+  readiness document with the standing flake-family notes (record, never fix in-flight), the
+  parked item (T-041 post-beta) and the beta-flip pointer (`docs/SECURITY.md` — the signing/
+  notarization flip stays a board decision).
+- **Scope:** docs (the readiness record) + the verification runs; no product code, no version
+  bump (a docs-only task).
+- **Acceptance:** the soak budget gates pass on the tip; the E2E family's verdict recorded with
+  any flake families named; the dry run exits 0; the readiness document names the beta state
+  honestly.
+- **Tests:** none new (verification-only; the families run as-is).
+- **Status:** done. Canon: the branch `feat/beta-prep-finale` carries the claim `cecd8b5`,
+  the readiness record `2845831` and this close (worktree zt-beta-prep-finale, rebased onto
+  the T-237 landing tip develop@72acefb - the claim's original base develop@5194f10).
+  Shipped: `docs/BETA-READINESS.md` - the consolidated readiness record cut on the
+  alpha.174 tip (`671f064`; Livery 0.1.13, Plugins 0.4.0, the CHANGELOG head matched by the
+  dry run): the soak isolation census PASS (0 real-exchange host hits, the T-233 fix
+  holds), both memory budgets PASS (working set mean 253.9 / max 258.2 MB, private mean
+  120.9 / max 127.1 MB, leak slope 0.00 MB/h on both series), the E2E family 7/7 green in
+  19 s, the release dry run exit 0 (the version parsed, the archive name bound), the full
+  suite's last gate 3,517 green (on T-233's gate commit `8228c0c`). The one disclosed
+  breach: the cold-start Debug-lane budget (5,394 ms against the then-3,000 ms budget;
+  disclosed since T-109, never waived silently) - the follow-up this record filed as
+  T-234 landed as T-237 (the number was taken by the windows-unify task in between) with
+  the budget re-defined 3000 -> 5000 by a recorded decision, so the breach reads closed
+  on the landing tip (the record's addendum carries the lineage). The standing flake
+  families named in the record (the Infrastructure WS E2E timeouts under parallel load,
+  the App load-sensitive timings); neither fired this pass. T-041 stays parked post-beta;
+  the beta flip (the version line, the signing/notarization per `docs/SECURITY.md`, the
+  main sync) stays the board's decision. GATE PASSED on the branch tip.
+
+## T-237 - The cold start meets the 3 s budget on the soak lane
+
+- **Branch:** queued 2026-11-14 (filed by the T-236 readiness record; the follow-up candidate
+  noted at the T-109 close, re-owned by the T-233 canon).
+- **Origin:** the soak `ColdStartMs` budget has been disclosed as breached on the Debug lane
+  since T-109's own acceptance run (3,999.3 ms there; the T-236 finale pass 5,394 ms; the
+  T-233 soak re-runs 4,562-9,977 ms across four runs; the 2026-11-10 shakedown 3.9 s warm).
+  The spawn-to-window wall decomposes as ~1.6 s to the runtime, ~1.7 s to the service
+  assemblies, the rest to the window build; the spread is machine-load sensitivity, pre- and
+  post-T-233 runs measure alike.
+- **What:** a dedicated startup-optimization pass over the app's walk to the first window —
+  the runtime/assembly warm shape, the store walk's batching (the T-226 batch), the chart
+  prewarm, the composition's eager adapter resolution — re-measured on the soak lane with a
+  Release-lane cross-check where the harness allows; the enforcement posture stays (the CI
+  lane keeps the cold start advisory).
+- **Scope:** the app startup path; `scripts/soak.ps1` budget files only if the budget
+  definition itself changes (protected); tests for whatever the walk reorders.
+- **Acceptance:** the soak `ColdStartMs` budget passes on the landing lane (or the budget is
+  re-defined by a recorded decision with the honest reasons); no regression in the other
+  budget families.
+- **Tests:** the startup-order facts the change introduces; the existing suite stays green.
+- **Status:** done. Canon: the branch `feat/startup-optimization` carries the claim, the
+  feature, the release and this close (the temporary probe commit never left the branch).
+  The shipped shape: the startup model pre-warm (`PersistenceModelPrewarm`) kicks all six
+  SQLite contexts' EF model builds on worker threads in `RunDesktopLifetime` before
+  `BuildAvaloniaApp` — throwaway in-memory options (no connection, no file, no data), a
+  CAS-latched kick, a settled Warmed/Failed/WallMs outcome that never faults, and the
+  composition's one Debug receipt (the T-231 fire-and-forget canon: the receipt task rides
+  a field). The candle cache's and the chart drawings' `InitializeAsync` pay their
+  first-query plan warm-ups right after the one-time migration — each store's own read
+  shape over a benign never-stored series (the read answers zero rows), inside the T-226
+  store batch's concurrent window, silent above Debug (the T-229 log floor), degrading
+  harmlessly (the walk's own first touch builds the model exactly as before).
+  Tests: the pre-warm facts (six models warm once per process, the second kick answers
+  the same settled outcome) and the two stores' warm-up facts (the benign read stays
+  empty, one Debug receipt, nothing at warning or above, the disabled cache skips it).
+  The measured outcome (the honest one): the composition walk got faster — the
+  SecretStore → MainViewModel-ready span 2.29 s → 1.54 s on the Release lane; the Debug
+  walk total 2,402-2,543 ms → 1,668 ms (the store batch 1,116-1,168 ms → 723 ms, the chart
+  ctor 492-524 ms → 204 ms) — but the spawn-to-window wall did not move: the Release
+  cross-check measured the startup-pre-warm build at 4,383/4,338 ms against plain
+  develop's 4,493/4,335 ms (the same wall), the Debug steady band stayed 4.4-4.5 s on both
+  shapes, and the official soak (fresh sandbox) measured 4,849.3 ms. The wall is bound by
+  the pre-log region (the runtime spin + the Avalonia app build + the composition's start,
+  ~1.4-1.9 s on Release) and the window build — fixed-cost phases a startup-code pass does
+  not reach; the follow-up candidate is a packaging-lane pass (ReadyToRun / a publish
+  shape). The recorded budget decision (the acceptance's second path): the landing lane's
+  `ColdStartMs` budget re-defines 3000 → 5000 as a regression floor — the observed steady
+  band is 4.3-4.9 s on both lanes, the breach history's first-run outliers ride above it,
+  and a genuine startup regression lands far above; the CI lane stays advisory. The 3 s
+  product target stays the aspiration (AGENTS.md). Recorded in docs/SOAK.md's cold-start
+  record. The memory families held everywhere (the official soak: mean 118.1 / peak
+  123.5 MB, leak slope 0.00 MB/h on both series, the isolation census clean). Gate:
+  `GATE PASSED` (`-AllowProtected`), 3,541 facts green (61 Core + 17 Soak + 32 Strategies
+  + 53 Backtest + 48 AdapterKit + 409 UI + 683 Infrastructure + 7 E2E + 2,231 App).
+
+## T-238 - The beta flip: the version line moves to plain 0.2.x
+
+- **Branch:** queued 2026-11-15 (the user's board decision: the beta version line is 0.2.x,
+  the first beta assigned by the supervisor; the main sync stays the user's manual step).
+- **Origin:** the T-236 readiness record's beta-flip pointer resolved: the version line and
+  the versioning order are decided; the signing/notarization flip stays a follow-up gated on
+  the user-side certificate provisioning (docs/SECURITY.md keeps the hash-only posture).
+- **What:** set the version line - `Directory.Build.props` VersionPrefix `0.1.0` +
+  VersionSuffix `alpha.177` -> VersionPrefix `0.2.0`, the VersionSuffix element retired;
+  record the versioning order in the canon anchors (the props comment, AGENTS.md rule 6,
+  the supervisor skill's bump + rebase lines, the orchestrator's wave pre-assign line,
+  release.yml's and docs/SECURITY.md's artifact notes); add the CHANGELOG.md `## [0.2.0]`
+  head section; note the decision in docs/BETA-READINESS.md's addendum.
+- **Scope:** docs + the version metadata; no product code, no pipeline behavior change (the
+  version parser reads the suffix-less shape as-is).
+- **Acceptance:** the release dry run parses `0.2.0` and matches the CHANGELOG head; the
+  versioning order reads from the canon anchors; the launch smoke binds `0.2.0+<sha>`; the
+  gate stays green.
+- **Tests:** none new (version metadata; the dry run + the launch smoke are the checks).
+- **Status:** done - 0.2.0, the first beta (the version line now plain `0.2.x`, no
+  prerelease suffix; the third number rides the app-changing landings). Chain: docs(claim)
+  `fa888ec` -> chore(release) `e170158` -> this close, on the base develop@30eb0c3. Shipped:
+  the VersionPrefix `0.2.0` (the VersionSuffix element retired - the version parsers in
+  release.yml and release-dry-run.ps1 read the suffix-less shape as-is, zero behavior
+  change); the versioning order recorded in the canon anchors (the props comment, AGENTS.md
+  rule 6, the supervisor skill's bump + rebase lines, the orchestrator's wave pre-assign
+  line, release.yml's + docs/SECURITY.md's artifact notes): one release per board task that
+  changes the app, `0.2.N -> 0.2.N+1`, docs-only tasks do not bump, a landing conflict keeps
+  the higher number, the release commit title follows the `chore(release): 0.2.N` shape;
+  the CHANGELOG `## [0.2.0]` head section opens the beta line (what the `0.1.0-alpha` line
+  shipped stays in, the per-task sections below carry the detail); docs/SECURITY.md's
+  artifact notes updated honestly (the beta opened hash-only - the signing/notarization
+  flip stays a follow-up gated on the user-side certificate provisioning, the hashes stay
+  as the cross-check); docs/BETA-READINESS.md's addendum carries the decided line.
+  Acceptance evidence: the release dry run parsed `0.2.0` (prefix '0.2.0', suffix ''), matched
+  the `## [0.2.0] - 2026-11-15` head (16 lines), published 290 files in 34.5 s and the
+  embedded informational version bound `0.2.0+e170158...`; the launch smoke met the
+  standing bar (the window shown and held, 0 startup failures in the day-file slice, the
+  process stopped clean); the gate `GATE PASSED` (`-AllowProtected` - the props + AGENTS.md
+  shields). The user tags `v0.2.0` on `main` after their manual sync - the release pipeline
+  builds the tag's tree and the tag must match the version commit (`v0.2.0`). Free filing
+  number after this task: T-239.

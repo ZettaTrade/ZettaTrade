@@ -12,6 +12,7 @@ using Core.Enums;
 using Core.ValueObjects;
 using FluentAssertions;
 using Infrastructure.Exchange;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -50,14 +51,36 @@ public sealed class BinanceAdapterParsingTests
         }
     }
 
-    private static BinanceAdapter CreateAdapter(HttpResponseMessage response)
+    private static BinanceAdapter CreateAdapter(
+        HttpResponseMessage response,
+        ILogger<BinanceAdapter>? logger = null)
     {
         var factory = Substitute.For<IHttpClientFactory>();
         factory
             .CreateClient(Arg.Any<string>())
             .Returns(new HttpClient(new StubHandler(response)));
 
-        return new BinanceAdapter(NullLogger<BinanceAdapter>.Instance, factory);
+        return new BinanceAdapter(logger ?? NullLogger<BinanceAdapter>.Instance, factory);
+    }
+
+    /// <summary>A logger recording (level, text) pairs, so the parse's log lane stays assertable.</summary>
+    private sealed class SpyLogger : ILogger<BinanceAdapter>
+    {
+        public List<(LogLevel Level, string Text)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add((logLevel, formatter(state, exception)));
+        }
     }
 
     private static (BinanceAdapter Adapter, StubHandler Handler) CreateAdapterWithCapture(
@@ -138,16 +161,23 @@ public sealed class BinanceAdapterParsingTests
     }
 
     [Fact]
-    public async Task GetSymbolsAsync_WithUnrecognizedQuoteNames_DropsThemCounted()
+    public async Task GetSymbolsAsync_WithUnrecognizedQuoteNames_DropsThemCountedOnTheDebugLevel()
     {
         // "SUI" alone is a quote literal but not a pair (guard: name must be
         // longer than the quote); "ZZZYYY" matches no known quote at all.
         var payload = """[{"symbol":"BTCUSDT","price":"50000"},{"symbol":"SUI","price":"1"},{"symbol":"ZZZYYY","price":"1"}]""";
-        var adapter = CreateAdapter(Json(Encoding.UTF8.GetBytes(payload)));
+        var logger = new SpyLogger();
+        var adapter = CreateAdapter(Json(Encoding.UTF8.GetBytes(payload)), logger);
 
         var symbols = await adapter.GetSymbolsAsync();
 
         symbols.Select(symbol => symbol.Normalized).Should().Equal("BTC/USDT");
+        logger.Entries.Should().Contain(
+            entry => entry.Level == LogLevel.Debug && entry.Text.Contains("unrecognized quote asset"),
+            "the venue's standing data-shape cargo drops on the debug level (T-231)");
+        logger.Entries.Should().NotContain(
+            entry => entry.Level == LogLevel.Warning && entry.Text.Contains("unrecognized quote asset"),
+            "an unrecognized quote asset is never a warning family (T-231)");
     }
 
     #endregion Symbol Catalog

@@ -9,7 +9,7 @@
         Title="{loc:Localized Settings.License.Title}"
         Width="480" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
-        CanResize="False"
+        CanResize="True"
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
@@ -44,18 +44,22 @@
             <CheckBox Content="{loc:Localized Settings.License.Eula.AcceptLabel}"
                       IsChecked="{Binding Accepted}" />
         </StackPanel>
-        <Button Content="{loc:Localized Settings.License.Activate}"
-                Classes="primary"
-                Command="{Binding ActivateCommand}"
-                MinWidth="140"
-                HorizontalAlignment="Left"
-                Margin="0,4,0,0" />
+        <!-- The verdict: the store's answer to the last activation attempt
+             — it reads above the strip, where the answer's own row lives. -->
         <TextBlock Text="{Binding Verdict}"
                    TextWrapping="Wrap"
                    />
-        <Button Content="{loc:Localized Settings.License.Close}"
-                Click="OnCloseClicked"
-                MinWidth="140"
-                HorizontalAlignment="Right" />
+        <!-- The confirm strip (T-234): the settings footer's shape — the
+             quiet close first, the ONE primary activate last, both riding
+             the 90 strip and the row's own spacing. -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource SpaceM}">
+            <Button Content="{loc:Localized Settings.License.Close}"
+                    Click="OnCloseClicked"
+                    MinWidth="90" />
+            <Button Content="{loc:Localized Settings.License.Activate}"
+                    Classes="primary"
+                    Command="{Binding ActivateCommand}"
+                    MinWidth="90" />
+        </StackPanel>
     </StackPanel>
 </Window>

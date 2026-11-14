@@ -16,7 +16,8 @@ using ZettaTrade.Strategies.Tests.Harness;
 /// strategy seam): a valid plugin assembly registers under its canonical
 /// id, an empty-id type of a mixed assembly skips loudly while its healthy
 /// neighbor registers, a duplicate id keeps the first registration, a
-/// garbage dll warns without crashing the scan, a plugin with a missing
+/// garbage dll drops on the debug level (T-229) without crashing the scan,
+/// a plugin with a missing
 /// dependency fails the GetTypes() step and skips loudly (the T-054
 /// regression, pinned) and a missing plugins directory is an honest zero.
 /// The scan loads the dlls (the file stays locked for the process
@@ -208,7 +209,7 @@ public sealed class PluginStrategyCatalogTests
     }
 
     [Fact]
-    public void Scan_AGarbageDll_WarnsAndKeepsWorking()
+    public void Scan_AGarbageDll_DropsItOnTheDebugLevelAndKeepsWorking()
     {
         using var fixture = new StrategiesDirectoryFixture();
         fixture.StageValidSamplePlugin("ZettaTrade.Plugins.SampleStrategy.dll");
@@ -219,9 +220,13 @@ public sealed class PluginStrategyCatalogTests
 
         catalog.Get(SampleCrossStrategy.StrategyId).Should().NotBeNull("the malformed neighbor never breaks the scan");
         logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Debug &&
+            entry.Message.Contains("not-a-plugin.dll"),
+            "a file that is not a loadable assembly is the scan's routine cargo and drops on the debug level (T-229)");
+        logger.Entries.Should().NotContain(entry =>
             entry.Level == LogLevel.Warning &&
             entry.Message.Contains("not-a-plugin.dll"),
-            "the malformed assembly skips loudly");
+            "a stray file in the plugins folder is never a warning family (T-229)");
     }
 
     /// <summary>
@@ -251,9 +256,9 @@ public sealed class PluginStrategyCatalogTests
             entry.Message.Contains("fail to load"),
             "the dependency-missing plugin skips loudly, not silently");
         logger.Entries.Should().Contain(entry =>
-            entry.Level == LogLevel.Warning &&
+            entry.Level == LogLevel.Debug &&
             entry.Message.Contains("not-a-plugin.dll"),
-            "the garbage neighbor keeps its own warning");
+            "the garbage neighbor drops on the debug level (T-229)");
     }
 
     /// <summary>

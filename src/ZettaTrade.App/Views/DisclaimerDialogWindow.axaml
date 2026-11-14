@@ -9,7 +9,7 @@
         Title="{loc:Localized Trading.Disclaimer.Title}"
         Width="480" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
-        CanResize="False"
+        CanResize="True"
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
@@ -39,11 +39,13 @@
             <TextBlock Text="{loc:Localized Trading.Disclaimer.Version}" />
             <TextBlock Text="{Binding VersionText}" />
         </StackPanel>
+        <!-- The confirm strip (T-234): the settings footer's shape — the
+             ONE primary acknowledge rides the 90 strip at the right edge,
+             the row's own spacing clears the gap. -->
         <Button Content="{loc:Localized Trading.Disclaimer.Acknowledge}"
                 Classes="primary"
                 Command="{Binding AcknowledgeCommand}"
-                MinWidth="140"
-                HorizontalAlignment="Center"
-                Margin="0,4,0,0" />
+                MinWidth="90"
+                HorizontalAlignment="Right" />
     </StackPanel>
 </Window>

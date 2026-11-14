@@ -12,9 +12,16 @@
         Title="{loc:Localized Wizard.Title}"
         Width="520" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
-        CanResize="False"
+        CanResize="True"
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
+
+    <Window.Styles>
+        <!-- The section-card grammar (T-234): the three steps ride the
+             settings' card voice — the tick-and-caption header over each
+             step's pick. -->
+        <StyleInclude Source="avares://ZettaTrade.App/Themes/SectionCards.axaml" />
+    </Window.Styles>
 
     <!-- The three steps share one body area; the visible step swaps and the
          nav row always stays in place (the wizard never moves its controls —
@@ -30,118 +37,136 @@
                    Foreground="{DynamicResource TextSecondary}"
                    FontSize="{StaticResource CaptionFontSize}" />
 
-        <!-- Step one: the theme pick. -->
-        <StackPanel IsVisible="{Binding IsThemeStepVisible}" Spacing="{StaticResource SpaceM}">
-            <TextBlock Text="{loc:Localized Wizard.Theme.Header}"
-                       FontWeight="Bold"
-                       FontSize="{StaticResource TitleFontSize}" />
-            <TextBlock Text="{loc:Localized Wizard.Theme.Caption}"
-                       TextWrapping="Wrap" />
-            <ComboBox ItemsSource="{Binding ThemeOptions}"
-                      SelectedItem="{Binding SelectedTheme}"
-                      MinWidth="240"
-                      HorizontalAlignment="Left">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="themes:ThemeInfo">
-                        <!-- The settings picker's own swatch shape (T-161):
-                             the name and the theme file's preview strip,
-                             honestly the same pick the settings window
-                             offers — the two pickers cannot disagree. The
-                             converter drops unparseable entries (the
-                             settings picker's own test lane). -->
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0"
-                                       Text="{Binding DisplayName}"
-                                       VerticalAlignment="Center" />
-                            <ItemsControl Grid.Column="1"
-                                          VerticalAlignment="Center"
-                                          ItemsSource="{Binding PreviewColors, Converter={x:Static themes:PreviewColorsToBrushesConverter.Instance}}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="media:ISolidColorBrush">
-                                        <Border Width="10"
-                                                Height="10"
-                                                CornerRadius="2"
-                                                Background="{Binding}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Grid>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-        </StackPanel>
+        <!-- Step one: the theme pick. The step body rides the card voice
+             (T-234): the tick-and-caption header over the step's pick. -->
+        <Border Classes="section-card" IsVisible="{Binding IsThemeStepVisible}">
+            <StackPanel Spacing="{StaticResource SpaceM}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                    <Border Classes="section-tick" />
+                    <TextBlock Classes="section-header"
+                               Text="{loc:Localized Wizard.Theme.Header}" />
+                </StackPanel>
+                <TextBlock Text="{loc:Localized Wizard.Theme.Caption}"
+                           TextWrapping="Wrap" />
+                <ComboBox ItemsSource="{Binding ThemeOptions}"
+                          SelectedItem="{Binding SelectedTheme}"
+                          MinWidth="240"
+                          HorizontalAlignment="Left">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="themes:ThemeInfo">
+                            <!-- The settings picker's own swatch shape (T-161):
+                                 the name and the theme file's preview strip,
+                                 honestly the same pick the settings window
+                                 offers — the two pickers cannot disagree. The
+                                 converter drops unparseable entries (the
+                                 settings picker's own test lane). -->
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding DisplayName}"
+                                           VerticalAlignment="Center" />
+                                <ItemsControl Grid.Column="1"
+                                              VerticalAlignment="Center"
+                                              ItemsSource="{Binding PreviewColors, Converter={x:Static themes:PreviewColorsToBrushesConverter.Instance}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="media:ISolidColorBrush">
+                                            <Border Width="10"
+                                                    Height="10"
+                                                    CornerRadius="2"
+                                                    Background="{Binding}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+        </Border>
 
         <!-- Step two: the adapter pick. Demo stays the default lane; the
-             keys note is text only — the wizard never collects secrets. -->
-        <StackPanel IsVisible="{Binding IsAdapterStepVisible}" Spacing="{StaticResource SpaceM}">
-            <TextBlock Text="{loc:Localized Wizard.Adapter.Header}"
-                       FontWeight="Bold"
-                       FontSize="{StaticResource TitleFontSize}" />
-            <TextBlock Text="{loc:Localized Wizard.Adapter.Caption}"
-                       TextWrapping="Wrap" />
-            <ComboBox ItemsSource="{Binding AdapterOptions}"
-                      SelectedItem="{Binding SelectedAdapter}"
-                      MinWidth="240"
-                      HorizontalAlignment="Left">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="interfaces:IMarketDataAdapter">
-                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
-                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding Id}" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-            <TextBlock Text="{loc:Localized Wizard.Adapter.Secrets}"
-                       TextWrapping="Wrap"
-                       />
-        </StackPanel>
+             keys note is text only — the wizard never collects secrets.
+             The step body rides the card voice (T-234). -->
+        <Border Classes="section-card" IsVisible="{Binding IsAdapterStepVisible}">
+            <StackPanel Spacing="{StaticResource SpaceM}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                    <Border Classes="section-tick" />
+                    <TextBlock Classes="section-header"
+                               Text="{loc:Localized Wizard.Adapter.Header}" />
+                </StackPanel>
+                <TextBlock Text="{loc:Localized Wizard.Adapter.Caption}"
+                           TextWrapping="Wrap" />
+                <ComboBox ItemsSource="{Binding AdapterOptions}"
+                          SelectedItem="{Binding SelectedAdapter}"
+                          MinWidth="240"
+                          HorizontalAlignment="Left">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="interfaces:IMarketDataAdapter">
+                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Id}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="{loc:Localized Wizard.Adapter.Secrets}"
+                           TextWrapping="Wrap"
+                           />
+            </StackPanel>
+        </Border>
 
         <!-- Step three: the first symbol pick, refilled on every draft-adapter
-             selection; the list scrolls inside its own viewport. -->
-        <StackPanel IsVisible="{Binding IsSymbolStepVisible}" Spacing="{StaticResource SpaceM}">
-            <TextBlock Text="{loc:Localized Wizard.Symbol.Header}"
-                       FontWeight="Bold"
-                       FontSize="{StaticResource TitleFontSize}" />
-            <TextBlock Text="{loc:Localized Wizard.Symbol.Caption}"
-                       TextWrapping="Wrap" />
-            <!-- The symbol rows clear the list's own overlay bar (T-170):
-                 the padding is the list's internal gutter. -->
-            <ListBox ItemsSource="{Binding SymbolNames}"
-                     SelectedItem="{Binding SelectedSymbolName}"
-                     Height="180"
-                     Padding="0,0,16,0" />
-        </StackPanel>
+             selection; the list scrolls inside its own viewport. The step
+             body rides the card voice (T-234). -->
+        <Border Classes="section-card" IsVisible="{Binding IsSymbolStepVisible}">
+            <StackPanel Spacing="{StaticResource SpaceM}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                    <Border Classes="section-tick" />
+                    <TextBlock Classes="section-header"
+                               Text="{loc:Localized Wizard.Symbol.Header}" />
+                </StackPanel>
+                <TextBlock Text="{loc:Localized Wizard.Symbol.Caption}"
+                           TextWrapping="Wrap" />
+                <!-- The symbol rows clear the list's own overlay bar (T-170):
+                     the padding is the list's internal gutter. -->
+                <ListBox ItemsSource="{Binding SymbolNames}"
+                         SelectedItem="{Binding SelectedSymbolName}"
+                         Height="180"
+                         Padding="0,0,16,0" />
+            </StackPanel>
+        </Border>
 
-        <!-- The nav row: back walks the drafts, next advances, finish is the
-             last step's confirm, skip leaves without applying anything (a
-             plain close — the same path the system close takes). -->
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="{StaticResource SpaceS}">
-            <Button Grid.Column="0"
-                    IsVisible="{Binding IsBackVisible}"
-                    Content="{loc:Localized Wizard.Back}"
-                    Command="{Binding BackCommand}"
-                    MinWidth="90" />
-            <Button Grid.Column="2"
-                    IsVisible="{Binding IsNextVisible}"
-                    Content="{loc:Localized Wizard.Next}"
-                    Command="{Binding NextCommand}"
-                    MinWidth="90" />
-            <Button Grid.Column="3"
-                    Classes="primary"
-                    IsVisible="{Binding IsFinishVisible}"
-                    Content="{loc:Localized Wizard.Finish}"
-                    Command="{Binding FinishCommand}"
-                    MinWidth="90" />
+        <!-- The nav row (T-234): one strip — the quiet walks (back, skip)
+             at the left edge, the advance and the ONE primary finish at
+             the right edge, all riding the 90 strip. Back walks the
+             drafts, next advances, finish is the last step's confirm, skip
+             leaves without applying anything (a plain close — the same
+             path the system close takes). -->
+        <Grid ColumnDefinitions="Auto,*,Auto">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceM}">
+                <Button IsVisible="{Binding IsBackVisible}"
+                        Content="{loc:Localized Wizard.Back}"
+                        Command="{Binding BackCommand}"
+                        MinWidth="90" />
+                <Button Click="OnSkipClick"
+                        Content="{loc:Localized Wizard.Skip}"
+                        MinWidth="90" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{StaticResource SpaceM}">
+                <Button IsVisible="{Binding IsNextVisible}"
+                        Content="{loc:Localized Wizard.Next}"
+                        Command="{Binding NextCommand}"
+                        MinWidth="90" />
+                <Button Classes="primary"
+                        IsVisible="{Binding IsFinishVisible}"
+                        Content="{loc:Localized Wizard.Finish}"
+                        Command="{Binding FinishCommand}"
+                        MinWidth="90" />
+            </StackPanel>
         </Grid>
-        <Button Click="OnSkipClick"
-               Content="{loc:Localized Wizard.Skip}"
-               HorizontalAlignment="Right"
-               MinWidth="90" />
     </StackPanel>
 </Window>
