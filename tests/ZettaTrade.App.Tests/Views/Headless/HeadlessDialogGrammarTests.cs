@@ -94,7 +94,8 @@ public sealed class HeadlessDialogGrammarTests
     /// the real layout: exactly one right-aligned row per window, every
     /// strip button riding the 90 width, the quiet button first, the ONE
     /// primary last, and the pair sitting side by side INSIDE the client
-    /// area (quiet.Left &lt; primary.Right at the shipped width).
+    /// area (the quiet's left edge sits before the last button's right
+    /// edge at the shipped width).
     /// </summary>
     [Fact]
     public async Task ThePairedConfirmStrips_MeasureQuietFirstPrimaryLast()
