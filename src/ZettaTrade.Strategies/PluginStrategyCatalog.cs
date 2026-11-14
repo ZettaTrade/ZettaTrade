@@ -8,11 +8,13 @@ using Microsoft.Extensions.Logging;
 /// The plugin loader of the strategy seam (T-111): every <c>*.dll</c> in
 /// the strategies plugins directory is scanned once for
 /// <see cref="IStrategy"/> implementations. A malformed or non-plugin
-/// assembly is skipped with a logged warning and the rest of the scan
-/// keeps working - the loader never throws (the T-054 tolerance canon,
-/// reused wholesale: the load guard, the GetTypes() ReflectionTypeLoadException
-/// guard and the per-type guard). The scan runs at load only: the plugin
-/// set is fixed for the session.
+/// assembly is skipped and the rest of the scan keeps working - the
+/// not-an-assembly drop rides the debug level (T-229: a stray file in the
+/// plugins folder is the scan's routine cargo, never a failure family), a
+/// real inspection failure stays a warning; the loader never throws (the
+/// T-054 tolerance canon, reused wholesale: the load guard, the GetTypes()
+/// ReflectionTypeLoadException guard and the per-type guard). The scan
+/// runs at load only: the plugin set is fixed for the session.
 /// </summary>
 /// <remarks>
 /// The documented ctor convention decides how an implementation is built
@@ -117,8 +119,21 @@ public sealed class PluginStrategyCatalog : IStrategyCatalog
         {
             assembly = Assembly.LoadFrom(filePath);
         }
+        catch (BadImageFormatException ex)
+        {
+            // The honest drop (T-229): a file that is not a loadable
+            // assembly at all — a stray dll, a native helper, a corrupted
+            // download — rides the debug level. The plugins folder may
+            // carry non-plugin files by design; the scan's job is the
+            // folder's real strategies, and the summary line's missing
+            // name is the only production trace of a dropped file.
+            _logger.LogDebug(ex, "Strategy plugin assembly {Path} is not a loadable assembly and is skipped", filePath);
+            return;
+        }
         catch (Exception ex)
         {
+            // A file the OS could not hand over (locked, inaccessible) is a
+            // real environment failure and stays loud.
             _logger.LogWarning(ex, "Strategy plugin assembly {Path} failed to load and is skipped", filePath);
             return;
         }
