@@ -239,7 +239,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-233 The adapters' construction-time Disconnected snapshots stop carrying real-exchange endpoints into a demo-only run's log: a connection-state line rides a real lifecycle transition, and the soak census's host list covers every shipped venue (the T-232 finale's soak finding) | fix/adapter-state-log-leak | done | - |
 | T-234 The window family rides the variant-A grammar: the dialog family resizes (the fixed-frame era ends app-wide), the confirm strips unify on the settings shape (the quiet button first, the ONE primary last, the 90 strip), the ticket/wizard/license bodies card, the toolbar widths and the pre-strip gaps normalize (the user's T-223 follow-up; renumbered off T-231 - the number collided with the landed ticker-retry task) | feat/windows-unify | done | 0.1.0-alpha.175 |
 | T-235 The controls answer the pointer: the kit's icon buttons speak a visible hover/pressed tint, the pairs transfer arrows read as buttons, the alerts editor's captions clear their fields (the Edge combo stops clipping), and the screener rows stretch to the header plan without the button chrome (the user's T-223 follow-up sweep; renumbered off T-232 - the number was skipped on the synced board) | feat/affordances | done | 0.1.0-alpha.176 |
-| T-236 Beta-prep finale: the full E2E/soak pass + the release readiness checklist recorded on the beta-prep tip (the beta-prep wave's closer; renumbered off T-232 - the number collided with the landed controls task) | feat/beta-prep-finale | in-progress | - |
+| T-236 Beta-prep finale: the full E2E/soak pass + the release readiness checklist recorded on the beta-prep tip (the beta-prep wave's closer; renumbered off T-232 - the number collided with the landed controls task) | feat/beta-prep-finale | done | - |
 | T-237 The cold start meets the 3 s budget on the soak lane: the spawn-to-window wall (runtime spin-up + service assemblies + the window build) gets the dedicated startup-optimization pass first noted at the T-109 close (the T-236 readiness record's disclosed breach; renumbered off T-234 - the number was taken by the landed windows-unify task) | feat/startup-optimization | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
@@ -321,30 +321,5 @@ protective orders, risk, venues), then market data, the chart stack, alerts, AI/
 and reporting, and the platform tail. All rows start `planned`; the human prioritizes the
 lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by default. The
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
-
----
-
-## T-236 - Beta-prep finale: the full E2E/soak pass + the release readiness checklist
-
-- **Branch:** queued 2026-11-14 (the beta-prep wave's closer; renumbered off T-232 - the
-  number collided with the landed controls task).
-- **Origin:** the beta-prep wave (T-226, T-229, T-230, T-231, T-228) closed its fixes; the beta
-  milestone needs one consolidated readiness pass — the long-tail families a per-task gate does
-  not fully exercise (the E2E lane, the soak budget gates) and the release path (the T-125 dry
-  run) verified once on the final tip.
-- **What:** run the full E2E + soak families on the beta-prep tip — the soak harness
-  (`scripts/soak.ps1 -Minutes 5`, the cold start < 3 s and memory < 500 MB budget gates), the E2E
-  suite, and the release dry run (`scripts/release-dry-run.ps1`); record the verdicts in a beta
-  readiness document with the standing flake-family notes (record, never fix in-flight), the
-  parked item (T-041 post-beta) and the beta-flip pointer (`docs/SECURITY.md` — the signing/
-  notarization flip stays a board decision).
-- **Scope:** docs (the readiness record) + the verification runs; no product code, no version
-  bump (a docs-only task).
-- **Acceptance:** the soak budget gates pass on the tip; the E2E family's verdict recorded with
-  any flake families named; the dry run exits 0; the readiness document names the beta state
-  honestly.
-- **Tests:** none new (verification-only; the families run as-is).
-- **Status:** in-progress (worktree zt-beta-prep-finale, branch feat/beta-prep-finale, base
-  develop@72acefb - rebased off the original claim base develop@5194f10; claimed 2026-11-14).
 
 ---

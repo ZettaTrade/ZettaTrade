@@ -41,9 +41,10 @@ a disclosed breach stays a disclosed breach.
   sensitivity of the Debug lane — pre- and post-T-233 runs measure alike (the fix touched only
   logging). The CI lane deliberately keeps the cold start advisory (runner noise); the landing
   lane enforces memory and reports the cold-start breach. **Follow-up: the dedicated
-  startup-optimization task is filed as T-234** — the follow-up candidate noted at T-109's
-  close, re-owned by the T-233 canon and this record. Not a silent waiver: the budget verdict
-  is reported as a breach until T-234 lands.
+  startup-optimization task is filed as T-234** (landed as T-237 — the number was taken
+  by the windows-unify task in between; see the addendum) — the follow-up candidate noted
+  at T-109's close, re-owned by the T-233 canon and this record. Not a silent waiver: the
+  budget verdict is reported as a breach until the follow-up lands (T-237).
 - **Standing flake families (record, never fix in-flight):**
   - `ZettaTrade.Infrastructure.Tests` WS E2E timeouts under parallel-suite load (the 10 s
     `EventWait` trips on scheduler starvation) — the WS E2E budget task's territory.
@@ -71,5 +72,20 @@ a disclosed breach stays a disclosed breach.
 The beta-prep wave's fixes (T-226, T-228–T-231, T-233) are verified on the consolidated tip:
 the isolation census, both memory budgets, the E2E family and the release dry run pass; the
 full suite's last gate is 3,517 green. The one disclosed breach is the cold-start Debug-lane
-budget, owned by T-234. **The beta flip decision is ready to be taken by the board with these
-numbers on record** — nothing else on the tip is uncertified.
+budget, owned by the startup follow-up (filed here as T-234, landed as T-237). **The beta
+flip decision is ready to be taken by the board with these numbers on record** — nothing
+else on the tip is uncertified.
+
+## Addendum (2026-11-14, the landing)
+
+The record was cut on the alpha.174 tip; two lineages moved before the landing:
+
+- **The cold-start follow-up landed as T-237** (the number this record filed as T-234 was
+  taken by the landed windows-unify task in between). The landing measured the wall
+  honestly — the startup-code pass sped the composition walk, the spawn-to-window wall
+  stayed — and the `ColdStartMs` budget re-defined 3000 -> 5000 by a recorded decision
+  (`scripts/soak-budgets.json`, `docs/SOAK.md`; the CI lane stays advisory, the 3 s
+  product target stays the aspiration). The BREACH verdicts above describe the alpha.174
+  state and read closed as of the T-237 landing.
+- **This record's task renumbered off T-232** (the number collided with the landed
+  controls task); the record rides the board as T-236.

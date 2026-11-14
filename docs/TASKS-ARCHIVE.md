@@ -5484,6 +5484,46 @@ the board and its section below.
   and silent); the T-234 toolbar pins ride their own strip (the toolbar's T-212 widths
   and the editor's content floors are two lanes). 2224 App facts green, the Livery 63.
 
+## T-236 - Beta-prep finale: the full E2E/soak pass + the release readiness checklist
+
+- **Branch:** queued 2026-11-14 (the beta-prep wave's closer; renumbered off T-232 - the
+  number collided with the landed controls task).
+- **Origin:** the beta-prep wave (T-226, T-229, T-230, T-231, T-228) closed its fixes; the beta
+  milestone needs one consolidated readiness pass — the long-tail families a per-task gate does
+  not fully exercise (the E2E lane, the soak budget gates) and the release path (the T-125 dry
+  run) verified once on the final tip.
+- **What:** run the full E2E + soak families on the beta-prep tip — the soak harness
+  (`scripts/soak.ps1 -Minutes 5`, the cold start < 3 s and memory < 500 MB budget gates), the E2E
+  suite, and the release dry run (`scripts/release-dry-run.ps1`); record the verdicts in a beta
+  readiness document with the standing flake-family notes (record, never fix in-flight), the
+  parked item (T-041 post-beta) and the beta-flip pointer (`docs/SECURITY.md` — the signing/
+  notarization flip stays a board decision).
+- **Scope:** docs (the readiness record) + the verification runs; no product code, no version
+  bump (a docs-only task).
+- **Acceptance:** the soak budget gates pass on the tip; the E2E family's verdict recorded with
+  any flake families named; the dry run exits 0; the readiness document names the beta state
+  honestly.
+- **Tests:** none new (verification-only; the families run as-is).
+- **Status:** done. Canon: the branch `feat/beta-prep-finale` carries the claim `cecd8b5`,
+  the readiness record `2845831` and this close (worktree zt-beta-prep-finale, rebased onto
+  the T-237 landing tip develop@72acefb - the claim's original base develop@5194f10).
+  Shipped: `docs/BETA-READINESS.md` - the consolidated readiness record cut on the
+  alpha.174 tip (`671f064`; Livery 0.1.13, Plugins 0.4.0, the CHANGELOG head matched by the
+  dry run): the soak isolation census PASS (0 real-exchange host hits, the T-233 fix
+  holds), both memory budgets PASS (working set mean 253.9 / max 258.2 MB, private mean
+  120.9 / max 127.1 MB, leak slope 0.00 MB/h on both series), the E2E family 7/7 green in
+  19 s, the release dry run exit 0 (the version parsed, the archive name bound), the full
+  suite's last gate 3,517 green (on T-233's gate commit `8228c0c`). The one disclosed
+  breach: the cold-start Debug-lane budget (5,394 ms against the then-3,000 ms budget;
+  disclosed since T-109, never waived silently) - the follow-up this record filed as
+  T-234 landed as T-237 (the number was taken by the windows-unify task in between) with
+  the budget re-defined 3000 -> 5000 by a recorded decision, so the breach reads closed
+  on the landing tip (the record's addendum carries the lineage). The standing flake
+  families named in the record (the Infrastructure WS E2E timeouts under parallel load,
+  the App load-sensitive timings); neither fired this pass. T-041 stays parked post-beta;
+  the beta flip (the version line, the signing/notarization per `docs/SECURITY.md`, the
+  main sync) stays the board's decision. GATE PASSED on the branch tip.
+
 ## T-237 - The cold start meets the 3 s budget on the soak lane
 
 - **Branch:** queued 2026-11-14 (filed by the T-236 readiness record; the follow-up candidate
