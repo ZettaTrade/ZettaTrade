@@ -1,3 +1,50 @@
+## [0.2.1] - 2026-11-15
+
+Build of board task T-041 (branch `feat/telegram-notifier`): the journal
+learned to call your own Telegram bot — the fills, the accepted cancellations
+and the rejections can now push one composed line to the user's own bot chat,
+opt-in per event type and strictly best-effort.
+
+### Added
+- The Telegram trade-notification sink (`TelegramNotifierService`): a whole
+  body that can never fault — the per-kind opt-in flag, the chat id and the
+  bot token are read per send; the flag off, an empty chat id or a missing
+  token is the quiet no-sink state (a Debug line), and every failure of the
+  push degrades into exactly one logged warning. Nothing retries, nothing
+  blocks a caller, nothing throws outward: a notification fault stays
+  invisible to the trading flow, exactly like a failed beep.
+- The Bot API transport (`TelegramBotClient`): one `sendMessage` POST per
+  message, straight to the user's own bot on `api.telegram.org` (no
+  third-party middleman in between) over a bounded named HttpClient
+  (`TelegramBot`, 10 s). The token rides the request path and never appears
+  in a failure report; a non-success status, an `ok:false` answer or a
+  malformed body throws into the sink's degrade lane.
+- The event bridge (`TelegramNotificationBridge`): it rides the notification
+  center's journaled trade outcomes (the same raw lane the footprint feed
+  triggers from), composes each event's line in the trading lane standing
+  when the event arrived, and dispatches the send fire-and-forget — a burst
+  keeps every push running to its own logged end, and one event's compose
+  fault never kills the event stream.
+- The message composer (`TelegramMessageComposer`): the composed line speaks
+  the shipped catalog (en and ru templates under `Notif.Telegram*`), carrying
+  the journal row's own facts — the side's word, the invariant F8 numbers,
+  the executed price, the exchange id and the status-bar chip's lane tag.
+  The journaled outcome events now carry the row's price and exchange id
+  (backward-compatible record extension); a fill whose event carries no
+  price fact is a composition fault, never a fabricated zero.
+- The configuration surface: opt-in flags and the chat id ride the
+  `Notifications.*` settings (`TelegramFills`, `TelegramCancels`,
+  `TelegramRejects`, `TelegramChatId` — default off, nothing sends
+  unconfigured); the bot token rides `ISecretStore` only (key
+  `telegram.bot-token`) — never a settings file, never a command-line
+  argument.
+- The test family: the loopback Bot API stub harness, the composer's en/ru
+  goldens, the bridge's dispatch facts (filter, lane tag, fire-and-forget,
+  degrade, per-kind opt-in), the sink's best-effort failure matrix (5xx,
+  negative envelope, malformed body, hanging API riding out the transport
+  timeout, token never in a log line) and the e2e walk through the real
+  center + bridge + sink.
+
 ## [0.2.0] - 2026-11-15
 
 The first beta release (board task T-238). The version line moves to plain `0.2.x` — no
