@@ -1,9 +1,13 @@
 ## [0.1.0-alpha.175] - 2026-11-14
 
-Build of board task T-234 (branch `feat/windows-unify`): the window family
-rides the settings' variant-A grammar — the dialog family resizes, the
-confirm strips unify on the footer's shape, the ticket and the wizard
-card their field groups, the toolbar widths normalize.
+Build of board tasks T-234 and T-235 (branches `feat/windows-unify` and
+`feat/affordances`): the window family rides the settings' variant-A
+grammar — the dialog family resizes, the confirm strips unify on the
+footer's shape, the ticket and the wizard card their field groups, the
+toolbar widths normalize — and the controls answer the pointer: the
+kit's icon buttons speak a visible hover/pressed tint, the pairs
+transfer arrows read as buttons at rest, the alerts editor's captions
+clear their fields, and the screener rows ride the header's column plan.
 
 ### Changed
 - The dialog family resizes: every window that shipped the fixed frame
@@ -34,31 +38,6 @@ card their field groups, the toolbar widths normalize.
   toolbar's commands ride the 110 command width (the create carries the
   row's ONE primary), the close the 90 quiet width, the row's own column
   spacing clears the gaps; the fresh backtest reference stays pinned.
-
-### Tests
-- The `DialogGrammarPinsTests` hold the grammar at the source of truth:
-  the fixed-frame era ends app-wide, the paired strips measure
-  quiet-first/primary-last at the 90 strip with the gate's honest
-  equal-weight exception, the strip-gap margin hacks stay gone, the
-  carded surfaces speak the section voice with the uppercase header
-  captions in both cultures, the annotation prompt rides the compact
-  chrome, the wizard's nav reads one strip, the toolbars ride the
-  T-212 widths.
-- The `HeadlessDialogGrammarTests` materialize the dialog family without
-  a view model and MEASURE the grammar on the real layout: every window
-  answers `CanResize == true`, the paired strips measure the 90 buttons,
-  the quiet-before-primary order and the row inside the client area, and
-  the annotation prompt carries the compact chrome class.
-
-## [0.1.0-alpha.175] - 2026-11-14
-
-Build of board task T-232 (branch `feat/windows-unify`, stacked on the
-unlanded T-231): the controls answer the pointer — the kit's icon buttons
-speak a visible hover/pressed tint, the pairs transfer arrows read as
-buttons at rest, the alerts editor's captions clear their fields, and the
-screener rows ride the header's column plan.
-
-### Changed
 - The icon buttons answer the pointer (the Livery 0.1.14 bump): the hover
   paints the button family's soft tint step (ButtonHoverTint) and the
   press the stronger step (ButtonPressedTint) on the template's
@@ -68,11 +47,21 @@ screener rows ride the header's column plan.
   focus draws the family's ring on the presenter. The armed `.on`
   contrast stands on the kept rest dimming.
 - The pairs transfer arrows ride the kit's framed chip (the review
-  round's chosen mockup): the free-standing action between the settings'
-  pair lists reads as a button at rest through the Surface fill under the
-  family's hairline, the hover answers with the Highlight stroke, the
-  press dims the chip, and the chevron strokes step to the bold 2px
-  weight (the thin 1.5px glyph floated in its box).
+  rounds' chosen mockup): the free-standing action between the settings'
+  pair lists reads as a button at rest through the plate fill under the
+  family's hairline — the plate lifts the Surface 7% toward its own pole
+  (midnight #262b31, 1.21:1 over the card), because the wells' 3% step
+  sat 1.08:1 over the section card's own Surface plane and read as
+  nothing (the mockup promised the 1.18 plate read). The hover answers
+  with the Highlight stroke and keeps the fill, the press dims the chip,
+  the chevron strokes step to the bold 2px weight, and the glyph
+  geometry starts at the origin with the control centered — the
+  Stretch="None" data-coordinate ink painted at its corner (the review's
+  own screenshot). The gate-disabled chip (no pick yet — the transfer
+  commands act on a picked pair) reads asleep at Opacity 0.55: a
+  disabled control never arms the pointer, and the kit had no disabled
+  read at all, so a full-bright chip sat there answering nothing (the
+  broken-hover read the second review caught).
 - The alerts editor's cells ride one shared field-cell grammar (the new
   FieldGrammar dictionary): the captions clear their fields at the small
   step and lose their per-cell FontSize copies. The editor's combos ride
@@ -93,9 +82,19 @@ screener rows ride the header's column plan.
   re-arms through :focus.
 
 ### Tests
-- The Livery battery carries the icon-affordance pins (the tint steps,
-  the presenter focus ring, the framed composition) — the satellite's
-  61 facts, the 0.1.14 release.
+- The `DialogGrammarPinsTests` hold the grammar at the source of truth:
+  the fixed-frame era ends app-wide, the paired strips measure
+  quiet-first/primary-last at the 90 strip with the gate's honest
+  equal-weight exception, the strip-gap margin hacks stay gone, the
+  carded surfaces speak the section voice with the uppercase header
+  captions in both cultures, the annotation prompt rides the compact
+  chrome, the wizard's nav reads one strip, the toolbars ride the
+  T-212 widths.
+- The `HeadlessDialogGrammarTests` materialize the dialog family without
+  a view model and MEASURE the grammar on the real layout: every window
+  answers `CanResize == true`, the paired strips measure the 90 buttons,
+  the quiet-before-primary order and the row inside the client area, and
+  the annotation prompt carries the compact chrome class.
 - The `FieldGrammarPinsTests` hold the shared cell class and the content
   widths at the source of truth: the include, the 14 cells, the caption
   copies gone, the no-fixed-width-combo fact, the transfer pair's
@@ -103,8 +102,19 @@ screener rows ride the header's column plan.
 - The `HeadlessScreenerRowTests` measure the stretch on the real window
   materialized without a view model: the rows equal the header plan,
   the chrome is the row hairline, the sort captions align over the data
-  columns. The T-231 toolbar pins ride their own strip (the toolbar's
+  columns. The T-234 toolbar pins ride their own strip (the toolbar's
   T-212 widths and the editor's content floors are two lanes).
+- The `HeadlessTransferChipTests` materialize the settings window over a
+  REAL ViewModel (the main window's open path — the bare window's failed
+  command bindings turned the chips effectively disabled and masked
+  every pointer fact) and measure the review round's four facts: the
+  chevron ink sits at the chip's center, the rest fill clears the
+  approved mockup's 1.18 plate contrast over the plane the chip really
+  sits on (the section card's Surface), the enabled chip's pointer
+  answers with the Highlight stroke while the fill holds, and the
+  gate-disabled chip reads asleep and never arms the hover.
+- The Livery battery carries the icon-affordance, framed-chip and plate
+  pins — the satellite's facts ride each kit release.
 
 ## [0.1.0-alpha.174] - 2026-11-14
 

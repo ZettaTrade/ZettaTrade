@@ -163,15 +163,48 @@ internal static class HeadlessWorld
             return;
         }
 
-        // The bare constructor is the whole heal: it re-registers the
-        // singleton and stands the live subjects up without touching any
-        // disk (theme files load on InitializeAsync, which the facts never
-        // need — their colors ride the merged resource dictionaries).
+        // The heal stands the singleton up against the repository's REAL
+        // shipped themes folder and walks the app's own apply path: the
+        // built-in files load through the manager's pipeline and midnight
+        // applies, so the palette roles AND the derived keys (the wells,
+        // the hairlines, the highlight stroke — the DynamicResource vocab
+        // the styles resolve at paint time) publish into the application
+        // resources exactly as the running window sees them. The old bare
+        // heal left the derived vocabulary unpublished, and a fact that
+        // measured a DynamicResource-driven paint measured null.
         await OnUi(() => _ = new ThemeManager(
             NullLogger.Instance,
             System.IO.Path.Combine(
                 System.IO.Path.GetTempPath(),
-                $"headless-world-themes-{Guid.NewGuid():N}")));
+                $"headless-world-themes-{Guid.NewGuid():N}"),
+            FindShippedThemesDirectory()));
+
+        await ThemeManager.Instance.InitializeAsync();
+        var applied = await OnUi(() => ThemeManager.Instance.ApplyThemeAsync("midnight"));
+        await applied;
+    }
+
+    /// <summary>
+    /// The repository's shipped themes folder — the same files the
+    /// composition root loads at startup, resolved by walking up from the
+    /// test's base directory to the solution marker (tests, gate runners
+    /// and IDE runs all execute inside the repository, so this resolves
+    /// identically for every consumer).
+    /// </summary>
+    private static string FindShippedThemesDirectory()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null &&
+               !File.Exists(System.IO.Path.Combine(directory.FullName, "ZettaTrade.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        directory.Should().NotBeNull("the test must run inside a ZettaTrade repository checkout");
+        var themes = System.IO.Path.Combine(directory!.FullName, "themes");
+        File.Exists(System.IO.Path.Combine(themes, "midnight.json")).Should().BeTrue(
+            "the shipped themes folder carries the midnight file the world applies");
+        return themes;
     }
 
     private static async Task<Application> SetupAsync()
