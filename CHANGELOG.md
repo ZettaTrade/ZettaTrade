@@ -1,3 +1,19 @@
+## [0.2.0] - 2026-11-15
+
+The first beta release (board task T-238). The version line moves to plain `0.2.x` — no
+prerelease suffix: the beta state is the milestone, not part of the version string.
+Versioning order: one release per board task that changes the app, the third number
+increments (`0.2.0` → `0.2.1` → …), docs-only tasks do not bump, and a landing conflict
+keeps the higher number.
+
+Everything the `0.1.0-alpha` line shipped rides in (the sections below carry the per-task
+detail), headlined by the beta-prep wave's verified readiness — the isolation census, both
+memory budgets, the E2E family and the release dry run pass on the consolidated tip
+(`docs/BETA-READINESS.md`), and the cold-start budget re-defined 3000 → 5000 ms by a
+recorded decision (T-237). Integrity stays by hash, not by signature — the sums file ships
+with every release; the signing/notarization flip is a follow-up gated on the user-side
+certificate provisioning (`docs/SECURITY.md`).
+
 ## [0.1.0-alpha.177] - 2026-11-14
 
 Build of board task T-237 (branch `feat/startup-optimization`, rebased onto

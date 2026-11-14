@@ -168,7 +168,7 @@ built self-contained per OS and attached to a GitHub Release as `zettatrade-<ver
 archives — zip for win-x64, osx-x64 and osx-arm64, tar.gz for linux-x64. The version string
 comes only from the `Directory.Build.props` committed at the tag and is cross-checked against
 the tag name: a tag that does not match the version commit fails the pipeline instead of
-shipping, and the release notes are the verbatim `## [0.1.0-alpha.NN]` CHANGELOG.md section of
+shipping, and the release notes are the verbatim `## [<version>]` CHANGELOG.md section of
 the same tree (a missing section fails the workflow — tags ride the release commit that adds
 the bump).
 
@@ -189,13 +189,15 @@ Integrity is by hash, not by signature, until beta: every Release carries
 - Windows (PowerShell): compare `(Get-FileHash <archive> -Algorithm SHA256).Hash` against the
   sums line for that archive.
 
-Nothing in the pipeline is code-signed or notarized yet — a deliberate alpha posture, pairing
-with the T-119 first-run disclaimer: macOS Gatekeeper and Windows SmartScreen can warn about
-the unsigned archives, and a cautious user verifies the sums and runs first from the paper
-lane. The beta flip is a board decision and brings, in one change: Authenticode signing for
-the Windows archive, a hardened-runtime + notarization flow for the macOS ones, signing
-credentials held in machine/CI secret storage of the `ISecretStore` class (never plaintext,
-never in the repository) and this note updated to the signed reality.
+Nothing in the pipeline is code-signed or notarized yet. The beta line opened at `0.2.0`
+(2026-11-15, the board decision — T-238) keeping the hash-only posture: the signing flip is
+a follow-up gated on the user-side certificate provisioning, and it brings, in one change:
+Authenticode signing for the Windows archive, a hardened-runtime + notarization flow for
+the macOS ones, signing credentials held in machine/CI secret storage of the `ISecretStore`
+class (never plaintext, never in the repository) and this note updated to the signed
+reality (the hashes stay as a cross-check). Pairing with the T-119 first-run disclaimer:
+macOS Gatekeeper and Windows SmartScreen can warn about the unsigned archives, and a
+cautious user verifies the sums and runs first from the paper lane.
 
 ## Profile backup (T-215)
 
