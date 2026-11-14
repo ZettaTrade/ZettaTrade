@@ -50,6 +50,56 @@ card their field groups, the toolbar widths normalize.
   the quiet-before-primary order and the row inside the client area, and
   the annotation prompt carries the compact chrome class.
 
+## [0.1.0-alpha.175] - 2026-11-14
+
+Build of board task T-232 (branch `feat/windows-unify`, stacked on the
+unlanded T-231): the controls answer the pointer — the kit's icon buttons
+speak a visible hover/pressed tint, the pairs transfer arrows read as
+buttons at rest, the alerts editor's captions clear their fields, and the
+screener rows ride the header's column plan.
+
+### Changed
+- The icon buttons answer the pointer (the Livery 0.1.14 bump): the hover
+  paints the button family's soft tint step (ButtonHoverTint) and the
+  press the stronger step (ButtonPressedTint) on the template's
+  presenter — the old opacity nudge (0.85 → 1.0) never read as feedback,
+  so every borderless icon action (the pairs transfers, the chart's
+  drawing tools, the toolbar glyphs) read as static marks. Keyboard
+  focus draws the family's ring on the presenter. The armed `.on`
+  contrast stands on the kept rest dimming.
+- The pairs transfer arrows ride the kit's new framed composition
+  (`icon framed`): the free-standing action between the settings' pair
+  lists reads as a button at rest through the family's hairline outline
+  and answers the hover with the Highlight stroke.
+- The alerts editor's cells ride one shared field-cell grammar (the new
+  FieldGrammar dictionary): the captions clear their fields at the small
+  step and lose their per-cell FontSize copies. The editor's combos ride
+  content widths (MinWidth over Width) — a combo's chrome eats ~45px of
+  a fixed width, so "Falls below" and the ru trigger labels clipped at
+  every culture.
+- The screener rows ride the header's column plan: Avalonia 12's fluent
+  ControlTheme defaults every button to Left (the T-195 era stretched
+  only the row's content — the headless probe measured every row at its
+  own width under the shared header plan), so the whole-row press target
+  and the header's sort buttons take the stretch explicitly and trade
+  the fluent chrome for the row grammar's look: the bottom hairline
+  separator, square corners, the opacity-dim press without the scale
+  squish.
+
+### Tests
+- The Livery battery carries the icon-affordance pins (the tint steps,
+  the presenter focus ring, the framed composition) — the satellite's
+  61 facts, the 0.1.14 release.
+- The `FieldGrammarPinsTests` hold the shared cell class and the content
+  widths at the source of truth: the include, the 14 cells, the caption
+  copies gone, the no-fixed-width-combo fact, the transfer pair's
+  framed composition.
+- The `HeadlessScreenerRowTests` measure the stretch on the real window
+  materialized without a view model: the rows equal the header plan,
+  the chrome is the row hairline, the sort captions align over the data
+  columns. The T-231 toolbar pins ride their own strip (the toolbar's
+  T-212 widths and the editor's content floors are two lanes).
+
 ## [0.1.0-alpha.174] - 2026-11-14
 
 Build of board task T-233 (branch `fix/adapter-state-log-leak`): a
