@@ -616,13 +616,26 @@ public sealed class AlpacaAdapter : ExchangeAdapterBase, IMarketDataAdapter
         }
     }
 
+    /// <summary>
+    /// The last logged connection state: a connection-state line is a TRANSITION (T-233) —
+    /// the WS client's subject seeds the pre-dial <c>false</c> at subscription, and logging
+    /// that sync would print this adapter's real endpoint into a session that never dialed
+    /// (the T-141 isolation census's property). The false-after-false repeats stay silent
+    /// too: the transport's own per-attempt warnings already carry them.
+    /// </summary>
+    private bool _lastLoggedConnectionState;
+
     private void HandleConnectionStateChanged(bool isConnected)
     {
         IsConnected = _wsClient.IsConnected;
-        Logger.LogInformation(
-            "Alpaca market-data stream connection state: {State} at {Url}",
-            isConnected ? "Connected" : "Disconnected",
-            _wsUrl);
+        if (isConnected != _lastLoggedConnectionState)
+        {
+            _lastLoggedConnectionState = isConnected;
+            Logger.LogInformation(
+                "Alpaca market-data stream connection state: {State} at {Url}",
+                isConnected ? "Connected" : "Disconnected",
+                _wsUrl);
+        }
 
         if (!isConnected)
         {

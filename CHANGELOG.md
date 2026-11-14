@@ -1,3 +1,22 @@
+## [0.1.0-alpha.174] - 2026-11-14
+
+Build of board task T-233 (branch `fix/adapter-state-log-leak`): a
+connection-state log line is a real lifecycle transition, never the
+transport's seeded pre-dial state.
+
+### Fixed
+- The four market adapters (Binance, Bybit, OKX, Alpaca) stop logging the
+  WebSocket client's seeded pre-dial `Disconnected` snapshot at
+  construction: the subject's initial `false` is a state sync, not a
+  transition, and the line carried the adapter's real endpoint
+  (`wss://stream.bybit.com/...`) into a session that never dialed — the
+  T-141 soak isolation census caught it in a demo-only run (the T-232
+  finale finding). Real lifecycle changes (a dial's connect, a drop, a
+  teardown) keep their lines verbatim; the false-after-false repeats stay
+  silent — the transport's per-attempt warnings already carry them.
+- The soak isolation census's real-exchange host list covers every shipped
+  venue: bybit.com, binance.com, alpaca.markets, okx.com.
+
 ## [0.1.0-alpha.173] - 2026-11-14
 
 Build of board task T-228 (branch `feat/instruments-fetch-dedupe`): the

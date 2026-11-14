@@ -660,11 +660,15 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
     private void HandleConnectionStateChanged(bool isConnected, CategoryContext context, string socketUrl)
     {
         IsConnected = _wsClient.IsConnected || _linearSocket.IsConnected;
-        Logger.LogInformation(
-            "Bybit WebSocket ({Category}) connection state: {State} at {Url}",
-            ReferenceEquals(context, _spot) ? SpotCategory : LinearCategory,
-            isConnected ? "Connected" : "Disconnected",
-            socketUrl);
+        if (isConnected != context.LastLoggedConnectionState)
+        {
+            context.LastLoggedConnectionState = isConnected;
+            Logger.LogInformation(
+                "Bybit WebSocket ({Category}) connection state: {State} at {Url}",
+                ReferenceEquals(context, _spot) ? SpotCategory : LinearCategory,
+                isConnected ? "Connected" : "Disconnected",
+                socketUrl);
+        }
 
         if (isConnected && context.Subscribed.IsEmpty)
         {
@@ -1351,6 +1355,14 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
         /// <summary>The linear tickers' delta-merge states keyed by the normalized symbol.</summary>
         public ConcurrentDictionary<string, LinearTickerState> TickerStates { get; } = new();
+
+        /// <summary>
+        /// The category's last logged connection state: a connection-state line is a TRANSITION
+        /// (T-233) — the WS client's subject seeds the pre-dial <c>false</c> at subscription, and
+        /// logging that sync would print this category's real endpoint into a session that never
+        /// dialed (the T-141 isolation census's property).
+        /// </summary>
+        public bool LastLoggedConnectionState;
     }
 
     /// <summary>
