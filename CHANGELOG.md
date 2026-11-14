@@ -1,3 +1,27 @@
+## [0.1.0-alpha.173] - 2026-11-14
+
+Build of board task T-228 (branch `feat/instruments-fetch-dedupe`): the
+exchange instrument catalogs pay the venue once per session.
+
+### Added
+- The symbol list provider is a per-exchange session cache: the startup
+  warm-up fetches every registered exchange's catalog exactly once (a
+  failed fetch stays uncached and the next ask retries; concurrent asks
+  for one exchange share the in-flight fetch through the entry's
+  semaphore), and a new `GetAdapterSymbolsAsync` seam serves the symbol
+  palette's warm-up and the heatmap/screener universes from the same
+  single path — the venue's instruments endpoint is hit exactly once per
+  exchange per session instead of once per consumer.
+
+### Changed
+- The symbol palette's, the heatmap's and the screener's adapter-change
+  refreshes keep their fresh per-adapter asks on purpose: a
+  re-composition must reflect the roster's live state, not a list cached
+  before the change. The provider's old epoch/flush mechanics are gone —
+  caching under the fetch's own adapter id makes the exchange-switch race
+  moot, and a late fetch caches under its own exchange id where it
+  belongs.
+
 ## [0.1.0-alpha.172] - 2026-11-14
 
 Build of board task T-231 (branch `feat/watchlist-ticker-retry`): the
