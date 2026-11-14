@@ -228,6 +228,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-221 Stabilize the E2E DetachCycle flake (queued from the 2026-11-13 review round) | fix/e2e-detach-flake | done | - |
 | T-222 The settings window re-rides the approved variant-A mockup: the rail's title-bar strip + icons + note, the compact per-section cards, the pinned footer chrome, the 880x640 frame (the user-reported T-184 gap) | fix/settings-rail-fix | done | - |
 | T-223 The settings pages collapse into the variant-A section grammar: the card headers become toggles (four open by default), the rail captions ride BodyFontSize, the quiet controls ride the Livery 0.1.13 surface-family keys (the user-reported T-222 gap) | feat/settings-collapse | done | - |
+| T-224 The nightly gitleaks scan stops tripping on the dummy fixtures: the 2026-11-14 triage allowlists the confirmed literals (the a11y template key + the redactor/log-tail test shapes) with the audit record (the user-reported security-pipeline failure) | fix/gitleaks-allowlist | in-progress | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -503,3 +504,22 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
+
+## T-224 — The nightly gitleaks scan stops tripping on the dummy fixtures
+
+- **Branch:** fix/gitleaks-allowlist, worktree zt-gitleaks-allowlist, base develop@5c3ae8f
+  (claimed 2026-11-14 off the synced board; origin: the user reported the security
+  pipeline failure).
+- **Origin:** the nightly full-history scan (the 03:45 UTC `schedule` run of
+  `security.yml` on `main`, gitleaks 8.24.3) has failed with 4 findings since 2026-11-11
+  — the first nightly after T-101/T-110 landed: all four triage to sample-shaped dummy
+  fixtures, never real credentials (the triage record lives in docs/SECURITY.md).
+- **What:** the allowlist gains the confirmed fixture literals (the a11y template key +
+  the redactor/log-tail test shapes), each with file + purpose named; the audit log
+  records the triage (verdict: fixtures, no rotation owed).
+- **Scope:** CI config + docs (gitleaks.toml, docs/SECURITY.md, the board) — no product
+  surface, no bump, no CHANGELOG (the T-216 precedent).
+- **Acceptance:** the CI's own invocation (gitleaks 8.24.3, full history, committed
+  config) passes locally: reproduce the 4 findings on the base, zero after the fix.
+- **Tests:** the scanner contract is the test — the reproduction rig above.
+- **Status:** in-progress.
