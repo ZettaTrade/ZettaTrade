@@ -259,7 +259,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-253 Cross-venue spread + the perp-spot basis view over the three shipped adapters (the analytics sweep 2026-11-14) | feat/venue-spread | planned | — |
 | T-254 Backtest robustness: Monte Carlo over the trade sequence + walk-forward splits (the analytics sweep 2026-11-14) | feat/backtest-robustness | planned | — |
 | T-255 AI trade review: journal-backed post-trade analysis through the chat (the analytics sweep 2026-11-14) | feat/ai-trade-review | planned | — |
-| T-256 Windows installer: Inno Setup over the T-125 artifacts (the beta-2 sweep 2026-11-15) | feat/windows-installer | planned | — |
+| T-256 Windows installer: Inno Setup over the T-125 artifacts (the beta-2 sweep 2026-11-15) | feat/windows-installer | in-progress | — |
 | T-257 macOS .dmg + Linux AppImage/.deb packaging (the beta-2 sweep 2026-11-15) | feat/mac-linux-packaging | planned | — |
 | T-258 Auto-update: download, verify, staged swap, rollback (the beta-2 sweep 2026-11-15) | feat/auto-update | planned | — |
 | T-259 GitHub Pages publish automation + the beta site content (the beta-2 sweep 2026-11-15) | feat/pages-publish | planned | — |
@@ -626,7 +626,7 @@ the human prioritizes the lanes.
 
 ## T-256 — Windows installer: Inno Setup over the T-125 artifacts
 
-- **Branch:** `feat/windows-installer` off `develop` (queued 2026-11-15, the beta-2 sweep).
+- **Branch:** `feat/windows-installer` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep).
 - **Origin:** T-125 ships a bare zip; a desktop terminal needs a setup door (the user's ask).
 - **What:** an Inno Setup script consuming the win-x64 publish: per-user and per-machine modes,
   shortcuts, an uninstaller that leaves the settings/profile data intact (the user data never
@@ -638,6 +638,7 @@ the human prioritizes the lanes.
 - **Acceptance:** a clean environment installs, launches, uninstalls — the profile survives the
   uninstall.
 - **Tests:** the script's lint/build smoke; the CI leg asserts the installer artifact exists.
+- **Status:** in-progress.
 
 ---
 
