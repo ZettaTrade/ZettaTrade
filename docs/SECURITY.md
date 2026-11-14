@@ -59,6 +59,9 @@ test fixtures identified during the 2026-11-06 audit:
 | `secret://<name>` | `secret://` reference URI | `tests/ZettaTrade.App.Tests/Mcp/McpServerConfigListTests.cs`, `McpClientServiceTests.cs`, `McpClientManagerTests.cs`; doc example in `src/ZettaTrade.Core/Interfaces/IMcpClient.cs` | MCP auth-secret **references** — pointers into `ISecretStore`, never a raw value |
 | `live-secret` | literal | `tests/ZettaTrade.App.Tests/Mcp/McpClientServiceTests.cs` (`StoredSecret`) | MCP client round-trip test fixture |
 | `t-049-master-passphrase` | literal | `tests/ZettaTrade.Infrastructure.Tests/Secrets/EncryptedFileSecretStoreRulesTests.cs` | T-049 harness passphrase, temp-dir store |
+| `Tape.A11yWithSymbol` | literal (localization template key) | `src/ZettaTrade.UI/Charting/WidgetAccessibilityNames.cs` (the `TapeWithSymbolKey` constant) | the trade tape's a11y name template; the default `generic-api-key` rule trips on the const-assignment shape (an identifier ending in `Key` followed by a string), not on a credential (the 2026-11-14 nightly triage) |
+| `api_key=abc123def456` | fake query string | `tests/ZettaTrade.App.Tests/Services/LogTailServiceTests.cs` (the redaction-before-parse fixture) | the synthetic log line's fake key — exactly the shape the redactor must scrub |
+| `ghp_0123…` / `AIzaSyA…` and the four sibling probe literals | placeholder token shapes (the T-117 probe set, digits only) | `tests/ZettaTrade.App.Tests/Services/LogRedactorTests.cs` (`AnIndustryTokenShape_Redacts`) | the redactor's own test tokens: real vendor shapes carrying placeholder digits; `github-pat` and `gcp-api-key` fired the 2026-11-14 nightly, the remaining shapes ride defensively |
 
 Rules for changing the allowlist:
 
@@ -226,3 +229,22 @@ stores. Its security posture is structural, not conventional:
   findings throughout; no remediation required.** Local verification protocol documented
   above; CI-green confirmation pending on the first pushed run of
   `.github/workflows/security.yml` (workflow lint clean via `actionlint`).
+- 2026-11-14 — T-224 nightly triage: every nightly the repository has recorded
+  (4 `schedule` runs, 2026-11-11 through 2026-11-14, 03:45 UTC on `main`, gitleaks
+  8.24.3) failed with the same 4 findings — the first nightlies after T-101
+  (2c05545) and T-110 (8129cae) landed. The finds: `generic-api-key` at
+  `src/ZettaTrade.UI/Charting/WidgetAccessibilityNames.cs:48` (the TapeWithSymbolKey
+  localization template constant), `github-pat` + `gcp-api-key` + `generic-api-key`
+  in the LogRedactor / LogTailService test fixtures (the T-117 probe shapes and the
+  synthetic redaction log line). The push scans stayed green throughout because they
+  scan only the pushed ranges — the fixtures ride in older commits the ranges never
+  covered. Verdict: all four are sample-shaped dummy fixtures (placeholder digits
+  and a template key); no real credential ever existed in the history, so no
+  rotation is owed and no history rewrite is contemplated. Action: the literals
+  entered the `gitleaks.toml` allowlist with file + purpose named (the contract
+  above), the remaining probe shapes ride defensively. Locally verified with the
+  CI's own invocation (8.24.3, full history over the develop line, 831 commits):
+  exactly 4 findings on the base config, zero with the fixed one, and a seeded
+  non-fixture token in a disposable temp repo still fires — the allowlist stays
+  bounded. The nightly goes green once the fix is reachable from the scan's
+  checkout branch (`main`).

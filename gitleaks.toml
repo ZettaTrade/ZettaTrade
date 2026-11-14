@@ -33,6 +33,19 @@ Known dummy test fixtures only (sample-shaped strings, never real credentials):
 - "live-secret" - the McpClientServiceTests.StoredSecret literal.
 - "t-049-master-passphrase" - the EncryptedFileSecretStoreRulesTests local
   master passphrase (T-049 harness, temp-dir store).
+- "Tape.A11yWithSymbol" - the trade tape's localization template-key literal in
+  src/ZettaTrade.UI/Charting/WidgetAccessibilityNames.cs (the TapeWithSymbolKey
+  constant): the default generic-api-key rule trips on the const-assignment
+  shape (an identifier ending in Key followed by a string), not on any
+  credential (the 2026-11-14 nightly triage).
+- "api_key=abc123def456" - the synthetic redaction log line in
+  tests/ZettaTrade.App.Tests/Services/LogTailServiceTests.cs (the
+  parser fixture: a fake query string the redactor must scrub).
+- the T-117 industry token probe shapes (the AnIndustryTokenShape_Redacts
+  InlineData fixtures of tests/ZettaTrade.App.Tests/Services/LogRedactorTests.cs,
+  placeholder digits only): "ghp_0123456789abcdef0123456789abcdef1234" and
+  "AIzaSyA0123456789abcdefghijklmnopqrstuv" fired the 2026-11-14 nightly
+  (github-pat, gcp-api-key); the remaining probe shapes ride defensively.
 Anything else is a finding: revoke-and-rotate per docs/SECURITY.md.
 """
 regexTarget = "match"
@@ -40,4 +53,12 @@ regexes = [
   '''(?i)secret\://[a-z0-9][a-z0-9_-]{0,31}''',
   '''(?i)\blive-secret\b''',
   '''(?i)\bt-049-master-passphrase\b''',
+  '''(?i)\bTape\.A11yWithSymbol\b''',
+  '''(?i)\bapi_key=abc123def456\b''',
+  '''(?i)\bghp_0123456789abcdef0123456789abcdef1234\b''',
+  '''(?i)\bAKIAIOSFODNN7EXAMPLE912345678\b''',
+  '''(?i)\bsk-proj-abcdef1234567890abcdef12\b''',
+  '''(?i)\bxoxb-1234567890-abcdef\b''',
+  '''(?i)\bAIzaSyA0123456789abcdefghijklmnopqrstuv\b''',
+  '''(?i)\beyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxIn0\.SignaturePart1\b''',
 ]
