@@ -70,7 +70,7 @@ public sealed class TokensPinsTests
         var screener = File.ReadAllText(Path.Combine(RepoRoot, "src", "ZettaTrade.App", "Views", "ScreenerWindow.axaml")).Replace("\r\n", "\n");
 
         Regex.Matches(stats, "FontFamily=\"{StaticResource NumericFont}\"")
-            .Should().HaveCount(15, "all ten stats tiles plus the realized table's closed/quantity/entry/exit/pnl cells set their values in the tabular stack");
+            .Should().HaveCount(29, "all fifteen stats tiles (T-251 adds the five risk tiles) plus the realized table's closed/quantity/entry/exit/pnl cells and the bucket tables' hour/trades/wins/losses/pnl cells (the weekday bucket label stays a localized word) set their values in the tabular stack");
         Regex.Matches(positions, "FontFamily=\"{StaticResource NumericFont}\"")
             .Should().HaveCount(13, "the three sections' numeric columns (5 positions + 3 open orders + 4 session journal) and the reduce input set their digits in the tabular stack (T-157; T-187 adds the positions table's stop-loss and take-profit cells)");
         Regex.Matches(history, "FontFamily=\"{StaticResource NumericFont}\"")

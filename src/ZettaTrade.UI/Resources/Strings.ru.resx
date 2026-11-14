@@ -1956,6 +1956,63 @@
   <data name="Stats.EditFailedFormat" xml:space="preserve">
     <value>Не удалось сохранить заметку о сделке: {0}</value>
   </data>
+  <data name="Stats.Sharpe" xml:space="preserve">
+    <value>Шарп (за сделку)</value>
+  </data>
+  <data name="Stats.Sortino" xml:space="preserve">
+    <value>Сортино (за сделку)</value>
+  </data>
+  <data name="Stats.AverageR" xml:space="preserve">
+    <value>Ср. R</value>
+  </data>
+  <data name="Stats.BestR" xml:space="preserve">
+    <value>Луч. R</value>
+  </data>
+  <data name="Stats.WorstR" xml:space="preserve">
+    <value>Худ. R</value>
+  </data>
+  <data name="Stats.ExcursionState" xml:space="preserve">
+    <value>Вычисление MAE/MFE по кешированным свечам...</value>
+  </data>
+  <data name="Stats.HourlyTitle" xml:space="preserve">
+    <value>Доходность по часам (UTC)</value>
+  </data>
+  <data name="Stats.WeekdayTitle" xml:space="preserve">
+    <value>Доходность по дням недели (UTC)</value>
+  </data>
+  <data name="Stats.ColHour" xml:space="preserve">
+    <value>Час</value>
+  </data>
+  <data name="Stats.ColWeekday" xml:space="preserve">
+    <value>День</value>
+  </data>
+  <data name="Stats.A11yHourly" xml:space="preserve">
+    <value>Таблица доходности по часам</value>
+  </data>
+  <data name="Stats.A11yWeekday" xml:space="preserve">
+    <value>Таблица доходности по дням недели</value>
+  </data>
+  <data name="Stats.WeekdayMon" xml:space="preserve">
+    <value>Пн</value>
+  </data>
+  <data name="Stats.WeekdayTue" xml:space="preserve">
+    <value>Вт</value>
+  </data>
+  <data name="Stats.WeekdayWed" xml:space="preserve">
+    <value>Ср</value>
+  </data>
+  <data name="Stats.WeekdayThu" xml:space="preserve">
+    <value>Чт</value>
+  </data>
+  <data name="Stats.WeekdayFri" xml:space="preserve">
+    <value>Пт</value>
+  </data>
+  <data name="Stats.WeekdaySat" xml:space="preserve">
+    <value>Сб</value>
+  </data>
+  <data name="Stats.WeekdaySun" xml:space="preserve">
+    <value>Вс</value>
+  </data>
   <data name="Menu.Trading.Balances" xml:space="preserve">
     <value>Балансы</value>
   </data>

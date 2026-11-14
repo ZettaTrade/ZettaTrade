@@ -3,6 +3,7 @@ namespace ZettaTrade.App;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Infrastructure.Persistence;
 
@@ -17,9 +18,10 @@ using ZettaTrade.Infrastructure.Persistence;
 /// </summary>
 public static class TradeStatsDependencyInjection
 {
-    /// <summary>Register the trade-statistics read query and the stats window view model.</summary>
+    /// <summary>Register the trade-statistics read query, the excursion reader (T-251, riding the registered candle cache) and the stats window view model.</summary>
     public static IServiceCollection AddTradeStatsServices(this IServiceCollection services) => services
         .AddSingleton<IOrderStatsQuery>(sp => new SqliteOrderStatsQuery(
             sp.GetRequiredService<DbContextOptions<OrderHistoryDbContext>>()))
+        .AddTransient<TradeExcursionReader>()
         .AddTransient<TradeStatsViewModel>();
 }

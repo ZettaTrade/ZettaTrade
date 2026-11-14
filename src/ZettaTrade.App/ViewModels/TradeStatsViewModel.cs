@@ -54,6 +54,14 @@ public sealed class TradeStatsViewModel : ReactiveObject
     private const string ExportFailedKey = "Stats.ExportFailedFormat";
     private const string StatementEmptyKey = "Stats.StatementEmptyRange";
     private const string EditFailedKey = "Stats.EditFailedFormat";
+    private const string ExcursionStateKey = "Stats.ExcursionState";
+    private const string WeekdayMonKey = "Stats.WeekdayMon";
+    private const string WeekdayTueKey = "Stats.WeekdayTue";
+    private const string WeekdayWedKey = "Stats.WeekdayWed";
+    private const string WeekdayThuKey = "Stats.WeekdayThu";
+    private const string WeekdayFriKey = "Stats.WeekdayFri";
+    private const string WeekdaySatKey = "Stats.WeekdaySat";
+    private const string WeekdaySunKey = "Stats.WeekdaySun";
 
     #endregion Resx Keys
 
@@ -80,6 +88,15 @@ public sealed class TradeStatsViewModel : ReactiveObject
     /// <summary>Decimal places of the displayed win-rate percentage.</summary>
     private const int WinRateDecimals = 1;
 
+    /// <summary>Decimal places of the displayed ratio tiles (Sharpe, Sortino, R).</summary>
+    private const int RatioDecimals = 2;
+
+    /// <summary>UTC hours the hourly performance table buckets over.</summary>
+    private const int HourBucketCount = 24;
+
+    /// <summary>Weekdays the weekday performance table buckets over.</summary>
+    private const int WeekdayBucketCount = 7;
+
     #endregion Private Constants
 
     #region Private Fields
@@ -90,13 +107,23 @@ public sealed class TradeStatsViewModel : ReactiveObject
     private readonly IStatementExportService _statementExport;
     private readonly IOrderHistoryStore _store;
     private readonly ILocalizationManager _localization;
+    private readonly TradeExcursionReader _excursions;
+    private readonly ActiveExchangeService _exchanges;
     private readonly ILogger<TradeStatsViewModel> _logger;
 
     /// <summary>Identity of the current scan; a newer apply supersedes the older scan's loop.</summary>
     private long _runId;
 
-    /// <summary>The realized table's backing list; the public property serves it directly.</summary>
+    /// <summary>
+    /// The realized-trades table's backing list; the public property serves it directly.
+    /// </summary>
     private List<TradeRealizedRowViewModel> _realizedRows = [];
+
+    /// <summary>The hourly performance table's backing list; the public property serves it directly.</summary>
+    private IReadOnlyList<TradeStatsBucketRowViewModel> _hourRows = [];
+
+    /// <summary>The weekday performance table's backing list; the public property serves it directly.</summary>
+    private IReadOnlyList<TradeStatsBucketRowViewModel> _weekdayRows = [];
 
     #endregion Private Fields
 
@@ -252,6 +279,72 @@ public sealed class TradeStatsViewModel : ReactiveObject
         private set => this.RaiseAndSetIfChanged(ref _volumeText, value);
     }
 
+    private string _sharpeText = NotAvailableText;
+
+    /// <summary>Per-trade Sharpe ratio over the booked PnLs; the unbounded render speaks the mean's sign.</summary>
+    public string SharpeText
+    {
+        get => _sharpeText;
+        private set => this.RaiseAndSetIfChanged(ref _sharpeText, value);
+    }
+
+    private string _sortinoText = NotAvailableText;
+
+    /// <summary>Per-trade Sortino ratio over the booked PnLs; the unbounded render speaks the mean's sign.</summary>
+    public string SortinoText
+    {
+        get => _sortinoText;
+        private set => this.RaiseAndSetIfChanged(ref _sortinoText, value);
+    }
+
+    private string _averageRText = NotAvailableText;
+
+    /// <summary>Average R-multiple over the trades that carry a stop context; a dash while none does.</summary>
+    public string AverageRText
+    {
+        get => _averageRText;
+        private set => this.RaiseAndSetIfChanged(ref _averageRText, value);
+    }
+
+    private string _bestRText = NotAvailableText;
+
+    /// <summary>The best R-multiple booked; a dash while no trade carries a stop context.</summary>
+    public string BestRText
+    {
+        get => _bestRText;
+        private set => this.RaiseAndSetIfChanged(ref _bestRText, value);
+    }
+
+    private string _worstRText = NotAvailableText;
+
+    /// <summary>The worst R-multiple booked; a dash while no trade carries a stop context.</summary>
+    public string WorstRText
+    {
+        get => _worstRText;
+        private set => this.RaiseAndSetIfChanged(ref _worstRText, value);
+    }
+
+    /// <summary>
+    /// The hourly performance table's rows (T-251): the 24 UTC hour buckets
+    /// with the booked trades' outcomes. Fresh list per publish, like the
+    /// realized table.
+    /// </summary>
+    public IReadOnlyList<TradeStatsBucketRowViewModel> HourRows
+    {
+        get => _hourRows;
+        private set => this.RaiseAndSetIfChanged(ref _hourRows, value);
+    }
+
+    /// <summary>
+    /// The weekday performance table's rows (T-251): the seven weekday
+    /// buckets with the booked trades' outcomes. Fresh list per publish.
+    /// </summary>
+    public IReadOnlyList<TradeStatsBucketRowViewModel> WeekdayRows
+    {
+        get => _weekdayRows;
+        private set => this.RaiseAndSetIfChanged(ref _weekdayRows, value);
+    }
+
     private IReadOnlyList<EquityCurvePoint> _equityPoints = [];
 
     /// <summary>The cumulative realized-PnL curve so far (a fresh snapshot per published page).</summary>
@@ -354,7 +447,10 @@ public sealed class TradeStatsViewModel : ReactiveObject
 
     /// <summary>
     /// Create a trade statistics view model. The view model is transient: a
-    /// fresh instance scans the journal state as it is right now.
+    /// fresh instance scans the journal state as it is right now. The
+    /// excursion reader rides the local candle cache (T-251), and the
+    /// exchange facade names the fallback lanes the cache reads fall
+    /// through when a trade's own venue key holds no series.
     /// </summary>
     public TradeStatsViewModel(
         IOrderStatsQuery query,
@@ -363,6 +459,8 @@ public sealed class TradeStatsViewModel : ReactiveObject
         IStatementExportService statementExport,
         IOrderHistoryStore store,
         ILocalizationManager localization,
+        TradeExcursionReader excursions,
+        ActiveExchangeService exchanges,
         ILogger<TradeStatsViewModel> logger)
     {
         _query = query ?? throw new ArgumentNullException(nameof(query));
@@ -371,6 +469,8 @@ public sealed class TradeStatsViewModel : ReactiveObject
         _statementExport = statementExport ?? throw new ArgumentNullException(nameof(statementExport));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+        _excursions = excursions ?? throw new ArgumentNullException(nameof(excursions));
+        _exchanges = exchanges ?? throw new ArgumentNullException(nameof(exchanges));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         ApplyCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
@@ -423,7 +523,7 @@ public sealed class TradeStatsViewModel : ReactiveObject
                 if (runId != _runId)
                 {
                     // A newer apply took over: publish nothing further. The
-                    // fetched page stays uncounted — no gorbled totals.
+                    // fetched page stays uncounted — no garbled totals.
                     return RxVoid.Default;
                 }
 
@@ -441,6 +541,7 @@ public sealed class TradeStatsViewModel : ReactiveObject
             if (runId == _runId)
             {
                 Publish(accumulator, isFinal: true, scanned: scanned);
+                await DeriveExcursionsAsync(runId, accumulator, scanned, ct);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -458,6 +559,222 @@ public sealed class TradeStatsViewModel : ReactiveObject
         }
 
         return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// The excursion phase (T-251), after the scan's final publish: the
+    /// accumulator's trade facts read their windows' candles from the local
+    /// cache (read-only, off the trading hot path) and the realized table
+    /// republishes with the per-trade MAE/MFE columns filled. The lane is
+    /// bookkeeping-grade: a fault logs and the table keeps the R columns it
+    /// already carries, never an error line over a completed scan. A newer
+    /// apply supersedes the pass at its own end.
+    /// </summary>
+    private async Task DeriveExcursionsAsync(
+        long runId,
+        TradeStatsAccumulator accumulator,
+        long scanned,
+        CancellationToken ct)
+    {
+        var facts = accumulator.GetTradeFacts();
+        if (facts.Count == 0)
+        {
+            return;
+        }
+
+        ScanStateText = _localization.GetString(ExcursionStateKey);
+        try
+        {
+            var derived = await _excursions.DeriveAsync(facts, ComposeAdapterCandidates(facts), ct);
+            if (runId != _runId)
+            {
+                // A newer apply took over mid-pass: the merged table would
+                // lie over the newer scan's rows — publish nothing.
+                return;
+            }
+
+            PublishRealizedRows(accumulator, BuildExcursionMap(derived));
+            _logger.LogInformation(
+                "Trade statistics window: derived {Excursions} trade excursion(s) from the cached candles",
+                derived.Count);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Broader than the cache surfaces: the read rides the local
+            // SQLite; the window stays usable, the MAE/MFE dashes stand.
+            _logger.LogWarning(
+                ex,
+                "Trade statistics window: the excursion derivation failed; the MAE/MFE columns stay empty");
+        }
+        finally
+        {
+            if (runId == _runId)
+            {
+                // The pass's own state line hands the finished wording back.
+                ScanStateText = _localization.GetString(ScannedKey, scanned);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The excursion reads' adapter-id fall-through, in priority order: the
+    /// trades' own venue ids (a live trade's exchange id IS the cache key),
+    /// then the facade's standing lane (the one the chart most likely
+    /// watched), then the rest of the registered market-data lanes.
+    /// </summary>
+    private IReadOnlyList<string> ComposeAdapterCandidates(IReadOnlyList<TradeStatsTradeFact> facts)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ids = new List<string>();
+        foreach (var id in facts.Select(static fact => fact.ExchangeId))
+        {
+            if (seen.Add(id))
+            {
+                ids.Add(id);
+            }
+        }
+
+        if (seen.Add(_exchanges.Current.Id))
+        {
+            ids.Add(_exchanges.Current.Id);
+        }
+
+        foreach (var adapter in _exchanges.Registered)
+        {
+            if (seen.Add(adapter.Id))
+            {
+                ids.Add(adapter.Id);
+            }
+        }
+
+        return ids;
+    }
+
+    /// <summary>Index the derived excursions by the ledger join's (exchange, order) key.</summary>
+    private static Dictionary<string, TradeExcursionFact> BuildExcursionMap(
+        IReadOnlyList<TradeExcursionFact> derived)
+    {
+        var map = new Dictionary<string, TradeExcursionFact>(StringComparer.Ordinal);
+        foreach (var fact in derived)
+        {
+            map[JoinKey(fact.ExchangeId, fact.ClosingOrderId)] = fact;
+        }
+
+        return map;
+    }
+
+    /// <summary>The (exchange id, closing order id) key the ledger, the facts and the excursions join on.</summary>
+    private static string JoinKey(string exchangeId, string orderId) => $"{exchangeId}|{orderId}";
+
+    /// <summary>
+    /// Republish the realized table with the derived MAE/MFE columns joined
+    /// in (T-251): the ledger rebuilds from the accumulator as in every
+    /// publish, and the excursion map fills the per-trade columns keyed by
+    /// the ledger join — a trade without candle coverage keeps its dash.
+    /// The bucket tables ride the same ledger and stay as the last publish
+    /// built them (the excursions never change a bucket).
+    /// </summary>
+    private void PublishRealizedRows(
+        TradeStatsAccumulator accumulator,
+        IReadOnlyDictionary<string, TradeExcursionFact> excursions)
+    {
+        _realizedRows = accumulator.GetRealizedTrades()
+            .Select(trade => TradeRealizedRowViewModel.From(
+                trade,
+                excursions.GetValueOrDefault(JoinKey(trade.ExchangeId, trade.ClosingOrderId))))
+            .ToList();
+        RealizedRows = _realizedRows;
+    }
+
+    /// <summary>
+    /// The hourly bucket series (T-251): the booked trades sliced over the
+    /// 24 UTC hours, every bucket rendered (zeros and a dash while nothing
+    /// booked), the label the invariant "HH:00" form.
+    /// </summary>
+    private static IReadOnlyList<TradeStatsBucketRowViewModel> BuildHourRows(
+        IReadOnlyList<StatementRealizedTrade> trades) =>
+        BuildBucketRows(
+            trades,
+            static closedAt => closedAt.Hour,
+            static hour => hour.ToString("00", CultureInfo.InvariantCulture) + ":00",
+            HourBucketCount);
+
+    /// <summary>
+    /// The weekday bucket series (T-251): the booked trades sliced over the
+    /// seven weekdays, Monday first, every bucket rendered, the label the
+    /// localized abbreviated day name.
+    /// </summary>
+    private IReadOnlyList<TradeStatsBucketRowViewModel> BuildWeekdayRows(
+        IReadOnlyList<StatementRealizedTrade> trades)
+    {
+        var labels = new[]
+        {
+            _localization.GetString(WeekdayMonKey),
+            _localization.GetString(WeekdayTueKey),
+            _localization.GetString(WeekdayWedKey),
+            _localization.GetString(WeekdayThuKey),
+            _localization.GetString(WeekdayFriKey),
+            _localization.GetString(WeekdaySatKey),
+            _localization.GetString(WeekdaySunKey),
+        };
+
+        return BuildBucketRows(
+            trades,
+            static closedAt => ((int)closedAt.DayOfWeek + 6) % 7,
+            index => labels[index],
+            WeekdayBucketCount);
+    }
+
+    /// <summary>
+    /// Aggregate the booked ledger into one bucket series: the counts and
+    /// the net realized PnL read the same signed convention the summary's
+    /// tiles speak (a positive close wins, a negative loses, zero books as
+    /// a trade that never decided), and an empty bucket keeps its label
+    /// with zeros and a dash — the honest no-trades bucket, never hidden.
+    /// </summary>
+    private static IReadOnlyList<TradeStatsBucketRowViewModel> BuildBucketRows(
+        IReadOnlyList<StatementRealizedTrade> trades,
+        Func<DateTimeOffset, int> bucket,
+        Func<int, string> label,
+        int bucketCount)
+    {
+        var counts = new int[bucketCount];
+        var wins = new int[bucketCount];
+        var losses = new int[bucketCount];
+        var pnls = new decimal[bucketCount];
+        foreach (var trade in trades)
+        {
+            var index = bucket(trade.ClosedAt);
+            counts[index]++;
+            pnls[index] += trade.RealizedPnl;
+            if (trade.RealizedPnl > 0m)
+            {
+                wins[index]++;
+            }
+            else if (trade.RealizedPnl < 0m)
+            {
+                losses[index]++;
+            }
+        }
+
+        var rows = new TradeStatsBucketRowViewModel[bucketCount];
+        for (var i = 0; i < bucketCount; i++)
+        {
+            rows[i] = new TradeStatsBucketRowViewModel
+            {
+                Bucket = label(i),
+                Trades = counts[i].ToString(CultureInfo.InvariantCulture),
+                Wins = wins[i].ToString(CultureInfo.InvariantCulture),
+                Losses = losses[i].ToString(CultureInfo.InvariantCulture),
+                Pnl = counts[i] == 0
+                    ? NotAvailableText
+                    : pnls[i].ToString("F4", CultureInfo.InvariantCulture),
+                IsWinning = counts[i] > 0 && pnls[i] > 0m,
+                IsLosing = counts[i] > 0 && pnls[i] < 0m,
+            };
+        }
+
+        return rows;
     }
 
     /// <summary>
@@ -774,8 +1091,15 @@ public sealed class TradeStatsViewModel : ReactiveObject
         MaxDrawdownText = NotAvailableText;
         RealizedText = NotAvailableText;
         VolumeText = NotAvailableText;
+        SharpeText = NotAvailableText;
+        SortinoText = NotAvailableText;
+        AverageRText = NotAvailableText;
+        BestRText = NotAvailableText;
+        WorstRText = NotAvailableText;
         EquityPoints = [];
         RealizedRows = [];
+        HourRows = [];
+        WeekdayRows = [];
         HasTrades = false;
         ScanStateText = string.Empty;
     }
@@ -814,13 +1138,21 @@ public sealed class TradeStatsViewModel : ReactiveObject
         MaxDrawdownText = FormatMoney(summary.MaxDrawdown, MoneyDecimals);
         RealizedText = FormatMoney(summary.RealizedTotal, MoneyDecimals);
         VolumeText = FormatMoney(summary.Volume, MoneyDecimals);
+        SharpeText = FormatSharpeText(summary);
+        SortinoText = FormatSortinoText(summary);
+        AverageRText = FormatRatio(summary.AverageRMultiple);
+        BestRText = FormatRatio(summary.BestRMultiple);
+        WorstRText = FormatRatio(summary.WorstRMultiple);
 
         EquityPoints = summary.Equity;
         HasTrades = summary.Trades > 0;
-        _realizedRows = accumulator.GetRealizedTrades()
+        var ledger = accumulator.GetRealizedTrades();
+        _realizedRows = ledger
             .Select(TradeRealizedRowViewModel.From)
             .ToList();
         RealizedRows = _realizedRows;
+        HourRows = BuildHourRows(ledger);
+        WeekdayRows = BuildWeekdayRows(ledger);
         ScanStateText = isFinal
             ? _localization.GetString(ScannedKey, scanned)
             : _localization.GetString(ScanningKey, scanned);
@@ -836,6 +1168,48 @@ public sealed class TradeStatsViewModel : ReactiveObject
         (fraction * 100).ToString($"F{WinRateDecimals}", CultureInfo.InvariantCulture)
         + WinRateSuffix;
 
+    /// <summary>The ratio tiles' numeric form (two invariant decimals); a dash while nothing carries the ratio.</summary>
+    private static string FormatRatio(decimal? ratio) => ratio is { } value
+        ? value.ToString($"F{RatioDecimals}", CultureInfo.InvariantCulture)
+        : NotAvailableText;
+
+    /// <summary>
+    /// The Sharpe tile's render (T-251): the ratio while the accumulator
+    /// computed it, the unbounded glyph by the mean's sign while the series
+    /// is real but carries no spread at all (an identical-return series),
+    /// the dash before a decided series exists.
+    /// </summary>
+    private static string FormatSharpeText(TradeStatsSummary summary) =>
+        summary.Sharpe is { } ratio
+            ? FormatRatio(ratio)
+            : RenderUnboundedByMean(summary, minTrades: 2);
+
+    /// <summary>
+    /// The Sortino tile's render (T-251): the ratio while computed, the
+    /// unbounded glyph by the mean's sign while the series is real but
+    /// carries no downside at all, the dash before any decided trade.
+    /// </summary>
+    private static string FormatSortinoText(TradeStatsSummary summary) =>
+        summary.Sortino is { } ratio
+            ? FormatRatio(ratio)
+            : RenderUnboundedByMean(summary, minTrades: 1);
+
+    /// <summary>
+    /// The unbounded ratio's honest render: a real series with no
+    /// denominator spread renders the infinity glyph by the mean's sign;
+    /// a zero mean or no series renders the dash (0/0 is undefined, never
+    /// a fabricated infinity).
+    /// </summary>
+    private static string RenderUnboundedByMean(TradeStatsSummary summary, int minTrades)
+    {
+        if (summary.Trades < minTrades || summary.RealizedTotal == 0m)
+        {
+            return NotAvailableText;
+        }
+
+        return summary.RealizedTotal > 0 ? UnboundedText : NegativeUnboundedText;
+    }
+
     #endregion Private Methods
 
     #region Display Constants
@@ -848,6 +1222,9 @@ public sealed class TradeStatsViewModel : ReactiveObject
 
     /// <summary>The unbounded profit-factor glyph.</summary>
     private const string UnboundedText = "∞";
+
+    /// <summary>The negative-unbounded ratio glyph (a losing no-downside series).</summary>
+    private const string NegativeUnboundedText = "-∞";
 
     /// <summary>Win-rate values print as a percentage.</summary>
     private const string WinRateSuffix = " %";

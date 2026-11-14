@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ReactiveUI.Primitives;
 using Xunit;
+using ZettaTrade.App.Services;
 using ZettaTrade.App.ViewModels;
 using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
@@ -49,6 +50,7 @@ public sealed class TradeStatsViewModelTests
     private readonly IStatementExportService _statementExport = Substitute.For<IStatementExportService>();
     private readonly IOrderHistoryStore _store = Substitute.For<IOrderHistoryStore>();
     private readonly ILocalizationManager _localization = Substitute.For<ILocalizationManager>();
+    private readonly ICandleCache _candles = Substitute.For<ICandleCache>();
 
     public TradeStatsViewModelTests()
     {
@@ -67,7 +69,25 @@ public sealed class TradeStatsViewModelTests
         _statementExport,
         _store,
         _localization,
+        new TradeExcursionReader(_candles),
+        CreateExchanges(),
         NullLogger<TradeStatsViewModel>.Instance);
+
+    /// <summary>
+    /// The active-exchange facade the excursion reads name their fallback
+    /// lanes by: one demo adapter, an empty settings store — the ctor's
+    /// non-empty-catalog contract kept, the lanes deterministic.
+    /// </summary>
+    private static ActiveExchangeService CreateExchanges()
+    {
+        var adapter = Substitute.For<IMarketDataAdapter>();
+        adapter.Id.Returns("demo");
+
+        return new ActiveExchangeService(
+            [adapter],
+            Substitute.For<ISettingsService>(),
+            NullLogger<ActiveExchangeService>.Instance);
+    }
 
     private static OrderPageRow Fill(OrderSide side, decimal quantity, decimal price, int minute, string id, string? note = null, string? tags = null) => new(
         new Order
@@ -195,6 +215,13 @@ public sealed class TradeStatsViewModelTests
         viewModel.RealizedText.Should().Be("0.0000");
         viewModel.VolumeText.Should().Be("0.0000");
         viewModel.EquityPoints.Should().BeEmpty();
+        viewModel.SharpeText.Should().Be("—", "no booked series, no ratio");
+        viewModel.SortinoText.Should().Be("—");
+        viewModel.AverageRText.Should().Be("—");
+        viewModel.BestRText.Should().Be("—");
+        viewModel.WorstRText.Should().Be("—");
+        viewModel.HourRows.Should().HaveCount(24, "the buckets render every bucket, empty or not");
+        viewModel.WeekdayRows.Should().HaveCount(7);
         viewModel.ErrorMessage.Should().BeNull();
     }
 
@@ -815,4 +842,177 @@ public sealed class TradeStatsViewModelTests
     }
 
     #endregion Tag Lane and Realized Table (T-211)
+
+    #region Risk-Relative Tiles, Bucket Tables and MAE/MFE (T-251)
+
+    [Fact]
+    public void FreshWindow_TheRiskTilesStartAtTheDash_AndTheBucketTablesAreEmpty()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.SharpeText.Should().Be("—");
+        viewModel.SortinoText.Should().Be("—");
+        viewModel.AverageRText.Should().Be("—");
+        viewModel.BestRText.Should().Be("—");
+        viewModel.WorstRText.Should().Be("—");
+        viewModel.HourRows.Should().BeEmpty();
+        viewModel.WeekdayRows.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Apply_WithAKnownSeries_PublishesTheRatioGoldensAndTheBuckets()
+    {
+        // Two booked trades: +2 (closed 12:30 UTC) and -1 (closed 13:30 UTC).
+        // The per-trade series [2, -1]: mean 0.5, the sample spread sqrt(4.5),
+        // Sharpe 0.5/sqrt(4.5) = 0.2357 -> "0.24"; the target-0 downside
+        // deviation sqrt(1/2), Sortino 0.5/sqrt(0.5) = 0.7071 -> "0.71".
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(
+                new[]
+                {
+                    Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+                    Fill(OrderSide.Sell, 1m, 12m, 30, "o-2"),
+                    Fill(OrderSide.Buy, 1m, 10m, 60, "o-3"),
+                    Fill(OrderSide.Sell, 1m, 9m, 90, "o-4"),
+                },
+                Array.Empty<OrderPageRow>());
+        var viewModel = CreateViewModel();
+        await ApplyAsync(viewModel);
+
+        viewModel.SharpeText.Should().Be("0.24");
+        viewModel.SortinoText.Should().Be("0.71");
+        viewModel.AverageRText.Should().Be("—", "no stop context rides the series");
+        viewModel.BestRText.Should().Be("—");
+        viewModel.WorstRText.Should().Be("—");
+
+        viewModel.HourRows.Should().HaveCount(24);
+        var noon = viewModel.HourRows.Single(row => row.Bucket == "12:00");
+        noon.Trades.Should().Be("1");
+        noon.Wins.Should().Be("1");
+        noon.Losses.Should().Be("0");
+        noon.Pnl.Should().Be("2.0000");
+        noon.IsWinning.Should().BeTrue();
+        var thirteen = viewModel.HourRows.Single(row => row.Bucket == "13:00");
+        thirteen.Trades.Should().Be("1");
+        thirteen.Losses.Should().Be("1");
+        thirteen.Pnl.Should().Be("-1.0000");
+        thirteen.IsLosing.Should().BeTrue();
+        var fourteen = viewModel.HourRows.Single(row => row.Bucket == "14:00");
+        fourteen.Trades.Should().Be("0");
+        fourteen.Pnl.Should().Be("—", "an empty bucket keeps its dash, never a fabricated zero");
+
+        viewModel.WeekdayRows.Should().HaveCount(7);
+        var thursday = viewModel.WeekdayRows[3]; // 2026-01-01 is a Thursday; the labels run Monday first.
+        thursday.Bucket.Should().Be("[Stats.WeekdayThu]");
+        thursday.Trades.Should().Be("2");
+        thursday.Wins.Should().Be("1");
+        thursday.Pnl.Should().Be("1.0000");
+        var friday = viewModel.WeekdayRows[4];
+        friday.Bucket.Should().Be("[Stats.WeekdayFri]");
+        friday.Trades.Should().Be("0");
+    }
+
+    [Fact]
+    public async Task Apply_WithAnIdenticalReturnSeries_RendersTheUnboundedRatiosByTheMeanSign()
+    {
+        // Two identical +2 closes: no spread and no downside — the ratios
+        // refuse the division and the tiles speak the mean's sign.
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(
+                new[]
+                {
+                    Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+                    Fill(OrderSide.Sell, 1m, 12m, 1, "o-2"),
+                    Fill(OrderSide.Buy, 1m, 10m, 2, "o-3"),
+                    Fill(OrderSide.Sell, 1m, 12m, 3, "o-4"),
+                },
+                Array.Empty<OrderPageRow>());
+        var viewModel = CreateViewModel();
+        await ApplyAsync(viewModel);
+
+        viewModel.SharpeText.Should().Be("∞");
+        viewModel.SortinoText.Should().Be("∞");
+    }
+
+    [Fact]
+    public async Task Apply_WithCachedCandles_JoinsTheMaeMfeColumnsIntoTheTable()
+    {
+        // Buy 1 @ 100 at 12:00, sell 1 @ 102 at 14:00 (a two-hour window).
+        // The cached H1 bars at 12:00 and 13:00 dip to 95 and reach 105:
+        // the long's MAE 5 and MFE 5 land in the realized row.
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(
+                new[]
+                {
+                    Fill(OrderSide.Buy, 1m, 100m, 0, "o-1"),
+                    Fill(OrderSide.Sell, 1m, 102m, 120, "o-2"),
+                },
+                Array.Empty<OrderPageRow>());
+        _candles.GetOlderThanAsync(
+                Arg.Any<string>(),
+                Arg.Any<Symbol>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new[]
+            {
+                new Bar(BaseTime.AddHours(0), 100m, 105m, 95m, 101m, 1m),
+                new Bar(BaseTime.AddHours(1), 101m, 103m, 99m, 102m, 1m),
+            });
+        var viewModel = CreateViewModel();
+        await ApplyAsync(viewModel);
+
+        var row = viewModel.RealizedRows.Single();
+        row.Mae.Should().Be("5.0", "the deepest dip below the entry is 100-95, the row's price format speaks");
+        row.Mfe.Should().Be("5.0", "the highest reach above the entry is 105-100");
+        viewModel.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Apply_WithAFailingCandleCache_TheTableKeepsItsDashesAndNoErrorLine()
+    {
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(
+                new[]
+                {
+                    Fill(OrderSide.Buy, 1m, 100m, 0, "o-1"),
+                    Fill(OrderSide.Sell, 1m, 102m, 60, "o-2"),
+                },
+                Array.Empty<OrderPageRow>());
+        _candles.GetOlderThanAsync(
+                Arg.Any<string>(),
+                Arg.Any<Symbol>(),
+                Arg.Any<TimeFrame>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns<Task<IReadOnlyList<Bar>>>(call => throw new InvalidOperationException("cache offline"));
+        var viewModel = CreateViewModel();
+        await ApplyAsync(viewModel);
+
+        viewModel.RealizedRows.Single().Mae.Should().Be("—");
+        viewModel.RealizedRows.Single().Mfe.Should().Be("—");
+        viewModel.ErrorMessage.Should().BeNull(
+            "the excursion pass is bookkeeping-grade: a fault logs, the table keeps what it carries");
+        viewModel.ScanStateText.Should().Be("[Stats.Scanned:2]");
+    }
+
+    #endregion Risk-Relative Tiles, Bucket Tables and MAE/MFE (T-251)
 }

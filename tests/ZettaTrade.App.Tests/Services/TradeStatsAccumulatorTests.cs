@@ -49,7 +49,8 @@ public sealed class TradeStatsAccumulatorTests
         OrderStatus status = OrderStatus.Filled,
         decimal? filledQuantity = null,
         string? note = null,
-        string? tags = null) => new(
+        string? tags = null,
+        decimal? stopPrice = null) => new(
         new Order
         {
             Id = $"row-{minute:n0}",
@@ -63,6 +64,7 @@ public sealed class TradeStatsAccumulatorTests
             TimeInForce = TimeInForce.GTC,
             CreatedAt = BaseTime.AddMinutes(minute),
             FilledQuantity = new Quantity(filledQuantity ?? quantity),
+            StopPrice = stopPrice is { } stop ? new Price(stop) : null,
         },
         note,
         tags);
@@ -628,4 +630,253 @@ public sealed class TradeStatsAccumulatorTests
     }
 
     #endregion Snapshot Pinning
+
+    #region Risk Facts, Ratios and Buckets (T-251)
+
+    [Fact]
+    public void TheClosingRowsOwnStop_IsTheRiskLevel()
+    {
+        // Buy 1 @ 100 (no stop), sell 1 @ 104 carrying a 90 stop: the
+        // realized +4 divides by the |entry - stop| distance 10 -> R 0.4.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 100m, 0),
+            Fill(OrderSide.Sell, 1m, 104m, 1, stopPrice: 90m),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.AverageRMultiple.Should().Be(0.4m);
+        summary.BestRMultiple.Should().Be(0.4m);
+        summary.WorstRMultiple.Should().Be(0.4m);
+        var facts = accumulator.GetTradeFacts();
+        facts.Should().ContainSingle();
+        facts.Single().RMultiple.Should().Be(0.4m);
+    }
+
+    [Fact]
+    public void TheOpeningRowsStop_LeadsWhenTheCloseCarriesNone()
+    {
+        // The stop rides the entry leg (the ticket's sizer stop): buy 1 @ 100
+        // with a 90 stop, sell 1 @ 104 plain — the R still reads 0.4.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 100m, 0, stopPrice: 90m),
+            Fill(OrderSide.Sell, 1m, 104m, 1),
+        ]);
+
+        accumulator.Snapshot().AverageRMultiple.Should().Be(0.4m);
+    }
+
+    [Fact]
+    public void AZeroRiskDistance_SelfRefuses_TheDivisionIsNeverDefaulted()
+    {
+        // A stop-entry whose trigger equals its fill price carries zero risk
+        // distance: the R-multiple stays null, the aggregates never dilute.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 100m, 0, stopPrice: 100m),
+            Fill(OrderSide.Sell, 1m, 104m, 1, stopPrice: 100m),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.AverageRMultiple.Should().BeNull();
+        summary.BestRMultiple.Should().BeNull();
+        summary.WorstRMultiple.Should().BeNull();
+        accumulator.GetTradeFacts().Single().RMultiple.Should().BeNull();
+    }
+
+    [Fact]
+    public void NoStopContextAnywhere_TheRReadsStayNull()
+    {
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 100m, 0),
+            Fill(OrderSide.Sell, 1m, 104m, 1),
+            Fill(OrderSide.Buy, 1m, 100m, 2),
+            Fill(OrderSide.Sell, 1m, 96m, 3),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.AverageRMultiple.Should().BeNull();
+        summary.BestRMultiple.Should().BeNull();
+        summary.WorstRMultiple.Should().BeNull();
+    }
+
+    [Fact]
+    public void TheRFreeTradesNeverDiluteTheRAggregates()
+    {
+        // One stop-carrying trade at R 1 and one free trade: the average
+        // speaks the stop-carrying trade alone.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 100m, 0, stopPrice: 90m),
+            Fill(OrderSide.Sell, 1m, 110m, 1, stopPrice: 90m),
+            Fill(OrderSide.Buy, 1m, 100m, 2),
+            Fill(OrderSide.Sell, 1m, 100m, 3),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.AverageRMultiple.Should().Be(1m);
+        summary.BestRMultiple.Should().Be(1m);
+        summary.WorstRMultiple.Should().Be(1m);
+    }
+
+    [Fact]
+    public void TheBestAndWorstRSpanTheDistribution()
+    {
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 100m, 0, stopPrice: 90m),
+            Fill(OrderSide.Sell, 1m, 110m, 1, stopPrice: 90m), // R +1
+            Fill(OrderSide.Buy, 1m, 100m, 2, stopPrice: 90m),
+            Fill(OrderSide.Sell, 1m, 88m, 3, stopPrice: 90m), // R -1.2
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.BestRMultiple.Should().Be(1m);
+        summary.WorstRMultiple.Should().Be(-1.2m);
+        summary.AverageRMultiple.Should().Be(-0.1m);
+    }
+
+    [Fact]
+    public void SharpeAndSortino_Goldens()
+    {
+        // The series [2, -1]: mean 0.5, the sample spread sqrt(4.5),
+        // Sharpe 0.5/sqrt(4.5); the target-0 downside deviation
+        // sqrt(1/2), Sortino 0.5/sqrt(0.5).
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 1m, 12m, 1),
+            Fill(OrderSide.Buy, 1m, 10m, 2),
+            Fill(OrderSide.Sell, 1m, 9m, 3),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.Sharpe.Should().BeApproximately(0.5m / (decimal)Math.Sqrt(4.5), 1e-9m);
+        summary.Sortino.Should().BeApproximately(0.5m / (decimal)Math.Sqrt(0.5), 1e-9m);
+    }
+
+    [Fact]
+    public void ASingleTrade_YieldsNoSharpe_ButASortinoWhenItLost()
+    {
+        // One loser: the Sharpe needs two returns (the sample spread), the
+        // Sortino's downside deviation is computable over the one loss.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 1m, 9m, 1),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.Sharpe.Should().BeNull();
+        summary.Sortino.Should().BeApproximately(-1m, 1e-9m);
+    }
+
+    [Fact]
+    public void AnIdenticalReturnSeries_RefusesBothRatios()
+    {
+        // Two identical +2 closes: no spread, no downside — both divisions
+        // are unbounded, both ratios stay null (the view renders the mean's
+        // sign).
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 10m, 0),
+            Fill(OrderSide.Sell, 1m, 12m, 1),
+            Fill(OrderSide.Buy, 1m, 10m, 2),
+            Fill(OrderSide.Sell, 1m, 12m, 3),
+        ]);
+
+        var summary = accumulator.Snapshot();
+
+        summary.Sharpe.Should().BeNull();
+        summary.Sortino.Should().BeNull();
+    }
+
+    [Fact]
+    public void TheFactsRideTheLedgerOneToOne()
+    {
+        // Three booked trades: three facts in the same booking order, the
+        // join keys matching the ledger rows, the windows opening at the
+        // positions' opening fills.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 100m, 0),
+            Fill(OrderSide.Sell, 1m, 104m, 10),
+            Fill(OrderSide.Buy, 1m, 100m, 20),
+            Fill(OrderSide.Sell, 1m, 96m, 30),
+            Fill(OrderSide.Buy, 1m, 100m, 40),
+            Fill(OrderSide.Sell, 1m, 100m, 50),
+        ]);
+
+        var facts = accumulator.GetTradeFacts();
+        var ledger = accumulator.GetRealizedTrades();
+
+        facts.Should().HaveCount(3);
+        facts.Select(fact => (fact.ExchangeId, fact.ClosingOrderId)).Should().Equal(
+            ledger.Select(row => (row.ExchangeId, row.ClosingOrderId)));
+        facts[0].OpenedAt.Should().Be(BaseTime.AddMinutes(0));
+        facts[1].OpenedAt.Should().Be(BaseTime.AddMinutes(20));
+        facts[2].OpenedAt.Should().Be(BaseTime.AddMinutes(40));
+        facts[0].EntryPrice.Should().Be(100m);
+        facts[0].IsLong.Should().BeTrue();
+        facts[1].RMultiple.Should().BeNull();
+    }
+
+    [Fact]
+    public void AFlipStampsTheFreshWindowAtTheFlipFill()
+    {
+        // Long 1 @ 100 opened at t0; a sell 2 @ 100 closes the long and
+        // flips the remainder short at t1 — the next close's window opens
+        // at t1, not t0.
+        var accumulator = new TradeStatsAccumulator();
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 100m, 0),
+            Fill(OrderSide.Sell, 2m, 100m, 10),
+            Fill(OrderSide.Buy, 1m, 100m, 20),
+        ]);
+
+        var facts = accumulator.GetTradeFacts();
+
+        facts.Should().HaveCount(2);
+        facts[0].OpenedAt.Should().Be(BaseTime.AddMinutes(0));
+        facts[1].OpenedAt.Should().Be(BaseTime.AddMinutes(10), "the flip fill stamps the fresh window");
+        facts[1].IsLong.Should().BeFalse("the flipped remainder is a short");
+    }
+
+    [Fact]
+    public void ATagLaneGatedClose_BooksNoRiskFact()
+    {
+        // The lane gates the OUTCOME: a close outside the lane books no
+        // ledger row and no fact — the aggregates stay honest.
+        var accumulator = new TradeStatsAccumulator("swing");
+        accumulator.Ingest(
+        [
+            Fill(OrderSide.Buy, 1m, 100m, 0),
+            Fill(OrderSide.Sell, 1m, 104m, 1, tags: "scalp"),
+        ]);
+
+        accumulator.GetTradeFacts().Should().BeEmpty();
+        accumulator.Snapshot().Trades.Should().Be(0);
+    }
+
+    #endregion Risk Facts, Ratios and Buckets (T-251)
 }

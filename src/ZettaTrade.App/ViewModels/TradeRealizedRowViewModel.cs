@@ -16,26 +16,46 @@ using ZettaTrade.Infrastructure.Export;
 public sealed record TradeRealizedRowViewModel
 {
     /// <summary>Build one display row from a ledger row. The journal stores
-    /// UTC; display follows the local wall clock, like the other panels.</summary>
-    public static TradeRealizedRowViewModel From(StatementRealizedTrade trade) => new()
+    /// UTC; display follows the local wall clock, like the other panels. The
+    /// MAE/MFE columns keep their honest dash until the excursion pass fills
+    /// them (T-251).</summary>
+    public static TradeRealizedRowViewModel From(StatementRealizedTrade trade) => From(trade, null);
+
+    /// <summary>Build one display row from a ledger row plus its derived
+    /// excursion (T-251): the MAE/MFE columns speak the cached candles'
+    /// read, and a trade whose window the cache does not cover keeps the
+    /// dash — the honest absence, never a fabricated excursion.</summary>
+    public static TradeRealizedRowViewModel From(StatementRealizedTrade trade, TradeExcursionFact? excursion)
     {
-        ExchangeId = trade.ExchangeId,
-        OrderId = trade.ClosingOrderId,
-        ClosedAt = trade.ClosedAt.ToLocalTime().ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
-        Exchange = trade.ExchangeId,
-        Symbol = trade.Symbol,
-        Side = trade.ClosingSide,
-        IsBuySide = trade.ClosingSide is "Buy",
-        IsSellSide = trade.ClosingSide is "Sell",
-        Quantity = trade.Quantity.ToString("0.0########", CultureInfo.InvariantCulture),
-        EntryPrice = trade.EntryPrice.ToString("0.0########", CultureInfo.InvariantCulture),
-        ExitPrice = trade.ExitPrice.ToString("0.0########", CultureInfo.InvariantCulture),
-        Pnl = trade.RealizedPnl.ToString("F4", CultureInfo.InvariantCulture),
-        IsWinning = trade.RealizedPnl > 0,
-        IsLosing = trade.RealizedPnl < 0,
-        Note = trade.Note,
-        Tags = trade.Tags,
-    };
+        var mae = excursion is null
+            ? NotAvailableText
+            : excursion.Mae.ToString(PriceFormat, CultureInfo.InvariantCulture);
+        var mfe = excursion is null
+            ? NotAvailableText
+            : excursion.Mfe.ToString(PriceFormat, CultureInfo.InvariantCulture);
+
+        return new TradeRealizedRowViewModel
+        {
+            ExchangeId = trade.ExchangeId,
+            OrderId = trade.ClosingOrderId,
+            ClosedAt = trade.ClosedAt.ToLocalTime().ToString(TimeFormats.OrderTimestamp, CultureInfo.InvariantCulture),
+            Exchange = trade.ExchangeId,
+            Symbol = trade.Symbol,
+            Side = trade.ClosingSide,
+            IsBuySide = trade.ClosingSide is "Buy",
+            IsSellSide = trade.ClosingSide is "Sell",
+            Quantity = trade.Quantity.ToString("0.0########", CultureInfo.InvariantCulture),
+            EntryPrice = trade.EntryPrice.ToString("0.0########", CultureInfo.InvariantCulture),
+            ExitPrice = trade.ExitPrice.ToString("0.0########", CultureInfo.InvariantCulture),
+            Pnl = trade.RealizedPnl.ToString("F4", CultureInfo.InvariantCulture),
+            IsWinning = trade.RealizedPnl > 0,
+            IsLosing = trade.RealizedPnl < 0,
+            Mae = mae,
+            Mfe = mfe,
+            Note = trade.Note,
+            Tags = trade.Tags,
+        };
+    }
 
     /// <summary>Closing journal row's exchange; the annotation write's key half.</summary>
     public required string ExchangeId { get; init; }
@@ -79,9 +99,21 @@ public sealed record TradeRealizedRowViewModel
     /// <summary>Whether the trade realized a loss (the PnL cell's state).</summary>
     public required bool IsLosing { get; init; }
 
+    /// <summary>Maximum adverse excursion in price units (the cached candles' read, T-251); a dash without coverage.</summary>
+    public required string Mae { get; init; }
+
+    /// <summary>Maximum favorable excursion in price units (the cached candles' read, T-251); a dash without coverage.</summary>
+    public required string Mfe { get; init; }
+
     /// <summary>The journal row's note; null is the honest no-note.</summary>
     public required string? Note { get; init; }
 
     /// <summary>The journal row's canonical comma-joined tag list; null is the honest no-tags.</summary>
     public required string? Tags { get; init; }
+
+    /// <summary>The dash shown while a stat cannot be computed at all.</summary>
+    private const string NotAvailableText = "—";
+
+    /// <summary>Price-unit displays speak the row's price format.</summary>
+    private const string PriceFormat = "0.0########";
 }

@@ -43,6 +43,20 @@ using ZettaTrade.Infrastructure.Persistence;
 /// in the scope (a fill-level fact, disclosed as scope-wide — it is not
 /// attributable to the lane's trades alone).
 /// </para>
+/// <para>
+/// The risk-relative reads (T-251) ride the same booked-trade series. Every
+/// booked close also produces a <see cref="TradeStatsTradeFact"/> — the
+/// trade's window (the position opened at its opening fill's journal time;
+/// an extend keeps the window, a flip stamps the flip fill) and the signed
+/// R-multiple against the journal's stop context (the closing row's own
+/// trigger first — a filled protective stop IS the risk level — then the
+/// most recent trigger among the position's opening rows; the measure
+/// ruler's division canon: null on a missing stop or zero risk, never a
+/// substituted default). The Sharpe and Sortino ratios accumulate
+/// incrementally over the booked PnLs (Welford's running mean and variance,
+/// the target-0 downside sum) so a snapshot stays O(1) — a six-figure scan
+/// publishing per page never re-reads the whole series.
+/// </para>
 /// </summary>
 public sealed class TradeStatsAccumulator
 {
@@ -69,6 +83,14 @@ public sealed class TradeStatsAccumulator
     /// </summary>
     private readonly List<StatementRealizedTrade> _realizedTrades = [];
 
+    /// <summary>
+    /// The per-trade risk facts (T-251): one row per booked closing fill,
+    /// riding the ledger 1:1 in the same booking order — the window and the
+    /// R-multiple facts the excursion derivation and the table's risk
+    /// columns join on.
+    /// </summary>
+    private readonly List<TradeStatsTradeFact> _tradeFacts = [];
+
     private int _trades;
     private int _wins;
     private int _losses;
@@ -80,6 +102,27 @@ public sealed class TradeStatsAccumulator
 
     /// <summary>The running equity peak the drawdown reads against; zero seeds the start of history.</summary>
     private decimal _equityPeak;
+
+    /// <summary>Welford's running mean of the booked PnLs (T-251); zero seeds the series.</summary>
+    private decimal _pnlMean;
+
+    /// <summary>Welford's running squared-deviation sum over the booked PnLs; the sample variance divides it by count − 1.</summary>
+    private decimal _pnlM2;
+
+    /// <summary>The running sum of squared negative PnLs; the Sortino denominator reads its mean.</summary>
+    private decimal _downsideSumSq;
+
+    /// <summary>The running sum of the R-multiples the booked trades carry.</summary>
+    private decimal _rSum;
+
+    /// <summary>How many booked trades carried a stop context (the R distribution's denominator).</summary>
+    private int _rCount;
+
+    /// <summary>The best R-multiple booked so far; null until one trade carries a stop context.</summary>
+    private decimal? _rBest;
+
+    /// <summary>The worst R-multiple booked so far; null until one trade carries a stop context.</summary>
+    private decimal? _rWorst;
 
     private bool _hasFills;
 
@@ -138,7 +181,12 @@ public sealed class TradeStatsAccumulator
             AverageLoser: losses > 0 ? _grossLoss / losses : null,
             WinRate: wins + losses > 0 ? wins / (decimal)(wins + losses) : null,
             ProfitFactor: _grossLoss == 0 ? null : _grossProfit / -_grossLoss,
-            Equity: new EquityView(_equity, _equity.Count));
+            Equity: new EquityView(_equity, _equity.Count),
+            Sharpe: SharpeRatio(),
+            Sortino: SortinoRatio(),
+            AverageRMultiple: _rCount > 0 ? _rSum / _rCount : null,
+            BestRMultiple: _rBest,
+            WorstRMultiple: _rWorst);
     }
 
     /// <summary>
@@ -147,6 +195,50 @@ public sealed class TradeStatsAccumulator
     /// not see later rows.
     /// </summary>
     public IReadOnlyList<StatementRealizedTrade> GetRealizedTrades() => [.. _realizedTrades];
+
+    /// <summary>
+    /// The per-trade risk facts so far (T-251): a fresh copy, like the
+    /// ledger it rides — the scan keeps appending, a snapshot must not see
+    /// later facts.
+    /// </summary>
+    public IReadOnlyList<TradeStatsTradeFact> GetTradeFacts() => [.. _tradeFacts];
+
+    /// <summary>
+    /// The per-trade Sharpe ratio (T-251): the Welford mean of the booked
+    /// PnLs over their sample standard deviation. Null while fewer than two
+    /// returns exist or the series carries no spread at all (an unbounded
+    /// division is refused, never defaulted — the view renders it by the
+    /// mean's sign). Unannualized: the curve carries no annual clock.
+    /// </summary>
+    private decimal? SharpeRatio()
+    {
+        if (_trades < 2 || _pnlM2 <= 0m)
+        {
+            return null;
+        }
+
+        return _pnlMean / Sqrt(_pnlM2 / (_trades - 1));
+    }
+
+    /// <summary>
+    /// The per-trade Sortino ratio (T-251): the Welford mean over the
+    /// target-0 downside deviation (the square root of the mean squared
+    /// negative return, divided by ALL the booked trades — the standard
+    /// downside-deviation denominator). Null while no negative return
+    /// exists (the division is unbounded or meaningless), never a zero.
+    /// </summary>
+    private decimal? SortinoRatio()
+    {
+        if (_trades == 0 || _downsideSumSq <= 0m)
+        {
+            return null;
+        }
+
+        return _pnlMean / Sqrt(_downsideSumSq / _trades);
+    }
+
+    /// <summary>The decimal square root through the double lane (the VwapOverlay pattern).</summary>
+    private static decimal Sqrt(decimal value) => (decimal)Math.Sqrt((double)value);
 
     #endregion Public Methods
 
@@ -188,16 +280,17 @@ public sealed class TradeStatsAccumulator
 
         var fillSign = order.Side == OrderSide.Buy ? 1m : -1m;
         var signed = position.SignedQuantity;
+        var rowStop = order.StopPrice?.Value;
 
         if (signed == 0)
         {
-            position.Open(fillSign * filled, price);
+            position.Open(fillSign * filled, price, order.CreatedAt, rowStop);
             return;
         }
 
         if (decimal.Sign(fillSign) == decimal.Sign(signed))
         {
-            position.Extend(fillSign * filled, price);
+            position.Extend(fillSign * filled, price, rowStop);
             return;
         }
 
@@ -214,9 +307,20 @@ public sealed class TradeStatsAccumulator
     /// <para>
     /// The tag lane (T-211) gates the OUTCOME only: a closing fill outside
     /// the lane still hands its remainder to the position state (the pairing
-    /// stays whole), but books no trade, no PnL, no curve point. Lane trades
-    /// carry the closing journal row's identity and annotations in the
-    /// ledger row.
+    /// stays whole), but books no trade, no PnL, no curve point, no risk
+    /// fact. Lane trades carry the closing journal row's identity and
+    /// annotations in the ledger row.
+    /// </para>
+    /// <para>
+    /// The risk facts (T-251) read the position BEFORE the close mutates it:
+    /// the window opens at the position's <see cref="SymbolPosition.OpenedAt"/>
+    /// (the opening fill's journal time), the side is the held quantity's
+    /// sign, and the stop context is the closing row's own trigger when it
+    /// carries one (a filled protective stop IS the risk level), else the
+    /// most recent trigger among the position's opening rows. The R-multiple
+    /// divides the signed per-unit PnL by the |entry − stop| distance — null
+    /// on a missing stop or a zero risk distance, never a substituted
+    /// default (the measure ruler's division canon, T-200).
     /// </para>
     /// </summary>
     private void BookClose(SymbolPosition position, OrderPageRow row, decimal price)
@@ -229,13 +333,27 @@ public sealed class TradeStatsAccumulator
         // reduces no matter what, the aggregates only see lane trades.
         if (_tagLane is { } lane && !CarriesTag(row.Tags, lane))
         {
-            position.ReduceOrFlip(closingDelta, price);
+            position.ReduceOrFlip(closingDelta, price, time, order.StopPrice?.Value);
             return;
         }
 
         var closable = Math.Min(Math.Abs(closingDelta), Math.Abs(position.SignedQuantity));
         var direction = decimal.Sign(position.SignedQuantity);
-        var realized = direction * (price - position.AverageEntry) * closable;
+        var perUnitPnl = direction * (price - position.AverageEntry);
+        var realized = perUnitPnl * closable;
+        var openedAt = position.OpenedAt;
+        var isLong = direction > 0;
+
+        var stopPrice = order.StopPrice?.Value ?? position.StopPrice;
+        decimal? rMultiple = null;
+        if (stopPrice is { } stop)
+        {
+            var riskDistance = Math.Abs(position.AverageEntry - stop);
+            if (riskDistance > 0m)
+            {
+                rMultiple = perUnitPnl / riskDistance;
+            }
+        }
 
         _trades++;
         _realizedTotal += realized;
@@ -252,6 +370,41 @@ public sealed class TradeStatsAccumulator
             QuoteCurrency: order.Symbol.QuoteAsset,
             Note: row.Note,
             Tags: row.Tags));
+        _tradeFacts.Add(new TradeStatsTradeFact(
+            ClosedAt: time,
+            OpenedAt: openedAt,
+            ExchangeId: order.ExchangeId,
+            Symbol: order.Symbol.Normalized,
+            ClosingOrderId: order.Id,
+            IsLong: isLong,
+            EntryPrice: position.AverageEntry,
+            RMultiple: rMultiple));
+
+        // The running ratio series (T-251): Welford's mean and squared-
+        // deviation sum over the booked PnLs, the downside sum beside them
+        // — a snapshot never re-reads the series, the publish stays O(1).
+        var delta = realized - _pnlMean;
+        _pnlMean += delta / _trades;
+        _pnlM2 += delta * (realized - _pnlMean);
+        if (realized < 0m)
+        {
+            _downsideSumSq += realized * realized;
+        }
+
+        if (rMultiple is { } multiple)
+        {
+            _rCount++;
+            _rSum += multiple;
+            if (_rBest is null || multiple > _rBest)
+            {
+                _rBest = multiple;
+            }
+
+            if (_rWorst is null || multiple < _rWorst)
+            {
+                _rWorst = multiple;
+            }
+        }
 
         if (realized > 0)
         {
@@ -277,7 +430,7 @@ public sealed class TradeStatsAccumulator
             _maxDrawdown = drawdown;
         }
 
-        position.ReduceOrFlip(closingDelta, price);
+        position.ReduceOrFlip(closingDelta, price, time, order.StopPrice?.Value);
     }
 
     /// <summary>
@@ -299,6 +452,14 @@ public sealed class TradeStatsAccumulator
     /// average entry rules mirror the paper ledger's bookkeeping (BUG-005:
     /// a partial close never re-averages the remainder; BUG-034: a flip
     /// stamps its fresh position at its own fill).
+    /// <para>
+    /// The risk facts (T-251) ride the same state: the trade window opens
+    /// when the position does (an extend keeps it — the trade is still the
+    /// same position), a flip stamps the window at the flip fill, and the
+    /// stop context remembers the most recent trigger an opening row
+    /// carried (the ticket's sizer stop riding the entry leg) until the
+    /// position itself turns over.
+    /// </para>
     /// </summary>
     private sealed class SymbolPosition
     {
@@ -308,29 +469,46 @@ public sealed class TradeStatsAccumulator
         /// <summary>Weighted-average entry of the open size; zero while flat.</summary>
         public decimal AverageEntry { get; private set; }
 
-        /// <summary>Open from flat: the fresh position sits at the fill price.</summary>
-        public void Open(decimal signedQuantity, decimal price)
+        /// <summary>When the current position opened (the opening or flip fill's journal time); the trade window's start.</summary>
+        public DateTimeOffset OpenedAt { get; private set; }
+
+        /// <summary>The most recent trigger an opening row carried (the ticket's sizer stop); null while none does.</summary>
+        public decimal? StopPrice { get; private set; }
+
+        /// <summary>Open from flat: the fresh position sits at the fill price, its window and stop stamped from the row.</summary>
+        public void Open(decimal signedQuantity, decimal price, DateTimeOffset openedAt, decimal? stopPrice)
         {
             SignedQuantity = signedQuantity;
             AverageEntry = price;
+            OpenedAt = openedAt;
+            StopPrice = stopPrice;
         }
 
-        /// <summary>Extend the open side: weighted-average entry over the whole new size.</summary>
-        public void Extend(decimal signedDelta, decimal price)
+        /// <summary>
+        /// Extend the open side: weighted-average entry over the whole new
+        /// size, the window unchanged (the same position, still the same
+        /// trade), the stop context advanced when the row carries one.
+        /// </summary>
+        public void Extend(decimal signedDelta, decimal price, decimal? stopPrice)
         {
             var previousAbs = Math.Abs(SignedQuantity);
             var deltaAbs = Math.Abs(signedDelta);
             AverageEntry = ((AverageEntry * previousAbs) + (price * deltaAbs))
                 / (previousAbs + deltaAbs);
             SignedQuantity += signedDelta;
+            if (stopPrice is { } stop)
+            {
+                StopPrice = stop;
+            }
         }
 
         /// <summary>
         /// Reduce by the closing quantity (the average entry of the remaining
         /// size stays exactly as it was) or cross zero: the flip remainder
-        /// opens its fresh position at its own fill price.
+        /// opens its fresh position at its own fill price, its window and
+        /// stop stamped from the same row.
         /// </summary>
-        public void ReduceOrFlip(decimal closingDelta, decimal price)
+        public void ReduceOrFlip(decimal closingDelta, decimal price, DateTimeOffset rowTime, decimal? stopPrice)
         {
             var newSigned = SignedQuantity + closingDelta;
 
@@ -349,6 +527,8 @@ public sealed class TradeStatsAccumulator
 
             SignedQuantity = newSigned;
             AverageEntry = price;
+            OpenedAt = rowTime;
+            StopPrice = stopPrice;
         }
     }
 
