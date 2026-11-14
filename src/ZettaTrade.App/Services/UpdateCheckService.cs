@@ -2,6 +2,7 @@ namespace ZettaTrade.App.Services;
 
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -26,7 +27,10 @@ using ZettaTrade.Core.Interfaces;
 /// Offline-honest: an unreachable endpoint (any transport, HTTP or
 /// parse fault) degrades to a logged warning — the standing verdict on
 /// the stream stays exactly as it was, the chip never flaps on a
-/// failed check. The <c>App.UpdateCheck</c> off switch silences the
+/// failed check. The no-release 404 is the opposite shape: the private
+/// feed without a published release answers the honest empty verdict
+/// (the quiet no-update state), never an error family (T-230). The
+/// <c>App.UpdateCheck</c> off switch silences the
 /// check entirely: no request, no chip, no notification; the periodic
 /// loop keeps ticking but skips its work while the switch is off, and
 /// the manual check no-ops the same way.
@@ -304,7 +308,9 @@ public sealed class UpdateCheckService(
     /// against the running version, emit the verdict and announce a
     /// NEW release exactly once. Any fault (transport, HTTP status,
     /// parse) degrades to a logged warning — the standing verdict on
-    /// the stream stays, nothing emits.
+    /// the stream stays, nothing emits. The no-release 404 is not a
+    /// fault: the feed without a published release is the honest empty
+    /// answer, the quiet no-update state (T-230).
     /// </summary>
     private async Task CheckOnceAsync(CancellationToken ct)
     {
@@ -349,12 +355,29 @@ public sealed class UpdateCheckService(
         }
     }
 
-    /// <summary>Fetch the releases list and shape it into the ranked candidates (drafts and unparsable tags skipped).</summary>
+    /// <summary>
+    /// Fetch the releases list and shape it into the ranked candidates
+    /// (drafts and unparsable tags skipped). A no-release 404 is the
+    /// honest no-update answer of a feed without published releases and
+    /// returns the empty list — never a failure (T-230); every other
+    /// non-success status keeps its throw.
+    /// </summary>
     private async Task<UpdateRelease[]> FetchReleasesAsync(CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient(HttpClientName);
         using var response = await client.GetAsync(new Uri(ReleasesUrl), HttpCompletionOption.ResponseHeadersRead, ct)
             .ConfigureAwait(false);
+        if (response.StatusCode is HttpStatusCode.NotFound)
+        {
+            // The feed's no-release answer (T-230): a repository with no
+            // published releases 404s every check — the honest empty
+            // verdict (the quiet no-update state) is the answer, and the
+            // debug note is the only trace. A real failure (rate limit,
+            // server fault, network) keeps its warning lane.
+            _logger.LogDebug("The releases feed answers no published releases: the honest no-update state");
+            return [];
+        }
+
         response.EnsureSuccessStatusCode();
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
