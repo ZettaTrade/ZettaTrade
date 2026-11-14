@@ -26,7 +26,13 @@
              step (the T-181 kit language). T-232: the stretch is explicit —
              the Avalonia 12 fluent theme defaults every button to Left, so
              the sort caption only rides its column's right edge (the data
-             columns' alignment) when the button fills the column. -->
+             columns' alignment) when the button fills the column. The
+             review round (T-232): the kit's rest hairline boxed every
+             caption and the right-aligned text sat flush against its
+             border — the captions read as captions over the row hairline
+             instead (the Funding caption's own look), the transparent rest
+             border keeps the T-110 focus ring reachable through the re-arm
+             below, and the alignment never trades for an inset. -->
         <Style Selector="Button.column-sort">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -34,6 +40,10 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinHeight" Value="20" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.column-sort:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource Highlight}" />
         </Style>
         <Style Selector="Button.column-sort:pointerover">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />

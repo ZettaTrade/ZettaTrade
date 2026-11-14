@@ -5447,7 +5447,10 @@ the board and its section below.
   button, so the T-195 era stretched only the row's content — the whole-row press
   target and the header's sort buttons take the stretch explicitly) and trade the
   fluent chrome for the row grammar's look (the bottom hairline separator, square
-  corners, the opacity-dim press without the scale squish). Tests: the Livery
+  corners, the opacity-dim press without the scale squish); the review round unboxes
+  the sort captions (the kit's rest hairline framed every header caption and the
+  right-aligned text sat flush against its border — the captions read as captions
+  over the header hairline, the T-110 focus ring re-arms through :focus). Tests: the Livery
   battery's icon-affordance pins (the tint steps, the presenter focus ring, the
   framed composition); the `FieldGrammarPinsTests` (the include, the 14 cells, the
   caption copies gone, the no-fixed-width-combo fact, the transfer pair's framed

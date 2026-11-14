@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 using FluentAssertions;
 using Xunit;
@@ -100,6 +101,11 @@ public sealed class HeadlessScreenerRowTests
                     sort.HorizontalAlignment.Should().Be(HorizontalAlignment.Stretch,
                         "the sort button fills its column (the Avalonia 12 Left default " +
                         "never lands the right-aligned caption on the column edge)");
+                    sort.BorderBrush.Should().Be(
+                        Brushes.Transparent,
+                        "the caption reads chrome-free at rest (the kit's rest hairline " +
+                        "boxed every caption and the right-aligned text sat flush " +
+                        "against its border; the focus ring re-arms through :focus)");
                 }
 
                 // The row's data grid sits one template presenter deep: the
