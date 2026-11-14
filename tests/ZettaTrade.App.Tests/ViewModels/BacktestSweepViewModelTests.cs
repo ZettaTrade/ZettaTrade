@@ -32,12 +32,13 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// the grid from the run form (the template) and both axes (the value
 /// lists parse and range-check explicitly — every malformed input refuses
 /// with its own localized line and never reaches the service), a completed
-/// sweep renders the ranked table and auto-selects rank 1 (its report
-/// becomes the report surface), the click-through swaps the selected row's
-/// own report in, a cancelled sweep keeps the completed rows with no
-/// auto-selection, the per-row events wrap into the global progress
-/// counter, and a language switch re-renders the picker and the rows.
-/// Facts run inside the AvaloniaDispatcherSerial collection.
+/// sweep renders the ranked table and auto-selects rank 1 (the sweep's own
+/// best report becomes the report surface — no second run, T-263), the
+/// click-through re-replays the selected row's parameterization through the
+/// single-run lane and swaps its report in, a cancelled sweep keeps the
+/// completed rows with no auto-selection, the per-row events wrap into the
+/// global progress counter, and a language switch re-renders the picker and
+/// the rows. Facts run inside the AvaloniaDispatcherSerial collection.
 /// </summary>
 [Collection("AvaloniaDispatcherSerial")]
 public sealed class BacktestSweepViewModelTests
@@ -206,6 +207,7 @@ public sealed class BacktestSweepViewModelTests
     {
         var (model, backtest, _, _, _) = Build(new FakeStrategy("sma-golden-cross"));
         BacktestSweepRequest? composed = null;
+        BacktestReport? bestReport = null;
         backtest.SweepAsync(Arg.Any<BacktestSweepRequest>(), Arg.Any<CancellationToken>())
             .Returns(ci =>
             {
@@ -214,17 +216,21 @@ public sealed class BacktestSweepViewModelTests
                 var first = request.FirstAxis.Values;
                 var second = request.SecondAxis.Values;
                 var rows = new List<BacktestSweepRow>();
+                var reports = new List<BacktestReport>();
                 var index = 0;
                 foreach (var firstValue in first)
                 {
                     foreach (var secondValue in second)
                     {
+                        var report = Report(100m + index, firstValue, secondValue);
+                        reports.Add(report);
                         rows.Add(new BacktestSweepRow(
                             Rank: 0,
                             Index: index,
                             FirstValue: firstValue,
                             SecondValue: secondValue,
-                            Report: Report(100m + index, firstValue, secondValue)));
+                            Request: report.Request,
+                            Statistics: report.Statistics));
                         index++;
                     }
                 }
@@ -235,11 +241,15 @@ public sealed class BacktestSweepViewModelTests
                     .Select((row, rank) => row with { Rank = rank + 1 })
                     .ToList();
                 // NSubstitute wraps the lambda's own result value for the
-                // method's Task return shape — no explicit wrap needed.
+                // method's Task return shape — no explicit wrap needed. The
+                // best report is rank 1's own replay (T-263: the engine's
+                // completed sweep always carries it).
+                bestReport = reports[ranked[0].Index];
                 return new BacktestSweepResult(
                     BacktestSweepOutcome.Completed,
                     request,
-                    ranked);
+                    ranked,
+                    bestReport);
             });
         // A tight grid keeps the done line's arithmetic readable: 2 x 1.
         model.SweepFirstValuesText = "0.25, 0.5";
@@ -267,14 +277,14 @@ public sealed class BacktestSweepViewModelTests
         model.SweepRows.Select(row => row.Rank).Should().Equal([1, 2]);
         model.SelectedSweepRow.Should().Be(model.SweepRows[0]);
         model.HasReport.Should().BeTrue();
-        model.ReportText.Should().Be(model.SweepRows[0].Row.Report.ToCanonicalText());
+        model.ReportText.Should().Be(bestReport!.ToCanonicalText());
         model.ProgressText.Should().Be("[Backtest.Sweep.Done.Format/2|2]");
         model.ProgressFraction.Should().Be(1d);
         model.ErrorMessage.Should().BeNull();
     }
 
     [Fact]
-    public async Task StartSweepCommand_ClickThrough_SwapsTheSelectedRowsOwnReportIn()
+    public async Task StartSweepCommand_ClickThrough_RankOneShowsTheSweepsOwnReport_AndDeeperRowsReRun()
     {
         var (model, backtest, _, _, _) = Build(new FakeStrategy("sma-golden-cross"));
         var firstReport = Report(110m, fraction: 0.25m, slippage: 1m);
@@ -290,16 +300,39 @@ public sealed class BacktestSweepViewModelTests
                 BacktestSweepOutcome.Completed,
                 sweepRequest,
                 [
-                    new BacktestSweepRow(1, 0, 0.25m, 1m, firstReport),
-                    new BacktestSweepRow(2, 1, 0.5m, 1m, secondReport),
-                ]));
+                    new BacktestSweepRow(
+                        1, 0, 0.25m, 1m,
+                        Request: firstReport.Request,
+                        Statistics: firstReport.Statistics),
+                    new BacktestSweepRow(
+                        2, 1, 0.5m, 1m,
+                        Request: secondReport.Request,
+                        Statistics: secondReport.Statistics),
+                ],
+                // The engine's own best report: rank 1's replay (T-263).
+                firstReport));
+        backtest.RunAsync(Arg.Any<BacktestRunRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new BacktestRunResult(BacktestRunOutcome.Completed, secondReport));
         model.SweepFirstValuesText = "0.25, 0.5";
         model.SweepSecondValuesText = "1";
+
         await model.StartSweepCommand.Execute(RxVoid.Default);
+        // Rank 1 auto-selected: the report surface shows the sweep's own best
+        // report — no second run was ever needed for it.
         var rankOneText = model.ReportText;
+        rankOneText.Should().Be(firstReport.ToCanonicalText());
+        await backtest.DidNotReceive().RunAsync(
+            Arg.Any<BacktestRunRequest>(),
+            Arg.Any<CancellationToken>());
 
         model.SelectedSweepRow = model.SweepRows[1];
 
+        // The deeper row re-runs the single lane with the row's own request
+        // and swaps the report in when the replay completes.
+        await backtest.Received().RunAsync(
+            Arg.Is<BacktestRunRequest>(request => request.LongNotionalFraction == 0.5m && request.SlippageValue == 1m),
+            Arg.Any<CancellationToken>());
+        model.Phase.Should().Be(BacktestRunPhase.Completed);
         model.ReportText.Should().NotBe(rankOneText);
         model.ReportText.Should().Be(secondReport.ToCanonicalText());
         model.EquityPoints.Should().BeEquivalentTo(
@@ -410,7 +443,12 @@ public sealed class BacktestSweepViewModelTests
             .Returns(new BacktestSweepResult(
                 BacktestSweepOutcome.Cancelled,
                 sweepRequest,
-                [new BacktestSweepRow(1, 0, 0.25m, 1m, completedReport)]));
+                [
+                    new BacktestSweepRow(
+                        1, 0, 0.25m, 1m,
+                        Request: completedReport.Request,
+                        Statistics: completedReport.Statistics),
+                ]));
         model.SweepFirstValuesText = "0.25, 0.5";
         model.SweepSecondValuesText = "1";
 
@@ -521,7 +559,13 @@ public sealed class BacktestSweepViewModelTests
             .Returns(new BacktestSweepResult(
                 BacktestSweepOutcome.Completed,
                 sweepRequest,
-                [new BacktestSweepRow(1, 0, 0.25m, 1m, report)]));
+                [
+                    new BacktestSweepRow(
+                        1, 0, 0.25m, 1m,
+                        Request: report.Request,
+                        Statistics: report.Statistics),
+                ],
+                report));
         model.SweepFirstValuesText = "0.25";
         model.SweepSecondValuesText = "1";
         await model.StartSweepCommand.Execute(RxVoid.Default);

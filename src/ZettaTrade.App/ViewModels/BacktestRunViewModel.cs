@@ -2,6 +2,7 @@ namespace ZettaTrade.App.ViewModels;
 
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 using Livery.Extensions;
 using Livery.Localization;
 using Microsoft.Extensions.Logging;
@@ -118,6 +119,17 @@ public sealed class BacktestRunViewModel : ReactiveObject
     private int _sweepCompletedRows;
     private int? _sweepDoneRows;
     private int? _sweepDoneTotal;
+
+    /// <summary>The completed sweep's own best report (T-263): rank 1's full
+    /// replay, folded on the sweep's own loaded window — the auto-selected
+    /// surface renders it directly, with no second run that could only read
+    /// the cache's shifted current state. Cleared on the next start.</summary>
+    private BacktestReport? _sweepBestReport;
+
+    /// <summary>The click-through's generation (T-263): the newest open
+    /// request owns the report surface — a superseded replay's continuation
+    /// never renders over the newer surface.</summary>
+    private int _reportGeneration;
 
     #endregion Private Fields
 
@@ -300,9 +312,13 @@ public sealed class BacktestRunViewModel : ReactiveObject
     public bool HasSweepRows => _sweepRows.Count > 0;
 
     /// <summary>
-    /// The table's selected row: the click-through — setting it swaps the
-    /// report surface over to the row's own complete single-run report
-    /// (the equity curve, the summary line and the canonical text).
+    /// The table's selected row: the click-through (T-263). Rank 1 of a
+    /// completed sweep shows the sweep's own best report (no second run —
+    /// the engine folded it on the sweep's own window); any other row
+    /// re-replays its parameterization through the single-run lane and
+    /// swaps the report in when the replay completes. A replay in flight
+    /// owns the surface: a newer open request supersedes it (the stale
+    /// continuation never renders), a click while one runs waits.
     /// </summary>
     public BacktestSweepRowViewModel? SelectedSweepRow
     {
@@ -318,7 +334,12 @@ public sealed class BacktestRunViewModel : ReactiveObject
             this.RaisePropertyChanged(nameof(SelectedSweepRow));
             if (value is { } selected)
             {
-                RenderReportSurface(selected.Row.Report);
+                // The click-through's task is observed, never discarded: the
+                // handler logs what the method's own catches could not (the
+                // standing no-fire-and-forget rule).
+                OpenSweepRowReportAsync(selected).ToObservable().Subscribe(
+                    _ => { },
+                    ex => _logger.LogError(ex, "The sweep row click-through stopped unexpectedly"));
             }
         }
     }
@@ -502,6 +523,7 @@ public sealed class BacktestRunViewModel : ReactiveObject
         EquityPoints = [];
         SelectedSweepRow = null;
         SweepRows = [];
+        _sweepBestReport = null;
         Phase = BacktestRunPhase.Running;
         _runCancellation = new CancellationTokenSource();
 
@@ -562,6 +584,7 @@ public sealed class BacktestRunViewModel : ReactiveObject
         EquityPoints = [];
         SelectedSweepRow = null;
         SweepRows = [];
+        _sweepBestReport = null;
         _sweepDoneRows = null;
         _sweepDoneTotal = null;
         Phase = BacktestRunPhase.Running;
@@ -655,6 +678,12 @@ public sealed class BacktestRunViewModel : ReactiveObject
         var secondParameter = result.Request.SecondAxis.Parameter;
         var total = result.Request.FirstAxis.Values.Count * result.Request.SecondAxis.Values.Count;
 
+        // The completed sweep's own best report (T-263): rank 1's replay on
+        // the sweep's own window. The auto-selection below renders it with
+        // no second run; a cancelled sweep carries none (the click-through
+        // re-replays instead).
+        _sweepBestReport = result.BestReport;
+
         var rows = result.Rows
             .Select(row => new BacktestSweepRowViewModel(row, firstParameter, secondParameter, _localization))
             .ToArray();
@@ -670,7 +699,16 @@ public sealed class BacktestRunViewModel : ReactiveObject
             Phase = BacktestRunPhase.Completed;
             if (rows.Length > 0)
             {
-                SelectedSweepRow = rows[0];
+                // The auto-selection renders the sweep's OWN best report
+                // directly (T-263): synchronous, no second run — the setter's
+                // open machinery serves user clicks only.
+                _selectedSweepRow = rows[0];
+                this.RaisePropertyChanged(nameof(SelectedSweepRow));
+                if (_sweepBestReport is { } best)
+                {
+                    _reportGeneration++;
+                    RenderReportSurface(best);
+                }
             }
         }
         else
@@ -680,6 +718,82 @@ public sealed class BacktestRunViewModel : ReactiveObject
             // a click-through only ever opens a COMPLETE row's report).
             LastReport = null;
             Phase = BacktestRunPhase.Cancelled;
+        }
+    }
+
+    /// <summary>
+    /// Open one sweep row's report surface (the T-263 click-through): rank 1
+    /// of a completed sweep renders the sweep's own best report — the engine
+    /// replayed that exact parameterization on the sweep's own loaded
+    /// window, so a second run could only drift off the cached series'
+    /// current state and never add honesty. Any other row re-replays through
+    /// the single-run lane: the replay's own request echo is the report's
+    /// provenance, and the table's row metrics stay the sweep's own. A
+    /// replay in flight owns the harness and the surface: a newer open
+    /// request bumps the generation (the stale continuation never renders
+    /// over it); a click while one runs waits for its completion.
+    /// </summary>
+    private async Task OpenSweepRowReportAsync(BacktestSweepRowViewModel row)
+    {
+        if (row.Rank == 1 && _sweepBestReport is { } best)
+        {
+            _reportGeneration++;
+            RenderReportSurface(best);
+            return;
+        }
+
+        // The in-flight run owns the harness (the single-flight gate refuses
+        // a second start anyway): the click waits for its completion.
+        if (IsRunning)
+        {
+            return;
+        }
+
+        var generation = ++_reportGeneration;
+        ErrorMessage = null;
+        ProgressText = string.Empty;
+        ProgressFraction = 0d;
+        Phase = BacktestRunPhase.Running;
+        _runCancellation = new CancellationTokenSource();
+        try
+        {
+            var result = await _backtest.RunAsync(row.Row.Request, _runCancellation.Token);
+            if (generation == _reportGeneration)
+            {
+                ApplyResult(result);
+            }
+            else
+            {
+                // Superseded: the newer open request owns the report surface;
+                // the phase settles back to the sweep's completed state.
+                Phase = BacktestRunPhase.Completed;
+            }
+        }
+        catch (OperationCanceledException) when (_runCancellation.IsCancellationRequested)
+        {
+            if (generation == _reportGeneration)
+            {
+                // The user's stop: the cancelled replay surfaces no report.
+                LastReport = null;
+                Phase = BacktestRunPhase.Cancelled;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Backtest click-through replay failed for '{Strategy}'",
+                row.Row.Request.StrategyId);
+            if (generation == _reportGeneration)
+            {
+                ErrorMessage = _localization.GetString(StartFailedKey, ex.Message);
+                Phase = BacktestRunPhase.Failed;
+            }
+        }
+        finally
+        {
+            _runCancellation.Dispose();
+            _runCancellation = null;
         }
     }
 

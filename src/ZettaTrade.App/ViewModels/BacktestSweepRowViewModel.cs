@@ -7,7 +7,9 @@ using ZettaTrade.Backtest;
 /// <summary>
 /// One ranked row of the sweep's result table (T-212): the grid cell's pair
 /// rendered in the live language, the row's headline metrics and the rank
-/// the table displays. The renderings re-resolve on every language change
+/// the table displays. The metrics ride the row's own statistics (T-263:
+/// the engine retains metrics rows, the full report opens through the
+/// click-through); the renderings re-resolve on every language change
 /// through <see cref="Refresh"/> (the view lifecycle canon — never a static
 /// localized string bound once); the numbers render in the current culture
 /// exactly like the run report's summary line does.
@@ -41,7 +43,7 @@ public sealed class BacktestSweepRowViewModel : ReactiveObject
     #region Constructors
 
     /// <summary>Create one table row over the ranked engine row and the grid's two knobs.</summary>
-    /// <param name="row">The engine's ranked row (the cell's pair plus its complete report).</param>
+    /// <param name="row">The engine's ranked row (the cell's pair plus its own metrics).</param>
     /// <param name="firstParameter">The grid's first axis' knob.</param>
     /// <param name="secondParameter">The grid's second axis' knob.</param>
     /// <param name="localization">The localized strings resolver (the first render).</param>
@@ -64,7 +66,7 @@ public sealed class BacktestSweepRowViewModel : ReactiveObject
 
     #region Facts
 
-    /// <summary>The engine's ranked row (the click-through reads its report).</summary>
+    /// <summary>The engine's ranked row (the click-through reads its request).</summary>
     public BacktestSweepRow Row => _row;
 
     /// <summary>The 1-based position in the ranked table (1 = the best net).</summary>
@@ -129,9 +131,9 @@ public sealed class BacktestSweepRowViewModel : ReactiveObject
         var secondLabel = KnobLabel(localization, _secondParameter);
         ParameterText = $"{firstLabel}={Render(_row.FirstValue)}, {secondLabel}={Render(_row.SecondValue)}";
         NetText = Render(_row.Net);
-        DrawdownText = Render(_row.Report.Statistics.MaxDrawdown);
-        WinRateText = Render(_row.Report.Statistics.WinRate);
-        ProfitFactorText = Render(_row.Report.Statistics.ProfitFactor);
+        DrawdownText = Render(_row.Statistics.MaxDrawdown);
+        WinRateText = Render(_row.Statistics.WinRate);
+        ProfitFactorText = Render(_row.Statistics.ProfitFactor);
         AutomationName =
             $"{localization.GetString(RankColumnKey)} {_row.Rank}: {ParameterText}, "
             + $"{localization.GetString(NetColumnKey)} {NetText}";

@@ -24,14 +24,25 @@ public enum BacktestSweepOutcome
 /// request (the template plus both axes) and the ranked rows. The ranking is
 /// deterministic: net descending, ties broken by the enumeration order — the
 /// same grid over the same cache always yields the same table.
+/// <para>
+/// T-263: the rows carry metrics only (the cell's request + the replay's
+/// statistics); the full report the report surface opens on is the ONE
+/// <see cref="BestReport"/> — the rank-1 row's replay, re-run silently on
+/// the sweep's OWN loaded window, so its equity curve is the sweep's own
+/// fact (the same seed and the same bars fold the byte-identical report).
+/// A cancelled sweep or an empty grid carries no best report: the
+/// click-through re-replays a row through the single-run lane instead.
+/// </para>
 /// </summary>
 /// <param name="Outcome">How the sweep ended.</param>
 /// <param name="Request">The sweep's request (the template plus both axes).</param>
 /// <param name="Rows">The ranked rows, best net first.</param>
+/// <param name="BestReport">The completed sweep's rank-1 row's full report (null otherwise).</param>
 public sealed record BacktestSweepResult(
     BacktestSweepOutcome Outcome,
     BacktestSweepRequest Request,
-    IReadOnlyList<BacktestSweepRow> Rows)
+    IReadOnlyList<BacktestSweepRow> Rows,
+    BacktestReport? BestReport = null)
 {
     #region Facts
 
@@ -75,9 +86,9 @@ public sealed record BacktestSweepResult(
             text.Append(" first=").Append(Format(row.FirstValue));
             text.Append(" second=").Append(Format(row.SecondValue));
             text.Append(" net=").Append(Format(row.Net));
-            text.Append(" drawdown=").Append(Format(row.Report.Statistics.MaxDrawdown));
-            text.Append(" winRate=").Append(Format(row.Report.Statistics.WinRate));
-            text.Append(" profitFactor=").Append(Format(row.Report.Statistics.ProfitFactor));
+            text.Append(" drawdown=").Append(Format(row.Statistics.MaxDrawdown));
+            text.Append(" winRate=").Append(Format(row.Statistics.WinRate));
+            text.Append(" profitFactor=").Append(Format(row.Statistics.ProfitFactor));
             text.AppendLine();
         }
 

@@ -5670,3 +5670,53 @@ the board and its section below.
   unsigned SmartScreen caveat and the data-survival design. Open hazards: the unsigned
   setup exe draws SmartScreen on first run (documented, pairs with the T-119 disclaimer);
   a changed AppId would orphan prior uninstall registrations (the script pins the GUID).
+
+## T-263 — Backtest sweep retains metrics rows plus one best report
+
+- **Branch:** `feat/backtest-perf` off `develop` (claimed 2026-11-15, the perf sweep; the
+  worktree `zt-backtest-perf`).
+- **Origin:** the code-level perf analysis of develop: every sweep replay's full report
+  (the per-candle equity curve) stayed retained in the ranked rows until the result was
+  consumed — O(P × N) points (the 8×8 grid over the 100k-bar cap ≈ 6.4M points ≈ 300+ MB
+  against the <500 MB app budget), while every consumer outside the one selected row reads
+  only `Statistics` (the table's metrics and the sweep's own canonical text).
+- **What:** the sweep rows carry the cell's own parameterized request + the replay's
+  aggregate statistics (metrics only); the result carries the rank-1 row's FULL report via
+  one silent re-replay of that parameterization on the sweep's OWN loaded window (the same
+  seed and the same bars fold the byte-identical report — zero drift for the auto-selected
+  surface); the retained result holds O(P) rows plus ONE equity curve. The click-through of
+  any other row re-replays it through the single-run lane (its report echoes its own
+  request; the honest caveat: that replay reads the CURRENT cache window, so a cache that
+  grew after the sweep may shift it — the report is always self-describing).
+- **Scope:** `ZettaTrade.Backtest` (the sweep row/result/service shapes) + the backtest
+  view models; no Core contract text, no resx keys (the existing surfaces carry the copy).
+- **Acceptance:** the worst-case sweep's retained memory drops from O(P × N) to O(P + N);
+  the canonical sweep text is byte-identical to the pre-change shape; a completed sweep
+  auto-selects rank 1 whose report surface equals the sweep's own replay byte-for-byte;
+  the cancelled sweep keeps the completed rows with no best report.
+- **Tests:** the sweep engine facts updated to the metrics-row shape (the byte-identical
+  canonical text, the ranking, the tie-break, the load-once pin, the boundary stop with no
+  best report) + the new best-report facts (rank-1 pairing, the cancelled absence) + the
+  click-through view-model facts (rank 1 renders the sweep's own report without a run, a
+  deeper row re-runs the single lane, an in-flight replay keeps the surface honest).
+- **Status:** done - 0.2.2 (on the branch; the landing awaits the user's merge — develop
+  takes pull requests only). The release number re-held: T-041's 0.2.1 landed first on
+  develop, so this landing re-bumps to 0.2.2 (the landing conflict keeps the higher
+  number). Chain: docs(queue) `d9c4b2e` -> fix `a7c27e6` -> chore(release) `965105d` ->
+  fix(lint) `5d851fb` -> this close, on the base develop@b6bd571, the branch
+  `feat/backtest-perf`.
+  Shipped: the sweep rows carry the cell's own request + the replay's statistics (the
+  metrics-row shape), the result carries the rank-1 row's full report as
+  `BacktestSweepResult.BestReport` via one silent re-replay of that parameterization on the
+  sweep's own loaded window (byte-identical to the row's own single-run replay — the run
+  lane rides a `publishEvents` switch and the best-report replay publishes no events, so
+  the sweep's row progress is never re-counted), the retained result holds O(P + N)
+  instead of O(P × N) (the 8×8 grid over the 100k-bar cap: ~300+ MB of retained equity
+  points -> ~25 MB, one equity curve), the canonical sweep text stays byte-identical, and
+  the click-through re-replays deeper rows through the single-run lane under a generation
+  guard (a superseded replay's continuation never renders). Acceptance evidence: the
+  engine facts pin the rank-1 pairing, the cancelled absence and the byte-identical best
+  report (the sweep's own replay equals the row's own single run); the view-model facts
+  pin the no-run rank-1 surface and the deeper row's re-run; the gate `GATE PASSED`
+  (`-AllowProtected` - the props shield). The queued T-264/T-265 ride their own branches
+  at landing — the branch name is consumed by this landing.
