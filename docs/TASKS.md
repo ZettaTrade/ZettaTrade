@@ -242,6 +242,23 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-236 Beta-prep finale: the full E2E/soak pass + the release readiness checklist recorded on the beta-prep tip (the beta-prep wave's closer; renumbered off T-232 - the number collided with the landed controls task) | feat/beta-prep-finale | done | - |
 | T-237 The cold start meets the 3 s budget on the soak lane: the spawn-to-window wall (runtime spin-up + service assemblies + the window build) gets the dedicated startup-optimization pass first noted at the T-109 close (the T-236 readiness record's disclosed breach; renumbered off T-234 - the number was taken by the landed windows-unify task) | feat/startup-optimization | done | - |
 | T-238 The beta flip: the version line moves to plain 0.2.x - the first beta 0.2.0, the third number rides the app-changing landings (the user's board decision; the signing flip stays a follow-up per docs/SECURITY.md) | feat/beta-flip | done | 0.2.0 |
+| T-239 Multi-timeframe trend table in the screener: per-symbol bull/bear/range states across 15m/1h/4h/1d computed from the candle cache (the analytics sweep 2026-11-14) | feat/mtf-trend-table | planned | — |
+| T-240 Funding-rate history chart + the funding-threshold alert kind for perps (the analytics sweep 2026-11-14) | feat/funding-history | planned | — |
+| T-241 Open-interest history as a chart pane under the price series for perps (the analytics sweep 2026-11-14) | feat/oi-history-pane | planned | — |
+| T-242 Liquidation feed: the venues' free forced-order WS streams aggregated into the tape and chart markers (the analytics sweep 2026-11-14) | feat/liquidation-feed | planned | — |
+| T-243 Estimated liquidation levels overlay computed locally from OI deltas + the venues' public leverage brackets (the analytics sweep 2026-11-14) | feat/liquidation-levels | planned | T-241 (soft) |
+| T-244 CVD pane: cumulative volume delta summed from the tape's aggressor side (the analytics sweep 2026-11-14) | feat/cvd-pane | planned | — |
+| T-245 Whale-print filter + the big-trade alert kind in the tape (the analytics sweep 2026-11-14) | feat/whale-filter | planned | — |
+| T-246 Book imbalance indicator derived from the depth stream (the analytics sweep 2026-11-14) | feat/book-imbalance | planned | — |
+| T-247 Session analytics: daily/weekly opens, the opening range, session shading (the analytics sweep 2026-11-14) | feat/session-levels | planned | — |
+| T-248 Volume profile annotations: POC/value-area labels + the naked-POC track (the analytics sweep 2026-11-14) | feat/profile-annotations | planned | — |
+| T-249 Auto S/R levels from swing pivots, proximity-clustered and pan-stable (the analytics sweep 2026-11-14) | feat/auto-levels | planned | — |
+| T-250 Squeeze detector (Bollinger inside Keltner) rides the standard pack (the analytics sweep 2026-11-14) | feat/squeeze-detector | planned | — |
+| T-251 Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day performance, Sharpe/Sortino (the analytics sweep 2026-11-14) | feat/stats-deepening | planned | — |
+| T-252 Correlation matrix over the cached candles (the analytics sweep 2026-11-14) | feat/correlation-matrix | planned | — |
+| T-253 Cross-venue spread + the perp-spot basis view over the three shipped adapters (the analytics sweep 2026-11-14) | feat/venue-spread | planned | — |
+| T-254 Backtest robustness: Monte Carlo over the trade sequence + walk-forward splits (the analytics sweep 2026-11-14) | feat/backtest-robustness | planned | — |
+| T-255 AI trade review: journal-backed post-trade analysis through the chat (the analytics sweep 2026-11-14) | feat/ai-trade-review | planned | — |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -322,5 +339,270 @@ protective orders, risk, venues), then market data, the chart stack, alerts, AI/
 and reporting, and the platform tail. All rows start `planned`; the human prioritizes the
 lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by default. The
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
+
+---
+
+## Analytics backlog sweep 2026-11-14 — gap analysis (source of T-239…T-255)
+
+The user's ask, continuing the 2026-11-12 sweep: the app's analytical tooling is thin beyond
+the shipped indicator/screen/stat basics — what analytical tools are still missing? A read-only
+walk over the shipped inventory (the board and archive, the indicator pack, the screener, the
+stats window, the Bybit perp adapter's funding/OI surface, the AI chat) mapped eight gap lanes,
+filed as T-239…T-255 — every gap checked against the code and the archive before filing (no
+MTF trend read, no funding/OI history, no liquidation data anywhere, no volume-delta analytics,
+no session levels, no POC/value-area annotations, no automatic levels, no MAE/MFE or
+R-multiples, no correlation view, no cross-venue spread, no Monte Carlo or walk-forward, no AI
+trade review). Nothing requires a paid subscription: the lanes ride data the app already
+streams, free public endpoints (the venues' funding/OI/leverage-bracket REST and forced-order
+WS streams), or pure computation over the candle cache (T-085). The batch shape: the
+trend/derivatives lane first (the user's own ask), then order flow, sessions and levels,
+stats/quant, cross-venue, and the AI-native tail. All rows start `planned`; the human
+prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately left unlanded at
+the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
+T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
+original numbers.
+
+---
+
+## T-239 — Multi-timeframe trend table in the screener
+
+- **Branch:** `feat/mtf-trend-table` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** the screener ranks 24h stats only (T-195); a per-timeframe trend read exists nowhere.
+- **What:** per-symbol trend-state columns (15m/1h/4h/1d) computed from the candle cache (T-085):
+  bull/bear/range from the EMA slope + an ADX threshold + swing structure (HH/HL vs LL/LH);
+  computed off-UI under a bounded concurrency budget (the T-106 discipline); rows without cached
+  depth show an honest warming state and backfill on demand riding T-086; a state cell click
+  reuses the row-apply route with the clicked timeframe.
+- **Scope:** a pure trend classifier + the screener row model growth, settings keys (periods, the
+  ADX threshold), resx en+ru, tests.
+- **Acceptance:** a 64-symbol × 4-timeframe universe renders without freezing the UI; an empty
+  cache degrades to the warming state, never a fabricated state.
+- **Tests:** classifier goldens (bull/bear/range fixtures), the cache-miss warming path, the
+  worker budget cap.
+
+---
+
+## T-240 — Funding-rate history + the funding-threshold alert kind
+
+- **Branch:** `feat/funding-history` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** T-197 shows the live funding rate as a number only; no history, no alerting.
+- **What:** fetch the venue's funding-rate history (Bybit's free REST; Binance's futures endpoint
+  when that lane grows), a funding pane/tooltip on perp charts, and a new alert kind — funding
+  crosses a signed threshold — riding the T-096/T-203 engine's evaluation surface.
+- **Scope:** adapter growth (the history endpoint, category-gated), a small history cache, the
+  alert-kind extension, resx en+ru, tests.
+- **Acceptance:** a perp symbol shows its funding history; a threshold alert fires once per
+  crossing and re-arms per canon.
+- **Tests:** adapter-kit coverage for the history endpoint, alert firing goldens (cross up/down,
+  re-arm).
+
+---
+
+## T-241 — Open-interest history as a chart pane
+
+- **Branch:** `feat/oi-history-pane` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** open interest arrives as a live number only (T-197).
+- **What:** an OI history series (Bybit's REST; Binance's `/futures/data/openInterestHist` when
+  wired) rendered as an indicator pane under the price chart riding the T-199 pane grammar;
+  ranges the venue serves no history for stay honest gaps, never interpolated.
+- **Scope:** adapter growth + the pane renderer, resx en+ru, tests.
+- **Acceptance:** the pane aligns to the chart's time axis; uncovered ranges render as gaps.
+- **Tests:** alignment goldens, the gap honesty, the empty-history state.
+
+---
+
+## T-242 — Liquidation feed: the venues' forced-order streams
+
+- **Branch:** `feat/liquidation-feed` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** no liquidation data anywhere; the venues publish it free over WebSocket.
+- **What:** subscribe the liquidation streams (Binance `!forceOrder@arr`, Bybit v5
+  `liquidation.linear.<symbol>`, OKX when that adapter grows), aggregate per symbol, surface in
+  the tape area (a filter or a dedicated panel) and optional chart markers on large-notional
+  cascades; the under-reporting caveat (first-order-only cascades) stays documented in the UI note.
+- **Scope:** adapter WS growth (category-aware), the aggregation service (bounded channels, the
+  T-052/T-105 transport lessons), the panel surface, resx en+ru, tests.
+- **Acceptance:** a live liquidation lands within one WS frame; an adapter without the stream
+  degrades honestly.
+- **Tests:** e2e WS against the loopback harness (the T-020 pattern), aggregation goldens,
+  cascade grouping.
+
+---
+
+## T-243 — Estimated liquidation levels overlay
+
+- **Branch:** `feat/liquidation-levels` off `develop` (queued 2026-11-14, the analytics sweep).
+  Soft-blocked on T-241 (the OI history feeds the estimate).
+- **Origin:** no venue publishes a predicted liquidation map; aggregators estimate it from
+  OI-by-price — the estimate is reproducible locally.
+- **What:** an estimated-levels overlay computed from the OI deltas per price bucket (riding
+  T-241's history) plus the venue's public leverage-bracket/maintenance-margin tables; drawn as
+  translucent bands with a permanent «estimate» marking; the entry-distribution assumption stays
+  stated, never hidden.
+- **Scope:** the pure estimator + the bracket fetch/cache + the chart overlay, resx en+ru, tests.
+- **Acceptance:** the levels match a hand-computed fixture exactly; the estimate marking is
+  always visible.
+- **Tests:** estimator goldens (a bracket table + a synthetic OI ladder), cache behavior, the
+  overlay honesty states.
+
+---
+
+## T-244 — CVD pane: cumulative volume delta
+
+- **Branch:** `feat/cvd-pane` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** the tape (T-087) carries the aggressor side; nothing sums it.
+- **What:** a cumulative buy-minus-sell volume series from the trade stream as an indicator pane,
+  a session-anchored reset option, an honest state where the adapter serves no trade data.
+- **Scope:** the pure aggregator + stream wiring + the pane renderer, resx en+ru, tests.
+- **Acceptance:** CVD equals a hand-summed fixture; the pane aligns to the chart axis.
+- **Tests:** aggregation goldens (buy/sell/neutral), the session reset, the pane alignment.
+
+---
+
+## T-245 — Whale-print filter and the big-trade alert kind
+
+- **Branch:** `feat/whale-filter` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** every print rides the tape (T-087); large ones drown.
+- **What:** a notional threshold filter with large prints highlighted, and a new alert kind —
+  trade above threshold — riding the alert engine; thresholds per symbol or absolute, persisted.
+- **Scope:** the tape VM filter + the alert kind + settings keys, resx en+ru, tests.
+- **Acceptance:** client-side only (no extra subscriptions); thresholds persist across restarts.
+- **Tests:** filter goldens, the alert firing, persistence.
+
+---
+
+## T-246 — Book imbalance indicator
+
+- **Branch:** `feat/book-imbalance` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** depth flows (T-011, T-088); no derived signal.
+- **What:** a bid/ask volume imbalance ratio over a configurable depth window (a pure computation
+  over the book snapshot) shown as a pane or a book header chip, with optional smoothing.
+- **Scope:** the pure calculator + the display, resx en+ru, tests.
+- **Acceptance:** the 60 fps / 1000-level book target holds with the indicator live (no per-frame
+  allocations on the hot path).
+- **Tests:** calculator goldens, a perf smoke over the 1000-level synthetic book.
+
+---
+
+## T-247 — Session analytics: opens, opening range, session shading
+
+- **Branch:** `feat/session-levels` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** levels are manual-only (T-091); the calendar (T-037) paints no session context.
+- **What:** daily/weekly open lines, an opening-range band (configurable minutes), and
+  Asia/Europe/US session shading (UTC-anchored for 24/7 venues, the venue calendars for stocks)
+  as toggleable overlays.
+- **Scope:** the calendar-riding compute + the renderer + settings, resx en+ru, tests.
+- **Acceptance:** the anchors match the T-037 calendar exactly; DST and weekend fixtures hold.
+- **Tests:** anchor goldens over DST/weekend calendars, the overlay alignment.
+
+---
+
+## T-248 — Volume profile annotations: POC, value area, naked POC
+
+- **Branch:** `feat/profile-annotations` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** T-093 paints the histogram; no POC/value-area read.
+- **What:** POC/VAH/VAL labels on the visible-window profile (the T-093 compute gains the
+  annotations, the standard 70% expansion rule) plus a naked-POC track — session POCs persist
+  until price revisits.
+- **Scope:** the profile compute extension (pure) + the label rendering, resx en+ru, tests.
+- **Acceptance:** the value area covers 70% of volume by the standard rule; naked POCs clear on
+  revisit.
+- **Tests:** POC/VA goldens, the naked-POC lifecycle, label placement.
+
+---
+
+## T-249 — Auto S/R levels from swing pivots
+
+- **Branch:** `feat/auto-levels` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** horizontal levels are drawn manually only (T-091).
+- **What:** automatic horizontal levels from swing pivots (configurable lookback and strength),
+  proximity-clustered, drawn as a read-only overlay (never written into the user's drawings),
+  stable across pans.
+- **Scope:** the pivot detector + clustering (pure) + the overlay, resx en+ru, tests.
+- **Acceptance:** the levels do not flicker when the visible window pans.
+- **Tests:** detector goldens, clustering, the pan stability.
+
+---
+
+## T-250 — Squeeze detector (Bollinger inside Keltner) in the standard pack
+
+- **Branch:** `feat/squeeze-detector` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** volatility-compression reads are absent; the pack rides the package mechanics
+  (T-163).
+- **What:** an indicator plugin marking bars where Bollinger bands sit inside Keltner channels
+  (configurable periods/multipliers) with fired markers on release, as a pane plugin riding the
+  SDK contract.
+- **Scope:** the Plugins satellite (the package bumps there first, the one-line consuming bump
+  here), tests in the satellite.
+- **Acceptance:** the math matches reference values on fixtures.
+- **Tests:** reference-value goldens, the pane integration in the satellite's harness.
+
+---
+
+## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
+
+- **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** T-083 ships win rate/profit factor/drawdown/averages; risk-relative reads are absent.
+- **What:** per-trade MAE/MFE (derived from the candles around the trade's window), the
+  R-multiple distribution (the risk unit from the ticket's sizer stop when present), an
+  hourly/weekday performance table, Sharpe/Sortino over the equity curve.
+- **Scope:** the stats window growth + read-only store queries, resx en+ru, tests.
+- **Acceptance:** stays responsive on six-figure histories (the T-083 paging discipline).
+- **Tests:** aggregation goldens, the MAE/MFE derivation, empty and short histories.
+
+---
+
+## T-252 — Correlation matrix over the cached candles
+
+- **Branch:** `feat/correlation-matrix` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** the compare overlay (T-124) is pairwise and visual only.
+- **What:** an N×N Pearson correlation panel over a chosen watchlist/screener set and window (log
+  returns from the T-085 cache), computed off-UI; a cell routes into the compare view; missing
+  coverage is an honest dash.
+- **Scope:** the pure compute + the panel, resx en+ru, tests.
+- **Acceptance:** a 20-symbol matrix computes without freezing the UI.
+- **Tests:** correlation goldens, the coverage-gap states, the worker budget.
+
+---
+
+## T-253 — Cross-venue spread and the perp-spot basis view
+
+- **Branch:** `feat/venue-spread` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** three venues ship (Binance, Bybit, OKX); nothing compares the same symbol across
+  them, nor perp against spot.
+- **What:** a spread view for a symbol across adapters (last/bid/ask deltas in bps) and a
+  perp-spot basis series where both categories exist; market-data only — no order routing
+  implications, no risk-surface change.
+- **Scope:** the aggregation service over the existing facades + the panel, resx en+ru, tests.
+- **Acceptance:** works on any venue subset — a missing venue is a dash, never an error.
+- **Tests:** aggregation goldens, the missing-venue honesty, the basis math.
+
+---
+
+## T-254 — Backtest robustness: Monte Carlo + walk-forward
+
+- **Branch:** `feat/backtest-robustness` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** T-212 optimizes parameters; nothing measures the robustness of the result.
+- **What:** Monte Carlo reshuffles of the trade sequence (the equity-path distribution, drawdown
+  percentiles, a seeded RNG) and walk-forward in-sample/out-of-sample splits over the T-113
+  harness, reported in the backtest window.
+- **Scope:** the quant compute (pure) + the report surface, resx en+ru, tests.
+- **Acceptance:** a 10k-path Monte Carlo runs in seconds, off-UI.
+- **Tests:** statistical goldens (seeded), the walk-forward split correctness.
+
+---
+
+## T-255 — AI trade review: journal-backed post-trade analysis
+
+- **Branch:** `feat/ai-trade-review` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Origin:** the journal, the notes/tags (T-211) and the AI chat exist; nothing joins them
+  analytically.
+- **What:** a review action that composes the selected session/trade's journal data (fills, PnL,
+  notes, the T-114 market context) into a structured review prompt over the existing provider
+  surface; the output lands in the chat only; strictly read-only — no trading decisions, no
+  auto-posting.
+- **Scope:** the prompt/service + the chat handoff, resx en+ru, tests.
+- **Acceptance:** works with the local model and the OpenAI-compatible provider; a provider
+  failure is a localized error, never silence.
+- **Tests:** prompt-composition goldens, the provider-failure matrix, the read-only guarantee.
 
 ---
