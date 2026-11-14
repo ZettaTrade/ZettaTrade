@@ -89,3 +89,8 @@ The record was cut on the alpha.174 tip; two lineages moved before the landing:
   state and read closed as of the T-237 landing.
 - **This record's task renumbered off T-232** (the number collided with the landed
   controls task); the record rides the board as T-236.
+
+The flip decision (2026-11-15, the user's): the version line is plain `0.2.x` - the first
+beta `0.2.0`, the third number increments per app-changing landing (no prerelease suffix);
+the signing flip stays a follow-up gated on the user-side certificate provisioning
+(docs/SECURITY.md keeps the hash-only posture until then). Landed as T-238.

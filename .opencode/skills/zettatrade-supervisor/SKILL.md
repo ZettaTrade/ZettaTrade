@@ -96,12 +96,13 @@ one board task. Choosing tasks for a wave:
    or app startup sequence apart. Tasks parked "post-beta" per the board are
    skipped.
 3. Version bumps: each task that ships an app-side change bumps
-   `Directory.Build.props` `alpha.N -> alpha.N+1` and adds the matching top
-   CHANGELOG section; the supervisor assigns the actual numbers for the wave
-   (read the current `VersionSuffix`, the CHANGELOG head, and the numbers
-   already claimed by in-flight branches, then hand out strictly sequential
-   next numbers — no reuse, no gaps). Docs-only and tests-only tasks get NO
-   bump and NO CHANGELOG section.
+   `Directory.Build.props`'s version third number `0.2.N -> 0.2.N+1`
+   (the line is a plain three-part version, no prerelease suffix) and
+   adds the matching top CHANGELOG section; the supervisor assigns the
+   actual numbers for the wave (read the current `VersionPrefix`, the
+   CHANGELOG head, and the numbers already claimed by in-flight branches,
+   then hand out strictly sequential next numbers — no reuse, no gaps).
+   Docs-only and tests-only tasks get NO bump and NO CHANGELOG section.
 4. The supervisor does not usually write product code; each wave it either
    pairs itself with landings and reviews, or carries a supervisor-owned task
    (admin/docs work) following the identical protocol described here.
@@ -150,8 +151,8 @@ CHANGELOG's house voice, the board row, and the archive canon.
    moved — stop and reconcile before touching anything.
 2. In the worker's worktree: `git rebase develop`. Supervisor resolves every
    conflict — expected ones:
-   - `Directory.Build.props`: keep the branch's higher `alpha.N` as the single
-     `<VersionSuffix>` line (remove the landed duplicate by hand).
+   - `Directory.Build.props`: keep the branch's higher `0.2.N` as the single
+     `<VersionPrefix>` line (remove the landed duplicate by hand).
    - `CHANGELOG.md`: the branch's section on top, landing sections below it in
      newest-first order.
    - `docs/TASKS.md` / `docs/TASKS-ARCHIVE.md`: keep every done row, and in the
@@ -179,7 +180,7 @@ CHANGELOG's house voice, the board row, and the archive canon.
    slice it by this run's start timestamp and require ZERO
    startup-failure or exception entries in the slice — a whole-file grep
    counts stale crashes and lies. Check the exe's `ProductVersion`
-   carries the version + tip sha about to land (`0.1.0-alpha.NN+<sha>`)
+   carries the version + tip sha about to land (`0.2.N+<sha>`)
    so the proof binds to the merge content. A suite-green build may
    still be unbootable: the alpha.68..72 stretch shipped exactly that
    and two landing waves passed before anyone launched the app.

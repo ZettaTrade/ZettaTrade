@@ -6,7 +6,7 @@
 # workflow level and cross-guarded against the tag name, so a tag that
 # does not match the version commit fails loudly instead of shipping.
 # The release notes are extracted verbatim from the matching
-# '## [0.1.0-alpha.NN]' CHANGELOG.md section of the same tree; a missing
+# '## [version]' CHANGELOG.md section of the same tree; a missing
 # section fails the pipeline (a tag must ride the release commit that
 # carries the bump).
 #
@@ -14,9 +14,9 @@
 # osx-x64 and osx-arm64, tar.gz for linux-x64 - plus one
 # zettatrade-<version>-sha256.txt attached next to them.
 #
-# Code signing and notarization are deliberately out of scope until
-# beta; docs/SECURITY.md records the unsigned-artifact posture and what
-# the flip will need. No product code changes and no secrets beyond the
+# Code signing and notarization remain out of scope; docs/SECURITY.md
+# records the hash-only artifact posture and what the signed follow-up
+# will need. No product code changes and no secrets beyond the
 # automatic GITHUB_TOKEN: packages: read restores the private Livery
 # package (the Livery package grants this repository Actions access).
 name: release
@@ -93,7 +93,7 @@ jobs:
           $dllPath = Join-Path 'publish' 'ZettaTrade.App.dll'
           if (-not (Test-Path $dllPath)) { throw 'ZettaTrade.App.dll is missing from the publish output.' }
           # The embedded informational version is the props version, with
-          # the baked source-revision tail ("0.1.0-alpha.77+<commit sha>"):
+          # the baked source-revision tail ("0.2.0+<commit sha>"):
           # assert the props-version identity, the ordinal prefix does it.
           $assembly = [System.Reflection.Assembly]::LoadFrom($dllPath)
           $informational = [System.Attribute]::GetCustomAttribute($assembly, [System.Reflection.AssemblyInformationalVersionAttribute]).InformationalVersion
