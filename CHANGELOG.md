@@ -1,3 +1,32 @@
+## [0.1.0-alpha.177] - 2026-11-14
+
+Build of board task T-237 (branch `feat/startup-optimization`, rebased onto
+develop@7fc205d): the cold start's persistence walk stops paying the EF
+model builds — they race the UI bootstrap off the walk — and the chart's
+two stores warm their first-query query plans inside the store batch's
+concurrent window, so the chart's first load never compiles a plan right
+in front of the window.
+
+### Added
+- The startup model pre-warm (`PersistenceModelPrewarm`): one kick per
+  process starts all six SQLite contexts' model builds on worker threads
+  in `RunDesktopLifetime`, before `BuildAvaloniaApp` — throwaway
+  in-memory options (no connection, no file, no data), a CAS-latched
+  start, and a settled outcome (`Warmed/Failed/WallMs`) that never
+  faults. The composition logs one Debug receipt when the builds settle
+  (the T-231 fire-and-forget canon: the receipt task rides a field). A
+  degraded build delays nothing: the walk's own first touch builds the
+  model exactly as before, so correctness never depends on the helper.
+
+### Changed
+- The candle cache's and the chart drawings' `InitializeAsync` pay the
+  first-query plan warm-up right after their one-time migration, with
+  each store's own read shape over a benign never-stored series (the
+  read answers zero rows), inside the T-226 store batch's concurrent
+  window — the plan compile (Debug-lane hundreds of milliseconds) leaves
+  the chart constructor's critical path. The warm-ups stay silent above
+  Debug (the T-229 log floor) and degrade harmlessly.
+
 ## [0.1.0-alpha.176] - 2026-11-14
 
 Build of board task T-235 (branch `feat/windows-unify`, stacked on the
