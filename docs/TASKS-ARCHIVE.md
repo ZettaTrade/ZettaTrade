@@ -5438,9 +5438,10 @@ the board and its section below.
   0.1.14 release, the tags ride `main` now; the pairs transfers read as buttons at
   rest through the new `icon framed` composition (the family hairline rest outline,
   the Highlight hover stroke; the review round turned the composition into the framed
-  chip — the Surface fill under the hairline at rest, the Highlight hover stroke, the
-  press dimming the chip, the chevron strokes at the bold 2px weight — the Livery
-  0.1.15 release); the alerts editor's 14 cells ride the shared
+  chip — the raised SurfaceHigh fill under the hairline at rest (the plain Surface
+  fill sat 1:1 against the window background and read as nothing), the Highlight
+  hover stroke, the press dimming the chip, the chevron strokes at the bold 2px
+  weight — the Livery 0.1.15 and 0.1.16 releases); the alerts editor's 14 cells ride the shared
   FieldGrammar dictionary (the SpaceS caption gap, the caption size in the class, the
   per-cell FontSize copies die) and every editor combo rides content widths (MinWidth
   over Width — a combo's chrome eats ~45px of a fixed width, so "Falls below" and the
@@ -5461,4 +5462,4 @@ the board and its section below.
   a view model — the rows equal the header plan, the chrome is the row hairline, the
   sort captions align over the data columns); the T-234 toolbar pins ride their own
   strip (the toolbar's T-212 widths and the editor's content floors are two lanes).
-  2213 App facts green, the Livery 61.
+  2220 App facts green, the Livery 62.
