@@ -231,6 +231,10 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-224 The nightly gitleaks scan stops tripping on the dummy fixtures: the 2026-11-14 triage allowlists the confirmed literals (the a11y template key + the redactor/log-tail test shapes) with the audit record (the user-reported security-pipeline failure) | fix/gitleaks-allowlist | done | - |
 | T-225 The Trading menu's Price alerts item stops killing the process: the pickers' TwoWay SelectedItem init race wrote null into the editor's options and the kind flags dereferenced it (the user-reported NullReferenceException crash); the editor family gets null-rejecting setters + null-safe flags and the same-shape sweep runs over every other window | fix/alerts-window-crash | done | - |
 | T-226 Startup latency: the walk batches the five SQLite stores concurrently + the chart prewarms from the persisted symbol while the instruments fetch is in flight (the user-reported blank-chart wait) | feat/startup-latency | done | - |
+| T-227 Exchange API-key authorization in the settings window: per-venue keys persist through ISecretStore, adapters read them at start, the Alpaca data adapter authenticates when keys are present and quiets its no-key noise when absent (the user's ask, the T-226 profiling follow-up) | feat/exchange-auth-settings | planned | - |
+| T-228 One instruments-info fetch per exchange per session: the startup warm-up and the chart's bootstrap share the provider cache instead of double-fetching (the T-226 profiling follow-up) | feat/instruments-fetch-dedupe | planned | - |
+| T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | planned | - |
+| T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | planned | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -506,4 +510,72 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
+
+## T-227 - Exchange API-key authorization in the settings window (the Alpaca no-key noise is the driver)
+
+- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep + the user's ask).
+- **Origin:** the user's ask — venues whose API requires authorization get it through the
+  settings finally: the key is entered once and taken from the settings, not hand-carried.
+  The T-226 profiling's driver case: the Alpaca adapter runs unauthenticated today and
+  floods the log with no-key noise every launch — Alpaca's data API wants a key even for
+  market data, so an unauthenticated adapter is both noisy and degraded.
+- **What:** the settings window grows a per-venue credentials section (key/secret pairs);
+  the values persist through `ISecretStore` (the encrypted store — the trading-safety rule:
+  secrets only there, saved immediately, never a command-line argument, never stdout). The
+  adapters read their credentials at start; when keys are present the Alpaca adapter
+  authenticates its data requests/stream, when absent it drops the noise to a single quiet
+  line instead of a repeated error family. Other venues that require auth get the same
+  shape.
+- **Scope:** the settings window's credentials section + the adapter credential plumbing
+  through `ISecretStore`, the Alpaca adapter's auth path, resx en+ru, the next free alpha
+  bump + the CHANGELOG section.
+- **Acceptance:** keys entered once survive the restart; the Alpaca noise disappears with
+  keys and is one quiet line without; no key ever reaches a log or an argument.
+- **Tests:** the settings round-trip through `ISecretStore`; the adapter's
+  authenticated/absent facts; the log-quiet pin.
+- **Status:** planned.
+
+## T-228 - One instruments-info fetch per exchange per session
+
+- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep).
+- **Origin:** the T-226 profiling — the exchange instruments list is fetched more than once
+  per start (the provider's startup warm-up and the chart's own bootstrap path both reach
+  the venue), paying the network cost twice against the T-225 lesson the provider exists
+  for.
+- **What:** every consumer rides the `SymbolListProvider` cache — one fetch per exchange
+  per session, the warm-up answers the chart's bootstrap, and a switch re-fetches through
+  the same single path.
+- **Scope:** the App startup walk + the chart bootstrap's fetch path; no adapter changes.
+- **Acceptance:** exactly one instruments call per exchange per session in the real launch
+  log; the chart's first delivery timing does not regress.
+- **Tests:** the provider fetch-count facts; the walk's warm-up pin.
+- **Status:** planned.
+
+## T-229 - The plugin scanner's not-a-plugin drop stops logging as a failure
+
+- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep).
+- **Origin:** the T-226 profiling — the plugin scan logs every non-plugin dll it meets in
+  the plugins folder as an error-ish line each launch; a dll that is not a plugin is the
+  scan's honest drop, never a failure.
+- **What:** the scanner logs the drop at debug level (or one info line per scan, not per
+  dll), while the folder's real packs still load unchanged.
+- **Scope:** the Infrastructure plugin scanner's logging; no scanner semantics.
+- **Acceptance:** a launch log over the shipped plugins folder carries no not-a-plugin
+  error lines; the standard pack still loads.
+- **Tests:** the scanner's drop-level fact.
+- **Status:** planned.
+
+## T-230 - The update checker's no-release 404 is the quiet no-update state
+
+- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep).
+- **Origin:** the T-226 profiling — the update checker logs a 404 against the private feed
+  every launch while no release artifact is published at the checked URL; a feed without a
+  release is the honest no-update answer, not an error.
+- **What:** the check maps the feed's no-release answer (the 404 family) onto the
+  no-update quiet state; a real failure (network, malformed feed) keeps its error lane.
+- **Scope:** the update checker's response handling.
+- **Acceptance:** a launch log over the unpublished feed carries no 404 error entries; the
+  checker still surfaces a real published update.
+- **Tests:** the checker's no-release fact.
+- **Status:** planned.
 
