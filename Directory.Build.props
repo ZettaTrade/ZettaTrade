@@ -51,7 +51,7 @@
        version fact: bump this single line when a new package release
        lands, never the five consumers. -->
   <PropertyGroup>
-    <LiveryVersion>0.1.16</LiveryVersion>
+    <LiveryVersion>0.1.17</LiveryVersion>
   </PropertyGroup>
 
   <!-- The standard indicator pack ships as a package (T-163): the

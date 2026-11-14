@@ -5441,7 +5441,20 @@ the board and its section below.
   chip — the raised SurfaceHigh fill under the hairline at rest (the plain Surface
   fill sat 1:1 against the window background and read as nothing), the Highlight
   hover stroke, the press dimming the chip, the chevron strokes at the bold 2px
-  weight — the Livery 0.1.15 and 0.1.16 releases); the alerts editor's 14 cells ride the shared
+  weight — the Livery 0.1.15 and 0.1.16 releases); the second review round closed the
+  two remaining reads: the plate fill rides the derived SurfacePlate — the wells' 3%
+  step sat 1.08:1 over the section card's own Surface plane and read as nothing (the
+  mockup promised the 1.18 plate read), so the plate key lifts the Surface 7% toward
+  its own pole (midnight #262b31, 1.21:1 over the card; the floor walk keeps it on
+  the extreme grounds, the wells keep their 3% — the Livery 0.1.17 release), and the
+  gate-disabled chip reads asleep at Opacity 0.55 (the transfer commands'
+  CanExecute gates shut the chips before any pick exists, a disabled control never
+  arms the pointer, and the kit had no disabled read at all — a full-bright chip sat
+  there answering nothing: the broken-hover read the second review caught); the
+  chevron geometry starts at the origin with the control centered — the
+  Stretch="None" glyph painted at its data coordinates inside the stretched control
+  left the ink in the chip's corner (the review's own screenshot; the centered 4.5x8
+  ink rides the mockup's proportions); the alerts editor's 14 cells ride the shared
   FieldGrammar dictionary (the SpaceS caption gap, the caption size in the class, the
   per-cell FontSize copies die) and every editor combo rides content widths (MinWidth
   over Width — a combo's chrome eats ~45px of a fixed width, so "Falls below" and the
@@ -5456,10 +5469,17 @@ the board and its section below.
   right-aligned text sat flush against its border — the captions read as captions
   over the header hairline, the T-110 focus ring re-arms through :focus). Tests: the Livery
   battery's icon-affordance pins (the tint steps, the presenter focus ring, the
-  framed composition); the `FieldGrammarPinsTests` (the include, the 14 cells, the
-  caption copies gone, the no-fixed-width-combo fact, the transfer pair's framed
-  composition); the `HeadlessScreenerRowTests` (the real window materialized without
-  a view model — the rows equal the header plan, the chrome is the row hairline, the
-  sort captions align over the data columns); the T-234 toolbar pins ride their own
-  strip (the toolbar's T-212 widths and the editor's content floors are two lanes).
-  2220 App facts green, the Livery 62.
+  framed composition, the plate pins, the asleep pin); the `FieldGrammarPinsTests` (the
+  include, the 14 cells, the caption copies gone, the no-fixed-width-combo fact, the
+  transfer pair's framed composition); the `HeadlessScreenerRowTests` (the real window
+  materialized without a view model — the rows equal the header plan, the chrome is the
+  row hairline, the sort captions align over the data columns); the
+  `HeadlessTransferChipTests` (the settings window materialized over a REAL ViewModel
+  — the main window's open path; the bare window's failed command bindings turned the
+  chips effectively disabled and masked every pointer fact: Avalonia's Button stamps
+  `:disabled` off a failed Command binding, a disabled control never arms the pointer,
+  and the kit had no disabled read — the four facts measure the chevron ink at the
+  chip's center, the rest fill over the plane the chip really sits on, the enabled
+  chip's Highlight hover answer with the fill held, and the gate-disabled chip asleep
+  and silent); the T-234 toolbar pins ride their own strip (the toolbar's T-212 widths
+  and the editor's content floors are two lanes). 2224 App facts green, the Livery 63.

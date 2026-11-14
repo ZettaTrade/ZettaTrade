@@ -1420,26 +1420,35 @@
                                         <!-- The transfer pair rides the chrome kit's icon
                                              button in its framed chip composition (T-232,
                                              the review round): the free-standing action
-                                             reads as a button at rest through the Surface
+                                             reads as a button at rest through the plate
                                              fill under the family's hairline, the hover
                                              answers with the Highlight stroke, the press
                                              dims the chip. The chevron Path carries the
                                              flow direction like the title-bar strip's
                                              glyphs (explicit strokes, no inheritance
                                              chain; the 2px step is the bold weight the
-                                             mockup round chose); the readable captions
-                                             ride the automation name and the tooltip
-                                             (assistive tech and hover alike) — the glyph
-                                             alone never carries meaning. -->
+                                             mockup round chose) and its geometry starts
+                                             at the origin with the control itself
+                                             centered: a Stretch="None" glyph painted at
+                                             its data coordinates inside a stretched
+                                             control leaves the ink in the corner (the
+                                             review round's own screenshot), so the
+                                             centered 4.5x8 ink rides the mockup's
+                                             proportions. The readable captions ride the
+                                             automation name and the tooltip (assistive
+                                             tech and hover alike) — the glyph alone
+                                             never carries meaning. -->
                                         <Button Classes="icon framed"
                                                 Width="34" Height="30" Padding="0"
                                                 ToolTip.Tip="{loc:Localized Settings.Pairs.Hide}"
                                                 AutomationProperties.Name="{loc:Localized Settings.Pairs.Hide}"
                                                 Command="{Binding HidePairCommand}">
                                             <Path Stretch="None"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
                                                   StrokeThickness="2"
                                                   Stroke="{DynamicResource TextPrimary}"
-                                                  Data="M 4.5 2.5 L 9.5 6 L 4.5 9.5" />
+                                                  Data="M 0 0 L 4.5 4 L 0 8" />
                                         </Button>
                                         <Button Classes="icon framed"
                                                 Width="34" Height="30" Padding="0"
@@ -1447,9 +1456,11 @@
                                                 AutomationProperties.Name="{loc:Localized Settings.Pairs.Reveal}"
                                                 Command="{Binding RevealPairCommand}">
                                             <Path Stretch="None"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
                                                   StrokeThickness="2"
                                                   Stroke="{DynamicResource TextPrimary}"
-                                                  Data="M 9.5 2.5 L 4.5 6 L 9.5 9.5" />
+                                                  Data="M 4.5 0 L 0 4 L 4.5 8" />
                                         </Button>
                                     </StackPanel>
                                 </Grid>
