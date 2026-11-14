@@ -327,6 +327,33 @@
   <data name="Settings.Section.Backup" xml:space="preserve">
     <value>РЕЗЕРВНАЯ КОПИЯ ПРОФИЛЯ</value>
   </data>
+  <data name="Settings.Section.Credentials" xml:space="preserve">
+    <value>КЛЮЧИ ДОСТУПА</value>
+  </data>
+  <data name="Settings.Credentials.Hint" xml:space="preserve">
+    <value>Пары API-ключей хранятся только в системном хранилище секретов — они не попадают в файл настроек, журналы или экспорт. Биржа без целой пары сохраняет неавторизованное состояние адаптера.</value>
+  </data>
+  <data name="Settings.Credentials.Key" xml:space="preserve">
+    <value>API-ключ</value>
+  </data>
+  <data name="Settings.Credentials.Secret" xml:space="preserve">
+    <value>API-секрет</value>
+  </data>
+  <data name="Settings.Credentials.Save" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
+  <data name="Settings.Credentials.Clear" xml:space="preserve">
+    <value>Очистить</value>
+  </data>
+  <data name="Settings.Credentials.StatusSaved" xml:space="preserve">
+    <value>Сохранено</value>
+  </data>
+  <data name="Settings.Credentials.StatusNotSet" xml:space="preserve">
+    <value>Не задано</value>
+  </data>
+  <data name="Settings.Credentials.PairRequired" xml:space="preserve">
+    <value>Оба поля обязательны</value>
+  </data>
   <data name="Port.Export" xml:space="preserve">
     <value>Экспортировать настройки…</value>
   </data>
