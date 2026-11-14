@@ -257,7 +257,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-251 Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day performance, Sharpe/Sortino (the analytics sweep 2026-11-14) | feat/stats-deepening | done | 0.2.3 |
 | T-252 Correlation matrix over the cached candles (the analytics sweep 2026-11-14) | feat/correlation-matrix | planned | — |
 | T-253 Cross-venue spread + the perp-spot basis view over the three shipped adapters (the analytics sweep 2026-11-14) | feat/venue-spread | planned | — |
-| T-254 Backtest robustness: Monte Carlo over the trade sequence + walk-forward splits (the analytics sweep 2026-11-14) | feat/backtest-robustness | planned | — |
+| T-254 Backtest robustness: Monte Carlo over the trade sequence + walk-forward splits (the analytics sweep 2026-11-14) | feat/backtest-robustness | in-progress | — |
 | T-255 AI trade review: journal-backed post-trade analysis through the chat (the analytics sweep 2026-11-14) | feat/ai-trade-review | planned | — |
 | T-256 Windows installer: Inno Setup over the T-125 artifacts (the beta-2 sweep 2026-11-15) | feat/windows-installer | done | - |
 | T-257 macOS .dmg + Linux AppImage/.deb packaging (the beta-2 sweep 2026-11-15) | feat/mac-linux-packaging | planned | — |
@@ -566,7 +566,7 @@ original numbers.
 
 ## T-254 — Backtest robustness: Monte Carlo + walk-forward
 
-- **Branch:** `feat/backtest-robustness` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Branch:** `feat/backtest-robustness` (claimed 2026-11-15; queued 2026-11-14, the analytics sweep).
 - **Origin:** T-212 optimizes parameters; nothing measures the robustness of the result.
 - **What:** Monte Carlo reshuffles of the trade sequence (the equity-path distribution, drawdown
   percentiles, a seeded RNG) and walk-forward in-sample/out-of-sample splits over the T-113
@@ -574,6 +574,7 @@ original numbers.
 - **Scope:** the quant compute (pure) + the report surface, resx en+ru, tests.
 - **Acceptance:** a 10k-path Monte Carlo runs in seconds, off-UI.
 - **Tests:** statistical goldens (seeded), the walk-forward split correctness.
+- **Status:** in-progress.
 
 ---
 
