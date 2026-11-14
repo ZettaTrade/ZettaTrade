@@ -296,7 +296,10 @@ try {
         throw 'the isolation census found no run log inside the sandbox profile (the app never started inside it)'
     }
     $censusText = [string]::Join("`n", @($runLogs | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
-    $hostLeaks = @(@('bybit.com', 'binance.com') | Where-Object { $censusText -match [regex]::Escape($_) })
+    # T-233: the list covers every shipped real-exchange host, not just the two
+    # whose construction lines the first catch showed — a venue's URL in a
+    # demo-only run's log is a leak regardless of which venue it names.
+    $hostLeaks = @(@('bybit.com', 'binance.com', 'alpaca.markets', 'okx.com') | Where-Object { $censusText -match [regex]::Escape($_) })
     if ($hostLeaks.Count -gt 0) {
         throw ("the isolation census caught real-exchange traffic inside the run: {0}" -f ($hostLeaks -join ', '))
     }
