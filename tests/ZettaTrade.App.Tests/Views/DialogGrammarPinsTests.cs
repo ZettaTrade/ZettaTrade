@@ -256,13 +256,19 @@ public sealed class DialogGrammarPinsTests
     public void TheCommandToolbars_RideTheT212Widths()
     {
         var alerts = ViewSource("AlertsWindow");
-        Regex.Matches(alerts, "MinWidth=\"110\"")
+
+        // T-232: the editor's combos joined the MinWidth vocabulary (the
+        // content-width floors), so the toolbar widths count their own
+        // strip — the T-212 language is the toolbar's, the editor's floors
+        // are another lane (the FieldGrammarPinsTests hold those).
+        var alertsToolbar = ToolbarRegionOf(alerts);
+        Regex.Matches(alertsToolbar, "MinWidth=\"110\"")
             .Should().HaveCount(
                 4,
                 "the alerts toolbar's commands (create, update, snooze, delete) ride the 110 command width");
-        Regex.Matches(alerts, "MinWidth=\"90\"")
+        Regex.Matches(alertsToolbar, "MinWidth=\"90\"")
             .Should().HaveCount(1, "the alerts' close rides the 90 quiet width");
-        alerts.Should().NotContain(
+        alertsToolbar.Should().NotContain(
             "MinWidth=\"100\"",
             "the scattered 100 widths are the drift this task retired");
         alerts.Should().NotContain(
@@ -289,6 +295,23 @@ public sealed class DialogGrammarPinsTests
             StringComparison.Ordinal);
         open.Should().BeGreaterThanOrEqualTo(0, "the confirm strip must exist");
         var close = source.IndexOf("</StackPanel>", open, StringComparison.Ordinal);
+        return source[open..close];
+    }
+
+    /// <summary>
+    /// The command toolbar region: from the T-212 widths grid's opening
+    /// tag to its closing tag (the window-wide MinWidth counts went
+    /// brittle when the T-232 editor combos joined the MinWidth
+    /// vocabulary — the toolbar pins count their own strip, the editor's
+    /// content-width floors are another lane).
+    /// </summary>
+    private static string ToolbarRegionOf(string source)
+    {
+        var open = source.IndexOf(
+            "<Grid Grid.Row=\"3\" ColumnDefinitions=\"*,Auto,Auto,Auto,Auto,Auto\"",
+            StringComparison.Ordinal);
+        open.Should().BeGreaterThanOrEqualTo(0, "the command toolbar must exist");
+        var close = source.IndexOf("</Grid>", open, StringComparison.Ordinal);
         return source[open..close];
     }
 
