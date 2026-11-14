@@ -1,3 +1,18 @@
+## [0.1.0-alpha.171] - 2026-11-14
+
+Build of board task T-230 (branch `fix/update-checker-404`): the update
+checker reads the private feed's no-release 404 as the honest no-update
+state.
+
+### Changed
+- The update checker maps the releases feed's no-release 404 onto the
+  honest empty verdict (the quiet no-update state) instead of the
+  per-launch "the update check failed" warning — a repository without
+  published releases answers every check with a 404, and that answer is
+  the no-update truth, not an error. Real failures keep their warning
+  lane (rate limits, server faults, network), and a genuinely published
+  update still surfaces exactly as before.
+
 ## [0.1.0-alpha.170] - 2026-11-14
 
 Build of board task T-229 (branch `fix/not-a-plugin-log-noise`): the
