@@ -231,7 +231,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-224 The nightly gitleaks scan stops tripping on the dummy fixtures: the 2026-11-14 triage allowlists the confirmed literals (the a11y template key + the redactor/log-tail test shapes) with the audit record (the user-reported security-pipeline failure) | fix/gitleaks-allowlist | done | - |
 | T-225 The Trading menu's Price alerts item stops killing the process: the pickers' TwoWay SelectedItem init race wrote null into the editor's options and the kind flags dereferenced it (the user-reported NullReferenceException crash); the editor family gets null-rejecting setters + null-safe flags and the same-shape sweep runs over every other window | fix/alerts-window-crash | done | - |
 | T-226 Startup latency: the walk batches the five SQLite stores concurrently + the chart prewarms from the persisted symbol while the instruments fetch is in flight (the user-reported blank-chart wait) | feat/startup-latency | done | - |
-| T-227 Exchange API-key authorization in the settings window: per-venue keys persist through ISecretStore, adapters read them at start, the Alpaca data adapter authenticates when keys are present and quiets its no-key noise when absent (the user's ask, the T-226 profiling follow-up) | feat/exchange-auth-settings | planned | - |
+| T-227 Exchange API-key authorization in the settings window: per-venue keys persist through ISecretStore, adapters read them at start, the Alpaca data adapter authenticates when keys are present and quiets its no-key noise when absent (the user's ask, the T-226 profiling follow-up) | feat/exchange-auth-settings | in-progress | - |
 | T-228 One instruments-info fetch per exchange per session: the startup warm-up and the chart's bootstrap share the provider cache instead of double-fetching (the T-226 profiling follow-up) | feat/instruments-fetch-dedupe | planned | - |
 | T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | planned | - |
 | T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | planned | - |
@@ -533,7 +533,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   keys and is one quiet line without; no key ever reaches a log or an argument.
 - **Tests:** the settings round-trip through `ISecretStore`; the adapter's
   authenticated/absent facts; the log-quiet pin.
-- **Status:** planned.
+- **Status:** in-progress (worktree zt-exchange-auth, branch
+  feat/exchange-auth-settings, base develop@9350870, claimed 2026-11-14).
 
 ## T-228 - One instruments-info fetch per exchange per session
 
