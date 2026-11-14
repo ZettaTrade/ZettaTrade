@@ -5632,3 +5632,41 @@ the board and its section below.
   shields). The user tags `v0.2.0` on `main` after their manual sync - the release pipeline
   builds the tag's tree and the tag must match the version commit (`v0.2.0`). Free filing
   number after this task: T-239.
+
+## T-256 — Windows installer: Inno Setup over the T-125 artifacts
+
+- **Branch:** `feat/windows-installer` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep).
+- **Origin:** T-125 ships a bare zip; a desktop terminal needs a setup door (the user's ask).
+- **What:** an Inno Setup script consuming the win-x64 publish: per-user and per-machine modes,
+  shortcuts, an uninstaller that leaves the settings/profile data intact (the user data never
+  dies with the app), version metadata from Directory.Build.props; unsigned builds carry the
+  documented SmartScreen caveat (the Authenticode certificate is a separate acquisition
+  decision — the T-125 checklist pointer).
+- **Scope:** the setup script + a release.yml leg producing the installer next to the zip, the
+  docs note, tests.
+- **Acceptance:** a clean environment installs, launches, uninstalls — the profile survives the
+  uninstall.
+- **Tests:** the script's lint/build smoke; the CI leg asserts the installer artifact exists.
+- **Status:** done. Canon: the task ships as two commits on feat/windows-installer — the claim
+  `f417ed8` and the feature `794d33f` (the .iss script, the smoke script, the release.yml
+  windows leg + the release-job expected-arts assert, the docs/SECURITY.md note); no release
+  commit — packaging/CI only, no version bump (one release per board task that changes the
+  app). Lane decisions: per-user is the default install (a plain double-click, no UAC,
+  `%LOCALAPPDATA%\Programs\ZettaTrade`) and an elevated run (or the /ALLUSERS switch) offers
+  the per-machine mode — PrivilegesRequiredOverridesAllowed with `{autopf}` resolving per
+  mode (checked against the Inno Setup 6.7 compiler source); the uninstaller removes only
+  the installed files — no [UninstallDelete]/[InstallDelete]/[UninstallRun] and no
+  profile-path reference outside comments, the user data (%APPDATA%\ZettaTrade,
+  %LOCALAPPDATA%\ZettaTrade: settings, stores, logs, the DPAPI-protected secret store)
+  survives the uninstall by design and a reinstall finds it; the app launch pins
+  never-elevated; the source layout stays portable (no drive-letter paths outside
+  comments — the smoke lint enforces it, `https://` excluded by the word-boundary rule).
+  Verification honesty: ISCC.exe is absent on the dev machine, so the local smoke ran
+  LINT-ONLY (`LINT-ONLY SMOKE OK` — the props version parse, a fresh win-x64
+  self-contained publish, the publish smoke, the static lint all green) and the actual
+  compile is carried and asserted by the release.yml windows leg (Inno Setup on the runner
+  image with a choco fallback; the setup exe asserted in the release job's expected-arts
+  list, so the release's sha256 sums cover it automatically); docs/SECURITY.md records the
+  unsigned SmartScreen caveat and the data-survival design. Open hazards: the unsigned
+  setup exe draws SmartScreen on first run (documented, pairs with the T-119 disclaimer);
+  a changed AppId would orphan prior uninstall registrations (the script pins the GUID).
