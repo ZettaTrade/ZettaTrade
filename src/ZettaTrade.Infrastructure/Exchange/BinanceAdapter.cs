@@ -375,7 +375,12 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
             if (unrecognized > 0)
             {
-                Logger.LogWarning(
+                // The routine data-shape cargo (T-231): the venue's full
+                // spot list always carries quote assets this terminal does
+                // not track (a stable standing fact — the same count every
+                // launch), so the drop rides the debug level. The load's
+                // symbol summary stays the catalog's only production trace.
+                Logger.LogDebug(
                     "{Count} Binance symbols arrived with an unrecognized quote asset and are dropped",
                     unrecognized);
             }
