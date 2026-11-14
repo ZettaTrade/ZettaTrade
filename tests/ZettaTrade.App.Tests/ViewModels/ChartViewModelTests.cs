@@ -3618,6 +3618,156 @@ public sealed class ChartViewModelTests
 
     #endregion
 
+    #region Startup Prewarm (T-226)
+
+    /// <summary>
+    /// The prewarm (T-226): the persisted workspace preference reads BEFORE
+    /// the symbols fetch and applies through the UI marshal while the fetch
+    /// is still in flight — the chart renders from the candle cache without
+    /// waiting for the instrument list. A restore is a read, not an edit —
+    /// the prewarm never rewrites the preference (the persistence chain
+    /// skips the bootstrap gate's assignment), and the later delivery's
+    /// re-apply of the same preference costs nothing: the record Symbol's
+    /// value equality makes the equal raise reload nothing.
+    /// </summary>
+    [Fact]
+    public async Task BootstrapSymbols_ThePersistedSymbol_PrewarmsTheChartWhileTheFetchIsInFlight()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns("SOL/USDC");
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+
+        var marketData = new FakeMarketData();
+
+        // The gate is in place BEFORE the construction: the constructor's
+        // own bootstrap parks inside its fetch, so the whole fetch window
+        // stays open for the fact.
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        marketData.SymbolsGate = gate;
+
+        var second = new FakeMarketData(id: "fake2", name: "Fake2");
+        var chart = CreateChart(CreateService(marketData, second), settings);
+        var delivered = new List<IReadOnlyList<Bar>>();
+        using var subscription = chart.BarsUpdates.Subscribe(delivered.Add);
+
+        // The fetch kicked synchronously at construction (the prewarm never
+        // delayed it) and the apply waits for the marshal.
+        marketData.SymbolsRequested.Should().ContainSingle("the fetch kick keeps its synchronous construction shape");
+        chart.SelectedSymbol.Should().BeNull("the prewarm's apply rides the UI marshal — inert until pumped");
+
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.SelectedSymbol.Should().Be(
+            Symbol.Parse("SOL/USDC"),
+            "the persisted preference rendered the chart while the fetch is still parked");
+        marketData.BarsRequested.Should().ContainSingle().Which.Should().Be(
+            Symbol.Parse("SOL/USDC"),
+            "the prewarmed selection loaded from the cache-first chain");
+        marketData.BarsTimeFrames.Should().ContainSingle().Which.Should().Be(TimeFrame.H1);
+        delivered.Should().ContainSingle("the prewarmed load served the standing one-bar page");
+        delivered[0].Should().ContainSingle().Which.Close.Should().Be(300m);
+
+        // A restore is a read, not an edit: the prewarm's apply rides the
+        // bootstrap gate, so the persistence chain never writes (the
+        // assertion call's auto-value Task is discarded).
+        _ = settings.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>());
+
+        // The delivery's re-apply, landed synchronously through the facts
+        // seam (the parked fetch has completed and cached its list, so the
+        // seam's provider call answers from the fast path): the persisted
+        // symbol stays the preselection, and re-applying it to the
+        // prewarmed chart reloads nothing.
+        gate.SetResult();
+        await chart.StartBootstrapForFactsAsync(marketData);
+
+        marketData.BarsRequested.Should().ContainSingle().Which.Should().Be(
+            Symbol.Parse("SOL/USDC"),
+            "the delivered re-apply of the prewarmed selection reloads nothing");
+        chart.AvailableSymbols.Select(row => row.Symbol.Normalized).Should()
+            .Equal(new[] { "BTC/USDT", "ETH/BTC", "SOL/USDC" }, "the delivered list landed");
+    }
+
+    /// <summary>
+    /// The prewarm's apply carries its bootstrap's epoch (BUG-016's guard):
+    /// newer bootstraps — the exchange switch's own start, then the facts
+    /// seam's newest start — claim newer epochs, and every still-unpumped
+    /// prewarm apply DROPS at its marshal hop. The superseded exchange
+    /// renders nothing (no wasted cache fetch pair) while the newest
+    /// exchange's list and preselection stand.
+    /// </summary>
+    [Fact]
+    public async Task BootstrapSymbols_ThePrewarm_DropsWhenANewerBootstrapClaimsTheEpoch()
+    {
+        var settings = Substitute.For<ISettingsService>();
+        settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns("ETH/BTC");
+        settings.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+
+        var standard = new FakeMarketData();
+        var exotic = new FakeMarketData(
+            id: "fake2",
+            name: "Fake2",
+            symbolNames: ["DOGE/USDT", "LTC/USDT"]);
+        var service = CreateService(standard, exotic);
+        var chart = CreateChart(service, settings);
+
+        // The construction's bootstrap claims epoch 1, kicks the standard
+        // fetch and posts its delivery plus the prewarm apply. The switch
+        // then claims epoch 2 (its own delivery posts behind them), and the
+        // facts seam claims epoch 3 — everything queued before the newest
+        // start stays unpumped until the drain.
+        await service.SwitchToAsync("fake2");
+        await chart.StartBootstrapForFactsAsync(exotic);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.SelectedSymbol.Should().Be(
+            Symbol.Parse("DOGE/USDT"),
+            "the newest bootstrap's preselection stands");
+        chart.AvailableSymbols.Select(row => row.Symbol.Normalized).Should()
+            .Equal(new[] { "DOGE/USDT", "LTC/USDT" });
+        standard.BarsRequested.Should().BeEmpty(
+            "the stale prewarm dropped at its epoch guard — the superseded exchange renders nothing");
+        exotic.BarsRequested.Should().ContainSingle().Which.Should().Be(
+            Symbol.Parse("DOGE/USDT"),
+            "the delivered preselection loaded on the new exchange");
+    }
+
+    /// <summary>
+    /// The honest nothing-to-prewarm: an absent (or unparsable) preference
+    /// reads to nothing, the prewarm posts no apply, and the chart stays on
+    /// its constructor selection until the delivery decides — the whole
+    /// start keeps the pre-existing shape exactly (one fetch, one delivery,
+    /// one bars load), so a prewarm that applied anything of its own would
+    /// show up as an extra load here.
+    /// </summary>
+    [Fact]
+    public async Task BootstrapSymbols_WithNoPersistedSymbol_ThePrewarmRendersNothing()
+    {
+        var marketData = new FakeMarketData();
+
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+
+        // The ungated fetch completed inline at construction: the delivery
+        // is already posted, one drain lands it.
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.SelectedSymbol.Should().Be(
+            Symbol.Parse("BTC/USDT"),
+            "the delivery's first-entry preselection stands — the prewarm contributed nothing");
+        marketData.BarsRequested.Should().ContainSingle().Which.Should().Be(
+            Symbol.Parse("BTC/USDT"),
+            "exactly one bars load — the delivery's own");
+        marketData.SymbolsRequested.Should().ContainSingle("the fetch kick keeps its synchronous construction shape");
+        chart.AvailableSymbols.Select(row => row.Symbol.Normalized).Should()
+            .Equal(new[] { "BTC/USDT", "ETH/BTC", "SOL/USDC" });
+    }
+
+    #endregion
+
     #endregion
 }
 

@@ -254,9 +254,21 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// bootstrap either re-applies the workspace preference it just read
     /// (repersisting it would be a duplicate write with no information) or
     /// applies the documented fall-through (writing the substitute would
-    /// overwrite the preference it merely deferred).
+    /// overwrite the preference it merely deferred). The prewarm's own
+    /// apply (T-226) rides the same gate.
     /// </summary>
     private bool _isApplyingBootstrapSelection;
+
+    /// <summary>
+    /// The startup restore's completion (the walk's
+    /// <see cref="InitializeAsync"/>): the prewarm's selection apply holds
+    /// behind it, so the persisted symbol never loads against the
+    /// constructor-time default time frame — the restore's own raise would
+    /// immediately supersede that load with a wasted fetch pair. Facts that
+    /// never call <see cref="InitializeAsync"/> ride the completed default
+    /// and keep the prewarm's immediate shape.
+    /// </summary>
+    private Task _startupRestore = Task.CompletedTask;
 
     private ObservableCollection<Bar> _bars = new();
 
@@ -2332,6 +2344,19 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
+        // The restore's task doubles as the prewarm's gate (T-226): the
+        // persisted symbol's apply holds behind it, so the chart never loads
+        // against the constructor-time default time frame. The assignment
+        // lands at entry — an apply already posted (the constructor's own
+        // bootstrap emission) still waits for the restore's END, and facts
+        // that never call this method keep the completed default.
+        var restore = RestorePersistedFaceAsync();
+        _startupRestore = restore;
+        await restore;
+    }
+
+    private async Task RestorePersistedFaceAsync()
+    {
         // The clock format restores FIRST and in EVERY path. The pre-fix
         // restore sat at the tail of the time-frame restore below, so the
         // early returns (no persisted time frame, an unparsable one, and —
@@ -3022,6 +3047,125 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         var epoch = Interlocked.Increment(ref _symbolBootstrapEpoch);
         var selectionAtStart = SelectedSymbol;
 
+        // The prewarm (T-226): the persisted workspace preference reads
+        // BEFORE the symbols fetch, so the chart renders from the candle
+        // cache without waiting for the instrument list. The read is cheap
+        // and local (the settings service answers from memory); the fetch
+        // baseline becomes the read's parsed symbol, which keeps the
+        // prewarm's own apply out of the pick detection (BUG-016) — a
+        // mid-flight USER pick still supersedes it exactly as before.
+        Observable
+            .FromAsync(() => ReadPersistedSelectionAsync(epoch))
+            .Subscribe(
+                persisted =>
+                {
+                    StartSymbolsFetch(trigger, epoch, exchangeName, persisted ?? selectionAtStart);
+
+                    // The apply rides the UI marshal separately: the
+                    // property's raises must never run off-owner, while the
+                    // fetch kick keeps the pre-existing synchronous start
+                    // shape (the facts pin it — no pump needed).
+                    Observable
+                        .Return(persisted)
+                        .Where(static persisted => persisted is not null)
+                        .ObserveOnUiThread()
+                        .Subscribe(
+                            persisted => ApplyPersistedSelection(persisted!, epoch, exchangeName),
+                            ex => _logger.LogWarning(
+                                ex,
+                                "The chart prewarm apply failed; the fetch delivery decides the selection"));
+                },
+                ex =>
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "The chart prewarm read failed; the bootstrap fetch starts from the standing selection");
+                    StartSymbolsFetch(trigger, epoch, exchangeName, selectionAtStart);
+                });
+    }
+
+    /// <summary>
+    /// The prewarm's read half: the persisted workspace preference for THIS
+    /// instance's settings key, parsed in the pure form the delivery shares.
+    /// A null (no stored value, an unparsable one) is the honest "nothing to
+    /// prewarm" — the fetch then starts from the standing selection exactly
+    /// as before. The epoch guard drops a read whose bootstrap a newer
+    /// emission already superseded.
+    /// </summary>
+    private async Task<Symbol?> ReadPersistedSelectionAsync(int epoch)
+    {
+        if (Volatile.Read(ref _symbolBootstrapEpoch) != epoch)
+        {
+            return null;
+        }
+
+        var stored = await _settings.GetAsync<string>(SymbolSettingsSection, SymbolSettingsKey);
+        return TryParseStoredSymbol(stored?.Trim());
+    }
+
+    /// <summary>
+    /// The prewarm's apply half (the UI thread): the persisted symbol takes
+    /// the selection under the bootstrap gate — a restore is not an edit,
+    /// the persistence chain skips it — and the bars pipeline's cache-first
+    /// load serves the chart while the symbols fetch is still in flight.
+    /// The epoch guard drops an apply whose bootstrap a newer emission
+    /// already superseded (the delivery's own rule), an equal selection
+    /// re-applies nothing, and the startup restore's gate holds the apply
+    /// until the persisted time frame stands — the persisted symbol never
+    /// loads against the constructor-time default frame.
+    /// </summary>
+    private void ApplyPersistedSelection(Symbol persisted, int epoch, string exchangeName)
+    {
+        if (Volatile.Read(ref _symbolBootstrapEpoch) != epoch)
+        {
+            return;
+        }
+
+        Observable
+            .FromAsync(() => _startupRestore)
+            .ObserveOnUiThread()
+            .Subscribe(
+                _ => ApplyPersistedSelectionCore(persisted, exchangeName),
+                ex => _logger.LogWarning(
+                    ex,
+                    "The chart prewarm apply failed; the fetch delivery decides the selection"));
+    }
+
+    private void ApplyPersistedSelectionCore(Symbol persisted, string exchangeName)
+    {
+        if (Equals(SelectedSymbol, persisted))
+        {
+            return;
+        }
+
+        _isApplyingBootstrapSelection = true;
+        try
+        {
+            SelectedSymbol = persisted;
+        }
+        finally
+        {
+            _isApplyingBootstrapSelection = false;
+        }
+
+        _logger.LogInformation(
+            "Chart prewarmed: the persisted {Symbol} renders from the candle cache while the {Exchange} symbols fetch is in flight",
+            persisted,
+            exchangeName);
+    }
+
+    /// <summary>
+    /// The symbols fetch half of the bootstrap (the pre-existing machine):
+    /// the persisted preference and the marks load, the provider answers
+    /// from its cache (or fetches), and the delivery applies on the UI
+    /// thread under the claimed epoch.
+    /// </summary>
+    private void StartSymbolsFetch(
+        IMarketDataAdapter trigger,
+        int epoch,
+        string exchangeName,
+        Symbol? selectionAtStart)
+    {
         Observable
             .FromAsync(token => LoadBootstrapAsync(trigger.Id, selectionAtStart, token))
             .ObserveOnUiThread()
