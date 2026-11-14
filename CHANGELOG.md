@@ -1,3 +1,19 @@
+## [0.1.0-alpha.170] - 2026-11-14
+
+Build of board task T-229 (branch `fix/not-a-plugin-log-noise`): the
+plugin scanners stop warning about files that are not assemblies.
+
+### Changed
+- A file that is not a loadable .NET assembly (a stray dll, a native
+  helper, a corrupted download) drops on the DEBUG level in all three
+  plugin scanners — the indicator catalog, the strategy catalog and the
+  SDK host. The plugins folder may carry non-plugin files by design; the
+  per-launch warning noise is gone, and the summary line's missing name
+  stays the only production trace of a dropped file. A file the OS could
+  not hand over (locked, inaccessible) keeps its warning, as do the
+  types-fail-to-load and could-not-be-inspected families: the real
+  diagnostics stay loud.
+
 ## [0.1.0-alpha.169] - 2026-11-14
 
 Build of board task T-227 (branch `feat/exchange-auth-settings`): the
