@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Livery.Contracts;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 
 /// <summary>
 /// The symbol palette's instrument source: ONE behavioral snapshot
@@ -120,6 +121,18 @@ public sealed class SymbolPaletteSource : IAsyncInitializable
                 try
                 {
                     symbols = await adapter.GetSymbolsAsync(ct);
+                }
+                catch (AdapterCredentialsMissingException ex)
+                {
+                    // The standing absence (T-227): the adapter reports the
+                    // no-key state itself, once per session — the palette's
+                    // repeated refreshes contribute zero rows silently
+                    // (debug rides the test runs, never the shipped log).
+                    _logger.LogDebug(
+                        ex,
+                        "Adapter '{AdapterId}' runs without credentials; it contributes zero palette rows",
+                        adapter.Id);
+                    continue;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {

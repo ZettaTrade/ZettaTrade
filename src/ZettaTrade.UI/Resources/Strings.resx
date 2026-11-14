@@ -327,6 +327,33 @@
   <data name="Settings.Section.Backup" xml:space="preserve">
     <value>PROFILE BACKUP</value>
   </data>
+  <data name="Settings.Section.Credentials" xml:space="preserve">
+    <value>EXCHANGE CREDENTIALS</value>
+  </data>
+  <data name="Settings.Credentials.Hint" xml:space="preserve">
+    <value>API pairs persist in the OS secret store only - they never ride the settings file, the logs or the export. A venue without a whole pair keeps its adapter's unauthenticated state.</value>
+  </data>
+  <data name="Settings.Credentials.Key" xml:space="preserve">
+    <value>API key</value>
+  </data>
+  <data name="Settings.Credentials.Secret" xml:space="preserve">
+    <value>API secret</value>
+  </data>
+  <data name="Settings.Credentials.Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Settings.Credentials.Clear" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="Settings.Credentials.StatusSaved" xml:space="preserve">
+    <value>Saved</value>
+  </data>
+  <data name="Settings.Credentials.StatusNotSet" xml:space="preserve">
+    <value>Not set</value>
+  </data>
+  <data name="Settings.Credentials.PairRequired" xml:space="preserve">
+    <value>Both fields are required</value>
+  </data>
   <data name="Port.Export" xml:space="preserve">
     <value>Export settings…</value>
   </data>
