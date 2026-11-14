@@ -1,55 +1,3 @@
-## [0.1.0-alpha.175] - 2026-11-14
-
-Build of board task T-234 (branch `feat/windows-unify`): the window family
-rides the settings' variant-A grammar — the dialog family resizes, the
-confirm strips unify on the footer's shape, the ticket and the wizard
-card their field groups, the toolbar widths normalize.
-
-### Changed
-- The dialog family resizes: every window that shipped the fixed frame
-  (`CanResize="False"` — amend, confirm, crash, disclaimer, first-run
-  wizard, kill-switch report, license activation, the ticket, paper
-  reset, protective levels, the annotation prompt, the trade note) now
-  declares the resizable frame; the pinned strips stay pinned while the
-  user widens a cramped field.
-- The paired confirm strips speak the settings footer's shape: one
-  right-aligned row riding its own spacing (the pre-strip gap margins
-  are gone), the quiet button first, the ONE primary last, both riding
-  the 90 strip (the UniformGrid pairs and the scattered
-  100/120/140 widths retire). The confirmation gate keeps its
-  equal-weight buttons on purpose — the T-183 discipline (a safety gate
-  never steers) pins it primary-free while the strip still unifies.
-- The carded surfaces join the section grammar: the wizard's three steps
-  wrap in the section-card voice (the tick-and-caption header replaces
-  the Bold+Title captions, the resx headers ship the tracked uppercase
-  in both cultures, the nav row is one strip — the quiet walks at the
-  left edge, the advance and the ONE primary finish at the right), and
-  the ticket's quick-size block wraps in the same card (the preset chips
-  ride a real spacing row, the refresh/apply commands ride the 90).
-- The annotation prompt joins the styled chrome: the bare
-  `WindowDecorations="Full"` shape retires for the `chrome-compact`
-  every dialog speaks, its dead `accent` button class becomes the
-  `primary`, its margin hacks ride the parent spacing.
-- The command toolbars normalize on the T-212 widths: the alerts
-  toolbar's commands ride the 110 command width (the create carries the
-  row's ONE primary), the close the 90 quiet width, the row's own column
-  spacing clears the gaps; the fresh backtest reference stays pinned.
-
-### Tests
-- The `DialogGrammarPinsTests` hold the grammar at the source of truth:
-  the fixed-frame era ends app-wide, the paired strips measure
-  quiet-first/primary-last at the 90 strip with the gate's honest
-  equal-weight exception, the strip-gap margin hacks stay gone, the
-  carded surfaces speak the section voice with the uppercase header
-  captions in both cultures, the annotation prompt rides the compact
-  chrome, the wizard's nav reads one strip, the toolbars ride the
-  T-212 widths.
-- The `HeadlessDialogGrammarTests` materialize the dialog family without
-  a view model and MEASURE the grammar on the real layout: every window
-  answers `CanResize == true`, the paired strips measure the 90 buttons,
-  the quiet-before-primary order and the row inside the client area, and
-  the annotation prompt carries the compact chrome class.
-
 ## [0.1.0-alpha.176] - 2026-11-14
 
 Build of board task T-235 (branch `feat/windows-unify`, stacked on the
@@ -123,6 +71,58 @@ screener rows ride the header's column plan.
   gate-disabled chip reads asleep and never arms the hover.
 - The Livery battery carries the icon-affordance, framed-chip and plate
   pins — the satellite's facts ride each kit release.
+
+## [0.1.0-alpha.175] - 2026-11-14
+
+Build of board task T-234 (branch `feat/windows-unify`): the window family
+rides the settings' variant-A grammar — the dialog family resizes, the
+confirm strips unify on the footer's shape, the ticket and the wizard
+card their field groups, the toolbar widths normalize.
+
+### Changed
+- The dialog family resizes: every window that shipped the fixed frame
+  (`CanResize="False"` — amend, confirm, crash, disclaimer, first-run
+  wizard, kill-switch report, license activation, the ticket, paper
+  reset, protective levels, the annotation prompt, the trade note) now
+  declares the resizable frame; the pinned strips stay pinned while the
+  user widens a cramped field.
+- The paired confirm strips speak the settings footer's shape: one
+  right-aligned row riding its own spacing (the pre-strip gap margins
+  are gone), the quiet button first, the ONE primary last, both riding
+  the 90 strip (the UniformGrid pairs and the scattered
+  100/120/140 widths retire). The confirmation gate keeps its
+  equal-weight buttons on purpose — the T-183 discipline (a safety gate
+  never steers) pins it primary-free while the strip still unifies.
+- The carded surfaces join the section grammar: the wizard's three steps
+  wrap in the section-card voice (the tick-and-caption header replaces
+  the Bold+Title captions, the resx headers ship the tracked uppercase
+  in both cultures, the nav row is one strip — the quiet walks at the
+  left edge, the advance and the ONE primary finish at the right), and
+  the ticket's quick-size block wraps in the same card (the preset chips
+  ride a real spacing row, the refresh/apply commands ride the 90).
+- The annotation prompt joins the styled chrome: the bare
+  `WindowDecorations="Full"` shape retires for the `chrome-compact`
+  every dialog speaks, its dead `accent` button class becomes the
+  `primary`, its margin hacks ride the parent spacing.
+- The command toolbars normalize on the T-212 widths: the alerts
+  toolbar's commands ride the 110 command width (the create carries the
+  row's ONE primary), the close the 90 quiet width, the row's own column
+  spacing clears the gaps; the fresh backtest reference stays pinned.
+
+### Tests
+- The `DialogGrammarPinsTests` hold the grammar at the source of truth:
+  the fixed-frame era ends app-wide, the paired strips measure
+  quiet-first/primary-last at the 90 strip with the gate's honest
+  equal-weight exception, the strip-gap margin hacks stay gone, the
+  carded surfaces speak the section voice with the uppercase header
+  captions in both cultures, the annotation prompt rides the compact
+  chrome, the wizard's nav reads one strip, the toolbars ride the
+  T-212 widths.
+- The `HeadlessDialogGrammarTests` materialize the dialog family without
+  a view model and MEASURE the grammar on the real layout: every window
+  answers `CanResize == true`, the paired strips measure the 90 buttons,
+  the quiet-before-primary order and the row inside the client area, and
+  the annotation prompt carries the compact chrome class.
 
 ## [0.1.0-alpha.174] - 2026-11-14
 
@@ -652,7 +652,7 @@ re-copying its equity curve per page.
   the persisted turn carries everything that arrived.
 - The trade-statistics scan: the accumulator's snapshot publishes a pinned
   append-only view of the equity curve instead of a fresh copy per page —
-  a six-figure journal no longer pays an O(pages ├Ч curve) copy churn while
+  a six-figure journal no longer pays an O(pages × curve) copy churn while
   the scan runs, and a published curve still never grows with the scan's
   later appends.
 
