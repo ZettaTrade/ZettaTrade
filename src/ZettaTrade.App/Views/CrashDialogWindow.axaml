@@ -10,7 +10,7 @@
         Width="520" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         Topmost="True"
-        CanResize="False"
+        CanResize="True"
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
@@ -34,10 +34,12 @@
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource TextSecondary}" />
 
+        <!-- The confirm strip (T-231): the ONE primary dismiss rides the
+             90 strip at the right edge. -->
         <Button Content="{loc:Localized Log.Crash.Dismiss}"
                 Classes="primary"
                 HorizontalAlignment="Right"
-                MinWidth="100"
+                MinWidth="90"
                 Click="OnDismissClick" />
     </StackPanel>
 </Window>

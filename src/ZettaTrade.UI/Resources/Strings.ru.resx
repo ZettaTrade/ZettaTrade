@@ -1243,7 +1243,7 @@
     <value>· {0}</value>
   </data>
   <data name="NewOrder.SizerBalanceCaption" xml:space="preserve">
-    <value>Доля доступного баланса</value>
+    <value>ДОЛЯ ДОСТУПНОГО БАЛАНСА</value>
   </data>
   <data name="NewOrder.SizerQuarter" xml:space="preserve">
     <value>25 %</value>
@@ -2137,13 +2137,13 @@
     <value>Шаг {0} из {1}</value>
   </data>
   <data name="Wizard.Theme.Header" xml:space="preserve">
-    <value>Выберите оформление</value>
+    <value>ВЫБЕРИТЕ ОФОРМЛЕНИЕ</value>
   </data>
   <data name="Wizard.Theme.Caption" xml:space="preserve">
     <value>Выберите цветовую тему рабочего пространства; её можно изменить в любой момент в настройках.</value>
   </data>
   <data name="Wizard.Adapter.Header" xml:space="preserve">
-    <value>Выберите биржу</value>
+    <value>ВЫБЕРИТЕ БИРЖУ</value>
   </data>
   <data name="Wizard.Adapter.Caption" xml:space="preserve">
     <value>По умолчанию используется демо-канал — симулятор бумажной торговли, который не касается реальных средств. Здесь же можно выбрать реальный адаптер площадки.</value>
@@ -2152,7 +2152,7 @@
     <value>API-ключи никогда не проходят через этот мастер: к адаптерам они попадают только через локальное хранилище секретов приложения.</value>
   </data>
   <data name="Wizard.Symbol.Header" xml:space="preserve">
-    <value>Выберите первый символ</value>
+    <value>ВЫБЕРИТЕ ПЕРВЫЙ СИМВОЛ</value>
   </data>
   <data name="Wizard.Symbol.Caption" xml:space="preserve">
     <value>При следующем запуске график откроется на этом символе выбранной биржи.</value>
