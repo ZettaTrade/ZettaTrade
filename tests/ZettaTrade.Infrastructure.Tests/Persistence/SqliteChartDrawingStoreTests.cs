@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using ZettaTrade.Charting;
@@ -110,13 +111,15 @@ public sealed class SqliteChartDrawingStoreTests
         }
     }
 
-    private static SqliteChartDrawingStore CreateStore(string databaseFile) => new(
+    private static SqliteChartDrawingStore CreateStore(
+        string databaseFile,
+        ILogger<SqliteChartDrawingStore>? logger = null) => new(
         new DbContextOptionsBuilder<ChartDrawingDbContext>()
             // Pooling=false: after each context disposes, its SQLite
             // connection closes, so the temp database file is unlocked.
             .UseSqlite($"Data Source={databaseFile};Pooling=false")
             .Options,
-        NullLogger<SqliteChartDrawingStore>.Instance);
+        logger ?? NullLogger<SqliteChartDrawingStore>.Instance);
 
     /// <summary>A raw context over the store's own database, for the drop-path mutations.</summary>
     private static ChartDrawingDbContext OpenDatabase(string databaseFile) => new(
@@ -410,4 +413,52 @@ public sealed class SqliteChartDrawingStoreTests
     }
 
     #endregion Tests
+
+    #region Query-Plan Warm-up (T-237)
+
+    [Fact]
+    public async Task InitializeAsync_WarmsTheFirstQueryPlan_AndStaysSilentAboveDebug()
+    {
+        await WithTempDatabaseAsync(async paths =>
+        {
+            var spy = new SpyLogger();
+            var store = CreateStore(paths.File, spy);
+            await store.InitializeAsync();
+
+            // The warm-up rode the store's own read shape: the benign
+            // never-stored series answers empty and persists nothing.
+            (await store.LoadAsync(
+                SqliteChartDrawingStore.WarmupAdapterId,
+                SqliteChartDrawingStore.WarmupAdapterId,
+                TimeFrame.H1))
+                .Should().BeEmpty("the warm-up reads its benign series, it never writes one");
+
+            spy.Entries.Count(entry => entry.Level == LogLevel.Debug && entry.Message.Contains("warmed"))
+                .Should().Be(1, "one Debug receipt reports the plan warm-up");
+            spy.Entries.Should().NotContain(
+                entry => entry.Level >= LogLevel.Warning,
+                "the warm-up stays silent at the shipped log floor (the T-229 canon): the store's own information lines are its only voice above debug");
+        });
+    }
+
+    /// <summary>The logger spy: records the level + message + exception triples (the warm-up receipt's probe).</summary>
+    private sealed class SpyLogger : ILogger<SqliteChartDrawingStore>
+    {
+        public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception), exception));
+    }
+
+    #endregion Query-Plan Warm-up (T-237)
 }

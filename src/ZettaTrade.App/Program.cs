@@ -62,6 +62,13 @@ class Program
     private static int RunDesktopLifetime(string[] args, IDisposable instanceClaim)
     {
         _processLifetimeClaim = instanceClaim;
+        // T-237: the persistence models pre-warm — the EF model builds kick
+        // off the composition walk, racing the UI bootstrap on worker
+        // threads, so the store batch's wall collapses to the per-store
+        // migration checks. Throwaway in-memory contexts only: no
+        // connection, no file, and a degraded build is invisible to
+        // correctness (the walk's own first touch builds as before).
+        ZettaTrade.Infrastructure.Persistence.PersistenceModelPrewarm.Start();
         try
         {
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
