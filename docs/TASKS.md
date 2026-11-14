@@ -231,14 +231,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-224 The nightly gitleaks scan stops tripping on the dummy fixtures: the 2026-11-14 triage allowlists the confirmed literals (the a11y template key + the redactor/log-tail test shapes) with the audit record (the user-reported security-pipeline failure) | fix/gitleaks-allowlist | done | - |
 | T-225 The Trading menu's Price alerts item stops killing the process: the pickers' TwoWay SelectedItem init race wrote null into the editor's options and the kind flags dereferenced it (the user-reported NullReferenceException crash); the editor family gets null-rejecting setters + null-safe flags and the same-shape sweep runs over every other window | fix/alerts-window-crash | done | - |
 | T-226 Startup latency: the walk batches the five SQLite stores concurrently + the chart prewarms from the persisted symbol while the instruments fetch is in flight (the user-reported blank-chart wait) | feat/startup-latency | done | - |
-| T-227 Exchange API-key authorization in the settings window: per-venue keys persist through ISecretStore, adapters read them at start, the Alpaca data adapter authenticates when keys are present and quiets its no-key noise when absent (the user's ask, the T-226 profiling follow-up) | feat/exchange-auth-settings | done | - |
-| T-228 One instruments-info fetch per exchange per session: the startup warm-up and the chart's bootstrap share the provider cache instead of double-fetching (the T-226 profiling follow-up) | feat/instruments-fetch-dedupe | done | - |
-| T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | done | - |
-| T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | done | - |
-| T-231 The watchlist ticker stream retries its stream failures with a bounded backoff instead of dying stale, and the Binance instruments parse takes the unrecognized quote-asset drop at the debug level (filed from the user's log analysis) | feat/watchlist-ticker-retry | done | - |
-| T-233 The adapters' construction-time Disconnected snapshots stop carrying real-exchange endpoints into a demo-only run's log: a connection-state line rides a real lifecycle transition, and the soak census's host list covers every shipped venue (the T-232 finale's soak finding) | fix/adapter-state-log-leak | done | - |
-| T-234 The window family rides the variant-A grammar: the dialog family resizes (the fixed-frame era ends app-wide), the confirm strips unify on the settings shape (the quiet button first, the ONE primary last, the 90 strip), the ticket/wizard/license bodies card, the toolbar widths and the pre-strip gaps normalize (the user's T-223 follow-up; renumbered off T-231 - the number collided with the landed ticker-retry task) | feat/windows-unify | done | 0.1.0-alpha.175 |
-| T-235 The controls answer the pointer: the kit's icon buttons speak a visible hover/pressed tint, the pairs transfer arrows read as buttons, the alerts editor's captions clear their fields (the Edge combo stops clipping), and the screener rows stretch to the header plan without the button chrome (the user's T-223 follow-up sweep; renumbered off T-232 - the number was skipped on the synced board) | feat/affordances | in-progress | - |
+| T-235 The controls answer the pointer: the kit's icon buttons speak a visible hover/pressed tint, the pairs transfer arrows read as buttons, the alerts editor's captions clear their fields (the Edge combo stops clipping), and the screener rows stretch to the header plan without the button chrome (the user's T-223 follow-up sweep; renumbered off T-232 - the number was skipped on the synced board) | feat/affordances | done | 0.1.0-alpha.175 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -321,38 +314,5 @@ lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by de
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
 
 ---
-## T-235 - The controls answer the pointer; the screener rows ride the table plan
 
-- **Branch:** queued 2026-11-14 (the user's review sweep over the T-234 build: the
-  alerts editor's captions sit on their fields and the Edge combo clips "Falls below";
-  the settings Pairs transfer arrows are unrecognizable as buttons; the chart's
-  drawing-tool icons give no pointer answer; the screener's rows draw the button
-  chrome at content width instead of the header plan). Stacked on `feat/windows-unify`
-  (the T-234 landing awaits the same review).
-- **Origin:** the kit's icon-button affordance is an opacity nudge (0.85 rest, 1.0
-  hover) — imperceptible on the pointer, so every borderless icon button (the Pairs
-  transfers, the chart's drawing tools, the toolbar glyphs) reads as a static mark;
-  the alerts editor's field cells carry no caption gap and their combos fix their
-  widths below the localized content (the ru strings clip in every culture); the
-  screener's whole-row press target draws the Fluent button chrome and does not
-  stretch to the shared column plan.
-- **What:** the kit's `Button.icon` speaks the family's soft-tint hover and the
-  pressed step (the section-toggle's own pointer language) instead of the opacity
-  race, with an explicit framed rest composition for the free-standing transfers;
-  the alerts editor's cells ride a shared field-cell class (the caption gap), the
-  kind/trigger/source combos ride content widths; the screener rows ride the
-  hairline row grammar at the header's column plan (stretched, chrome-free, the
-  hover Surface stays).
-- **Scope:** the Livery kit's icon-button block (the satellite bump, 0.1.13 ->
-  0.1.14), the App's alerts editor + settings Pairs + screener view; no
-  ViewModel/Core change.
-- **Acceptance:** every icon button answers the pointer visibly (hover tint, press
-  step, the armed state unchanged); the pairs transfers read as buttons at rest; the
-  alerts captions clear their fields and no editor combo clips its localized items;
-  the screener's rows align under their headers at the shared plan with the hairline
-  chrome; the existing pins stay green.
-- **Tests:** the kit's icon-affordance pins (the Livery battery), the App's
-  editor-cell and combo-width pins, the screener row facts (the stretch + the
-  chrome, headless-measured).
-- **Status:** in-progress.
 
