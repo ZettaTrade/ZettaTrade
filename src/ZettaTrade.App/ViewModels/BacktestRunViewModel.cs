@@ -189,7 +189,19 @@ public sealed class BacktestRunViewModel : ReactiveObject
     public string StrategyId
     {
         get => _strategyId;
-        set => this.RaiseAndSetIfChanged(ref _strategyId, value);
+        set
+        {
+            if (value is null)
+            {
+                // The bind/init race's null write (T-225): a null is never
+                // a user choice — the standing id stays and the deferred
+                // raise re-asserts it into the picker once its items exist.
+                SelectionReAssert.Later(this, nameof(StrategyId));
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _strategyId, value);
+        }
     }
 
     /// <summary>The symbol spelling the next run parses (normalized on success, refused on garbage).</summary>

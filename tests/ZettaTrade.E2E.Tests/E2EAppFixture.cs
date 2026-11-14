@@ -240,6 +240,13 @@ public sealed class E2EAppFixture : IAsyncLifetime
             ? new Window(element.FrameworkAutomationElement)
             : null;
 
+    /// <summary>
+    /// The app process's liveness, readable by the tests: an assert on a
+    /// missing window first tells whether the process died under the click
+    /// (a crash report beats a starving lookup message).
+    /// </summary>
+    public bool AppProcessHasExited => _app?.HasExited ?? true;
+
     /// <summary>Poll until a top-level window with the id is gone.</summary>
     public bool WaitForTopLevelWindowGone(string automationId) =>
         Retry.WhileTrue(

@@ -643,4 +643,83 @@ public sealed class AlertsViewModelTests
     }
 
     #endregion Attach and Language
+
+    #region The Binding Race (T-225)
+
+    [Fact]
+    public void TheNullWrites_NeverUnsetTheStandingOptions()
+    {
+        var (model, _, _) = Build();
+
+        var kindBefore = model.SelectedKind;
+        var triggerBefore = model.SelectedTrigger;
+        var sourceBefore = model.SelectedSource;
+        var reArmBefore = model.SelectedReArm;
+        var soundBefore = model.SelectedSound;
+        var indicatorBefore = model.SelectedIndicatorName;
+
+        // The pickers' TwoWay SelectedItem bindings write null while their
+        // items are still empty or coercing (the bind/init race): every
+        // write is an artifact, the standing option stays.
+        model.SelectedKind = null!;
+        model.SelectedTrigger = null!;
+        model.SelectedSource = null!;
+        model.SelectedReArm = null!;
+        model.SelectedSound = null!;
+        model.SelectedIndicatorName = null!;
+
+        model.SelectedKind.Should().BeSameAs(kindBefore, "a null write is never a user choice");
+        model.SelectedTrigger.Should().BeSameAs(triggerBefore, "the standing trigger stays");
+        model.SelectedSource.Should().BeSameAs(sourceBefore, "the standing source stays");
+        model.SelectedReArm.Should().BeSameAs(reArmBefore, "the standing re-arm stays");
+        model.SelectedSound.Should().BeSameAs(soundBefore, "the standing sound stays");
+        model.SelectedIndicatorName.Should().Be(indicatorBefore, "the standing indicator name stays");
+
+        // The kind flags answer from the standing facts, never a throw —
+        // the get_IsPriceKind dereference was the crash's fatal leg.
+        model.IsPriceKind.Should().BeTrue("the standing kind is Price");
+        model.IsPercentKind.Should().BeFalse();
+        model.IsIndicatorKind.Should().BeFalse();
+        model.ShowsTrigger.Should().BeTrue("the Price kind reads the trigger vocabulary");
+        model.IsIndicatorValueSource.Should().BeFalse();
+        model.IsPriceSource.Should().BeFalse();
+        model.IsCooldownMode.Should().BeFalse("the standing re-arm is OneShot");
+    }
+
+    [Fact]
+    public async Task TheNullWrites_PostOneCoalescedReAssert()
+    {
+        var (model, _, _) = Build();
+        var raises = new List<string>();
+        using var sub = model.Changed.Subscribe(args => raises.Add(args.PropertyName ?? string.Empty));
+
+        model.SelectedKind = null!;
+        model.SelectedKind = null!;
+
+        raises.Should().BeEmpty("the re-assert rides the deferred post, never the setter");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        raises.Should().ContainSingle().Which.Should().Be(
+            nameof(model.SelectedKind),
+            "one race's null writes coalesce into one deferred re-assert");
+    }
+
+    [Fact]
+    public async Task TheSecondRace_PostsItsOwnReAssert()
+    {
+        var (model, _, _) = Build();
+        var raises = new List<string>();
+        using var sub = model.Changed.Subscribe(args => raises.Add(args.PropertyName ?? string.Empty));
+
+        model.SelectedKind = null!;
+        await AvaloniaDispatcherPump.DrainAsync();
+        raises.Should().ContainSingle("the first race's re-assert landed");
+
+        model.SelectedKind = null!;
+        raises.Should().ContainSingle("a completed re-assert frees the defense for the next race");
+        await AvaloniaDispatcherPump.DrainAsync();
+        raises.Should().HaveCount(2);
+    }
+
+    #endregion The Binding Race (T-225)
 }

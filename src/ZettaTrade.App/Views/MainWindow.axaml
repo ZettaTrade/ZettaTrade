@@ -178,7 +178,8 @@
                     <MenuItem Header="{loc:Localized Menu.Trading.Stats}" Command="{Binding ShowTradeStatsCommand}" />
                     <MenuItem Header="{loc:Localized Menu.Trading.Backtest}" Command="{Binding ShowBacktestCommand}" />
                     <MenuItem Header="{loc:Localized Menu.Trading.Notifications}" Command="{Binding ShowNotificationsCommand}" />
-                    <MenuItem Header="{loc:Localized Menu.Trading.Alerts}" Command="{Binding ShowAlertsCommand}" />
+                    <MenuItem Header="{loc:Localized Menu.Trading.Alerts}" Command="{Binding ShowAlertsCommand}"
+                              AutomationProperties.AutomationId="TradingAlertsMenuItem" />
                 </MenuItem>
                 <MenuItem Header="{loc:Localized Menu.AI}">
                     <MenuItem Header="{loc:Localized Menu.AI.Chat}"

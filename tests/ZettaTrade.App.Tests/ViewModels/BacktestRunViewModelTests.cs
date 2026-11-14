@@ -410,4 +410,20 @@ public sealed class BacktestRunViewModelTests
     }
 
     #endregion Attach Pattern
+
+    #region The Binding Race (T-225)
+
+    [Fact]
+    public void TheStrategyNullWrite_NeverUnsetsTheStandingId()
+    {
+        var (model, _, _, _, _) = Build(new FakeStrategy("sma-golden-cross"));
+
+        // The bind/init race's artifact (T-225): a null write is never a
+        // user choice — the standing id stays and the run composes from it.
+        model.StrategyId = null!;
+
+        model.StrategyId.Should().Be("sma-golden-cross", "the standing id survives the artifact");
+    }
+
+    #endregion The Binding Race (T-225)
 }

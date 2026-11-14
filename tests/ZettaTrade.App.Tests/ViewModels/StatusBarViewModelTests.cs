@@ -327,6 +327,21 @@ public sealed class StatusBarViewModelTests
     }
 
     [Fact]
+    public async Task ThePickerNullWrite_NeverUnsetsTheStandingExchange()
+    {
+        var viewModel = CreateViewModel();
+
+        // The bind/init race's artifact (T-225): a null write is never a
+        // user choice — the standing exchange name stays, no switch rides it.
+        viewModel.SelectedExchangeName = null!;
+
+        viewModel.SelectedExchangeName.Should().Be("First", "the standing name survives the artifact");
+        viewModel.ActiveExchangeName.Should().Be("First", "no switch rode the artifact");
+        await AvaloniaDispatcherPump.DrainAsync();
+        viewModel.SelectedExchangeName.Should().Be("First", "the deferred re-assert raises the standing fact");
+    }
+
+    [Fact]
     public async Task UnavailablePersistedChoice_PlaysTheNoticeThenExpiresToTheRegularChip()
     {
         _settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
