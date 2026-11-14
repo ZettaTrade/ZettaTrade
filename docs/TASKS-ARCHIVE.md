@@ -4574,6 +4574,53 @@ the board and its section below.
   titled exactly `ZettaTrade`), and the first-run disclaimer owns `Process.MainWindowHandle`
   in fresh profiles (the smoke pre-seeds `UI.DisclaimerVersion`).
 
+## T-215 — Profile backup and restore
+
+- **Branch:** feat/profile-backup, worktree zt-profile-backup, base develop@0da6677
+  (claimed 2026-11-14 off the synced board).
+- **Origin:** the sweep — settings import/export ships (T-100); the SQLite stores (orders, PnL,
+  drawings, candles) have no backup route.
+- **What:** a one-shot profile backup (settings + the SQLite stores + drawings, a versioned
+  archive) and a restore with a pre-restore summary; secrets stay on the machine by design —
+  the archive carries no `ISecretStore` content, documented in SECURITY.md.
+- **Scope:** Infrastructure backup service + the store paths, the settings window's
+  Integrations route, resx en+ru, the next free alpha bump + the CHANGELOG section.
+- **Acceptance:** a backup→restore round-trip restores the data stores; a corrupt archive
+  refuses honestly; a pin proves the archive never carries secret material.
+- **Tests:** the round-trip battery; the corrupt-archive negative; the no-secrets pin.
+- **Status:** done - 0.1.0-alpha.162. Chain: claim `be0d187` -> feat `eeef83a` -> close.
+  The archive is structural, not conventional: an explicit seven-entry list (the settings
+  file plus the six stores) — no directory walk can sweep in `secrets.enc`, the service
+  takes no `ISecretStore` dependency, and the SECURITY.md section documents the posture
+  (the archive is user data; the restore treats it as untrusted input). The stores ride
+  `VACUUM INTO` snapshots (one-shot, un-pooled connections — a pooled handle would hold a
+  live store open behind the app's back and defeat the restore's exclusive pre-check); the
+  settings file copies byte-exact. The restore is the preview-then-apply grammar of the
+  settings port at profile scale: the draft validates the manifest as an allowlist (no
+  traversal, no foreign entries, a bidirectional zip-vs-manifest size cross-check), the
+  apply re-validates the SAME archive, pre-checks every planned store for exclusive access
+  BEFORE replacing anything, extracts to same-volume staging and lands each file whole
+  (File.Replace / File.Move) — every refusal is typed (malformed, foreign schema, foreign
+  version, manifest mismatch, nothing restorable, a locked store) and localized; the two
+  service-level bugs the battery caught (the Entry destructuring order that swapped label
+  and live path, the pre-flight's First over a plan that may list fewer stores) died there,
+  never in production. The settings window's Integrations tab grows the PROFILE BACKUP card
+  (a pre-localized preview of label + size rows, the apply behind the typed
+  `Backup.RestoreConfirm` confirmation, honest status/error lines); the file dialogs ride a
+  `ProfileBackupFilePicker` with the `ztprofile` extension. resx: 23 `Backup.*` keys new in
+  both cultures + the `Settings.Section.Backup` header; `check-resx.ps1` grew the `Backup.`
+  prefix. Tests: Infrastructure 15 backup facts (manifest/snapshot round-trip, sparse
+  entries, the no-secrets pin, restore round-trip + absent-store creation + untouched
+  entries, the typed refusal battery with nothing-replaced pins), App 7 VM facts (posture,
+  backup reporting, the preview/apply/decline flows over a real sandbox kit), and the
+  window's T-223 canon re-pinned to ten section cards (10 toggles/chevrons, 4 open / 6
+  collapsed). Gate GATE PASSED. The launch smoke green on the feat tip `eeef83a` in three
+  phases: A the clean exit (code 0), B the live app writes its profile (6/6 stores on
+  disk, clean exit), C the harness (a tiny console host over the built Infrastructure)
+  performs a REAL backup -> mutate -> restore round-trip over that same on-disk profile
+  (7 plan rows, the settings file byte-identical after the restore) — 0 ERR/FTL in both
+  app slices, 0 ticker failures, the palette walk reached.
+
 ## T-216 - Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses
 
 - **Branch:** `feat/flaky-theme-drain` off `develop` (base `be070bd`; claim commit `1a99309`).

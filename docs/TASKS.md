@@ -219,7 +219,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-212 Backtest parameter optimization (backlog sweep 2026-11-12) | feat/backtest-optimize | done | - |
 | T-213 Update checker (backlog sweep 2026-11-12) | feat/update-check | done | - |
 | T-214 Tray icon (backlog sweep 2026-11-12) | feat/tray-icon | done | - |
-| T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | in-progress | - |
+| T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | done | - |
 | T-216 Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses (queued from the T-193/T-194 gate fights) | feat/flaky-theme-drain | done | - |
 | T-217 Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot (the 2026-11-13 review round) | feat/perf-fixes | done | - |
 | T-218 Virtualize the AI chat transcript (queued from the 2026-11-13 review round) | feat/chat-virtualization | planned | - |
@@ -503,22 +503,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
-
-## T-215 — Profile backup and restore
-
-- **Branch:** feat/profile-backup, worktree zt-profile-backup, base develop@0da6677
-  (claimed 2026-11-14 off the synced board).
-- **Origin:** the sweep — settings import/export ships (T-100); the SQLite stores (orders, PnL,
-  drawings, candles) have no backup route.
-- **What:** a one-shot profile backup (settings + the SQLite stores + drawings, a versioned
-  archive) and a restore with a pre-restore summary; secrets stay on the machine by design —
-  the archive carries no `ISecretStore` content, documented in SECURITY.md.
-- **Scope:** Infrastructure backup service + the store paths, the settings window's
-  Integrations route, resx en+ru, the next free alpha bump + the CHANGELOG section.
-- **Acceptance:** a backup→restore round-trip restores the data stores; a corrupt archive
-  refuses honestly; a pin proves the archive never carries secret material.
-- **Tests:** the round-trip battery; the corrupt-archive negative; the no-secrets pin.
-- **Status:** in-progress.
 
 ## T-218 — Virtualize the AI chat transcript
 
