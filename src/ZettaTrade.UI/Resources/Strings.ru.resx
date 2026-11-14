@@ -2127,6 +2127,18 @@
   <data name="Notif.SourceRejections" xml:space="preserve">
     <value>Отклонения</value>
   </data>
+  <data name="Notif.TelegramCancel" xml:space="preserve">
+    <value>Ордер отменён — {0} ({1})</value>
+  </data>
+  <data name="Notif.TelegramCancelOn" xml:space="preserve">
+    <value>Ордер отменён: {0} — {1} ({2})</value>
+  </data>
+  <data name="Notif.TelegramFill" xml:space="preserve">
+    <value>{0} {1} {2} исполнено по {3} — {4} ({5})</value>
+  </data>
+  <data name="Notif.TelegramReject" xml:space="preserve">
+    <value>Ордер отклонён: {0} — {1} ({2}, {3})</value>
+  </data>
   <data name="Notif.ToastHint" xml:space="preserve">
     <value>Нажатие закрывает уведомление; уведомление с панелью также откроет её.</value>
   </data>

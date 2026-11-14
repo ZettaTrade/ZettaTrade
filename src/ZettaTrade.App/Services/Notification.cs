@@ -135,6 +135,8 @@ public interface INotificationRouteSink
 /// <param name="Alert">The fired alert's definition for an alert fire (the row composes the alert's own condition line from it); null for the other kinds.</param>
 /// <param name="VersionLabel">The available release's display version for an update announcement; empty for the other kinds.</param>
 /// <param name="ReleaseUrl">The available release's page URL for an update announcement (the route's landing fact); empty for the other kinds.</param>
+/// <param name="Price">The journaled row's own price for a trade outcome (the fill's executed level, the reject's order price); null for the other kinds (and for the outcomes whose surface carries no price fact).</param>
+/// <param name="Exchange">The journal row's exchange id behind a trade outcome ("paper", "bybit", …); empty for the other kinds.</param>
 public sealed record Notification(
     NotificationKind Kind,
     NotificationRoute Route,
@@ -148,7 +150,9 @@ public sealed record Notification(
     string Reason,
     AlertDefinition? Alert = null,
     string VersionLabel = "",
-    string ReleaseUrl = "")
+    string ReleaseUrl = "",
+    decimal? Price = null,
+    string Exchange = "")
 {
     /// <summary>The digest marker: a count above one renders the burst badge.</summary>
     public bool IsDigest => Count > 1;
@@ -158,8 +162,11 @@ public sealed record Notification(
     /// <summary>
     /// One raw notification about an accepted order's terminal outcome the
     /// journal recorded (fill, cancel, rejection), straight from the row's
-    /// facts: the fill carries the traded quantity, the rejection its
-    /// adapter text, a cancellation the bare outcome.
+    /// facts: the fill carries the traded quantity and the row's own price,
+    /// the rejection its adapter text, a cancellation the bare outcome. The
+    /// row's exchange id rides every journaled outcome (the sink message's
+    /// exchange fact); the price stays off the outcomes whose surface
+    /// carries no price fact (a cancellation).
     /// </summary>
     public static Notification ForJournalOutcome(
         NotificationKind kind,
@@ -167,7 +174,9 @@ public sealed record Notification(
         string symbolName,
         OrderSide side,
         decimal quantity,
-        string reason = "") => new(
+        string reason = "",
+        decimal? price = null,
+        string exchange = "") => new(
             kind,
             NotificationRouteMap.Map(kind),
             Count: 1,
@@ -177,7 +186,9 @@ public sealed record Notification(
             AdapterState: AdapterHealthState.Unsupervised,
             Side: side,
             Quantity: quantity,
-            Reason: reason);
+            Reason: reason,
+            Price: price,
+            Exchange: exchange);
 
     /// <summary>One raw adapter-state notification from the T-098 fold.</summary>
     public static Notification ForAdapterState(
@@ -283,7 +294,9 @@ public sealed record Notification(
             Reason: newest.Reason,
             Alert: newest.Alert,
             VersionLabel: newest.VersionLabel,
-            ReleaseUrl: newest.ReleaseUrl);
+            ReleaseUrl: newest.ReleaseUrl,
+            Price: newest.Price,
+            Exchange: newest.Exchange);
     }
 
     #endregion Factories

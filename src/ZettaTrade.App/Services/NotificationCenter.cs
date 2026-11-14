@@ -152,7 +152,9 @@ public sealed class NotificationCenter
                     order.UpdatedAt ?? order.CreatedAt,
                     order.Symbol.Normalized,
                     order.Side,
-                    order.FilledQuantity.Value));
+                    order.FilledQuantity.Value,
+                    exchange: order.ExchangeId,
+                    price: order.Price.Value));
                 break;
 
             case OrderStatus.Cancelled:
@@ -161,7 +163,8 @@ public sealed class NotificationCenter
                     order.UpdatedAt ?? order.CreatedAt,
                     order.Symbol.Normalized,
                     order.Side,
-                    order.FilledQuantity.Value));
+                    order.FilledQuantity.Value,
+                    exchange: order.ExchangeId));
                 break;
 
             case OrderStatus.Rejected:
@@ -171,7 +174,8 @@ public sealed class NotificationCenter
                     order.Symbol.Normalized,
                     order.Side,
                     order.FilledQuantity.Value,
-                    order.RejectReason ?? string.Empty));
+                    order.RejectReason ?? string.Empty,
+                    exchange: order.ExchangeId));
                 break;
         }
     }

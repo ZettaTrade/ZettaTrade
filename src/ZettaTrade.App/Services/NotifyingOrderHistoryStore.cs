@@ -103,7 +103,8 @@ public sealed class NotifyingOrderHistoryStore(
             cancelledAt,
             symbolName,
             OrderSide.Buy,
-            0m));
+            0m,
+            exchange: exchangeId));
         _logger.LogInformation(
             "Order journal tap: announced the cancel of {ExchangeId}/{OrderId}",
             exchangeId,
