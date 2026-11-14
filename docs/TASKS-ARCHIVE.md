@@ -5105,7 +5105,6 @@ the board and its section below.
   follow-up sweep items (duplicate instruments-info fetches, the Alpaca no-key noise, the
   not-a-plugin.dll logs, the update-checker 404) stay out of scope, uncommitted to this task.
 
-<<<<<<< HEAD
 ## T-227 - Exchange API-key authorization in the settings window (the Alpaca no-key noise is the driver)
 
 - **Branch:** feat/exchange-auth-settings, worktree zt-exchange-auth, base develop@9350870
@@ -5373,7 +5372,7 @@ the board and its section below.
   precedent), the card pins for the carded three, the toolbar width pins; the headless
   ticket fact (the ticket opens at its minimum, the strip stays inside, the cta rides
   the side fill).
-- **Status:** done - 0.1.0-alpha.174 (on the branch; the landing awaits the user's
+- **Status:** done - 0.1.0-alpha.175 (on the branch; the landing awaits the user's
   review). Chain: docs(claim) `1d64cdd` -> feat `b8266d8` -> docs(close) -> bump. Shipped:
   the fixed-frame era ends app-wide (no `CanResize="False"` remains; every dialog
   declares the resizable frame); the paired confirm strips unify on the settings
@@ -5396,3 +5395,64 @@ the board and its section below.
   without a view model, every window answers `CanResize == true`, the paired strips
   measure the 90 buttons, the quiet-before-primary order and the row inside the client
   area, the annotation prompt carries the compact chrome). 2208 App facts green.
+
+## T-235 - The controls answer the pointer; the screener rows ride the table plan
+
+- **Branch:** queued 2026-11-14 (the user's review sweep over the T-234 build: the
+  alerts editor's captions sit on their fields and the Edge combo clips "Falls below";
+  the settings Pairs transfer arrows are unrecognizable as buttons; the chart's
+  drawing-tool icons give no pointer answer; the screener's rows draw the button
+  chrome at content width instead of the header plan). Stacked on `feat/windows-unify`
+  (the T-234 landing awaits the same review).
+- **Origin:** the kit's icon-button affordance is an opacity nudge (0.85 rest, 1.0
+  hover) — imperceptible on the pointer, so every borderless icon button (the Pairs
+  transfers, the chart's drawing tools, the toolbar glyphs) reads as a static mark;
+  the alerts editor's field cells carry no caption gap and their combos fix their
+  widths below the localized content (the ru strings clip in every culture); the
+  screener's whole-row press target draws the Fluent button chrome and does not
+  stretch to the shared column plan.
+- **What:** the kit's `Button.icon` speaks the family's soft-tint hover and the
+  pressed step (the section-toggle's own pointer language) instead of the opacity
+  race, with an explicit framed rest composition for the free-standing transfers;
+  the alerts editor's cells ride a shared field-cell class (the caption gap), the
+  kind/trigger/source combos ride content widths; the screener rows ride the
+  hairline row grammar at the header's column plan (stretched, chrome-free, the
+  hover Surface stays).
+- **Scope:** the Livery kit's icon-button block (the satellite bump, 0.1.13 ->
+  0.1.14), the App's alerts editor + settings Pairs + screener view; no
+  ViewModel/Core change.
+- **Acceptance:** every icon button answers the pointer visibly (hover tint, press
+  step, the armed state unchanged); the pairs transfers read as buttons at rest; the
+  alerts captions clear their fields and no editor combo clips its localized items;
+  the screener's rows align under their headers at the shared plan with the hairline
+  chrome; the existing pins stay green.
+- **Tests:** the kit's icon-affordance pins (the Livery battery), the App's
+  editor-cell and combo-width pins, the screener row facts (the stretch + the
+  chrome, headless-measured).
+- **Status:** done - 0.1.0-alpha.175 (on the branch; the landing awaits the user's
+  review). Chain: docs(claim) `9a6e598` -> feat `1953dfc` -> docs(close) -> bump.
+  Shipped: the kit's icon buttons answer the pointer with the family's tint language
+  (the hover ButtonHoverTint step, the press the stronger ButtonPressedTint step, the
+  keyboard focus ring — all painted on the template presenter; the old opacity nudge
+  retires; the armed `.on` contrast stands on the kept rest dimming) — the Livery
+  0.1.14 release, the tags ride `main` now; the pairs transfers read as buttons at
+  rest through the new `icon framed` composition (the family hairline rest outline,
+  the Highlight hover stroke); the alerts editor's 14 cells ride the shared
+  FieldGrammar dictionary (the SpaceS caption gap, the caption size in the class, the
+  per-cell FontSize copies die) and every editor combo rides content widths (MinWidth
+  over Width — a combo's chrome eats ~45px of a fixed width, so "Falls below" and the
+  ru trigger labels clipped at every culture; the numeric wells keep their deliberate
+  widths); the screener's rows stretch to the header plan (the T-235 probe named the
+  root: Avalonia 12's fluent ControlTheme carries HorizontalAlignment=Left on every
+  button, so the T-195 era stretched only the row's content — the whole-row press
+  target and the header's sort buttons take the stretch explicitly) and trade the
+  fluent chrome for the row grammar's look (the bottom hairline separator, square
+  corners, the opacity-dim press without the scale squish). Tests: the Livery
+  battery's icon-affordance pins (the tint steps, the presenter focus ring, the
+  framed composition); the `FieldGrammarPinsTests` (the include, the 14 cells, the
+  caption copies gone, the no-fixed-width-combo fact, the transfer pair's framed
+  composition); the `HeadlessScreenerRowTests` (the real window materialized without
+  a view model — the rows equal the header plan, the chrome is the row hairline, the
+  sort captions align over the data columns); the T-234 toolbar pins ride their own
+  strip (the toolbar's T-212 widths and the editor's content floors are two lanes).
+  2213 App facts green, the Livery 61.
