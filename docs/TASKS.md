@@ -539,5 +539,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** a launch log over the unpublished feed carries no 404 error entries; the
   checker still surfaces a real published update.
 - **Tests:** the checker's no-release fact.
-- **Status:** planned.
+- **Status:** in-progress (worktree zt-update-checker-404, branch
+  fix/update-checker-404, base develop@73e0a66, claimed 2026-11-14).
 
