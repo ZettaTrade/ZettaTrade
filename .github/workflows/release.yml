@@ -11,8 +11,10 @@
 # carries the bump).
 #
 # Artifacts: zettatrade-<version>-<rid>.<ext> - zip for win-x64,
-# osx-x64 and osx-arm64, tar.gz for linux-x64 - plus one
-# zettatrade-<version>-sha256.txt attached next to them.
+# osx-x64 and osx-arm64, tar.gz for linux-x64 - the T-256 Inno Setup
+# installer zettatrade-<version>-win-x64-setup.exe compiled on the
+# windows leg - plus one zettatrade-<version>-sha256.txt attached next
+# to them.
 #
 # Code signing and notarization remain out of scope; docs/SECURITY.md
 # records the hash-only artifact posture and what the signed follow-up
@@ -129,6 +131,36 @@ jobs:
           name: ${{ steps.archive.outputs.name }}
           path: ${{ steps.archive.outputs.name }}
 
+      - name: Compile the Windows installer (T-256)
+        # The T-256 smoke script carries the whole leg: the version parse
+        # (the props, the pipeline's single version source), a fresh
+        # self-contained publish, the publish smoke, the static lint of
+        # windows-installer.iss (the data-safety and install-mode pins) and
+        # the ISCC compile with the version-resource assert. Inno Setup
+        # ships on the runner image; the choco fallback covers an image
+        # that drops it. The compile is CI's job - a local run without
+        # ISCC stays lint-only by design.
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue) -and
+              -not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) {
+            choco install innosetup -y --no-progress
+          }
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows-installer-smoke.ps1 -OutDir installer-out
+          $version = '${{ steps.version.outputs.version }}'
+          $name = "zettatrade-$version-win-x64-setup.exe"
+          if (-not (Test-Path (Join-Path 'installer-out' $name))) { throw "The installer was not produced: $name" }
+          Write-Host "Installer artifact OK: $name"
+
+      - name: Upload the installer artifact
+        if: matrix.rid == 'win-x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zettatrade-${{ steps.version.outputs.version }}-win-x64-setup
+          path: installer-out/zettatrade-*-win-x64-setup.exe
+
   release-notes:
     name: release notes (CHANGELOG excerpt)
     runs-on: ubuntu-latest
@@ -196,6 +228,7 @@ jobs:
             $expected += "zettatrade-$version-$rid.zip"
           }
           $expected += "zettatrade-$version-linux-x64.tar.gz"
+          $expected += "zettatrade-$version-win-x64-setup.exe"
           foreach ($name in $expected) {
             $file = Get-Item -LiteralPath (Join-Path 'dist' $name) -ErrorAction SilentlyContinue
             if (-not $file) { throw "Missing release artifact: $name" }

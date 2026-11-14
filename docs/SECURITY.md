@@ -199,6 +199,19 @@ reality (the hashes stay as a cross-check). Pairing with the T-119 first-run dis
 macOS Gatekeeper and Windows SmartScreen can warn about the unsigned archives, and a
 cautious user verifies the sums and runs first from the paper lane.
 
+## Windows installer (T-256)
+
+Since T-256 the win-x64 leg also compiles `zettatrade-<version>-win-x64-setup.exe` — the
+Inno Setup build over the same self-contained publish the zip wraps (the compile lives in
+the release workflow; the local smoke stays lint-only where Inno Setup is not installed).
+The setup exe is unsigned the same way the archives are: Windows SmartScreen can warn on
+the first run, the same sums verification applies (the installer rides the release's
+`zettatrade-<version>-sha256.txt`), and the T-119 first-run disclaimer pairs with it. The
+setup installs per-user by default (a plain double-click, no UAC) with an explicit
+per-machine mode, and its uninstaller removes only the installed files — the profile
+(`%APPDATA%\ZettaTrade`, `%LOCALAPPDATA%\ZettaTrade`: settings, stores, logs, the
+DPAPI-protected secret store) survives the uninstall by design and a reinstall finds it.
+
 ## Profile backup (T-215)
 
 The profile backup (`ZettaTrade.Infrastructure/Backup/ProfileBackupService.cs`) writes and
