@@ -229,7 +229,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-222 The settings window re-rides the approved variant-A mockup: the rail's title-bar strip + icons + note, the compact per-section cards, the pinned footer chrome, the 880x640 frame (the user-reported T-184 gap) | fix/settings-rail-fix | done | - |
 | T-223 The settings pages collapse into the variant-A section grammar: the card headers become toggles (four open by default), the rail captions ride BodyFontSize, the quiet controls ride the Livery 0.1.13 surface-family keys (the user-reported T-222 gap) | feat/settings-collapse | done | - |
 | T-224 The nightly gitleaks scan stops tripping on the dummy fixtures: the 2026-11-14 triage allowlists the confirmed literals (the a11y template key + the redactor/log-tail test shapes) with the audit record (the user-reported security-pipeline failure) | fix/gitleaks-allowlist | done | - |
-| T-225 The Trading menu's Price alerts item stops killing the process: the pickers' TwoWay SelectedItem init race wrote null into the editor's options and the kind flags dereferenced it (the user-reported NullReferenceException crash); the editor family gets null-rejecting setters + null-safe flags and the same-shape sweep runs over every other window | fix/alerts-window-crash | in-progress | - |
+| T-225 The Trading menu's Price alerts item stops killing the process: the pickers' TwoWay SelectedItem init race wrote null into the editor's options and the kind flags dereferenced it (the user-reported NullReferenceException crash); the editor family gets null-rejecting setters + null-safe flags and the same-shape sweep runs over every other window | fix/alerts-window-crash | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -505,35 +505,3 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
-
-## T-225 - The Trading menu's Price alerts item stops killing the process
-
-- **Branch:** fix/alerts-window-crash, worktree zt-alerts-crash, base develop@4866658
-  (claimed 2026-11-14 off the synced board; origin: the user reported the crash).
-- **Origin:** selecting Trading - Price alerts killed the process (exit 0xffffffff,
-  no CrashGuard dialog, no log entry) with a debugger-visible System.NullReferenceException
-  at AlertsViewModel.get_IsPriceKind (line 364): SelectedKind.get returned null
-  persistently and the editor's IsVisible bindings (IsIndicatorKind, ShowsTrigger,
-  IsIndicatorValueSource) logged binding errors before the fatal leg.
-- **Diagnosis:** the pickers' TwoWay SelectedItem bindings write null into the view
-  model during the bind/init race (an empty or coercing ItemsSource); a null is never
-  a user choice, but the setters stored it and the kind flags dereferenced it unguarded.
-  The open route itself is fully caught (OpenAlertsAsync), so the crash surfaced only
-  through the process exit; it never reproduced in 4 automated probes (the clean E2E
-  sandbox, the user's profile copy x2 click routes, the live instance) - timing-dependent.
-- **What:** the editor's option setters (SelectedKind, SelectedTrigger, SelectedSource,
-  SelectedReArm, SelectedSound, SelectedIndicatorName) reject the null binding artifact -
-  the standing option stays and one deferred raise (the dispatcher's background priority)
-  re-asserts it into the picker once its items exist; the kind flags (IsPriceKind,
-  IsPercentKind, IsIndicatorKind, ShowsTrigger, IsIndicatorValueSource, IsPriceSource,
-  IsCooldownMode) read null-safely; the draft composer refuses an unset selection with
-  its localized line, never a silently defaulted alert; the same-shape sweep runs over
-  every other window's TwoWay SelectedItem bindings and fixes the found instances alike.
-- **Scope:** ZettaTrade.App view models (+ the AutomationId seams and the E2E fixture
-  liveness fact the regression round needed), the next free alpha bump + the CHANGELOG
-  section.
-- **Acceptance:** the E2E open round (TradingAlertsMenuItem -> AlertsWindow -> close)
-  keeps the process alive over the real app; the null-option matrix unit tests pin the
-  setters and the flags; GATE PASSED.
-- **Tests:** the new E2E AlertsWindowOpenTests + the App.Tests null-option battery.
-- **Status:** in-progress.

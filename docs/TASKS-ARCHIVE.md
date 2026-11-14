@@ -5014,3 +5014,46 @@ the board and its section below.
   fires — the allowlist stays bounded. GATE PASSED attempt 1 (SCOPE + gitleaks
   advisories). The nightly goes green once the fix is reachable from the scan's
   checkout branch (`main` — 265 commits behind develop, a user-level sync).
+
+## T-225 - The Trading menu's Price alerts item stops killing the process
+
+- **Branch:** fix/alerts-window-crash, worktree zt-alerts-crash, base develop@4866658
+  (claimed 2026-11-14 off the synced board; origin: the user reported the crash).
+- **Origin:** selecting Trading - Price alerts killed the process (exit 0xffffffff,
+  no CrashGuard dialog, no log entry) with a debugger-visible System.NullReferenceException
+  at AlertsViewModel.get_IsPriceKind (line 364): SelectedKind.get returned null
+  persistently and the editor's IsVisible bindings (IsIndicatorKind, ShowsTrigger,
+  IsIndicatorValueSource) logged binding errors before the fatal leg.
+- **Diagnosis:** the pickers' TwoWay SelectedItem bindings write null into the view
+  model during the bind/init race (an empty or coercing ItemsSource); a null is never
+  a user choice, but the setters stored it and the kind flags dereferenced it unguarded.
+  The open route itself is fully caught (OpenAlertsAsync), so the crash surfaced only
+  through the process exit; it never reproduced in 4 automated probes (the clean E2E
+  sandbox, the user's profile copy x2 click routes, the live instance) - timing-dependent.
+- **What:** the editor's option setters (SelectedKind, SelectedTrigger, SelectedSource,
+  SelectedReArm, SelectedSound, SelectedIndicatorName) reject the null binding artifact -
+  the standing option stays and one deferred raise (the dispatcher's background priority)
+  re-asserts it into the picker once its items exist (the shared SelectionReAssert
+  coalescing bound); the kind flags (IsPriceKind, IsPercentKind, IsIndicatorKind,
+  ShowsTrigger, IsIndicatorValueSource, IsPriceSource, IsCooldownMode) read null-safely;
+  the draft composer refuses an unset selection with its localized line, never a
+  silently defaulted alert; the same-shape sweep runs over every other window's
+  SelectedItem bindings (16 sites, the Avalonia TwoWay default included) and fixes the
+  found instances alike: BacktestRunViewModel.StrategyId (a latent NRE on the run-start
+  guard) and StatusBarViewModel.SelectedExchangeName (the trading-adjacent picker); the
+  rest were nullable by design or enum-typed (the null conversion fails, nothing stores).
+- **Scope:** ZettaTrade.App view models (+ the AutomationId seams and the E2E fixture
+  liveness fact the regression round needed), the next free alpha bump + the CHANGELOG
+  section.
+- **Acceptance:** the E2E open round (TradingAlertsMenuItem -> AlertsWindow -> close)
+  keeps the process alive over the real app; the null-option matrix unit tests pin the
+  setters and the flags; GATE PASSED.
+- **Tests:** the new E2E AlertsWindowOpenTests + the App.Tests null-option battery.
+- **Status:** done - 0.1.0-alpha.167. Chain: claim `0f3e69c` -> fix `16fc4a1` -> bump
+  `b093edf` -> close. Canon: the user's debugger output confirmed the mechanism
+  (SelectedKind.get returned null persistently + the IsVisible binding errors + the
+  exit 0xffffffff). Tests: 5 new App.Tests facts (the alerts null matrix x3 + the
+  backtest id + the status bar exchange) - the touched three classes 60/60 green; the
+  E2E AlertsWindowOpenTests round green on the fix tip. GATE PASSED (-AllowProtected)
+  attempt 1. The launch smoke green: ProductVersion 0.1.0-alpha.167+b093edf, the 12 s
+  hold held the main window, 0 ERR/FTL, every store ready.
