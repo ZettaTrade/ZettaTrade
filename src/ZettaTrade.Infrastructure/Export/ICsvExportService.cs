@@ -98,4 +98,23 @@ public interface ICsvExportService
         string path,
         IReadOnlyDictionary<string, Money> balances,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Open the statement's two order-side sections as ONE streaming pair
+    /// (T-219): the journal-orders file and the fills file both open with
+    /// their headers, and each appended page lands in both row by row — a
+    /// six-figure journal streams through one page of memory instead of
+    /// materializing whole before the first byte. The same row mappers the
+    /// one-shot exports speak; the streamed bytes stay identical.
+    /// </summary>
+    /// <param name="ordersPath">The orders section's destination path
+    /// (overwritten if present).</param>
+    /// <param name="fillsPath">The fills section's destination path
+    /// (overwritten if present).</param>
+    /// <param name="cancellationToken">Cancels the open or the header
+    /// write; the file already opened stays on disk.</param>
+    Task<IOrderSectionStream> BeginOrderStreamAsync(
+        string ordersPath,
+        string fillsPath,
+        CancellationToken cancellationToken = default);
 }

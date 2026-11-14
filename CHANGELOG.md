@@ -1,3 +1,35 @@
+## [0.1.0-alpha.164] - 2026-11-14
+
+Build of board task T-219 (branch `feat/statement-stream`): the statement
+export streams — the orders/fills sections ride their CSVs page by page
+during the scan, so a six-figure journal never materializes the whole
+order list before the first byte lands.
+
+### Changed
+- The statement bundle's order-side sections (orders.csv, fills.csv) open
+  when the export begins and every scanned page appends straight into
+  them — both ride the ONE T-084 CSV writer's new streaming pair, the
+  same row mappers and row order the one-shot exports speak, so the
+  bundle bytes stay identical to the materialized shape (the goldens hold
+  byte-for-byte). The peak memory stays one page plus the realized ledger
+  the accumulator books, instead of the whole-journal order list the
+  export used to build first.
+- The empty-range refusal now answers on the scan's first page, before
+  the save dialog opens (the user is never asked for a destination no
+  bundle will fill); a cancelled dialog opens no section files; the
+  realized ledger and the balance snapshot keep riding the end-of-scan
+  reads, and the manifest stays LAST — the completeness marker. The
+  manifest shape is unchanged.
+
+### Tests
+- The statement goldens re-driven through the streaming session hold
+  byte-for-byte, with a multi-page counts pin; the writer-level pin
+  compares the streamed sections against the one-shot exports over the
+  same orders and pins the between-rows cancellation; the bounded-memory
+  pin asserts the sections lead the scan (page N's rows are appended
+  before page N+1 is read); the empty range, the cancelled dialog and the
+  storage fault ride the new session shape.
+
 ## [0.1.0-alpha.162] - 2026-11-14
 
 Build of board task T-215 (branch `feat/profile-backup`): the profile

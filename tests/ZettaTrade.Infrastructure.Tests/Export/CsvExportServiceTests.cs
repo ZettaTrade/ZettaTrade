@@ -589,6 +589,145 @@ public sealed class CsvExportServiceTests
 
     #endregion Balances (T-210)
 
+    #region Order Stream (T-219)
+
+    [Fact]
+    public async Task BeginOrderStreamAsync_AppendedPages_MatchTheOneShotExportsByteForByte()
+    {
+        // The streamed sections are the same documents the one-shot exports
+        // write: the same headers, the same mappers, the same row order —
+        // pinned by writing both shapes over the same orders and comparing
+        // the files.
+        var orders = new[]
+        {
+            BuildOrder(
+                id: "filled-1",
+                status: OrderStatus.Filled,
+                createdAt: BaseTime,
+                updatedAt: BaseTime.AddMinutes(2),
+                filledQuantity: 0.02m,
+                commission: 0.2004m),
+            BuildOrder(
+                id: "working-1",
+                status: OrderStatus.Submitted,
+                createdAt: BaseTime.AddMinutes(3),
+                updatedAt: null,
+                filledQuantity: 0m),
+            BuildOrder(
+                id: "partial-1",
+                status: OrderStatus.PartiallyFilled,
+                createdAt: BaseTime.AddMinutes(5),
+                updatedAt: null,
+                filledQuantity: 0.01m),
+        };
+
+        await WithTempDirectoryAsync(async directory =>
+        {
+            var streamedOrders = Path.Combine(directory, "streamed.orders.csv");
+            var streamedFills = Path.Combine(directory, "streamed.fills.csv");
+            var oneShotOrders = Path.Combine(directory, "one-shot.orders.csv");
+            var oneShotFills = Path.Combine(directory, "one-shot.fills.csv");
+
+            var stream = await Service.BeginOrderStreamAsync(streamedOrders, streamedFills);
+            await using (stream)
+            {
+                await stream.AppendAsync(orders.Take(2).ToArray());
+                await stream.AppendAsync(orders.Skip(2).ToArray());
+            }
+
+            await Service.ExportOrdersAsync(oneShotOrders, orders);
+            await Service.ExportFillsAsync(oneShotFills, orders);
+
+            (await File.ReadAllBytesAsync(streamedOrders)).Should().Equal(
+                await File.ReadAllBytesAsync(oneShotOrders));
+            (await File.ReadAllBytesAsync(streamedFills)).Should().Equal(
+                await File.ReadAllBytesAsync(oneShotFills));
+        });
+    }
+
+    [Fact]
+    public async Task OrderSectionStream_CancellationBetweenRows_KeepsOnlyWholeRows()
+    {
+        // The between-rows discipline the one-shot exports carry, pinned on
+        // the streamed pair: the cancellation fires between pages' rows, the
+        // header and the first rows stay whole on disk, no torn line.
+        using var cts = new CancellationTokenSource();
+        var page = new CancelAfterNList<Order>(
+            [
+                BuildOrder(
+                    id: "paper-1",
+                    status: OrderStatus.Filled,
+                    createdAt: BaseTime,
+                    updatedAt: BaseTime.AddMinutes(2),
+                    filledQuantity: 0.02m),
+                BuildOrder(
+                    id: "paper-2",
+                    status: OrderStatus.Submitted,
+                    createdAt: BaseTime,
+                    updatedAt: null,
+                    filledQuantity: 0m),
+            ],
+            cancelAfter: 1,
+            cts);
+
+        await WithTempDirectoryAsync(async directory =>
+        {
+            var ordersPath = Path.Combine(directory, "orders.csv");
+            var fillsPath = Path.Combine(directory, "fills.csv");
+
+            var stream = await Service.BeginOrderStreamAsync(ordersPath, fillsPath);
+            await using (stream)
+            {
+                await FluentActions.Awaiting(() => stream.AppendAsync(page, cts.Token))
+                    .Should().ThrowAsync<OperationCanceledException>();
+            }
+
+            (await File.ReadAllLinesAsync(ordersPath)).Should().Equal(
+            [
+                "id,exchange,symbol,side,type,price,quantity,filledQuantity,state,timeInForce,createdAt,updatedAt",
+                "paper-1,paper,BTC/USDT,Sell,Market,50100,0.02,0.02,Filled,GTC,2026-01-01T12:00:00.000Z,2026-01-01T12:02:00.000Z",
+            ]);
+            (await File.ReadAllLinesAsync(fillsPath)).Should().Equal(
+            [
+                "id,orderId,symbol,side,price,quantity,executedAt,fee",
+                "paper-1,paper-1,BTC/USDT,Sell,50100,0.02,2026-01-01T12:02:00.000Z,",
+            ]);
+        });
+    }
+
+    [Fact]
+    public async Task BeginOrderStreamAsync_NonexistentDirectory_FailsHonestly()
+    {
+        await FluentActions.Awaiting(() => Service.BeginOrderStreamAsync(
+                Path.Combine(Path.GetTempPath(), $"zt-missing-{Guid.NewGuid():N}", "orders.csv"),
+                Path.Combine(Path.GetTempPath(), $"zt-missing-{Guid.NewGuid():N}", "fills.csv")))
+            .Should().ThrowAsync<DirectoryNotFoundException>();
+    }
+
+    [Fact]
+    public async Task BeginOrderStreamAsync_SecondSectionFails_TheFirstWriterIsReleased()
+    {
+        // The orders section opened, the fills section's directory failed:
+        // the failed begin releases the orders writer honestly — the file
+        // deletes (a leaked handle would keep it locked).
+        await WithTempDirectoryAsync(async directory =>
+        {
+            var ordersPath = Path.Combine(directory, "orders.csv");
+            var fillsPath = Path.Combine(
+                Path.GetTempPath(),
+                $"zt-missing-{Guid.NewGuid():N}",
+                "fills.csv");
+
+            await FluentActions.Awaiting(() => Service.BeginOrderStreamAsync(ordersPath, fillsPath))
+                .Should().ThrowAsync<DirectoryNotFoundException>();
+
+            Action deleteOrders = () => File.Delete(ordersPath);
+            deleteOrders.Should().NotThrow("the failed fills open released the orders writer");
+        });
+    }
+
+    #endregion Order Stream (T-219)
+
     #region Format
 
     [Fact]
@@ -630,6 +769,22 @@ public sealed class CsvExportServiceTests
         finally
         {
             File.Delete(file);
+        }
+    }
+
+    private static async Task WithTempDirectoryAsync(Func<string, Task> testBody)
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            $"zettatrade-csv-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            await testBody(directory);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
         }
     }
 

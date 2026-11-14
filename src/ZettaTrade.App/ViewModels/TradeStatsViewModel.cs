@@ -37,9 +37,11 @@ using ZettaTrade.Infrastructure.Persistence;
 /// window's data sources: the traded surface's positions as one CSV, and
 /// the whole statement bundle (orders + fills + the fill-pair realized
 /// ledger + a balances snapshot, CSVs plus a JSON manifest) under the
-/// window's current filter — an empty range writes nothing, never a broken
-/// file. The statement is the raw record: its own fresh scan never gates
-/// on the tag lane, so the ledger rides every trade the filter scope saw.
+/// window's current filter — the order-side sections stream into their
+/// files page by page during the scan (T-219), and an empty range writes
+/// nothing, never a broken file. The statement is the raw record: its own
+/// fresh scan never gates on the tag lane, so the ledger rides every trade
+/// the filter scope saw.
 /// </summary>
 public sealed class TradeStatsViewModel : ReactiveObject
 {
@@ -499,13 +501,17 @@ public sealed class TradeStatsViewModel : ReactiveObject
     }
 
     /// <summary>
-    /// The statement export (T-210): one fresh full scan under the window's
-    /// current filter becomes the statement bundle — orders.csv, fills.csv,
-    /// realized-pnl.csv, balances.csv and the manifest. An empty range
-    /// exports nothing (the localized refusal, never a broken bundle); the
-    /// manifest is written last, so an interrupted write leaves no manifest
-    /// on disk. The balance snapshot rides the traded surface's served
-    /// state at export time.
+    /// The statement export (T-210, streamed since T-219): one fresh full
+    /// scan under the window's current filter becomes the statement bundle —
+    /// orders.csv, fills.csv, realized-pnl.csv, balances.csv and the
+    /// manifest. The order-side sections stream page by page straight into
+    /// their CSVs during the scan (a six-figure journal never materializes
+    /// the whole order list — the peak stays one page plus the realized
+    /// ledger), the realized ledger and the balances ride the end-of-scan
+    /// reads, and the manifest is written last, so an interrupted write
+    /// leaves no manifest on disk. An empty range exports nothing (the
+    /// localized refusal, never a broken bundle); the balance snapshot
+    /// rides the traded surface's served state at export time.
     /// </summary>
     private async Task<RxVoid> HandleExportStatementAsync(CancellationToken ct)
     {
@@ -519,30 +525,13 @@ public sealed class TradeStatsViewModel : ReactiveObject
                 return RxVoid.Default;
             }
 
-            // The fresh full scan: the bundle's orders collect whole (the
-            // fill-pair ledger needs the full pass), the accumulator books
-            // the realized rows on the way. The statement is the raw record:
-            // no tag lane here — the bundle carries every trade the filter
-            // scope saw, the lane only scopes the dashboard's aggregates.
-            var orders = new List<Order>();
-            var accumulator = new TradeStatsAccumulator();
-            OrderPageRow? last = null;
-            while (true)
+            // The first page is read before the save dialog: an empty range
+            // is refused before the user is ever asked for a destination
+            // (the localized refusal, never a broken bundle). One page of
+            // memory is the streaming shape's whole journal buffer.
+            var firstPage = await _query.ReadPageAsync(filter, null, PageSize, ct);
+            if (firstPage.Count == 0)
             {
-                var page = await _query.ReadPageAsync(filter, last?.Order, PageSize, ct);
-                if (page.Count == 0)
-                {
-                    break;
-                }
-
-                orders.AddRange(page.Select(row => row.Order));
-                accumulator.Ingest(page);
-                last = page[^1];
-            }
-
-            if (orders.Count == 0)
-            {
-                // The empty range: nothing is written, never a broken file.
                 _logger.LogInformation(
                     "Trade statistics window: the statement export found no orders in the filter");
                 ErrorMessage = _localization.GetString(StatementEmptyKey);
@@ -557,23 +546,58 @@ public sealed class TradeStatsViewModel : ReactiveObject
                 return RxVoid.Default;
             }
 
+            // The streaming bundle: the sections open (their headers land),
+            // the scan appends page by page, the accumulator books the
+            // realized rows on the way. The statement is the raw record:
+            // no tag lane here — the bundle carries every trade the filter
+            // scope saw, the lane only scopes the dashboard's aggregates.
+            var ordersCount = 0;
+            var accumulator = new TradeStatsAccumulator();
+            await using var session = await _statementExport.BeginAsync(
+                path,
+                new StatementExportHeader(
+                    SymbolFilter: filter.Symbol,
+                    ExchangeFilter: filter.Exchange,
+                    FromUtc: filter.From,
+                    ToUtc: filter.To,
+                    IsPaperFilter: filter.IsPaper),
+                ct);
+
+            var firstOrders = firstPage.Select(row => row.Order).ToArray();
+            await session.AppendOrdersPageAsync(firstOrders, ct);
+            accumulator.Ingest(firstPage);
+            ordersCount += firstOrders.Length;
+            var last = firstPage[^1];
+            while (true)
+            {
+                var page = await _query.ReadPageAsync(filter, last.Order, PageSize, ct);
+                if (page.Count == 0)
+                {
+                    break;
+                }
+
+                var pageOrders = page.Select(row => row.Order).ToArray();
+                await session.AppendOrdersPageAsync(pageOrders, ct);
+                accumulator.Ingest(page);
+                ordersCount += pageOrders.Length;
+                last = page[^1];
+            }
+
+            // The end-of-scan reads: the balance snapshot rides the traded
+            // surface's served state at export time, the accumulator hands
+            // over the booked ledger, and Complete closes the sections and
+            // writes the manifest LAST (the completeness marker).
             var balances = await _trading.GetBalancesAsync(ct);
-            var statement = new StatementExport(
+            var tail = new StatementExportTail(
                 GeneratedAt: DateTimeOffset.UtcNow,
-                SymbolFilter: filter.Symbol,
-                ExchangeFilter: filter.Exchange,
-                FromUtc: filter.From,
-                ToUtc: filter.To,
-                IsPaperFilter: filter.IsPaper,
-                Orders: orders,
                 RealizedTrades: accumulator.GetRealizedTrades(),
                 Balances: balances);
-            await _statementExport.WriteAsync(path, statement, ct);
+            await session.CompleteAsync(tail, ct);
             _logger.LogInformation(
                 "Trade statistics window: exported the statement bundle to {Path} ({Orders} orders, {Trades} realized trades)",
                 path,
-                orders.Count,
-                statement.RealizedTrades.Count);
+                ordersCount,
+                tail.RealizedTrades.Count);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

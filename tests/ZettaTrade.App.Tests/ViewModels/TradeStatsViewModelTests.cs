@@ -90,6 +90,47 @@ public sealed class TradeStatsViewModelTests
     private async Task ApplyAsync(TradeStatsViewModel viewModel) =>
         await viewModel.ApplyCommand.Execute(RxVoid.Default);
 
+    /// <summary>
+    /// The statement export session fake: it records the streamed pages, the
+    /// completion tail and the disposal, and can fault on demand — the VM's
+    /// happy path and its failure paths ride the same session shape the
+    /// real service keeps.
+    /// </summary>
+    private sealed class FakeStatementSession : IStatementExportSession
+    {
+        public List<IReadOnlyList<Order>> AppendedPages { get; } = [];
+
+        public StatementExportTail? CompletedTail { get; private set; }
+
+        public int Disposals { get; private set; }
+
+        /// <summary>When set, CompleteAsync fails with this exception (the tail write's storage fault).</summary>
+        public IOException? CompleteFault { get; set; }
+
+        public Task AppendOrdersPageAsync(IReadOnlyList<Order> page, CancellationToken cancellationToken = default)
+        {
+            AppendedPages.Add(page);
+            return Task.CompletedTask;
+        }
+
+        public Task CompleteAsync(StatementExportTail tail, CancellationToken cancellationToken = default)
+        {
+            if (CompleteFault is not null)
+            {
+                throw CompleteFault;
+            }
+
+            CompletedTail = tail;
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Disposals++;
+            return ValueTask.CompletedTask;
+        }
+    }
+
     #endregion Fixture
 
     #region Paged Scan
@@ -262,7 +303,7 @@ public sealed class TradeStatsViewModelTests
 
     #endregion Input Guardians
 
-    #region Exports (T-210)
+    #region Exports (T-210, T-219)
 
     private static Position LongPosition(string symbol = "BTC/USDT") => new()
     {
@@ -289,6 +330,13 @@ public sealed class TradeStatsViewModelTests
             context.SetOutput(path);
             return Task.CompletedTask;
         });
+
+    private void RouteStatementSession(FakeStatementSession session)
+    {
+        _statementExport
+            .BeginAsync(Arg.Any<string>(), Arg.Any<StatementExportHeader>(), Arg.Any<CancellationToken>())
+            .Returns(session);
+    }
 
     [Fact]
     public async Task ExportPositions_WritesTheTradedSurfacesPositionsToThePickedPath()
@@ -367,36 +415,44 @@ public sealed class TradeStatsViewModelTests
                 ["USDT"] = new Money(1_000m, "USDT"),
                 ["BTC"] = new Money(0.5m, "BTC"),
             });
+        var session = new FakeStatementSession();
+        RouteStatementSession(session);
+        var capturedHeader = default(StatementExportHeader);
+        _statementExport
+            .When(w => w.BeginAsync(
+                Arg.Any<string>(),
+                Arg.Any<StatementExportHeader>(),
+                Arg.Any<CancellationToken>()))
+            .Do(call => capturedHeader = call.ArgAt<StatementExportHeader>(1));
         var viewModel = CreateViewModel();
         viewModel.SymbolFilterText = " btc/usdt ";
         viewModel.VenueIndex = 1;
         PickStatementPath(viewModel, @"C:\exports\trade-statement.json");
-        var captured = default(StatementExport);
-        _statementExport
-            .When(w => w.WriteAsync(
-                Arg.Any<string>(),
-                Arg.Any<StatementExport>(),
-                Arg.Any<CancellationToken>()))
-            .Do(call => captured = call.ArgAt<StatementExport>(1));
 
         await viewModel.ExportStatementCommand.Execute(RxVoid.Default);
 
         viewModel.ErrorMessage.Should().BeNull();
-        await _statementExport.Received(1).WriteAsync(
+        await _statementExport.Received(1).BeginAsync(
             @"C:\exports\trade-statement.json",
-            Arg.Any<StatementExport>(),
+            Arg.Any<StatementExportHeader>(),
             Arg.Any<CancellationToken>());
-        captured.Should().NotBeNull();
-        captured!.Orders.Should().Equal(page.Select(row => row.Order),
+        capturedHeader.Should().NotBeNull();
+        capturedHeader!.SymbolFilter.Should().Be("BTC/USDT", "the filter echo carries the CORE spelling");
+        capturedHeader.ExchangeFilter.Should().BeNull();
+        capturedHeader.IsPaperFilter.Should().BeTrue("venue slot 1 is the paper tag");
+        capturedHeader.FromUtc.Should().BeNull();
+        capturedHeader.ToUtc.Should().BeNull();
+
+        // The scan's pages streamed into the session, in scan order.
+        session.AppendedPages.Should().HaveCount(1);
+        session.AppendedPages[0].Should().Equal(page.Select(row => row.Order),
             "the bundle carries the scan's whole order set");
-        captured.SymbolFilter.Should().Be("BTC/USDT", "the filter echo carries the CORE spelling");
-        captured.ExchangeFilter.Should().BeNull();
-        captured.IsPaperFilter.Should().BeTrue("venue slot 1 is the paper tag");
-        captured.FromUtc.Should().BeNull();
-        captured.ToUtc.Should().BeNull();
-        captured.Balances.Should().HaveCount(2);
-        captured.Balances["USDT"].Amount.Should().Be(1_000m);
-        var trade = captured.RealizedTrades.Should().ContainSingle().Subject;
+
+        // The tail rides the end-of-scan reads: the booked ledger and the
+        // balance snapshot.
+        session.CompletedTail.Should().NotBeNull();
+        var tail = session.CompletedTail!;
+        var trade = tail.RealizedTrades.Should().ContainSingle().Subject;
         trade.Quantity.Should().Be(1m);
         trade.EntryPrice.Should().Be(10m);
         trade.ExitPrice.Should().Be(12m);
@@ -409,6 +465,61 @@ public sealed class TradeStatsViewModelTests
         trade.ExchangeId.Should().Be("paper");
         trade.QuoteCurrency.Should().Be("USDT");
         trade.ClosedAt.Should().Be(BaseTime.AddMinutes(1));
+        tail.Balances.Should().HaveCount(2);
+        tail.Balances["USDT"].Amount.Should().Be(1_000m);
+
+        // The completed session's disposal is the using's quiet close.
+        session.Disposals.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ExportStatement_StreamsTheScanPageByPage_TheSectionsLeadTheReads()
+    {
+        // The bounded-memory pin (T-219): the export's reads and its section
+        // appends interleave — when page N+1 is read from the store, page
+        // N's rows are already appended into the session. No whole-journal
+        // list can live between the two: the scan's peak stays one page
+        // plus the realized ledger the accumulator books.
+        var page1 = new[]
+        {
+            Fill(OrderSide.Buy, 1m, 10m, 0, "o-1"),
+            Fill(OrderSide.Sell, 1m, 12m, 1, "o-2"),
+        };
+        var page2 = new[]
+        {
+            Fill(OrderSide.Buy, 1m, 9m, 2, "o-3"),
+            Fill(OrderSide.Sell, 1m, 11m, 3, "o-4"),
+        };
+        var session = new FakeStatementSession();
+        RouteStatementSession(session);
+        var pending = new Queue<IReadOnlyList<OrderPageRow>>([page1, page2]);
+        var appendsAtRead = new List<int>();
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                // The observation point: how many pages the session had
+                // already received when the store was asked for the next
+                // one.
+                appendsAtRead.Add(session.AppendedPages.Count);
+                return pending.TryDequeue(out var next) ? next : Array.Empty<OrderPageRow>();
+            });
+        var viewModel = CreateViewModel();
+        PickStatementPath(viewModel, @"C:\exports\trade-statement.json");
+
+        await viewModel.ExportStatementCommand.Execute(RxVoid.Default);
+
+        // Read #1 (the first page) precedes the session (the dialog is not
+        // answered yet); every later read happens only after the previous
+        // page was appended — page by page, never one whole list.
+        appendsAtRead.Should().Equal([0, 1, 2]);
+        session.AppendedPages.SelectMany(page => page).Select(order => order.Id)
+            .Should().Equal(["o-1", "o-2", "o-3", "o-4"],
+                "the sections receive the scan's pages in order");
+        session.CompletedTail.Should().NotBeNull("the scan ends with the manifest-carrying tail");
     }
 
     [Fact]
@@ -421,15 +532,44 @@ public sealed class TradeStatsViewModelTests
                 Arg.Any<CancellationToken>())
             .Returns(Array.Empty<OrderPageRow>());
         var viewModel = CreateViewModel();
-        PickStatementPath(viewModel, @"C:\exports\trade-statement.json");
+        var dialogOpens = 0;
+        viewModel.SaveStatementRequested.RegisterHandler(context =>
+        {
+            dialogOpens++;
+            context.SetOutput(@"C:\exports\trade-statement.json");
+            return Task.CompletedTask;
+        });
 
         await viewModel.ExportStatementCommand.Execute(RxVoid.Default);
 
         viewModel.ErrorMessage.Should().Be(
             "[Stats.StatementEmptyRange]",
             "an empty range exports nothing, never a broken bundle");
-        await _statementExport.DidNotReceiveWithAnyArgs().WriteAsync(
-            default!, Arg.Any<StatementExport>(), Arg.Any<CancellationToken>());
+        dialogOpens.Should().Be(0, "an empty range is refused before the save dialog opens");
+        await _statementExport.DidNotReceiveWithAnyArgs().BeginAsync(
+            default!, Arg.Any<StatementExportHeader>(), Arg.Any<CancellationToken>());
+        // The balance snapshot only rides a bundle that exists.
+        _trading.DidNotReceiveWithAnyArgs();
+    }
+
+    [Fact]
+    public async Task ExportStatement_CancelledDialog_OpensNoSections()
+    {
+        var page = new[] { Fill(OrderSide.Buy, 1m, 10m, 0, "o-1") };
+        _query.ReadPageAsync(
+                Arg.Any<OrderStatsFilter>(),
+                Arg.Any<Order?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(page, Array.Empty<OrderPageRow>());
+        var viewModel = CreateViewModel();
+        PickStatementPath(viewModel, null);
+
+        await viewModel.ExportStatementCommand.Execute(RxVoid.Default);
+
+        viewModel.ErrorMessage.Should().BeNull("a cancelled dialog is a quiet no-op, never an error");
+        await _statementExport.DidNotReceiveWithAnyArgs().BeginAsync(
+            default!, Arg.Any<StatementExportHeader>(), Arg.Any<CancellationToken>());
         // The balance snapshot only rides a bundle that exists.
         _trading.DidNotReceiveWithAnyArgs();
     }
@@ -445,12 +585,12 @@ public sealed class TradeStatsViewModelTests
 
         viewModel.ErrorMessage.Should().Be("[Stats.InvalidSymbol:btc / usdt]");
         _query.DidNotReceiveWithAnyArgs();
-        await _statementExport.DidNotReceiveWithAnyArgs().WriteAsync(
-            default!, Arg.Any<StatementExport>(), Arg.Any<CancellationToken>());
+        await _statementExport.DidNotReceiveWithAnyArgs().BeginAsync(
+            default!, Arg.Any<StatementExportHeader>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExportStatement_StorageFault_ReportsTheLocalizedFailure()
+    public async Task ExportStatement_StorageFault_ReportsTheLocalizedFailureAndDisposesTheSession()
     {
         var page = new[] { Fill(OrderSide.Buy, 1m, 10m, 0, "o-1") };
         _query.ReadPageAsync(
@@ -461,18 +601,20 @@ public sealed class TradeStatsViewModelTests
             .Returns(page, Array.Empty<OrderPageRow>());
         _trading.GetBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, Money> { ["USDT"] = new Money(100m, "USDT") });
-        _statementExport
-            .WriteAsync(Arg.Any<string>(), Arg.Any<StatementExport>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromException(new IOException("disk full")));
+        var session = new FakeStatementSession { CompleteFault = new IOException("disk full") };
+        RouteStatementSession(session);
         var viewModel = CreateViewModel();
         PickStatementPath(viewModel, @"C:\exports\trade-statement.json");
 
         await viewModel.ExportStatementCommand.Execute(RxVoid.Default);
 
         viewModel.ErrorMessage.Should().Be("[Stats.ExportFailedFormat:disk full]");
+        session.CompletedTail.Should().BeNull("the faulted tail never completes");
+        session.Disposals.Should().BeGreaterThanOrEqualTo(
+            1, "the abandoned session released its sections");
     }
 
-    #endregion Exports (T-210)
+    #endregion Exports (T-210, T-219)
 
     #region Tag Lane and Realized Table (T-211)
 

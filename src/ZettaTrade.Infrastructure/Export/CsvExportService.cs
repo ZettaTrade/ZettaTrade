@@ -255,6 +255,33 @@ public sealed class CsvExportService : ICsvExportService
             cancellationToken);
     }
 
+    /// <inheritdoc/>
+    public async Task<IOrderSectionStream> BeginOrderStreamAsync(
+        string ordersPath,
+        string fillsPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ordersPath);
+        ArgumentNullException.ThrowIfNull(fillsPath);
+
+        var ordersWriter = await OpenSectionAsync(ordersPath, OrdersHeader, cancellationToken);
+        StreamWriter fillsWriter;
+        try
+        {
+            fillsWriter = await OpenSectionAsync(fillsPath, FillsHeader, cancellationToken);
+        }
+        catch
+        {
+            // The orders section opened but the fills section failed:
+            // release the orders writer honestly before the failure
+            // propagates, never a leaked handle on a failed begin.
+            await ordersWriter.DisposeAsync();
+            throw;
+        }
+
+        return new OrderSectionStream(ordersWriter, fillsWriter);
+    }
+
     #endregion Public API
 
     #region Document Writing
@@ -349,6 +376,99 @@ public sealed class CsvExportService : ICsvExportService
     }
 
     #endregion Document Writing
+
+    #region Section Streaming (T-219)
+
+    /// <summary>
+    /// Open one statement section: the directory must exist (the same honest
+    /// <see cref="DirectoryNotFoundException"/> the one-shot exports raise),
+    /// the file opens (overwritten if present) and the header row lands
+    /// immediately — the section exists from its first byte and grows with
+    /// the scan.
+    /// </summary>
+    private static async Task<StreamWriter> OpenSectionAsync(
+        string path,
+        string[] header,
+        CancellationToken cancellationToken)
+    {
+        // The destination is a plain local path whose parent must already
+        // exist: a picked path under a nonexistent directory fails honestly
+        // here (DirectoryNotFoundException) instead of silently raising
+        // folders the user never asked for.
+        FileInfo info = new(path);
+        if (info.Directory is not { Exists: true })
+        {
+            throw new DirectoryNotFoundException(
+                $"The export destination directory does not exist: '{info.Directory?.FullName ?? path}'");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var stream = new FileStream(
+            path,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            StreamBufferSize,
+            useAsync: true);
+        StreamWriter? writer = null;
+        try
+        {
+            writer = new StreamWriter(stream, Utf8NoBom);
+            await WriteRowAsync(writer, header);
+            return writer;
+        }
+        catch
+        {
+            if (writer is not null)
+            {
+                await writer.DisposeAsync();
+            }
+            else
+            {
+                await stream.DisposeAsync();
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// One open order-section pair: each appended page writes its orders
+    /// rows into the orders file and its fills rows (the orders that carry
+    /// an execution) into the fills file — the same mappers the one-shot
+    /// exports speak, so the streamed bytes stay identical to theirs.
+    /// Disposal flushes and closes both; the rows already written stay on
+    /// disk.
+    /// </summary>
+    private sealed class OrderSectionStream(StreamWriter orders, StreamWriter fills) : IOrderSectionStream
+    {
+        /// <inheritdoc/>
+        public async Task AppendAsync(IReadOnlyList<Order> page, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(page);
+
+            foreach (var order in page)
+            {
+                // The cancellation point between rows: a cancelled token
+                // stops before the next row starts, never inside a line.
+                cancellationToken.ThrowIfCancellationRequested();
+                await WriteRowAsync(orders, OrderToRow(order));
+                if (HasExecution(order))
+                {
+                    await WriteRowAsync(fills, OrderToFillRow(order));
+                }
+            }
+        }
+
+        /// <summary>Flush and close both sections; the rows already written stay on disk.</summary>
+        public async ValueTask DisposeAsync()
+        {
+            await orders.DisposeAsync();
+            await fills.DisposeAsync();
+        }
+    }
+
+    #endregion Section Streaming (T-219)
 
     #region Row Mappers
 
