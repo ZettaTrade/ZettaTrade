@@ -23,13 +23,17 @@
         <!-- The column-sort headers: the quiet caption buttons over the
              header row's hairline. No Background rest — the generic kit's
              hover and focus stay alive; the press rides the strip's dim
-             step (the T-181 kit language). -->
+             step (the T-181 kit language). T-232: the stretch is explicit —
+             the Avalonia 12 fluent theme defaults every button to Left, so
+             the sort caption only rides its column's right edge (the data
+             columns' alignment) when the button fills the column. -->
         <Style Selector="Button.column-sort">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinHeight" Value="20" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
         </Style>
         <Style Selector="Button.column-sort:pointerover">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
@@ -39,12 +43,25 @@
         </Style>
 
         <!-- The row press target: the whole row is one button (a click
-             routes the symbol into the workspace). The hover affordance
-             reads Surface over the window background — the watchlist rows'
+             routes the symbol into the workspace). T-232's headless probe
+             named the missing stretch: Avalonia 12's fluent ControlTheme
+             carries HorizontalAlignment=Left on every button, so the T-195
+             content-alignment setter stretched only the row's CONTENT —
+             the button itself sat at its content width, every row at its
+             own width under the shared header plan. The row style owns
+             the stretch explicitly and trades the fluent chrome (the 1px
+             rounded border, the pressed scale squish) for the row
+             grammar's own look: the bottom hairline separator, square
+             corners, the opacity-dim press. The hover affordance reads
+             Surface over the window background — the watchlist rows'
              hover language. -->
         <Style Selector="Button.screener-row">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
         <Style Selector="Button.screener-row:pointerover">
@@ -52,6 +69,7 @@
         </Style>
         <Style Selector="Button.screener-row:pressed">
             <Setter Property="Opacity" Value="0.8" />
+            <Setter Property="RenderTransform" Value="none" />
         </Style>
 
         <!-- T-159: the change text tints by the 24h sign (the candle state
