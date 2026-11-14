@@ -6,6 +6,7 @@
         Classes="chrome"
         Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:AlertsViewModel"
+        AutomationProperties.AutomationId="AlertsWindow"
         Title="{loc:Localized Alert.Title}"
         Width="860" Height="640"
         WindowStartupLocation="CenterOwner"
@@ -223,6 +224,7 @@
             <Button Grid.Column="5"
                     Content="{loc:Localized Alert.Close}"
                     Click="OnCloseClick"
+                    AutomationProperties.AutomationId="AlertsCloseButton"
                     MinWidth="90"
                     Margin="8,0,0,0" />
         </Grid>

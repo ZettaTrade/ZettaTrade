@@ -144,7 +144,20 @@ public sealed class StatusBarViewModel : ReactiveObject
     public string SelectedExchangeName
     {
         get => _selectedExchangeName;
-        set => this.RaiseAndSetIfChanged(ref _selectedExchangeName, value);
+        set
+        {
+            if (value is null)
+            {
+                // The bind/init race's null write (T-225): a null is never
+                // a user choice — the standing exchange name stays (the
+                // switch pipeline is null-guarded anyway) and the deferred
+                // raise re-asserts it into the picker once its items exist.
+                SelectionReAssert.Later(this, nameof(SelectedExchangeName));
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _selectedExchangeName, value);
+        }
     }
 
     /// <summary>Display name of the active exchange (the chip's dynamic half).</summary>

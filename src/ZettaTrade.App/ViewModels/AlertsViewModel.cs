@@ -224,6 +224,17 @@ public sealed class AlertsViewModel : ReactiveObject
         get => _selectedKind;
         set
         {
+            if (value is null)
+            {
+                // The TwoWay SelectedItem bindings write null while their
+                // picker's items are still empty or coercing (the bind/init
+                // race, T-225): a null is never a user choice, so the
+                // standing option stays and one deferred raise pushes it
+                // back into the picker once its items exist.
+                SelectionReAssert.Later(this, nameof(SelectedKind));
+                return;
+            }
+
             if (_selectedKind == value)
             {
                 return;
@@ -254,7 +265,18 @@ public sealed class AlertsViewModel : ReactiveObject
     public AlertTriggerOption SelectedTrigger
     {
         get => _selectedTrigger;
-        set => this.RaiseAndSetIfChanged(ref _selectedTrigger, value);
+        set
+        {
+            if (value is null)
+            {
+                // The bind/init race's null write (T-225): the standing
+                // option stays, the deferred raise re-asserts it.
+                SelectionReAssert.Later(this, nameof(SelectedTrigger));
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _selectedTrigger, value);
+        }
     }
 
     /// <summary>The target-price spelling (Price kind; parsed and validated at submit).</summary>
@@ -284,6 +306,14 @@ public sealed class AlertsViewModel : ReactiveObject
         get => _selectedSource;
         set
         {
+            if (value is null)
+            {
+                // The bind/init race's null write (T-225): the standing
+                // option stays, the deferred raise re-asserts it.
+                SelectionReAssert.Later(this, nameof(SelectedSource));
+                return;
+            }
+
             if (_selectedSource == value)
             {
                 return;
@@ -301,7 +331,17 @@ public sealed class AlertsViewModel : ReactiveObject
     public string SelectedIndicatorName
     {
         get => _selectedIndicatorName;
-        set => this.RaiseAndSetIfChanged(ref _selectedIndicatorName, value);
+        set
+        {
+            if (value is null)
+            {
+                // The bind/init race's null write (T-225): a null is never
+                // a user choice, the standing name stays.
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _selectedIndicatorName, value);
+        }
     }
 
     /// <summary>The period spelling (IndicatorCross kind; parsed and validated at submit).</summary>
@@ -324,6 +364,14 @@ public sealed class AlertsViewModel : ReactiveObject
         get => _selectedReArm;
         set
         {
+            if (value is null)
+            {
+                // The bind/init race's null write (T-225): the standing
+                // option stays, the deferred raise re-asserts it.
+                SelectionReAssert.Later(this, nameof(SelectedReArm));
+                return;
+            }
+
             if (_selectedReArm == value)
             {
                 return;
@@ -347,11 +395,22 @@ public sealed class AlertsViewModel : ReactiveObject
     public AlertSoundOption SelectedSound
     {
         get => _selectedSound;
-        set => this.RaiseAndSetIfChanged(ref _selectedSound, value);
+        set
+        {
+            if (value is null)
+            {
+                // The bind/init race's null write (T-225): the standing
+                // option stays, the deferred raise re-asserts it.
+                SelectionReAssert.Later(this, nameof(SelectedSound));
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _selectedSound, value);
+        }
     }
 
-    /// <summary>True while the Cooldown re-arm mode is selected (its window field shows).</summary>
-    public bool IsCooldownMode => SelectedReArm.Mode == AlertReArmMode.Cooldown;
+    /// <summary>True while the Cooldown re-arm mode is selected (its window field shows). Null-tolerant: the bind/init race may transiently leave the selection unset (T-225).</summary>
+    public bool IsCooldownMode => SelectedReArm?.Mode == AlertReArmMode.Cooldown;
 
     /// <summary>The user's free-text note (carried as-is).</summary>
     public string NoteText
@@ -360,25 +419,25 @@ public sealed class AlertsViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _noteText, value);
     }
 
-    /// <summary>True while the Price kind is selected (its fields visible, the percent fields hidden).</summary>
-    public bool IsPriceKind => SelectedKind.Kind == PriceAlertKind.Price;
+    /// <summary>True while the Price kind is selected (its fields visible, the percent fields hidden). Null-tolerant: the bind/init race may transiently leave the selection unset (T-225) — the flags answer false, the layout settles once the picker matches.</summary>
+    public bool IsPriceKind => SelectedKind?.Kind == PriceAlertKind.Price;
 
     /// <summary>True while the PercentMove kind is selected (its fields visible, the price fields hidden).</summary>
-    public bool IsPercentKind => SelectedKind.Kind == PriceAlertKind.PercentMove;
+    public bool IsPercentKind => SelectedKind?.Kind == PriceAlertKind.PercentMove;
 
     /// <summary>True while the selected kind reads the trigger edge vocabulary (Price and IndicatorCross; the PercentMove kind leaves the neutral At slot untouchable).</summary>
     public bool ShowsTrigger => IsPriceKind || IsIndicatorKind;
 
     /// <summary>True while the IndicatorCross kind is selected (T-203: its indicator fields visible, the others hidden).</summary>
-    public bool IsIndicatorKind => SelectedKind.Kind == PriceAlertKind.IndicatorCross;
+    public bool IsIndicatorKind => SelectedKind?.Kind == PriceAlertKind.IndicatorCross;
 
     /// <summary>True while the cross reads the indicator's own value against the stored level (the level field shows).</summary>
     public bool IsIndicatorValueSource =>
-        IsIndicatorKind && SelectedSource.Source == AlertCrossSource.IndicatorValue;
+        IsIndicatorKind && SelectedSource?.Source == AlertCrossSource.IndicatorValue;
 
     /// <summary>True while the cross reads the close against the indicator's value (the level field hides).</summary>
     public bool IsPriceSource =>
-        IsIndicatorKind && SelectedSource.Source == AlertCrossSource.Price;
+        IsIndicatorKind && SelectedSource?.Source == AlertCrossSource.Price;
 
     #endregion Editor Form
 
@@ -567,6 +626,21 @@ public sealed class AlertsViewModel : ReactiveObject
         draft = null!;
         inputError = null;
 
+        // The pickers' facts must exist to compose anything: the bind/init
+        // race's null writes are rejected by the setters, so an unset
+        // selection can only arrive through a writer that bypassed them
+        // (T-225) — the composition refuses with its own line, never a
+        // silently defaulted draft.
+        if (SelectedKind is not { } kindOption ||
+            SelectedTrigger is not { } triggerOption ||
+            SelectedSource is not { } sourceOption ||
+            SelectedReArm is not { } reArmOption ||
+            SelectedSound is not { } soundOption)
+        {
+            inputError = _localization.GetString(InvalidateOperationKey, "the editor's pickers are still settling");
+            return false;
+        }
+
         Symbol symbol;
         try
         {
@@ -589,7 +663,7 @@ public sealed class AlertsViewModel : ReactiveObject
         var window = 0;
         AlertIndicatorSpec? indicator = null;
 
-        var reArm = SelectedReArm.Mode;
+        var reArm = reArmOption.Mode;
         var cooldown = 0;
         if (reArm == AlertReArmMode.Cooldown &&
             (!int.TryParse(_cooldownText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out cooldown) ||
@@ -599,7 +673,7 @@ public sealed class AlertsViewModel : ReactiveObject
             return false;
         }
 
-        switch (SelectedKind.Kind)
+        switch (kindOption.Kind)
         {
             case PriceAlertKind.Price:
                 if (!decimal.TryParse(_targetText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out target))
@@ -640,14 +714,14 @@ public sealed class AlertsViewModel : ReactiveObject
                 }
 
                 var level = 0m;
-                if (SelectedSource.Source == AlertCrossSource.IndicatorValue &&
+                if (sourceOption.Source == AlertCrossSource.IndicatorValue &&
                     !decimal.TryParse(_levelText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out level))
                 {
                     inputError = _localization.GetString(InvalidateLevelKey, _levelText);
                     return false;
                 }
 
-                indicator = new AlertIndicatorSpec(_selectedIndicatorName, period, SelectedSource.Source, level);
+                indicator = new AlertIndicatorSpec(_selectedIndicatorName, period, sourceOption.Source, level);
                 break;
 
             default:
@@ -657,8 +731,8 @@ public sealed class AlertsViewModel : ReactiveObject
 
         draft = new AlertDraft(
             SymbolName: symbol.Normalized,
-            Kind: SelectedKind.Kind,
-            Trigger: SelectedTrigger.Trigger,
+            Kind: kindOption.Kind,
+            Trigger: triggerOption.Trigger,
             TargetPrice: target,
             ThresholdPercent: percent,
             WindowMinutes: window,
@@ -666,7 +740,7 @@ public sealed class AlertsViewModel : ReactiveObject
             Indicator: indicator,
             ReArm: reArm,
             CooldownMinutes: cooldown,
-            Sound: SelectedSound.Sound);
+            Sound: soundOption.Sound);
         return true;
     }
 
