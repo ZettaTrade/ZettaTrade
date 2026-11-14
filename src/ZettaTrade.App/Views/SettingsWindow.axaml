@@ -1418,24 +1418,26 @@
                                                 VerticalAlignment="Center"
                                                 Spacing="{StaticResource SpaceS}">
                                         <!-- The transfer pair rides the chrome kit's icon
-                                             button in its framed composition (T-232): the
-                                             free-standing action reads as a button at rest
-                                             through the family's hairline outline, the
-                                             hover/press answer with the kit's tint steps
-                                             and the Highlight stroke. The chevron Path
-                                             carries the flow direction like the title-bar
-                                             strip's glyphs (explicit strokes, no
-                                             inheritance chain); the readable captions ride
-                                             the automation name and the tooltip (assistive
-                                             tech and hover alike) — the glyph alone never
-                                             carries meaning. -->
+                                             button in its framed chip composition (T-232,
+                                             the review round): the free-standing action
+                                             reads as a button at rest through the Surface
+                                             fill under the family's hairline, the hover
+                                             answers with the Highlight stroke, the press
+                                             dims the chip. The chevron Path carries the
+                                             flow direction like the title-bar strip's
+                                             glyphs (explicit strokes, no inheritance
+                                             chain; the 2px step is the bold weight the
+                                             mockup round chose); the readable captions
+                                             ride the automation name and the tooltip
+                                             (assistive tech and hover alike) — the glyph
+                                             alone never carries meaning. -->
                                         <Button Classes="icon framed"
                                                 Width="34" Height="30" Padding="0"
                                                 ToolTip.Tip="{loc:Localized Settings.Pairs.Hide}"
                                                 AutomationProperties.Name="{loc:Localized Settings.Pairs.Hide}"
                                                 Command="{Binding HidePairCommand}">
                                             <Path Stretch="None"
-                                                  StrokeThickness="1.5"
+                                                  StrokeThickness="2"
                                                   Stroke="{DynamicResource TextPrimary}"
                                                   Data="M 4.5 2.5 L 9.5 6 L 4.5 9.5" />
                                         </Button>
@@ -1445,7 +1447,7 @@
                                                 AutomationProperties.Name="{loc:Localized Settings.Pairs.Reveal}"
                                                 Command="{Binding RevealPairCommand}">
                                             <Path Stretch="None"
-                                                  StrokeThickness="1.5"
+                                                  StrokeThickness="2"
                                                   Stroke="{DynamicResource TextPrimary}"
                                                   Data="M 9.5 2.5 L 4.5 6 L 9.5 9.5" />
                                         </Button>
