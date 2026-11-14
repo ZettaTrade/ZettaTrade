@@ -324,6 +324,9 @@
   <data name="Settings.Section.Port" xml:space="preserve">
     <value>IMPORT / EXPORT</value>
   </data>
+  <data name="Settings.Section.Backup" xml:space="preserve">
+    <value>PROFILE BACKUP</value>
+  </data>
   <data name="Port.Export" xml:space="preserve">
     <value>Export settings…</value>
   </data>
@@ -404,6 +407,84 @@
   </data>
   <data name="Port.Error.WrongType" xml:space="preserve">
     <value>The file carries a value that does not fit what it is a value of. Nothing was changed — nothing was guessed or defaulted.</value>
+  </data>
+  <data name="Backup.Backup" xml:space="preserve">
+    <value>Back up profile…</value>
+  </data>
+  <data name="Backup.Hint" xml:space="preserve">
+    <value>Writes one archive with your settings and data stores — the order history, the realized PnL, the candle cache, the chart drawings, the AI chat history and the portfolio-value history. Secrets and API keys are never included.</value>
+  </data>
+  <data name="Backup.Restore" xml:space="preserve">
+    <value>Restore profile…</value>
+  </data>
+  <data name="Backup.Restore.Hint" xml:space="preserve">
+    <value>Puts a backup archive back over the live profile: every listed file is replaced whole behind your confirmation. The archive carries no secrets, so API keys need re-entry after a restore.</value>
+  </data>
+  <data name="Backup.PreviewHeader" xml:space="preserve">
+    <value>This restore would replace:</value>
+  </data>
+  <data name="Backup.Apply" xml:space="preserve">
+    <value>Apply restore</value>
+  </data>
+  <data name="Backup.Entry.Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Backup.Entry.Orders" xml:space="preserve">
+    <value>Order history</value>
+  </data>
+  <data name="Backup.Entry.Pnl" xml:space="preserve">
+    <value>Realized PnL</value>
+  </data>
+  <data name="Backup.Entry.Candles" xml:space="preserve">
+    <value>Candle cache</value>
+  </data>
+  <data name="Backup.Entry.Drawings" xml:space="preserve">
+    <value>Chart drawings</value>
+  </data>
+  <data name="Backup.Entry.Chat" xml:space="preserve">
+    <value>AI chat history</value>
+  </data>
+  <data name="Backup.Entry.PortfolioValue" xml:space="preserve">
+    <value>Portfolio-value history</value>
+  </data>
+  <data name="Backup.Row.Bytes" xml:space="preserve">
+    <value>Size: {0}</value>
+  </data>
+  <data name="Backup.Status.BackupDone" xml:space="preserve">
+    <value>The profile was backed up to {0}.</value>
+  </data>
+  <data name="Backup.Status.RestoreDone" xml:space="preserve">
+    <value>The restore applied; every listed file was replaced and the restored state is live.</value>
+  </data>
+  <data name="Backup.Status.RestoreDeclined" xml:space="preserve">
+    <value>The restore was declined — nothing changed.</value>
+  </data>
+  <data name="Backup.Error.BackupFailed" xml:space="preserve">
+    <value>The backup failed; nothing was written. See the log for details.</value>
+  </data>
+  <data name="Backup.Error.RestoreFailed" xml:space="preserve">
+    <value>The restore was rejected.</value>
+  </data>
+  <data name="Backup.Error.Malformed" xml:space="preserve">
+    <value>The file is not a readable backup archive.</value>
+  </data>
+  <data name="Backup.Error.Schema" xml:space="preserve">
+    <value>The file is not a ZettaTrade profile backup (unknown schema).</value>
+  </data>
+  <data name="Backup.Error.Version" xml:space="preserve">
+    <value>The archive's schema version is not supported. ZettaTrade cannot guess the meaning of a foreign version — nothing was changed.</value>
+  </data>
+  <data name="Backup.Error.Manifest" xml:space="preserve">
+    <value>The archive does not match its manifest (a missing or foreign entry, a size mismatch, or the archive changed since the preview). Nothing was changed.</value>
+  </data>
+  <data name="Backup.Error.Empty" xml:space="preserve">
+    <value>The archive validates but carries nothing to restore.</value>
+  </data>
+  <data name="Backup.Error.Locked" xml:space="preserve">
+    <value>A data store the restore would replace is held open by an operation in flight. Nothing was changed — wait for the operation to finish and retry.</value>
+  </data>
+  <data name="Backup.RestoreConfirm" xml:space="preserve">
+    <value>Replace the live profile files with the archive's snapshots? The settings, the order history, the realized PnL, the candle cache, the chart drawings, the AI chat history and the portfolio-value history return to the backup's state. Secrets and API keys stay untouched.</value>
   </data>
   <data name="Order.Buy" xml:space="preserve">
     <value>Buy</value>

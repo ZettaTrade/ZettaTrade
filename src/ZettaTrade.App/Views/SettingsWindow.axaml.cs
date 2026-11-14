@@ -32,6 +32,9 @@ public partial class SettingsWindow : ReactiveWindow<SettingsViewModel>
     /// <summary>The export file's suggested name: the app name (the picker appends its extension).</summary>
     private const string ExportSuggestedFileName = "zettatrade-settings";
 
+    /// <summary>The backup archive's suggested name: the app name (the picker appends its extension).</summary>
+    private const string BackupSuggestedFileName = "zettatrade-profile";
+
     /// <summary>
     /// The shared hotkey manager (T-102) the Hotkeys tab binds: an Avalonia
     /// styled property set by the opener (the app-lifetime singleton behind
@@ -161,5 +164,49 @@ public partial class SettingsWindow : ReactiveWindow<SettingsViewModel>
         }
 
         await ViewModel.ResetToDefaultsAsync();
+    }
+
+    private void OnBackupClick(object? sender, RoutedEventArgs e) =>
+        Observable
+            .FromAsync(BackupRouteAsync)
+            .Subscribe(
+                _ => { },
+                ex => Log.Error(ex, "Failed to run the profile backup"));
+
+    private async Task BackupRouteAsync()
+    {
+        if (ViewModel?.IsBackupAvailable != true)
+        {
+            return;
+        }
+
+        var destination = await ProfileBackupFilePicker.PickSaveAsync(this, BackupSuggestedFileName);
+        if (destination is not null)
+        {
+            await ViewModel.BackupToFileAsync(destination);
+        }
+    }
+
+    private void OnRestoreClick(object? sender, RoutedEventArgs e) =>
+        Observable
+            .FromAsync(RestoreRouteAsync)
+            .Subscribe(
+                _ => { },
+                ex => Log.Error(ex, "Failed to read the archive the restore picked"));
+
+    private async Task RestoreRouteAsync()
+    {
+        if (ViewModel?.IsBackupAvailable != true)
+        {
+            return;
+        }
+
+        var source = await ProfileBackupFilePicker.PickOpenAsync(this);
+        if (source is null)
+        {
+            return;
+        }
+
+        await ViewModel.DraftRestoreFromFileAsync(source);
     }
 }

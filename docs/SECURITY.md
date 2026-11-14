@@ -194,6 +194,29 @@ the Windows archive, a hardened-runtime + notarization flow for the macOS ones, 
 credentials held in machine/CI secret storage of the `ISecretStore` class (never plaintext,
 never in the repository) and this note updated to the signed reality.
 
+## Profile backup (T-215)
+
+The profile backup (`ZettaTrade.Infrastructure/Backup/ProfileBackupService.cs`) writes and
+restores a user-chosen archive of the stored profile — the settings file and the six SQLite
+stores. Its security posture is structural, not conventional:
+
+- **Secrets are absent by construction.** The archive is built from an explicit entry list —
+  seven named files, each resolved through `ConfigPathResolver`. There is no directory walk
+  that could sweep in anything else, and `secrets.enc` (the `ISecretStore` backing file) is
+  not on that list and never enters a backup. The service takes no `ISecretStore` dependency
+  at all. API keys therefore need re-entry after a restore; the restore's confirmation text
+  says so.
+- **The archive is user data, not a trust boundary.** It is written to a user-picked path and
+  the user is free to share it; treat a received archive like any received file. On restore
+  it is untrusted input: the manifest is an allowlist (no traversal, no foreign entries, a
+  byte-size cross-check, a bidirectional zip-vs-manifest match), the schema and version must
+  match exactly what this build ships, and every mismatch is a typed refusal that changes
+  nothing.
+- **The restore replaces whole files only** behind a typed human confirmation
+  (`IConfirmationService`, key `Backup.RestoreConfirm`), after an exclusive-access pre-flight
+  on every store it would replace. Each landed file is whole; a mid-flight I/O failure is
+  reported as a failure, never masked as success.
+
 ## Audit log
 
 - 2026-11-06 — T-117 one-shot full-history audit: gitleaks 8.24.3 and 8.30.1, committed

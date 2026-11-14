@@ -260,12 +260,12 @@ public sealed class HeadlessLayoutBoundsTests
     /// <summary>
     /// The T-223 fold fact: every page's card headers are real toggles —
     /// the four approved defaults open (the appearance card, the
-    /// indicators page's only card, MCP, pairs), five collapsed — and
+    /// indicators page's only card, MCP, pairs), six collapsed — and
     /// flipping one unfolds its body: the one-way IsChecked binding drives
     /// the body's visibility while the checked style rotates the chevron
     /// down. The walk rides the pages: the TabControl materializes one
-    /// page's content at a time, so the nine toggles exist three at a
-    /// time (3 + 1 + 3 + 2 across the four pages).
+    /// page's content at a time, so the ten toggles exist page by page
+    /// (3 + 1 + 4 + 2 across the four pages).
     /// </summary>
     [Fact]
     public async Task TheSectionToggles_FoldTheCards()
@@ -284,7 +284,7 @@ public sealed class HeadlessLayoutBoundsTests
                     Array.Empty<string>()),
                 ("Settings.Tab.Integrations",
                     new[] { "McpSectionToggle" },
-                    new[] { "AiSectionToggle", "PortSectionToggle" }),
+                    new[] { "AiSectionToggle", "PortSectionToggle", "BackupSectionToggle" }),
                 ("Settings.Tab.Workspace",
                     new[] { "PairsSectionToggle" },
                     new[] { "HotkeysSectionToggle" }),
@@ -316,7 +316,7 @@ public sealed class HeadlessLayoutBoundsTests
                 });
             }
 
-            total.Should().Be(9, "every card header folds: the pages materialize nine toggles together");
+            total.Should().Be(10, "every card header folds: the pages materialize ten toggles together");
 
             // The fold itself: the appearance page's theme-folder card opens
             // collapsed, so the flip makes the whole mechanics measurable —

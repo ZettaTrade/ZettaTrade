@@ -14,6 +14,7 @@ using ZettaTrade.App.Services;
 using ZettaTrade.Charting;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Backup;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Shell;
 using ZettaTrade.UI.Extensions;
@@ -92,6 +93,26 @@ public sealed class SettingsViewModel : ReactiveObject
     private const string PortErrorUnknownEntryKey = "Port.Error.UnknownEntry";
     private const string PortErrorWrongTypeKey = "Port.Error.WrongType";
     private const string PortImportNoChangeKey = "Port.ImportNoChange";
+
+    /// <summary>The localization keys the profile backup's outcomes render through (values composed at event time).</summary>
+    private const string BackupDoneKey = "Backup.Status.BackupDone";
+    private const string BackupRestoreDoneKey = "Backup.Status.RestoreDone";
+    private const string BackupRestoreDeclinedKey = "Backup.Status.RestoreDeclined";
+
+    /// <summary>The per-action failure lines (each names its own action; nothing else composes).</summary>
+    private const string BackupFailedKey = "Backup.Error.BackupFailed";
+    private const string BackupRestoreFailedKey = "Backup.Error.RestoreFailed";
+
+    /// <summary>The per-reason rejection lines the restore's validation surfaces.</summary>
+    private const string BackupErrorMalformedKey = "Backup.Error.Malformed";
+    private const string BackupErrorSchemaKey = "Backup.Error.Schema";
+    private const string BackupErrorVersionKey = "Backup.Error.Version";
+    private const string BackupErrorManifestKey = "Backup.Error.Manifest";
+    private const string BackupErrorEmptyKey = "Backup.Error.Empty";
+    private const string BackupErrorLockedKey = "Backup.Error.Locked";
+
+    /// <summary>The preview row's byte-size line ({0} is the human-readable size).</summary>
+    private const string BackupRowBytesKey = "Backup.Row.Bytes";
 
     #endregion Constants
 
@@ -550,6 +571,59 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>True while a port outcome line shows; drives the status row's visibility.</summary>
     public bool HasPortStatusText => _portStatusText is not null;
 
+    /// <summary>Whether the profile backup surface (T-215) is wired at all: the DI composition always passes it; the tests may omit it.</summary>
+    public bool IsBackupAvailable => _profileBackup is not null && _confirmations is not null;
+
+    /// <summary>The pre-localized restore preview rows of the last validated archive draft (one per restorable entry).</summary>
+    public ObservableCollection<BackupPreviewRow> RestorePreview { get; } = [];
+
+    /// <summary>Whether the restore preview is on screen (a validated plan is pending the user's apply).</summary>
+    public bool IsRestorePreviewVisible
+    {
+        get => _isRestorePreviewVisible;
+        set => this.RaiseAndSetIfChanged(ref _isRestorePreviewVisible, value);
+    }
+
+    /// <summary>The restore's rejection line (localized at event time); null while the last draft was accepted.</summary>
+    public string? RestoreErrorText
+    {
+        get => _restoreErrorText;
+        private set
+        {
+            if (string.Equals(_restoreErrorText, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _restoreErrorText = value;
+            this.RaisePropertyChanged(nameof(RestoreErrorText));
+            this.RaisePropertyChanged(nameof(HasRestoreError));
+        }
+    }
+
+    /// <summary>True while the last restore draft was rejected; drives the error row's visibility.</summary>
+    public bool HasRestoreError => _restoreErrorText is not null;
+
+    /// <summary>The backup's outcome line (backup done, restore done, declined); null while nothing happened this open.</summary>
+    public string? BackupStatusText
+    {
+        get => _backupStatusText;
+        private set
+        {
+            if (string.Equals(_backupStatusText, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _backupStatusText = value;
+            this.RaisePropertyChanged(nameof(BackupStatusText));
+            this.RaisePropertyChanged(nameof(HasBackupStatusText));
+        }
+    }
+
+    /// <summary>True while a backup outcome line shows; drives the status row's visibility.</summary>
+    public bool HasBackupStatusText => _backupStatusText is not null;
+
     #endregion Properties
 
     #region Commands
@@ -596,6 +670,14 @@ public sealed class SettingsViewModel : ReactiveObject
     /// subscriber re-applies live (the T-053 canon).
     /// </summary>
     public ReactiveCommand<RxVoid, RxVoid> ApplyImportCommand { get; }
+
+    /// <summary>
+    /// Apply the pending (already-validated) restore plan: enabled while the
+    /// preview is on screen; the apply runs behind the typed human
+    /// confirmation the backup service itself requests (the destructive
+    /// batch replaces the live profile files).
+    /// </summary>
+    public ReactiveCommand<RxVoid, RxVoid> ApplyRestoreCommand { get; }
 
     #endregion Commands
 
@@ -799,6 +881,21 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>The port's outcome line as last composed.</summary>
     private string? _portStatusText;
 
+    /// <summary>The profile backup service (T-215): archive the profile, restore it back; null in tests without the surface.</summary>
+    private readonly ProfileBackupService? _profileBackup;
+
+    /// <summary>The validated restore plan pending the user's apply (null until a draft is accepted).</summary>
+    private ProfileBackupRestorePlan? _pendingRestorePlan;
+
+    /// <summary>The restore preview visibility (the apply command rides it).</summary>
+    private bool _isRestorePreviewVisible;
+
+    /// <summary>The restore's rejection line as last composed.</summary>
+    private string? _restoreErrorText;
+
+    /// <summary>The backup's outcome line as last composed.</summary>
+    private string? _backupStatusText;
+
     #endregion Private Fields
 
     #region Constructor
@@ -853,6 +950,7 @@ public sealed class SettingsViewModel : ReactiveObject
         IObservable<IReadOnlyList<ThemeFileLoadError>>? themeLoadErrors = null,
         SettingsPortService? settingsPort = null,
         IConfirmationService? confirmations = null,
+        ProfileBackupService? profileBackup = null,
         ISecretStore? secrets = null)
     {
         _settings = settings;
@@ -867,6 +965,7 @@ public sealed class SettingsViewModel : ReactiveObject
         _logger = logger;
         _settingsPort = settingsPort;
         _confirmations = confirmations;
+        _profileBackup = profileBackup;
         _secrets = secrets;
 
         // The plugin surface is settled at construction (the scan runs at
@@ -1184,6 +1283,14 @@ public sealed class SettingsViewModel : ReactiveObject
         ApplyImportCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
             (_, cancellationToken) => ApplyImportCoreAsync(cancellationToken),
             this.WhenAnyValue(vm => vm.IsImportPreviewVisible));
+
+        // The profile restore's apply gate (T-215): the same preview-then-apply
+        // control as the settings import — it enables only while a validated
+        // plan is pending, and the apply runs behind the typed human
+        // confirmation the backup service itself requests.
+        ApplyRestoreCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, cancellationToken) => ApplyRestoreCoreAsync(cancellationToken),
+            this.WhenAnyValue(vm => vm.IsRestorePreviewVisible));
 
         ResetAppearanceSelections();
     }
@@ -1669,6 +1776,170 @@ public sealed class SettingsViewModel : ReactiveObject
     }
 
     #endregion Settings port (T-100)
+
+    #region Profile backup (T-215)
+
+    /// <summary>
+    /// Archive the user's profile to the user-picked local path (the write
+    /// itself is the backup service's work): one zip carries the manifest
+    /// plus the settings file and every store snapshot; secrets are
+    /// structurally absent from the entry list. An outcome line renders the
+    /// destination or the failure; the file system failure spears the
+    /// status, the live profile stays untouched.
+    /// </summary>
+    public async Task BackupToFileAsync(string filePath, CancellationToken ct = default)
+    {
+        if (_profileBackup is null)
+        {
+            return;
+        }
+
+        ClearRestoreDraft();
+        try
+        {
+            await _profileBackup.BackupToFileAsync(filePath, ct);
+            BackupStatusText = _localization.GetString(BackupDoneKey, filePath);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to back the profile up to {Path}", filePath);
+            BackupStatusText = _localization.GetString(BackupFailedKey);
+        }
+    }
+
+    /// <summary>
+    /// Draft the restore from the archive the view picked: the validation
+    /// pass (schema, version, the manifest allowlist, the zip cross-check —
+    /// no defaults ever substituted) fills the pre-localized preview when it
+    /// passes and becomes the localized rejection line when it does not.
+    /// Nothing applies here.
+    /// </summary>
+    public async Task DraftRestoreFromFileAsync(string archivePath, CancellationToken ct = default)
+    {
+        if (_profileBackup is null)
+        {
+            return;
+        }
+
+        // A fresh draft starts every outcome surface over: the previous
+        // preview (and its pending plan) dies at once.
+        ClearRestoreDraft();
+        try
+        {
+            var plan = _profileBackup.DraftRestore(archivePath);
+            _pendingRestorePlan = plan;
+
+            foreach (var row in plan.Rows)
+            {
+                RestorePreview.Add(new BackupPreviewRow(
+                    _localization.GetString(row.LabelKey),
+                    _localization.GetString(BackupRowBytesKey, FormatSize(row.Bytes))));
+            }
+
+            IsRestorePreviewVisible = true;
+        }
+        catch (ProfileBackupRestoreException exception)
+        {
+            _logger.LogWarning(exception, "The profile restore draft was rejected");
+            RestoreErrorText = _localization.GetString(BackupErrorTextKeyOf(exception.Reason));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            // Everything typed above is a validation reject; anything here is
+            // a real failure (an I/O error under the draft) — the generic
+            // honesty line speaks, never a specific claim the failure does
+            // not support.
+            _logger.LogError(exception, "Failed to draft the profile restore");
+            RestoreErrorText = _localization.GetString(BackupRestoreFailedKey);
+        }
+    }
+
+    /// <summary>
+    /// Apply the pending restore plan (the preview has already shown it):
+    /// the typed human confirmation gates the destructive batch (a decline
+    /// renders the honest declined line and writes nothing), then the
+    /// service re-validates the SAME archive and replaces exactly what it
+    /// described. The plan dies after applying (a second application is a
+    /// fresh preview's business).
+    /// </summary>
+    private async Task<RxVoid> ApplyRestoreCoreAsync(CancellationToken ct)
+    {
+        if (_profileBackup is null || _confirmations is null)
+        {
+            return RxVoid.Default;
+        }
+
+        var plan = _pendingRestorePlan;
+        if (plan is null)
+        {
+            return RxVoid.Default;
+        }
+
+        ClearRestoreDraft();
+        try
+        {
+            var ran = await _profileBackup.RestoreAsync(plan, _confirmations, ct);
+            BackupStatusText = _localization.GetString(ran ? BackupRestoreDoneKey : BackupRestoreDeclinedKey);
+        }
+        catch (ProfileBackupRestoreException exception)
+        {
+            _logger.LogWarning(exception, "The profile restore was rejected");
+            RestoreErrorText = _localization.GetString(BackupErrorTextKeyOf(exception.Reason));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply the profile restore");
+            BackupStatusText = _localization.GetString(BackupRestoreFailedKey);
+        }
+
+        return RxVoid.Default;
+    }
+
+    /// <summary>The typed rejection reason → its localized line (every key lives in both cultures).</summary>
+    private static string BackupErrorTextKeyOf(ProfileBackupErrorReason reason) => reason switch
+    {
+        ProfileBackupErrorReason.MalformedArchive => BackupErrorMalformedKey,
+        ProfileBackupErrorReason.UnknownSchema => BackupErrorSchemaKey,
+        ProfileBackupErrorReason.UnsupportedVersion => BackupErrorVersionKey,
+        ProfileBackupErrorReason.ManifestMismatch => BackupErrorManifestKey,
+        ProfileBackupErrorReason.NothingRestorable => BackupErrorEmptyKey,
+        ProfileBackupErrorReason.LiveStoreLocked => BackupErrorLockedKey,
+        _ => BackupRestoreFailedKey,
+    };
+
+    /// <summary>Hide + empty the pending draft (the preview, the plan and the error line).</summary>
+    private void ClearRestoreDraft()
+    {
+        _pendingRestorePlan = null;
+        RestorePreview.Clear();
+        IsRestorePreviewVisible = false;
+        RestoreErrorText = null;
+    }
+
+    /// <summary>
+    /// Human-readable byte size for the preview rows (invariant digits; the
+    /// unit suffixes are culture-neutral symbols, not localized words).
+    /// </summary>
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        >= 1L << 20 => string.Create(CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 20):F1} MB"),
+        >= 1L << 10 => string.Create(CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 10):F1} KB"),
+        _ => string.Create(CultureInfo.InvariantCulture, $"{bytes} B"),
+    };
+
+    #endregion Profile backup (T-215)
 
     #endregion Public Methods
 
@@ -2221,4 +2492,14 @@ public sealed class SettingsViewModel : ReactiveObject
 
     #endregion Private Methods
 }
+
+/// <summary>
+/// One pre-localized row of the restore preview (T-215): the backup service
+/// hands over a label KEY (the entry's archive path is machine text); the
+/// ViewModel localizes it at draft time and pairs it with the entry's
+/// human-readable byte size, so the view binds plain display strings.
+/// </summary>
+/// <param name="Label">The localized entry name ("Settings", "Order history", ...).</param>
+/// <param name="SizeText">The localized size line ("12.3 KB" through the row-size key).</param>
+public sealed record BackupPreviewRow(string Label, string SizeText);
 

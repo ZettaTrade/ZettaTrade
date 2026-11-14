@@ -1,3 +1,31 @@
+## [0.1.0-alpha.162] - 2026-11-14
+
+Build of board task T-215 (branch `feat/profile-backup`): the profile
+backup and restore — one versioned archive over the user's stored profile,
+and a confirmed restore that puts it back.
+
+### Added
+- The Integrations tab carries a new PROFILE BACKUP card: "Back up
+  profile…" writes one `.ztprofile` zip with a manifest plus the settings
+  file and the six SQLite stores (order history, realized PnL, candle
+  cache, chart drawings, AI chat history, portfolio-value history) as
+  `VACUUM INTO` snapshots; secrets are structurally absent — the entry
+  list is explicit and the secrets file never rides it. The archive lands
+  atomically (written to a `.tmp` twin, then moved).
+- "Restore profile…" drafts from the picked archive: the validation pass
+  (schema, version, the manifest allowlist — no traversal, no foreign
+  entries, the size cross-check, the zip-vs-manifest match) fills a
+  pre-localized preview, and the Apply runs behind the typed human
+  confirmation. The apply re-validates the SAME archive, checks every
+  store for exclusive access BEFORE replacing anything, extracts to
+  same-volume staging and lands each file with an atomic replace. A
+  rejection is typed (malformed, foreign schema, unsupported version,
+  manifest mismatch, nothing restorable, a locked store) and localized;
+  nothing was changed is the standing outcome of every refusal.
+- Restored settings go live at once through the settings service's own
+  hot-reload; the restored stores open on their next per-operation
+  contexts (no restart).
+
 ## [0.1.0-alpha.161] - 2026-11-14
 
 Build of board task T-214 (branch `feat/tray-icon`): the tray presence —

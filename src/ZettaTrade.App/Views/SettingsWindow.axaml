@@ -1137,6 +1137,89 @@
                         </StackPanel>
                         </StackPanel>
                         </Border>
+                        <Border Classes="section-card" IsVisible="{Binding IsBackupAvailable}">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <ToggleButton x:Name="BackupSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="BackupSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Section.Backup}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="BackupSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #BackupSectionToggle.IsChecked}">
+                                <StackPanel Spacing="{StaticResource SpaceL}">
+
+                                <!-- The backup block: one button, the honest hint (secrets never ride the archive). -->
+                                <Button Content="{loc:Localized Backup.Backup}"
+                                        Click="OnBackupClick"
+                                        HorizontalAlignment="Left" />
+                                <TextBlock Text="{loc:Localized Backup.Hint}"
+                                           TextWrapping="Wrap"
+                                           />
+
+                                <!-- The restore block: pick → validated preview → apply. The typed
+                                     confirmation dialog (IConfirmationService) gates the apply — the
+                                     Apply button only feeds the service's own gate. -->
+                                <Button Content="{loc:Localized Backup.Restore}"
+                                        Click="OnRestoreClick"
+                                        HorizontalAlignment="Left" />
+                                <TextBlock Text="{loc:Localized Backup.Restore.Hint}"
+                                           TextWrapping="Wrap"
+                                           />
+
+                                <TextBlock IsVisible="{Binding HasRestoreError}"
+                                           Text="{Binding RestoreErrorText}"
+                                           Foreground="{DynamicResource Error}"
+                                           TextWrapping="Wrap"
+                                           />
+
+                                <StackPanel IsVisible="{Binding IsRestorePreviewVisible}" Spacing="{StaticResource SpaceM}">
+                                    <TextBlock Text="{loc:Localized Backup.PreviewHeader}"
+                                               FontWeight="SemiBold" />
+                                    <ScrollViewer MaxHeight="180"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <!-- The inner viewport carries the same gutter (T-169). -->
+                                        <ItemsControl ItemsSource="{Binding RestorePreview}"
+                                                      Margin="0,0,16,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Spacing="{StaticResource SpaceXs}" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:BackupPreviewRow">
+                                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding SizeText}"
+                                                                   Foreground="{DynamicResource TextSecondary}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                    <Button x:Name="ApplyRestoreButton"
+                                            Content="{loc:Localized Backup.Apply}"
+                                            Command="{Binding ApplyRestoreCommand}"
+                                            HorizontalAlignment="Left" />
+                                </StackPanel>
+
+                                <TextBlock IsVisible="{Binding HasBackupStatusText}"
+                                           Text="{Binding BackupStatusText}"
+                                           TextWrapping="Wrap"
+                                           />
+                            </StackPanel>
+                        </StackPanel>
+                        </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
