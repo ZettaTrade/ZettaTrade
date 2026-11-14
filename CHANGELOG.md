@@ -1,3 +1,32 @@
+## [0.1.0-alpha.169] - 2026-11-14
+
+Build of board task T-227 (branch `feat/exchange-auth-settings`): the
+exchange API-key authorization rides the settings window, the adapters
+read the pairs at start and the Alpaca no-key noise goes quiet.
+
+### Added
+- The settings window's Integrations tab grows the exchange-credentials
+  section (collapsed by default): a per-venue row per key pair — Alpaca,
+  Bybit Testnet, Binance Testnet (the adapters' own store-key spellings).
+  The Save commits BOTH keys to the secret store atomically (a half-typed
+  pair never reaches the store — the adapters refuse any missing half
+  exactly like a full absence), Clear removes the pair, the boxes re-seed
+  empty on every window open (the secret never echoes), and the status
+  chip answers from the store's presence only. The secret store is the
+  pair's only home — never the settings file, the logs or the export.
+- The adapters' missing-credential refusal is now the typed
+  `AdapterCredentialsMissingException` (Alpaca), so the consumers can tell
+  the standing absence from a real failure.
+
+### Changed
+- The Alpaca adapter reports the no-key state ONE information line per
+  session (a standing fact, not a per-call failure family); the repeated
+  authorized-surface refusals ride silently. The palette's repeated
+  refreshes take the absence at the debug level — the shipped log keeps
+  the zero-row contribution quiet. The Bybit/Binance testnet trading
+  adapters keep their existing refusal shape (the user's bybit face is
+  not in the noise family).
+
 ## [0.1.0-alpha.168] - 2026-11-14
 
 Build of board task T-226 (branch `feat/startup-latency`): the cold start
