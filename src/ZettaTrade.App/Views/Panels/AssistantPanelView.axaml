@@ -191,24 +191,31 @@
                     Command="{Binding SendTextCommand}" />
         </Grid>
 
-        <!-- Chat messages: a scrolling stack of bubbles (the T-158 rewrite
+        <!-- Chat messages: a virtualized stack of bubbles (the T-158 rewrite
              dropped the selection-free-list-as-ListBox shape; the messages
              are never selectable data rows, so the ItemsControl is the
-             honest host); the bubble bounds the wrap (480), the rest of
-             the width stays the column's. The right inset carries the
-             overlay bar's 16 px strip on top of the InsetS token (T-170):
-             the bubbles end a strip short of the edge, never under the
-             bar. -->
+             honest host; T-218 rides the VirtualizingStackPanel so a long
+             transcript only measures the realized window — the scrolled
+             semantics hold because the view never auto-follows content
+             changes, it stays where the reader left it). The panel carries
+             no Spacing of its own, so the row gap rides the bubble's tail
+             margin (the same SpaceXs step the stack's Spacing rode, carried
+             raw because the insets are uniform-only tokens); the bubble
+             bounds the wrap (480), the rest of the width stays the column's.
+             The right inset carries the overlay bar's 16 px strip on top of
+             the InsetS token (T-170): the bubbles end a strip short of the
+             edge, never under the bar. -->
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <ItemsControl ItemsSource="{Binding ChatMessages}" Margin="8,8,24,8">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <StackPanel Spacing="{StaticResource SpaceXs}" />
+                        <VirtualizingStackPanel />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border Classes="message"
+                                Margin="0,0,0,4"
                                 Classes.user="{Binding IsUserTurn}"
                                 Classes.assistant="{Binding IsAssistantTurn}"
                                 Classes.error="{Binding IsErrorLine}">

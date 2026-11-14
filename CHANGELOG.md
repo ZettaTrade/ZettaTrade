@@ -1,3 +1,25 @@
+## [0.1.0-alpha.165] - 2026-11-14
+
+Build of board task T-218 (branch `feat/chat-virtualization`): the AI chat
+transcript virtualizes — a several-hundred-turn conversation realizes the
+scrolled window instead of the whole stack.
+
+### Changed
+- The transcript's items panel rides the `VirtualizingStackPanel`: only the
+  realized window's bubbles measure and render (a 300-turn conversation
+  realizes a handful of bubbles where the plain stack realized all of
+  them), so long conversations stop paying a whole-list re-measure on
+  every content change. The stack's spacing step moves onto the bubble's
+  own tail margin because the virtualizing panel carries no spacing of
+  its own — the visual rhythm is unchanged.
+- The scroll semantics stay exactly what the non-virtualized stack
+  delivered: the view never auto-follows content changes, a scroll-to-end
+  chase lands on the true bottom (and follows one appended turn to the
+  new max exactly once), a turn appended at a finite bottom stays below
+  the fold, and a streamed tail growth holds the reader steady — the
+  anchoring rebases the offset while the visible turn keeps its viewport
+  position. The headless transcript family pins all of it (T-218).
+
 ## [0.1.0-alpha.164] - 2026-11-14
 
 Build of board task T-219 (branch `feat/statement-stream`): the statement
