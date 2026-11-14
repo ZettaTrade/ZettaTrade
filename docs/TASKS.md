@@ -266,6 +266,9 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | planned | — |
 | T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | planned | T-260 |
 | T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | planned | T-260 |
+| T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | planned | — |
+| T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | feat/backtest-perf | planned | — |
+| T-265 Backtest load assembles the walk-back pages in one pass (the perf sweep 2026-11-15) | feat/backtest-perf | planned | — |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -717,5 +720,76 @@ the human prioritizes the lanes.
   secret ever lands in logs or command lines.
 - **Tests:** the loopback stubs (a Matrix client stub, an SMTP stub), the template goldens, the
   throttling pin.
+
+---
+
+## T-263 — Backtest sweep retains metrics rows plus one best report
+
+- **Branch:** `feat/backtest-perf` off `develop` (queued 2026-11-15, the perf sweep; the
+  worktree `zt-backtest-perf`).
+- **Origin:** the code-level perf analysis of develop: every sweep replay's full report
+  (the per-candle equity curve) stayed retained in the ranked rows until the result was
+  consumed — O(P × N) points (the 8×8 grid over the 100k-bar cap ≈ 6.4M points ≈ 300+ MB
+  against the <500 MB app budget), while every consumer outside the one selected row reads
+  only `Statistics` (the table's metrics and the sweep's own canonical text).
+- **What:** the sweep rows carry the cell's own parameterized request + the replay's
+  aggregate statistics (metrics only); the result carries the rank-1 row's FULL report via
+  one silent re-replay of that parameterization on the sweep's OWN loaded window (the same
+  seed and the same bars fold the byte-identical report — zero drift for the auto-selected
+  surface); the retained result holds O(P) rows plus ONE equity curve. The click-through of
+  any other row re-replays it through the single-run lane (its report echoes its own
+  request; the honest caveat: that replay reads the CURRENT cache window, so a cache that
+  grew after the sweep may shift it — the report is always self-describing).
+- **Scope:** `ZettaTrade.Backtest` (the sweep row/result/service shapes) + the backtest
+  view models; no Core contract text, no resx keys (the existing surfaces carry the copy).
+- **Acceptance:** the worst-case sweep's retained memory drops from O(P × N) to O(P + N);
+  the canonical sweep text is byte-identical to the pre-change shape; a completed sweep
+  auto-selects rank 1 whose report surface equals the sweep's own replay byte-for-byte;
+  the cancelled sweep keeps the completed rows with no best report.
+- **Tests:** the sweep engine facts updated to the metrics-row shape (the byte-identical
+  canonical text, the ranking, the tie-break, the load-once pin, the boundary stop with no
+  best report) + the new best-report facts (rank-1 pairing, the cancelled absence) + the
+  click-through view-model facts (rank 1 renders the sweep's own report without a run, a
+  deeper row re-runs the single lane, an in-flight replay keeps the surface honest).
+
+---
+
+## T-264 — Backtest replay reads signals while the feed runs
+
+- **Branch:** `feat/backtest-perf` off `develop` (queued 2026-11-15, the perf sweep).
+- **Origin:** the perf analysis: the replay fed ALL bars into the host's unbounded input
+  channel and only then started reading the stamped signals, so the in-flight queues
+  accumulated O(N) stamped events before the first one was applied.
+- **What:** the replay's feed and its signal read run concurrently — the reader consumes
+  the stamped signals while the pump is still accepting candles, so the queues stay
+  near-empty across long replays. The emission order is untouched (the channel preserves
+  it), so every report stays byte-identical; the cooperative stop keeps its per-signal
+  check and its Cancelled event with the processed count.
+- **Scope:** `ZettaTrade.Backtest` only (the replay loop); the T-111 host seam is untouched.
+- **Acceptance:** the event order stays Started → Progress… → Completed with the same
+  counts; a mid-replay stop publishes the Cancelled event with the processed count and
+  returns the cancelled envelope with no report.
+- **Tests:** the run engine facts keep their exact-output pins (byte-identical canonical
+  text, seed independence, the walk-back window); the new mid-replay cancellation fact
+  (cancel on the first Progress event, the Cancelled event carries the stride's count).
+
+---
+
+## T-265 — Backtest load assembles the walk-back pages in one pass
+
+- **Branch:** `feat/backtest-perf` off `develop` (queued 2026-11-15, the perf sweep).
+- **Origin:** the perf analysis: the walk-back prepended every fetched page in front of
+  the accumulated list (`InsertRange(0, page)`), shifting all already-loaded bars on every
+  page — the total element moves grow as O(N² / page cap) (≈5M reference moves at the
+  100k-bar cap over the cache's 1000-row pages).
+- **What:** the loader collects the walk-back's pages as fetched (newest page first) and
+  assembles the ascending series in ONE pass by walking the collected pages from the
+  oldest back — every bar is copied exactly once. The empty-newest early exit and the
+  between-page cooperative stop keep their shapes.
+- **Scope:** `ZettaTrade.Backtest` only (the window loader).
+- **Acceptance:** the multi-page window assembles the exact same ascending bar sequence
+  (the report is byte-identical to the single-page load over the same series).
+- **Tests:** the existing walk-back window pin plus the new full-sequence pin (several
+  pages of differing sizes assemble the exact expected open-time sequence).
 
 ---
