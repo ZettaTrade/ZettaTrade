@@ -222,7 +222,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-215 Profile backup and restore (backlog sweep 2026-11-12) | feat/profile-backup | done | - |
 | T-216 Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses (queued from the T-193/T-194 gate fights) | feat/flaky-theme-drain | done | - |
 | T-217 Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot (the 2026-11-13 review round) | feat/perf-fixes | done | - |
-| T-218 Virtualize the AI chat transcript (queued from the 2026-11-13 review round) | feat/chat-virtualization | planned | - |
+| T-218 Virtualize the AI chat transcript (queued from the 2026-11-13 review round) | feat/chat-virtualization | in-progress | - |
 | T-219 Stream the statement export past the whole-journal materialization (queued from the 2026-11-13 review round) | feat/statement-stream | done | - |
 | T-220 Non-blocking alert beep (queued from the 2026-11-13 review round) | fix/alert-beep-async | planned | - |
 | T-221 Stabilize the E2E DetachCycle flake (queued from the 2026-11-13 review round) | fix/e2e-detach-flake | planned | - |
@@ -506,7 +506,8 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 
 ## T-218 — Virtualize the AI chat transcript
 
-- **Branch:** queued 2026-11-13 (the 2026-11-13 review round).
+- **Branch:** feat/chat-virtualization, worktree zt-chat-virtualization, base develop@0da6677
+  (claimed 2026-11-14 off the synced board).
 - **Origin:** the review — the transcript is a non-virtualized ItemsControl over a
   growing ObservableCollection (AssistantPanelView), so every content change
   re-measures the whole scroll content; long conversations pay for every bubble.
@@ -517,7 +518,7 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Acceptance:** a several-hundred-message conversation scrolls and streams without
   the whole-list re-measure; the copy affordance and the auto-scroll hold.
 - **Tests:** the panel's existing interaction facts; a long-transcript render fact.
-- **Status:** planned.
+- **Status:** in-progress.
 
 ## T-220 — Non-blocking alert beep
 
