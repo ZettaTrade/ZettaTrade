@@ -5104,3 +5104,54 @@ the board and its section below.
   the branch tip. GATE PASSED (post-rebase; the develop sync fast-forwarded first). The
   follow-up sweep items (duplicate instruments-info fetches, the Alpaca no-key noise, the
   not-a-plugin.dll logs, the update-checker 404) stay out of scope, uncommitted to this task.
+
+## T-227 - Exchange API-key authorization in the settings window (the Alpaca no-key noise is the driver)
+
+- **Branch:** feat/exchange-auth-settings, worktree zt-exchange-auth, base develop@9350870
+  (claimed 2026-11-14; the user's ask + the T-226 profiling's driver case).
+- **Origin:** the user's ask — venues whose API requires authorization get it through the
+  settings finally: the key is entered once and taken from the settings, not hand-carried.
+  The T-226 profiling's driver case: the Alpaca adapter runs unauthenticated today and
+  floods the log with no-key noise every launch — Alpaca's data API wants a key even for
+  market data, so an unauthenticated adapter is both noisy and degraded.
+- **What:** the settings window grows a per-venue credentials section (key/secret pairs);
+  the values persist through `ISecretStore` (the encrypted store — the trading-safety rule:
+  secrets only there, saved immediately, never a command-line argument, never stdout). The
+  adapters read their credentials at start; when keys are present the Alpaca adapter
+  authenticates its data requests/stream, when absent it drops the noise to a single quiet
+  line instead of a repeated error family. Other venues that require auth get the same
+  shape.
+- **Scope:** the settings window's credentials section + the adapter credential plumbing
+  through `ISecretStore`, the Alpaca adapter's auth path, resx en+ru, the next free alpha
+  bump + the CHANGELOG section.
+- **Acceptance:** keys entered once survive the restart; the Alpaca noise disappears with
+  keys and is one quiet line without; no key ever reaches a log or an argument.
+- **Tests:** the settings round-trip through `ISecretStore`; the adapter's
+  authenticated/absent facts; the log-quiet pin.
+- **Status:** done - 0.1.0-alpha.169. Chain: claim `e9ee2f6` -> feat `bfd54a4` -> release
+  `5b493cd` -> e2e fix `e549a91` -> close. Canon: the refusal shape is the typed
+  `AdapterCredentialsMissingException` (AdapterId + SecretKeys); the Alpaca adapter reports
+  the absence ONE information line per session (an Interlocked-guarded flag) and the
+  palette takes the standing absence at debug level — the repeated authorized-surface
+  refusals and the palette's per-refresh warnings never log; the Bybit/Binance testnet
+  trading adapters keep their existing refusal shape. The credentials rows ride the
+  adapters' public store-key consts (`alpaca.api-key`/-secret, `bybit.testnet.*`,
+  `binance.testnet.*`), the Save commits both keys atomically (a half-typed pair never
+  reaches the store), the boxes re-seed empty on every window open, the status chip answers
+  from the store's presence only, and the section rides the Integrations tab collapsed by
+  default. Tests: 5 `CredentialSlot` facts (the atomic save, the half-pair refusal, the
+  clear round-trip, the canExecute gates, the store-less honesty) + the palette
+  quiet-absence fact; 3 Alpaca credentials facts (the typed refusal that never dials the
+  wire, the one-quiet-line-per-session pin, the authenticated pair that serves quietly);
+  the fold pins moved to the eleven-card map (WindowLayoutPinsTests counts + header keys,
+  HeadlessLayoutBoundsTests collapsed set + total). 2203 App facts + 675 Infrastructure
+  facts green. GATE PASSED (-AllowProtected) attempt 2 — attempt 1 failed on the E2E pair
+  and exposed a latent deployment defect of the E2E lane: the lane's runtime closure pruned
+  the DPAPI package (the test runtimeconfig declares WindowsDesktop.App, whose 10.0.14 pack
+  serves the assembly), while the staged app process resolves under Microsoft.NETCore.App
+  only — the settings open's secret-store presence seed was the first consumer, surfacing a
+  FileNotFoundException at the DPAPI load. The explicit copy ships the file next to the
+  staged exe; the settings round-trip + hotkey E2E rounds green on the fix tip. The launch
+  smoke green on the fix tip: ProductVersion 0.1.0-alpha.169+e549a912, the 12 s hold held
+  the main window, 0 ERR/FTL, exactly one quiet-absence INF, zero Alpaca palette warnings,
+  zero seed failures, the sandbox discarded.
