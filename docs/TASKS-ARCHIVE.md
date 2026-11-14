@@ -5105,6 +5105,7 @@ the board and its section below.
   follow-up sweep items (duplicate instruments-info fetches, the Alpaca no-key noise, the
   not-a-plugin.dll logs, the update-checker 404) stay out of scope, uncommitted to this task.
 
+<<<<<<< HEAD
 ## T-227 - Exchange API-key authorization in the settings window (the Alpaca no-key noise is the driver)
 
 - **Branch:** feat/exchange-auth-settings, worktree zt-exchange-auth, base develop@9350870
@@ -5341,3 +5342,57 @@ the board and its section below.
   machine-load sensitivity — the pre-fix and post-fix runs measure alike, the fix touches only
   logging) — reported per the T-109 canon, owned by the readiness record (T-232) and its
   follow-up.
+
+## T-234 - The window family rides the variant-A grammar; the dialog paddings and widths unify
+
+- **Branch:** queued 2026-11-14 (the user's review of the T-223 landing: "теперь мне
+  нравится как в настройках сделано... остальные окна унифицировать... посмотри местами
+  отступы и размер текста"). The worktree `zt-windows-unify`, base `develop`@9350870.
+- **Origin:** the settings window (T-184/T-222/T-223) is the approved reference; the rest
+  of the window family predates it. The survey: 12 windows still ride fixed frames
+  (`CanResize="False"` — the settings pin declared that era over at T-222); the dialog
+  strips drift (the primary sits LEFT of the quiet button in the UniformGrid pairs, the
+  widths scatter 90/100/110/120/140/240, the rows carry raw composite margins
+  `0,8,0,0` / `0,0,8,0` beside a missing row Spacing, the Alerts row spaces through a
+  `8,0,0,0` margin hack); the ticket/wizard/license bodies carry no section cards; the
+  type ramp and the spacing tokens already hold app-wide (the T-155 pins enforce them).
+- **What:** every dialog resizes (the pinned strip stays pinned); the confirm strips
+  become the settings shape — a right-aligned row riding its own Spacing, the quiet
+  button first (90), the ONE primary last (90, the cta keeps its side fill); the command
+  toolbars (Alerts, Backtest) normalize onto the fresh T-212 widths (110 command, 90
+  quiet) with real row Spacing; the ticket, the first-run wizard and the license window
+  wrap their field groups in the section-card + tick + header grammar (static headers —
+  short bodies need no folding); the pre-strip gaps ride the parent Spacing.
+- **Scope:** the View layer only (axaml + the pins); no ViewModel/Core change; the
+  scroll-gutter `0,0,16,0` margins stay (the T-170 canonical gutters).
+- **Acceptance:** no `CanResize="False"` remains in the App views; every confirm strip
+  reads quiet-first/primary-last at 90; the toolbars carry no raw gap margins; the
+  carded windows carry the section grammar; the existing headless bounds/gutter facts
+  stay green at the new resizable shapes.
+- **Tests:** the strip/resize pins per window family (source of truth, the T-145
+  precedent), the card pins for the carded three, the toolbar width pins; the headless
+  ticket fact (the ticket opens at its minimum, the strip stays inside, the cta rides
+  the side fill).
+- **Status:** done - 0.1.0-alpha.174 (on the branch; the landing awaits the user's
+  review). Chain: docs(claim) `1d64cdd` -> feat `b8266d8` -> docs(close) -> bump. Shipped:
+  the fixed-frame era ends app-wide (no `CanResize="False"` remains; every dialog
+  declares the resizable frame); the paired confirm strips unify on the settings
+  footer's shape (one right-aligned row riding its own spacing, the quiet button first,
+  the ONE primary last, the 90 strip; the UniformGrid pairs and the scattered
+  100/120/140 widths retire) with the confirmation gate the honest equal-weight
+  exception (the T-183 discipline pins it primary-free while the strip still unifies —
+  the claim-time "the gate rides primary" reading is wrong against the canon); the
+  wizard's three steps and the ticket's quick-size block card into the section-card
+  voice (the tick-and-caption headers, the uppercase header captions in both cultures,
+  the nav row one strip: quiet walks left, the advance and the ONE primary finish
+  right); the annotation prompt joins the styled chrome (the bare
+  `WindowDecorations="Full"` retires, the dead `accent` class becomes the `primary`,
+  the margin hacks ride the parent spacing); the alerts toolbar rides the T-212 widths
+  (110 commands, the create the row's ONE primary, the 90 close, real column spacing);
+  the license window's verdict reads above the rebuilt strip. Tests: the
+  `DialogGrammarPinsTests` (the resize era, the strip shape with the gate exception,
+  the gap-hack ban, the carded grammar, the uppercase header captions, the wizard nav,
+  the toolbar widths) + the `HeadlessDialogGrammarTests` (the family materializes
+  without a view model, every window answers `CanResize == true`, the paired strips
+  measure the 90 buttons, the quiet-before-primary order and the row inside the client
+  area, the annotation prompt carries the compact chrome). 2208 App facts green.

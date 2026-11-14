@@ -231,13 +231,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-224 The nightly gitleaks scan stops tripping on the dummy fixtures: the 2026-11-14 triage allowlists the confirmed literals (the a11y template key + the redactor/log-tail test shapes) with the audit record (the user-reported security-pipeline failure) | fix/gitleaks-allowlist | done | - |
 | T-225 The Trading menu's Price alerts item stops killing the process: the pickers' TwoWay SelectedItem init race wrote null into the editor's options and the kind flags dereferenced it (the user-reported NullReferenceException crash); the editor family gets null-rejecting setters + null-safe flags and the same-shape sweep runs over every other window | fix/alerts-window-crash | done | - |
 | T-226 Startup latency: the walk batches the five SQLite stores concurrently + the chart prewarms from the persisted symbol while the instruments fetch is in flight (the user-reported blank-chart wait) | feat/startup-latency | done | - |
-| T-227 Exchange API-key authorization in the settings window: per-venue keys persist through ISecretStore, adapters read them at start, the Alpaca data adapter authenticates when keys are present and quiets its no-key noise when absent (the user's ask, the T-226 profiling follow-up) | feat/exchange-auth-settings | done | - |
-| T-228 One instruments-info fetch per exchange per session: the startup warm-up and the chart's bootstrap share the provider cache instead of double-fetching (the T-226 profiling follow-up) | feat/instruments-fetch-dedupe | done | - |
-| T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | done | - |
-| T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | done | - |
-| T-231 The watchlist ticker stream retries its stream failures with a bounded backoff instead of dying stale, and the Binance instruments parse takes the unrecognized quote-asset drop at the debug level (filed from the user's log analysis) | feat/watchlist-ticker-retry | done | - |
-| T-233 The adapters' construction-time Disconnected snapshots stop carrying real-exchange endpoints into a demo-only run's log: a connection-state line rides a real lifecycle transition, and the soak census's host list covers every shipped venue (the T-232 finale's soak finding) | fix/adapter-state-log-leak | done | - |
-| T-234 The window family rides the variant-A grammar: the dialog family resizes (the fixed-frame era ends app-wide), the confirm strips unify on the settings shape (the quiet button first, the ONE primary last, the 90 strip), the ticket/wizard/license bodies card, the toolbar widths and the pre-strip gaps normalize (the user's T-223 follow-up; renumbered off T-231 - the number collided with the landed ticker-retry task) | feat/windows-unify | in-progress | - |
+| T-234 The window family rides the variant-A grammar: the dialog family resizes (the fixed-frame era ends app-wide), the confirm strips unify on the settings shape (the quiet button first, the ONE primary last, the 90 strip), the ticket/wizard/license bodies card, the toolbar widths and the pre-strip gaps normalize (the user's T-223 follow-up; renumbered off T-231 - the number collided with the landed ticker-retry task) | feat/windows-unify | done | 0.1.0-alpha.174 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -320,34 +314,3 @@ lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by de
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
 
 ---
-## T-234 - The window family rides the variant-A grammar; the dialog paddings and widths unify
-
-- **Branch:** queued 2026-11-14 (the user's review of the T-223 landing: "теперь мне
-  нравится как в настройках сделано... остальные окна унифицировать... посмотри местами
-  отступы и размер текста"). The worktree `zt-windows-unify`, base `develop`@9350870.
-- **Origin:** the settings window (T-184/T-222/T-223) is the approved reference; the rest
-  of the window family predates it. The survey: 12 windows still ride fixed frames
-  (`CanResize="False"` — the settings pin declared that era over at T-222); the dialog
-  strips drift (the primary sits LEFT of the quiet button in the UniformGrid pairs, the
-  widths scatter 90/100/110/120/140/240, the rows carry raw composite margins
-  `0,8,0,0` / `0,0,8,0` beside a missing row Spacing, the Alerts row spaces through a
-  `8,0,0,0` margin hack); the ticket/wizard/license bodies carry no section cards; the
-  type ramp and the spacing tokens already hold app-wide (the T-155 pins enforce them).
-- **What:** every dialog resizes (the pinned strip stays pinned); the confirm strips
-  become the settings shape — a right-aligned row riding its own Spacing, the quiet
-  button first (90), the ONE primary last (90, the cta keeps its side fill); the command
-  toolbars (Alerts, Backtest) normalize onto the fresh T-212 widths (110 command, 90
-  quiet) with real row Spacing; the ticket, the first-run wizard and the license window
-  wrap their field groups in the section-card + tick + header grammar (static headers —
-  short bodies need no folding); the pre-strip gaps ride the parent Spacing.
-- **Scope:** the View layer only (axaml + the pins); no ViewModel/Core change; the
-  scroll-gutter `0,0,16,0` margins stay (the T-170 canonical gutters).
-- **Acceptance:** no `CanResize="False"` remains in the App views; every confirm strip
-  reads quiet-first/primary-last at 90; the toolbars carry no raw gap margins; the
-  carded windows carry the section grammar; the existing headless bounds/gutter facts
-  stay green at the new resizable shapes.
-- **Tests:** the strip/resize pins per window family (source of truth, the T-145
-  precedent), the card pins for the carded three, the toolbar width pins; the headless
-  ticket fact (the ticket opens at its minimum, the strip stays inside, the cta rides
-  the side fill).
-- **Status:** in-progress.
