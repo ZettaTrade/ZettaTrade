@@ -5156,6 +5156,39 @@ the board and its section below.
   the main window, 0 ERR/FTL, exactly one quiet-absence INF, zero Alpaca palette warnings,
   zero seed failures, the sandbox discarded.
 
+## T-228 - One instruments-info fetch per exchange per session
+
+- **Branch:** feat/instruments-fetch-dedupe, worktree zt-instruments-fetch-dedupe, base
+  develop@b96ef3e (claimed 2026-11-14; the T-226 follow-up sweep).
+- **Origin:** the T-226 profiling — the exchange instruments list is fetched more than once
+  per start (the provider's startup warm-up and the chart's own bootstrap path both reach
+  the venue), paying the network cost twice against the T-225 lesson the provider exists
+  for.
+- **What:** every consumer rides the `SymbolListProvider` cache — one fetch per exchange
+  per session, the warm-up answers the chart's bootstrap, and a switch re-fetches through
+  the same single path.
+- **Scope:** the App startup walk + the chart bootstrap's fetch path; no adapter changes.
+- **Acceptance:** exactly one instruments call per exchange per session in the real launch
+  log; the chart's first delivery timing does not regress.
+- **Tests:** the provider fetch-count facts; the walk's warm-up pin.
+- **Status:** done. Canon: the chain `60c7bdf` (claim) -> `be70385` (feat, 15 files
+  +380/-130) -> `fe0afb2` (release, 0.1.0-alpha.173) -> this close; the worktree was
+  adopted from a dead session whose claim->feat->release commits were already on the
+  branch, the diff reviewed clean, and the feat additionally folds the stale doc-comment on
+  `ChartViewModel.LoadSymbolsAsync` (the removed "flushed on every exchange switch"
+  mechanic). The mechanism: `SymbolListProvider` keys its cache per exchange id — the
+  startup walk's warm-up and the chart's bootstrap share the provider, so a session pays
+  one instruments fetch per exchange; the palette, the heatmap and the screener keep their
+  DIRECT re-fetch on an adapter switch deliberately (they must reflect the live roster) —
+  documented in code and the CHANGELOG; the facade registers before the consumers and the
+  restore-switch emission rides Skip(1), so the start's restore switch fires no direct
+  re-fetch. Acceptance evidence: GATE PASSED (-AllowProtected) attempt 1 on the release tip
+  (the SCOPE info + the gitleaks advisory only); the launch smoke PASSED on the T-166 bar —
+  the title held through the 12 s watchlist hold, 0 ERR/FTL, 0 ticker-failure WRN,
+  CACHE_PER_EXCHANGE demo=1, binance=1, okx=1, bybit=1 (the one-fetch acceptance fact),
+  PALETTE_LINES=1, ProductVersion 0.1.0-alpha.173+fe0afb20…, no leftovers, the sandbox
+  discarded. Hazards: none new.
+
 ## T-229 - The plugin scanner's not-a-plugin drop stops logging as a failure
 
 - **Branch:** fix/not-a-plugin-log-noise, worktree zt-not-a-plugin-log-noise, base

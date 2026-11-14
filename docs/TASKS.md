@@ -232,7 +232,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-225 The Trading menu's Price alerts item stops killing the process: the pickers' TwoWay SelectedItem init race wrote null into the editor's options and the kind flags dereferenced it (the user-reported NullReferenceException crash); the editor family gets null-rejecting setters + null-safe flags and the same-shape sweep runs over every other window | fix/alerts-window-crash | done | - |
 | T-226 Startup latency: the walk batches the five SQLite stores concurrently + the chart prewarms from the persisted symbol while the instruments fetch is in flight (the user-reported blank-chart wait) | feat/startup-latency | done | - |
 | T-227 Exchange API-key authorization in the settings window: per-venue keys persist through ISecretStore, adapters read them at start, the Alpaca data adapter authenticates when keys are present and quiets its no-key noise when absent (the user's ask, the T-226 profiling follow-up) | feat/exchange-auth-settings | done | - |
-| T-228 One instruments-info fetch per exchange per session: the startup warm-up and the chart's bootstrap share the provider cache instead of double-fetching (the T-226 profiling follow-up) | feat/instruments-fetch-dedupe | in-progress | - |
+| T-228 One instruments-info fetch per exchange per session: the startup warm-up and the chart's bootstrap share the provider cache instead of double-fetching (the T-226 profiling follow-up) | feat/instruments-fetch-dedupe | done | - |
 | T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | done | - |
 | T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | done | - |
 | T-231 The watchlist ticker stream retries its stream failures with a bounded backoff instead of dying stale, and the Binance instruments parse takes the unrecognized quote-asset drop at the debug level (filed from the user's log analysis) | feat/watchlist-ticker-retry | done | - |
@@ -512,21 +512,5 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
 
-## T-228 - One instruments-info fetch per exchange per session
-
-- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep).
-- **Origin:** the T-226 profiling — the exchange instruments list is fetched more than once
-  per start (the provider's startup warm-up and the chart's own bootstrap path both reach
-  the venue), paying the network cost twice against the T-225 lesson the provider exists
-  for.
-- **What:** every consumer rides the `SymbolListProvider` cache — one fetch per exchange
-  per session, the warm-up answers the chart's bootstrap, and a switch re-fetches through
-  the same single path.
-- **Scope:** the App startup walk + the chart bootstrap's fetch path; no adapter changes.
-- **Acceptance:** exactly one instruments call per exchange per session in the real launch
-  log; the chart's first delivery timing does not regress.
-- **Tests:** the provider fetch-count facts; the walk's warm-up pin.
-- **Status:** in-progress (worktree zt-instruments-fetch-dedupe, branch
-  feat/instruments-fetch-dedupe, base develop@b96ef3e, claimed 2026-11-14).
 
 
