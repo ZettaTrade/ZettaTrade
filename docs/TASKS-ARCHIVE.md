@@ -5437,7 +5437,10 @@ the board and its section below.
   retires; the armed `.on` contrast stands on the kept rest dimming) — the Livery
   0.1.14 release, the tags ride `main` now; the pairs transfers read as buttons at
   rest through the new `icon framed` composition (the family hairline rest outline,
-  the Highlight hover stroke); the alerts editor's 14 cells ride the shared
+  the Highlight hover stroke; the review round turned the composition into the framed
+  chip — the Surface fill under the hairline at rest, the Highlight hover stroke, the
+  press dimming the chip, the chevron strokes at the bold 2px weight — the Livery
+  0.1.15 release); the alerts editor's 14 cells ride the shared
   FieldGrammar dictionary (the SpaceS caption gap, the caption size in the class, the
   per-cell FontSize copies die) and every editor combo rides content widths (MinWidth
   over Width — a combo's chrome eats ~45px of a fixed width, so "Falls below" and the

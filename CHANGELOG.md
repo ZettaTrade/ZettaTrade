@@ -67,10 +67,12 @@ screener rows ride the header's column plan.
   drawing tools, the toolbar glyphs) read as static marks. Keyboard
   focus draws the family's ring on the presenter. The armed `.on`
   contrast stands on the kept rest dimming.
-- The pairs transfer arrows ride the kit's new framed composition
-  (`icon framed`): the free-standing action between the settings' pair
-  lists reads as a button at rest through the family's hairline outline
-  and answers the hover with the Highlight stroke.
+- The pairs transfer arrows ride the kit's framed chip (the review
+  round's chosen mockup): the free-standing action between the settings'
+  pair lists reads as a button at rest through the Surface fill under the
+  family's hairline, the hover answers with the Highlight stroke, the
+  press dims the chip, and the chevron strokes step to the bold 2px
+  weight (the thin 1.5px glyph floated in its box).
 - The alerts editor's cells ride one shared field-cell grammar (the new
   FieldGrammar dictionary): the captions clear their fields at the small
   step and lose their per-cell FontSize copies. The editor's combos ride
