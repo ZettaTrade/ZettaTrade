@@ -4979,3 +4979,38 @@ the board and its section below.
   over T-222's 2122 — the fold pins, the measured 13 px caption fact, the fold/unfold
   headless fact, the rail-note culture fact), Livery 60/60 (the extreme-grounds floor
   theory, the oled first-grain bytes, the true-black minimum step).
+
+## T-224 — The nightly gitleaks scan stops tripping on the dummy fixtures
+
+- **Branch:** fix/gitleaks-allowlist, worktree zt-gitleaks-allowlist, base develop@5c3ae8f
+  (claimed 2026-11-14 off the synced board; origin: the user reported the security
+  pipeline failure).
+- **Origin:** the nightly full-history scan (the 03:45 UTC `schedule` run of
+  `security.yml` on `main`, gitleaks 8.24.3) has failed with 4 findings since 2026-11-11
+  — the first nightly after T-101/T-110 landed: all four triage to sample-shaped dummy
+  fixtures, never real credentials (the triage record lives in docs/SECURITY.md).
+- **What:** the allowlist gains the confirmed fixture literals (the a11y template key +
+  the redactor/log-tail test shapes), each with file + purpose named; the audit log
+  records the triage (verdict: fixtures, no rotation owed).
+- **Scope:** CI config + docs (gitleaks.toml, docs/SECURITY.md, the board) — no product
+  surface, no bump, no CHANGELOG (the T-216 precedent).
+- **Acceptance:** the CI's own invocation (gitleaks 8.24.3, full history, committed
+  config) passes locally: reproduce the 4 findings on the base, zero after the fix.
+- **Tests:** the scanner contract is the test — the reproduction rig above.
+- **Status:** done — CI config + docs only (no bump, no CHANGELOG; the T-216
+  precedent). Chain: claim `d5045c2` -> fix `942d13a` -> close. Canon: every nightly
+  since 2026-11-11 failed with the same 4 findings (generic-api-key at
+  WidgetAccessibilityNames.cs:48 — the TapeWithSymbolKey localization template
+  constant; github-pat + gcp-api-key + generic-api-key in the LogRedactor /
+  LogTailService test fixtures — the T-117 probe shapes + the synthetic redaction
+  log line); the push scans stayed green throughout because they scan only the
+  pushed ranges. Verdict: sample-shaped fixtures, no real credential ever existed
+  — no rotation owed, no history rewrite. The allowlist gained the literals with
+  file + purpose named (the sibling probe shapes ride defensively), the audit log
+  records the triage (docs/SECURITY.md). Evidence: the CI's own invocation
+  reproduced exactly (gitleaks 8.24.3, full history over the develop line, 831
+  commits — the same 4 findings on the base config), zero after the fix; the
+  negative control (a seeded non-fixture token in a disposable temp repo) still
+  fires — the allowlist stays bounded. GATE PASSED attempt 1 (SCOPE + gitleaks
+  advisories). The nightly goes green once the fix is reachable from the scan's
+  checkout branch (`main` — 265 commits behind develop, a user-level sync).
