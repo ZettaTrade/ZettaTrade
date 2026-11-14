@@ -5215,3 +5215,44 @@ the board and its section below.
   launch smoke green: the sandbox carries no update-checker failure WRNs (the
   unpublished-feed launch rides the quiet state), 0 ERR/FTL, the 12 s hold held,
   ProductVersion 0.1.0-alpha.171+3c71b86, zero leftovers, the sandbox discarded.
+
+## T-231 - The watchlist ticker stream retries its failures; the Binance quote-asset drop de-noises
+
+- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep; filed from the user's log analysis).
+- **Origin:** the user's real log analysis (2026-11-11..14): the watchlist ticker stream dies
+  on a stream error and nothing re-arms it — the 2026-11-11 log shows six symbols
+  (ADA/DOGE/BNB/LINK/AVAX/LTC over USDT) failing as a family on every Bybit socket
+  force-cycle, the rows keeping their stale data until a UI-driven row-set change; the
+  Binance instruments parse warns about its 52-symbol unrecognized quote-asset drop EVERY
+  launch (9 warnings on 2026-11-14 alone, a stable standing fact).
+- **What:** a ticker stream failure re-arms its row with a bounded retry (backoff), so the
+  row revives after the venue's socket force-cycle without a UI nudge; the Binance
+  unrecognized quote-asset drop rides the debug level (the T-229 canon: the routine
+  data-shape cargo is not a failure family).
+- **Scope:** the WatchlistFeedService row pump's error path; the BinanceAdapter's
+  instruments parse log level; no adapter semantics.
+- **Acceptance:** a forced ticker stream failure recovers on its own (the row prices
+  again); the launch log over the Binance parse carries no unrecognized quote-asset
+  warning.
+- **Tests:** the row pump's retry facts; the Binance parse level pin.
+- **Status:** done - 0.1.0-alpha.172. Chain: file `764f050` -> fix `c9466be` -> release
+  `c8d442f` -> close. Canon: the watchlist's per-row ticker pump carries its own bounded
+  retry ladder (the adapters' `ReconnectPolicy` value object: 2 s initial doubling to a
+  30 s cap, jitter off — the re-arm is in-process bookkeeping, the anti-herd jitter is the
+  adapters' concern) shipped as the static `TickerRetryPolicy` + the optional ctor seam;
+  a stream death logs ONE warning, the ladder's churn rides the debug level, a revived
+  stream resets the attempts, the row keeps its sparkline history across the outage, and
+  a retired row's parked retry dies with the row (no resurrection). The Binance
+  unrecognized quote-asset drop rides the debug level per the T-229 canon (the standing
+  data-shape cargo; the symbol summary stays the only production trace). Tests: four
+  retry facts in WatchlistFeedServiceTests (the death-once + revival, the ladder reset on
+  a revived stream, the persistent-failure debug churn, the no-resurrection pin over a
+  parked retry retired mid-ladder) over the fresh-lane Fixture (a ConcurrentDictionary
+  lane cache with per-subscribe fresh lanes + a subscribe counter + a RecordingLogger),
+  plus the Binance parse level pin (Debug yes, Warning never). 14/14 Watchlist + 7/7
+  BinanceAdapterParsing facts green. GATE PASSED (-AllowProtected) attempt 2 (attempt 1
+  caught the FIRE-FORGET lint: the parked retry task now lives in the pump's `_retryTask`
+  field per the `_pumpTask` canon, and the re-arm body gained the catch-all warning so a
+  task never dies unobserved). The launch smoke green: 0 ERR/FTL, zero Binance
+  quote-asset WRN families, zero watchlist ticker WRN families, the 12 s hold held,
+  ProductVersion 0.1.0-alpha.172+c8d442f, zero leftovers, the sandbox discarded.
