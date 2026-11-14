@@ -39,7 +39,7 @@
          landing conflict keeps the higher number. The version shows in
          the exe file properties (Product version), in NuGet metadata and
          in Help/About (T-153 moved it off the status strip). -->
-    <VersionPrefix>0.2.2</VersionPrefix>
+    <VersionPrefix>0.2.3</VersionPrefix>
 
   </PropertyGroup>
 

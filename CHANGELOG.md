@@ -1,3 +1,32 @@
+## [0.2.3] - 2026-11-15
+
+Build of board task T-251 (branch `feat/stats-deepening`): the trade
+statistics window learned the risk-relative reads — how far each trade
+travelled against and with you, what it earned per unit of risk, and when
+in the week your edges actually live.
+
+### Added
+- Per-trade MAE/MFE: the maximum adverse and favorable excursion of every
+  closed trade, derived from the local candle cache (read-only, off the
+  trading hot path) over the trade's own window — a trade whose window the
+  cache does not cover keeps the honest dash, never a fabricated excursion.
+- The R-multiple distribution: the signed per-unit PnL divided by the
+  |entry − stop| risk distance, the stop context read from the journal
+  (the closing row's own protective stop first, then the ticket's sizer
+  stop on the entry leg); the average, the best and the worst R sit in the
+  tile row, and a trade without a stop context never dilutes the average.
+- Per-trade Sharpe and Sortino: the Welford-running mean and spread over
+  the booked PnLs (target-0 downside for Sortino), unannualized — the
+  equity curve carries no annual clock. An unbounded ratio renders by the
+  mean's sign; a series that cannot decide renders the dash.
+- The hourly and weekday performance tables: the 24 UTC hour buckets and
+  the seven weekdays (Monday first) with each slice's trades, wins,
+  losses and net PnL — an empty bucket keeps its label with zeros and a
+  dash, never hidden.
+- The realized-trades table grew the MAE/MFE columns, filled by the
+  excursion pass after the scan's final publish; a fault in that pass
+  logs a warning and keeps the table's dashes — the window stays usable.
+
 ## [0.2.2] - 2026-11-15
 
 Build of board task T-263 (branch `feat/backtest-perf`): the parameter
