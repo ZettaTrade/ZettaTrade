@@ -42,8 +42,11 @@ using ZettaTrade.Plugins.Abstractions;
 /// never guesses. A fire is persistent by design: the reached definition
 /// becomes the fire's own aftermath (the mode decides — T-204's terminal
 /// one-shot, per-crossing re-arm or cooldown snooze) with the event's own
-/// stamp, the roster persists, the beep rides a degrade lane (a failed beep
-/// is a logged warning, never a broken evaluation or a crash), the fire also
+/// stamp, the roster persists, the beep rides the player's dispatched
+/// playback (the fire path never waits for the tone — T-220: a firing burst
+/// never delays the evaluations behind it) and the degrade contract (a
+/// failed beep is a logged warning, never a broken evaluation or a crash),
+/// the fire also
 /// surfaces as a notification-center toast through the T-204 bridge (a
 /// display fact handed over, never a blocking one), and a reload can never
 /// re-fire a one-shot.
@@ -154,7 +157,8 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     /// <param name="ticks">The active market-data source the ticker subscriptions ride (the app's exchange facade).</param>
     /// <param name="indicators">The loaded plugin indicator catalog (T-203): the indicator-cross
     /// evaluation builds its implementations from it, and a name it cannot resolve pauses the alert.</param>
-    /// <param name="sound">The fired-alert beep seam (the engine owns the degrade lane).</param>
+    /// <param name="sound">The fired-alert beep seam: the player owns the playback's dispatch off this path
+    /// (T-220) and the playback's degrade lane; the engine keeps the catch for a failing dispatch attempt.</param>
     /// <param name="notifications">The notification center the fire's toast rides (the T-204 bridge; the publish never blocks).</param>
     /// <param name="clock">The time provider the manager ops stamp with (create, snooze).</param>
     /// <param name="logger">The engine's logger.</param>
@@ -654,8 +658,10 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     /// the firing honest about it: the status the re-arm mode names (the
     /// terminal Fired, the per-crossing Armed, the cooldown Snoozed with its
     /// window at the fire moment plus the cooldown), the beep when the alert
-    /// chose it, and the toast bridged to the notification center (the T-204
-    /// lane — the publish never blocks, the display layer owns the rest).
+    /// chose it (dispatched by the player off this path — the consumer loop
+    /// never waits for the tone, T-220), and the toast bridged to the
+    /// notification center (the T-204 lane — the publish never blocks, the
+    /// display layer owns the rest).
     /// </summary>
     private void Fire(AlertDefinition definition, AlertObservation observation)
     {
@@ -691,6 +697,14 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 
         if (definition.Sound == AlertSoundChoice.Beep)
         {
+            // The T-220 fire path: the beep dispatches inside the player (the
+            // kernel32 tone is a synchronous ~180 ms call the consumer loop
+            // must never wait for), so this call returns promptly and the
+            // evaluations behind a firing burst never pay the tone's
+            // duration. The catch stays the engine's degrade lane for a
+            // failing DISPATCH attempt; the playback's own faults log
+            // through the player's own lane (the T-096 contract relocated
+            // with the playback).
             try
             {
                 _sound.Play();
