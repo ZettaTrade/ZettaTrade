@@ -5188,3 +5188,30 @@ the board and its section below.
   rides silent (zero not-a-plugin WRN lines), the pack reports its full name list (ATR,
   BOLL, EMA, MACD, RSI, SMA, WMA + 4 strategies), 0 ERR/FTL, the 12 s hold held,
   ProductVersion 0.1.0-alpha.170+29fc22f, zero leftovers, the sandbox discarded.
+
+## T-230 - The update checker's no-release 404 is the quiet no-update state
+
+- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep).
+- **Origin:** the T-226 profiling — the update checker logs a 404 against the private feed
+  every launch while no release artifact is published at the checked URL; a feed without a
+  release is the honest no-update answer, not an error.
+- **What:** the check maps the feed's no-release answer (the 404 family) onto the
+  no-update quiet state; a real failure (network, malformed feed) keeps its error lane.
+- **Scope:** the update checker's response handling.
+- **Acceptance:** a launch log over the unpublished feed carries no 404 error entries; the
+  checker still surfaces a real published update.
+- **Tests:** the checker's no-release fact.
+- **Status:** done - 0.1.0-alpha.171. Chain: claim `e7413e6` -> fix `a14a720` -> release
+  `3c71b86` -> close. Canon: the releases fetch answers the no-release 404 with the honest
+  empty list — the feed without published releases is the quiet no-update state, not an
+  error family; the debug note is the only trace in the dev logs. Real failures keep
+  their warning lane: every other non-success status (rate limits, server faults) still
+  throws into the standing warning shape, and the network/parse faults degrade exactly as
+  before (the verdict stream never flaps). Tests: the loopback battery's
+  `TheNoRelease404_CompletesAsTheHonestEmptyVerdict` (the 404 completes BOTH checks with
+  the empty verdict, zero announcements, the asks still made) rides the existing stub's
+  status-code seam; the 500-family and malformed-payload degradation facts stay pinned
+  green. 8/8 UpdateCheckService facts green. GATE PASSED (-AllowProtected) attempt 1. The
+  launch smoke green: the sandbox carries no update-checker failure WRNs (the
+  unpublished-feed launch rides the quiet state), 0 ERR/FTL, the 12 s hold held,
+  ProductVersion 0.1.0-alpha.171+3c71b86, zero leftovers, the sandbox discarded.

@@ -234,7 +234,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-227 Exchange API-key authorization in the settings window: per-venue keys persist through ISecretStore, adapters read them at start, the Alpaca data adapter authenticates when keys are present and quiets its no-key noise when absent (the user's ask, the T-226 profiling follow-up) | feat/exchange-auth-settings | done | - |
 | T-228 One instruments-info fetch per exchange per session: the startup warm-up and the chart's bootstrap share the provider cache instead of double-fetching (the T-226 profiling follow-up) | feat/instruments-fetch-dedupe | planned | - |
 | T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | done | - |
-| T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | planned | - |
+| T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -527,18 +527,4 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
 - **Tests:** the provider fetch-count facts; the walk's warm-up pin.
 - **Status:** planned.
 
-## T-230 - The update checker's no-release 404 is the quiet no-update state
-
-- **Branch:** queued 2026-11-14 (the T-226 follow-up sweep).
-- **Origin:** the T-226 profiling — the update checker logs a 404 against the private feed
-  every launch while no release artifact is published at the checked URL; a feed without a
-  release is the honest no-update answer, not an error.
-- **What:** the check maps the feed's no-release answer (the 404 family) onto the
-  no-update quiet state; a real failure (network, malformed feed) keeps its error lane.
-- **Scope:** the update checker's response handling.
-- **Acceptance:** a launch log over the unpublished feed carries no 404 error entries; the
-  checker still surfaces a real published update.
-- **Tests:** the checker's no-release fact.
-- **Status:** in-progress (worktree zt-update-checker-404, branch
-  fix/update-checker-404, base develop@73e0a66, claimed 2026-11-14).
 
