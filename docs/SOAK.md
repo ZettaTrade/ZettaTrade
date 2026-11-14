@@ -78,7 +78,7 @@ scopes the CI lane:
 |---|---|---|---|
 | `MemoryMeanMb` | 400 (enforced) | 400 (enforced) | "typical memory < 500 MB" — the mean is held under 400 as the peak's headroom |
 | `MemoryPeakMb` | 500 (enforced) | 500 (enforced) | the perf target itself |
-| `ColdStartMs` | 3000 (enforced) | null → **advisory** | "cold start < 3 s" |
+| `ColdStartMs` | 5000 (enforced — the T-237 recorded floor) | null → **advisory** | "cold start < 3 s" — re-defined 3000 → 5000 by the T-237 recorded decision (the record below) |
 
 A budget key written **in** the file is enforced: its verdict drives the tool's
 exit code (0 = pass, 3 = breach) and, for the run, the driver's `SOAK PASSED`
@@ -94,14 +94,41 @@ it.
 
 ## The cold start record (honest)
 
-The 2026-11-10 harness shakedown measured the Debug lane's cold start around
-**3.9 s warm** (spawn → window; the Serilog startup timeline attributes ~1.6 s to
-the runtime before the first log line, ~1.7 s to the service assembly, the rest to
-the window build). That breaches the 3 s target with the budget **enforced** in
-the landing lane: `gate.ps1 -Budgets` will report the breach until the startup
-path's own optimization pass lands (a dedicated follow-up task; recorded in the
-T-109 canon). The CI lane deliberately reports, never fails on it — a runner's
-cold start is runner-noise.
+The landing lane's `ColdStartMs` budget was re-defined **3000 → 5000** by the
+T-237 recorded decision (2026-11-14, the acceptance's second path): the 3 s
+product target is not reachable by a startup-code pass on the dev lane, and
+the honest evidence is the machine's own spread.
+
+- The breach history: T-109's acceptance run measured **3 999.3 ms** (2026-11-10,
+  warm); the T-233 soak re-runs spread **4 562–9 977 ms** across four runs; the
+  T-236 finale pass **5 394 ms**; the T-237 official soak (the startup-pre-warm
+  shape, a fresh sandbox) **4 849.3 ms**.
+- The Release-lane cross-check (outside the Debug-hardcoded harness, the same
+  spawn → window measurement over per-run sandbox profiles): the
+  startup-pre-warm build **4 383 / 4 338 ms**, plain develop **4 493 / 4 335 ms**
+  (first-run outliers 5 415 / 10 940 ms ride the fresh-binary Defender scan). The
+  shipping lane measures the same wall as the Debug lane's steady band — JIT is
+  not the binding constraint here.
+- The wall decomposition (the Release logs): spawn → the first Serilog line
+  ≈ 1.4–1.9 s (the runtime spin + the Avalonia app build + the composition's
+  start), the walk to the composed provider ≈ 1.2–1.5 s, then the window build.
+  The walk itself got faster with T-237 (the SecretStore → MainViewModel-ready
+  span **2.29 s → 1.54 s** on Release; the Debug walk total 2 402–2 543 ms →
+  1 668 ms, the store batch 1 116–1 168 ms → 723 ms), but the spawn-to-window
+  wall did not move — it is bound by the pre-log region and the window build,
+  not by the persistence walk.
+- What a further cut needs: the pre-log region and the window build are
+  fixed-cost phases a startup-code pass does not reach (the runtime spin-up, the
+  Avalonia app/XAML initialization, the window's XAML load). The follow-up
+  candidate is a packaging-lane pass (ReadyToRun / a publish shape), out of the
+  startup-code scope T-237 filed.
+- The re-defined **5000 ms** floor is a regression floor, not the product
+  target: the observed steady band is 4.3–4.9 s on both lanes, the breach
+  history's first-run outliers ride above it, and a genuine startup regression
+  (a stuck store, a re-serialized walk) lands far above. The CI lane stays
+  advisory (`null`) — a runner's cold start is runner-noise. The 3 s product
+  target stays the aspiration (AGENTS.md); the budget files enforce the floor
+  the lane can actually hold.
 
 ## Limits
 

@@ -5483,3 +5483,59 @@ the board and its section below.
   chip's Highlight hover answer with the fill held, and the gate-disabled chip asleep
   and silent); the T-234 toolbar pins ride their own strip (the toolbar's T-212 widths
   and the editor's content floors are two lanes). 2224 App facts green, the Livery 63.
+
+## T-237 - The cold start meets the 3 s budget on the soak lane
+
+- **Branch:** queued 2026-11-14 (filed by the T-236 readiness record; the follow-up candidate
+  noted at the T-109 close, re-owned by the T-233 canon).
+- **Origin:** the soak `ColdStartMs` budget has been disclosed as breached on the Debug lane
+  since T-109's own acceptance run (3,999.3 ms there; the T-236 finale pass 5,394 ms; the
+  T-233 soak re-runs 4,562-9,977 ms across four runs; the 2026-11-10 shakedown 3.9 s warm).
+  The spawn-to-window wall decomposes as ~1.6 s to the runtime, ~1.7 s to the service
+  assemblies, the rest to the window build; the spread is machine-load sensitivity, pre- and
+  post-T-233 runs measure alike.
+- **What:** a dedicated startup-optimization pass over the app's walk to the first window —
+  the runtime/assembly warm shape, the store walk's batching (the T-226 batch), the chart
+  prewarm, the composition's eager adapter resolution — re-measured on the soak lane with a
+  Release-lane cross-check where the harness allows; the enforcement posture stays (the CI
+  lane keeps the cold start advisory).
+- **Scope:** the app startup path; `scripts/soak.ps1` budget files only if the budget
+  definition itself changes (protected); tests for whatever the walk reorders.
+- **Acceptance:** the soak `ColdStartMs` budget passes on the landing lane (or the budget is
+  re-defined by a recorded decision with the honest reasons); no regression in the other
+  budget families.
+- **Tests:** the startup-order facts the change introduces; the existing suite stays green.
+- **Status:** done. Canon: the branch `feat/startup-optimization` carries the claim, the
+  feature, the release and this close (the temporary probe commit never left the branch).
+  The shipped shape: the startup model pre-warm (`PersistenceModelPrewarm`) kicks all six
+  SQLite contexts' EF model builds on worker threads in `RunDesktopLifetime` before
+  `BuildAvaloniaApp` — throwaway in-memory options (no connection, no file, no data), a
+  CAS-latched kick, a settled Warmed/Failed/WallMs outcome that never faults, and the
+  composition's one Debug receipt (the T-231 fire-and-forget canon: the receipt task rides
+  a field). The candle cache's and the chart drawings' `InitializeAsync` pay their
+  first-query plan warm-ups right after the one-time migration — each store's own read
+  shape over a benign never-stored series (the read answers zero rows), inside the T-226
+  store batch's concurrent window, silent above Debug (the T-229 log floor), degrading
+  harmlessly (the walk's own first touch builds the model exactly as before).
+  Tests: the pre-warm facts (six models warm once per process, the second kick answers
+  the same settled outcome) and the two stores' warm-up facts (the benign read stays
+  empty, one Debug receipt, nothing at warning or above, the disabled cache skips it).
+  The measured outcome (the honest one): the composition walk got faster — the
+  SecretStore → MainViewModel-ready span 2.29 s → 1.54 s on the Release lane; the Debug
+  walk total 2,402-2,543 ms → 1,668 ms (the store batch 1,116-1,168 ms → 723 ms, the chart
+  ctor 492-524 ms → 204 ms) — but the spawn-to-window wall did not move: the Release
+  cross-check measured the startup-pre-warm build at 4,383/4,338 ms against plain
+  develop's 4,493/4,335 ms (the same wall), the Debug steady band stayed 4.4-4.5 s on both
+  shapes, and the official soak (fresh sandbox) measured 4,849.3 ms. The wall is bound by
+  the pre-log region (the runtime spin + the Avalonia app build + the composition's start,
+  ~1.4-1.9 s on Release) and the window build — fixed-cost phases a startup-code pass does
+  not reach; the follow-up candidate is a packaging-lane pass (ReadyToRun / a publish
+  shape). The recorded budget decision (the acceptance's second path): the landing lane's
+  `ColdStartMs` budget re-defines 3000 → 5000 as a regression floor — the observed steady
+  band is 4.3-4.9 s on both lanes, the breach history's first-run outliers ride above it,
+  and a genuine startup regression lands far above; the CI lane stays advisory. The 3 s
+  product target stays the aspiration (AGENTS.md). Recorded in docs/SOAK.md's cold-start
+  record. The memory families held everywhere (the official soak: mean 118.1 / peak
+  123.5 MB, leak slope 0.00 MB/h on both series, the isolation census clean). Gate:
+  `GATE PASSED` (`-AllowProtected`), 3,541 facts green (61 Core + 17 Soak + 32 Strategies
+  + 53 Backtest + 48 AdapterKit + 409 UI + 683 Infrastructure + 7 E2E + 2,231 App).
