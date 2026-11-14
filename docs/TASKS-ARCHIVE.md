@@ -4812,6 +4812,41 @@ the board and its section below.
   the beep never sounds in a smoke run (no alerts fire); the semantics ride the
   battery.
 
+## T-221 — Stabilize the E2E DetachCycle flake
+
+- **Branch:** fix/e2e-detach-flake, worktree zt-e2e-detach-flake, base develop@d2a8d5a
+  (claimed 2026-11-14 off the synced board).
+- **Origin:** the review round's gate runs — the DetachCycle family needed the gate's
+  flaky retry on both passes; it passed isolated on both the untouched base and the
+  fix tip.
+- **What:** the detach-cycle wait stops racing the tree's detach churn (the bounded
+  predicate retry's budget and poll cadence sized against the observed variance), so
+  the family passes a full gate first-run.
+- **Scope:** tests-only — the E2E detach-cycle family; no product surface, no bump,
+  no CHANGELOG (the T-216 precedent).
+- **Acceptance:** the family survives a full gate run first-try; a genuinely stuck
+  detach still fails bounded.
+- **Tests:** the family's own evidence-driven shape decided at implementation.
+- **Status:** done — tests-only (no bump, no CHANGELOG; the T-216 precedent). Chain:
+  claim `076287d` -> feat `4a10566` -> close. Canon: the flake root was MEASURED —
+  the resize-handle lookup inside the retry loop paid FindDescendantById's full
+  6 s Retry.WhileNull budget per iteration against an already-settled tree (the
+  handle hides with the detach — Avalonia drops hidden controls from the
+  automation tree), so the legacy wait was ONE poisoned iteration inside its own
+  6 s budget and the collapse verdict rode inside it; the handle's verdict moved
+  to the failure message only (the passing run never pays for it). The waits
+  carry the family's own budget + cadence (20 s at a 250 ms poll — the T-216
+  multiplier over the observed exceedance; isolated the collapse settles under
+  2 s and the attach re-widen under 0.25 s) and the width reads are
+  exception-safe (a mid-read element death answers not-settled and retries
+  instead of FlaUI's exception escape failing the family on a healthy
+  re-rendering tree). Isolated proof: the family passed in 6 s (the pre-fix
+  worker probe measured 11.26 s with the handle lookup inside the loop).
+  GATE PASSED attempt 1 (no protected surfaces; SCOPE + gitleaks advisories).
+  Scope fix by the takeover: the dead session's draft carried an out-of-scope
+  alpha.167 bump + CHANGELOG section — dropped before the feat (the board's
+  tests-only scope wins; the T-216/T-144/T-176 precedent).
+
 ## T-222 — The settings window re-rides the approved variant-A mockup
 
 - **Branch:** queued 2026-11-13 (the user reported the landed T-184 window as "not at all

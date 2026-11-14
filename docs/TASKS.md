@@ -225,7 +225,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-218 Virtualize the AI chat transcript (queued from the 2026-11-13 review round) | feat/chat-virtualization | done | - |
 | T-219 Stream the statement export past the whole-journal materialization (queued from the 2026-11-13 review round) | feat/statement-stream | done | - |
 | T-220 Non-blocking alert beep (queued from the 2026-11-13 review round) | fix/alert-beep-async | done | - |
-| T-221 Stabilize the E2E DetachCycle flake (queued from the 2026-11-13 review round) | fix/e2e-detach-flake | in-progress | - |
+| T-221 Stabilize the E2E DetachCycle flake (queued from the 2026-11-13 review round) | fix/e2e-detach-flake | done | - |
 | T-222 The settings window re-rides the approved variant-A mockup: the rail's title-bar strip + icons + note, the compact per-section cards, the pinned footer chrome, the 880x640 frame (the user-reported T-184 gap) | fix/settings-rail-fix | done | - |
 | T-223 The settings pages collapse into the variant-A section grammar: the card headers become toggles (four open by default), the rail captions ride BodyFontSize, the quiet controls ride the Livery 0.1.13 surface-family keys (the user-reported T-222 gap) | feat/settings-collapse | done | - |
 
@@ -503,23 +503,3 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   0 ERR/FTL, ticker+screener+watchlist clean, palette refreshed, strategies+indicators
   provided, and the new verdict fired: "Chat history store ready at ...chat-history.db
   (migrations applied)".
-
-## T-221 — Stabilize the E2E DetachCycle flake
-
-- **Branch:** fix/e2e-detach-flake, worktree zt-e2e-detach-flake, base develop@d2a8d5a
-  (claimed 2026-11-14 off the synced board).
-- **Origin:** the review round's gate runs — the DetachCycle family needed the gate's
-  flaky retry on both passes; it passed isolated on both the untouched base and the
-  fix tip.
-- **What:** the detach-cycle wait stops racing the tree's detach churn (the bounded
-  predicate retry's budget and poll cadence sized against the observed variance), so
-  the family passes a full gate first-run.
-- **Scope:** tests-only — the E2E detach-cycle family; no product surface, no bump,
-  no CHANGELOG (the T-216 precedent).
-- **Acceptance:** the family survives a full gate run first-try; a genuinely stuck
-  detach still fails bounded.
-- **Tests:** the family's own evidence-driven shape decided at implementation.
-- **Status:** in-progress.
-
-
-
