@@ -223,7 +223,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-216 Stabilize the dispatcher-pump drain flake: the theme-pin family's DrainTimeout misses (queued from the T-193/T-194 gate fights) | feat/flaky-theme-drain | done | - |
 | T-217 Perf fixes: the streamed chat re-render throttle + the pinned stats equity snapshot (the 2026-11-13 review round) | feat/perf-fixes | done | - |
 | T-218 Virtualize the AI chat transcript (queued from the 2026-11-13 review round) | feat/chat-virtualization | planned | - |
-| T-219 Stream the statement export past the whole-journal materialization (queued from the 2026-11-13 review round) | feat/statement-stream | in-progress | - |
+| T-219 Stream the statement export past the whole-journal materialization (queued from the 2026-11-13 review round) | feat/statement-stream | done | - |
 | T-220 Non-blocking alert beep (queued from the 2026-11-13 review round) | fix/alert-beep-async | planned | - |
 | T-221 Stabilize the E2E DetachCycle flake (queued from the 2026-11-13 review round) | fix/e2e-detach-flake | planned | - |
 | T-222 The settings window re-rides the approved variant-A mockup: the rail's title-bar strip + icons + note, the compact per-section cards, the pinned footer chrome, the 880x640 frame (the user-reported T-184 gap) | fix/settings-rail-fix | done | - |
@@ -518,21 +518,6 @@ parked T-041 (Telegram) stays queued and rides the T-204 event surface when open
   the whole-list re-measure; the copy affordance and the auto-scroll hold.
 - **Tests:** the panel's existing interaction facts; a long-transcript render fact.
 - **Status:** planned.
-
-## T-219 — Stream the statement export past the whole-journal materialization
-
-- **Branch:** feat/statement-stream, worktree zt-statement-stream, base develop@0da6677 (claimed 2026-11-14 off the synced board).
-- **Origin:** the review — the statement export collects every scanned order into a
-  list before writing, so a six-figure journal spikes the heap on an on-demand route.
-- **What:** the orders/fills sections stream page by page straight into their CSVs
-  during the one scan pass; the realized ledger and the balances ride the existing
-  end-of-scan reads; the manifest stays LAST (the completeness marker).
-- **Scope:** the statement export service + the stats VM export flow; the manifest
-  shape and the CSV contracts unchanged.
-- **Acceptance:** the bundle bytes stay identical to the materialized shape
-  (golden-locked); the peak memory stays bounded by one page plus the realized ledger.
-- **Tests:** the existing statement goldens hold byte-for-byte; a bounded-memory pin.
-- **Status:** in-progress.
 
 ## T-220 — Non-blocking alert beep
 

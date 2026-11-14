@@ -4698,6 +4698,45 @@ the board and its section below.
   [PROTECTED] check on the rule-6 version bump in Directory.Build.props — the bump is
   the board task's sanctioned change, the same shape the T-210 landing rode.
 
+## T-219 — Stream the statement export past the whole-journal materialization
+
+- **Branch:** feat/statement-stream, worktree zt-statement-stream, base develop@0da6677 (claimed 2026-11-14 off the synced board).
+- **Origin:** the review — the statement export collects every scanned order into a
+  list before writing, so a six-figure journal spikes the heap on an on-demand route.
+- **What:** the orders/fills sections stream page by page straight into their CSVs
+  during the one scan pass; the realized ledger and the balances ride the existing
+  end-of-scan reads; the manifest stays LAST (the completeness marker).
+- **Scope:** the statement export service + the stats VM export flow; the manifest
+  shape and the CSV contracts unchanged.
+- **Acceptance:** the bundle bytes stay identical to the materialized shape
+  (golden-locked); the peak memory stays bounded by one page plus the realized ledger.
+- **Tests:** the existing statement goldens hold byte-for-byte; a bounded-memory pin.
+- **Status:** done - 0.1.0-alpha.164. Chain: claim `1662be9` -> feat `ab874d3` -> close.
+  Concurrent-landing note: the branch rebased onto the landed T-215 tip
+  (develop@17c5945) — the bumps re-took the free alpha.164 (alpha.162 had just
+  shipped) and the CHANGELOG sections stack newest-first (164 over 162).
+  The order-side sections stream through the ONE T-084 CSV writer's new
+  `BeginOrderStreamAsync` pair (the same row mappers and row order, so the streamed
+  bytes stay the materialized shape's — the goldens hold byte-for-byte); the
+  service's shape became BeginAsync / AppendOrdersPageAsync / CompleteAsync
+  (StatementExportHeader carries the filter echo, StatementExportTail the
+  end-of-scan reads), and the materialized `StatementExport` record is gone. The
+  VM's flow reads the scan's first page before the save dialog (the empty-range
+  refusal keeps preceding any destination), streams page by page, then rides the
+  end-of-scan balance read and the manifest-last completeness marker; a mid-scan
+  fault leaves the sections it wrote but no manifest (the torn bundle stays
+  detectable — the sections-stay-on-disk contract is unchanged). Resx: none.
+  Tests: App 2173 (delta +2 over the base 2171 — the bounded-memory pin (the
+  sections lead the reads: page N's rows are appended before page N+1 is read)
+  and the cancelled-dialog fact), Infrastructure 654 (delta +5 over the base 649
+  — the multi-page manifest-counts golden plus the four writer-level facts: the
+  streamed-vs-one-shot byte parity, the between-rows cancellation, the honest
+  directory failure, the released first writer), UI 409 (0), Core 61 (0),
+  AdapterKit 48 (0), Strategies 32 (0), Backtest 53 (0), Soak 17 (0), E2E 6/6
+  first-try. GATE PASSED attempt 1 (-AllowProtected): the [HIGH-RISK] flag rode
+  the IOrderSectionStream.cs filename (the `*Order*` pattern), not trading
+  logic — the surface writes export files only.
+
 ## T-222 — The settings window re-rides the approved variant-A mockup
 
 - **Branch:** queued 2026-11-13 (the user reported the landed T-184 window as "not at all
