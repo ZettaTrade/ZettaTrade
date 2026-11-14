@@ -147,7 +147,7 @@ public sealed class BacktestService : IBacktestService
                 request.Seed,
                 bars.Count);
 
-            report = await ReplayAsync(request, strategy, bars, cancellationToken).ConfigureAwait(false);
+            report = await ReplayAsync(request, strategy, bars, publishEvents: true, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -178,10 +178,15 @@ public sealed class BacktestService : IBacktestService
     /// publishes the cancelled event (with the bars processed so far) and
     /// rethrows — the caller owns the cancelled result.
     /// </summary>
+    /// <param name="publishEvents">Publish the run-lane event shapes
+    /// (Started/Progress/Cancelled). The T-263 best-report re-replay rides
+    /// the silent shape: it must never re-count the sweep's row progress the
+    /// surface already folded from the ranked rows' own replays.</param>
     private async Task<BacktestReport> ReplayAsync(
         BacktestRunRequest request,
         IStrategy strategy,
         IReadOnlyList<Bar> bars,
+        bool publishEvents,
         CancellationToken cancellationToken)
     {
         // Deterministic seed: the replay's only stochastic input (the slippage
@@ -202,7 +207,10 @@ public sealed class BacktestService : IBacktestService
             var host = new StrategyHost([strategy], _hostLogger);
 
             var ledger = new BacktestLedger(request.AdapterId, request.Symbol, _feeSchedules, request.InitialQuoteAmount);
-            Publish(new BacktestRunEvent(BacktestRunEventKind.Started, request.Bars, BarsProcessed: 0, Report: null));
+            if (publishEvents)
+            {
+                Publish(new BacktestRunEvent(BacktestRunEventKind.Started, request.Bars, BarsProcessed: 0, Report: null));
+            }
 
             // The pump runs with the SAME token: cancellation is the stop (the
             // host completes its output; the reader sees a completed channel,
@@ -239,11 +247,14 @@ public sealed class BacktestService : IBacktestService
                 ledger.Refusals,
                 ledger.ComputeStatistics(finalClose));
 
-            Publish(new BacktestRunEvent(
-                BacktestRunEventKind.Completed,
-                request.Bars,
-                bars.Count,
-                report));
+            if (publishEvents)
+            {
+                Publish(new BacktestRunEvent(
+                    BacktestRunEventKind.Completed,
+                    request.Bars,
+                    bars.Count,
+                    report));
+            }
 
             _logger.LogInformation(
                 "Backtest '{Strategy}' completed: {Fills} fill(s), {Refusals} refusal(s), {Trades} closed trade(s), final equity {FinalEquity}",
@@ -259,7 +270,11 @@ public sealed class BacktestService : IBacktestService
         {
             // The stop inside the replay: the cancelled run publishes the
             // cancelled event and produces NO report and NO artifacts.
-            Publish(new BacktestRunEvent(BacktestRunEventKind.Cancelled, request.Bars, processed, Report: null));
+            if (publishEvents)
+            {
+                Publish(new BacktestRunEvent(BacktestRunEventKind.Cancelled, request.Bars, processed, Report: null));
+            }
+
             _logger.LogInformation(
                 "Backtest '{Strategy}' cancelled after {Processed} candle(s); nothing was produced",
                 request.StrategyId,
@@ -367,13 +382,14 @@ public sealed class BacktestService : IBacktestService
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var rowRequest = request.Apply(firstValue, secondValue);
-                    var report = await ReplayAsync(rowRequest, strategy, bars, CancellationToken.None).ConfigureAwait(false);
+                    var report = await ReplayAsync(rowRequest, strategy, bars, publishEvents: true, CancellationToken.None).ConfigureAwait(false);
                     rows.Add(new BacktestSweepRow(
                         Rank: 0,
                         Index: index,
                         FirstValue: firstValue,
                         SecondValue: secondValue,
-                        Report: report));
+                        Request: rowRequest,
+                        Statistics: report.Statistics));
                     index++;
                 }
             }
@@ -400,7 +416,26 @@ public sealed class BacktestService : IBacktestService
             request.FirstAxis.Values.Count * request.SecondAxis.Values.Count,
             ranked.Count > 0 ? ranked[0].Net : 0m);
 
-        return new BacktestSweepResult(outcome, request, ranked);
+        // The best row's FULL report (T-263): one silent re-replay of the
+        // rank-1 parameterization on the SAME loaded window — the same seed
+        // and the same bars fold the byte-identical report that row's own
+        // replay produced, so the auto-selected report surface is the
+        // sweep's own fact and the retained result carries ONE equity
+        // curve, not one per row. The re-replay rides no token: the grid
+        // completed, and this is the completion's own presentation step (a
+        // stop request lands after the sweep answers, as between rows).
+        BacktestReport? bestReport = null;
+        if (outcome == BacktestSweepOutcome.Completed && ranked.Count > 0)
+        {
+            bestReport = await ReplayAsync(
+                ranked[0].Request,
+                strategy,
+                bars,
+                publishEvents: false,
+                CancellationToken.None).ConfigureAwait(false);
+        }
+
+        return new BacktestSweepResult(outcome, request, ranked, bestReport);
     }
 
     /// <summary>

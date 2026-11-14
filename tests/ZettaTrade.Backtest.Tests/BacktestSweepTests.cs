@@ -149,16 +149,21 @@ public sealed class BacktestSweepTests
         second.IsCompleted.Should().BeTrue();
         // The whole sweep's canonical text: byte-identical across sweeps.
         first.ToCanonicalText().Should().Be(second.ToCanonicalText());
-        // And every ranked row's own report is byte-stable in its ranked position.
+        // Every ranked row's own metrics are byte-stable in its ranked
+        // position (the rows carry the request + the statistics — T-263).
         first.Rows.Should().HaveCount(second.Rows.Count);
         for (var i = 0; i < first.Rows.Count; i++)
         {
-            first.Rows[i].Report.ToCanonicalText().Should().Be(second.Rows[i].Report.ToCanonicalText());
+            first.Rows[i].Statistics.Should().Be(second.Rows[i].Statistics);
+            first.Rows[i].Request.Should().Be(second.Rows[i].Request);
             first.Rows[i].Rank.Should().Be(second.Rows[i].Rank);
             first.Rows[i].Index.Should().Be(second.Rows[i].Index);
             first.Rows[i].FirstValue.Should().Be(second.Rows[i].FirstValue);
             first.Rows[i].SecondValue.Should().Be(second.Rows[i].SecondValue);
         }
+
+        // And the one retained full report — rank 1's own — is byte-stable.
+        first.BestReport!.ToCanonicalText().Should().Be(second.BestReport!.ToCanonicalText());
     }
 
     [Fact]
@@ -177,11 +182,15 @@ public sealed class BacktestSweepTests
             "the table is ranked, best net first");
         foreach (var row in result.Rows)
         {
-            row.Net.Should().Be(row.Report.Statistics.FinalEquity - row.Report.Request.InitialQuoteAmount);
-            // Each row's report carries the cell's own knob pair.
-            row.Report.Request.LongNotionalFraction.Should().Be(row.FirstValue);
-            row.Report.Request.SlippageValue.Should().Be(row.SecondValue);
+            row.Net.Should().Be(row.Statistics.FinalEquity - row.Request.InitialQuoteAmount);
+            // Each row's metrics carry the cell's own knob pair.
+            row.Request.LongNotionalFraction.Should().Be(row.FirstValue);
+            row.Request.SlippageValue.Should().Be(row.SecondValue);
         }
+
+        // The one retained full report pairs with the rank-1 row exactly.
+        result.BestReport!.Request.Should().Be(result.Rows[0].Request);
+        result.BestReport.Statistics.Should().Be(result.Rows[0].Statistics);
     }
 
     [Fact]
@@ -231,6 +240,24 @@ public sealed class BacktestSweepTests
     }
 
     [Fact]
+    public async Task Sweep_BestReport_IsByteIdenticalToTheRowsOwnSingleRun()
+    {
+        var (service, cache) = Build();
+        await SeedAsync(cache, 128);
+
+        var result = await service.SweepAsync(Sweep());
+
+        result.IsCompleted.Should().BeTrue();
+        result.BestReport.Should().NotBeNull();
+        // The best report IS the rank-1 parameterization's own replay: a
+        // single run of the same request over the same cache folds the same
+        // report byte-for-byte — the re-replay adds no new fact (T-263).
+        var own = await service.RunAsync(result.Rows[0].Request);
+        own.IsCompleted.Should().BeTrue();
+        own.Report!.ToCanonicalText().Should().Be(result.BestReport!.ToCanonicalText());
+    }
+
+    [Fact]
     public async Task Sweep_LoadsTheWindowOnce_ReplaysEveryRow()
     {
         var (service, cache) = Build();
@@ -243,10 +270,9 @@ public sealed class BacktestSweepTests
         // The window loaded exactly once: every parameterization replayed
         // the SAME bars, the load's cost stays one walk-back.
         cache.NewestReadCount.Should().Be(1);
-        // Every row replayed the full window (the same honest bar count —
-        // the template's 64-bar target over the 128-bar series).
-        result.Rows.Select(row => row.Report.Equity.Count)
-            .Should().OnlyContain(count => count == 64);
+        // The best row's full report replayed the full window over the same
+        // loaded bars (the template's 64-bar target over the 128-bar series).
+        result.BestReport!.Equity.Should().HaveCount(64);
     }
 
     [Fact]
@@ -279,10 +305,11 @@ public sealed class BacktestSweepTests
         result.Rows.Should().HaveCount(1, "the first parameterization completed before the stop");
         result.Rows[0].Rank.Should().Be(1);
         result.Rows[0].Index.Should().Be(0);
-        result.Rows[0].Report.Request.LongNotionalFraction.Should().Be(0.5m);
-        result.Rows[0].Report.Request.SlippageValue.Should().Be(1m);
-        // The row is a complete, byte-stable report (never half-run).
-        result.Rows[0].Report.Equity.Should().HaveCount(64);
+        result.Rows[0].Request.LongNotionalFraction.Should().Be(0.5m);
+        result.Rows[0].Request.SlippageValue.Should().Be(1m);
+        // The stop keeps the row's metrics; the completed replay's own facts
+        // surface through the click-through's re-replay, never a half-run.
+        result.BestReport.Should().BeNull("a cancelled sweep carries no best report");
         completed.Should().HaveCount(1);
     }
 
@@ -307,6 +334,7 @@ public sealed class BacktestSweepTests
         var result = await sweep;
         result.Outcome.Should().Be(BacktestSweepOutcome.Cancelled);
         result.Rows.Should().BeEmpty();
+        result.BestReport.Should().BeNull();
         // The sweep never started a parameterization: the stream carries
         // per-run events only, and none went out.
         events.Should().BeEmpty();
