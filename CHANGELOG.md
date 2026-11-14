@@ -1,3 +1,39 @@
+## [0.1.0-alpha.168] - 2026-11-14
+
+Build of board task T-226 (branch `feat/startup-latency`): the cold start
+stops paying the sum of five serialized SQLite warm-ups, and the chart
+renders from the candle cache while the instrument list is still loading.
+
+### Changed
+- The composition root's startup walk batches the five independent SQLite
+  stores (chat history, order history, portfolio value, candle cache,
+  chart drawings) concurrently at the earliest store's walk position: the
+  migrations are mutually independent database files, so every later walk
+  step still sees every store ready while the batch's wall time becomes
+  the slowest store instead of the sum (the real-launch profile showed
+  the chat-history spot's ~0.85 s serializing the walk, the first store
+  also paying the one-time EF Core warm-up the rest reuse). A store's
+  failure still fails fast exactly as before (BUG-019), and the
+  once-per-instance initialization dedup holds.
+- The chart prewarms: the persisted workspace symbol reads BEFORE the
+  symbols fetch and applies through the UI marshal while the fetch is in
+  flight — the first render comes from the candle cache without waiting
+  for the instrument list (the real-launch profile showed ~1.5 s of blank
+  chart between the window and the first cache page). The apply rides the
+  bootstrap gate (a restore is a read, not an edit — the preference is
+  never rewritten), carries the bootstrap's epoch (the BUG-016 guard — a
+  newer bootstrap drops the stale prewarm) and holds behind the persisted
+  time-frame restore, so the persisted symbol never loads against the
+  constructor-default H1. The delivery later re-applies the same
+  preference: the record Symbol's value equality makes the equal raise
+  reload nothing, so the prewarmed start costs exactly one bars load.
+- The facts: the walk battery proves the batch's concurrency (a store
+  parked on the sibling's start — a serialized walk would deadlock), the
+  fail-fast propagation through the batch, the dedup on later batched
+  descriptors and the five-store list pin; the chart facts prove the
+  prewarm renders while the fetch is parked, the epoch drop on a newer
+  bootstrap and the honest nothing-to-prewarm shape. 2192 App facts green.
+
 ## [0.1.0-alpha.167] - 2026-11-14
 
 Build of board task T-225 (branch `fix/alerts-window-crash`): selecting
