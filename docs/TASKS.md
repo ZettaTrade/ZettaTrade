@@ -236,7 +236,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-229 The plugin scanner stops logging every non-plugin dll as a failure: the scan's honest drop is a debug line while the folder's real packs still load (the T-226 profiling follow-up) | fix/not-a-plugin-log-noise | done | - |
 | T-230 The update checker treats the private feed's no-release 404 as the honest no-update quiet state instead of an error entry every launch (the T-226 profiling follow-up) | fix/update-checker-404 | done | - |
 | T-231 The watchlist ticker stream retries its stream failures with a bounded backoff instead of dying stale, and the Binance instruments parse takes the unrecognized quote-asset drop at the debug level (filed from the user's log analysis) | feat/watchlist-ticker-retry | done | - |
-| T-233 The adapters' construction-time Disconnected snapshots stop carrying real-exchange endpoints into a demo-only run's log: a connection-state line rides a real lifecycle transition, and the soak census's host list covers every shipped venue (the T-232 finale's soak finding) | fix/adapter-state-log-leak | in-progress | - |
+| T-233 The adapters' construction-time Disconnected snapshots stop carrying real-exchange endpoints into a demo-only run's log: a connection-state line rides a real lifecycle transition, and the soak census's host list covers every shipped venue (the T-232 finale's soak finding) | fix/adapter-state-log-leak | done | - |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -319,33 +319,3 @@ lanes; the sweep's tasks queue behind the planned UI batch (T-176…T-185) by de
 parked T-041 (Telegram) stays queued and rides the T-204 event surface when opened.
 
 ---
-
-## T-233 - The adapters' pre-dial Disconnected snapshots stop logging real-exchange endpoints
-
-- **Branch:** queued 2026-11-14 (the T-232 beta-prep finale's soak finding).
-- **Origin:** the T-232 finale's soak run (`scripts/soak.ps1 -Minutes 5` on the beta-prep tip,
-  alpha.173) failed at the T-141 isolation census — a demo-only run's log carried `bybit.com`.
-  A kept-log repro named the mechanism exactly: `AddActiveExchange` composes the market-data
-  catalog by eagerly resolving all five adapters, each real adapter's constructor subscribes its
-  WS client's `ConnectionStateStream`, the `BehaviorSubject<bool>(false)` seeds the initial
-  `false` at subscription, and the market adapters' handlers log it at Information
-  (`... connection state: Disconnected at <url>`) — an adapter that never dials still prints its
-  real endpoint. The census caught bybit.com twice (the spot and the linear URLs); the alpaca
-  and okx construction lines escaped only because the census's host list knows bybit.com and
-  binance.com only.
-- **What:** the four market adapters' connection-state handlers log real lifecycle transitions
-  only — the seeded pre-dial `false` (a state sync, not a transition) stops logging, and so do
-  the false-after-false repeats the transport's own per-attempt warnings already carry; every
-  real change (a dial's connect, a drop, a teardown) keeps its line verbatim. The census's host
-  list grows to every shipped real-exchange host. The transport's seed-at-subscription
-  semantics stay (the WebSocketClientTests fact pins them).
-- **Scope:** the four Infrastructure market adapters' state handlers; the census host list in
-  `scripts/soak.ps1` (protected — the gate rides -AllowProtected); the next free alpha bump + the
-  CHANGELOG section.
-- **Acceptance:** a constructed-but-never-dialed adapter logs zero connection-state lines (the
-  new fact); the adapters' real-dial lifecycle lines stay (the existing suite); the soak census
-  passes on a demo-only run and the budget verdicts report on the fixed tip.
-- **Tests:** the no-dial log-absence facts over the market adapters; the seed-at-subscription
-  pin stays green untouched.
-- **Status:** in-progress (worktree zt-adapter-state-log-leak, branch fix/adapter-state-log-leak,
-  base develop@5194f10, claimed 2026-11-14).
