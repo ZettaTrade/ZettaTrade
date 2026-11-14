@@ -5289,3 +5289,55 @@ the board and its section below.
   task never dies unobserved). The launch smoke green: 0 ERR/FTL, zero Binance
   quote-asset WRN families, zero watchlist ticker WRN families, the 12 s hold held,
   ProductVersion 0.1.0-alpha.172+c8d442f, zero leftovers, the sandbox discarded.
+
+## T-233 - The adapters' pre-dial Disconnected snapshots stop logging real-exchange endpoints
+
+- **Branch:** fix/adapter-state-log-leak, worktree zt-adapter-state-log-leak, base
+  develop@5194f10 (claimed 2026-11-14; the T-232 beta-prep finale's soak finding).
+- **Origin:** the T-232 finale's soak run (`scripts/soak.ps1 -Minutes 5` on the beta-prep tip,
+  alpha.173) failed at the T-141 isolation census — a demo-only run's log carried `bybit.com`.
+  A kept-log repro named the mechanism exactly: `AddActiveExchange` composes the market-data
+  catalog by eagerly resolving all five adapters, each real adapter's constructor subscribes its
+  WS client's `ConnectionStateStream`, the `BehaviorSubject<bool>(false)` seeds the initial
+  `false` at subscription, and the market adapters' handlers log it at Information
+  (`... connection state: Disconnected at <url>`) — an adapter that never dials still prints its
+  real endpoint. The census caught bybit.com twice (the spot and the linear URLs); the alpaca
+  and okx construction lines escaped only because the census's host list knows bybit.com and
+  binance.com only.
+- **What:** the four market adapters' connection-state handlers log real lifecycle transitions
+  only — the seeded pre-dial `false` (a state sync, not a transition) stops logging, and so do
+  the false-after-false repeats the transport's own per-attempt warnings already carry; every
+  real change (a dial's connect, a drop, a teardown) keeps its line verbatim. The census's host
+  list grows to every shipped real-exchange host. The transport's seed-at-subscription
+  semantics stay (the WebSocketClientTests fact pins them).
+- **Scope:** the four Infrastructure market adapters' state handlers; the census host list in
+  `scripts/soak.ps1` (protected — the gate rides -AllowProtected); the next free alpha bump + the
+  CHANGELOG section.
+- **Acceptance:** a constructed-but-never-dialed adapter logs zero connection-state lines (the
+  new fact); the adapters' real-dial lifecycle lines stay (the existing suite); the soak census
+  passes on a demo-only run and the budget verdicts report on the fixed tip.
+- **Tests:** the no-dial log-absence facts over the market adapters; the seed-at-subscription
+  pin stays green untouched.
+- **Status:** done. Canon: the chain `1c9ddd2` (claim) -> `8228c0c` (feat, 8 files, ships as
+  0.1.0-alpha.174) -> this close. The fix: each market adapter tracks its last logged connection
+  state (Bybit per category context) and logs only a real transition — the WS client's
+  `BehaviorSubject` seed (the pre-dial `false` at subscription) stops printing the endpoint, and
+  the false-after-false repeats go with it (the transport's per-attempt warnings already carry
+  them); a real dial's connect/drop/teardown lines stay verbatim. The T-232 finale's kept-log
+  repro had named the mechanism: `AddActiveExchange` eagerly resolves all five adapters, so the
+  four real ones construct in every composition (including the demo-only soak lane) and their
+  seeded syncs logged `wss://stream.bybit.com/...` at Information — the T-141 census caught
+  bybit.com twice and its host list knew only bybit.com/binance.com, so the alpaca/okx lines
+  escaped; the census's list now covers bybit.com, binance.com, alpaca.markets and okx.com.
+  Evidence: the 4 no-dial log-absence facts (`AdapterConnectionStateLogTests`) first-try green +
+  the `WebSocketClientTests` seed pin untouched (9/9); GATE PASSED (-AllowProtected) attempt 1 on
+  the feat — the full suite 3517 green (Core 61, Soak 17, Strategies 32, Backtest 53, AdapterKit
+  48, UI 409, Infrastructure 679, E2E 7, App 2211); the soak re-run on the fixed tip: the census
+  green across three runs (0 real-exchange host hits, the sandbox settings load confirmed, no
+  fallback warnings), the memory budgets hold (working set mean 253.4 MB / peak 257.2 against
+  400/500, private mean 120.1 MB, the leak slope 0.00 MB/h), zero leftover processes. Hazards:
+  the soak's cold-start budget reports a breach on the Debug lane (4,562-9,977 ms against the
+  3 s target across four runs; the 2026-11-10 shakedown's 3.9 s warm; the wide spread is
+  machine-load sensitivity — the pre-fix and post-fix runs measure alike, the fix touches only
+  logging) — reported per the T-109 canon, owned by the readiness record (T-232) and its
+  follow-up.
