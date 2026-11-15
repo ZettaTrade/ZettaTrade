@@ -1,0 +1,101 @@
+name: pages
+
+# T-259 - the docs-site deploy: every push to main (and every manual run)
+# rebuilds the Vite docs-site and publishes it to GitHub Pages at
+# https://zettatrade.github.io/ZettaTrade/ (the vite base /ZettaTrade/).
+#
+# The pipeline, in order, each step a gate for the next:
+#   1. build       - npm ci + vite build (the committed package-lock.json
+#                    pins the dependency tree).
+#   2. generate    - scripts/generate-site-pages.ps1 renders CHANGELOG.md
+#                    and docs/USER-MANUAL.md from the pushed tree itself
+#                    into the site's public/ (ephemeral, never committed -
+#                    the deployed pages are always the pushed tree's truth).
+#   3. stamp       - scripts/stamp-landing-downloads.ps1 resolves the latest
+#                    release's own per-OS artifacts through the GitHub API
+#                    and stamps the landing's marked download links, then
+#                    HEAD-verifies every stamped URL answers 200. No release
+#                    yet (a 404) keeps the committed Releases-page links -
+#                    the honest pending state - and the deploy proceeds.
+#   4. link check  - scripts/check-site-links.ps1: every local link and
+#                    asset reference in the built site must resolve inside
+#                    dist/ or the deploy fails; external links are warn-only.
+#   5. deploy      - actions/upload-pages-artifact + actions/deploy-pages.
+#
+# A failed generate, stamp (outside the honest pending state) or link check
+# fails the run loudly and the previous deployment stands - nothing is
+# guessed, nothing half-published (the refused-not-defaulted policy). The
+# only secret is the automatic GITHUB_TOKEN; no product code is involved.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs-site/**"
+      - "CHANGELOG.md"
+      - "docs/USER-MANUAL.md"
+      - "scripts/generate-site-pages.ps1"
+      - "scripts/stamp-landing-downloads.ps1"
+      - "scripts/check-site-links.ps1"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Pages deployments serialize: a mid-deploy cancel leaves the site flapping,
+# so this group queues instead of cancelling.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: build, verify, deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+
+      - name: Install the site dependencies
+        working-directory: docs-site
+        run: npm ci
+
+      - name: Render the changelog and the manual pages
+        shell: pwsh
+        run: ./scripts/generate-site-pages.ps1
+
+      - name: Build the site
+        working-directory: docs-site
+        run: npm run build
+
+      - name: Stamp the landing downloads from the latest release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: ./scripts/stamp-landing-downloads.ps1 -DistDir docs-site/dist
+
+      - name: The strict local link gate
+        shell: pwsh
+        run: ./scripts/check-site-links.ps1 -DistDir docs-site/dist
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site/dist
+
+      - id: deployment
+        name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

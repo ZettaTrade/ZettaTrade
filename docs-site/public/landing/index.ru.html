@@ -6,6 +6,15 @@
   <meta name="color-scheme" content="dark" />
   <meta name="description" content="ZettaTrade — открытый (MIT) кроссплатформенный десктопный торговый терминал для крипторынка: потоки Binance и Bybit, графики на SkiaSharp, ИИ-ассистент через MCP, paper-трейдинг и локальные данные. Windows, macOS, Linux." />
   <title>ZettaTrade — десктопный торговый терминал, локальный по умолчанию</title>
+  <meta property="og:site_name" content="ZettaTrade" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="ZettaTrade — десктопный торговый терминал, локальный по умолчанию" />
+  <meta property="og:description" content="Открытый (MIT) кроссплатформенный десктопный торговый терминал для крипторынка: потоки Binance и Bybit, графики на SkiaSharp, ИИ-ассистент через MCP, paper-трейдинг и локальные данные. Windows, macOS, Linux." />
+  <meta property="og:url" content="https://zettatrade.github.io/ZettaTrade/landing/" />
+  <meta property="og:image" content="https://zettatrade.github.io/ZettaTrade/assets/landing/workspace-hero.png" />
+  <meta property="og:image:alt" content="Реальный запуск ZettaTrade: демо-набор панелей со свечным графиком, лестницей стакана и статус-баром." />
+  <link rel="icon" href="/ZettaTrade/favicon.ico" />
+  <link rel="icon" type="image/svg+xml" href="/ZettaTrade/zettatrade-mark.svg" />
   <link rel="stylesheet" href="../assets/landing/style.css" />
 </head>
 <body>
@@ -122,12 +131,22 @@
             <a class="lp-btn lp-btn-solid" href="https://github.com/ZettaTrade/ZettaTrade/releases">Открыть GitHub Releases →</a>
             <a class="lp-btn lp-btn-ghost" href="https://github.com/ZettaTrade/ZettaTrade/blob/main/docs/SECURITY.md">Проверка и страница безопасности</a>
           </div>
+          <ul class="lp-dl" data-zt-stamp="downloads">
+            <li><span class="lp-code">win-x64</span> · zip → <a data-zt-dl="win-x64" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+            <li><span class="lp-code">osx-x64</span> · zip → <a data-zt-dl="osx-x64" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+            <li><span class="lp-code">osx-arm64</span> · zip → <a data-zt-dl="osx-arm64" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+            <li><span class="lp-code">linux-x64</span> · tar.gz → <a data-zt-dl="linux-x64" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+            <li><span class="lp-code">суммы SHA-256</span> · txt → <a data-zt-dl="sums" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+          </ul>
+          <p class="lp-note">
+            Последний релиз: <span data-zt-release-version>пока ни одного тега</span> — до первого
+            версионного тега ссылки выше указывают на страницу Releases; как только он появится,
+            деплой проштампует их прямо на соответствующие архивы.
+          </p>
           <p class="lp-note" style="margin-bottom: 0;">
-            Страница Releases — единственная дверь загрузки, которую этот проект
-            признаёт. Если список пуст, когда вы смотрели, значит первый версионный тег
-            ещё не срезан — следите за репозиторием, и когда он появится, та же ссылка
-            приведёт прямо к архивам. Пока ничего не подписано (подписание появится
-            в бете, по странице безопасности): сверяйте суммы SHA-256.
+            Страница Releases — единственная дверь загрузки, которую этот проект признаёт.
+            Пока ничего не подписано (подписание появится в бете, по странице безопасности):
+            сверяйте суммы SHA-256.
           </p>
         </div>
       </div>

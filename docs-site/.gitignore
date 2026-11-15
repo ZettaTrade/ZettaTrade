@@ -1,0 +1,12 @@
+## npm
+node_modules/
+
+## The build output (the root .gitignore's dist/ pattern covers the
+## top-level dist directories; this one is explicit for clarity)
+dist/
+
+## The deploy-time rendered pages (T-259): generated per deploy from
+## CHANGELOG.md and docs/USER-MANUAL.md by
+## scripts/generate-site-pages.ps1 - never committed
+public/changelog/
+public/manual/

@@ -243,6 +243,26 @@ body {
   font-size: 0.88rem;
 }
 
+/* direct downloads (T-259): the list the Pages deploy stamps from the
+   latest release's own asset list; until the first tag the links stay
+   on the Releases page */
+.lp-dl {
+  padding: 0;
+  margin: 18px 0 0;
+  list-style: none;
+}
+
+.lp-dl li {
+  color: var(--muted);
+  padding: 5px 0;
+  font-size: 0.95rem;
+}
+
+.lp-dl a {
+  color: var(--link);
+  overflow-wrap: anywhere;
+}
+
 /* safety links */
 .lp-links {
   padding: 0;

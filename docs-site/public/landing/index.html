@@ -6,6 +6,15 @@
   <meta name="color-scheme" content="dark" />
   <meta name="description" content="ZettaTrade is an open-source (MIT) cross-platform desktop trading terminal for crypto market data: Binance and Bybit feeds, SkiaSharp charts, an AI assistant over MCP, paper trading, local-first data. Windows, macOS, Linux." />
   <title>ZettaTrade — a local-first desktop trading terminal</title>
+  <meta property="og:site_name" content="ZettaTrade" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="ZettaTrade — a local-first desktop trading terminal" />
+  <meta property="og:description" content="Open-source (MIT) cross-platform desktop trading terminal for crypto market data: Binance and Bybit feeds, SkiaSharp charts, an AI assistant over MCP, paper trading, local-first data. Windows, macOS, Linux." />
+  <meta property="og:url" content="https://zettatrade.github.io/ZettaTrade/landing/" />
+  <meta property="og:image" content="https://zettatrade.github.io/ZettaTrade/assets/landing/workspace-hero.png" />
+  <meta property="og:image:alt" content="A real ZettaTrade run: the demo workspace with a candlestick chart, the order book ladder and the status bar." />
+  <link rel="icon" href="/ZettaTrade/favicon.ico" />
+  <link rel="icon" type="image/svg+xml" href="/ZettaTrade/zettatrade-mark.svg" />
   <link rel="stylesheet" href="../assets/landing/style.css" />
 </head>
 <body>
@@ -116,10 +125,20 @@
             <a class="lp-btn lp-btn-solid" href="https://github.com/ZettaTrade/ZettaTrade/releases">Open GitHub Releases →</a>
             <a class="lp-btn lp-btn-ghost" href="https://github.com/ZettaTrade/ZettaTrade/blob/main/docs/SECURITY.md">Verification and the security page</a>
           </div>
+          <ul class="lp-dl" data-zt-stamp="downloads">
+            <li><span class="lp-code">win-x64</span> · zip → <a data-zt-dl="win-x64" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+            <li><span class="lp-code">osx-x64</span> · zip → <a data-zt-dl="osx-x64" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+            <li><span class="lp-code">osx-arm64</span> · zip → <a data-zt-dl="osx-arm64" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+            <li><span class="lp-code">linux-x64</span> · tar.gz → <a data-zt-dl="linux-x64" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+            <li><span class="lp-code">SHA-256 sums</span> · txt → <a data-zt-dl="sums" href="https://github.com/ZettaTrade/ZettaTrade/releases">GitHub Releases</a></li>
+          </ul>
+          <p class="lp-note">
+            Latest release: <span data-zt-release-version>none tagged yet</span> — until a version
+            tag is cut, the links above point at the Releases page; once one is, the deploy stamps
+            them straight at the matching archives.
+          </p>
           <p class="lp-note" style="margin-bottom: 0;">
-            The Releases page is the only download door this project endorses. If the list is
-            empty when you look, the first version tag simply hasn't been cut yet — watch the
-            repository, and this same link will land on the archives when it is. Nothing
+            The Releases page is the only download door this project endorses. Nothing
             is signed yet (that flips at beta, per the security page): verify the SHA-256 sums.
           </p>
         </div>
