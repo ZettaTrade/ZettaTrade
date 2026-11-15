@@ -5706,6 +5706,40 @@ the board and its section below.
   (the `Directory.Build.props` bump is the supervisor-only protected file); the launch smoke
   passed before the merge.
 
+## T-241 — Open-interest history as a chart pane
+
+- **Branch:** `feat/oi-history-pane` off `develop` (claimed 2026-11-16, the analytics sweep; the
+  worktree `zt-oi-history-pane`).
+- **Origin:** open interest arrives as a live number only (T-197).
+- **What:** an OI history series (Bybit's REST; Binance's `/futures/data/openInterestHist` when
+  wired) rendered as an indicator pane under the price chart riding the T-199 pane grammar;
+  ranges the venue serves no history for stay honest gaps, never interpolated.
+- **Scope:** adapter growth + the pane renderer, resx en+ru, tests.
+- **Acceptance:** the pane aligns to the chart's time axis; uncovered ranges render as gaps.
+- **Tests:** alignment goldens, the gap honesty, the empty-history state.
+- **Status:** done. Canon: the feature commit `a71a145` (the claim `cb35bbe`; written
+  supervisor-solo as the T-240 mirror) is on develop (fast-forward merge); shipped as `0.2.13`
+  (see CHANGELOG.md). Lane decisions: the OI history rides the optional capability probe
+  (`IOIHistoryProvider` in Infrastructure Exchange) — a venue without it and a non-perpetual
+  symbol both answer the honest no-pane without a provider call; the Bybit adapter floors the
+  chart's bar interval onto the venue's served bucket set (M1/M5 → 5min, M15 → 15min,
+  M30 → 30min, H1 → 1h, H4 → 4h, D1/W1/MN1 → 1d; an unknown interval is a refused
+  request-contract violation) and the OI REST dish rides the shipped manifest as the fourth
+  family; the cache front (`OIHistoryService`) is cache-first per (symbol, bar interval) (a
+  15-minute freshness, a 32-entry bound) and never fabricates past the venue's 200-snapshot
+  page (honest gaps, never a filled stretch); the chart synthesizes the `OpenInterest`
+  oscillator outside the plugin catalog, the per-bar value is the last settled snapshot at or
+  before the bar's open (a bar before the first snapshot breaks the polyline), and the load
+  kicks on delivery, prepend and repair merge with a superseded load dropping silently at
+  apply; the hover readout grew the `OI` term (the venue's size on the volume formatter).
+  Tests: App.Tests 2502/2502 and Infrastructure.Tests 778/778, the gate-measured counts (the
+  two pane facts, the 8-fact service front with the interval-keys-the-entry pin and the
+  4-golden aligner among the App additions; the endpoint wire facts pinned on the clean
+  5-minute 2026-01-01 grid and the bar-interval flooring pinned 9-case among the
+  Infrastructure additions). Gate passed with `-AllowProtected` (the
+  `Directory.Build.props` bump is the supervisor-only protected file); the launch smoke passed
+  before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;

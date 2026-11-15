@@ -244,7 +244,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-238 The beta flip: the version line moves to plain 0.2.x - the first beta 0.2.0, the third number rides the app-changing landings (the user's board decision; the signing flip stays a follow-up per docs/SECURITY.md) | feat/beta-flip | done | 0.2.0 |
 | T-239 Multi-timeframe trend table in the screener: per-symbol bull/bear/range states across 15m/1h/4h/1d computed from the candle cache (the analytics sweep 2026-11-14) | feat/mtf-trend-table | done | 0.2.11 |
 | T-240 Funding-rate history chart + the funding-threshold alert kind for perps (the analytics sweep 2026-11-14) | feat/funding-history | done | 0.2.12 |
-| T-241 Open-interest history as a chart pane under the price series for perps (the analytics sweep 2026-11-14) | feat/oi-history-pane | in-progress | — |
+| T-241 Open-interest history as a chart pane under the price series for perps (the analytics sweep 2026-11-14) | feat/oi-history-pane | done | 0.2.13 |
 | T-242 Liquidation feed: the venues' free forced-order WS streams aggregated into the tape and chart markers (the analytics sweep 2026-11-14) | feat/liquidation-feed | planned | — |
 | T-243 Estimated liquidation levels overlay computed locally from OI deltas + the venues' public leverage brackets (the analytics sweep 2026-11-14) | feat/liquidation-levels | planned | T-241 (soft) |
 | T-244 CVD pane: cumulative volume delta summed from the tape's aggressor side (the analytics sweep 2026-11-14) | feat/cvd-pane | planned | — |
@@ -361,21 +361,6 @@ prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately le
 the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
 T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
 original numbers.
-
----
-
-## T-241 — Open-interest history as a chart pane
-
-- **Branch:** `feat/oi-history-pane` off `develop` (claimed 2026-11-16, the analytics sweep; the
-  worktree `zt-oi-history-pane`).
-- **Status:** in-progress.
-- **Origin:** open interest arrives as a live number only (T-197).
-- **What:** an OI history series (Bybit's REST; Binance's `/futures/data/openInterestHist` when
-  wired) rendered as an indicator pane under the price chart riding the T-199 pane grammar;
-  ranges the venue serves no history for stay honest gaps, never interpolated.
-- **Scope:** adapter growth + the pane renderer, resx en+ru, tests.
-- **Acceptance:** the pane aligns to the chart's time axis; uncovered ranges render as gaps.
-- **Tests:** alignment goldens, the gap honesty, the empty-history state.
 
 ---
 
