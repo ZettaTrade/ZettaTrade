@@ -260,7 +260,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-254 Backtest robustness: Monte Carlo over the trade sequence + walk-forward splits (the analytics sweep 2026-11-14) | feat/backtest-robustness | done | 0.2.4 |
 | T-255 AI trade review: journal-backed post-trade analysis through the chat (the analytics sweep 2026-11-14) | feat/ai-trade-review | planned | — |
 | T-256 Windows installer: Inno Setup over the T-125 artifacts (the beta-2 sweep 2026-11-15) | feat/windows-installer | done | - |
-| T-257 macOS .dmg + Linux AppImage/.deb packaging (the beta-2 sweep 2026-11-15) | feat/mac-linux-packaging | in-progress | — |
+| T-257 macOS .dmg + Linux AppImage/.deb packaging (the beta-2 sweep 2026-11-15) | feat/mac-linux-packaging | done | — |
 | T-258 Auto-update: download, verify, staged swap, rollback (the beta-2 sweep 2026-11-15) | feat/auto-update | done | 0.2.5 |
 | T-259 GitHub Pages publish automation + the beta site content (the beta-2 sweep 2026-11-15) | feat/pages-publish | done | — |
 | T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | done | - |
@@ -598,22 +598,6 @@ user's own credentials — WhatsApp stays out (its official API is a paid Busine
 unofficial bridges are middlemen) and Signal stays out (no official bot API) per the T-041
 no-middleman canon. The messenger sinks stay free (the user's call). All rows start `planned`;
 the human prioritizes the lanes.
-
----
-
-## T-257 — macOS .dmg + Linux AppImage/.deb packaging
-
-- **Branch:** `feat/mac-linux-packaging` off `develop` (claimed 2026-11-15, the beta-2 sweep; the worktree `zt-mac-linux-packaging`).
-- **Origin:** the osx/linux legs ship bare archives (T-125); the platform-native doors are the
-  norm on each OS.
-- **What:** a .dmg for macOS (the app bundle layout, the Gatekeeper right-click-open caveat
-  documented — notarization stays deferred until the Apple Developer account decision), an
-  AppImage and a .deb for Linux (desktop entries, the icon).
-- **Scope:** the packaging scripts + release.yml matrix legs + the docs caveats, tests.
-- **Acceptance:** each artifact installs/launches on its OS; the caveats say exactly what is
-  unsigned.
-- **Tests:** CI leg presence asserts; the script smoke mirrors the T-125 dry-run pattern.
-- **Status:** in-progress.
 
 ---
 

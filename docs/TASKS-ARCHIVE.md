@@ -5762,6 +5762,69 @@ the board and its section below.
   setup exe draws SmartScreen on first run (documented, pairs with the T-119 disclaimer);
   a changed AppId would orphan prior uninstall registrations (the script pins the GUID).
 
+## T-257 — macOS .dmg + Linux AppImage/.deb packaging
+
+- **Branch:** `feat/mac-linux-packaging` off `develop` (claimed 2026-11-15, the beta-2 sweep; the worktree `zt-mac-linux-packaging`).
+- **Origin:** the osx/linux legs ship bare archives (T-125); the platform-native doors are the
+  norm on each OS.
+- **What:** a .dmg for macOS (the app bundle layout, the Gatekeeper right-click-open caveat
+  documented — notarization stays deferred until the Apple Developer account decision), an
+  AppImage and a .deb for Linux (desktop entries, the icon).
+- **Scope:** the packaging scripts + release.yml matrix legs + the docs caveats, tests.
+- **Acceptance:** each artifact installs/launches on its OS; the caveats say exactly what is
+  unsigned.
+- **Tests:** CI leg presence asserts; the script smoke mirrors the T-125 dry-run pattern.
+- **Status:** done. Canon: the branch carries `0f3670f` (the board claim) and `564bfc6` (the
+  feat); no version bump and no CHANGELOG section — the supervisor ruling for this task:
+  packaging/CI surfaces change nothing in the app binary, its behavior and the 0.2.8+sha
+  version stamp stay. The three staging scripts (`scripts/macos-dmg.ps1`,
+  `scripts/linux-appimage.ps1`, `scripts/linux-deb.ps1`) extend the matrix legs on the
+  T-125 dry-run + T-256 lint-only patterns: `-OutDir`/`-PublishDir` caller-given and
+  mandatory, the version parsed from the committed Directory.Build.props (the pipeline's
+  single source; the .deb additionally pins the plain three-part 0.2.N form for the Debian
+  version grammar), staging + lint on any OS, and every build gated on its own OS tool
+  probe (hdiutil / appimagetool / dpkg-deb) — a toolless machine gets an explicit
+  STAGE-ONLY exit 0 and never claims the build. The .app bundle: Contents/MacOS carries
+  the whole publish tree (the host keeps its name — it must stay adjacent to the managed
+  ZettaTrade.App.dll it resolves), the generated Info.plist pins CFBundleExecutable=
+  ZettaTrade.App, io.github.zettatrade.ZettaTrade, both version keys carry the props
+  version verbatim, LSMinimumSystemVersion=12.0 (the .NET 10 macOS floor), the finance
+  category, and the committed PNG-frame .icns from `scripts/make-packaging-icons.ps1`
+  (the make-brand-ico.ps1 mark fractions — one mark on every platform; iconutil never
+  needed anywhere); the chmod 755 and the /Applications drag symlink ride the hdiutil
+  branch. The AppImage: the plain AppImageKit AppDir (usr/bin + the zettatrade wrapper +
+  a pinned custom AppRun + the .desktop entry + the 256 PNG), the FUSE-less
+  --appimage-extract-and-run retry, and the type-2 AI-0x02 magic assert on the artifact.
+  The .deb: the fixed contract layout (/usr/lib/zettatrade + the /usr/bin/zettatrade door
+  + the menu entry + the hicolor 256 icon), the computed Installed-Size, the control
+  floor `Depends: libc6 (>= 2.27), libfontconfig1, libx11-6, libssl3t64 | libssl3` (the
+  desktop environment carries the rest of the GUI surface — documented), the
+  ar/debian-binary asserts, and the CI runner install smoke (dpkg -i, the `install ok
+  installed` dpkg-query assert, the /usr/bin door) — the CI-only install acceptance.
+  Supply chain: the linux leg's appimagetool downloads from the project's own release
+  feed (AppImage/appimagetool, the `continuous` tag — AppImageKit v13 is officially
+  obsolete) digest-pinned (`e8c1169c...53b03`, the 2026-11-06 build) with the re-pin
+  procedure (review the linked build log, then re-pin in release.yml and
+  docs/SECURITY.md); all three new doors ride the release job's expected-arts assert, so
+  the release's sha256 sums cover them automatically. docs/SECURITY.md says exactly what
+  is unsigned: no Developer ID Application signature and no notarization ticket on the
+  .dmg and the bundle (the Gatekeeper right-click-open caveat; the deferral decision),
+  no signature on the AppImage, no signature on the .deb (dpkg/apt direct, no signed
+  repository). Tests: 18 facts in tests/ZettaTrade.App.Tests/Packaging — the workflow
+  leg-presence/artifact/digest/docs pins, live stage-only runs over fake publish trees
+  producing the pinned layouts on generated temp files, and the committed asset binary
+  facts (the icns container parse with the per-frame PNG sizes, the PNG IHDR). Locally
+  verified: the real osx-arm64 and linux-x64 release-dry-run publishes (287 files each,
+  the embedded 0.2.8+sha version) consumed by the three staging scripts, the staged
+  bundle/AppDir/deb layouts, the plist/control/desktop texts, the LF-only generated
+  files. CI-only: the .dmg/.AppImage/.deb builds themselves, the runner .deb install
+  smoke, and the install/launch acceptance on the target OSes. Open hazards: the
+  appimagetool continuous feed will eventually drift the pinned digest (the leg fails
+  loudly; re-pin after reviewing the linked build log); a runner-image drift can fail
+  the .deb install smoke on a renamed dependency (a one-line Depends fix); the unsigned
+  .dmg draws the Gatekeeper caveat on first launch (documented) until the Apple
+  Developer account decision flips notarization.
+
 ## T-258 — Auto-update: download, verify, staged swap, rollback
 
 - **Branch:** `feat/auto-update` off `develop` (queued 2026-11-15, the beta-2 sweep; claimed 2026-11-15).
