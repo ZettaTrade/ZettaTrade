@@ -5892,6 +5892,53 @@ the board and its section below.
   (`-AllowProtected`: the supervisor-owned version line + the CompositionRoot line), launch
   smoke SMOKE PASSED (0.2.6+3d3416f, ERR/FTL/WRN=0, five stores ready, bars delivered).
 
+## T-261 — Webhook sinks: Discord, Slack, ntfy
+
+- **Branch:** `feat/webhook-sinks` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep; the worktree `zt-webhook-sinks`).
+- **Origin:** the transport class of T-260 generalizes to webhooks at near-zero marginal cost.
+- **What:** three webhook sinks over the same event surface: Discord (embeds, color by
+  severity), Slack (the incoming webhook), ntfy (the phone-push lane, the user's own server
+  option); the URL/credentials through ISecretStore or the settings webhook URL (a public URL
+  by design — a secret only when the channel demands one).
+- **Scope:** the three sinks + settings + resx en+ru + tests.
+- **Acceptance:** each channel receives the templated event; a failing channel never touches the
+  trading flow or the other channels.
+- **Tests:** the per-channel template goldens, the best-effort failure matrix, the isolation pin.
+- **Status:** done. Canon: shipped as one feat on `feat/webhook-sinks` — the claim `17889fa`,
+  the feature `c447f22` (0.2.7). The three sinks implement the contract best-effort: the
+  per-kind opt-ins and the URL are read per send, `HandleAsync` never faults (a fault degrades
+  into the sink's own warning lane once), no failure report carries the webhook URL (the
+  status code only). Secret posture per the spec: the Discord and Slack URLs embed their own
+  secret material — they ride the encrypted secret store only (`discord.webhook-url`,
+  `slack.webhook-url`); the ntfy topic URL is public by design and rides the settings key
+  `NtfyUrl`. Bodies: Discord an embeds JSON with the severity color by kind (fill `0x2ECC71`,
+  cancel `0x3498DB`, reject `0xE74C3C`), Slack the message-text JSON, ntfy the plain-text POST
+  on the topic URL verbatim; one bounded 10 s named client per channel
+  (`ZettaTradeDiscord`/`ZettaTradeSlack`/`ZettaTradeNtfy`), no base address — absolute URLs.
+  The composer went channel-agnostic: `TelegramMessageComposer` → `TradeMessageComposer`
+  (Infrastructure), the resx keys `Notif.Telegram*` → `Notif.Trade*` (values unchanged — the
+  composed texts are identical), all four sinks share it. DI:
+  `AddWebhookNotificationApi()` chained between `AddTelegramNotificationApi()` and the bridge
+  singleton; the sinks stay lazy (not `IAsyncInitializable`) and construct when the bridge
+  factory resolves `IEnumerable<INotificationSink>` at the startup walk (verified — no
+  dormant-fleet hole). Settings: three collapsed cards in the Notifications tab (the T-184
+  no-scroll body-viewport pin holds at fifteen cards), the Discord/Slack URL boxes masked
+  (`PasswordChar="●"`) with the per-keystroke secret-store commit and the re-seed guards
+  (`_discordUrlCommitSuppressed`/`_slackUrlCommitSuppressed`), the ntfy topic URL drafting
+  like the chat id; 30 resx keys en+ru. Tests: Infrastructure 726/726 (+30 `WebhookSinksTests`:
+  the per-channel goldens against the loopback stubs and the shared best-effort matrix over
+  the three channels — flag-off quiet, missing URL quiet, a 5xx one warning, a hanging
+  endpoint bounded, no URL in failure reports, no poisoned state, the fill-without-price and
+  unknown-kind faults degrading into the lane) and App 2389/2389 (+25: the bridge isolation
+  pin over three REAL sinks with the failing lane warning alone, 21 settings facts, 3
+  header-key theory rows); the fixtures renamed
+  `LoopbackTelegramApi`/`CapturedTelegramRequest` → `LoopbackHttpApi`/`CapturedRequest` in
+  both test projects. Verification: full gate GATE PASSED (`-AllowProtected`: the
+  supervisor-owned version line), launch smoke SMOKE PASSED (0.2.7+17889fa, ERR/FTL/WRN=0,
+  five stores ready, bars delivered). Known lint note: the gate's `[TASK-FROMRESULT]` warn on
+  the webhook test double's `Task.FromResult` is a false positive — `ISettingsService`
+  requires the `Task<T>` wrap.
+
 ## T-263 — Backtest sweep retains metrics rows plus one best report
 
 - **Branch:** `feat/backtest-perf` off `develop` (claimed 2026-11-15, the perf sweep; the

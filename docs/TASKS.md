@@ -264,7 +264,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-258 Auto-update: download, verify, staged swap, rollback (the beta-2 sweep 2026-11-15) | feat/auto-update | done | 0.2.5 |
 | T-259 GitHub Pages publish automation + the beta site content (the beta-2 sweep 2026-11-15) | feat/pages-publish | done | — |
 | T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | done | - |
-| T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | in-progress | T-260 |
+| T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | done | T-260 |
 | T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | planned | T-260 |
 | T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | done | — |
 | T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | — | planned | — |
@@ -615,22 +615,6 @@ the human prioritizes the lanes.
 - **Tests:** CI leg presence asserts; the script smoke mirrors the T-125 dry-run pattern.
 
 ---
-
----
-
-## T-261 — Webhook sinks: Discord, Slack, ntfy
-
-- **Branch:** `feat/webhook-sinks` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep; the worktree `zt-webhook-sinks`).
-- **Origin:** the transport class of T-260 generalizes to webhooks at near-zero marginal cost.
-- **What:** three webhook sinks over the same event surface: Discord (embeds, color by
-  severity), Slack (the incoming webhook), ntfy (the phone-push lane, the user's own server
-  option); the URL/credentials through ISecretStore or the settings webhook URL (a public URL
-  by design — a secret only when the channel demands one).
-- **Scope:** the three sinks + settings + resx en+ru + tests.
-- **Acceptance:** each channel receives the templated event; a failing channel never touches the
-  trading flow or the other channels.
-- **Tests:** the per-channel template goldens, the best-effort failure matrix, the isolation pin.
-- **Status:** in-progress.
 
 ---
 
