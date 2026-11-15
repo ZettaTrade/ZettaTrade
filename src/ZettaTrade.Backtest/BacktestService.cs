@@ -451,6 +451,223 @@ public sealed class BacktestService : IBacktestService
 
     #endregion Sweep
 
+    #region Monte Carlo
+
+    /// <inheritdoc/>
+    public async Task<BacktestMonteCarloResult> MonteCarloAsync(
+        BacktestMonteCarloRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // The pre-flight: a refused shape never reaches the worker lane.
+        request.Validate();
+
+        // The pure fold rides the worker lane (off-UI): the caller's context
+        // stays responsive while the paths sample. The compute consults no
+        // gate and no stream — an immutable report may be sampled while a
+        // replay runs.
+        try
+        {
+            var distribution = await Task.Run(
+                () => BacktestMonteCarlo.Compute(request, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+            return new BacktestMonteCarloResult(BacktestMonteCarloOutcome.Completed, distribution);
+        }
+        catch (OperationCanceledException)
+        {
+            // The stop is the outcome: the cancelled sampling produces no
+            // distribution and no numbers.
+            _logger.LogInformation(
+                "Backtest Monte Carlo over '{Strategy}' cancelled between paths; nothing was produced",
+                request.Report.Request.StrategyId);
+            return BacktestMonteCarloResult.Cancelled;
+        }
+    }
+
+    #endregion Monte Carlo
+
+    #region Walk-Forward
+
+    /// <inheritdoc/>
+    public async Task<BacktestWalkForwardResult> WalkForwardAsync(
+        BacktestWalkForwardRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+
+        // The same single-flight gate a run takes, held for the WHOLE study:
+        // the per-run events must never interleave with another run's, and a
+        // run started while a walk-forward is in flight refuses exactly as a
+        // second run would.
+        if (!await _runGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("A backtest run is already in flight; runs refuse concurrent starts.");
+        }
+
+        try
+        {
+            return await WalkForwardLockedAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _runGate.Release();
+        }
+    }
+
+    private async Task<BacktestWalkForwardResult> WalkForwardLockedAsync(
+        BacktestWalkForwardRequest request,
+        CancellationToken cancellationToken)
+    {
+        var strategy = _strategies.Get(request.Template.StrategyId)
+            ?? throw new InvalidOperationException(
+                $"Strategy '{request.Template.StrategyId}' is unknown to the catalog; the walk-forward is refused, never defaulted.");
+
+        var parameterizations = request.FirstAxis.Values.Count * request.SecondAxis.Values.Count;
+
+        _logger.LogInformation(
+            "Backtest walk-forward '{Strategy}': {Folds} fold(s) over a {Parameterizations}-parameterization grid, {Bars} bars (adapter {AdapterId}, seed {Seed})",
+            request.Template.StrategyId,
+            request.Folds,
+            parameterizations,
+            request.Template.Bars,
+            request.Template.AdapterId,
+            request.Template.Seed);
+
+        // The window loads ONCE: every fold replays the SAME series, so the
+        // study compares folds of one honest window (and the load's cost
+        // stays one walk-back, not one per fold).
+        IReadOnlyList<Bar> bars;
+        try
+        {
+            bars = await LoadCandlesAsync(request.Template, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The stop during the load: no fold ever started, so no cancelled
+            // event goes out (the stream carries per-run events only) — the
+            // cancelled result is the whole answer.
+            _logger.LogInformation(
+                "Backtest walk-forward '{Strategy}' cancelled during the load; nothing was produced",
+                request.Template.StrategyId);
+            return new BacktestWalkForwardResult(BacktestWalkForwardOutcome.Cancelled, request, []);
+        }
+
+        // The carve refuses a window that cannot host every fold's two honest
+        // halves (each at least the run's own minimum) — before any replay
+        // starts, nothing half-carved ever exists.
+        var splits = request.FoldPlan(bars.Count);
+
+        _logger.LogInformation(
+            "Backtest walk-forward '{Strategy}': {Bars} cached bars loaded, {Folds} fold(s) x ({Parameterizations} in-sample replay(s) + 1 out-of-sample replay) to run",
+            request.Template.StrategyId,
+            bars.Count,
+            splits.Count,
+            parameterizations);
+
+        var rows = new List<BacktestWalkForwardRow>();
+        var outcome = BacktestWalkForwardOutcome.Completed;
+
+        try
+        {
+            for (var fold = 0; fold < splits.Count; fold++)
+            {
+                // The cooperative stop BETWEEN folds — the boundary
+                // discipline a fold is atomic under: a fold's row exists
+                // only when its whole optimize-then-verify pass completed,
+                // so a stop keeps every completed fold and abandons the one
+                // still optimizing (nothing half-fold exists).
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var split = splits[fold];
+                var inSampleBars = bars.Skip(split.Offset).Take(split.InSampleBars).ToList();
+                var outOfSampleBars = bars.Skip(split.Offset + split.InSampleBars).Take(split.OutOfSampleBars).ToList();
+
+                // The in-sample optimization: every parameterization replays
+                // the fold's IS half (a fresh host, ledger and seeded draw
+                // each, replays ride no token and complete fully), the best
+                // IS net wins, ties stay with the enumeration order.
+                var bestIndex = -1;
+                var bestNet = 0m;
+                var bestFirst = 0m;
+                var bestSecond = 0m;
+                var index = 0;
+
+                foreach (var firstValue in request.FirstAxis.Values)
+                {
+                    foreach (var secondValue in request.SecondAxis.Values)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        var replayRequest = BacktestSweepRequest.ApplyKnob(
+                            BacktestSweepRequest.ApplyKnob(
+                                request.Template with { Bars = split.InSampleBars },
+                                request.FirstAxis.Parameter,
+                                firstValue),
+                            request.SecondAxis.Parameter,
+                            secondValue);
+                        var report = await ReplayAsync(replayRequest, strategy, inSampleBars, publishEvents: false, CancellationToken.None).ConfigureAwait(false);
+                        var net = report.Statistics.FinalEquity - report.Request.InitialQuoteAmount;
+                        if (bestIndex < 0 || net > bestNet)
+                        {
+                            bestIndex = index;
+                            bestNet = net;
+                            bestFirst = firstValue;
+                            bestSecond = secondValue;
+                        }
+
+                        index++;
+                    }
+                }
+
+                // The chosen pair rides the fold's OOS half — the honest
+                // unseen window the whole study exists to measure.
+                var chosenRequest = BacktestSweepRequest.ApplyKnob(
+                    BacktestSweepRequest.ApplyKnob(
+                        request.Template with { Bars = split.OutOfSampleBars },
+                        request.FirstAxis.Parameter,
+                        bestFirst),
+                    request.SecondAxis.Parameter,
+                    bestSecond);
+                var chosenReport = await ReplayAsync(chosenRequest, strategy, outOfSampleBars, publishEvents: true, CancellationToken.None).ConfigureAwait(false);
+
+                rows.Add(new BacktestWalkForwardRow(
+                    Fold: fold + 1,
+                    InSampleBars: split.InSampleBars,
+                    OutOfSampleBars: split.OutOfSampleBars,
+                    FirstValue: bestFirst,
+                    SecondValue: bestSecond,
+                    InSampleNet: bestNet,
+                    OutOfSampleNet: chosenReport.Statistics.FinalEquity - request.Template.InitialQuoteAmount,
+                    OutOfSampleMaxDrawdown: chosenReport.Statistics.MaxDrawdown));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The stop landed at a boundary: the folds whose whole pass
+            // completed stay (each an honest optimize-then-verify fact), the
+            // rest never started. The stop is the outcome, never an error.
+            outcome = BacktestWalkForwardOutcome.Cancelled;
+            _logger.LogInformation(
+                "Backtest walk-forward '{Strategy}' cancelled after {Count} fold(s); the completed folds stay",
+                request.Template.StrategyId,
+                rows.Count);
+        }
+
+        _logger.LogInformation(
+            "Backtest walk-forward '{Strategy}' {End}: {Count} of {Total} fold(s) replayed, out-of-sample net {OosNet}",
+            request.Template.StrategyId,
+            outcome == BacktestWalkForwardOutcome.Completed ? "completed" : "cancelled at a boundary",
+            rows.Count,
+            splits.Count,
+            rows.Count > 0 ? rows.Sum(row => row.OutOfSampleNet) : 0m);
+
+        return new BacktestWalkForwardResult(outcome, request, rows);
+    }
+
+    #endregion Walk-Forward
+
     #region Candle Loading
 
     /// <summary>

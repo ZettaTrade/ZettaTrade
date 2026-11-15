@@ -61,6 +61,15 @@ public sealed class BacktestRunViewModel : ReactiveObject
     private const string SweepErrorRangeKey = "Backtest.Sweep.Error.Range";
     private const string SweepProgressFormatKey = "Backtest.Sweep.Progress.Format";
     private const string SweepDoneFormatKey = "Backtest.Sweep.Done.Format";
+    private const string WalkForwardDoneFormatKey = "Backtest.WalkForward.Done.Format";
+    private const string WalkForwardErrorFoldsKey = "Backtest.WalkForward.Error.Folds";
+    private const string WalkForwardErrorFoldRangeKey = "Backtest.WalkForward.Error.FoldRange";
+    private const string WalkForwardProgressFormatKey = "Backtest.WalkForward.Progress.Format";
+    private const string MonteCarloErrorPathsKey = "Backtest.MonteCarlo.Error.Paths";
+    private const string MonteCarloErrorSeedKey = "Backtest.MonteCarlo.Error.Seed";
+    private const string MonteCarloErrorNoReportKey = "Backtest.MonteCarlo.Error.NoReport";
+    private const string MonteCarloHeadlineFormatKey = "Backtest.MonteCarlo.Headline.Format";
+    private const string MonteCarloBelowStartFormatKey = "Backtest.MonteCarlo.BelowStart.Format";
 
     #endregion Resx Keys
 
@@ -77,6 +86,18 @@ public sealed class BacktestRunViewModel : ReactiveObject
 
     /// <summary>The second axis' values spelling the sweep form opens with (the cost grid).</summary>
     private const string SweepSecondValuesDefault = "0, 0.5, 1";
+
+    /// <summary>The folds spelling the walk-forward form opens with (the honest even carve's count —
+    /// the engine's own <see cref="BacktestWalkForwardRequest.DefaultFolds"/>).</summary>
+    private const string WalkForwardFoldsDefaultText = "4";
+
+    /// <summary>The paths spelling the Monte Carlo form opens with (the acceptance's own shape —
+    /// the engine's own <see cref="BacktestMonteCarloRequest.DefaultPaths"/>).</summary>
+    private const string MonteCarloPathsDefaultText = "10000";
+
+    /// <summary>The sampling seed spelling the Monte Carlo form opens with (the engine's own
+    /// <see cref="BacktestMonteCarloRequest.DefaultSeed"/>).</summary>
+    private const string MonteCarloSeedDefaultText = "0";
 
     #endregion Constants
 
@@ -119,6 +140,39 @@ public sealed class BacktestRunViewModel : ReactiveObject
     private int _sweepCompletedRows;
     private int? _sweepDoneRows;
     private int? _sweepDoneTotal;
+
+    /// <summary>The folds spelling of the walk-forward form (parsed and range-checked at start).</summary>
+    private string _foldsText = WalkForwardFoldsDefaultText;
+
+    /// <summary>The paths spelling of the Monte Carlo form (parsed and range-checked at start).</summary>
+    private string _monteCarloPathsText = MonteCarloPathsDefaultText;
+
+    /// <summary>The sampling seed spelling of the Monte Carlo form (the sampling's own knob).</summary>
+    private string _monteCarloSeedText = MonteCarloSeedDefaultText;
+
+    private IReadOnlyList<BacktestWalkForwardRowViewModel> _walkForwardRows = [];
+    private int _walkForwardTotal;
+    private int _walkForwardCompletedFolds;
+    private int? _walkForwardDoneRows;
+    private int? _walkForwardDoneTotal;
+
+    /// <summary>The completed sampling's folded distribution (T-254): the tiles'
+    /// source; null while no sampling completed (a cancelled sampling
+    /// answers nothing, exactly a cancelled run).</summary>
+    private BacktestMonteCarloDistribution? _monteCarloDistribution;
+
+    private string _monteCarloHeadline = string.Empty;
+    private string _monteCarloBelowStart = string.Empty;
+    private string _monteCarloFinalEquityP5 = string.Empty;
+    private string _monteCarloFinalEquityP25 = string.Empty;
+    private string _monteCarloFinalEquityMedian = string.Empty;
+    private string _monteCarloFinalEquityP75 = string.Empty;
+    private string _monteCarloFinalEquityP95 = string.Empty;
+    private string _monteCarloDrawdownP5 = string.Empty;
+    private string _monteCarloDrawdownP25 = string.Empty;
+    private string _monteCarloDrawdownMedian = string.Empty;
+    private string _monteCarloDrawdownP75 = string.Empty;
+    private string _monteCarloDrawdownP95 = string.Empty;
 
     /// <summary>The completed sweep's own best report (T-263): rank 1's full
     /// replay, folded on the sweep's own loaded window — the auto-selected
@@ -163,6 +217,12 @@ public sealed class BacktestRunViewModel : ReactiveObject
         StartSweepCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
             (_, cancellationToken) => HandleStartSweepAsync(cancellationToken),
             canExecute: this.WhenAnyValue(x => x.IsRunning).Select(static running => !running));
+        StartWalkForwardCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, cancellationToken) => HandleStartWalkForwardAsync(cancellationToken),
+            canExecute: this.WhenAnyValue(x => x.IsRunning).Select(static running => !running));
+        StartMonteCarloCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
+            (_, cancellationToken) => HandleStartMonteCarloAsync(cancellationToken),
+            canExecute: this.WhenAnyValue(x => x.IsRunning, x => x.HasReport, static (running, hasReport) => !running && hasReport));
 
         // The strategy picker arms before any rendering: the catalog's scan
         // is a one-time session snapshot, so a cheap refetch is all the
@@ -349,6 +409,139 @@ public sealed class BacktestRunViewModel : ReactiveObject
 
     #endregion Sweep Form
 
+    #region Robustness Form (T-254)
+
+    /// <summary>The folds spelling of the walk-forward form (parsed and range-checked at start).</summary>
+    public string FoldsText
+    {
+        get => _foldsText;
+        set => this.RaiseAndSetIfChanged(ref _foldsText, value);
+    }
+
+    /// <summary>The paths spelling of the Monte Carlo form (parsed and range-checked at start).</summary>
+    public string MonteCarloPathsText
+    {
+        get => _monteCarloPathsText;
+        set => this.RaiseAndSetIfChanged(ref _monteCarloPathsText, value);
+    }
+
+    /// <summary>The sampling seed spelling of the Monte Carlo form (the sampling's own knob —
+    /// the same report over the same seed folds the same distribution).</summary>
+    public string MonteCarloSeedText
+    {
+        get => _monteCarloSeedText;
+        set => this.RaiseAndSetIfChanged(ref _monteCarloSeedText, value);
+    }
+
+    /// <summary>Start one walk-forward study over the sweep form's own grid (T-254).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> StartWalkForwardCommand { get; }
+
+    /// <summary>Sample the report surface's completed report (T-254).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> StartMonteCarloCommand { get; }
+
+    /// <summary>The walk-forward's chronological fold rows (empty until a study produced rows).</summary>
+    public IReadOnlyList<BacktestWalkForwardRowViewModel> WalkForwardRows
+    {
+        get => _walkForwardRows;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _walkForwardRows, value);
+            this.RaisePropertyChanged(nameof(HasWalkForwardRows));
+        }
+    }
+
+    /// <summary>True while the walk-forward table carries rows.</summary>
+    public bool HasWalkForwardRows => _walkForwardRows.Count > 0;
+
+    /// <summary>True while a completed sampling carries its distribution (the tiles panel).</summary>
+    public bool HasMonteCarlo => _monteCarloDistribution is not null;
+
+    /// <summary>The distribution's localized headline line ("paths over trades, seed").</summary>
+    public string MonteCarloHeadline
+    {
+        get => _monteCarloHeadline;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloHeadline, value);
+    }
+
+    /// <summary>The distribution's localized below-start line ("k of n paths ended below the start").</summary>
+    public string MonteCarloBelowStart
+    {
+        get => _monteCarloBelowStart;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloBelowStart, value);
+    }
+
+    /// <summary>The final-equity percentiles, rendered in the current culture.</summary>
+    public string MonteCarloFinalEquityP5
+    {
+        get => _monteCarloFinalEquityP5;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloFinalEquityP5, value);
+    }
+
+    /// <summary>The final-equity percentiles, rendered in the current culture.</summary>
+    public string MonteCarloFinalEquityP25
+    {
+        get => _monteCarloFinalEquityP25;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloFinalEquityP25, value);
+    }
+
+    /// <summary>The final-equity percentiles, rendered in the current culture.</summary>
+    public string MonteCarloFinalEquityMedian
+    {
+        get => _monteCarloFinalEquityMedian;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloFinalEquityMedian, value);
+    }
+
+    /// <summary>The final-equity percentiles, rendered in the current culture.</summary>
+    public string MonteCarloFinalEquityP75
+    {
+        get => _monteCarloFinalEquityP75;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloFinalEquityP75, value);
+    }
+
+    /// <summary>The final-equity percentiles, rendered in the current culture.</summary>
+    public string MonteCarloFinalEquityP95
+    {
+        get => _monteCarloFinalEquityP95;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloFinalEquityP95, value);
+    }
+
+    /// <summary>The max-drawdown percentiles, rendered in the current culture.</summary>
+    public string MonteCarloDrawdownP5
+    {
+        get => _monteCarloDrawdownP5;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloDrawdownP5, value);
+    }
+
+    /// <summary>The max-drawdown percentiles, rendered in the current culture.</summary>
+    public string MonteCarloDrawdownP25
+    {
+        get => _monteCarloDrawdownP25;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloDrawdownP25, value);
+    }
+
+    /// <summary>The max-drawdown percentiles, rendered in the current culture.</summary>
+    public string MonteCarloDrawdownMedian
+    {
+        get => _monteCarloDrawdownMedian;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloDrawdownMedian, value);
+    }
+
+    /// <summary>The max-drawdown percentiles, rendered in the current culture.</summary>
+    public string MonteCarloDrawdownP75
+    {
+        get => _monteCarloDrawdownP75;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloDrawdownP75, value);
+    }
+
+    /// <summary>The max-drawdown percentiles, rendered in the current culture.</summary>
+    public string MonteCarloDrawdownP95
+    {
+        get => _monteCarloDrawdownP95;
+        private set => this.RaiseAndSetIfChanged(ref _monteCarloDrawdownP95, value);
+    }
+
+    #endregion Robustness Form (T-254)
+
     #region Run Surface
 
     /// <summary>True while a replay is in flight (the progress surface).</summary>
@@ -524,6 +717,10 @@ public sealed class BacktestRunViewModel : ReactiveObject
         SelectedSweepRow = null;
         SweepRows = [];
         _sweepBestReport = null;
+        WalkForwardRows = [];
+        _walkForwardDoneRows = null;
+        _walkForwardDoneTotal = null;
+        ClearMonteCarlo();
         Phase = BacktestRunPhase.Running;
         _runCancellation = new CancellationTokenSource();
 
@@ -587,6 +784,10 @@ public sealed class BacktestRunViewModel : ReactiveObject
         _sweepBestReport = null;
         _sweepDoneRows = null;
         _sweepDoneTotal = null;
+        WalkForwardRows = [];
+        _walkForwardDoneRows = null;
+        _walkForwardDoneTotal = null;
+        ClearMonteCarlo();
         Phase = BacktestRunPhase.Running;
         _runCancellation = new CancellationTokenSource();
         _sweepTotal = sweep.FirstAxis.Values.Count * sweep.SecondAxis.Values.Count;
@@ -617,6 +818,174 @@ public sealed class BacktestRunViewModel : ReactiveObject
             _runCancellation = null;
             _sweepTotal = 0;
             _sweepCompletedRows = 0;
+        }
+
+        return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// The walk-forward start (T-254): compose the study from the run form
+    /// (the template), the sweep form's own two axes and the folds field
+    /// (every spelling parsed and range-checked explicitly — the standing
+    /// refuse-not-default rule), then run it through the harness's
+    /// walk-forward lane. The same phase machine, the same cancel command
+    /// and the same single-flight gate ride along; the stop lands at a fold
+    /// boundary, so a cancelled study keeps every fold whose whole
+    /// optimize-then-verify pass had completed.
+    /// </summary>
+    private async Task<RxVoid> HandleStartWalkForwardAsync(CancellationToken ct)
+    {
+        if (!TryComposeWalkForward(out var study, out var inputError))
+        {
+            // The unparsable or malformed input is refused up front — nothing defaults.
+            ErrorMessage = inputError;
+            Phase = BacktestRunPhase.Failed;
+            return RxVoid.Default;
+        }
+
+        ErrorMessage = null;
+        ProgressText = string.Empty;
+        ProgressFraction = 0d;
+        LastReport = null;
+        ReportText = string.Empty;
+        SummaryText = string.Empty;
+        EquityPoints = [];
+        SelectedSweepRow = null;
+        SweepRows = [];
+        _sweepBestReport = null;
+        _sweepDoneRows = null;
+        _sweepDoneTotal = null;
+        WalkForwardRows = [];
+        _walkForwardDoneRows = null;
+        _walkForwardDoneTotal = null;
+        ClearMonteCarlo();
+        Phase = BacktestRunPhase.Running;
+        _runCancellation = new CancellationTokenSource();
+        _walkForwardTotal = study.Folds;
+        _walkForwardCompletedFolds = 0;
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runCancellation.Token);
+        try
+        {
+            var result = await _backtest.WalkForwardAsync(study, linked.Token);
+            ApplyWalkForward(result);
+        }
+        catch (OperationCanceledException) when (_runCancellation.IsCancellationRequested)
+        {
+            // The harness answers a boundary stop with the cancelled result;
+            // this catch only stands for an external stop (a closing window).
+            Phase = BacktestRunPhase.Cancelled;
+        }
+        catch (Exception ex)
+        {
+            // A refused or failed start says so explicitly (never defaults).
+            _logger.LogError(ex, "Backtest walk-forward failed for '{Strategy}'", study.Template.StrategyId);
+            ErrorMessage = _localization.GetString(StartFailedKey, ex.Message);
+            Phase = BacktestRunPhase.Failed;
+        }
+        finally
+        {
+            _runCancellation.Dispose();
+            _runCancellation = null;
+            _walkForwardTotal = 0;
+            _walkForwardCompletedFolds = 0;
+        }
+
+        return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// The Monte Carlo start (T-254): sample the report surface's completed
+    /// report (the run's, the sweep's auto-selected rank-1 or the
+    /// click-through's — every completed surface flows through the same
+    /// report slot) over the paths and the sampling seed the form composes.
+    /// The compute is pure and rides the worker lane; the stop is honored
+    /// between paths and a cancelled sampling surfaces no tiles.
+    /// </summary>
+    private async Task<RxVoid> HandleStartMonteCarloAsync(CancellationToken ct)
+    {
+        if (LastReport is not { } report)
+        {
+            // The sampling has no sequence without a completed report: the
+            // start refuses up front, never fabricates a distribution.
+            ErrorMessage = _localization.GetString(MonteCarloErrorNoReportKey);
+            Phase = BacktestRunPhase.Failed;
+            return RxVoid.Default;
+        }
+
+        if (!int.TryParse(_monteCarloPathsText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var paths))
+        {
+            ErrorMessage = _localization.GetString(MonteCarloErrorPathsKey, _monteCarloPathsText);
+            Phase = BacktestRunPhase.Failed;
+            return RxVoid.Default;
+        }
+
+        if (!int.TryParse(_monteCarloSeedText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var seed))
+        {
+            ErrorMessage = _localization.GetString(MonteCarloErrorSeedKey, _monteCarloSeedText);
+            Phase = BacktestRunPhase.Failed;
+            return RxVoid.Default;
+        }
+
+        var request = new BacktestMonteCarloRequest
+        {
+            Report = report,
+            Paths = paths,
+            Seed = seed,
+        };
+
+        try
+        {
+            // The shape's own bounds refuse here, before the worker lane —
+            // the exception's own message names the violated bound.
+            request.Validate();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Backtest Monte Carlo input refused");
+            ErrorMessage = _localization.GetString(StartFailedKey, ex.Message);
+            Phase = BacktestRunPhase.Failed;
+            return RxVoid.Default;
+        }
+
+        ErrorMessage = null;
+        ProgressText = string.Empty;
+        ProgressFraction = 0d;
+        SelectedSweepRow = null;
+        SweepRows = [];
+        _sweepBestReport = null;
+        _sweepDoneRows = null;
+        _sweepDoneTotal = null;
+        WalkForwardRows = [];
+        _walkForwardDoneRows = null;
+        _walkForwardDoneTotal = null;
+        ClearMonteCarlo();
+        Phase = BacktestRunPhase.Running;
+        _runCancellation = new CancellationTokenSource();
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runCancellation.Token);
+        try
+        {
+            var result = await _backtest.MonteCarloAsync(request, linked.Token);
+            ApplyMonteCarlo(result);
+        }
+        catch (OperationCanceledException) when (_runCancellation.IsCancellationRequested)
+        {
+            // The stop is the outcome: the cancelled sampling surfaces no tiles.
+            ClearMonteCarlo();
+            Phase = BacktestRunPhase.Cancelled;
+        }
+        catch (Exception ex)
+        {
+            // A refused or failed start says so explicitly (never defaults).
+            _logger.LogError(ex, "Backtest Monte Carlo failed for '{Strategy}'", request.Report.Request.StrategyId);
+            ErrorMessage = _localization.GetString(StartFailedKey, ex.Message);
+            Phase = BacktestRunPhase.Failed;
+        }
+        finally
+        {
+            _runCancellation.Dispose();
+            _runCancellation = null;
         }
 
         return RxVoid.Default;
@@ -722,6 +1091,98 @@ public sealed class BacktestRunViewModel : ReactiveObject
     }
 
     /// <summary>
+    /// Apply one walk-forward result (T-254): build the chronological fold
+    /// table's rows, carry the completed count into the done line, and carve
+    /// the phase — a completed study lands on Completed; a cancelled study
+    /// keeps every completed fold's row in the table (each an honest
+    /// optimize-then-verify fact) and answers Cancelled.
+    /// </summary>
+    private void ApplyWalkForward(BacktestWalkForwardResult result)
+    {
+        var firstParameter = result.Request.FirstAxis.Parameter;
+        var secondParameter = result.Request.SecondAxis.Parameter;
+        WalkForwardRows = result.Rows
+            .Select(row => new BacktestWalkForwardRowViewModel(row, firstParameter, secondParameter, _localization))
+            .ToArray();
+
+        _walkForwardDoneRows = result.Rows.Count;
+        _walkForwardDoneTotal = result.Request.Folds;
+        RenderWalkForwardDoneLine();
+        ProgressFraction = result.Request.Folds > 0
+            ? Math.Clamp((double)result.Rows.Count / result.Request.Folds, 0d, 1d)
+            : 0d;
+
+        if (result.IsCompleted)
+        {
+            Phase = BacktestRunPhase.Completed;
+        }
+        else
+        {
+            // The stop is the outcome: the completed folds stay in the table,
+            // nothing half-run is ever shown.
+            Phase = BacktestRunPhase.Cancelled;
+        }
+    }
+
+    /// <summary>
+    /// Apply one Monte Carlo result (T-254): a completed sampling renders
+    /// the tiles; a cancelled sampling answers nothing (the stop is the
+    /// outcome, no distribution is ever half-shown).
+    /// </summary>
+    private void ApplyMonteCarlo(BacktestMonteCarloResult result)
+    {
+        if (result.IsCompleted && result.Distribution is { } distribution)
+        {
+            RenderMonteCarlo(distribution);
+            Phase = BacktestRunPhase.Completed;
+        }
+        else
+        {
+            ClearMonteCarlo();
+            Phase = BacktestRunPhase.Cancelled;
+        }
+    }
+
+    /// <summary>Render one folded distribution: the headline, the below-start
+    /// line and both percentile bundles (the current culture).</summary>
+    private void RenderMonteCarlo(BacktestMonteCarloDistribution distribution)
+    {
+        _monteCarloDistribution = distribution;
+        this.RaisePropertyChanged(nameof(HasMonteCarlo));
+        MonteCarloHeadline = _localization.GetString(MonteCarloHeadlineFormatKey, distribution.Paths, distribution.Trades, distribution.Seed);
+        MonteCarloBelowStart = _localization.GetString(MonteCarloBelowStartFormatKey, distribution.PathsBelowStart, distribution.Paths);
+        MonteCarloFinalEquityP5 = Render(distribution.FinalEquity.P5);
+        MonteCarloFinalEquityP25 = Render(distribution.FinalEquity.P25);
+        MonteCarloFinalEquityMedian = Render(distribution.FinalEquity.Median);
+        MonteCarloFinalEquityP75 = Render(distribution.FinalEquity.P75);
+        MonteCarloFinalEquityP95 = Render(distribution.FinalEquity.P95);
+        MonteCarloDrawdownP5 = Render(distribution.MaxDrawdown.P5);
+        MonteCarloDrawdownP25 = Render(distribution.MaxDrawdown.P25);
+        MonteCarloDrawdownMedian = Render(distribution.MaxDrawdown.Median);
+        MonteCarloDrawdownP75 = Render(distribution.MaxDrawdown.P75);
+        MonteCarloDrawdownP95 = Render(distribution.MaxDrawdown.P95);
+    }
+
+    /// <summary>Clear the Monte Carlo result surfaces (the tiles' honest empty state).</summary>
+    private void ClearMonteCarlo()
+    {
+        _monteCarloDistribution = null;
+        this.RaisePropertyChanged(nameof(HasMonteCarlo));
+        MonteCarloHeadline = string.Empty;
+        MonteCarloBelowStart = string.Empty;
+        MonteCarloFinalEquityP5 = string.Empty;
+        MonteCarloFinalEquityP25 = string.Empty;
+        MonteCarloFinalEquityMedian = string.Empty;
+        MonteCarloFinalEquityP75 = string.Empty;
+        MonteCarloFinalEquityP95 = string.Empty;
+        MonteCarloDrawdownP5 = string.Empty;
+        MonteCarloDrawdownP25 = string.Empty;
+        MonteCarloDrawdownMedian = string.Empty;
+        MonteCarloDrawdownP75 = string.Empty;
+        MonteCarloDrawdownP95 = string.Empty;
+    }
+
+    /// <summary>
     /// Open one sweep row's report surface (the T-263 click-through): rank 1
     /// of a completed sweep renders the sweep's own best report — the engine
     /// replayed that exact parameterization on the sweep's own loaded
@@ -802,7 +1263,10 @@ public sealed class BacktestRunViewModel : ReactiveObject
     /// While a sweep is in flight the per-row events wrap into the global
     /// counter — "Row k of n: bars" and the fraction ((rows done) + row
     /// fraction) / total — since each parameterization replays the full
-    /// window's bar line.</summary>
+    /// window's bar line. While a walk-forward is in flight (T-254) the
+    /// out-of-sample replays' events wrap into the fold counter — "Fold k of
+    /// n: bars" and the same honest fraction over the folds; the in-sample
+    /// optimization replays are silent, so nothing re-counts them.</summary>
     private void OnRunEvent(BacktestRunEvent @event)
     {
         switch (@event.Kind)
@@ -811,6 +1275,12 @@ public sealed class BacktestRunViewModel : ReactiveObject
                 if (_sweepTotal > 0)
                 {
                     RenderSweepRowLine(_sweepCompletedRows + 1, _sweepCompletedRows, 0, @event.BarsRequested);
+                    break;
+                }
+
+                if (_walkForwardTotal > 0)
+                {
+                    RenderWalkForwardFoldLine(_walkForwardCompletedFolds + 1, _walkForwardCompletedFolds, 0, @event.BarsRequested);
                     break;
                 }
 
@@ -824,6 +1294,16 @@ public sealed class BacktestRunViewModel : ReactiveObject
                     RenderSweepRowLine(
                         _sweepCompletedRows + 1,
                         _sweepCompletedRows,
+                        @event.BarsProcessed,
+                        @event.BarsRequested);
+                    break;
+                }
+
+                if (_walkForwardTotal > 0)
+                {
+                    RenderWalkForwardFoldLine(
+                        _walkForwardCompletedFolds + 1,
+                        _walkForwardCompletedFolds,
                         @event.BarsProcessed,
                         @event.BarsRequested);
                     break;
@@ -850,6 +1330,19 @@ public sealed class BacktestRunViewModel : ReactiveObject
                     break;
                 }
 
+                if (_walkForwardTotal > 0)
+                {
+                    // The fold is fully done: the same exact-landing shape a
+                    // sweep row takes, then the counter moves past it.
+                    RenderWalkForwardFoldLine(
+                        _walkForwardCompletedFolds + 1,
+                        _walkForwardCompletedFolds,
+                        @event.BarsProcessed,
+                        @event.BarsRequested);
+                    _walkForwardCompletedFolds++;
+                    break;
+                }
+
                 ProgressText = _localization.GetString(ProgressFormatKey, @event.BarsProcessed, @event.BarsRequested);
                 ProgressFraction = @event.BarsRequested > 0
                     ? Math.Clamp((double)@event.BarsProcessed / @event.BarsRequested, 0d, 1d)
@@ -868,6 +1361,26 @@ public sealed class BacktestRunViewModel : ReactiveObject
                 // An unknown event kind never defaults into a layout line.
                 break;
         }
+    }
+
+    /// <summary>Render one in-flight fold's line (T-254): "Fold k of n: bars"
+    /// and the global fraction ((folds done so far) + this fold's out-of-sample
+    /// bar fraction) / folds, clamped — the honest fold of the per-fold events
+    /// (the in-sample optimization replays are silent and re-count nothing).</summary>
+    /// <param name="fold">The 1-based fold the line names.</param>
+    /// <param name="foldsDone">How many folds count as done in the fraction.</param>
+    /// <param name="barsProcessed">The fold's out-of-sample bar count so far.</param>
+    /// <param name="barsRequested">The fold's out-of-sample bar target.</param>
+    private void RenderWalkForwardFoldLine(int fold, int foldsDone, int barsProcessed, int barsRequested)
+    {
+        var barsLine = _localization.GetString(ProgressFormatKey, barsProcessed, barsRequested);
+        ProgressText = _localization.GetString(WalkForwardProgressFormatKey, fold, _walkForwardTotal, barsLine);
+        var barFraction = barsRequested > 0
+            ? Math.Clamp((double)barsProcessed / barsRequested, 0d, 1d)
+            : 0d;
+        ProgressFraction = _walkForwardTotal > 0
+            ? Math.Clamp((foldsDone + barFraction) / _walkForwardTotal, 0d, 1d)
+            : 0d;
     }
 
     /// <summary>Render one in-flight sweep row's line: "Row k of n: bars" and
@@ -965,22 +1478,29 @@ public sealed class BacktestRunViewModel : ReactiveObject
     #region Sweep Composition
 
     /// <summary>
-    /// Compose the sweep request from the run form (the template) and the
-    /// sweep form (both axes): every spelling parsed and range-checked
-    /// explicitly — an unparsable list, a too-long axis, a duplicate-knob
-    /// grid or an out-of-range value is a refused start with its own
-    /// localized line, never a silently corrected or clamped input.
+    /// Compose the study inputs both compound surfaces share (the sweep and
+    /// the walk-forward): the run form's template and the sweep form's two
+    /// axes — every spelling parsed and range-checked explicitly, an
+    /// unparsable list, a too-long axis, a duplicate-knob grid or an
+    /// out-of-range value is a refused start with its own localized line,
+    /// never a silently corrected or clamped input.
     /// </summary>
-    private bool TryComposeSweep(out BacktestSweepRequest sweep, out string? inputError)
+    private bool TryComposeStudyInputs(
+        out BacktestRunRequest template,
+        out BacktestSweepAxis firstAxis,
+        out BacktestSweepAxis secondAxis,
+        out string? inputError)
     {
-        sweep = null!;
+        template = null!;
+        firstAxis = null!;
+        secondAxis = null!;
         inputError = null;
 
         // The template is the run form's own composition: strategy, series
         // identity, bars, seed and base policy parse exactly as a single
-        // run would — an unparsable field refuses the sweep with the same
+        // run would — an unparsable field refuses the study with the same
         // line the run start would give.
-        if (!TryComposeRequest(out var template, out var requestError))
+        if (!TryComposeRequest(out template, out var requestError))
         {
             inputError = requestError;
             return false;
@@ -1044,11 +1564,75 @@ public sealed class BacktestRunViewModel : ReactiveObject
             }
         }
 
+        firstAxis = new BacktestSweepAxis(firstParameter, firstValues);
+        secondAxis = new BacktestSweepAxis(secondParameter, secondValues);
+        return true;
+    }
+
+    /// <summary>
+    /// Compose the sweep request from the study inputs (the template and
+    /// both axes, exactly as a walk-forward composes them — T-254): the grid
+    /// composes and range-checks at start, nothing defaults.
+    /// </summary>
+    private bool TryComposeSweep(out BacktestSweepRequest sweep, out string? inputError)
+    {
+        sweep = null!;
+        inputError = null;
+
+        if (!TryComposeStudyInputs(out var template, out var firstAxis, out var secondAxis, out var inputsError))
+        {
+            inputError = inputsError;
+            return false;
+        }
+
         sweep = new BacktestSweepRequest
         {
             Template = template,
-            FirstAxis = new BacktestSweepAxis(firstParameter, firstValues),
-            SecondAxis = new BacktestSweepAxis(secondParameter, secondValues),
+            FirstAxis = firstAxis,
+            SecondAxis = secondAxis,
+        };
+        return true;
+    }
+
+    /// <summary>
+    /// Compose the walk-forward request (T-254): the sweep form's own study
+    /// inputs (the template and both axes) plus the folds spelling — parsed
+    /// and range-checked explicitly, an out-of-band count refuses with its
+    /// own line, never a clamped or defaulted carve.
+    /// </summary>
+    private bool TryComposeWalkForward(out BacktestWalkForwardRequest study, out string? inputError)
+    {
+        study = null!;
+        inputError = null;
+
+        if (!TryComposeStudyInputs(out var template, out var firstAxis, out var secondAxis, out var inputsError))
+        {
+            inputError = inputsError;
+            return false;
+        }
+
+        if (!int.TryParse(_foldsText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var folds))
+        {
+            inputError = _localization.GetString(WalkForwardErrorFoldsKey, _foldsText);
+            return false;
+        }
+
+        if (folds < BacktestWalkForwardRequest.MinFolds || folds > BacktestWalkForwardRequest.MaxFolds)
+        {
+            inputError = _localization.GetString(
+                WalkForwardErrorFoldRangeKey,
+                folds,
+                BacktestWalkForwardRequest.MinFolds,
+                BacktestWalkForwardRequest.MaxFolds);
+            return false;
+        }
+
+        study = new BacktestWalkForwardRequest
+        {
+            Template = template,
+            FirstAxis = firstAxis,
+            SecondAxis = secondAxis,
+            Folds = folds,
         };
         return true;
     }
@@ -1116,6 +1700,16 @@ public sealed class BacktestRunViewModel : ReactiveObject
     {
         RenderPhaseText();
         RenderSweepState();
+        foreach (var row in _walkForwardRows)
+        {
+            row.Refresh(_localization);
+        }
+
+        RenderWalkForwardDoneLine();
+        if (_monteCarloDistribution is { } distribution)
+        {
+            RenderMonteCarlo(distribution);
+        }
     }
 
     private void RenderPhaseText()
@@ -1164,6 +1758,17 @@ public sealed class BacktestRunViewModel : ReactiveObject
         if (_sweepDoneRows is { } done && _sweepDoneTotal is { } doneTotal)
         {
             ProgressText = _localization.GetString(SweepDoneFormatKey, done, doneTotal);
+        }
+    }
+
+    /// <summary>Render the walk-forward's done line ("Walk-forward finished:
+    /// k of n folds replayed") while a study result is showing; the counts
+    /// ride the last applied result and clear on the next start.</summary>
+    private void RenderWalkForwardDoneLine()
+    {
+        if (_walkForwardDoneRows is { } done && _walkForwardDoneTotal is { } doneTotal)
+        {
+            ProgressText = _localization.GetString(WalkForwardDoneFormatKey, done, doneTotal);
         }
     }
 

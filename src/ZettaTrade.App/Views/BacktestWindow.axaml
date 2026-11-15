@@ -14,7 +14,7 @@
         ShowInTaskbar="False"
         Background="{DynamicResource Background}">
 
-    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
 
         <!-- The run form: strategy over the T-111 seam, the active venue's
              cached series identity, the seed and the execution policy. Every
@@ -87,11 +87,36 @@
             </WrapPanel>
         </StackPanel>
 
+        <!-- The robustness form (T-254): the walk-forward's fold count and
+             the Monte Carlo's paths and sampling seed. The walk-forward
+             reuses the sweep form's own two axes; every spelling parses and
+             range-checks at start (an unparsable or out-of-band count is a
+             refused start, never a corrected input). -->
+        <StackPanel Grid.Row="2" Spacing="{StaticResource SpaceS}">
+            <TextBlock Text="{loc:Localized Backtest.Robustness.Title}" FontWeight="SemiBold" />
+            <WrapPanel>
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="{loc:Localized Backtest.WalkForward.Folds}" Margin="0,0,0,4" />
+                    <TextBox Width="110" Text="{Binding FoldsText}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="{loc:Localized Backtest.MonteCarlo.Paths}" Margin="0,0,0,4" />
+                    <TextBox Width="110" Text="{Binding MonteCarloPathsText}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="{loc:Localized Backtest.MonteCarlo.Seed}" Margin="0,0,0,4" />
+                    <TextBox Width="110" Text="{Binding MonteCarloSeedText}" />
+                </StackPanel>
+            </WrapPanel>
+        </StackPanel>
+
         <!-- The run surface: the phase line, the progress bar and the
              refusal/failure line. During a sweep the progress line wraps
              the per-row bar line into the global counter ("Row k of n");
-             the cancelled run surfaces no report. -->
-        <StackPanel Grid.Row="2" Spacing="{StaticResource SpaceXs}">
+             during a walk-forward the out-of-sample replays' events wrap
+             into the fold counter ("Fold k of n"); the cancelled run
+             surfaces no report. -->
+        <StackPanel Grid.Row="3" Spacing="{StaticResource SpaceXs}">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceM}">
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontWeight="SemiBold" />
                 <ProgressBar Grid.Column="1"
@@ -113,7 +138,7 @@
              ranked by net, the honest absence while nothing replayed. The
              click-through opens the selected row's own complete report on
              the report surface below. -->
-        <StackPanel Grid.Row="3"
+        <StackPanel Grid.Row="4"
                     Spacing="{StaticResource SpaceXs}"
                     IsVisible="{Binding HasSweepRows}">
             <Grid ColumnDefinitions="50,240,110,110,90,100" ColumnSpacing="{StaticResource SpaceS}">
@@ -182,11 +207,74 @@
             </ListBox>
         </StackPanel>
 
+        <!-- The walk-forward's fold table (T-254): the folds chronological,
+             each with the pair its in-sample optimization chose and the
+             chosen pair's honest out-of-sample numbers — the study's whole
+             point. The honest absence while nothing replayed. -->
+        <StackPanel Grid.Row="5"
+                    Spacing="{StaticResource SpaceXs}"
+                    IsVisible="{Binding HasWalkForwardRows}">
+            <Grid ColumnDefinitions="40,240,110,110,110" ColumnSpacing="{StaticResource SpaceS}">
+                <TextBlock Grid.Column="0"
+                           Text="{loc:Localized Backtest.WalkForward.Column.Fold}"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="1"
+                           Text="{loc:Localized Backtest.WalkForward.Column.Pair}"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="2"
+                           Text="{loc:Localized Backtest.WalkForward.Column.InSampleNet}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="3"
+                           Text="{loc:Localized Backtest.WalkForward.Column.OutOfSampleNet}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="4"
+                           Text="{loc:Localized Backtest.Sweep.Column.Drawdown}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+            </Grid>
+            <ListBox ItemsSource="{Binding WalkForwardRows}"
+                     AutomationProperties.Name="{loc:Localized Backtest.WalkForward.A11yRows}"
+                     Background="Transparent"
+                     MaxHeight="120"
+                     Margin="0,0,16,0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BacktestWalkForwardRowViewModel">
+                        <Grid ColumnDefinitions="40,240,110,110,110" ColumnSpacing="{StaticResource SpaceS}">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding Fold}"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ParameterText}" />
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding InSampleNetText}"
+                                       TextAlignment="Right"
+                                       FontFamily="{StaticResource NumericFont}" />
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding OutOfSampleNetText}"
+                                       TextAlignment="Right"
+                                       FontFamily="{StaticResource NumericFont}" />
+                            <TextBlock Grid.Column="4"
+                                       Text="{Binding OutOfSampleDrawdownText}"
+                                       TextAlignment="Right"
+                                       FontFamily="{StaticResource NumericFont}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
         <!-- The report surface: the equity curve over the mark-to-cloud path
              and the localized headline line; the honest empty state while
              nothing replayed yet. The sweep's click-through swaps the
              selected row's own report in here. -->
-        <Grid Grid.Row="4" RowDefinitions="Auto,Auto,*" RowSpacing="{StaticResource SpaceS}">
+        <Grid Grid.Row="6" RowDefinitions="Auto,Auto,*" RowSpacing="{StaticResource SpaceS}">
             <Button Grid.Row="0"
                     Content="{loc:Localized Backtest.Report.SummaryTitle}"
                     IsVisible="{Binding HasReport}"
@@ -205,10 +293,96 @@
                                        IsVisible="{Binding HasEquity}" />
         </Grid>
 
+        <!-- The Monte Carlo result tiles (T-254): the two percentile
+             bundles the sampling folded (nearest-rank, deterministic) and
+             the below-start count. The honest absence while no sampling
+             completed — a cancelled sampling answers nothing. -->
+        <StackPanel Grid.Row="7"
+                    Spacing="{StaticResource SpaceXs}"
+                    IsVisible="{Binding HasMonteCarlo}">
+            <TextBlock Text="{Binding MonteCarloHeadline}" TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="150,90,90,90,90,90" ColumnSpacing="{StaticResource SpaceS}" RowDefinitions="Auto,Auto,Auto">
+                <TextBlock Grid.Column="1"
+                           Text="{loc:Localized Backtest.MonteCarlo.Column.P5}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="2"
+                           Text="{loc:Localized Backtest.MonteCarlo.Column.P25}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="3"
+                           Text="{loc:Localized Backtest.MonteCarlo.Column.Median}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="4"
+                           Text="{loc:Localized Backtest.MonteCarlo.Column.P75}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Column="5"
+                           Text="{loc:Localized Backtest.MonteCarlo.Column.P95}"
+                           TextAlignment="Right"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Row="1" Grid.Column="0"
+                           Text="{loc:Localized Backtest.MonteCarlo.Row.FinalEquity}"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Row="1" Grid.Column="1"
+                           Text="{Binding MonteCarloFinalEquityP5}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+                <TextBlock Grid.Row="1" Grid.Column="2"
+                           Text="{Binding MonteCarloFinalEquityP25}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+                <TextBlock Grid.Row="1" Grid.Column="3"
+                           Text="{Binding MonteCarloFinalEquityMedian}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+                <TextBlock Grid.Row="1" Grid.Column="4"
+                           Text="{Binding MonteCarloFinalEquityP75}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+                <TextBlock Grid.Row="1" Grid.Column="5"
+                           Text="{Binding MonteCarloFinalEquityP95}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+                <TextBlock Grid.Row="2" Grid.Column="0"
+                           Text="{loc:Localized Backtest.MonteCarlo.Row.MaxDrawdown}"
+                           FontSize="{StaticResource CaptionFontSize}"
+                           Foreground="{DynamicResource TextSecondary}" />
+                <TextBlock Grid.Row="2" Grid.Column="1"
+                           Text="{Binding MonteCarloDrawdownP5}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+                <TextBlock Grid.Row="2" Grid.Column="2"
+                           Text="{Binding MonteCarloDrawdownP25}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+                <TextBlock Grid.Row="2" Grid.Column="3"
+                           Text="{Binding MonteCarloDrawdownMedian}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+                <TextBlock Grid.Row="2" Grid.Column="4"
+                           Text="{Binding MonteCarloDrawdownP75}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+                <TextBlock Grid.Row="2" Grid.Column="5"
+                           Text="{Binding MonteCarloDrawdownP95}"
+                           TextAlignment="Right"
+                           FontFamily="{StaticResource NumericFont}" />
+            </Grid>
+            <TextBlock Text="{Binding MonteCarloBelowStart}" TextWrapping="Wrap" />
+        </StackPanel>
+
         <!-- The canonical report text: the byte-stable serialization the
              determinism acceptance pins — a replay diff is exactly this
              text against the previous one. -->
-        <TextBox Grid.Row="5"
+        <TextBox Grid.Row="8"
                  Text="{Binding ReportText}"
                  IsReadOnly="True"
                  AcceptsReturn="True"
@@ -217,7 +391,7 @@
                  FontFamily="{StaticResource NumericFont}"
                  IsVisible="{Binding HasReport}" />
 
-        <Grid Grid.Row="6" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceM}">
+        <Grid Grid.Row="9" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceM}">
             <Button Grid.Column="1"
                     Classes="primary"
                     Content="{loc:Localized Backtest.Start}"
@@ -228,11 +402,19 @@
                     Command="{Binding StartSweepCommand}"
                     MinWidth="110" />
             <Button Grid.Column="3"
+                    Content="{loc:Localized Backtest.WalkForward.Start}"
+                    Command="{Binding StartWalkForwardCommand}"
+                    MinWidth="110" />
+            <Button Grid.Column="4"
+                    Content="{loc:Localized Backtest.MonteCarlo.Start}"
+                    Command="{Binding StartMonteCarloCommand}"
+                    MinWidth="110" />
+            <Button Grid.Column="5"
                     Content="{loc:Localized Backtest.Cancel}"
                     Command="{Binding CancelCommand}"
                     MinWidth="110"
                     IsVisible="{Binding IsRunning}" />
-            <Button Grid.Column="4"
+            <Button Grid.Column="6"
                     Content="{loc:Localized Backtest.Close}"
                     Click="OnCloseClick"
                     MinWidth="90" />

@@ -2403,6 +2403,87 @@ Estimated fee: {10}</value>
   <data name="Backtest.Report.Summary.Format" xml:space="preserve">
     <value>Fills {0}, closed trades {1}; win rate {2}, profit factor {3}; max drawdown {4}; final equity {5} (start {6}).</value>
   </data>
+  <data name="Backtest.Robustness.Title" xml:space="preserve">
+    <value>Robustness</value>
+  </data>
+  <data name="Backtest.WalkForward.Folds" xml:space="preserve">
+    <value>Folds</value>
+  </data>
+  <data name="Backtest.WalkForward.Start" xml:space="preserve">
+    <value>Walk-forward</value>
+  </data>
+  <data name="Backtest.WalkForward.Done.Format" xml:space="preserve">
+    <value>Walk-forward finished: {0} of {1} folds replayed.</value>
+  </data>
+  <data name="Backtest.WalkForward.Error.Folds" xml:space="preserve">
+    <value>The fold count '{0}' is not an integer — nothing was started.</value>
+  </data>
+  <data name="Backtest.WalkForward.Error.FoldRange" xml:space="preserve">
+    <value>The fold count {0} sits outside the study's {1}–{2} band — nothing was started.</value>
+  </data>
+  <data name="Backtest.WalkForward.Column.Fold" xml:space="preserve">
+    <value>Fold</value>
+  </data>
+  <data name="Backtest.WalkForward.Column.Pair" xml:space="preserve">
+    <value>Parameters</value>
+  </data>
+  <data name="Backtest.WalkForward.Column.InSampleNet" xml:space="preserve">
+    <value>In-sample net</value>
+  </data>
+  <data name="Backtest.WalkForward.Column.OutOfSampleNet" xml:space="preserve">
+    <value>Out-of-sample net</value>
+  </data>
+  <data name="Backtest.WalkForward.Progress.Format" xml:space="preserve">
+    <value>Fold {0} of {1}: {2}</value>
+  </data>
+  <data name="Backtest.WalkForward.A11yRows" xml:space="preserve">
+    <value>Walk-forward folds</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Paths" xml:space="preserve">
+    <value>Monte Carlo paths</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Seed" xml:space="preserve">
+    <value>Sampling seed</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Start" xml:space="preserve">
+    <value>Monte Carlo</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Error.Paths" xml:space="preserve">
+    <value>The path count '{0}' is not an integer — nothing was started.</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Error.Seed" xml:space="preserve">
+    <value>The sampling seed '{0}' is not an integer — nothing was started.</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Error.NoReport" xml:space="preserve">
+    <value>Monte Carlo samples a completed run's report — run a backtest first.</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Headline.Format" xml:space="preserve">
+    <value>{0} path(s) over {1} closed trade(s), seed {2}.</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.Median" xml:space="preserve">
+    <value>median</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.P5" xml:space="preserve">
+    <value>p5</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.P25" xml:space="preserve">
+    <value>p25</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.P75" xml:space="preserve">
+    <value>p75</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.P95" xml:space="preserve">
+    <value>p95</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Row.FinalEquity" xml:space="preserve">
+    <value>Final equity</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Row.MaxDrawdown" xml:space="preserve">
+    <value>Max drawdown</value>
+  </data>
+  <data name="Backtest.MonteCarlo.BelowStart.Format" xml:space="preserve">
+    <value>{0} of {1} path(s) ended below the starting balance.</value>
+  </data>
   <data name="Alert.Title" xml:space="preserve">
     <value>Price alerts</value>
   </data>

@@ -2403,6 +2403,87 @@
   <data name="Backtest.Report.Summary.Format" xml:space="preserve">
     <value>Исполнений {0}, закрытых сделок {1}; доля прибыльных {2}, профит-фактор {3}; макс. просадка {4}; финальный капитал {5} (старт {6}).</value>
   </data>
+  <data name="Backtest.Robustness.Title" xml:space="preserve">
+    <value>Устойчивость</value>
+  </data>
+  <data name="Backtest.WalkForward.Folds" xml:space="preserve">
+    <value>Фолдов</value>
+  </data>
+  <data name="Backtest.WalkForward.Start" xml:space="preserve">
+    <value>Walk-forward</value>
+  </data>
+  <data name="Backtest.WalkForward.Done.Format" xml:space="preserve">
+    <value>Walk-forward завершён: воспроизведено фолдов {0} из {1}.</value>
+  </data>
+  <data name="Backtest.WalkForward.Error.Folds" xml:space="preserve">
+    <value>Число фолдов '{0}' — не целое; запуск не выполнен.</value>
+  </data>
+  <data name="Backtest.WalkForward.Error.FoldRange" xml:space="preserve">
+    <value>Число фолдов {0} вне допустимого диапазона {1}–{2}; запуск не выполнен.</value>
+  </data>
+  <data name="Backtest.WalkForward.Column.Fold" xml:space="preserve">
+    <value>Фолд</value>
+  </data>
+  <data name="Backtest.WalkForward.Column.Pair" xml:space="preserve">
+    <value>Параметры</value>
+  </data>
+  <data name="Backtest.WalkForward.Column.InSampleNet" xml:space="preserve">
+    <value>Net (in-sample)</value>
+  </data>
+  <data name="Backtest.WalkForward.Column.OutOfSampleNet" xml:space="preserve">
+    <value>Net (out-of-sample)</value>
+  </data>
+  <data name="Backtest.WalkForward.Progress.Format" xml:space="preserve">
+    <value>Фолд {0} из {1}: {2}</value>
+  </data>
+  <data name="Backtest.WalkForward.A11yRows" xml:space="preserve">
+    <value>Фолды walk-forward</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Paths" xml:space="preserve">
+    <value>Путей Монте-Карло</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Seed" xml:space="preserve">
+    <value>Seed выборки</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Start" xml:space="preserve">
+    <value>Монте-Карло</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Error.Paths" xml:space="preserve">
+    <value>Число путей '{0}' — не целое; запуск не выполнен.</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Error.Seed" xml:space="preserve">
+    <value>Seed выборки '{0}' — не целое; запуск не выполнен.</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Error.NoReport" xml:space="preserve">
+    <value>Монте-Карло пересемплирует отчёт завершённого прогона — сначала запустите бэктест.</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Headline.Format" xml:space="preserve">
+    <value>Путей {0} по {1} закрытым сделкам, seed {2}.</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.P5" xml:space="preserve">
+    <value>p5</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.P25" xml:space="preserve">
+    <value>p25</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.P75" xml:space="preserve">
+    <value>p75</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.P95" xml:space="preserve">
+    <value>p95</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Column.Median" xml:space="preserve">
+    <value>медиана</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Row.FinalEquity" xml:space="preserve">
+    <value>Итоговый капитал</value>
+  </data>
+  <data name="Backtest.MonteCarlo.Row.MaxDrawdown" xml:space="preserve">
+    <value>Макс. просадка</value>
+  </data>
+  <data name="Backtest.MonteCarlo.BelowStart.Format" xml:space="preserve">
+    <value>{0} из {1} путей завершились ниже стартового баланса.</value>
+  </data>
   <data name="Alert.Title" xml:space="preserve">
     <value>Ценовые оповещения</value>
   </data>

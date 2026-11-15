@@ -61,9 +61,15 @@ public sealed record BacktestSweepRequest
     /// strategy over the same window with the same base policy.
     /// </summary>
     public BacktestRunRequest Apply(decimal firstValue, decimal secondValue) =>
-        WithKnob(WithKnob(Template, FirstAxis.Parameter, firstValue), SecondAxis.Parameter, secondValue);
+        ApplyKnob(ApplyKnob(Template, FirstAxis.Parameter, firstValue), SecondAxis.Parameter, secondValue);
 
-    private static BacktestRunRequest WithKnob(BacktestRunRequest template, BacktestSweepParameter parameter, decimal value) =>
+    /// <summary>
+    /// Set one knob of a run request to the given value: the grid's own
+    /// mapping, shared with the walk-forward's per-fold parameterization
+    /// (T-254) so both surfaces compose knob pairs identically.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The parameter is not a defined knob.</exception>
+    internal static BacktestRunRequest ApplyKnob(BacktestRunRequest template, BacktestSweepParameter parameter, decimal value) =>
         parameter switch
         {
             BacktestSweepParameter.LongNotionalFraction => template with { LongNotionalFraction = value },

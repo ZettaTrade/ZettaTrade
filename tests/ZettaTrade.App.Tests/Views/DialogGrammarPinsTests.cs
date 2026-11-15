@@ -278,7 +278,7 @@ public sealed class DialogGrammarPinsTests
         // The fresh T-212 backtest reference stays the pinned shape.
         var backtest = ViewSource("BacktestWindow");
         Regex.Matches(backtest, "MinWidth=\"110\"")
-            .Should().HaveCount(3, "the backtest's run/reset/clear commands ride the 110 command width");
+            .Should().HaveCount(5, "the backtest's start/sweep/walk-forward/Monte Carlo/cancel commands ride the 110 command width (T-254 adds the walk-forward and Monte Carlo starts beside the run/sweep/cancel trio)");
         Regex.Matches(backtest, "MinWidth=\"90\"")
             .Should().HaveCount(1, "the backtest's close rides the 90 quiet width");
     }
