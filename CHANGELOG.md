@@ -1,3 +1,42 @@
+## [0.2.4] - 2026-11-15
+
+Build of board task T-254 (branch `feat/backtest-robustness`): the backtest
+window learned to answer the two questions every honest backtest owes —
+how fragile the chosen parameterization is, and whether its edge survives
+data it never optimized on.
+
+### Added
+- The Monte Carlo sampler: the report's own closed trades extract with the
+  ledger's exact bookkeeping (extensions re-average the whole new size, a
+  partial close never re-averages the remainder, a flip stamps its
+  remainder at its own fill), and every path bootstrap-redraws the whole
+  sequence with replacement through a seeded generator — the same report
+  over the same seed folds the byte-identical distribution. The five
+  honest points fold nearest-rank (final equity and max drawdown at the
+  5th, 25th, 50th, 75th and 95th percentiles) plus the count of paths that
+  ended below the start. The work budget (paths × trades ≤ 20M draws)
+  refuses the pathological fold before any path samples; everything
+  invalid is refused, never defaulted. Ten thousand paths over a typical
+  report sample in seconds, off the UI thread.
+- The walk-forward study: the sweep form's own two-knob grid replays over
+  consecutive fold segments carved from the loaded window (each fold
+  split 50/50 into an in-sample head the grid optimizes on and an
+  out-of-sample tail the chosen pair verifies on, every fold at least 64
+  bars). The window loads once; the in-sample optimization replays stay
+  silent (the T-263 discipline), and each fold's out-of-sample replay
+  publishes its own event cycle — one per fold row, exactly a sweep row's
+  own. A cooperative stop lands at a fold boundary only: a fold's row
+  exists when its whole optimize-then-verify pass completed, and nothing
+  half-run ever exists. The same study over the same cache folds
+  byte-identically.
+- The window's robustness row: the folds/paths/seed spellings (validated
+  with their own localized refusals), the chronological fold table with
+  each fold's chosen pair and honest in-sample/out-of-sample numbers, the
+  ten Monte Carlo percentile tiles with the below-start count, and the
+  six-button row — every start clears the other surfaces, the sampling
+  requires a completed report and keeps it, the study keeps the rows it
+  finished. All text in English and Russian (23 new keys).
+
 ## [0.2.3] - 2026-11-15
 
 Build of board task T-251 (branch `feat/stats-deepening`): the trade
