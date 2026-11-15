@@ -5700,8 +5700,10 @@ the board and its section below.
   PERCENT units (zero and negatives are honest thresholds), offers only the Above/Below edges,
   and fires the two-sample crossing on `Ticker.FundingRate` — the first rate-carrying tick
   seeds the pair and never fires; the draft spelling accepts the ccxt settle suffix on the pair
-  form only ("USDT:USDT" stays refused). Tests: App.Tests 2466/2466 and Infrastructure.Tests
-  764/764 (the endpoint wire facts re-anchored on the clean 8-hour 2026-01-01 grid; the funding
+  form only ("USDT:USDT" stays refused). Tests: App.Tests 2488/2488 and Infrastructure.Tests
+  764/764 (the App count corrected 2026-11-16 off the T-241 gate's arithmetic — the close's
+  2466 was a pre-gate guess; the Infrastructure count was right), the endpoint wire facts
+  re-anchored on the clean 8-hour 2026-01-01 grid; the funding
   REST dish rides the shipped manifest as the third family). Gate passed with `-AllowProtected`
   (the `Directory.Build.props` bump is the supervisor-only protected file); the launch smoke
   passed before the merge.
