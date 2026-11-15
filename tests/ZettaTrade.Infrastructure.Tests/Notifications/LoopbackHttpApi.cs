@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 /// <see cref="ServeAsync"/> parks on exactly one request — the test starts a
 /// send and awaits the server task around it.
 /// </summary>
-internal sealed class LoopbackTelegramApi : IDisposable
+internal sealed class LoopbackHttpApi : IDisposable
 {
     #region Constants
 
@@ -34,7 +34,7 @@ internal sealed class LoopbackTelegramApi : IDisposable
     #region Startup
 
     /// <summary>Start a server on a fresh ephemeral localhost port.</summary>
-    internal static LoopbackTelegramApi Start()
+    internal static LoopbackHttpApi Start()
     {
         // Ephemeral port discovery: bind port 0, read the assigned port, free
         // it for the HttpListener (the tiny race window is acceptable for a
@@ -44,10 +44,10 @@ internal sealed class LoopbackTelegramApi : IDisposable
         var port = ((IPEndPoint)finder.LocalEndpoint).Port;
         finder.Stop();
 
-        return new LoopbackTelegramApi(port);
+        return new LoopbackHttpApi(port);
     }
 
-    private LoopbackTelegramApi(int port)
+    private LoopbackHttpApi(int port)
     {
         _listener = new HttpListener();
         _listener.Prefixes.Add($"http://localhost:{port}/");
@@ -67,7 +67,7 @@ internal sealed class LoopbackTelegramApi : IDisposable
     /// scripted status and body (a positive delay runs before the answer —
     /// the paced-response shape) and hand the captured request back.
     /// </summary>
-    internal async Task<CapturedTelegramRequest> ServeAsync(int statusCode, string body, TimeSpan? delay = null)
+    internal async Task<CapturedRequest> ServeAsync(int statusCode, string body, TimeSpan? delay = null)
     {
         var context = await _listener.GetContextAsync();
 
@@ -94,7 +94,7 @@ internal sealed class LoopbackTelegramApi : IDisposable
     /// open forever — the caller's dispose closes the listener and with it
     /// the parked request. The captured request returns immediately.
     /// </summary>
-    internal async Task<CapturedTelegramRequest> ServeHangingAsync()
+    internal async Task<CapturedRequest> ServeHangingAsync()
     {
         var context = await _listener.GetContextAsync();
         var request = await ReadBodyAsync(context.Request);
@@ -104,12 +104,12 @@ internal sealed class LoopbackTelegramApi : IDisposable
         return request;
     }
 
-    private static async Task<CapturedTelegramRequest> ReadBodyAsync(HttpListenerRequest request)
+    private static async Task<CapturedRequest> ReadBodyAsync(HttpListenerRequest request)
     {
         var payload = new byte[request.ContentLength64];
         await request.InputStream.ReadExactlyAsync(payload);
 
-        return new CapturedTelegramRequest(
+        return new CapturedRequest(
             request.Url!.AbsolutePath,
             request.HttpMethod,
             Encoding.UTF8.GetString(payload),
@@ -125,5 +125,5 @@ internal sealed class LoopbackTelegramApi : IDisposable
     #endregion IDisposable
 
     /// <summary>The captured request facts (the token-bearing path + the JSON body as sent).</summary>
-    internal sealed record CapturedTelegramRequest(string Path, string Method, string Body, string ContentType);
+    internal sealed record CapturedRequest(string Path, string Method, string Body, string ContentType);
 }

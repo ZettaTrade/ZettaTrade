@@ -136,7 +136,7 @@ public sealed class TelegramNotifierService : INotificationSink
                 return;
             }
 
-            var message = TelegramMessageComposer.Compose(tradeEvent, _localization);
+            var message = TradeMessageComposer.Compose(tradeEvent, _localization);
 
             await _bot.SendMessageAsync(token, chatId, message, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("The Telegram trade notification delivered ({Kind})", tradeEvent.Kind);

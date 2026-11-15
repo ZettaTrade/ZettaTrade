@@ -1668,6 +1668,210 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
+
+                        <!-- The Discord webhook card (T-261): the same
+                             routing rows for the Discord channel — the
+                             embed rides the user's own webhook, its URL
+                             embeds the webhook's secret material, so the
+                             box masks and commits to the secret store per
+                             keystroke (the Telegram token's shape). -->
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <ToggleButton x:Name="DiscordSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="DiscordSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Notif.Discord.Title}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="DiscordSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #DiscordSectionToggle.IsChecked}">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                                          ColumnDefinitions="Auto,*"
+                                          RowSpacing="{StaticResource SpaceM}"
+                                          ColumnSpacing="{StaticResource SpaceS}">
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Discord.Fills}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="0" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="DiscordFillsCheckBox"
+                                                  IsChecked="{Binding IsDiscordFillsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Discord.Fills.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Discord.Cancels}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="1" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="DiscordCancelsCheckBox"
+                                                  IsChecked="{Binding IsDiscordCancelsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Discord.Cancels.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Discord.Rejects}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="2" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="DiscordRejectsCheckBox"
+                                                  IsChecked="{Binding IsDiscordRejectsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Discord.Rejects.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Discord.Url}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="3" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="DiscordWebhookUrlTextBox"
+                                                 Text="{Binding DiscordWebhookUrlDraft}"
+                                                 PasswordChar="●"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Discord.Url.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Discord.Url.Hint}" />
+                                    </Grid>
+                                    <TextBlock Text="{loc:Localized Settings.Notif.Discord.Note}"
+                                               TextWrapping="Wrap"
+                                               />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- The Slack incoming-webhook card (T-261): the
+                             same shape — the text push rides the user's
+                             own incoming webhook, its URL embeds the
+                             webhook's secret material (masked box,
+                             immediate secret-store commit). -->
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <ToggleButton x:Name="SlackSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="SlackSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Notif.Slack.Title}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="SlackSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #SlackSectionToggle.IsChecked}">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                                          ColumnDefinitions="Auto,*"
+                                          RowSpacing="{StaticResource SpaceM}"
+                                          ColumnSpacing="{StaticResource SpaceS}">
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Slack.Fills}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="0" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="SlackFillsCheckBox"
+                                                  IsChecked="{Binding IsSlackFillsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Slack.Fills.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Slack.Cancels}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="1" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="SlackCancelsCheckBox"
+                                                  IsChecked="{Binding IsSlackCancelsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Slack.Cancels.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Slack.Rejects}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="2" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="SlackRejectsCheckBox"
+                                                  IsChecked="{Binding IsSlackRejectsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Slack.Rejects.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Slack.Url}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="3" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="SlackWebhookUrlTextBox"
+                                                 Text="{Binding SlackWebhookUrlDraft}"
+                                                 PasswordChar="●"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Slack.Url.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Slack.Url.Hint}" />
+                                    </Grid>
+                                    <TextBlock Text="{loc:Localized Settings.Notif.Slack.Note}"
+                                               TextWrapping="Wrap"
+                                               />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- The ntfy card (T-261): the phone-push lane —
+                             the topic URL is PUBLIC by design (the topic
+                             name is the address), so it drafts and saves
+                             with the toggles instead of the secret store;
+                             the hint speaks the public posture honestly. -->
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <ToggleButton x:Name="NtfySectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="NtfySectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Notif.Ntfy.Title}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="NtfySectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #NtfySectionToggle.IsChecked}">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                                          ColumnDefinitions="Auto,*"
+                                          RowSpacing="{StaticResource SpaceM}"
+                                          ColumnSpacing="{StaticResource SpaceS}">
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Ntfy.Fills}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="0" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="NtfyFillsCheckBox"
+                                                  IsChecked="{Binding IsNtfyFillsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Ntfy.Fills.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Ntfy.Cancels}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="1" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="NtfyCancelsCheckBox"
+                                                  IsChecked="{Binding IsNtfyCancelsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Ntfy.Cancels.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Ntfy.Rejects}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="2" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="NtfyRejectsCheckBox"
+                                                  IsChecked="{Binding IsNtfyRejectsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Ntfy.Rejects.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Ntfy.Url}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="3" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="NtfyUrlTextBox"
+                                                 Text="{Binding NtfyUrlDraft}"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Ntfy.Url.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Ntfy.Url.Hint}" />
+                                    </Grid>
+                                    <TextBlock Text="{loc:Localized Settings.Notif.Ntfy.Note}"
+                                               TextWrapping="Wrap"
+                                               />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

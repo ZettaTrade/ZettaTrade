@@ -2184,16 +2184,16 @@
   <data name="Notif.SourceRejections" xml:space="preserve">
     <value>Отклонения</value>
   </data>
-  <data name="Notif.TelegramCancel" xml:space="preserve">
+  <data name="Notif.TradeCancel" xml:space="preserve">
     <value>Ордер отменён — {0} ({1})</value>
   </data>
-  <data name="Notif.TelegramCancelOn" xml:space="preserve">
+  <data name="Notif.TradeCancelOn" xml:space="preserve">
     <value>Ордер отменён: {0} — {1} ({2})</value>
   </data>
-  <data name="Notif.TelegramFill" xml:space="preserve">
+  <data name="Notif.TradeFill" xml:space="preserve">
     <value>{0} {1} {2} исполнено по {3} — {4} ({5})</value>
   </data>
-  <data name="Notif.TelegramReject" xml:space="preserve">
+  <data name="Notif.TradeReject" xml:space="preserve">
     <value>Ордер отклонён: {0} — {1} ({2}, {3})</value>
   </data>
   <data name="Notif.ToastHint" xml:space="preserve">
@@ -2240,6 +2240,105 @@
   </data>
   <data name="Settings.Notif.Telegram.Note" xml:space="preserve">
     <value>Всё отправляется через вашего собственного бота, по мере возможностей: неудачная отправка пишет предупреждение и никогда не трогает торговый поток. Тумблеры и id чата применяются по кнопке «Сохранить»; токен сохраняется сразу.</value>
+  </data>
+  <data name="Settings.Notif.Discord.Title" xml:space="preserve">
+    <value>Discord</value>
+  </data>
+  <data name="Settings.Notif.Discord.Fills" xml:space="preserve">
+    <value>Исполнения</value>
+  </data>
+  <data name="Settings.Notif.Discord.Fills.Hint" xml:space="preserve">
+    <value>Отправлять исполненные ордера в ваш собственный webhook Discord (встраивание с цветом важности).</value>
+  </data>
+  <data name="Settings.Notif.Discord.Cancels" xml:space="preserve">
+    <value>Отмены</value>
+  </data>
+  <data name="Settings.Notif.Discord.Cancels.Hint" xml:space="preserve">
+    <value>Отправлять принятые отмены в ваш собственный webhook Discord.</value>
+  </data>
+  <data name="Settings.Notif.Discord.Rejects" xml:space="preserve">
+    <value>Отклонения</value>
+  </data>
+  <data name="Settings.Notif.Discord.Rejects.Hint" xml:space="preserve">
+    <value>Отправлять отклонённые ордера в ваш собственный webhook Discord.</value>
+  </data>
+  <data name="Settings.Notif.Discord.Url" xml:space="preserve">
+    <value>URL вебхука</value>
+  </data>
+  <data name="Settings.Notif.Discord.Url.Watermark" xml:space="preserve">
+    <value>вставьте URL вебхука</value>
+  </data>
+  <data name="Settings.Notif.Discord.Url.Hint" xml:space="preserve">
+    <value>URL вашего собственного вебхука Discord, сохраняется в зашифрованное хранилище секретов в момент ввода — URL несёт секретный материал вебхука и никогда не попадает в файл настроек. Пустое поле удаляет сохранённый URL.</value>
+  </data>
+  <data name="Settings.Notif.Discord.Note" xml:space="preserve">
+    <value>Всё отправляется через ваш собственный вебхук, по мере возможностей: неудачная отправка пишет предупреждение и никогда не трогает торговый поток. Тумблеры применяются по кнопке «Сохранить»; URL сохраняется сразу.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Title" xml:space="preserve">
+    <value>Slack</value>
+  </data>
+  <data name="Settings.Notif.Slack.Fills" xml:space="preserve">
+    <value>Исполнения</value>
+  </data>
+  <data name="Settings.Notif.Slack.Fills.Hint" xml:space="preserve">
+    <value>Отправлять исполненные ордера в ваш собственный входящий вебхук Slack.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Cancels" xml:space="preserve">
+    <value>Отмены</value>
+  </data>
+  <data name="Settings.Notif.Slack.Cancels.Hint" xml:space="preserve">
+    <value>Отправлять принятые отмены в ваш собственный входящий вебхук Slack.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Rejects" xml:space="preserve">
+    <value>Отклонения</value>
+  </data>
+  <data name="Settings.Notif.Slack.Rejects.Hint" xml:space="preserve">
+    <value>Отправлять отклонённые ордера в ваш собственный входящий вебхук Slack.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Url" xml:space="preserve">
+    <value>URL вебхука</value>
+  </data>
+  <data name="Settings.Notif.Slack.Url.Watermark" xml:space="preserve">
+    <value>вставьте URL вебхука</value>
+  </data>
+  <data name="Settings.Notif.Slack.Url.Hint" xml:space="preserve">
+    <value>URL вашего собственного входящего вебхука Slack, сохраняется в зашифрованное хранилище секретов в момент ввода — URL несёт секретный материал вебхука и никогда не попадает в файл настроек. Пустое поле удаляет сохранённый URL.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Note" xml:space="preserve">
+    <value>Всё отправляется через ваш собственный вебхук, по мере возможностей: неудачная отправка пишет предупреждение и никогда не трогает торговый поток. Тумблеры применяются по кнопке «Сохранить»; URL сохраняется сразу.</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Title" xml:space="preserve">
+    <value>ntfy</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Fills" xml:space="preserve">
+    <value>Исполнения</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Fills.Hint" xml:space="preserve">
+    <value>Отправлять исполненные ордера в вашу собственную тему ntfy (канал пушей на телефон).</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Cancels" xml:space="preserve">
+    <value>Отмены</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Cancels.Hint" xml:space="preserve">
+    <value>Отправлять принятые отмены в вашу собственную тему ntfy.</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Rejects" xml:space="preserve">
+    <value>Отклонения</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Rejects.Hint" xml:space="preserve">
+    <value>Отправлять отклонённые ордера в вашу собственную тему ntfy.</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Url" xml:space="preserve">
+    <value>URL темы</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Url.Watermark" xml:space="preserve">
+    <value>https://ntfy.sh/ваша-тема</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Url.Hint" xml:space="preserve">
+    <value>Полный https-адрес темы, куда отправляются пуши. Имя темы — это адрес: темы ntfy.sh публичны — выберите неугадываемую тему или укажите свой сервер. Применяется по кнопке «Сохранить».</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Note" xml:space="preserve">
+    <value>Всё отправляется в вашу собственную тему, по мере возможностей: неудачная отправка пишет предупреждение и никогда не трогает торговый поток. Тумблеры и URL темы применяются по кнопке «Сохранить».</value>
   </data>
   <data name="Settings.Tab.Notifications" xml:space="preserve">
     <value>Уведомления</value>

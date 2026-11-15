@@ -2184,16 +2184,16 @@ Estimated fee: {10}</value>
   <data name="Notif.SourceRejections" xml:space="preserve">
     <value>Rejections</value>
   </data>
-  <data name="Notif.TelegramCancel" xml:space="preserve">
+  <data name="Notif.TradeCancel" xml:space="preserve">
     <value>Order cancelled — {0} ({1})</value>
   </data>
-  <data name="Notif.TelegramCancelOn" xml:space="preserve">
+  <data name="Notif.TradeCancelOn" xml:space="preserve">
     <value>{0} order cancelled — {1} ({2})</value>
   </data>
-  <data name="Notif.TelegramFill" xml:space="preserve">
+  <data name="Notif.TradeFill" xml:space="preserve">
     <value>{0} {1} {2} filled at {3} — {4} ({5})</value>
   </data>
-  <data name="Notif.TelegramReject" xml:space="preserve">
+  <data name="Notif.TradeReject" xml:space="preserve">
     <value>Order rejected: {0} — {1} ({2}, {3})</value>
   </data>
   <data name="Notif.ToastHint" xml:space="preserve">
@@ -2240,6 +2240,105 @@ Estimated fee: {10}</value>
   </data>
   <data name="Settings.Notif.Telegram.Note" xml:space="preserve">
     <value>Everything sends through your own bot, best-effort: a failed push logs a warning and never touches the trading flow. The toggles and the chat id apply on Save; the token stores immediately.</value>
+  </data>
+  <data name="Settings.Notif.Discord.Title" xml:space="preserve">
+    <value>Discord</value>
+  </data>
+  <data name="Settings.Notif.Discord.Fills" xml:space="preserve">
+    <value>Fills</value>
+  </data>
+  <data name="Settings.Notif.Discord.Fills.Hint" xml:space="preserve">
+    <value>Push a journaled fill to your own Discord webhook (an embed with the severity color).</value>
+  </data>
+  <data name="Settings.Notif.Discord.Cancels" xml:space="preserve">
+    <value>Cancellations</value>
+  </data>
+  <data name="Settings.Notif.Discord.Cancels.Hint" xml:space="preserve">
+    <value>Push an accepted cancellation to your own Discord webhook.</value>
+  </data>
+  <data name="Settings.Notif.Discord.Rejects" xml:space="preserve">
+    <value>Rejections</value>
+  </data>
+  <data name="Settings.Notif.Discord.Rejects.Hint" xml:space="preserve">
+    <value>Push a rejected order to your own Discord webhook.</value>
+  </data>
+  <data name="Settings.Notif.Discord.Url" xml:space="preserve">
+    <value>Webhook URL</value>
+  </data>
+  <data name="Settings.Notif.Discord.Url.Watermark" xml:space="preserve">
+    <value>paste the webhook URL</value>
+  </data>
+  <data name="Settings.Notif.Discord.Url.Hint" xml:space="preserve">
+    <value>Your own Discord webhook's URL, stored in the encrypted secret store the moment you type it — the URL carries the webhook's secret material and never lands in the settings file. An emptied box removes the stored URL.</value>
+  </data>
+  <data name="Settings.Notif.Discord.Note" xml:space="preserve">
+    <value>Everything sends through your own webhook, best-effort: a failed push logs a warning and never touches the trading flow. The toggles apply on Save; the URL stores immediately.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Title" xml:space="preserve">
+    <value>Slack</value>
+  </data>
+  <data name="Settings.Notif.Slack.Fills" xml:space="preserve">
+    <value>Fills</value>
+  </data>
+  <data name="Settings.Notif.Slack.Fills.Hint" xml:space="preserve">
+    <value>Push a journaled fill to your own Slack incoming webhook.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Cancels" xml:space="preserve">
+    <value>Cancellations</value>
+  </data>
+  <data name="Settings.Notif.Slack.Cancels.Hint" xml:space="preserve">
+    <value>Push an accepted cancellation to your own Slack incoming webhook.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Rejects" xml:space="preserve">
+    <value>Rejections</value>
+  </data>
+  <data name="Settings.Notif.Slack.Rejects.Hint" xml:space="preserve">
+    <value>Push a rejected order to your own Slack incoming webhook.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Url" xml:space="preserve">
+    <value>Webhook URL</value>
+  </data>
+  <data name="Settings.Notif.Slack.Url.Watermark" xml:space="preserve">
+    <value>paste the webhook URL</value>
+  </data>
+  <data name="Settings.Notif.Slack.Url.Hint" xml:space="preserve">
+    <value>Your own Slack incoming webhook's URL, stored in the encrypted secret store the moment you type it — the URL carries the webhook's secret material and never lands in the settings file. An emptied box removes the stored URL.</value>
+  </data>
+  <data name="Settings.Notif.Slack.Note" xml:space="preserve">
+    <value>Everything sends through your own webhook, best-effort: a failed push logs a warning and never touches the trading flow. The toggles apply on Save; the URL stores immediately.</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Title" xml:space="preserve">
+    <value>ntfy</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Fills" xml:space="preserve">
+    <value>Fills</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Fills.Hint" xml:space="preserve">
+    <value>Push a journaled fill to your own ntfy topic (the phone-push lane).</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Cancels" xml:space="preserve">
+    <value>Cancellations</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Cancels.Hint" xml:space="preserve">
+    <value>Push an accepted cancellation to your own ntfy topic.</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Rejects" xml:space="preserve">
+    <value>Rejections</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Rejects.Hint" xml:space="preserve">
+    <value>Push a rejected order to your own ntfy topic.</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Url" xml:space="preserve">
+    <value>Topic URL</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Url.Watermark" xml:space="preserve">
+    <value>https://ntfy.sh/your-topic</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Url.Hint" xml:space="preserve">
+    <value>The full https topic URL to push into. A topic name is the address: ntfy.sh topics are public — pick an unguessable topic or point at your own server. Applies on Save.</value>
+  </data>
+  <data name="Settings.Notif.Ntfy.Note" xml:space="preserve">
+    <value>Everything sends through your own topic, best-effort: a failed push logs a warning and never touches the trading flow. The toggles and the topic URL apply on Save.</value>
   </data>
   <data name="Settings.Tab.Notifications" xml:space="preserve">
     <value>Notifications</value>

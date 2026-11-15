@@ -41,7 +41,7 @@ public sealed class TelegramNotificationE2eTests
         var captured = await rig.PublishAndAwaitPushAsync(BuildOrder(OrderStatus.Filled, filled: 0.02m));
 
         captured.Method.Should().Be("POST");
-        captured.Path.Should().Be($"/bot{LoopbackTelegramApi.FakeToken}/sendMessage");
+        captured.Path.Should().Be($"/bot{LoopbackHttpApi.FakeToken}/sendMessage");
         using var body = JsonDocument.Parse(captured.Body);
         body.RootElement.GetProperty("chat_id").GetString().Should().Be(ChatId);
         body.RootElement.GetProperty("text").GetString().Should().Be(
@@ -147,7 +147,7 @@ public sealed class TelegramNotificationE2eTests
     private sealed class E2eRig : IAsyncDisposable
     {
         private E2eRig(
-            LoopbackTelegramApi api,
+            LoopbackHttpApi api,
             ServiceProvider provider,
             NotificationCenter center,
             TradeNotificationBridge bridge,
@@ -162,7 +162,7 @@ public sealed class TelegramNotificationE2eTests
             SinkLogger = sinkLogger;
         }
 
-        internal LoopbackTelegramApi Api { get; }
+        internal LoopbackHttpApi Api { get; }
 
         internal ServiceProvider Provider { get; }
 
@@ -176,7 +176,7 @@ public sealed class TelegramNotificationE2eTests
 
         internal static async Task<E2eRig> CreateAsync(bool fills = true, bool cancels = true, bool rejects = true)
         {
-            var api = LoopbackTelegramApi.Start();
+            var api = LoopbackHttpApi.Start();
             var settings = new TelegramTestSettings();
             await settings.SetAsync(TelegramNotifierService.SettingsSection, TelegramNotifierService.FillsEnabledKey, fills);
             await settings.SetAsync(TelegramNotifierService.SettingsSection, TelegramNotifierService.CancelsEnabledKey, cancels);
@@ -185,7 +185,7 @@ public sealed class TelegramNotificationE2eTests
 
             var secrets = Substitute.For<ISecretStore>();
             secrets.GetAsync(TelegramNotifierService.BotTokenSecretKey, Arg.Any<CancellationToken>())
-                .Returns(LoopbackTelegramApi.FakeToken);
+                .Returns(LoopbackHttpApi.FakeToken);
 
             var services = new ServiceCollection();
             services.AddHttpClient(TelegramBotClient.HttpClientName, client =>
@@ -221,7 +221,7 @@ public sealed class TelegramNotificationE2eTests
         }
 
         /// <summary>Publish one journaled outcome and await its push deterministically: the tracked dispatch handle rides the stub's capture.</summary>
-        internal async Task<LoopbackTelegramApi.CapturedTelegramRequest> PublishAndAwaitPushAsync(Order order)
+        internal async Task<LoopbackHttpApi.CapturedRequest> PublishAndAwaitPushAsync(Order order)
         {
             var serve = Api.ServeAsync(200, """{"ok":true}""");
             Center.PublishTradeOutcome(order);

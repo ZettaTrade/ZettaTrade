@@ -6,39 +6,39 @@ using Livery.Localization;
 using ZettaTrade.Core.Enums;
 
 /// <summary>
-/// The Telegram trade message's one composer (T-041, moved to the sink's
-/// own assembly by T-260): the composed text a journaled trade outcome
-/// pushes to the user's bot chat, composed INSIDE the sink from the
-/// mapped event's structured facts. The facts are the journal row's own —
-/// symbol, side word, quantity, price, the row's exchange id and the
-/// trading lane's tag — so the message never fabricates a fact the event
-/// does not carry; a fill without a price fact is a surface-contract
-/// fault (never a fabricated zero). Text composes from the localization
-/// catalog at send time: the message rides the language the app holds
-/// when the outcome arrives.
+/// The trade message's one composer (T-041, shared across the sink fleet
+/// since T-261): the composed text a journaled trade outcome carries —
+/// the Telegram sink pushes it as its message text, the webhook sinks
+/// ride it as the webhook body's payload. The facts are the journal row's
+/// own — symbol, side word, quantity, price, the row's exchange id and
+/// the trading lane's tag — so the message never fabricates a fact the
+/// event does not carry; a fill without a price fact is a
+/// surface-contract fault (never a fabricated zero). Text composes from
+/// the localization catalog at send time: the message rides the language
+/// the app holds when the outcome arrives.
 /// <para>
-/// The catalog keys (this composer's own <c>Notif.Telegram*</c> templates
+/// The catalog keys (this composer's own <c>Notif.Trade*</c> templates
 /// and the side/lane words it reuses from the ticket and the status-bar
 /// chip) live in the app's shipped resource catalog and resolve by name
 /// at runtime — the composer names them, the app's own
 /// <see cref="ILocalizationManager"/> answers them.
 /// </para>
 /// </summary>
-public static class TelegramMessageComposer
+public static class TradeMessageComposer
 {
     #region Resx Keys
 
     /// <summary>The fill line: side word, quantity, symbol, price, exchange, lane tag.</summary>
-    private const string FillKey = "Notif.TelegramFill";
+    private const string FillKey = "Notif.TradeFill";
 
     /// <summary>The cancellation line with the symbol (the journal recovered it).</summary>
-    private const string CancelOnKey = "Notif.TelegramCancelOn";
+    private const string CancelOnKey = "Notif.TradeCancelOn";
 
     /// <summary>The cancellation line without a symbol (the journal could not recover it).</summary>
-    private const string CancelKey = "Notif.TelegramCancel";
+    private const string CancelKey = "Notif.TradeCancel";
 
     /// <summary>The rejection line: symbol, the adapter's own reason, exchange, lane tag.</summary>
-    private const string RejectKey = "Notif.TelegramReject";
+    private const string RejectKey = "Notif.TradeReject";
 
     /// <summary>The trading lane's tag words (the status-bar chip's own vocabulary, reused).</summary>
     private const string LanePaperKey = "Trading.Lane.Paper";
@@ -89,7 +89,7 @@ public static class TelegramMessageComposer
         _ => throw new ArgumentOutOfRangeException(
             nameof(tradeEvent),
             tradeEvent.Kind,
-            "The Telegram sink composes only the journaled trade outcomes."),
+            "The trade sinks compose only the journaled trade outcomes."),
     };
 
     #endregion Composition
@@ -100,7 +100,7 @@ public static class TelegramMessageComposer
     private static string FillPriceText(TradeNotificationEvent tradeEvent) => tradeEvent.Price is { } price
         ? price.ToString(DecimalFormat, CultureInfo.InvariantCulture)
         : throw new InvalidOperationException(
-            "The fill event carries no price fact; the Telegram message would fabricate one.");
+            "The fill event carries no price fact; the message would fabricate one.");
 
     /// <summary>The side's localized word (the order ticket's own vocabulary, reused).</summary>
     private static string SideKey(OrderSide side) => side switch

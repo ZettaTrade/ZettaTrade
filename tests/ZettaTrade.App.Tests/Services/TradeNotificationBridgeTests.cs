@@ -248,6 +248,117 @@ public sealed class TradeNotificationBridgeTests
 
     #endregion Tests: the real sink's own routing
 
+    #region Tests: the webhook fleet's isolation
+
+    /// <summary>
+    /// The webhook batch's isolation pin (T-261): the fleet rides three
+    /// REAL sinks aimed at three loopback channels — Telegram and Slack
+    /// answer ok, the ntfy channel answers 500 — and one journaled fill
+    /// fans out to ALL of them (each channel posts exactly once) while
+    /// only the failing lane logs a warning; the bridge's own lane stays
+    /// at information and the other channels never hear of the failure.
+    /// A failing channel touches neither the trading flow nor the others.
+    /// </summary>
+    [Fact]
+    public async Task TheFailingWebhookLane_WarnsAlone_WhileTheOtherChannelsDeliver()
+    {
+        var telegramApi = LoopbackHttpApi.Start();
+        var slackApi = LoopbackHttpApi.Start();
+        var ntfyApi = LoopbackHttpApi.Start();
+        try
+        {
+            var telegramServe = telegramApi.ServeAsync(200, """{"ok":true,"result":{"message_id":7}}""");
+            var slackServe = slackApi.ServeAsync(200, "{}");
+            var ntfyServe = ntfyApi.ServeAsync(500, "{}");
+
+            var settings = new TelegramTestSettings();
+            await settings.SetAsync(TelegramNotifierService.SettingsSection, TelegramNotifierService.FillsEnabledKey, true);
+            await settings.SetAsync(TelegramNotifierService.SettingsSection, TelegramNotifierService.ChatIdKey, ChatId);
+            await settings.SetAsync(SlackSink.SettingsSection, SlackSink.FillsEnabledKey, true);
+            await settings.SetAsync(NtfySink.SettingsSection, NtfySink.FillsEnabledKey, true);
+            await settings.SetAsync(NtfySink.SettingsSection, NtfySink.TopicUrlKey, new Uri(ntfyApi.BaseUrl, "/ntfy-topic").ToString());
+
+            var secrets = Substitute.For<ISecretStore>();
+            secrets.GetAsync(TelegramNotifierService.BotTokenSecretKey, Arg.Any<CancellationToken>())
+                .Returns(LoopbackHttpApi.FakeToken);
+            secrets.GetAsync(SlackSink.WebhookUrlSecretKey, Arg.Any<CancellationToken>())
+                .Returns(new Uri(slackApi.BaseUrl, "/slack-hook").ToString());
+
+            var services = new ServiceCollection();
+            services.AddHttpClient(TelegramBotClient.HttpClientName, client =>
+            {
+                client.BaseAddress = telegramApi.BaseUrl;
+                client.Timeout = TimeSpan.FromSeconds(5);
+            });
+            var provider = services.BuildServiceProvider();
+            var catalog = new ResxCatalogLocalization("en");
+
+            var telegramLogger = new SpyLogger<TelegramNotifierService>();
+            var slackLogger = new SpyLogger<SlackSink>();
+            var ntfyLogger = new SpyLogger<NtfySink>();
+            var bridgeLogger = new SpyLogger<TradeNotificationBridge>();
+
+            var fleet = new INotificationSink[]
+            {
+                new SlackSink(settings, secrets, new HttpClient { Timeout = TimeSpan.FromSeconds(5) }, catalog, slackLogger),
+                new NtfySink(settings, new HttpClient { Timeout = TimeSpan.FromSeconds(5) }, catalog, ntfyLogger),
+                new TelegramNotifierService(
+                    settings,
+                    secrets,
+                    new TelegramBotClient(provider.GetRequiredService<IHttpClientFactory>()),
+                    catalog,
+                    telegramLogger),
+            };
+
+            var events = new Subject<Notification>();
+            var lanes = new BehaviorSubject<TradingLane>(TradingLane.Paper);
+            var bridge = new TradeNotificationBridge(events, lanes, fleet, bridgeLogger);
+            await bridge.InitializeAsync();
+            try
+            {
+                events.OnNext(Notification.ForJournalOutcome(
+                    NotificationKind.OrderFill, Moment, "BTC/USDT", OrderSide.Buy, 0.02m, "", 50_000m, "bybit"));
+                await bridge.LastDispatchForTests;
+                await Task.Delay(200);
+
+                var telegram = await telegramServe;
+                var slack = await slackServe;
+                var ntfy = await ntfyServe;
+
+                telegram.Method.Should().Be("POST", "the Telegram channel received its own delivery");
+                slack.Method.Should().Be("POST", "the Slack channel received its own delivery despite its fleetmate's failure");
+                ntfy.Method.Should().Be("POST", "the failing channel still attempted its own send");
+
+                telegramLogger.Entries.Should().NotContain(
+                    entry => entry.Level == LogLevel.Warning,
+                    "the delivered Telegram lane stays quiet");
+                slackLogger.Entries.Should().NotContain(
+                    entry => entry.Level == LogLevel.Warning,
+                    "the delivered Slack lane stays quiet — a fleetmate's failure is not its business");
+                ntfyLogger.Entries.Should().ContainSingle(
+                    entry => entry.Level == LogLevel.Warning,
+                    "only the failing lane logs its own warning (exactly once, no retries)");
+                bridgeLogger.Entries.Should().NotContain(
+                    entry => entry.Level >= LogLevel.Warning,
+                    "the sink's own degrade lane holds the fault — the bridge's lane stays at information");
+            }
+            finally
+            {
+                bridge.Dispose();
+            }
+
+            provider.Dispose();
+        }
+        finally
+        {
+            telegramApi.Dispose();
+            slackApi.Dispose();
+            ntfyApi.Dispose();
+        }
+    }
+
+    #endregion Tests: the webhook fleet's isolation
+
     #region Helpers
 
     /// <summary>One journaled trade outcome on the raw lane (the bridge's own event surface).</summary>
@@ -269,7 +380,7 @@ public sealed class TradeNotificationBridgeTests
     private sealed class BridgeRig : IAsyncDisposable
     {
         private BridgeRig(
-            LoopbackTelegramApi api,
+            LoopbackHttpApi api,
             ServiceProvider provider,
             Subject<Notification> events,
             BehaviorSubject<TradingLane> lanes,
@@ -294,7 +405,7 @@ public sealed class TradeNotificationBridgeTests
             HangingSink = hangingSink;
         }
 
-        internal LoopbackTelegramApi Api { get; }
+        internal LoopbackHttpApi Api { get; }
 
         internal ServiceProvider Provider { get; }
 
@@ -335,7 +446,7 @@ public sealed class TradeNotificationBridgeTests
             bool rejects = true,
             IReadOnlyList<INotificationSink>? sinks = null)
         {
-            var api = LoopbackTelegramApi.Start();
+            var api = LoopbackHttpApi.Start();
             var settings = new TelegramTestSettings();
             await settings.SetAsync(TelegramNotifierService.SettingsSection, TelegramNotifierService.FillsEnabledKey, fills);
             await settings.SetAsync(TelegramNotifierService.SettingsSection, TelegramNotifierService.CancelsEnabledKey, cancels);
@@ -344,7 +455,7 @@ public sealed class TradeNotificationBridgeTests
 
             var secrets = Substitute.For<ISecretStore>();
             secrets.GetAsync(TelegramNotifierService.BotTokenSecretKey, Arg.Any<CancellationToken>())
-                .Returns(LoopbackTelegramApi.FakeToken);
+                .Returns(LoopbackHttpApi.FakeToken);
 
             var services = new ServiceCollection();
             services.AddHttpClient(TelegramBotClient.HttpClientName, client =>

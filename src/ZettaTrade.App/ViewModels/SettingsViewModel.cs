@@ -431,6 +431,104 @@ public sealed class SettingsViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _telegramBotTokenDraft, value);
     }
 
+    /// <summary>Whether the Discord sink pushes fills (T-261; the same draft/save contract as the Telegram toggles).</summary>
+    public bool IsDiscordFillsEnabled
+    {
+        get => _isDiscordFillsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isDiscordFillsEnabled, value);
+    }
+
+    /// <summary>Whether the Discord sink pushes cancellations (T-261; the same draft/save contract).</summary>
+    public bool IsDiscordCancelsEnabled
+    {
+        get => _isDiscordCancelsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isDiscordCancelsEnabled, value);
+    }
+
+    /// <summary>Whether the Discord sink pushes rejections (T-261; the same draft/save contract).</summary>
+    public bool IsDiscordRejectsEnabled
+    {
+        get => _isDiscordRejectsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isDiscordRejectsEnabled, value);
+    }
+
+    /// <summary>
+    /// The Discord webhook URL's draft box (T-261): the box stays empty on
+    /// every open (the URL embeds the webhook's secret material and never
+    /// echoes); every typed keystroke commits to the secret store
+    /// immediately and an emptied box removes the stored URL.
+    /// </summary>
+    public string DiscordWebhookUrlDraft
+    {
+        get => _discordWebhookUrlDraft;
+        set => this.RaiseAndSetIfChanged(ref _discordWebhookUrlDraft, value);
+    }
+
+    /// <summary>Whether the Slack sink pushes fills (T-261; the same draft/save contract as the Telegram toggles).</summary>
+    public bool IsSlackFillsEnabled
+    {
+        get => _isSlackFillsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isSlackFillsEnabled, value);
+    }
+
+    /// <summary>Whether the Slack sink pushes cancellations (T-261; the same draft/save contract).</summary>
+    public bool IsSlackCancelsEnabled
+    {
+        get => _isSlackCancelsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isSlackCancelsEnabled, value);
+    }
+
+    /// <summary>Whether the Slack sink pushes rejections (T-261; the same draft/save contract).</summary>
+    public bool IsSlackRejectsEnabled
+    {
+        get => _isSlackRejectsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isSlackRejectsEnabled, value);
+    }
+
+    /// <summary>
+    /// The Slack incoming webhook URL's draft box (T-261): the same
+    /// immediate-commit shape as the Discord box — the URL embeds its own
+    /// secret material, the store is its only home.
+    /// </summary>
+    public string SlackWebhookUrlDraft
+    {
+        get => _slackWebhookUrlDraft;
+        set => this.RaiseAndSetIfChanged(ref _slackWebhookUrlDraft, value);
+    }
+
+    /// <summary>Whether the ntfy sink pushes fills (T-261; the same draft/save contract as the Telegram toggles).</summary>
+    public bool IsNtfyFillsEnabled
+    {
+        get => _isNtfyFillsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isNtfyFillsEnabled, value);
+    }
+
+    /// <summary>Whether the ntfy sink pushes cancellations (T-261; the same draft/save contract).</summary>
+    public bool IsNtfyCancelsEnabled
+    {
+        get => _isNtfyCancelsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isNtfyCancelsEnabled, value);
+    }
+
+    /// <summary>Whether the ntfy sink pushes rejections (T-261; the same draft/save contract).</summary>
+    public bool IsNtfyRejectsEnabled
+    {
+        get => _isNtfyRejectsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isNtfyRejectsEnabled, value);
+    }
+
+    /// <summary>
+    /// The ntfy topic URL's draft (T-261): PUBLIC by design (the topic name
+    /// is the address), so it rides the settings file like the chat id — a
+    /// text draft that applies only on the explicit Save (trimmed; the
+    /// sink reads it per send).
+    /// </summary>
+    public string NtfyUrlDraft
+    {
+        get => _ntfyUrlDraft;
+        set => this.RaiseAndSetIfChanged(ref _ntfyUrlDraft, value);
+    }
+
     /// <summary>
     /// The update channel pick's combo index (T-258): 0 = stable (the
     /// released stables only), 1 = beta (every parsable release,
@@ -918,6 +1016,78 @@ public sealed class SettingsViewModel : ReactiveObject
     /// </summary>
     private bool _telegramTokenCommitSuppressed;
 
+    /// <summary>The Discord fills opt-in's persisted cache (the seed reads refresh it; the save compares against it).</summary>
+    private bool _persistedDiscordFillsEnabled = DiscordSink.DefaultEnabled;
+
+    /// <summary>The Discord cancellations opt-in's persisted cache.</summary>
+    private bool _persistedDiscordCancelsEnabled = DiscordSink.DefaultEnabled;
+
+    /// <summary>The Discord rejections opt-in's persisted cache.</summary>
+    private bool _persistedDiscordRejectsEnabled = DiscordSink.DefaultEnabled;
+
+    /// <summary>The drafted Discord fills opt-in.</summary>
+    private bool _isDiscordFillsEnabled;
+
+    /// <summary>The drafted Discord cancellations opt-in.</summary>
+    private bool _isDiscordCancelsEnabled;
+
+    /// <summary>The drafted Discord rejections opt-in.</summary>
+    private bool _isDiscordRejectsEnabled;
+
+    /// <summary>The drafted Discord webhook URL (always empty between keystrokes — the secret never echoes).</summary>
+    private string _discordWebhookUrlDraft = string.Empty;
+
+    /// <summary>The Discord URL commit's re-seed guard (the token commit's exact shape).</summary>
+    private bool _discordUrlCommitSuppressed;
+
+    /// <summary>The Slack fills opt-in's persisted cache.</summary>
+    private bool _persistedSlackFillsEnabled = SlackSink.DefaultEnabled;
+
+    /// <summary>The Slack cancellations opt-in's persisted cache.</summary>
+    private bool _persistedSlackCancelsEnabled = SlackSink.DefaultEnabled;
+
+    /// <summary>The Slack rejections opt-in's persisted cache.</summary>
+    private bool _persistedSlackRejectsEnabled = SlackSink.DefaultEnabled;
+
+    /// <summary>The drafted Slack fills opt-in.</summary>
+    private bool _isSlackFillsEnabled;
+
+    /// <summary>The drafted Slack cancellations opt-in.</summary>
+    private bool _isSlackCancelsEnabled;
+
+    /// <summary>The drafted Slack rejections opt-in.</summary>
+    private bool _isSlackRejectsEnabled;
+
+    /// <summary>The drafted Slack webhook URL (always empty between keystrokes — the secret never echoes).</summary>
+    private string _slackWebhookUrlDraft = string.Empty;
+
+    /// <summary>The Slack URL commit's re-seed guard (the token commit's exact shape).</summary>
+    private bool _slackUrlCommitSuppressed;
+
+    /// <summary>The ntfy fills opt-in's persisted cache.</summary>
+    private bool _persistedNtfyFillsEnabled = NtfySink.DefaultEnabled;
+
+    /// <summary>The ntfy cancellations opt-in's persisted cache.</summary>
+    private bool _persistedNtfyCancelsEnabled = NtfySink.DefaultEnabled;
+
+    /// <summary>The ntfy rejections opt-in's persisted cache.</summary>
+    private bool _persistedNtfyRejectsEnabled = NtfySink.DefaultEnabled;
+
+    /// <summary>The ntfy topic URL's persisted cache.</summary>
+    private string _persistedNtfyUrl = NtfySink.DefaultTopicUrl;
+
+    /// <summary>The drafted ntfy fills opt-in.</summary>
+    private bool _isNtfyFillsEnabled;
+
+    /// <summary>The drafted ntfy cancellations opt-in.</summary>
+    private bool _isNtfyCancelsEnabled;
+
+    /// <summary>The drafted ntfy rejections opt-in.</summary>
+    private bool _isNtfyRejectsEnabled;
+
+    /// <summary>The drafted ntfy topic URL.</summary>
+    private string _ntfyUrlDraft = string.Empty;
+
     /// <summary>
     /// The persisted update-channel choice as last read (T-258, the
     /// canonical stored spelling): the combo drafts index from it on every
@@ -1404,6 +1574,182 @@ public sealed class SettingsViewModel : ReactiveObject
                 chatId => _persistedTelegramChatId = chatId,
                 ex => _logger.LogError(ex, "The Telegram chat id stream stopped unexpectedly"));
 
+        // The webhook sinks' routing (T-261): the same seed + changes
+        // pattern as the Telegram rows. The Discord and Slack webhook URLs
+        // ride the secret store (never the settings file — the URL embeds
+        // the webhook's own secret material), so they carry no settings
+        // seed here; the ntfy topic URL is public by design and seeds like
+        // the chat id.
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                DiscordSink.SettingsSection,
+                DiscordSink.FillsEnabledKey,
+                DiscordSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedDiscordFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Discord fills opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == DiscordSink.SettingsSection &&
+                             change.Key == DiscordSink.FillsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedDiscordFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Discord fills opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                DiscordSink.SettingsSection,
+                DiscordSink.CancelsEnabledKey,
+                DiscordSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedDiscordCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Discord cancels opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == DiscordSink.SettingsSection &&
+                             change.Key == DiscordSink.CancelsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedDiscordCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Discord cancels opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                DiscordSink.SettingsSection,
+                DiscordSink.RejectsEnabledKey,
+                DiscordSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedDiscordRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Discord rejects opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == DiscordSink.SettingsSection &&
+                             change.Key == DiscordSink.RejectsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedDiscordRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Discord rejects opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                SlackSink.SettingsSection,
+                SlackSink.FillsEnabledKey,
+                SlackSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedSlackFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Slack fills opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == SlackSink.SettingsSection &&
+                             change.Key == SlackSink.FillsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedSlackFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Slack fills opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                SlackSink.SettingsSection,
+                SlackSink.CancelsEnabledKey,
+                SlackSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedSlackCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Slack cancels opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == SlackSink.SettingsSection &&
+                             change.Key == SlackSink.CancelsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedSlackCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Slack cancels opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                SlackSink.SettingsSection,
+                SlackSink.RejectsEnabledKey,
+                SlackSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedSlackRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Slack rejects opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == SlackSink.SettingsSection &&
+                             change.Key == SlackSink.RejectsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedSlackRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Slack rejects opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                NtfySink.SettingsSection,
+                NtfySink.FillsEnabledKey,
+                NtfySink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedNtfyFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the ntfy fills opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == NtfySink.SettingsSection &&
+                             change.Key == NtfySink.FillsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedNtfyFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "The ntfy fills opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                NtfySink.SettingsSection,
+                NtfySink.CancelsEnabledKey,
+                NtfySink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedNtfyCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the ntfy cancels opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == NtfySink.SettingsSection &&
+                             change.Key == NtfySink.CancelsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedNtfyCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "The ntfy cancels opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                NtfySink.SettingsSection,
+                NtfySink.RejectsEnabledKey,
+                NtfySink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedNtfyRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the ntfy rejects opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == NtfySink.SettingsSection &&
+                             change.Key == NtfySink.RejectsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedNtfyRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "The ntfy rejects opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                NtfySink.SettingsSection,
+                NtfySink.TopicUrlKey,
+                NtfySink.DefaultTopicUrl))
+            .Subscribe(
+                url => _persistedNtfyUrl = url,
+                ex => _logger.LogError(ex, "Failed to read the ntfy topic URL"));
+
+        _settings.Changes
+            .Where(change => change.Section == NtfySink.SettingsSection &&
+                             change.Key == NtfySink.TopicUrlKey)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                url => _persistedNtfyUrl = url,
+                ex => _logger.LogError(ex, "The ntfy topic URL stream stopped unexpectedly"));
+
         // The host's honest state (running / stopped / failed): the three
         // rows derive and rise on every transition; both subscriptions
         // mirror the app-lifetime singleton.
@@ -1538,6 +1884,30 @@ public sealed class SettingsViewModel : ReactiveObject
                 _ => CommitTelegramBotTokenAsync(),
                 ex => _logger.LogError(ex, "Failed to store the Telegram bot token"));
         _telegramTokenCommitSuppressed = false;
+
+        // The Discord and Slack webhook URLs commit immediately (per
+        // keystroke) too (T-261): the URLs embed the webhooks' own secret
+        // material, so the secret store is their only home — the token's
+        // exact shape. The guards keep the VM's own re-seeds out of the
+        // pipelines (a re-seed never queues a deleting commit behind it).
+        // A store-less construction commits nothing (memory-only).
+        _discordUrlCommitSuppressed = true;
+        this
+            .WhenAnyValue(vm => vm.DiscordWebhookUrlDraft)
+            .Where(_ => !_discordUrlCommitSuppressed)
+            .SubscribeAsync(
+                _ => CommitDiscordWebhookUrlAsync(),
+                ex => _logger.LogError(ex, "Failed to store the Discord webhook URL"));
+        _discordUrlCommitSuppressed = false;
+
+        _slackUrlCommitSuppressed = true;
+        this
+            .WhenAnyValue(vm => vm.SlackWebhookUrlDraft)
+            .Where(_ => !_slackUrlCommitSuppressed)
+            .SubscribeAsync(
+                _ => CommitSlackWebhookUrlAsync(),
+                ex => _logger.LogError(ex, "Failed to store the Slack webhook URL"));
+        _slackUrlCommitSuppressed = false;
 
         // The pairs tab's commands act on a pick: no pick, no move. A hide
         // move needs an unstarred pick (a starred pair never hides — that is
@@ -1860,6 +2230,101 @@ public sealed class SettingsViewModel : ReactiveObject
                 TelegramNotifierService.ChatIdKey,
                 telegramChatIdDraft);
             _persistedTelegramChatId = telegramChatIdDraft;
+        }
+
+        // The webhook sinks' routing (T-261): only a real difference
+        // applies (the same no-op discipline every other row keeps). The
+        // ntfy topic URL is the one webhook URL the settings file holds
+        // (public by design) — it saves here, trimmed.
+        if (_isDiscordFillsEnabled != _persistedDiscordFillsEnabled)
+        {
+            await _settings.SetAsync(
+                DiscordSink.SettingsSection,
+                DiscordSink.FillsEnabledKey,
+                _isDiscordFillsEnabled);
+            _persistedDiscordFillsEnabled = _isDiscordFillsEnabled;
+        }
+
+        if (_isDiscordCancelsEnabled != _persistedDiscordCancelsEnabled)
+        {
+            await _settings.SetAsync(
+                DiscordSink.SettingsSection,
+                DiscordSink.CancelsEnabledKey,
+                _isDiscordCancelsEnabled);
+            _persistedDiscordCancelsEnabled = _isDiscordCancelsEnabled;
+        }
+
+        if (_isDiscordRejectsEnabled != _persistedDiscordRejectsEnabled)
+        {
+            await _settings.SetAsync(
+                DiscordSink.SettingsSection,
+                DiscordSink.RejectsEnabledKey,
+                _isDiscordRejectsEnabled);
+            _persistedDiscordRejectsEnabled = _isDiscordRejectsEnabled;
+        }
+
+        if (_isSlackFillsEnabled != _persistedSlackFillsEnabled)
+        {
+            await _settings.SetAsync(
+                SlackSink.SettingsSection,
+                SlackSink.FillsEnabledKey,
+                _isSlackFillsEnabled);
+            _persistedSlackFillsEnabled = _isSlackFillsEnabled;
+        }
+
+        if (_isSlackCancelsEnabled != _persistedSlackCancelsEnabled)
+        {
+            await _settings.SetAsync(
+                SlackSink.SettingsSection,
+                SlackSink.CancelsEnabledKey,
+                _isSlackCancelsEnabled);
+            _persistedSlackCancelsEnabled = _isSlackCancelsEnabled;
+        }
+
+        if (_isSlackRejectsEnabled != _persistedSlackRejectsEnabled)
+        {
+            await _settings.SetAsync(
+                SlackSink.SettingsSection,
+                SlackSink.RejectsEnabledKey,
+                _isSlackRejectsEnabled);
+            _persistedSlackRejectsEnabled = _isSlackRejectsEnabled;
+        }
+
+        if (_isNtfyFillsEnabled != _persistedNtfyFillsEnabled)
+        {
+            await _settings.SetAsync(
+                NtfySink.SettingsSection,
+                NtfySink.FillsEnabledKey,
+                _isNtfyFillsEnabled);
+            _persistedNtfyFillsEnabled = _isNtfyFillsEnabled;
+        }
+
+        if (_isNtfyCancelsEnabled != _persistedNtfyCancelsEnabled)
+        {
+            await _settings.SetAsync(
+                NtfySink.SettingsSection,
+                NtfySink.CancelsEnabledKey,
+                _isNtfyCancelsEnabled);
+            _persistedNtfyCancelsEnabled = _isNtfyCancelsEnabled;
+        }
+
+        if (_isNtfyRejectsEnabled != _persistedNtfyRejectsEnabled)
+        {
+            await _settings.SetAsync(
+                NtfySink.SettingsSection,
+                NtfySink.RejectsEnabledKey,
+                _isNtfyRejectsEnabled);
+            _persistedNtfyRejectsEnabled = _isNtfyRejectsEnabled;
+        }
+
+        var ntfyUrlDraft = NtfyUrlDraft.Trim();
+        if (!string.Equals(ntfyUrlDraft, _persistedNtfyUrl, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                NtfySink.SettingsSection,
+                NtfySink.TopicUrlKey,
+                ntfyUrlDraft);
+            _persistedNtfyUrl = ntfyUrlDraft;
         }
 
         // The AI chat provider pick (T-207): only a real difference applies
@@ -2331,8 +2796,8 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>
     /// Sync the appearance selections (theme, language, clock, indicator row,
     /// the MCP enable draft, the update picks, the AI chat provider drafts,
-    /// the Telegram sink routing rows) with the currently applied state. A
-    /// pure in-memory sync — no I/O.
+    /// the Telegram and webhook sink routing rows) with the currently
+    /// applied state. A pure in-memory sync — no I/O.
     /// </summary>
     private void ResetAppearanceSelections()
     {
@@ -2363,6 +2828,16 @@ public sealed class SettingsViewModel : ReactiveObject
         IsTelegramCancelsEnabled = _persistedTelegramCancelsEnabled;
         IsTelegramRejectsEnabled = _persistedTelegramRejectsEnabled;
         TelegramChatIdDraft = _persistedTelegramChatId.Trim();
+        IsDiscordFillsEnabled = _persistedDiscordFillsEnabled;
+        IsDiscordCancelsEnabled = _persistedDiscordCancelsEnabled;
+        IsDiscordRejectsEnabled = _persistedDiscordRejectsEnabled;
+        IsSlackFillsEnabled = _persistedSlackFillsEnabled;
+        IsSlackCancelsEnabled = _persistedSlackCancelsEnabled;
+        IsSlackRejectsEnabled = _persistedSlackRejectsEnabled;
+        IsNtfyFillsEnabled = _persistedNtfyFillsEnabled;
+        IsNtfyCancelsEnabled = _persistedNtfyCancelsEnabled;
+        IsNtfyRejectsEnabled = _persistedNtfyRejectsEnabled;
+        NtfyUrlDraft = _persistedNtfyUrl.Trim();
 
         // The AI chat provider (T-207): the pick drafts the combo (a garbage
         // stored pick drafts the default with a logged warning) and the text
@@ -2386,6 +2861,19 @@ public sealed class SettingsViewModel : ReactiveObject
         _telegramTokenCommitSuppressed = true;
         TelegramBotTokenDraft = string.Empty;
         _telegramTokenCommitSuppressed = false;
+
+        // The Discord and Slack webhook URL boxes re-seed empty under the
+        // same guards (the URLs embed the webhooks' own secret material —
+        // they never echo): a re-seed never commits, the stored URLs stay
+        // exactly as the user left them. The ntfy topic URL is public by
+        // design and rides the draft re-seed above (no guard needed).
+        _discordUrlCommitSuppressed = true;
+        DiscordWebhookUrlDraft = string.Empty;
+        _discordUrlCommitSuppressed = false;
+
+        _slackUrlCommitSuppressed = true;
+        SlackWebhookUrlDraft = string.Empty;
+        _slackUrlCommitSuppressed = false;
     }
 
     /// <summary>
@@ -2478,6 +2966,58 @@ public sealed class SettingsViewModel : ReactiveObject
         else
         {
             await store.SetAsync(TelegramNotifierService.BotTokenSecretKey, draft);
+        }
+    }
+
+    /// <summary>
+    /// Commit the typed Discord webhook URL to the secret store immediately
+    /// (T-261; the bot token's exact shape): a typed value stores
+    /// (overwrites), an emptied one removes (a clear is a real intent).
+    /// Nothing here touches the settings file — the URL's only home is the
+    /// store. A store-less construction stays memory-only.
+    /// </summary>
+    private async Task CommitDiscordWebhookUrlAsync()
+    {
+        var store = _secrets;
+        if (store is null)
+        {
+            return;
+        }
+
+        var draft = DiscordWebhookUrlDraft;
+        if (string.IsNullOrWhiteSpace(draft))
+        {
+            await store.RemoveAsync(DiscordSink.WebhookUrlSecretKey);
+        }
+        else
+        {
+            await store.SetAsync(DiscordSink.WebhookUrlSecretKey, draft);
+        }
+    }
+
+    /// <summary>
+    /// Commit the typed Slack incoming webhook URL to the secret store
+    /// immediately (T-261; the bot token's exact shape): a typed value
+    /// stores (overwrites), an emptied one removes (a clear is a real
+    /// intent). Nothing here touches the settings file — the URL's only
+    /// home is the store. A store-less construction stays memory-only.
+    /// </summary>
+    private async Task CommitSlackWebhookUrlAsync()
+    {
+        var store = _secrets;
+        if (store is null)
+        {
+            return;
+        }
+
+        var draft = SlackWebhookUrlDraft;
+        if (string.IsNullOrWhiteSpace(draft))
+        {
+            await store.RemoveAsync(SlackSink.WebhookUrlSecretKey);
+        }
+        else
+        {
+            await store.SetAsync(SlackSink.WebhookUrlSecretKey, draft);
         }
     }
 

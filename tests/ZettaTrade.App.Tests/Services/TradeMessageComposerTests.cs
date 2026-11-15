@@ -19,7 +19,7 @@ using static ZettaTrade.App.Tests.Services.TelegramSinkFixtures;
 /// carries no price fact and a kind the composer has no vocabulary for are
 /// composition faults — never a fabricated line.
 /// </summary>
-public sealed class TelegramMessageComposerTests
+public sealed class TradeMessageComposerTests
 {
     #region Tests: the fill goldens
 
@@ -202,7 +202,7 @@ public sealed class TelegramMessageComposerTests
 
     /// <summary>Compose under the seeded catalog language.</summary>
     private static string Compose(string cultureCode, TradeNotificationEvent tradeEvent, TradeNotificationLane lane) =>
-        TelegramMessageComposer.Compose(
+        TradeMessageComposer.Compose(
             tradeEvent with { Lane = lane },
             new ResxCatalogLocalization(cultureCode));
 

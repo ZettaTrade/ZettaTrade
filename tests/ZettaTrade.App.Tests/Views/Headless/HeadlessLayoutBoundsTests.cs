@@ -263,13 +263,14 @@ public sealed class HeadlessLayoutBoundsTests
     /// <summary>
     /// The T-223 fold fact: every page's card headers are real toggles —
     /// the five approved defaults open (the appearance card, the
-    /// indicators page's only card, the Telegram card, MCP, pairs), seven
+    /// indicators page's only card, the Telegram card, MCP, pairs), ten
     /// collapsed — and flipping one unfolds its body: the one-way
     /// IsChecked binding drives the body's visibility while the checked
     /// style rotates the chevron down. The walk rides the pages: the
-    /// TabControl materializes one page's content at a time, so the twelve
-    /// toggles exist page by page (3 + 1 + 1 + 5 + 2 across the five
-    /// pages, the Telegram card riding since T-260).
+    /// TabControl materializes one page's content at a time, so the
+    /// fifteen toggles exist page by page (3 + 1 + 4 + 5 + 2 across the
+    /// five pages; the Telegram card riding since T-260, the Discord,
+    /// Slack and ntfy webhook cards since T-261).
     /// </summary>
     [Fact]
     public async Task TheSectionToggles_FoldTheCards()
@@ -288,7 +289,7 @@ public sealed class HeadlessLayoutBoundsTests
                     Array.Empty<string>()),
                 ("Settings.Tab.Notifications",
                     new[] { "TelegramSectionToggle" },
-                    Array.Empty<string>()),
+                    new[] { "DiscordSectionToggle", "SlackSectionToggle", "NtfySectionToggle" }),
                 ("Settings.Tab.Integrations",
                     new[] { "McpSectionToggle" },
                     new[] { "AiSectionToggle", "CredentialsSectionToggle", "PortSectionToggle", "BackupSectionToggle" }),
@@ -323,7 +324,7 @@ public sealed class HeadlessLayoutBoundsTests
                 });
             }
 
-            total.Should().Be(12, "every card header folds: the pages materialize twelve toggles together");
+            total.Should().Be(15, "every card header folds: the pages materialize fifteen toggles together");
 
             // The fold itself: the appearance page's theme-folder card opens
             // collapsed, so the flip makes the whole mechanics measurable —

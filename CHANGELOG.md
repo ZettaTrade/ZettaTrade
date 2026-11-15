@@ -1,3 +1,35 @@
+## [0.2.7] - 2026-11-15
+
+Build of board task T-261 (branch `feat/webhook-sinks`): the webhook
+transport class joined the sink fleet — the journaled trade outcomes now
+push through the user's own Discord webhook (an embed with the severity
+color), Slack incoming webhook (the message text) and ntfy topic (the
+phone-push lane), beside the Telegram sink under the same
+`INotificationSink` contract.
+
+### Added
+- The three webhook sinks (`DiscordSink`, `SlackSink`, `NtfySink`): each
+  composes its trade line inside itself from the mapped event's facts and
+  carries its own channel shape — Discord an embeds body with the fill/
+  cancel/reject severity colors, Slack the message-text JSON, ntfy the
+  plain-text POST on the topic URL (T-261).
+- The channels' secret posture, per the spec: the Discord and Slack URLs
+  embed their own secret material — they ride the encrypted secret store
+  only and never appear in a failure report (a fault names the status
+  code only); the ntfy topic URL is public by design and rides the
+  settings file (T-261).
+- The settings window's three webhook cards (collapsed by default): the
+  same per-kind opt-in rows as the Telegram card, the Discord/Slack URL
+  boxes masked with the per-keystroke secret-store commit (the token's
+  exact shape: a typed value stores, an emptied box removes, a re-seed
+  never commits) and the ntfy topic URL drafting like the chat id (T-261).
+
+### Changed
+- The trade message composer is now channel-agnostic
+  (`TelegramMessageComposer` → `TradeMessageComposer`, the `Notif.Trade*`
+  resx keys): one composed line per journaled outcome feeds every sink,
+  the composed texts unchanged (T-261).
+
 ## [0.2.6] - 2026-11-15
 
 Build of board task T-260 (branch `feat/notify-sinks`): trade notifications

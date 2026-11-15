@@ -38,7 +38,7 @@ public sealed class TelegramNotifierServiceTests
     private const string TestChatId = "424242";
 
     /// <summary>The stub catalog's composed fill line: the template, the resolved side and lane words, the event's own facts.</summary>
-    private const string ComposedFillText = "[Notif.TelegramFill|[Order.Buy];0.50000000;BTC/USDT;50000.00000000;bybit;[Trading.Lane.Paper]]";
+    private const string ComposedFillText = "[Notif.TradeFill|[Order.Buy];0.50000000;BTC/USDT;50000.00000000;bybit;[Trading.Lane.Paper]]";
 
     #endregion Constants
 
@@ -60,7 +60,7 @@ public sealed class TelegramNotifierServiceTests
         var captured = await serve;
 
         captured.Method.Should().Be("POST");
-        captured.Path.Should().Be($"/bot{LoopbackTelegramApi.FakeToken}/sendMessage");
+        captured.Path.Should().Be($"/bot{LoopbackHttpApi.FakeToken}/sendMessage");
         captured.ContentType.Should().StartWith("application/json");
         using var body = JsonDocument.Parse(captured.Body);
         body.RootElement.GetProperty("chat_id").GetString().Should().Be(TestChatId);
@@ -82,15 +82,15 @@ public sealed class TelegramNotifierServiceTests
 
         var fillServe = rig.Api.ServeAsync(200, """{"ok":true}""");
         await rig.Notifier.HandleAsync(FillEvent());
-        (await fillServe).Body.Should().Contain("[Notif.TelegramFill|");
+        (await fillServe).Body.Should().Contain("[Notif.TradeFill|");
 
         var cancelServe = rig.Api.ServeAsync(200, """{"ok":true}""");
         await rig.Notifier.HandleAsync(TradeEvent(TradeNotificationKind.Cancel, "BTC/USDT"));
-        (await cancelServe).Body.Should().Contain("[Notif.TelegramCancelOn|");
+        (await cancelServe).Body.Should().Contain("[Notif.TradeCancelOn|");
 
         var rejectServe = rig.Api.ServeAsync(200, """{"ok":true}""");
         await rig.Notifier.HandleAsync(TradeEvent(TradeNotificationKind.Reject, "BTC/USDT", reason: "the venue refused"));
-        (await rejectServe).Body.Should().Contain("[Notif.TelegramReject|");
+        (await rejectServe).Body.Should().Contain("[Notif.TradeReject|");
     }
 
     #endregion Tests: the configured happy path
@@ -203,7 +203,7 @@ public sealed class TelegramNotifierServiceTests
         await serve;
 
         rig.Logger.Entries.Should().NotContain(
-            entry => entry.Message.Contains(LoopbackTelegramApi.FakeToken, StringComparison.Ordinal),
+            entry => entry.Message.Contains(LoopbackHttpApi.FakeToken, StringComparison.Ordinal),
             "the token never rides a log line");
     }
 
@@ -221,7 +221,7 @@ public sealed class TelegramNotifierServiceTests
         await rig.Notifier.HandleAsync(FillEvent());
         var captured = await served;
 
-        captured.Body.Should().Contain("[Notif.TelegramFill|");
+        captured.Body.Should().Contain("[Notif.TradeFill|");
         rig.Logger.Entries.Should().NotContain(
             entry => entry.Level == LogLevel.Error,
             "a degraded send never escalates the sink's lane");
@@ -284,14 +284,14 @@ public sealed class TelegramNotifierServiceTests
     /// <summary>One wired sink rig: the loopback stub, the pinned client, the settings, the secret store, the stub catalog and the logger spy.</summary>
     private sealed class SinkRig : IAsyncDisposable
     {
-        private SinkRig(LoopbackTelegramApi api, TelegramNotifierService notifier, SpyLogger logger)
+        private SinkRig(LoopbackHttpApi api, TelegramNotifierService notifier, SpyLogger logger)
         {
             Api = api;
             Notifier = notifier;
             Logger = logger;
         }
 
-        internal LoopbackTelegramApi Api { get; }
+        internal LoopbackHttpApi Api { get; }
 
         internal TelegramNotifierService Notifier { get; }
 
@@ -310,10 +310,10 @@ public sealed class TelegramNotifierServiceTests
             bool cancelsFlag = false,
             bool rejectsFlag = false,
             string chatId = TestChatId,
-            string? token = LoopbackTelegramApi.FakeToken,
+            string? token = LoopbackHttpApi.FakeToken,
             TimeSpan? timeout = null)
         {
-            var api = LoopbackTelegramApi.Start();
+            var api = LoopbackHttpApi.Start();
             var settings = new TestSettings();
             await settings.SetAsync(TelegramNotifierService.SettingsSection, TelegramNotifierService.FillsEnabledKey, fillFlag);
             await settings.SetAsync(TelegramNotifierService.SettingsSection, TelegramNotifierService.CancelsEnabledKey, cancelsFlag);
