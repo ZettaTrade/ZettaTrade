@@ -738,12 +738,14 @@ public sealed class SettingsViewModelTests
             .Returns(persistedUse12HourClock);
         settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>())
             .Returns(persistedHiddenMap);
-        // The AI chat keys (T-207): an unconfigured read echoes the passed
-        // default — the real store's absent-key contract, so the seed caches
-        // land on the shipped defaults and an untouched save stays silent.
+        // The AI chat keys (T-207) and the update channel (T-258): an
+        // unconfigured read echoes the passed default — the real store's
+        // absent-key contract, so the seed caches land on the shipped
+        // defaults and an untouched save stays silent.
         settings.GetAsync<string>(
                 Arg.Is<string>(section => section == AiSettingsKeys.Section ||
-                                          section == AiSettingsKeys.OpenAiCompatibleSection),
+                                          section == AiSettingsKeys.OpenAiCompatibleSection ||
+                                          section == AppSettingsKeys.Section),
                 Arg.Any<string>(),
                 Arg.Any<string>())
             .Returns(callInfo => callInfo.ArgAt<string>(2));

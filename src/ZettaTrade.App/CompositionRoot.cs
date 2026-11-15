@@ -521,6 +521,13 @@ internal static class CompositionRoot
             provider.GetRequiredService<IConfirmationService>(),
             provider.GetRequiredService<ILocalizationManager>());
 
+        // T-258: the composition walk completed — this start IS the
+        // healthy-launch proof an applied update waits for. The runner
+        // settles the swap and cleans the parking spots (non-throwing by
+        // design; a build that never reaches here serves the previous one
+        // again on the next start).
+        UpdateSwapRunner.MarkHealthy(AppContext.BaseDirectory);
+
         return provider;
     }
 

@@ -44,7 +44,8 @@ public sealed class UpdateCheckServiceTests
     {
         var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0-alpha.158",
-            payloadJson: ReleasesJson(Release("v0.1.0-alpha.159")));
+            payloadJson: ReleasesJson(Release("v0.1.0-alpha.159")),
+            seedTheChannel: UpdateChannel.BetaName);
 
         var verdicts = new List<UpdateRelease?>();
         using var subscription = harness.Service.Results.Subscribe(verdicts.Add);
@@ -108,7 +109,8 @@ public sealed class UpdateCheckServiceTests
                 Release("0.1.0-alpha.157", draft: true, url: "https://example.com/draft"),
                 Release("banana-tag"),
                 Release("v0.1.0-alpha.159"),
-                Release("0.1.0-alpha.158")));
+                Release("0.1.0-alpha.158")),
+            seedTheChannel: UpdateChannel.BetaName);
 
         var verdicts = new List<UpdateRelease?>();
         using var subscription = harness.Service.Results.Subscribe(verdicts.Add);
@@ -201,6 +203,127 @@ public sealed class UpdateCheckServiceTests
 
     #endregion
 
+    #region Tests: the channel gate (T-258)
+
+    /// <summary>The stable channel (the default) never offers a pre-release: alpha and beta tags stay invisible.</summary>
+    [Fact]
+    public async Task TheStableChannel_NeverOffersAPreRelease()
+    {
+        var harness = await CreateHarnessAsync(
+            currentVersion: "0.1.0",
+            payloadJson: ReleasesJson(
+                Release("v0.1.0-alpha.159"),
+                Release("v0.1.0-beta.2"),
+                Release("v0.2.0")));
+
+        var verdicts = new List<UpdateRelease?>();
+        using var subscription = harness.Service.Results.Subscribe(verdicts.Add);
+
+        await harness.Service.InitializeAsync();
+        await harness.Service.FirstCheckForTests!;
+
+        harness.Service.Channel.Should().Be(UpdateChannelKind.Stable, "the stable channel is the shipped default");
+        verdicts[1].Should().NotBeNull().And.BeEquivalentTo(new UpdateRelease(
+            "0.2.0",
+            "https://github.com/zettatrade/zettatrade/releases/tag/v0.2.0"),
+            "the stable channel offers the released stable only — the pre-release tags never rank");
+    }
+
+    /// <summary>The beta channel offers every parsable release, and the core numbers still rank before any pre-release kind.</summary>
+    [Fact]
+    public async Task TheBetaChannel_OffersEveryParsableRelease_AndStillRanksTheCoreFirst()
+    {
+        var harness = await CreateHarnessAsync(
+            currentVersion: "0.1.0",
+            payloadJson: ReleasesJson(
+                Release("v0.1.0-alpha.159"),
+                Release("v0.1.0-beta.2"),
+                Release("v0.2.0")),
+            seedTheChannel: UpdateChannel.BetaName);
+
+        var verdicts = new List<UpdateRelease?>();
+        using var subscription = harness.Service.Results.Subscribe(verdicts.Add);
+
+        await harness.Service.InitializeAsync();
+        await harness.Service.FirstCheckForTests!;
+
+        harness.Service.Channel.Should().Be(UpdateChannelKind.Beta);
+        verdicts[1].Should().NotBeNull().And.BeEquivalentTo(new UpdateRelease(
+            "0.2.0",
+            "https://github.com/zettatrade/zettatrade/releases/tag/v0.2.0"),
+            "the stable of a newer core outranks every pre-release — the channel widens, never rewrites semver");
+    }
+
+    /// <summary>The beta channel ranks the beta tag above its alpha (the semver identifier order).</summary>
+    [Fact]
+    public async Task TheBetaChannel_RanksTheBetaAboveItsAlpha()
+    {
+        var harness = await CreateHarnessAsync(
+            currentVersion: "0.1.0",
+            payloadJson: ReleasesJson(
+                Release("v0.2.0-alpha.7"),
+                Release("v0.2.0-beta.1")),
+            seedTheChannel: UpdateChannel.BetaName);
+
+        var verdicts = new List<UpdateRelease?>();
+        using var subscription = harness.Service.Results.Subscribe(verdicts.Add);
+
+        await harness.Service.InitializeAsync();
+        await harness.Service.FirstCheckForTests!;
+
+        verdicts[1].Should().NotBeNull().And.BeEquivalentTo(new UpdateRelease(
+            "0.2.0-beta.1",
+            "https://github.com/zettatrade/zettatrade/releases/tag/v0.2.0-beta.1"),
+            "the beta outranks its alpha of the same core");
+    }
+
+    /// <summary>A live channel flip re-ranks the next check without a restart.</summary>
+    [Fact]
+    public async Task ALiveChannelFlip_ReranksTheNextCheck()
+    {
+        var harness = await CreateHarnessAsync(
+            currentVersion: "0.1.0",
+            payloadJson: ReleasesJson(Release("v0.2.0-beta.2")));
+
+        var verdicts = new List<UpdateRelease?>();
+        using var subscription = harness.Service.Results.Subscribe(verdicts.Add);
+
+        await harness.Service.InitializeAsync();
+        await harness.Service.FirstCheckForTests!;
+        verdicts[1].Should().BeNull("the stable channel offers no pre-release — the honest empty verdict");
+
+        await harness.Settings.SetAsync(AppSettingsKeys.Section, AppSettingsKeys.UpdateChannel, UpdateChannel.BetaName);
+        harness.Service.Channel.Should().Be(UpdateChannelKind.Beta, "the change stream re-applies the flip live");
+
+        await harness.Service.CheckNowAsync();
+        verdicts.Should().HaveCount(3);
+        verdicts[2].Should().NotBeNull().And.BeEquivalentTo(new UpdateRelease(
+            "0.2.0-beta.2",
+            "https://github.com/zettatrade/zettatrade/releases/tag/v0.2.0-beta.2"),
+            "the next check ranks against the saved channel");
+    }
+
+    /// <summary>A garbage stored channel repairs to the stable default (with the logged warning): the gate never substitutes silently.</summary>
+    [Fact]
+    public async Task AGarbageStoredChannel_RepairsToTheStableDefault()
+    {
+        var harness = await CreateHarnessAsync(
+            currentVersion: "0.1.0",
+            payloadJson: ReleasesJson(Release("v0.1.0-beta.2")),
+            seedTheChannel: "banana-channel");
+
+        var verdicts = new List<UpdateRelease?>();
+        using var subscription = harness.Service.Results.Subscribe(verdicts.Add);
+
+        await harness.Service.InitializeAsync();
+        await harness.Service.FirstCheckForTests!;
+
+        harness.Service.Channel.Should().Be(UpdateChannelKind.Stable, "an unparsable stored channel never becomes a pick");
+        verdicts[1].Should().BeNull("the repaired stable gate stays closed to the pre-release");
+    }
+
+    #endregion
+
     #region Tests: the off switch
 
     /// <summary>The off switch silences the check entirely: the boot check and the manual ask both stay home.</summary>
@@ -231,7 +354,8 @@ public sealed class UpdateCheckServiceTests
         var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0-alpha.158",
             payloadJson: ReleasesJson(Release("v0.1.0-alpha.159")),
-            seedTheOffSwitch: true);
+            seedTheOffSwitch: true,
+            seedTheChannel: UpdateChannel.BetaName);
 
         var verdicts = new List<UpdateRelease?>();
         using var subscription = harness.Service.Results.Subscribe(verdicts.Add);
@@ -258,12 +382,18 @@ public sealed class UpdateCheckServiceTests
     private static async Task<Harness> CreateHarnessAsync(
         string currentVersion,
         string payloadJson,
-        bool seedTheOffSwitch = false)
+        bool seedTheOffSwitch = false,
+        string? seedTheChannel = null)
     {
         var settings = new FakeSettings();
         if (seedTheOffSwitch)
         {
             await settings.SetAsync(AppSettingsKeys.Section, AppSettingsKeys.UpdateCheck, false);
+        }
+
+        if (seedTheChannel is not null)
+        {
+            await settings.SetAsync(AppSettingsKeys.Section, AppSettingsKeys.UpdateChannel, seedTheChannel);
         }
 
         var handler = new StubReleasesHandler { PayloadJson = payloadJson };

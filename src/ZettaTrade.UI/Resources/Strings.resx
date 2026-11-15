@@ -2871,4 +2871,34 @@ Estimated fee: {10}</value>
   <data name="Settings.License.Verdict.Failed" xml:space="preserve">
     <value>The activation failed unexpectedly — see the log viewer for details. Nothing was stored.</value>
   </data>
+  <data name="Update.Consent.Format" xml:space="preserve">
+    <value>Allow update {0} to install at the next start? {1}{2}</value>
+  </data>
+  <data name="Update.Consent.RiskLine" xml:space="preserve">
+    <value>Open positions: {0}. Working orders: {1}.</value>
+  </data>
+  <data name="Update.Consent.Unreachable" xml:space="preserve">
+    <value> Could not read the venues: {0} (they are not counted).</value>
+  </data>
+  <data name="Update.Consent.None" xml:space="preserve">
+    <value>none</value>
+  </data>
+  <data name="Update.Setting.Auto" xml:space="preserve">
+    <value>Auto-update</value>
+  </data>
+  <data name="Update.Setting.Auto.Hint" xml:space="preserve">
+    <value>When on, new releases download, verify against the release's own SHA-256 sums, and apply at the next start after one consent prompt. Off by default: nothing downloads before you ask.</value>
+  </data>
+  <data name="Update.Setting.Channel" xml:space="preserve">
+    <value>Update channel</value>
+  </data>
+  <data name="Update.Setting.Channel.Hint" xml:space="preserve">
+    <value>Stable offers released versions only. Beta also offers pre-releases (alpha and beta tags).</value>
+  </data>
+  <data name="Update.Setting.Channel.Stable" xml:space="preserve">
+    <value>Stable</value>
+  </data>
+  <data name="Update.Setting.Channel.Beta" xml:space="preserve">
+    <value>Beta</value>
+  </data>
 </root>

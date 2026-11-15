@@ -32,6 +32,12 @@ public sealed class UpdateVersionComparerTests
         UpdateVersionComparer.Parse(" 0.1.0-alpha.160 ").Should().Be(
             new UpdateVersion(0, 1, 0, PreReleaseKind.Alpha, 160),
             "whitespace is noise");
+        UpdateVersionComparer.Parse("1.2.3-beta.2").Should().Be(
+            new UpdateVersion(1, 2, 3, PreReleaseKind.Beta, 2),
+            "the beta family the checker offers on the beta channel parses (T-258)");
+        UpdateVersionComparer.Parse("v1.0.0-beta.10").Should().Be(
+            new UpdateVersion(1, 0, 0, PreReleaseKind.Beta, 10),
+            "the tag decorations carry over to the beta family too");
         UpdateVersionComparer.Parse("1.2.3").Should().Be(
             new UpdateVersion(1, 2, 3, PreReleaseKind.None, 0),
             "a stable spelling carries no pre-release");
@@ -52,8 +58,10 @@ public sealed class UpdateVersionComparerTests
         UpdateVersionComparer.Parse("   ").Should().BeNull();
         UpdateVersionComparer.Parse("v").Should().BeNull("a bare decoration is not a version");
         UpdateVersionComparer.Parse("alpha.158").Should().BeNull("a pre-release without a core is not a version");
-        UpdateVersionComparer.Parse("1.2.3-beta.1").Should().BeNull(
-            "only the alpha family the project ships is ranked — a foreign pre-release stays unparsable");
+        UpdateVersionComparer.Parse("1.2.3-rc.1").Should().BeNull(
+            "only the alpha and beta families the project ships are ranked — a foreign pre-release stays unparsable");
+        UpdateVersionComparer.Parse("1.2.3-beta").Should().BeNull("a beta tag without a number is not a version");
+        UpdateVersionComparer.Parse("1.2.3-beta.x").Should().BeNull("a non-numeric beta is not a version");
         UpdateVersionComparer.Parse("1.2.3.4").Should().BeNull("a four-part core is not a semantic version");
         UpdateVersionComparer.Parse("1.2.x").Should().BeNull("a letter core is not a version");
         UpdateVersionComparer.Parse("1.2.3-alpha.x").Should().BeNull("a non-numeric alpha is not a version");
@@ -88,7 +96,7 @@ public sealed class UpdateVersionComparerTests
             "equal spellings announce nothing");
     }
 
-    /// <summary>Two pre-releases of the same core rank by their alpha NUMBER — the string order breaks at 9 vs 10.</summary>
+    /// <summary>Two pre-releases of the same core rank by their kind and their NUMBER — the string order breaks at 9 vs 10.</summary>
     [Fact]
     public void TwoPreReleases_RankByTheAlphaNumber_NeverByTheString()
     {
@@ -97,6 +105,22 @@ public sealed class UpdateVersionComparerTests
         UpdateVersionComparer.IsNewer("0.1.0-alpha.10", "0.1.0-alpha.9").Should().BeFalse();
         UpdateVersionComparer.IsNewer("0.1.0-alpha.158", "0.1.0-alpha.158").Should().BeFalse(
             "the running version never announces itself");
+    }
+
+    /// <summary>The beta family ranks between its alpha and its stable (the semver identifier order), T-258.</summary>
+    [Fact]
+    public void ABeta_RanksBetweenItsAlphaAndItsStable()
+    {
+        UpdateVersionComparer.IsNewer("0.2.0-alpha.99", "0.2.0-beta.1").Should().BeTrue(
+            "a beta outranks any alpha of the same core");
+        UpdateVersionComparer.IsNewer("0.2.0-beta.1", "0.2.0-alpha.99").Should().BeFalse(
+            "an alpha never outranks a beta of the same core");
+        UpdateVersionComparer.IsNewer("0.2.0-beta.999", "0.2.0").Should().BeTrue(
+            "the stable of the same core still outranks every beta");
+        UpdateVersionComparer.IsNewer("0.2.0-beta.9", "0.2.0-beta.10").Should().BeTrue(
+            "two betas rank by their number, never by the string");
+        UpdateVersionComparer.IsNewer("0.2.0-beta.1", "0.3.0-alpha.1").Should().BeTrue(
+            "the core numbers rank first, before any pre-release kind");
     }
 
     /// <summary>The comparison helper refuses to rank against an unparsable side.</summary>

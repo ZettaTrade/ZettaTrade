@@ -368,6 +368,32 @@ public sealed class SettingsViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _isUpdateCheckEnabled, value);
     }
 
+    /// <summary>
+    /// Whether the auto-update loop runs (T-258). A selection like every
+    /// other one here: applies only on the explicit Save — the persisted
+    /// write lands and the staging service's change stream applies it
+    /// live. The default is off: nothing downloads, stages or asks before
+    /// the user switches the loop on.
+    /// </summary>
+    public bool IsAutoUpdateEnabled
+    {
+        get => _isAutoUpdateEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isAutoUpdateEnabled, value);
+    }
+
+    /// <summary>
+    /// The update channel pick's combo index (T-258): 0 = stable (the
+    /// released stables only), 1 = beta (every parsable release,
+    /// pre-releases included). A selection like every other one here:
+    /// applies only on the explicit Save — the checker's own change
+    /// subscription ranks the next check against the saved channel.
+    /// </summary>
+    public int SelectedUpdateChannelIndex
+    {
+        get => _selectedUpdateChannelIndex;
+        set => this.RaiseAndSetIfChanged(ref _selectedUpdateChannelIndex, value);
+    }
+
     #region AI provider (T-207)
 
     /// <summary>
@@ -798,6 +824,28 @@ public sealed class SettingsViewModel : ReactiveObject
     private bool _isUpdateCheckEnabled;
 
     /// <summary>
+    /// The persisted auto-update choice as last read (T-258): the checkbox
+    /// drafts seed from it and the save persists only a real difference
+    /// (the same seed + changes pattern as the update-check choice).
+    /// </summary>
+    private bool _persistedAutoUpdateEnabled = AppSettingsKeys.DefaultAutoUpdateEnabled;
+
+    /// <summary>The unsaved auto-update checkbox (the draft the save applies).</summary>
+    private bool _isAutoUpdateEnabled;
+
+    /// <summary>
+    /// The persisted update-channel choice as last read (T-258, the
+    /// canonical stored spelling): the combo drafts index from it on every
+    /// open and the save persists only a real difference (the same shape
+    /// as the AI provider pick — the stored side carries the name, the
+    /// draft carries the index).
+    /// </summary>
+    private string _persistedUpdateChannel = AppSettingsKeys.DefaultUpdateChannel;
+
+    /// <summary>The unsaved update-channel combo index (the draft the save applies).</summary>
+    private int _selectedUpdateChannelIndex;
+
+    /// <summary>
     /// The MCP host's lifecycle state as the runner surfaces it: the three
     /// honest rows derive from it and every transition raises the bools.
     /// </summary>
@@ -825,6 +873,12 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>The combo index each pick maps to (the OpenAI-compatible stack rides 1).</summary>
     private const int OllamaProviderIndex = 0;
     private const int OpenAiProviderIndex = 1;
+
+    /// <summary>The update channel combo's stable slot (T-258): the shipped default pick.</summary>
+    private const int StableChannelIndex = 0;
+
+    /// <summary>The update channel combo's beta slot (T-258): the pre-releases-included pick.</summary>
+    private const int BetaChannelIndex = 1;
 
     /// <summary>
     /// The persisted AI chat provider pick as last read (seed + changes
@@ -1149,6 +1203,48 @@ public sealed class SettingsViewModel : ReactiveObject
             .Subscribe(
                 enabled => _persistedUpdateCheckEnabled = enabled,
                 ex => _logger.LogError(ex, "The update check enable stream stopped unexpectedly"));
+
+        // The auto-update loop (T-258): the same seed + changes pattern as
+        // the update check; the choice drafts the checkbox and the save
+        // applies it (the staging service's own change subscription picks
+        // the flip live).
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                AppSettingsKeys.Section,
+                AppSettingsKeys.AutoUpdate,
+                AppSettingsKeys.DefaultAutoUpdateEnabled))
+            .Subscribe(
+                enabled => _persistedAutoUpdateEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the auto-update enable state"));
+
+        _settings.Changes
+            .Where(change => change.Section == AppSettingsKeys.Section &&
+                             change.Key == AppSettingsKeys.AutoUpdate)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedAutoUpdateEnabled = enabled,
+                ex => _logger.LogError(ex, "The auto-update enable stream stopped unexpectedly"));
+
+        // The update channel (T-258): the same pattern over the stored
+        // channel spelling; the combo drafts from it on every open (a
+        // garbage stored spelling drafts the stable default — the
+        // checker's own seed read already logged the repair).
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                AppSettingsKeys.Section,
+                AppSettingsKeys.UpdateChannel,
+                AppSettingsKeys.DefaultUpdateChannel))
+            .Subscribe(
+                channel => _persistedUpdateChannel = channel,
+                ex => _logger.LogError(ex, "Failed to read the update channel"));
+
+        _settings.Changes
+            .Where(change => change.Section == AppSettingsKeys.Section &&
+                             change.Key == AppSettingsKeys.UpdateChannel)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                channel => _persistedUpdateChannel = channel,
+                ex => _logger.LogError(ex, "The update channel stream stopped unexpectedly"));
 
         // The host's honest state (running / stopped / failed): the three
         // rows derive and rise on every transition; both subscriptions
@@ -1517,6 +1613,38 @@ public sealed class SettingsViewModel : ReactiveObject
                 AppSettingsKeys.UpdateCheck,
                 _isUpdateCheckEnabled);
             _persistedUpdateCheckEnabled = _isUpdateCheckEnabled;
+        }
+
+        // The auto-update enable (T-258): only a real difference applies
+        // (the same no-op discipline every other row keeps). No live apply
+        // is needed — the staging service's own change subscription reads
+        // the flip without a restart: a disabled loop downloads nothing,
+        // and a newly enabled one waits for the next completed check.
+        if (_isAutoUpdateEnabled != _persistedAutoUpdateEnabled)
+        {
+            await _settings.SetAsync(
+                AppSettingsKeys.Section,
+                AppSettingsKeys.AutoUpdate,
+                _isAutoUpdateEnabled);
+            _persistedAutoUpdateEnabled = _isAutoUpdateEnabled;
+        }
+
+        // The update channel (T-258): the combo index maps to the
+        // canonical stored spelling; only a real difference applies. The
+        // checker's own change subscription ranks the next check against
+        // the saved channel; the combo offers exactly the two names, so no
+        // garbage can be drafted here.
+        var updateChannelName = UpdateChannel.ToSettingName(
+            _selectedUpdateChannelIndex == BetaChannelIndex
+                ? UpdateChannelKind.Beta
+                : UpdateChannelKind.Stable);
+        if (!string.Equals(updateChannelName, _persistedUpdateChannel, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                AppSettingsKeys.Section,
+                AppSettingsKeys.UpdateChannel,
+                updateChannelName);
+            _persistedUpdateChannel = updateChannelName;
         }
 
         // The AI chat provider pick (T-207): only a real difference applies
@@ -1987,8 +2115,8 @@ public sealed class SettingsViewModel : ReactiveObject
 
     /// <summary>
     /// Sync the appearance selections (theme, language, clock, indicator row,
-    /// the MCP enable draft, the AI chat provider drafts) with the currently
-    /// applied state. A pure in-memory sync — no I/O.
+    /// the MCP enable draft, the update picks, the AI chat provider drafts)
+    /// with the currently applied state. A pure in-memory sync — no I/O.
     /// </summary>
     private void ResetAppearanceSelections()
     {
@@ -2013,6 +2141,8 @@ public sealed class SettingsViewModel : ReactiveObject
         BollPeriodText = PeriodTextOf(_persistedBollPeriod);
         IsMcpServerEnabled = _persistedMcpServerEnabled;
         IsUpdateCheckEnabled = _persistedUpdateCheckEnabled;
+        IsAutoUpdateEnabled = _persistedAutoUpdateEnabled;
+        SelectedUpdateChannelIndex = IndexOfUpdateChannel(_persistedUpdateChannel);
 
         // The AI chat provider (T-207): the pick drafts the combo (a garbage
         // stored pick drafts the default with a logged warning) and the text
@@ -2060,6 +2190,18 @@ public sealed class SettingsViewModel : ReactiveObject
             stored);
         return OllamaProviderIndex;
     }
+
+    /// <summary>
+    /// Map the stored channel pick to its combo index: the known spellings
+    /// (case-insensitive) map directly; anything else drafts the stable
+    /// default without a warning here — a garbage stored spelling is
+    /// already repaired (with the logged warning) at the checker's own
+    /// seed read, and the combo offers exactly the two names.
+    /// </summary>
+    private int IndexOfUpdateChannel(string stored) =>
+        UpdateChannel.TryParse(stored, out var channel) && channel == UpdateChannelKind.Beta
+            ? BetaChannelIndex
+            : StableChannelIndex;
 
     /// <summary>
     /// Commit the typed API key to the secret store immediately: a typed

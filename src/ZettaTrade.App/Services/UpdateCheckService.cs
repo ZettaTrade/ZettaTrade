@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text.Json;
@@ -19,7 +20,11 @@ using ZettaTrade.Core.Interfaces;
 /// published releases, ranks the parsable tags against the running
 /// version with the pre-release-aware comparison, and answers ONE
 /// question on its result stream: is there a newer release, and where
-/// does it read? A newer release surfaces twice — the status-bar chip
+/// does it read? The rank is channel-scoped (T-258): the
+/// <c>App.UpdateChannel</c> setting decides which pre-release kinds may
+/// offer themselves — the stable channel offers released stables only,
+/// the beta channel offers every parsable release. A newer release
+/// surfaces twice — the status-bar chip
 /// (the stream the status bar subscribes) and ONE notification whose
 /// click opens the release page. Nothing downloads, nothing installs:
 /// the alpha posture is awareness only, the human decides.
@@ -108,6 +113,13 @@ public sealed class UpdateCheckService(
     /// <summary>The off-switch cache: the seed read fills it, the change stream keeps it current.</summary>
     private volatile bool _enabled = AppSettingsKeys.DefaultUpdateCheckEnabled;
 
+    /// <summary>
+    /// The channel cache (T-258): the seed read fills it, the change
+    /// stream keeps it current. The stable default means a release the
+    /// user never asked to see never reaches the verdict.
+    /// </summary>
+    private volatile UpdateChannelKind _channel = UpdateChannelKind.Stable;
+
     /// <summary>The version already announced this session (the re-toast dedupe); null until one is.</summary>
     private string? _announcedVersion;
 
@@ -140,6 +152,9 @@ public sealed class UpdateCheckService(
     /// <summary>Whether the off switch currently allows the check (the seed, kept live by the change stream).</summary>
     public bool IsEnabled => _enabled;
 
+    /// <summary>The channel the verdicts rank against (the seed, kept live by the change stream).</summary>
+    public UpdateChannelKind Channel => _channel;
+
     /// <summary>
     /// The boot check's task (the test seam): awaiting it settles the
     /// first check's completion, so the battery never races the loop's
@@ -170,9 +185,35 @@ public sealed class UpdateCheckService(
             _logger.LogError(ex, "Failed to read the update check enable state");
         }
 
-        // The change stream keeps the switch current without a restart:
+        // The channel's seed read (the same inline discipline): a stored
+        // value that does not parse repairs to the stable default with a
+        // logged warning — a garbage channel never substitutes a pick
+        // silently (the settings-pick discipline the theme picker keeps).
+        try
+        {
+            var storedChannel = await _settings.GetAsync<string>(
+                AppSettingsKeys.Section,
+                AppSettingsKeys.UpdateChannel,
+                AppSettingsKeys.DefaultUpdateChannel).ConfigureAwait(false);
+            if (UpdateChannel.TryParse(storedChannel, out var channel))
+            {
+                _channel = channel;
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "The stored update channel {Channel} does not name one; the stable channel stands",
+                    storedChannel);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to read the update channel");
+        }
+
+        // The change streams keep both switches current without a restart:
         // an external edit (or the settings window's save) re-applies live.
-        _changesSubscription = _settings.Changes
+        var enableChanges = _settings.Changes
             .Where(change => change.Section == AppSettingsKeys.Section &&
                              change.Key == AppSettingsKeys.UpdateCheck)
             .Select(change => change.NewValue)
@@ -180,6 +221,29 @@ public sealed class UpdateCheckService(
             .Subscribe(
                 enabled => _enabled = enabled,
                 ex => _logger.LogError(ex, "The update check enable stream stopped unexpectedly"));
+
+        var channelChanges = _settings.Changes
+            .Where(change => change.Section == AppSettingsKeys.Section &&
+                             change.Key == AppSettingsKeys.UpdateChannel)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                stored =>
+                {
+                    if (UpdateChannel.TryParse(stored, out var channel))
+                    {
+                        _channel = channel;
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "The changed update channel {Channel} does not name one; the stable channel stands",
+                            stored);
+                    }
+                },
+                ex => _logger.LogError(ex, "The update channel stream stopped unexpectedly"));
+
+        _changesSubscription = new CompositeDisposable(enableChanges, channelChanges);
 
         // The first check rides its own background task (the walk never
         // awaits the network), then the cadence loop takes over. The
@@ -326,6 +390,15 @@ public sealed class UpdateCheckService(
                     continue;
                 }
 
+                // The channel gate (T-258): a release outside the standing
+                // channel's membership never ranks — the stable channel
+                // offers no pre-release, so an alpha or beta tag stays
+                // invisible until the user switches the channel.
+                if (!UpdateChannel.Offers(_channel, candidate.PreKind))
+                {
+                    continue;
+                }
+
                 if (newest is null || candidate.CompareTo(newestVersion) > 0)
                 {
                     newest = release;
@@ -415,7 +488,34 @@ public sealed class UpdateCheckService(
                 continue;
             }
 
-            releases.Add(new UpdateRelease(parsed.ToDisplayString(), url.GetString()!));
+            // The release's own asset list (T-258): every entry's name and
+            // browser download URL ride exactly as the payload served them
+            // — the staging service resolves the archive and the sums file
+            // against this list, never against a guessed URL. An asset
+            // without both fields is not a downloadable answer: skipped.
+            var assets = new List<UpdateAsset>();
+            if (element.TryGetProperty("assets", out var assetsElement)
+                && assetsElement.ValueKind is JsonValueKind.Array)
+            {
+                foreach (var assetElement in assetsElement.EnumerateArray())
+                {
+                    if (assetElement.ValueKind is not JsonValueKind.Object
+                        || !assetElement.TryGetProperty("name", out var assetName)
+                        || assetName.ValueKind is not JsonValueKind.String
+                        || !assetElement.TryGetProperty("browser_download_url", out var assetUrl)
+                        || assetUrl.ValueKind is not JsonValueKind.String)
+                    {
+                        continue;
+                    }
+
+                    assets.Add(new UpdateAsset(assetName.GetString()!, assetUrl.GetString()!));
+                }
+            }
+
+            releases.Add(new UpdateRelease(
+                parsed.ToDisplayString(),
+                url.GetString()!,
+                assets.Count > 0 ? assets : null));
         }
 
         return [.. releases];

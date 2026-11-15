@@ -217,7 +217,7 @@
                                             Spacing="{StaticResource SpaceM}"
                                             IsVisible="{Binding #AppearanceSectionToggle.IsChecked}">
 
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceL}" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceL}" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="{StaticResource SpaceM}">
                         <TextBlock Grid.Row="0" Grid.Column="0"
                                    Text="{loc:Localized Settings.Theme}"
                                    VerticalAlignment="Center" />
@@ -307,6 +307,41 @@
                                   IsChecked="{Binding IsUpdateCheckEnabled}"
                                   ToolTip.Tip="{loc:Localized Settings.UpdateCheck.Hint}"
                                   HorizontalAlignment="Left" />
+
+                        <!-- The auto-update loop (T-258): the same compact
+                             home as the check toggle — the T-184 no-scroll
+                             pin bounds this page, so the switch and its
+                             channel pick share one row (the checkbox drafts
+                             the off-default loop; the combo drafts the
+                             channel, stable by default). The hint rides the
+                             tooltips: the compact home's price. The
+                             draft/save contract is the same as every other
+                             selection here (only Save applies; the staging
+                             service's and the checker's own change streams
+                             pick the flips live). -->
+                        <TextBlock Grid.Row="4" Grid.Column="0"
+                                   Text="{loc:Localized Update.Setting.Auto}"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="4" Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    Spacing="{StaticResource SpaceM}"
+                                    HorizontalAlignment="Left">
+                            <CheckBox AutomationProperties.AutomationId="AutoUpdateEnabledCheckBox"
+                                      IsChecked="{Binding IsAutoUpdateEnabled}"
+                                      ToolTip.Tip="{loc:Localized Update.Setting.Auto.Hint}"
+                                      VerticalAlignment="Center" />
+                            <ComboBox AutomationProperties.AutomationId="UpdateChannelComboBox"
+                                      AutomationProperties.Name="{loc:Localized Update.Setting.Channel}"
+                                      SelectedIndex="{Binding SelectedUpdateChannelIndex}"
+                                      MinWidth="140"
+                                      VerticalAlignment="Center"
+                                      ToolTip.Tip="{loc:Localized Update.Setting.Channel.Hint}">
+                                <ComboBoxItem Content="{loc:Localized Update.Setting.Channel.Stable}"
+                                              AutomationProperties.AutomationId="UpdateChannelStableItem" />
+                                <ComboBoxItem Content="{loc:Localized Update.Setting.Channel.Beta}"
+                                              AutomationProperties.AutomationId="UpdateChannelBetaItem" />
+                            </ComboBox>
+                        </StackPanel>
                     </Grid>
                             </StackPanel>
                         </StackPanel>

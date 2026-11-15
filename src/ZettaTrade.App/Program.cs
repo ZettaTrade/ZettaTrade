@@ -39,6 +39,21 @@ class Program
             default:
                 var owned = (LaunchOutcome.Owned)launch;
                 DispatchLog.Information("Single-instance claim acquired; building the application");
+
+                // T-258: the pending-swap decision rides the owned lane,
+                // BEFORE the composition walk — an Approved manifest swaps
+                // and spawns the new build (which then claims the instance
+                // for itself), so this process must release its claim and
+                // exit promptly. Every other state continues starting.
+                var swapOutcome = UpdateSwapRunner.RunOnStartup(AppContext.BaseDirectory, args);
+                if (swapOutcome == UpdateSwapRunner.StartupOutcome.Relaunched)
+                {
+                    DispatchLog.Information(
+                        "The staged update applied: this process releases its claim and exits for the relaunched build");
+                    owned.InstanceClaim.Dispose();
+                    return 0;
+                }
+
                 return RunDesktopLifetime(args, owned.InstanceClaim);
         }
     }
