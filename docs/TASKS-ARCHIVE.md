@@ -5633,6 +5633,45 @@ the board and its section below.
   builds the tag's tree and the tag must match the version commit (`v0.2.0`). Free filing
   number after this task: T-239.
 
+## T-239 — Multi-timeframe trend table in the screener
+
+- **Branch:** `feat/mtf-trend-table` off `develop` (claimed 2026-11-15, the analytics sweep; the
+  worktree `zt-mtf-trend-table`).
+- **Status:** done - 0.2.11. Chain: docs(claim) `53b94f4` -> feat `36b54bb` -> this close, on the
+  base develop@fa8ee65. Shipped: the pure `TrendClassifier` (the EMA slope + the Wilder ADX +
+  the swing structure over the 40-bar window's halves; the unanimous verdict or the honest
+  range; `MinimumBars = AdxPeriod*2 + max(EmaPeriod, 40) + max(3, EmaPeriod/4)`, a short series
+  throws - the warming state's territory, never a fabricated verdict); the `MtfTrendService`
+  app-lifetime singleton (one pass per screener page through the serialized `Concat` pipeline,
+  the 20 s cooldown with the sorted symbol-set-change bypass, the two-flight `ICandleCache`
+  read budget, the public `ComputeAsync` seam, the verdict table's warming pairs draining the
+  T-086 `CandleBackfillService` four series per pass with the facade's `Current` adapter
+  snapshot and a ten-minute dry backoff); `MtfTrendSettings.LoadAsync` (EmaPeriod 20 [2..200],
+  AdxPeriod 14 [2..100], AdxThreshold 25m [1..100], an out-of-range stored value clamps into
+  its range) over the `MtfTrend.*` UI keys; the screener row's four `ScreenerTrendCellViewModel`
+  cells (the localized Bull/Bear/Range/Warming words, the candle tints on bull and bear, the
+  plain ink on warming and range, a symbol the table does not name stays warming) and the four
+  `RouteTrend*` commands routing the row's symbol into the workspace AT the clicked frame (the
+  symbol-then-frame sequential write the startup restore maintains); the table's four quiet
+  nested `Button.trend-cell` columns over the `140,*,110,110,110,64,64,64,64` plan (the window
+  860→1120), the eight `Screener.ColTrend*` + `Screener.Trend.*` resx keys en+ru, the
+  third-descriptor `AddScreenerServices` registration. Acceptance evidence: 2461/2461
+  App.Tests facts green (the classifier goldens + the structure-veto fixture + the
+  empty-cache warming path + the two-flight cap + the dry backoff + the pipeline throttle +
+  the headless trend-cell materialization); the gate and the launch smoke cover this chain.
+- **Origin:** the screener ranks 24h stats only (T-195); a per-timeframe trend read exists nowhere.
+- **What:** per-symbol trend-state columns (15m/1h/4h/1d) computed from the candle cache (T-085):
+  bull/bear/range from the EMA slope + an ADX threshold + swing structure (HH/HL vs LL/LH);
+  computed off-UI under a bounded concurrency budget (the T-106 discipline); rows without cached
+  depth show an honest warming state and backfill on demand riding T-086; a state cell click
+  reuses the row-apply route with the clicked timeframe.
+- **Scope:** a pure trend classifier + the screener row model growth, settings keys (periods, the
+  ADX threshold), resx en+ru, tests.
+- **Acceptance:** a 64-symbol × 4-timeframe universe renders without freezing the UI; an empty
+  cache degrades to the warming state, never a fabricated state.
+- **Tests:** classifier goldens (bull/bear/range fixtures), the cache-miss warming path, the
+  worker budget cap.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
