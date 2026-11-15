@@ -263,7 +263,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-257 macOS .dmg + Linux AppImage/.deb packaging (the beta-2 sweep 2026-11-15) | feat/mac-linux-packaging | planned | — |
 | T-258 Auto-update: download, verify, staged swap, rollback (the beta-2 sweep 2026-11-15) | feat/auto-update | done | 0.2.5 |
 | T-259 GitHub Pages publish automation + the beta site content (the beta-2 sweep 2026-11-15) | feat/pages-publish | done | — |
-| T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | in-progress | — |
+| T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | done | - |
 | T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | planned | T-260 |
 | T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | planned | T-260 |
 | T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | done | — |
@@ -615,22 +615,6 @@ the human prioritizes the lanes.
 - **Tests:** CI leg presence asserts; the script smoke mirrors the T-125 dry-run pattern.
 
 ---
-
-## T-260 — Notification sink abstraction + Telegram (the parked T-041 activated)
-
-- **Branch:** `feat/notify-sinks` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep; the worktree `zt-notify-sinks`).
-- **Origin:** T-041 (queued post-beta) carries the standing spec; the beta window opens it.
-- **What:** the sink abstraction over the trading/journal event surface (opt-in per event type,
-  async best-effort, the T-041 security rules: the user's own bot token through ISecretStore,
-  never command-line arguments, no middleman services) with Telegram as the first sink; the
-  per-channel event routing settings.
-- **Scope:** the sink service (Infrastructure) + the Telegram sink + the routing settings +
-  resx en+ru (the message templates en+ru) + tests.
-- **Acceptance:** a fill event produces the expected Telegram POST; a stub failure degrades to a
-  logged warning with the trading flow untouched; the routing persists.
-- **Tests:** the T-041 test matrix verbatim (the loopback Telegram stub, the template goldens,
-  the best-effort failure matrix, the routing).
-- **Status:** in-progress.
 
 ---
 

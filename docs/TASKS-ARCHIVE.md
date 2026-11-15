@@ -5852,6 +5852,46 @@ the board and its section below.
   site publishable before the first tag; once a release exists, every direct link is
   HEAD-verified in CI.
 
+## T-260 — Notification sink abstraction + Telegram (the parked T-041 activated)
+
+- **Branch:** `feat/notify-sinks` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep; the worktree `zt-notify-sinks`).
+- **Origin:** T-041 (queued post-beta) carries the standing spec; the beta window opens it.
+- **What:** the sink abstraction over the trading/journal event surface (opt-in per event type,
+  async best-effort, the T-041 security rules: the user's own bot token through ISecretStore,
+  never command-line arguments, no middleman services) with Telegram as the first sink; the
+  per-channel event routing settings.
+- **Scope:** the sink service (Infrastructure) + the Telegram sink + the routing settings +
+  resx en+ru (the message templates en+ru) + tests.
+- **Acceptance:** a fill event produces the expected Telegram POST; a stub failure degrades to a
+  logged warning with the trading flow untouched; the routing persists.
+- **Tests:** the T-041 test matrix verbatim (the loopback Telegram stub, the template goldens,
+  the best-effort failure matrix, the routing).
+- **Status:** done. Canon: shipped as one feat on `feat/notify-sinks` — the claim `3d3416f`,
+  the feature `9224235`. Reconciliation: T-041 itself shipped earlier (0.2.1) — this task built
+  the sink abstraction over it: `INotificationSink` + `TradeNotificationEvent`
+  (`TradeNotificationKind` fill/cancel/reject, `TradeNotificationLane` paper/testnet/live —
+  the sink-domain parallel of the App's own lane enum, mapped explicitly at the bridge), the
+  App-side `TradeNotificationBridge` maps the notification center's journaled outcomes once and
+  fans out to the whole fleet (per-sink try-guards so one contract-breaking member cannot
+  starve the rest, the tracked fire-and-forget dispatch), the Telegram sink implements the
+  contract and composes its message INSIDE itself (the composer moved from the App to
+  Infrastructure as public `TelegramMessageComposer.Compose(TradeNotificationEvent,
+  ILocalizationManager)`, the same `Notif.Telegram*` resx keys), the notifier reads its flags,
+  chat id and bot token per send. The settings window gained the fifth rail tab
+  "Notifications": the per-kind opt-ins and the chat id draft with the house save/no-op
+  discipline, the bot token committing to the secret store per keystroke (the OpenAI key's
+  shape, `_telegramTokenCommitSuppressed` guarding the re-seeds, an emptied box removing the
+  stored token), 16 new resx keys en+ru. Tests: Infrastructure matrix 12 facts (the configured
+  sends, the quiet no-sink states, the failure matrix, a fill without its price fact and an
+  unroutable kind degrading into the sink's own warning lane) against the loopback Bot API
+  stub with a StubLocalization; App goldens (the real-catalog en+ru wordings), the bridge
+  facts (the filter, the mapping, the lane-at-event-time, the fan-out, the contract-break
+  containment), the e2e walk (center → bridge → sink → loopback) and the 11 settings facts
+  adapted to the TCS await discipline; the layout/rail/bounds pins updated to the five-tab
+  window. Verification: 696/696 Infrastructure + 2364/2364 App tests, full gate GATE PASSED
+  (`-AllowProtected`: the supervisor-owned version line + the CompositionRoot line), launch
+  smoke SMOKE PASSED (0.2.6+3d3416f, ERR/FTL/WRN=0, five stores ready, bars delivered).
+
 ## T-263 — Backtest sweep retains metrics rows plus one best report
 
 - **Branch:** `feat/backtest-perf` off `develop` (claimed 2026-11-15, the perf sweep; the
