@@ -269,7 +269,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | done | — |
 | T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | — | planned | — |
 | T-265 Backtest load assembles the walk-back pages in one pass (the perf sweep 2026-11-15) | — | planned | — |
-| T-266 UpdateStage venue-consent fact: the order-sensitive timing flake (filed 2026-11-15) | — | planned | T-258 |
+| T-266 UpdateStage venue-consent fact: the order-sensitive timing flake (filed 2026-11-15) | feat/update-consent-flake | in-progress | T-258 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -646,7 +646,9 @@ the human prioritizes the lanes.
 
 ## T-266 — UpdateStage venue-consent fact: the order-sensitive timing flake
 
-- **Branch:** created at landing off `develop` (filed 2026-11-15, the T-258 test family).
+- **Branch:** `feat/update-consent-flake` (worktree `zt-update-consent-flake`, based on
+  `develop` @ `3fb01f0`; filed 2026-11-15, the T-258 test family).
+- **Status:** in-progress — supervisor-owned this wave; the fix is tests-only, no bump.
 - **Origin:** the T-262 wave's bisect: `UpdateStageServiceTests.
   TheConsentDisclosure_NamesTheTradingState_AndTheUnreachableVenues` fails in class-only
   runs on clean develop (and twice in full runs under the T-262 wave's load) while the
