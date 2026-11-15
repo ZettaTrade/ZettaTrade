@@ -1,3 +1,42 @@
+## [0.2.5] - 2026-11-15
+
+Build of board task T-258 (branch `feat/auto-update`): the update checker
+learned the rest of the loop — a newer release now downloads, proves itself
+and installs at the next start, with a rollback if the new build fails to
+launch, and never once asks without showing the trading state first.
+
+### Added
+- The bounded download-and-verify pipeline (`UpdateStageService`): the
+  checker's verdict resolves the running RID's archive and the release's
+  own `zettatrade-<version>-sha256.txt`, both fetched over HTTPS only (the
+  landing URI pinned after every redirect hop), the archive capped at
+  512 MB by header and by streamed count, the sums file at 64 KB, the
+  whole fetch under a 10-minute budget. The archive extracts, loses its
+  one-folder wrapper if it wears one, and stages only when the computed
+  SHA-256 equals the pinned hash — a mismatched or malformed download
+  refuses with one logged warning and never stages, and one version gets
+  exactly one attempt per process (no retries).
+- The consent gate: the ONE structured question per version, asked only
+  with the disclosure in front of the user — how many open positions and
+  working orders the session holds right now, venue by venue, with the
+  venues that could not be read named honestly as unread. A declined or
+  timed-out ask leaves the build staged and the session trading; the same
+  version never asks twice in one process.
+- The startup swap runner (`UpdateSwapRunner`): a consented stage applies
+  at the next start — the previous build parks under `.update/rollback`
+  with file moves only (Windows' running-image rule), the staged build
+  moves in, the new build relaunches, and a failed relaunch restores the
+  pre-swap layout in full. A start that finds an applied update without
+  its healthy proof rolls the failed build back; the composition walk's
+  completion marks the new build healthy and the staging tree dies. Every
+  swap fact lands in the app's log directory through its own
+  `zettatrade-update-swap-.log` shelf — never on stdout.
+- The settings rows: the auto-update switch (off by default — nothing
+  downloads, stages or asks before the user turns it on) and the channel
+  pick (stable by default; the beta channel offers every parsable
+  release, pre-releases included, and the flip re-ranks without a
+  restart). 27 new keys in both languages.
+
 ## [0.2.4] - 2026-11-15
 
 Build of board task T-254 (branch `feat/backtest-robustness`): the backtest
