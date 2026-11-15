@@ -267,6 +267,75 @@ public sealed class ChartViewModelTests
         public ValueTask DisposeAsync() => _inner.DisposeAsync();
     }
 
+    /// <summary>
+    /// The OI-capable adapter fake (T-241): the plain market-data fake's
+    /// surface composed with the history capability — one settled snapshot
+    /// at the served bar's own open edge, at an honest wire size.
+    /// </summary>
+    private sealed class OICapableMarketData : IMarketDataAdapter, IOIHistoryProvider
+    {
+        private readonly FakeMarketData _inner = new();
+
+        public string Id => _inner.Id;
+
+        public string Name => _inner.Name;
+
+        public bool IsConnected => _inner.IsConnected;
+
+        public ExchangeCapabilities Capabilities => _inner.Capabilities;
+
+        /// <summary>The OI-history requests, in call order.</summary>
+        public List<Symbol> OpenInterestRequests { get; } = new();
+
+        /// <summary>The OI-history bar intervals, in call order.</summary>
+        public List<TimeFrame> OpenInterestIntervals { get; } = new();
+
+        /// <summary>The OI-history window starts, in call order.</summary>
+        public List<DateTimeOffset> OpenInterestFroms { get; } = new();
+
+        /// <summary>The inner fake's bars-window records (the kick's anchor check).</summary>
+        public List<FakeMarketData.BarsWindow> BarsWindowRequests => _inner.BarsWindowRequests;
+
+        public async Task<IReadOnlyList<OpenInterestPoint>> GetOpenInterestHistoryAsync(
+            Symbol symbol,
+            TimeFrame barInterval,
+            DateTimeOffset from,
+            DateTimeOffset? to = null,
+            int limit = 200,
+            CancellationToken ct = default)
+        {
+            OpenInterestRequests.Add(symbol);
+            OpenInterestIntervals.Add(barInterval);
+            OpenInterestFroms.Add(from);
+            return [new OpenInterestPoint(from, 316131537.00000000m)];
+        }
+
+        public Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default) =>
+            _inner.GetSymbolsAsync(ct);
+
+        public Task<IReadOnlyList<Bar>> GetBarsAsync(
+            Symbol symbol,
+            TimeFrame timeFrame,
+            DateTimeOffset from,
+            DateTimeOffset? to = null,
+            int limit = 500,
+            CancellationToken ct = default) =>
+            _inner.GetBarsAsync(symbol, timeFrame, from, to, limit, ct);
+
+        public IObservable<Ticker> SubscribeTicker(Symbol symbol) => _inner.SubscribeTicker(symbol);
+
+        public IObservable<MarketTrade> SubscribeTrades(Symbol symbol) => _inner.SubscribeTrades(symbol);
+
+        public IObservable<OrderBook> SubscribeOrderBook(Symbol symbol, int depth = 20) =>
+            _inner.SubscribeOrderBook(symbol, depth);
+
+        public Task ConnectAsync(CancellationToken ct = default) => _inner.ConnectAsync(ct);
+
+        public Task DisconnectAsync(CancellationToken ct = default) => _inner.DisconnectAsync(ct);
+
+        public ValueTask DisposeAsync() => _inner.DisposeAsync();
+    }
+
     #region Composition
 
     /// <summary>
@@ -395,7 +464,8 @@ public sealed class ChartViewModelTests
         ILocalizationManager? localization = null,
         ICandleCache? candleCache = null,
         FakeDrawingStore? drawingStore = null,
-        FundingHistoryService? fundingHistory = null)
+        FundingHistoryService? fundingHistory = null,
+        OIHistoryService? oiHistory = null)
     {
         var timeFrameSettings = settings;
         if (timeFrameSettings is null)
@@ -455,6 +525,8 @@ public sealed class ChartViewModelTests
             // facts: the stubbed adapters carry no funding-history
             // capability, so the front answers null without a network.
             fundingHistory ?? new FundingHistoryService(service, TimeProvider.System),
+            // The OI pane rides the honest no-pane likewise (T-241).
+            oiHistory ?? new OIHistoryService(service, TimeProvider.System),
             NullLogger<ChartViewModel>.Instance);
     }
 
@@ -2153,6 +2225,72 @@ public sealed class ChartViewModelTests
     }
 
     #endregion Funding Pane (T-240)
+
+    #region Open-Interest Pane (T-241)
+
+    [Fact]
+    public async Task AnOICapableVenue_PublishesTheOpenInterestLine_AlignedWithTheBars()
+    {
+        var marketData = new OICapableMarketData();
+        var service = CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2"));
+        var chart = CreateChart(
+            service,
+            oiHistory: new OIHistoryService(service, TimeProvider.System));
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT:USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The delivered perp's kick fetched the venue's settled history
+        // once, anchored at the delivered series' own head, at the delivered
+        // series' own bar interval (the bucket size keyed the fetch).
+        marketData.OpenInterestRequests.Should().ContainSingle()
+            .Which.Should().Be(Symbol.Parse("BTC/USDT:USDT"));
+        marketData.OpenInterestIntervals.Should().ContainSingle()
+            .Which.Should().Be(chart.SelectedTimeFrame, "the chart's own bar interval keys the bucket size");
+        marketData.OpenInterestFroms.Should().ContainSingle()
+            .Which.Should().Be(chart.Bars[0].Time, "the kick anchors the window at the delivered series' own head");
+
+        // The pane's synthesized line rides the pipeline tail: the OI
+        // values aligned with the bars (the snapshot at the bar's open
+        // governs it), the oscillator pane, the caption's label key.
+        var openInterest = chart.IndicatorLines.Should().ContainSingle(
+                line => line.Name == ChartOpenInterestSeries.Name,
+                "the capable venue's pane publishes exactly one OI line").Subject;
+        openInterest.Values.Should().HaveCount(chart.Bars.Count, "the line aligns with the bars by index");
+        openInterest.Values.Should().ContainSingle(value => value != null)
+            .Which.Should().Be(316131537.00000000m, "the governing snapshot's wire size fills the bar's slot");
+        openInterest.PaneKind.Should().Be(IndicatorPaneKind.Oscillator);
+        openInterest.LabelKey.Should().Be(ChartOpenInterestSeries.LabelKey);
+
+        publications.SelectMany(lines => lines).Should().Contain(
+            line => line.Name == ChartOpenInterestSeries.Name,
+            "the raw publish path carries the OI line too");
+    }
+
+    [Fact]
+    public async Task AVenueWithoutTheOICapability_RidesTheHonestNoPane()
+    {
+        var marketData = new FakeMarketData();
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT:USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The delivered page re-published the overlays; the capability
+        // probe answered the honest no-capability without a fetch, so no
+        // OI line ever joins the pipeline tail.
+        chart.Bars.Should().NotBeEmpty("the delivery itself stands");
+        publications.Should().NotBeEmpty("the delivery republished the overlays");
+        publications.SelectMany(lines => lines)
+            .Should().NotContain(line => line.Name == ChartOpenInterestSeries.Name);
+        chart.IndicatorLines.Should().NotContain(line => line.Name == ChartOpenInterestSeries.Name);
+    }
+
+    #endregion Open-Interest Pane (T-241)
 
     #region Deep-history Repair (T-086)
 

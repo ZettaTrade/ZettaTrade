@@ -127,13 +127,14 @@ public sealed class BybitRestHookTests
     {
         var families = BybitAdapter.DefaultRestLimits.Endpoints;
 
-        families.Should().HaveCount(3);
+        families.Should().HaveCount(4);
         families.Should().OnlyContain(e => e.BudgetTokens == 10 && e.RefillInterval == TimeSpan.FromSeconds(1));
         BybitAdapter.DefaultRestLimits.ScaleKind.Should().Be(RestBudgetScaleKind.RequestsPerSecond);
         families.Select(e => e.EndpointKey).Should().Equal(
             "/v5/market/kline",
             "/v5/market/instruments-info",
-            "/v5/market/funding/history");
+            "/v5/market/funding/history",
+            "/v5/market/open-interest");
     }
 
     #endregion

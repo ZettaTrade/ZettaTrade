@@ -612,6 +612,9 @@
   <data name="Chart.Funding.Pane" xml:space="preserve">
     <value>Funding</value>
   </data>
+  <data name="Chart.OpenInterest.Pane" xml:space="preserve">
+    <value>Open interest</value>
+  </data>
   <data name="Chart.TimeFrame" xml:space="preserve">
     <value>Time frame</value>
   </data>

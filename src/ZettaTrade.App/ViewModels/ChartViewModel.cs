@@ -738,6 +738,20 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         int Epoch,
         IReadOnlyList<FundingRatePoint>? Points);
 
+    /// <summary>
+    /// One OI-pane load's payload (T-241): the snapshots the service
+    /// resolved (null = the honest no-pane — no capability or a fetch that
+    /// came back empty), the series identity the load kicked for (the bar
+    /// interval rides it — the bucket size keyed the fetch), and the kick's
+    /// epoch (the stale-drop: a superseded load drops at dispatch).
+    /// </summary>
+    private sealed record OpenInterestPaneLoad(
+        Symbol Symbol,
+        string ExchangeId,
+        TimeFrame Interval,
+        int Epoch,
+        IReadOnlyList<OpenInterestPoint>? Points);
+
     private string? _errorMessage;
 
     /// <summary>Last candles-export error, for the error line under the chart header.</summary>
@@ -988,6 +1002,18 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private (Symbol Symbol, string ExchangeId)? _fundingTarget;
     private int _fundingKickEpoch;
 
+    /// <summary>
+    /// The OI pane's standing series (T-241): one value per bar slot of the
+    /// series it aligned against (venue sizes, null = the honest gap before
+    /// the venue's first snapshot), the identity it was loaded for (the
+    /// bar interval rides it — the bucket size keyed the fetch), and the
+    /// kick counter the stale-drop reads. Cleared on every rebase and every
+    /// no-capability verdict.
+    /// </summary>
+    private IReadOnlyList<decimal?>? _oiSeries;
+    private (Symbol Symbol, string ExchangeId, TimeFrame Interval)? _oiTarget;
+    private int _oiKickEpoch;
+
     /// <summary>Whether an older-history fetch is in flight (the request path serializes on it; a request racing the release is dropped and the next pan crossing re-raises it).</summary>
     private bool _olderFetchInFlight;
 
@@ -1167,6 +1193,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private readonly Subject<FundingPaneLoad?> _fundingPublishes = new();
 
     /// <summary>
+    /// The OI pane's loads publish here (T-241): the same marshalled
+    /// discipline as the funding pane's — the fetch runs fire-and-forget
+    /// wherever it lands, the alignment reads the live bar collection on
+    /// the UI thread, and a null emission is the honest no-pane.
+    /// </summary>
+    private readonly Subject<OpenInterestPaneLoad?> _oiPublishes = new();
+
+    /// <summary>
     /// The persisted VWAP overlay choice: the cache LEADS the toggles'
     /// persistence pipeline (updated at issue time, in issuance order), so
     /// a rapid settle burst never drops its second flip and an external
@@ -1290,6 +1324,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>The funding-history front (T-240): the active adapter's capability probe and the per-symbol cache.</summary>
     private readonly FundingHistoryService _fundingHistory;
+
+    /// <summary>The OI-history front (T-241): the active adapter's capability probe and the per-(symbol, interval) cache.</summary>
+    private readonly OIHistoryService _openInterestHistory;
 
     /// <summary>The latest footprint snapshot the feed published (UI-thread-owned, marshalled on assignment).</summary>
     private ChartFootprintSnapshot _latestFootprint = ChartFootprintSnapshot.Empty;
@@ -1512,6 +1549,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         SignalSeriesRelay seriesRelay,
         IObservable<ChartFootprintSnapshot> tradingFootprint,
         FundingHistoryService fundingHistory, // T-240: the funding pane's history front.
+        OIHistoryService openInterestHistory, // T-241: the OI pane's history front.
         ILogger<ChartViewModel> logger,
         string? slotId = null,
         ChartTemplatesViewModel? templates = null)
@@ -1532,6 +1570,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _seriesRelay = seriesRelay;
         _tradingFootprint = tradingFootprint;
         _fundingHistory = fundingHistory;
+        _openInterestHistory = openInterestHistory;
 
         // The multi-chart grid (T-201): the primary keeps the workspace's
         // shared symbol key (the order book and the dialog follow it) and
@@ -1679,6 +1718,10 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     _fundingSeries = null;
                     _fundingTarget = null;
 
+                    // The OI pane (T-241) is the same rebase-volatile state.
+                    _oiSeries = null;
+                    _oiTarget = null;
+
                     // The T-112 strategies feed: the full load is the host's
                     // closed-candle address, published through the relay (the
                     // composition-owned decoupling — the service never holds
@@ -1706,6 +1749,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // fetches cache-first and re-publishes; anything else is
                     // the honest no-pane.
                     KickFundingLoad(page.Symbol, page.Adapter.Id);
+
+                    // The delivered page starts the OI pane's load (T-241)
+                    // the same way — the bar interval rides it (the bucket
+                    // size keyed the fetch).
+                    KickOpenInterestLoad(page.Symbol, page.Adapter.Id, page.TimeFrame);
                 },
                 ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
 
@@ -1739,10 +1787,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // The funding pane re-aligns against the grown series too
                     // (T-240): the cache-first load re-runs over the standing
                     // head — the prepended stretch shows the honest gaps when
-                    // the cached page predates it.
+                    // the cached page predates it. The OI pane (T-241) rides
+                    // the same re-kick.
                     if (_loadedTarget is { } target)
                     {
                         KickFundingLoad(target.Symbol, target.ExchangeId);
+                        KickOpenInterestLoad(target.Symbol, target.ExchangeId, target.TimeFrame);
                     }
                 },
                 ex => _logger.LogError(ex, "The chart older-bars stream stopped unexpectedly"));
@@ -1791,10 +1841,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
                     // The funding pane re-aligns against the healed series
                     // too (T-240): the cache-first load re-runs over the
-                    // standing head — the pane survives the repair merge.
+                    // standing head — the pane survives the repair merge. The
+                    // OI pane (T-241) rides the same re-kick.
                     if (_loadedTarget is { } target)
                     {
                         KickFundingLoad(target.Symbol, target.ExchangeId);
+                        KickOpenInterestLoad(target.Symbol, target.ExchangeId, target.TimeFrame);
                     }
                 },
                 ex => _logger.LogError(ex, "The chart repair stream stopped unexpectedly"));
@@ -1973,6 +2025,13 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 ApplyFundingPaneLoad,
                 ex => _logger.LogError(ex, "The chart funding pane stream stopped unexpectedly"));
+
+        // The OI pane's loads (T-241): the same marshalled discipline — the
+        // alignment runs ON the UI thread, a stale load drops silently.
+        _oiPublishes.ObserveOnUiThread()
+            .Subscribe(
+                ApplyOpenInterestPaneLoad,
+                ex => _logger.LogError(ex, "The chart open-interest pane stream stopped unexpectedly"));
 
         // The two overlay toggles persist like the AI panel's visibility
         // does (T-093): the cache LEADS the pipeline — it is updated at
@@ -2907,6 +2966,19 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 LabelKey: ChartFundingSeries.LabelKey)];
         }
 
+        // The OI pane (T-241): the chart's own synthesized line rides the
+        // same tail after the funding one, merged with the persisted heights
+        // by the SAME Name key. A stale alignment (its series no longer
+        // standing) contributes nothing.
+        if (_oiSeries is { } openInterest && openInterest.Count == bars.Count)
+        {
+            lines = [.. lines, new ChartIndicatorLine(
+                ChartOpenInterestSeries.Name,
+                openInterest,
+                IndicatorPaneKind.Oscillator,
+                LabelKey: ChartOpenInterestSeries.LabelKey)];
+        }
+
         var heights = _persistedPaneHeights;
         if (heights.Count > 0)
         {
@@ -3053,6 +3125,75 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     #endregion Funding Pane (T-240)
+
+    #region Open-Interest Pane (T-241)
+
+    /// <summary>
+    /// Kick the OI pane's load (T-241): the fresh kick takes the next epoch
+    /// and the standing identity (the bar interval rides it — the bucket
+    /// size keyed the fetch), and the fetch runs fire-and-forget through
+    /// the service's cache-first front — a venue without the OI-history
+    /// capability answers the honest no-pane without a network round-trip.
+    /// The load publishes through the marshalled subject; a superseded kick
+    /// drops at apply. Nothing aligns here: the alignment reads the live
+    /// bar collection and rides the UI thread, so the window's start is
+    /// captured from the standing head at kick time.
+    /// </summary>
+    /// <param name="symbol">The standing series' symbol.</param>
+    /// <param name="exchangeId">The standing series' exchange.</param>
+    /// <param name="interval">The standing series' bar interval.</param>
+    private void KickOpenInterestLoad(Symbol symbol, string exchangeId, TimeFrame interval)
+    {
+        if (Bars.Count == 0)
+        {
+            // No series to align onto (no kick site can produce this; the
+            // guard is the honest shape) — nothing fetches.
+            return;
+        }
+
+        var from = Bars[0].Time;
+        var epoch = ++_oiKickEpoch;
+        _oiTarget = (symbol, exchangeId, interval);
+
+        Observable
+            .FromAsync(() => _openInterestHistory.GetAsync(symbol, interval, from, ct: CancellationToken.None))
+            .Subscribe(
+                points => _oiPublishes.OnNext(new OpenInterestPaneLoad(symbol, exchangeId, interval, epoch, points)),
+                error => _logger.LogWarning(
+                    error,
+                    "The open-interest-history load for {Symbol} on {Exchange} failed; the pane waits for the next kick",
+                    symbol.Normalized,
+                    exchangeId));
+    }
+
+    /// <summary>
+    /// Apply one OI pane load (T-241) on the UI thread (the subject's
+    /// marshalled subscription): a stale load — a kick superseded by a
+    /// newer one or an identity no longer standing — drops silently; the
+    /// standing load aligns against the live bar collection and republishes
+    /// the overlays. A null emission (the service's honest no-capability
+    /// answer) or an empty page clears the standing series: the overlays
+    /// republish without the OI line, the honest absence.
+    /// </summary>
+    /// <param name="load">The resolved load, or nothing for the honest no-pane.</param>
+    private void ApplyOpenInterestPaneLoad(OpenInterestPaneLoad? load)
+    {
+        if (load is null ||
+            _oiTarget != (load.Symbol, load.ExchangeId, load.Interval) ||
+            load.Epoch != _oiKickEpoch)
+        {
+            // A stale load drops: a newer kick owns the pane (a rebase
+            // cleared the identity before its own kick armed).
+            return;
+        }
+
+        _oiSeries = load.Points is { Count: > 0 } points
+            ? OISeriesAlignment.Align(Bars, points)
+            : null;
+        PublishIndicatorLines(Bars);
+    }
+
+    #endregion Open-Interest Pane (T-241)
 
     #region Vwap Overlay
 

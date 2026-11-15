@@ -384,4 +384,112 @@ public sealed class BybitAdapterParsingTests
     }
 
     #endregion Funding History (T-240)
+
+    #region Open-Interest History (T-241)
+
+    /// <summary>Real v5 open-interest shape: newest first, BOTH data fields as strings (the 5-minute buckets' 2026-01-01 snapshots: 00:10Z, 00:05Z, 00:00Z).</summary>
+    private const string OpenInterestPayloadJson =
+        """
+        {"retCode":0,"retMsg":"OK","result":{"category":"linear","list":[
+            {"symbol":"BTCUSDT","openInterest":"316131537.00000000","timestamp":"1767226200000"},
+            {"symbol":"BTCUSDT","openInterest":"315998871.50000000","timestamp":"1767225900000"},
+            {"symbol":"BTCUSDT","openInterest":"314851002.00000000","timestamp":"1767225600000"}
+        ]}}
+        """;
+
+    /// <summary>The OI history rides the linear wire on its own endpoint with the bar interval's bucket.</summary>
+    [Fact]
+    public async Task GetOpenInterestHistoryAsync_PerpetualSymbol_RequestsTheLinearCategoryOnItsEndpoint()
+    {
+        var (adapter, handler) = CreateAdapter(OpenInterestPayloadJson);
+
+        await adapter.GetOpenInterestHistoryAsync(
+            Symbol.Parse("BTC/USDT:USDT"),
+            TimeFrame.M15,
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+            limit: 200);
+
+        handler.LastRequest!.RequestUri!.Query
+            .Should().Contain("category=linear")
+            .And.Contain("symbol=BTCUSDT")
+            .And.Contain("intervalTime=15min")
+            .And.Contain("startTime=1767225600000")
+            .And.Contain("endTime=1767312000000")
+            .And.Contain("limit=200");
+        handler.LastRequest.RequestUri!.AbsolutePath.Should().Be("/v5/market/open-interest");
+    }
+
+    /// <summary>The chart's bar interval floors onto the venue's served bucket set: finer rides the smallest, the weekly and monthly ride the daily.</summary>
+    [Theory]
+    [InlineData(TimeFrame.M1, "5min")]
+    [InlineData(TimeFrame.M5, "5min")]
+    [InlineData(TimeFrame.M15, "15min")]
+    [InlineData(TimeFrame.M30, "30min")]
+    [InlineData(TimeFrame.H1, "1h")]
+    [InlineData(TimeFrame.H4, "4h")]
+    [InlineData(TimeFrame.D1, "1d")]
+    [InlineData(TimeFrame.W1, "1d")]
+    [InlineData(TimeFrame.MN1, "1d")]
+    public async Task GetOpenInterestHistoryAsync_BarInterval_FloorsOntoTheServedBuckets(TimeFrame barInterval, string expectedInterval)
+    {
+        var (adapter, handler) = CreateAdapter(OpenInterestPayloadJson);
+
+        await adapter.GetOpenInterestHistoryAsync(
+            Symbol.Parse("BTC/USDT:USDT"),
+            barInterval,
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+        handler.LastRequest!.RequestUri!.Query.Should().Contain($"intervalTime={expectedInterval}");
+    }
+
+    /// <summary>The newest-first wire parses into the series contract's ASCENDING order with exact decimals.</summary>
+    [Fact]
+    public async Task GetOpenInterestHistoryAsync_NewestFirstRows_ParseAscendingExactDecimals()
+    {
+        var (adapter, _) = CreateAdapter(OpenInterestPayloadJson);
+
+        var points = await adapter.GetOpenInterestHistoryAsync(
+            Symbol.Parse("BTC/USDT:USDT"),
+            TimeFrame.M5,
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+        points.Select(static point => point.Size)
+            .Should().Equal([314851002.00000000m, 315998871.50000000m, 316131537.00000000m], "the wire serves newest first; the series contract is ascending");
+        points[0].Time.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1767225600000));
+        points[2].Time.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1767226200000));
+    }
+
+    /// <summary>A spot symbol is a request-contract violation: refused, never guessed into another category.</summary>
+    [Fact]
+    public async Task GetOpenInterestHistoryAsync_SpotSymbol_IsRefused()
+    {
+        var (adapter, _) = CreateAdapter(OpenInterestPayloadJson);
+
+        var act = () => adapter.GetOpenInterestHistoryAsync(
+            Symbol.Parse("BTC/USDT"),
+            TimeFrame.M5,
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    /// <summary>The limit rides the venue's documented page bounds [1..200]: out-of-band values are refused.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(201)]
+    public async Task GetOpenInterestHistoryAsync_OutOfBoundsLimit_IsRefused(int limit)
+    {
+        var (adapter, _) = CreateAdapter(OpenInterestPayloadJson);
+
+        var act = () => adapter.GetOpenInterestHistoryAsync(
+            Symbol.Parse("BTC/USDT:USDT"),
+            TimeFrame.M5,
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            limit: limit);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    #endregion Open-Interest History (T-241)
 }

@@ -188,6 +188,8 @@ public sealed class ScreenerViewModelTests
             // The funding pane rides the honest no-pane here too: the void
             // adapter carries no funding-history capability.
             new FundingHistoryService(service, TimeProvider.System),
+            // The OI pane rides the honest no-pane here too (T-241).
+            new OIHistoryService(service, TimeProvider.System),
             NullLogger<ChartViewModel>.Instance);
     }
 

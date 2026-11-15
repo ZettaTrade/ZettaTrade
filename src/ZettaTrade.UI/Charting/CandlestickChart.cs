@@ -2134,13 +2134,17 @@ public class CandlestickChart : Control
             // candles and the axis labels (the terminal look). The hovered
             // readout keys off the DRAWN series — a Heikin-Ashi frame reads
             // its smoothed OHLC, every other type reads the raw bar. The
-            // funding readout (T-240) rides the frame's own funding
-            // oscillator when one is present (a perp on an adapter that
-            // serves the history); its sliced values align with the visible
-            // bars by index like every pane's.
+            // funding readout (T-240) and the OI readout (T-241) ride the
+            // frame's own synthesized oscillators when present (a perp on
+            // an adapter that serves the histories); their sliced values
+            // align with the visible bars by index like every pane's.
+            var indicatorArray = _snapshot.Indicators.ToArray();
             var fundingLine = Array.Find(
-                _snapshot.Indicators.ToArray(),
+                indicatorArray,
                 line => line.PaneKind == IndicatorPaneKind.Oscillator && line.Name == ChartFundingSeries.Name);
+            var openInterestLine = Array.Find(
+                indicatorArray,
+                line => line.PaneKind == IndicatorPaneKind.Oscillator && line.Name == ChartOpenInterestSeries.Name);
             DrawHover(
                 canvas,
                 font,
@@ -2153,7 +2157,8 @@ public class CandlestickChart : Control
                 axisDecimals,
                 rawDecimals,
                 _snapshot.Hover,
-                fundingLine?.Values);
+                fundingLine?.Values,
+                openInterestLine?.Values);
         }
 
         private void DrawNoDataMessage(SKCanvas canvas, double width, double height)
@@ -4190,8 +4195,9 @@ public class CandlestickChart : Control
         /// The hover layer, drawn last: dashed crosshair rails clipped to the
         /// plot, the hovered price pill in the right gutter at the cursor's
         /// row, and the hovered candle's compact OHLC (+V) readout in the
-        /// plot's top-left — extended with the funding pane's readout (T-240)
-        /// when the frame carries one. Everything keys off the hover position
+        /// plot's top-left — extended with the funding pane's readout
+        /// (T-240) and the OI pane's readout (T-241) when the frame carries
+        /// them. Everything keys off the hover position
         /// the snapshot carries: no hover, a cursor outside the plot band (a
         /// rail just does not draw) or a cursor outside every bar's
         /// half-pitch band (no readout) draw less of it instead of throwing
@@ -4213,7 +4219,8 @@ public class CandlestickChart : Control
             int axisDecimals,
             int rawDecimals,
             Point? hover,
-            IReadOnlyList<decimal?>? fundingValues = null)
+            IReadOnlyList<decimal?>? fundingValues = null,
+            IReadOnlyList<decimal?>? openInterestValues = null)
         {
             if (hover is not { } position)
             {
@@ -4314,6 +4321,18 @@ public class CandlestickChart : Control
                 funding[barIndex] is { } fundingValue)
             {
                 readout += $"  F {fundingValue.ToString(FundingReadoutFormat, _snapshot.Culture)}";
+            }
+
+            // The OI readout (T-241): the bar's own aligned pane value, the
+            // venue's size printed like the volume term (the same decimal
+            // tick formatter — a size, not a price) — a bar before the first
+            // snapshot is the honest gap, the readout simply carries no OI
+            // term.
+            if (openInterestValues is { } openInterest &&
+                barIndex < openInterest.Count &&
+                openInterest[barIndex] is { } oiValue)
+            {
+                readout += $"  OI {ChartAxisFormatting.FormatPriceTick(oiValue, rawDecimals, _snapshot.Culture)}";
             }
 
             var readoutBaseline = (float)plotRect.Top + CrosshairReadoutPadPx - font.Metrics.Ascent;

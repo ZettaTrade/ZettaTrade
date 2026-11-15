@@ -1,3 +1,33 @@
+## [0.2.13] - 2026-11-16
+
+Build of board task T-241 (branch `feat/oi-history-pane`): the
+open-interest history lands as a chart pane for perpetual symbols — the
+venue's settled snapshots align onto the bars at the bar interval's
+bucket, and the pane's honest gaps never interpolate.
+
+### Added
+- The open-interest-history capability (`IOIHistoryProvider`) in the
+  Infrastructure Exchange module, served by the Bybit adapter's
+  `GET /v5/market/open-interest` (the linear category, the chart's bar
+  interval floored onto the venue's bucket set — anything finer than
+  5 minutes rides the 5-minute buckets, the weekly and monthly charts
+  the daily ones — an ascending parse and the limit bounds pinned by
+  tests); a symbol or a venue without the capability answers the honest
+  no-pane, never a guess (T-241).
+- The `OIHistoryService` front: the active adapter is probed per
+  request, the pages cache per (symbol, bar interval) (a 15-minute
+  freshness, a 32-entry bound) so every delivered page, prepend and
+  re-publish is cache-first, and a venue that cannot serve the history
+  answers null without a network round-trip (T-241).
+- The open-interest pane: the chart synthesizes the `OpenInterest`
+  oscillator line outside the plugin catalog (the caption's resx key
+  rides the line), the values align per bar (the last snapshot at or
+  before the bar's open governs it; a bar before the first snapshot
+  breaks the polyline), the load kicks on page delivery, prepend and
+  repair merge, and a superseded load drops silently at apply; the
+  hover readout grows the `OI` term (the venue's size, the volume
+  formatter) (T-241).
+
 ## [0.2.12] - 2026-11-15
 
 Build of board task T-240 (branch `feat/funding-history`): the funding-rate

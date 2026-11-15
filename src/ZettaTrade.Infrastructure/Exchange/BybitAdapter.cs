@@ -37,7 +37,7 @@ using ZettaTrade.Infrastructure.RateLimiting;
 /// dropped with a warning, because the wire text cannot carry the category
 /// and a guessed category is never honest.
 /// </summary>
-public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter, IFundingHistoryProvider
+public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter, IFundingHistoryProvider, IOIHistoryProvider
 {
     #region Constants
 
@@ -64,6 +64,9 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter, IFun
 
     /// <summary>REST path of the settled funding-rate history endpoint (T-240).</summary>
     private const string FundingHistoryRequestPath = "/v5/market/funding/history";
+
+    /// <summary>REST path of the open-interest history endpoint (T-241).</summary>
+    private const string OpenInterestRequestPath = "/v5/market/open-interest";
 
     /// <summary>The v5 REST category of the spot instruments (T-197's category-aware requests).</summary>
     private const string SpotCategory = "spot";
@@ -95,6 +98,7 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter, IFun
             new RestEndpointBudget(KlineRequestPath, PublicRequestsPerSecond, RestRefillInterval),
             new RestEndpointBudget(CatalogRequestPath, PublicRequestsPerSecond, RestRefillInterval),
             new RestEndpointBudget(FundingHistoryRequestPath, PublicRequestsPerSecond, RestRefillInterval),
+            new RestEndpointBudget(OpenInterestRequestPath, PublicRequestsPerSecond, RestRefillInterval),
         ],
     };
 
@@ -106,6 +110,12 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter, IFun
 
     /// <summary>The largest funding-history page the endpoint serves (the venue's documented cap; T-240).</summary>
     private const int FundingHistoryMaxLimit = 200;
+
+    /// <summary>The smallest OI-history page the endpoint accepts (the venue's documented bound).</summary>
+    private const int OpenInterestMinLimit = 1;
+
+    /// <summary>The largest OI-history page the endpoint serves (the venue's documented cap; T-241).</summary>
+    private const int OpenInterestMaxLimit = 200;
 
     /// <summary>The request weight a public Bybit market REST call spends from its bucket (one per request).</summary>
     private const int CatalogPageWeight = 1;
@@ -595,6 +605,90 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter, IFun
 
         return points;
     }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<OpenInterestPoint>> GetOpenInterestHistoryAsync(
+        Symbol symbol,
+        TimeFrame barInterval,
+        DateTimeOffset from,
+        DateTimeOffset? to = null,
+        int limit = 200,
+        CancellationToken ct = default)
+    {
+        // Open-interest history is a derivatives wire: a spot symbol is a
+        // request contract violation, refused — never guessed into another
+        // category.
+        if (!symbol.IsPerpetual)
+        {
+            throw new ArgumentException(
+                $"Open-interest history serves perpetual contracts only; {symbol.Normalized} is not one.",
+                nameof(symbol));
+        }
+
+        if (limit is < OpenInterestMinLimit or > OpenInterestMaxLimit)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(limit),
+                limit,
+                $"The open-interest-history limit rides the venue's page bounds [{OpenInterestMinLimit}..{OpenInterestMaxLimit}].");
+        }
+
+        var intervalTime = IntervalTimeFor(barInterval);
+        var startTime = from.ToUnixTimeMilliseconds();
+        var endTime = to?.ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var url = $"{_baseUrl}{OpenInterestRequestPath}" +
+                  $"?category={LinearCategory}" +
+                  $"&symbol={symbol.GetExchangeFormat(Id)}" +
+                  $"&intervalTime={intervalTime}" +
+                  $"&startTime={startTime}" +
+                  $"&endTime={endTime}" +
+                  $"&limit={limit}";
+
+        var result = await GetRestResultAsync(
+            RestLane.Background,
+            OpenInterestRequestPath,
+            CatalogPageWeight,
+            url,
+            ct);
+        var rows = result.GetProperty("list");
+
+        // Bybit v5 OI rows: {"symbol","openInterest","timestamp"} with BOTH
+        // data fields as strings (the timestamp in milliseconds), NEWEST
+        // FIRST — same as the funding and kline wires.
+        var points = new List<OpenInterestPoint>(rows.GetArrayLength());
+        foreach (var row in rows.EnumerateArray())
+        {
+            points.Add(new OpenInterestPoint(
+                DateTimeOffset.FromUnixTimeMilliseconds(BinanceJsonNumbers.ParseInt64(row.GetProperty("timestamp"))),
+                BinanceJsonNumbers.ParseDecimal(row.GetProperty("openInterest"))));
+        }
+
+        // The series contract is ascending; reverse the newest-first order
+        // in place.
+        points.Reverse();
+
+        return points;
+    }
+
+    /// <summary>
+    /// The bar interval's OI bucket (T-241): the venue serves the fixed
+    /// bucket set {5min, 15min, 30min, 1h, 4h, 1d}, so the chart's interval
+    /// floors onto the smallest bucket at or below it — a one-minute chart
+    /// rides the 5-minute buckets (the snapshot at or before each bar's
+    /// open still governs it), the weekly and monthly charts ride the daily
+    /// ones (the finest the venue serves). An unknown interval is a
+    /// request-contract violation, refused.
+    /// </summary>
+    private static string IntervalTimeFor(TimeFrame barInterval) => barInterval switch
+    {
+        TimeFrame.M1 or TimeFrame.M5 => "5min",
+        TimeFrame.M15 => "15min",
+        TimeFrame.M30 => "30min",
+        TimeFrame.H1 => "1h",
+        TimeFrame.H4 => "4h",
+        TimeFrame.D1 or TimeFrame.W1 or TimeFrame.MN1 => "1d",
+        _ => throw new ArgumentOutOfRangeException(nameof(barInterval), barInterval, "The interval names no known chart time-frame."),
+    };
 
     /// <summary>
     /// Subscribe to ticker, 50-level order book and public trades for a
