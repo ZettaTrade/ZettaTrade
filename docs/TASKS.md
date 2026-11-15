@@ -268,7 +268,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | done | T-260 |
 | T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | done | — |
 | T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | feat/backtest-replay | done | - |
-| T-265 Backtest load assembles the walk-back pages in one pass (the perf sweep 2026-11-15) | feat/zt-backtest-load | in-progress | - |
+| T-265 Backtest load assembles the walk-back pages in one pass (the perf sweep 2026-11-15) | feat/zt-backtest-load | done | - |
 | T-266 UpdateStage venue-consent fact: the order-sensitive timing flake (filed 2026-11-15) | feat/update-consent-flake | done | T-258 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
@@ -601,25 +601,5 @@ no-middleman canon. The messenger sinks stay free (the user's call). All rows st
 the human prioritizes the lanes.
 
 ---
-
----
-
-## T-265 — Backtest load assembles the walk-back pages in one pass
-
-- **Branch:** `feat/zt-backtest-load` off `develop` (claimed 2026-11-15, the perf sweep; the worktree `zt-zt-backtest-load`).
-- **Status:** in-progress.
-- **Origin:** the perf analysis: the walk-back prepended every fetched page in front of
-  the accumulated list (`InsertRange(0, page)`), shifting all already-loaded bars on every
-  page — the total element moves grow as O(N² / page cap) (≈5M reference moves at the
-  100k-bar cap over the cache's 1000-row pages).
-- **What:** the loader collects the walk-back's pages as fetched (newest page first) and
-  assembles the ascending series in ONE pass by walking the collected pages from the
-  oldest back — every bar is copied exactly once. The empty-newest early exit and the
-  between-page cooperative stop keep their shapes.
-- **Scope:** `ZettaTrade.Backtest` only (the window loader).
-- **Acceptance:** the multi-page window assembles the exact same ascending bar sequence
-  (the report is byte-identical to the single-page load over the same series).
-- **Tests:** the existing walk-back window pin plus the new full-sequence pin (several
-  pages of differing sizes assemble the exact expected open-time sequence).
 
 ---

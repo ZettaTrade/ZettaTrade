@@ -6164,6 +6164,33 @@ the board and its section below.
   first-pass single failure is the load-sensitive timing family (the T-266 filing
   covers it, bisected not here).
 
+## T-265 — Backtest load assembles the walk-back pages in one pass
+
+- **Branch:** `feat/zt-backtest-load` off `develop` (claimed 2026-11-15, the perf sweep; the worktree `zt-zt-backtest-load`).
+- **Status:** done. Canon: shipped as one feat on `feat/zt-backtest-load` — the claim
+  `098b789`, the feature `1b01031` (0.2.10), this close. The walk-back load no longer
+  prepends every fetched page in front of the accumulated list (`InsertRange(0, page)`,
+  which re-shifted all already-loaded bars on every page): the loader collects the pages
+  as fetched (newest page first) and assembles the ascending series in ONE pass by
+  walking the collected pages from the oldest back — every bar is copied exactly once,
+  so the total element moves drop from O(N² / page cap) (≈5M reference moves at the
+  100k-bar cap over the cache's 1000-row pages) to O(N). The empty-newest early exit and
+  the between-page cooperative stop keep their shapes (the walk's anchor rides the
+  collected pages' own front instead of the accumulated list's). The multi-page window
+  assembles the exact same ascending bar sequence: the new full-sequence pin
+  `Run_WalkBackMultiPage_AssemblesTheExactOpenTimeSequence` drives a five-page load of
+  differing sizes (newest 5, three 7-bar strides, the 6-bar remainder over a 40-bar
+  series), pins the exact expected open-time sequence (bars 8..39) with the walk's own
+  page count above one, and asserts the report byte-identical to the single-page load of
+  the same series; the existing walk-back window pin
+  `Run_WalkBackPages_AssemblesTheHonestTargetWindow` holds unchanged. Tests: the full
+  dotnet test run over the chain — Core 61, Soak 17, UI 409, AdapterKit 48, Strategies
+  32, Backtest 80/80 (+1), Infrastructure 759, App 2439, E2E 7 — zero failed, and the
+  gate printed GATE PASSED with only the expected warnings (SCOPE: no agent-scope.txt;
+  GITLEAKS skipped: not on PATH). Hazards: the gate's `[PROTECTED]` list owns
+  `Directory.Build.props`, so the assigned version bump (0.2.10) forced the props shield
+  — the gate ran with `-AllowProtected` (the T-262/T-263 lane convention).
+
 ## T-266 — UpdateStage venue-consent fact: the order-sensitive timing flake
 
 - **Branch:** `feat/update-consent-flake` (worktree `zt-update-consent-flake`, based on
