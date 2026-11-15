@@ -269,6 +269,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | done | — |
 | T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | — | planned | — |
 | T-265 Backtest load assembles the walk-back pages in one pass (the perf sweep 2026-11-15) | — | planned | — |
+| T-266 UpdateStage venue-consent fact: the order-sensitive timing flake (filed 2026-11-15) | — | planned | T-258 |
 
 ## Code review 2026-11-04 — findings index (source of T-046…T-062)
 
@@ -640,5 +641,27 @@ the human prioritizes the lanes.
   (the report is byte-identical to the single-page load over the same series).
 - **Tests:** the existing walk-back window pin plus the new full-sequence pin (several
   pages of differing sizes assemble the exact expected open-time sequence).
+
+---
+
+## T-266 — UpdateStage venue-consent fact: the order-sensitive timing flake
+
+- **Branch:** created at landing off `develop` (filed 2026-11-15, the T-258 test family).
+- **Origin:** the T-262 wave's bisect: `UpdateStageServiceTests.
+  TheConsentDisclosure_NamesTheTradingState_AndTheUnreachableVenues` fails in class-only
+  runs on clean develop (and twice in full runs under the T-262 wave's load) while the
+  single test passes everywhere — an order-sensitive (or cross-test-state) timing flake
+  inside the update-stage harness, not a T-262 regression.
+- **What:** find the shared state or the ordering coupling that makes the consent wait (the
+  10 s `WaitUntilAsync` budget) miss when the class runs together — the prime suspects: the
+  harnesses' `async void Dispose()` (a fire-and-forget teardown that lets a previous pump
+  outlive its test) and whatever process-wide state the one-ask-per-version canon keeps;
+  fix the harness shape (an awaitable, ordered teardown; per-test isolation), never the
+  product code.
+- **Scope:** `tests/ZettaTrade.App.Tests/Services/UpdateStageServiceTests.cs` (plus its
+  harness/fixture helpers) only; product code stays untouched.
+- **Acceptance:** the class-only run passes repeatedly; the full suite keeps its green
+  without this family needing the gate's retry.
+- **Tests:** the class's own facts (unchanged); the harness-shape fix is the deliverable.
 
 ---
