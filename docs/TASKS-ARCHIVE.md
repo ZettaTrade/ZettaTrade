@@ -6117,3 +6117,39 @@ the board and its section below.
   pin the no-run rank-1 surface and the deeper row's re-run; the gate `GATE PASSED`
   (`-AllowProtected` - the props shield). The queued T-264/T-265 ride their own branches
   at landing — the branch name is consumed by this landing.
+
+## T-266 — UpdateStage venue-consent fact: the order-sensitive timing flake
+
+- **Branch:** `feat/update-consent-flake` (worktree `zt-update-consent-flake`, based on
+  `develop` @ `29bbafb`; filed 2026-11-15, the T-258 test family).
+- **Origin:** the T-262 wave's bisect: `UpdateStageServiceTests.
+  TheConsentDisclosure_NamesTheTradingState_AndTheUnreachableVenues` fails in class-only
+  runs on clean develop (and twice in full runs under the T-262 wave's load) while the
+  single test passes everywhere — an order-sensitive (or cross-test-state) timing flake
+  inside the update-stage harness, not a T-262 regression.
+- **What:** find the shared state or the ordering coupling that makes the consent wait (the
+  10 s `WaitUntilAsync` budget) miss when the class runs together — the prime suspects: the
+  harnesses' `async void Dispose()` (a fire-and-forget teardown that lets a previous pump
+  outlive its test) and whatever process-wide state the one-ask-per-version canon keeps;
+  fix the harness shape (an awaitable, ordered teardown; per-test isolation), never the
+  product code.
+- **Scope:** `tests/ZettaTrade.App.Tests/Services/UpdateStageServiceTests.cs` (plus its
+  harness/fixture helpers) only; product code stays untouched.
+- **Acceptance:** the class-only run passes repeatedly; the full suite keeps its green
+  without this family needing the gate's retry.
+- **Tests:** the class's own facts (unchanged); the harness-shape fix is the deliverable.
+- **Status:** done. Canon: the flake was NOT cross-test state — the consent ask, its answer
+  and the Approved manifest write ride ONE synchronous pump continuation, and the write is
+  an atomic temp-file replace-move that fails with Access denied against ANY in-flight
+  reader of the target (share-delete does not save it — verified empirically 8/8); the
+  class-only run's first in-process manifest read pays a cold JsonSerializer metadata
+  build (~5-15 ms hold) and the write lands inside that hold about two runs in three; the
+  pump never retries the write (one ask per version), so the 10 s wait times out. The
+  harness fix: the consent waits join on the ask count (in memory), settle 250 ms
+  (`ConsentWriteSettle`) with no manifest reads, then read the state ONCE via the
+  product's `TryRead` (no parse duplication); the teardown is awaited
+  (`StageHarness : IAsyncDisposable`, all 13 sites `await using`, async-void retired);
+  `CapturingLogger` captures the stage's warning lane and the failing wait's probe dumps
+  state + counters + log. Class-only 8/8 green (the failing shape took 10.36 s, the
+  passing 0.38 s). Shipped as one fix on `feat/update-consent-flake` — the claim
+  `0724dc3`, the fix `b642c00`. Tests-only: no version bump, no launch smoke.
