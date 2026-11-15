@@ -13,8 +13,13 @@
 # Artifacts: zettatrade-<version>-<rid>.<ext> - zip for win-x64,
 # osx-x64 and osx-arm64, tar.gz for linux-x64 - the T-256 Inno Setup
 # installer zettatrade-<version>-win-x64-setup.exe compiled on the
-# windows leg - plus one zettatrade-<version>-sha256.txt attached next
-# to them.
+# windows leg, the T-257 platform-native doors on the other two OSes -
+# zettatrade-<version>-<rid>.dmg built on the osx legs (the unsigned
+# app bundle layout; the Gatekeeper caveat lives in docs/SECURITY.md)
+# and zettatrade-<version>-linux-x64.AppImage plus
+# zettatrade-<version>-linux-x64.deb built on the linux leg (desktop
+# entry, the icon; the AppImage tool is a digest-pinned download) -
+# plus one zettatrade-<version>-sha256.txt attached next to them.
 #
 # Code signing and notarization remain out of scope; docs/SECURITY.md
 # records the hash-only artifact posture and what the signed follow-up
@@ -131,6 +136,91 @@ jobs:
           name: ${{ steps.archive.outputs.name }}
           path: ${{ steps.archive.outputs.name }}
 
+      - name: Stage the app bundle and build the .dmg (T-257)
+        # hdiutil ships on macOS runners; the script stages the bundle
+        # and lints the layout on any OS and builds the .dmg only where
+        # hdiutil exists (a Windows dev box stays stage-only by design).
+        if: runner.os == 'macOS'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pwsh -NoProfile -File scripts/macos-dmg.ps1 -PublishDir publish -OutDir dmg-out -Rid '${{ matrix.rid }}'
+          $version = '${{ steps.version.outputs.version }}'
+          $dmg = "dmg-out/zettatrade-$version-${{ matrix.rid }}.dmg"
+          if (-not (Test-Path $dmg)) { throw "The .dmg was not produced: $dmg" }
+          Write-Host "Dmg artifact OK: $dmg"
+
+      - name: Upload the .dmg artifact (T-257)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zettatrade-${{ steps.version.outputs.version }}-${{ matrix.rid }}.dmg
+          path: dmg-out/zettatrade-*-osx-*.dmg
+
+      - name: Package the Linux doors - AppImage and .deb (T-257)
+        # appimagetool is fetched from the project's own release feed and
+        # digest-pinned (the re-pin procedure lives in docs/SECURITY.md);
+        # the FUSE-less runner gets the extract-and-run form. dpkg-deb
+        # ships with the runner image. The scripts stage and lint on any
+        # OS; each build runs only where its tool exists.
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The digest-pinned tool must sit on PATH named appimagetool -
+          # that is the name the staging script probes for.
+          $tool = Join-Path $env:RUNNER_TEMP 'appimagetool'
+          Invoke-WebRequest -Uri 'https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage' -OutFile $tool
+          $hash = (Get-FileHash $tool -Algorithm SHA256).Hash
+          if ($hash -ne 'E8C1169C4AF66C3184D7EE110713D4BE04BEFE671FA358E2C1591EE840553B03') {
+            throw "The pinned appimagetool digest does not match: $hash. The continuous feed rebuilt - review the new build log linked on the release page, then re-pin the digest here and in docs/SECURITY.md."
+          }
+          chmod +x $tool
+          $env:PATH = "$env:RUNNER_TEMP:$env:PATH"
+          pwsh -NoProfile -File scripts/linux-appimage.ps1 -PublishDir publish -OutDir appimage-out
+          pwsh -NoProfile -File scripts/linux-deb.ps1 -PublishDir publish -OutDir deb-out
+          $version = '${{ steps.version.outputs.version }}'
+          $appImage = "appimage-out/zettatrade-$version-linux-x64.AppImage"
+          $deb = "deb-out/zettatrade-$version-linux-x64.deb"
+          foreach ($door in @($appImage, $deb)) {
+            if (-not (Test-Path $door)) { throw "The linux door was not produced: $door" }
+            if ((Get-Item $door).Length -le 0) { throw "The linux door is empty: $door" }
+          }
+          Write-Host "Linux door artifacts OK: $appImage, $deb"
+
+      - name: Install the .deb on the runner (T-257)
+        # The CI-only acceptance the staging script cannot claim: the
+        # package installs cleanly on the runner - the control parses,
+        # the dependency floor resolves and the contract paths land.
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $deb = "deb-out/zettatrade-$version-linux-x64.deb"
+          sudo dpkg -i $deb
+          if ($LASTEXITCODE -ne 0) { throw "dpkg -i exited $LASTEXITCODE - the package did not install cleanly." }
+          $status = & dpkg-query -W -f '${Status} ${Version}' zettatrade
+          if ($status -ne "install ok installed $version") {
+            throw "The zettatrade package is not cleanly installed: '$status' (expected 'install ok installed $version')."
+          }
+          if (-not (Test-Path /usr/bin/zettatrade)) { throw 'The contract door /usr/bin/zettatrade did not land.' }
+          Write-Host "Deb install OK: $status"
+
+      - name: Upload the AppImage artifact (T-257)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zettatrade-${{ steps.version.outputs.version }}-linux-x64.AppImage
+          path: appimage-out/zettatrade-*-linux-x64.AppImage
+
+      - name: Upload the .deb artifact (T-257)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zettatrade-${{ steps.version.outputs.version }}-linux-x64.deb
+          path: deb-out/zettatrade-*-linux-x64.deb
+
       - name: Compile the Windows installer (T-256)
         # The T-256 smoke script carries the whole leg: the version parse
         # (the props, the pipeline's single version source), a fresh
@@ -229,6 +319,10 @@ jobs:
           }
           $expected += "zettatrade-$version-linux-x64.tar.gz"
           $expected += "zettatrade-$version-win-x64-setup.exe"
+          $expected += "zettatrade-$version-osx-x64.dmg"
+          $expected += "zettatrade-$version-osx-arm64.dmg"
+          $expected += "zettatrade-$version-linux-x64.AppImage"
+          $expected += "zettatrade-$version-linux-x64.deb"
           foreach ($name in $expected) {
             $file = Get-Item -LiteralPath (Join-Path 'dist' $name) -ErrorAction SilentlyContinue
             if (-not $file) { throw "Missing release artifact: $name" }

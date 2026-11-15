@@ -212,6 +212,41 @@ per-machine mode, and its uninstaller removes only the installed files — the p
 (`%APPDATA%\ZettaTrade`, `%LOCALAPPDATA%\ZettaTrade`: settings, stores, logs, the
 DPAPI-protected secret store) survives the uninstall by design and a reinstall finds it.
 
+## macOS .dmg and the Linux doors (T-257)
+
+Since T-257 the osx legs also build `zettatrade-<version>-<rid>.dmg` (the app bundle
+`ZettaTrade.app` layout with `Contents/MacOS` carrying the same self-contained publish the
+zip wraps, a generated `Info.plist` and the bundled mark icon), and the linux leg builds
+`zettatrade-<version>-linux-x64.AppImage` and `zettatrade-<version>-linux-x64.deb` next to
+the tar.gz. All three ride the release's `zettatrade-<version>-sha256.txt` like every other
+artifact (the release job asserts their presence before the sums are written).
+
+What is unsigned, exactly: everything. The .dmg image and the `ZettaTrade.app` bundle inside
+it carry no Developer ID Application signature and no notarization ticket — notarization
+stays deferred until the Apple Developer account decision (the T-125 checklist); until then
+a browser-downloaded .dmg gets the quarantine attribute and macOS Gatekeeper blocks the
+first launch: right-click `ZettaTrade.app` and choose Open (or clear the quarantine
+attribute) after verifying the sums. The AppImage carries no signature — the tar.gz posture
+applies to it one-for-one. The .deb is unsigned too: it installs through `dpkg`/`apt`
+directly (not a signed repository), `dpkg` asks no signature questions, and the usual sums
+verification is the only integrity check.
+
+The .deb declares only the dependency floor the self-contained runtime genuinely links —
+`libc6`, `libfontconfig1`, `libx11-6`, `libssl3t64 | libssl3` (the alternatives chain covers
+the pre- and post-time64 library naming). The rest of the GUI surface (the desktop
+environment's X11 utilities, OpenGL, the icon theme) is not declared: every desktop distro
+ships it, and a server-side install still yields a working binary door. The deb installs to
+the fixed contract layout (`/usr/lib/zettatrade`, the `/usr/bin/zettatrade` launcher, the
+menu entry and the hicolor icon) and its uninstaller removes only those paths — the XDG
+profile roots (`~/.config/ZettaTrade`, `~/.local/share/ZettaTrade`,
+`~/.local/state/ZettaTrade`) are never touched by the package.
+
+Tooling note: the linux leg's AppImage build consumes `appimagetool` downloaded from the
+project's own release feed (`AppImage/appimagetool`, the `continuous` tag) and digest-pinned
+in the workflow. When that feed rebuilds, the release leg fails loudly with the mismatch;
+the re-pin is: review the new build log linked on the release page, then update the digest
+in the workflow and in this note.
+
 ## Profile backup (T-215)
 
 The profile backup (`ZettaTrade.Infrastructure/Backup/ProfileBackupService.cs`) writes and
