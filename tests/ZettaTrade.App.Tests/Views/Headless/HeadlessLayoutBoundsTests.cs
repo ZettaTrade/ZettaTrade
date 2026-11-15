@@ -108,16 +108,18 @@ public sealed class HeadlessLayoutBoundsTests
         {
             await HeadlessWorld.OnUi(() =>
             {
-                // The T-145 fold: four tab headers ride the strip — the
-                // six-tab fixed frame is retired. Each header re-inks
-                // from its own key, so the count and the catalog agree.
+                // The T-145 fold: five tab headers ride the strip — the
+                // six-tab fixed frame is retired and the Notifications tab
+                // stands (T-260). Each header re-inks from its own key, so
+                // the count and the catalog agree.
                 var tabs = HeadlessWorld.Descendants<TabItem>(window).ToList();
-                tabs.Should().HaveCount(4, "the folded strip carries exactly four tabs");
+                tabs.Should().HaveCount(5, "the folded strip carries exactly five tabs");
                 foreach (var (tab, key) in tabs.Zip(
                              new[]
                              {
                                  "Settings.Tab.Appearance", "Settings.Tab.Indicators",
                                  "Settings.Tab.Integrations", "Settings.Tab.Workspace",
+                                 "Settings.Tab.Notifications",
                              }))
                 {
                     var expected = LocalizationManager.Instance.GetString(key);
@@ -175,6 +177,7 @@ public sealed class HeadlessLayoutBoundsTests
                      {
                          "Settings.Tab.Appearance", "Settings.Tab.Indicators",
                          "Settings.Tab.Integrations", "Settings.Tab.Workspace",
+                         "Settings.Tab.Notifications",
                      })
             {
                 await SelectTabAsync(window, key);
@@ -215,7 +218,7 @@ public sealed class HeadlessLayoutBoundsTests
             await HeadlessWorld.OnUi(() =>
             {
                 var tabs = HeadlessWorld.Descendants<TabItem>(window).ToList();
-                tabs.Should().HaveCount(4, "the rail carries the four categories");
+                tabs.Should().HaveCount(5, "the rail carries the five categories");
                 tabs[0].IsSelected.Should().BeTrue("the window opens on the first category");
 
                 tabs[0].Focus();
@@ -259,13 +262,14 @@ public sealed class HeadlessLayoutBoundsTests
 
     /// <summary>
     /// The T-223 fold fact: every page's card headers are real toggles —
-    /// the four approved defaults open (the appearance card, the
-    /// indicators page's only card, MCP, pairs), seven collapsed — and
-    /// flipping one unfolds its body: the one-way IsChecked binding drives
-    /// the body's visibility while the checked style rotates the chevron
-    /// down. The walk rides the pages: the TabControl materializes one
-    /// page's content at a time, so the eleven toggles exist page by page
-    /// (3 + 1 + 5 + 2 across the four pages).
+    /// the five approved defaults open (the appearance card, the
+    /// indicators page's only card, the Telegram card, MCP, pairs), seven
+    /// collapsed — and flipping one unfolds its body: the one-way
+    /// IsChecked binding drives the body's visibility while the checked
+    /// style rotates the chevron down. The walk rides the pages: the
+    /// TabControl materializes one page's content at a time, so the twelve
+    /// toggles exist page by page (3 + 1 + 1 + 5 + 2 across the five
+    /// pages, the Telegram card riding since T-260).
     /// </summary>
     [Fact]
     public async Task TheSectionToggles_FoldTheCards()
@@ -281,6 +285,9 @@ public sealed class HeadlessLayoutBoundsTests
                     new[] { "ThemesFolderSectionToggle", "WizardSectionToggle" }),
                 ("Settings.Tab.Indicators",
                     new[] { "IndicatorsSectionToggle" },
+                    Array.Empty<string>()),
+                ("Settings.Tab.Notifications",
+                    new[] { "TelegramSectionToggle" },
                     Array.Empty<string>()),
                 ("Settings.Tab.Integrations",
                     new[] { "McpSectionToggle" },
@@ -316,7 +323,7 @@ public sealed class HeadlessLayoutBoundsTests
                 });
             }
 
-            total.Should().Be(11, "every card header folds: the pages materialize eleven toggles together");
+            total.Should().Be(12, "every card header folds: the pages materialize twelve toggles together");
 
             // The fold itself: the appearance page's theme-folder card opens
             // collapsed, so the flip makes the whole mechanics measurable —

@@ -95,13 +95,13 @@ public sealed class WindowLayoutPinsTests
     }
 
     [Fact]
-    public void TheSettingsWindow_FoldsToFourTabs()
+    public void TheSettingsWindow_FoldsToFiveTabs()
     {
         var source = SettingsXaml;
 
         Regex.Matches(source, "<TabItem Classes=\"rail-item\"").Should().HaveCount(
-            4,
-            "the six tabs fold: Appearance and Indicators stand, MCP+port ride Integrations, pairs+hotkeys ride Workspace (the header compositions open their own TabItem.Header tags)");
+            5,
+            "the tabs fold: Appearance, Indicators and Notifications stand, MCP+port ride Integrations, pairs+hotkeys ride Workspace (the header compositions open their own TabItem.Header tags)");
 
         source.Should().Contain(
             "Text=\"{loc:Localized Settings.Tab.Integrations}\"",
@@ -109,6 +109,9 @@ public sealed class WindowLayoutPinsTests
         source.Should().Contain(
             "Text=\"{loc:Localized Settings.Tab.Workspace}\"",
             "the workspace tab carries the folded pairs + hotkeys surface (the header composition's caption)");
+        source.Should().Contain(
+            "Text=\"{loc:Localized Settings.Tab.Notifications}\"",
+            "the notifications tab carries the Telegram sink's routing surface (T-260, the header composition's caption)");
 
         // The retired tab headers: gone from the strip (the folded
         // Integrations/Workspace captions ride the section-card headers).
@@ -147,6 +150,7 @@ public sealed class WindowLayoutPinsTests
     [Theory]
     [InlineData("Settings.Tab.Integrations")]
     [InlineData("Settings.Tab.Workspace")]
+    [InlineData("Settings.Tab.Notifications")]
     public void TheFoldedTabKeys_ResolveInBothCultures(string key)
     {
         Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)
@@ -164,7 +168,7 @@ public sealed class WindowLayoutPinsTests
             "<TabControl Classes=\"rail\" TabStripPlacement=\"Left\" SelectedIndex=\"{Binding SelectedTabIndex}\">",
             "the rail is the tab strip on the left placement with the view-model index binding, riding the flush panel over the backing strip (T-222)");
         Regex.Matches(source, "<TabItem Classes=\"rail-item\"").Should().HaveCount(
-            4,
+            5,
             "every category item rides the rail-item class");
         source.Should().Contain(
             "<Style Selector=\"TabItem.rail-item\">",
@@ -184,10 +188,10 @@ public sealed class WindowLayoutPinsTests
         var cards = SectionCardsXaml;
 
         Regex.Matches(source, "<Border Classes=\"section-card\"").Should().HaveCount(
-            11,
-            "the eleven sections: Appearance 3 (appearance + theme folder + first-run wizard), Indicators 1, Integrations 5 (MCP + AI chat + exchange credentials + import/export + profile backup), Workspace 2 (pairs + hotkeys)");
+            12,
+            "the twelve sections: Appearance 3 (appearance + theme folder + first-run wizard), Indicators 1, Notifications 1 (the Telegram sink, T-260), Integrations 5 (MCP + AI chat + exchange credentials + import/export + profile backup), Workspace 2 (pairs + hotkeys)");
         Regex.Matches(source, "<Border Classes=\"section-tick\" />").Should().HaveCount(
-            11,
+            12,
             "every section card carries the Accent tick header");
         source.Should().Contain(
             "<StyleInclude Source=\"avares://ZettaTrade.App/Themes/SectionCards.axaml\" />",
@@ -208,13 +212,14 @@ public sealed class WindowLayoutPinsTests
             "<Setter Property=\"CornerRadius\" Value=\"{StaticResource CornerM}\" />",
             "the cards ride the approved compact CornerM rounding (the variant-A card step, T-222)");
 
-        // The eleven header keys ride the pages (one per card, exactly).
+        // The twelve header keys ride the pages (one per card, exactly).
         foreach (var key in new[]
                  {
                      "Settings.Section.Appearance",
                      "Settings.Section.ThemesFolder",
                      "Settings.Section.Wizard",
                      "Settings.Section.Indicators",
+                     "Settings.Notif.Telegram.Title",
                      "Settings.Section.Mcp",
                      "Settings.Section.Ai",
                      "Settings.Section.Credentials",
@@ -244,27 +249,28 @@ public sealed class WindowLayoutPinsTests
         var source = SettingsXaml;
         var cards = SectionCardsXaml;
 
-        // The eleven card headers fold (T-227): every header is a named
-        // section toggle with the right-edge chevron, and every card body
-        // rides its own toggle's IsChecked — one-way, with an explicit
-        // IsChecked so no null state exists.
+        // The twelve card headers fold (T-227; the Telegram card rides the
+        // same grammar since T-260): every header is a named section toggle
+        // with the right-edge chevron, and every card body rides its own
+        // toggle's IsChecked — one-way, with an explicit IsChecked so no
+        // null state exists.
         Regex.Matches(source, "<ToggleButton x:Name=\"\\w+SectionToggle\"").Should().HaveCount(
-            11,
-            "every card header folds: eleven named section toggles");
+            12,
+            "every card header folds: twelve named section toggles");
         Regex.Matches(source, "<Path Classes=\"section-chevron\" Grid.Column=\"1\" />").Should().HaveCount(
-            11,
+            12,
             "every toggle carries the right-edge chevron mark");
         Regex.Matches(source, "IsChecked=\"True\"").Should().HaveCount(
-            4,
-            "four cards open by default: the appearance card, the indicators page's only card, MCP, pairs");
+            5,
+            "five cards open by default: the appearance card, the indicators page's only card, the Telegram card, MCP, pairs");
         Regex.Matches(source, "IsChecked=\"False\"").Should().HaveCount(
             7,
             "seven cards open collapsed: theme folder, first-run wizard, AI chat, exchange credentials, port, profile backup, hotkeys");
 
         foreach (var name in new[]
                  {
-                     "Appearance", "ThemesFolder", "Wizard", "Indicators", "Mcp",
-                     "Ai", "Credentials", "Port", "Backup", "Pairs", "Hotkeys",
+                     "Appearance", "ThemesFolder", "Wizard", "Indicators", "Telegram",
+                     "Mcp", "Ai", "Credentials", "Port", "Backup", "Pairs", "Hotkeys",
                  })
         {
             source.Should().Contain(
@@ -346,10 +352,10 @@ public sealed class WindowLayoutPinsTests
         // (the probe measured it), and the strokes bind the item's own
         // foreground so the selection's re-ink reaches them.
         Regex.Matches(source, Regex.Escape("<TabItem.Header>")).Should().HaveCount(
-            4,
+            5,
             "every rail caption rides a header composition");
         Regex.Matches(source, Regex.Escape("{Binding $parent[TabItem].Foreground}")).Should().HaveCount(
-            4,
+            5,
             "every rail icon's main stroke rides the item's own foreground");
     }
 
@@ -363,6 +369,7 @@ public sealed class WindowLayoutPinsTests
     [InlineData("Settings.Section.Port")]
     [InlineData("Settings.Section.Pairs")]
     [InlineData("Settings.Section.Hotkeys")]
+    [InlineData("Settings.Notif.Telegram.Title")]
     public void TheSectionHeaderKeys_ResolveInBothCultures(string key)
     {
         Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)

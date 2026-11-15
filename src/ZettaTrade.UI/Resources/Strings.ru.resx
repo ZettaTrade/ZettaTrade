@@ -2199,6 +2199,51 @@
   <data name="Notif.ToastHint" xml:space="preserve">
     <value>Нажатие закрывает уведомление; уведомление с панелью также откроет её.</value>
   </data>
+  <data name="Settings.Notif.Telegram.Title" xml:space="preserve">
+    <value>Уведомления в Telegram</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Fills" xml:space="preserve">
+    <value>Исполнения</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Fills.Hint" xml:space="preserve">
+    <value>Отправлять исполненные ордера в ваш собственный чат бота в Telegram.</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Cancels" xml:space="preserve">
+    <value>Отмены</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Cancels.Hint" xml:space="preserve">
+    <value>Отправлять принятые отмены в ваш собственный чат бота в Telegram.</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Rejects" xml:space="preserve">
+    <value>Отклонения</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Rejects.Hint" xml:space="preserve">
+    <value>Отправлять отклонённые ордера (с причиной биржи) в ваш собственный чат бота в Telegram.</value>
+  </data>
+  <data name="Settings.Notif.Telegram.ChatId" xml:space="preserve">
+    <value>ID чата</value>
+  </data>
+  <data name="Settings.Notif.Telegram.ChatId.Watermark" xml:space="preserve">
+    <value>числовой id чата бота</value>
+  </data>
+  <data name="Settings.Notif.Telegram.ChatId.Hint" xml:space="preserve">
+    <value>Числовой id чата, куда бот отправляет сообщения (напишите боту один раз и прочтите getUpdates). Применяется по кнопке «Сохранить».</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Token" xml:space="preserve">
+    <value>Токен бота</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Token.Watermark" xml:space="preserve">
+    <value>вставьте токен бота</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Token.Hint" xml:space="preserve">
+    <value>Токен вашего собственного бота, сохраняется в зашифрованное хранилище секретов в момент ввода — никогда не попадает в файл настроек. Пустое поле удаляет сохранённый токен.</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Note" xml:space="preserve">
+    <value>Всё отправляется через вашего собственного бота, по мере возможностей: неудачная отправка пишет предупреждение и никогда не трогает торговый поток. Тумблеры и id чата применяются по кнопке «Сохранить»; токен сохраняется сразу.</value>
+  </data>
+  <data name="Settings.Tab.Notifications" xml:space="preserve">
+    <value>Уведомления</value>
+  </data>
   <data name="Wizard.Title" xml:space="preserve">
     <value>Добро пожаловать в ZettaTrade</value>
   </data>

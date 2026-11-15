@@ -1574,6 +1574,103 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+
+            <!-- The notifications tab (T-260): the Telegram sink's routing
+                 rows — the per-kind opt-ins draft like every other selection
+                 (only Save applies; the sink reads its flags per send), the
+                 chat id drafts and saves with them, and the bot token
+                 commits to the secret store immediately per keystroke (the
+                 OpenAI key's shape — the store is the secret's only home,
+                 the box never echoes it). -->
+            <TabItem Classes="rail-item">
+                <TabItem.Header>
+                    <!-- The rail item's mark: the stroke bell beside the
+                         caption; the caption keeps the tab key. -->
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}" VerticalAlignment="Center">
+                        <Grid Width="16" Height="16">
+                            <Path Stroke="{Binding $parent[TabItem].Foreground}"
+                                  StrokeThickness="1.5"
+                                  Data="M 8 1.75 C 5.4 1.75 4.5 3.9 4.5 6 L 4.5 9.25 L 3 11.5 L 13 11.5 L 11.5 9.25 L 11.5 6 C 11.5 3.9 10.6 1.75 8 1.75 Z M 6.5 13 A 1.5 1.5 0 0 0 9.5 13" />
+                        </Grid>
+                        <TextBlock Text="{loc:Localized Settings.Tab.Notifications}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="{StaticResource SpaceL}" Margin="{StaticResource InsetL}">
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <ToggleButton x:Name="TelegramSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="True"
+                                              AutomationProperties.AutomationId="TelegramSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Notif.Telegram.Title}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="TelegramSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #TelegramSectionToggle.IsChecked}">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                                          ColumnDefinitions="Auto,*"
+                                          RowSpacing="{StaticResource SpaceM}"
+                                          ColumnSpacing="{StaticResource SpaceS}">
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Telegram.Fills}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="0" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="TelegramFillsCheckBox"
+                                                  IsChecked="{Binding IsTelegramFillsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Telegram.Fills.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Telegram.Cancels}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="1" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="TelegramCancelsCheckBox"
+                                                  IsChecked="{Binding IsTelegramCancelsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Telegram.Cancels.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Telegram.Rejects}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="2" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="TelegramRejectsCheckBox"
+                                                  IsChecked="{Binding IsTelegramRejectsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Telegram.Rejects.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Telegram.ChatId}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="3" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="TelegramChatIdTextBox"
+                                                 Text="{Binding TelegramChatIdDraft}"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Telegram.ChatId.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Telegram.ChatId.Hint}" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Telegram.Token}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="4" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="TelegramBotTokenTextBox"
+                                                 Text="{Binding TelegramBotTokenDraft}"
+                                                 PasswordChar="●"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Telegram.Token.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Telegram.Token.Hint}" />
+                                    </Grid>
+                                    <TextBlock Text="{loc:Localized Settings.Notif.Telegram.Note}"
+                                               TextWrapping="Wrap"
+                                               />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
         </Panel>
 

@@ -412,12 +412,14 @@ internal static class CompositionRoot
         services.AddOrderHistory();
         services.AddNotificationServices(); // T-097: the notification center (toasts, history, DND) over the journal + health taps above.
 
-        // The Telegram trade notifications (T-041): the best-effort sink over
-        // the center's trade events (opt-in per kind, the bot token in the
-        // secret store). Registered AFTER the notification services (the
-        // bridge rides the center's event lane) and AFTER the trading-mode
-        // registration (the message's paper/live tag reads its lane stream).
-        services.AddTelegramNotificationServices();
+        // The trade-notification sinks (T-260): the best-effort sink fleet
+        // over the center's trade events (opt-in per kind, the bot token in
+        // the secret store — Telegram first, T-041; the webhook batch rides
+        // the same INotificationSink contract next, T-261). Registered AFTER
+        // the notification services (the bridge rides the center's event
+        // lane) and AFTER the trading-mode registration (the message's
+        // paper/live tag reads its lane stream).
+        services.AddNotificationSinkServices();
 
         // The update checker (T-213): the periodic (and manual) GitHub
         // Releases check. Registered AFTER the notification services it

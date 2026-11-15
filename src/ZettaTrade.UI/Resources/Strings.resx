@@ -2199,6 +2199,51 @@ Estimated fee: {10}</value>
   <data name="Notif.ToastHint" xml:space="preserve">
     <value>Click to dismiss; a routed toast also opens its panel.</value>
   </data>
+  <data name="Settings.Notif.Telegram.Title" xml:space="preserve">
+    <value>Telegram notifications</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Fills" xml:space="preserve">
+    <value>Fills</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Fills.Hint" xml:space="preserve">
+    <value>Push a journaled fill to your own Telegram bot chat.</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Cancels" xml:space="preserve">
+    <value>Cancellations</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Cancels.Hint" xml:space="preserve">
+    <value>Push an accepted cancellation to your own Telegram bot chat.</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Rejects" xml:space="preserve">
+    <value>Rejections</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Rejects.Hint" xml:space="preserve">
+    <value>Push a rejected order (with the venue's reason) to your own Telegram bot chat.</value>
+  </data>
+  <data name="Settings.Notif.Telegram.ChatId" xml:space="preserve">
+    <value>Chat ID</value>
+  </data>
+  <data name="Settings.Notif.Telegram.ChatId.Watermark" xml:space="preserve">
+    <value>the bot chat's numeric id</value>
+  </data>
+  <data name="Settings.Notif.Telegram.ChatId.Hint" xml:space="preserve">
+    <value>The numeric id of the chat your bot pushes into (message the bot once and read getUpdates). Applies on Save.</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Token" xml:space="preserve">
+    <value>Bot token</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Token.Watermark" xml:space="preserve">
+    <value>paste the bot token</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Token.Hint" xml:space="preserve">
+    <value>Your own bot's token, stored in the encrypted secret store the moment you type it — never in the settings file. An emptied box removes the stored token.</value>
+  </data>
+  <data name="Settings.Notif.Telegram.Note" xml:space="preserve">
+    <value>Everything sends through your own bot, best-effort: a failed push logs a warning and never touches the trading flow. The toggles and the chat id apply on Save; the token stores immediately.</value>
+  </data>
+  <data name="Settings.Tab.Notifications" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
   <data name="Wizard.Title" xml:space="preserve">
     <value>Welcome to ZettaTrade</value>
   </data>

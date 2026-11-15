@@ -69,13 +69,14 @@ public sealed class HeadlessSettingsRailTests
             ["Error"] = "#ef4444",
         };
 
-    /// <summary>The rail's four categories in strip order.</summary>
+    /// <summary>The rail's five categories in strip order.</summary>
     private static readonly string[] RailKeys =
     {
         "Settings.Tab.Appearance",
         "Settings.Tab.Indicators",
         "Settings.Tab.Integrations",
         "Settings.Tab.Workspace",
+        "Settings.Tab.Notifications",
     };
 
     /// <summary>
@@ -162,7 +163,7 @@ public sealed class HeadlessSettingsRailTests
             await HeadlessWorld.OnUi(() =>
             {
                 var tabs = HeadlessWorld.Descendants<TabItem>(window).ToList();
-                tabs.Should().HaveCount(4, "the rail's four categories materialize");
+                tabs.Should().HaveCount(5, "the rail's five categories materialize");
                 tabs.Select(tab => tab.TabStripPlacement)
                     .Should().OnlyContain(
                         placement => placement == Dock.Left,
@@ -226,7 +227,7 @@ public sealed class HeadlessSettingsRailTests
             await HeadlessWorld.OnUi(() =>
             {
                 var tabs = HeadlessWorld.Descendants<TabItem>(window).ToList();
-                tabs.Should().HaveCount(4, "the rail's four categories materialize");
+                tabs.Should().HaveCount(5, "the rail's five categories materialize");
 
                 foreach (var (tab, key) in tabs.Zip(RailKeys))
                 {

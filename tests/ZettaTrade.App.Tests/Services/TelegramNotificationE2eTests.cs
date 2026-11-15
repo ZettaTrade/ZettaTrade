@@ -19,14 +19,15 @@ using ZettaTrade.Infrastructure.Notifications;
 using static ZettaTrade.App.Tests.Services.TelegramSinkFixtures;
 
 /// <summary>
-/// The Telegram trade-notification's e2e walk (T-041): a real notification
-/// center publishes a journaled trade outcome, the real bridge filters and
-/// composes it, and the real sink pushes it through the production-shaped
-/// named HttpClient — all against the loopback Bot API stub, so the wire
-/// facts (the token-bearing path, the chat id, the composed text) are the
-/// pinned goldens. The degrade lane stays best-effort end to end: a failed
-/// push is the sink's one logged warning, the bridge's lane stays clean and
-/// the center keeps serving.
+/// The trade-notification's e2e walk (T-260 over the T-041 walk): a real
+/// notification center publishes a journaled trade outcome, the real
+/// bridge maps and fans it out, and the real Telegram sink composes and
+/// pushes it through the production-shaped named HttpClient — all against
+/// the loopback Bot API stub, so the wire facts (the token-bearing path,
+/// the chat id, the composed text) are the pinned goldens. The degrade
+/// lane stays best-effort end to end: a failed push is the sink's one
+/// logged warning, the bridge's lane stays clean and the center keeps
+/// serving.
 /// </summary>
 public sealed class TelegramNotificationE2eTests
 {
@@ -79,9 +80,10 @@ public sealed class TelegramNotificationE2eTests
     #region Tests: the quiet unconfigured state
 
     /// <summary>
-    /// With the fills opt-in off, a journal fill dispatches nothing (the
-    /// trap stays parked) and logs nothing loud — the unconfigured state is
-    /// quiet on both the bridge's and the sink's own lanes.
+    /// With the fills opt-in off, a journal fill dispatches (the bridge
+    /// only maps — the routing is the sink's own) but nothing reaches the
+    /// stub, and nothing logs loud — the unconfigured state is quiet on
+    /// both the bridge's and the sink's own lanes.
     /// </summary>
     [Fact]
     public async Task AFlagOff_QuietlySendsNothing()
@@ -90,7 +92,8 @@ public sealed class TelegramNotificationE2eTests
         var trap = rig.Api.ServeAsync(200, """{"ok":true}""");
 
         rig.Center.PublishTradeOutcome(BuildOrder(OrderStatus.Filled, filled: 0.02m));
-        await Task.Delay(200);
+        await rig.Bridge.LastDispatchForTests;
+        await Task.Delay(100);
 
         trap.IsCompleted.Should().BeFalse("the fills opt-in is off — nothing reached the stub");
         rig.SinkLogger.Entries.Should().NotContain(entry => entry.Level >= LogLevel.Warning);
@@ -113,7 +116,7 @@ public sealed class TelegramNotificationE2eTests
         var failed = rig.Api.ServeAsync(500, """{"ok":false,"description":"internal bot error"}""");
 
         rig.Center.PublishTradeOutcome(BuildOrder(OrderStatus.Filled, filled: 0.02m));
-        await rig.Bridge.LastSendForTests;
+        await rig.Bridge.LastDispatchForTests;
         await failed;
 
         rig.SinkLogger.Entries.Should().ContainSingle(
@@ -125,7 +128,7 @@ public sealed class TelegramNotificationE2eTests
 
         var served = rig.Api.ServeAsync(200, """{"ok":true}""");
         rig.Center.PublishTradeOutcome(BuildOrder(OrderStatus.Filled, filled: 0.01m));
-        await rig.Bridge.LastSendForTests;
+        await rig.Bridge.LastDispatchForTests;
         var captured = await served;
 
         captured.Body.Should().Contain("0.01000000", "the center keeps serving past the failed push");
@@ -138,7 +141,8 @@ public sealed class TelegramNotificationE2eTests
     /// <summary>
     /// One wired e2e rig: the loopback stub, the production-shaped named
     /// HttpClient factory transport, the opted-in settings, the stubbed
-    /// secret store, the real notification center and the real bridge.
+    /// secret store, the real notification center, the real bridge and the
+    /// real Telegram sink composing inside itself.
     /// </summary>
     private sealed class E2eRig : IAsyncDisposable
     {
@@ -146,8 +150,8 @@ public sealed class TelegramNotificationE2eTests
             LoopbackTelegramApi api,
             ServiceProvider provider,
             NotificationCenter center,
-            TelegramNotificationBridge bridge,
-            SpyLogger<TelegramNotificationBridge> bridgeLogger,
+            TradeNotificationBridge bridge,
+            SpyLogger<TradeNotificationBridge> bridgeLogger,
             SpyLogger<TelegramNotifierService> sinkLogger)
         {
             Api = api;
@@ -164,9 +168,9 @@ public sealed class TelegramNotificationE2eTests
 
         internal NotificationCenter Center { get; }
 
-        internal TelegramNotificationBridge Bridge { get; }
+        internal TradeNotificationBridge Bridge { get; }
 
-        internal SpyLogger<TelegramNotificationBridge> BridgeLogger { get; }
+        internal SpyLogger<TradeNotificationBridge> BridgeLogger { get; }
 
         internal SpyLogger<TelegramNotifierService> SinkLogger { get; }
 
@@ -193,31 +197,35 @@ public sealed class TelegramNotificationE2eTests
             var transport = new TelegramBotClient(provider.GetRequiredService<IHttpClientFactory>());
 
             var sinkLogger = new SpyLogger<TelegramNotifierService>();
-            var notifier = new TelegramNotifierService(settings, secrets, transport, sinkLogger);
+            var notifier = new TelegramNotifierService(
+                settings,
+                secrets,
+                transport,
+                new ResxCatalogLocalization("en"),
+                sinkLogger);
 
             var center = new NotificationCenter(
                 settings,
                 NullLogger<NotificationCenter>.Instance,
                 TimeSpan.FromMilliseconds(100));
 
-            var bridgeLogger = new SpyLogger<TelegramNotificationBridge>();
-            var bridge = new TelegramNotificationBridge(
+            var bridgeLogger = new SpyLogger<TradeNotificationBridge>();
+            var bridge = new TradeNotificationBridge(
                 center.Events,
                 new BehaviorSubject<TradingLane>(TradingLane.Paper),
-                notifier,
-                new ResxCatalogLocalization("en"),
+                [notifier],
                 bridgeLogger);
             await bridge.InitializeAsync();
 
             return new E2eRig(api, provider, center, bridge, bridgeLogger, sinkLogger);
         }
 
-        /// <summary>Publish one journaled outcome and await its push deterministically: the tracked send handle rides the stub's capture.</summary>
+        /// <summary>Publish one journaled outcome and await its push deterministically: the tracked dispatch handle rides the stub's capture.</summary>
         internal async Task<LoopbackTelegramApi.CapturedTelegramRequest> PublishAndAwaitPushAsync(Order order)
         {
             var serve = Api.ServeAsync(200, """{"ok":true}""");
             Center.PublishTradeOutcome(order);
-            await Bridge.LastSendForTests;
+            await Bridge.LastDispatchForTests;
             return await serve;
         }
 

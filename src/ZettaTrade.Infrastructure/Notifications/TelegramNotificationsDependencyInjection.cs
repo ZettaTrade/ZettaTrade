@@ -6,13 +6,15 @@ using Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// DI wiring of the Telegram trade-notification sink's transport (T-041):
 /// the named HttpClient the Bot API sends ride (the bounded request timeout
-/// included), the Bot API client and the best-effort notifier service.
-/// The App composition calls this, then registers the event bridge that
-/// feeds the sink from the notification center's trade events.
+/// included), the Bot API client and the best-effort notifier service —
+/// registered as itself AND as an <see cref="INotificationSink"/>, so the
+/// App bridge's sink fleet (T-260) picks it up beside the sinks that
+/// follow. The App composition calls this, then registers the event bridge
+/// that feeds the fleet from the notification center's trade events.
 /// </summary>
 public static class TelegramNotificationsDependencyInjection
 {
-    /// <summary>Register the Telegram transport stack: the named client, the Bot API client and the notifier.</summary>
+    /// <summary>Register the Telegram transport stack: the named client, the Bot API client and the sink (concrete + contract).</summary>
     /// <param name="services">The application's service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
     public static IServiceCollection AddTelegramNotificationApi(this IServiceCollection services)
@@ -27,6 +29,7 @@ public static class TelegramNotificationsDependencyInjection
 
         return services
             .AddSingleton<TelegramBotClient>()
-            .AddSingleton<TelegramNotifierService>();
+            .AddSingleton<TelegramNotifierService>()
+            .AddSingleton<INotificationSink>(sp => sp.GetRequiredService<TelegramNotifierService>());
     }
 }

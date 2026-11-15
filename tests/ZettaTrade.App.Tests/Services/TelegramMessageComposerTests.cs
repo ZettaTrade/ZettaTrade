@@ -4,18 +4,19 @@ using System;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Xunit;
-using ZettaTrade.App.Services;
 using ZettaTrade.Core.Enums;
+using ZettaTrade.Infrastructure.Notifications;
 
 using static ZettaTrade.App.Tests.Services.TelegramSinkFixtures;
 
 /// <summary>
-/// The Telegram trade message's composition goldens (T-041): the composed
-/// line speaks the app's shipped catalog exactly — the English and the
-/// Russian fill/cancel/rejection wordings ride the resx templates with the
+/// The Telegram trade message's composition goldens (T-041; the composer
+/// moved into the sink's own assembly by T-260): the composed line speaks
+/// the app's shipped catalog exactly — the English and the Russian
+/// fill/cancel/rejection wordings ride the resx templates with the
 /// journaled row's own facts (the side's localized word, the invariant F8
 /// numbers, the exchange id, the lane's tag word). A fill whose event
-/// carries no price fact and a kind the sink has no vocabulary for are
+/// carries no price fact and a kind the composer has no vocabulary for are
 /// composition faults — never a fabricated line.
 /// </summary>
 public sealed class TelegramMessageComposerTests
@@ -27,15 +28,8 @@ public sealed class TelegramMessageComposerTests
     public void AnEnglishFill_ComposesTheCatalogLine()
     {
         var message = ComposeEnglish(
-            Notification.ForJournalOutcome(
-                NotificationKind.OrderFill,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero),
-                "BTC/USDT",
-                OrderSide.Buy,
-                0.5m,
-                price: 67_000m,
-                exchange: "bybit"),
-            TradingLane.Paper);
+            FillEvent(price: 67_000m, exchange: "bybit"),
+            TradeNotificationLane.Paper);
 
         message.Should().Be("Buy 0.50000000 BTC/USDT filled at 67000.00000000 — bybit (Paper)");
     }
@@ -46,15 +40,8 @@ public sealed class TelegramMessageComposerTests
     {
         var message = Compose(
             "ru",
-            Notification.ForJournalOutcome(
-                NotificationKind.OrderFill,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero),
-                "BTC/USDT",
-                OrderSide.Buy,
-                0.5m,
-                price: 67_000m,
-                exchange: "bybit"),
-            TradingLane.Paper);
+            FillEvent(price: 67_000m, exchange: "bybit"),
+            TradeNotificationLane.Paper);
 
         message.Should().Be("Купить 0.50000000 BTC/USDT исполнено по 67000.00000000 — bybit (Симулятор)");
     }
@@ -64,15 +51,13 @@ public sealed class TelegramMessageComposerTests
     public void ASellFill_CarriesTheSellWord_TheF8Numbers_AndTheLaneTag()
     {
         var message = ComposeEnglish(
-            Notification.ForJournalOutcome(
-                NotificationKind.OrderFill,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero),
-                "ETH/USDT",
-                OrderSide.Sell,
-                1234.5m,
+            FillEvent(
+                symbol: "ETH/USDT",
+                side: OrderSide.Sell,
+                quantity: 1234.5m,
                 price: 3400.5m,
                 exchange: "paper"),
-            TradingLane.Testnet);
+            TradeNotificationLane.Testnet);
 
         message.Should().Be("Sell 1234.50000000 ETH/USDT filled at 3400.50000000 — paper (Testnet)");
     }
@@ -86,14 +71,8 @@ public sealed class TelegramMessageComposerTests
     public void ACancelWithSymbol_ComposesTheSymbolLine()
     {
         var message = ComposeEnglish(
-            Notification.ForJournalOutcome(
-                NotificationKind.OrderCancel,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero),
-                "BTC/USDT",
-                OrderSide.Buy,
-                0m,
-                exchange: "bybit"),
-            TradingLane.Paper);
+            TradeEvent(TradeNotificationKind.Cancel, "BTC/USDT", exchange: "bybit"),
+            TradeNotificationLane.Paper);
 
         message.Should().Be("BTC/USDT order cancelled — bybit (Paper)");
     }
@@ -104,14 +83,8 @@ public sealed class TelegramMessageComposerTests
     {
         var message = Compose(
             "ru",
-            Notification.ForJournalOutcome(
-                NotificationKind.OrderCancel,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero),
-                "BTC/USDT",
-                OrderSide.Buy,
-                0m,
-                exchange: "bybit"),
-            TradingLane.Paper);
+            TradeEvent(TradeNotificationKind.Cancel, "BTC/USDT", exchange: "bybit"),
+            TradeNotificationLane.Paper);
 
         message.Should().Be("Ордер отменён: BTC/USDT — bybit (Симулятор)");
     }
@@ -121,14 +94,8 @@ public sealed class TelegramMessageComposerTests
     public void ACancelWithoutSymbol_ComposesTheSymbollessLine()
     {
         var message = ComposeEnglish(
-            Notification.ForJournalOutcome(
-                NotificationKind.OrderCancel,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero),
-                string.Empty,
-                OrderSide.Buy,
-                0m,
-                exchange: "paper"),
-            TradingLane.Paper);
+            TradeEvent(TradeNotificationKind.Cancel, string.Empty, exchange: "paper"),
+            TradeNotificationLane.Paper);
 
         message.Should().Be("Order cancelled — paper (Paper)");
     }
@@ -142,15 +109,12 @@ public sealed class TelegramMessageComposerTests
     public void AReject_ComposesTheCatalogLine()
     {
         var message = ComposeEnglish(
-            Notification.ForJournalOutcome(
-                NotificationKind.OrderReject,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero),
+            TradeEvent(
+                TradeNotificationKind.Reject,
                 "BTC/USDT",
-                OrderSide.Buy,
-                0.02m,
-                reason: "the venue refused the price",
-                exchange: "bybit"),
-            TradingLane.Paper);
+                exchange: "bybit",
+                reason: "the venue refused the price"),
+            TradeNotificationLane.Paper);
 
         message.Should().Be("Order rejected: BTC/USDT — the venue refused the price (bybit, Paper)");
     }
@@ -161,15 +125,12 @@ public sealed class TelegramMessageComposerTests
     {
         var message = Compose(
             "ru",
-            Notification.ForJournalOutcome(
-                NotificationKind.OrderReject,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero),
+            TradeEvent(
+                TradeNotificationKind.Reject,
                 "BTC/USDT",
-                OrderSide.Buy,
-                0.02m,
-                reason: "отказ по цене",
-                exchange: "bybit"),
-            TradingLane.Paper);
+                exchange: "bybit",
+                reason: "отказ по цене"),
+            TradeNotificationLane.Paper);
 
         message.Should().Be("Ордер отклонён: BTC/USDT — отказ по цене (bybit, Симулятор)");
     }
@@ -183,29 +144,20 @@ public sealed class TelegramMessageComposerTests
     public void AFillWithoutPriceFact_FaultsTheComposition()
     {
         var act = () => ComposeEnglish(
-            Notification.ForJournalOutcome(
-                NotificationKind.OrderFill,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero),
-                "BTC/USDT",
-                OrderSide.Buy,
-                0.5m,
-                exchange: "bybit"),
-            TradingLane.Paper);
+            FillEvent(exchange: "bybit", price: null),
+            TradeNotificationLane.Paper);
 
         act.Should().Throw<InvalidOperationException>(
             "the message would fabricate a price the event surface does not carry");
     }
 
-    /// <summary>A kind the sink has no vocabulary for is a pipeline design fault, never a silently substituted line.</summary>
+    /// <summary>A kind the composer has no vocabulary for is a pipeline design fault, never a silently substituted line.</summary>
     [Fact]
     public void AnUncomposedKind_FaultsTheComposition()
     {
         var act = () => ComposeEnglish(
-            Notification.ForAdapterState(
-                "Paper",
-                AdapterHealthState.Connected,
-                new DateTimeOffset(2026, 11, 15, 9, 0, 5, TimeSpan.Zero)),
-            TradingLane.Paper);
+            TradeEvent((TradeNotificationKind)999),
+            TradeNotificationLane.Paper);
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -214,14 +166,44 @@ public sealed class TelegramMessageComposerTests
 
     #region Helpers
 
+    /// <summary>One mapped fill event with the canonical facts (each overridable for the golden's shape).</summary>
+    private static TradeNotificationEvent FillEvent(
+        string symbol = "BTC/USDT",
+        OrderSide side = OrderSide.Buy,
+        decimal quantity = 0.5m,
+        decimal? price = 50_000m,
+        string exchange = "paper") => new(
+        TradeNotificationKind.Fill,
+        symbol,
+        side,
+        quantity,
+        price,
+        exchange,
+        string.Empty,
+        TradeNotificationLane.Paper);
+
+    /// <summary>One mapped trade event of any kind (the price stays off — only fills carry one).</summary>
+    private static TradeNotificationEvent TradeEvent(
+        TradeNotificationKind kind,
+        string symbol = "BTC/USDT",
+        string exchange = "paper",
+        string reason = "") => new(
+        kind,
+        symbol,
+        OrderSide.Buy,
+        0.02m,
+        null,
+        exchange,
+        reason,
+        TradeNotificationLane.Paper);
+
     /// <summary>Compose under the English catalog (the shipped default language).</summary>
-    private static string ComposeEnglish(Notification source, TradingLane lane) => Compose("en", source, lane);
+    private static string ComposeEnglish(TradeNotificationEvent tradeEvent, TradeNotificationLane lane) => Compose("en", tradeEvent, lane);
 
     /// <summary>Compose under the seeded catalog language.</summary>
-    private static string Compose(string cultureCode, Notification source, TradingLane lane) =>
+    private static string Compose(string cultureCode, TradeNotificationEvent tradeEvent, TradeNotificationLane lane) =>
         TelegramMessageComposer.Compose(
-            source,
-            lane,
+            tradeEvent with { Lane = lane },
             new ResxCatalogLocalization(cultureCode));
 
     #endregion Helpers

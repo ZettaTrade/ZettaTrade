@@ -17,6 +17,7 @@ using ZettaTrade.Core.ValueObjects;
 using ZettaTrade.Infrastructure.Backup;
 using ZettaTrade.Infrastructure.Configuration;
 using ZettaTrade.Infrastructure.Exchange;
+using ZettaTrade.Infrastructure.Notifications;
 using ZettaTrade.Infrastructure.Shell;
 using ZettaTrade.UI.Extensions;
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
@@ -379,6 +380,55 @@ public sealed class SettingsViewModel : ReactiveObject
     {
         get => _isAutoUpdateEnabled;
         set => this.RaiseAndSetIfChanged(ref _isAutoUpdateEnabled, value);
+    }
+
+    /// <summary>
+    /// Whether the Telegram sink pushes fills (T-260). A selection like
+    /// every other one here: applies only on the explicit Save — the
+    /// persisted write lands and the sink reads its flags per send (no
+    /// restart; the next journaled outcome honors the saved choice).
+    /// </summary>
+    public bool IsTelegramFillsEnabled
+    {
+        get => _isTelegramFillsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isTelegramFillsEnabled, value);
+    }
+
+    /// <summary>Whether the Telegram sink pushes cancellations (T-260; the same draft/save contract as the fills toggle).</summary>
+    public bool IsTelegramCancelsEnabled
+    {
+        get => _isTelegramCancelsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isTelegramCancelsEnabled, value);
+    }
+
+    /// <summary>Whether the Telegram sink pushes rejections (T-260; the same draft/save contract as the fills toggle).</summary>
+    public bool IsTelegramRejectsEnabled
+    {
+        get => _isTelegramRejectsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isTelegramRejectsEnabled, value);
+    }
+
+    /// <summary>
+    /// The Telegram sink's chat id draft (T-260): the user's own bot
+    /// chat's numeric id. A text draft like every other one here — applies
+    /// only on the explicit Save (trimmed; the sink reads it per send).
+    /// </summary>
+    public string TelegramChatIdDraft
+    {
+        get => _telegramChatIdDraft;
+        set => this.RaiseAndSetIfChanged(ref _telegramChatIdDraft, value);
+    }
+
+    /// <summary>
+    /// The Telegram bot token's draft box (T-260): the box stays empty on
+    /// every open (the secret never echoes); every typed keystroke commits
+    /// to the secret store immediately (the OpenAI key's shape) and an
+    /// emptied box removes the stored token (a clear is a real intent).
+    /// </summary>
+    public string TelegramBotTokenDraft
+    {
+        get => _telegramBotTokenDraft;
+        set => this.RaiseAndSetIfChanged(ref _telegramBotTokenDraft, value);
     }
 
     /// <summary>
@@ -833,6 +883,41 @@ public sealed class SettingsViewModel : ReactiveObject
     /// <summary>The unsaved auto-update checkbox (the draft the save applies).</summary>
     private bool _isAutoUpdateEnabled;
 
+    /// <summary>The Telegram fills opt-in's persisted cache (the seed reads refresh it; the save compares against it).</summary>
+    private bool _persistedTelegramFillsEnabled = TelegramNotifierService.DefaultEnabled;
+
+    /// <summary>The Telegram cancellations opt-in's persisted cache.</summary>
+    private bool _persistedTelegramCancelsEnabled = TelegramNotifierService.DefaultEnabled;
+
+    /// <summary>The Telegram rejections opt-in's persisted cache.</summary>
+    private bool _persistedTelegramRejectsEnabled = TelegramNotifierService.DefaultEnabled;
+
+    /// <summary>The Telegram chat id's persisted cache.</summary>
+    private string _persistedTelegramChatId = TelegramNotifierService.DefaultChatId;
+
+    /// <summary>The drafted Telegram fills opt-in (the checkbox holds it until the save applies).</summary>
+    private bool _isTelegramFillsEnabled;
+
+    /// <summary>The drafted Telegram cancellations opt-in.</summary>
+    private bool _isTelegramCancelsEnabled;
+
+    /// <summary>The drafted Telegram rejections opt-in.</summary>
+    private bool _isTelegramRejectsEnabled;
+
+    /// <summary>The drafted Telegram chat id.</summary>
+    private string _telegramChatIdDraft = string.Empty;
+
+    /// <summary>The drafted Telegram bot token (always empty between keystrokes — the secret never echoes).</summary>
+    private string _telegramBotTokenDraft = string.Empty;
+
+    /// <summary>
+    /// The token commit's re-seed guard: the construction and the open
+    /// resets clear the draft box without ever committing (a re-seed must
+    /// never queue a deleting commit behind it — checked at emission time,
+    /// the OpenAI key's exact shape).
+    /// </summary>
+    private bool _telegramTokenCommitSuppressed;
+
     /// <summary>
     /// The persisted update-channel choice as last read (T-258, the
     /// canonical stored spelling): the combo drafts index from it on every
@@ -1246,6 +1331,79 @@ public sealed class SettingsViewModel : ReactiveObject
                 channel => _persistedUpdateChannel = channel,
                 ex => _logger.LogError(ex, "The update channel stream stopped unexpectedly"));
 
+        // The Telegram sink routing (T-260): the same seed + changes
+        // pattern as the update toggles; the choice drafts the checkbox and
+        // the save applies it (the sink reads its flags and the chat id per
+        // send, so no restart is involved). The keys ride the sink's own
+        // constants — the routing is the sink's own surface.
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                TelegramNotifierService.SettingsSection,
+                TelegramNotifierService.FillsEnabledKey,
+                TelegramNotifierService.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedTelegramFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Telegram fills opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == TelegramNotifierService.SettingsSection &&
+                             change.Key == TelegramNotifierService.FillsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedTelegramFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Telegram fills opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                TelegramNotifierService.SettingsSection,
+                TelegramNotifierService.CancelsEnabledKey,
+                TelegramNotifierService.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedTelegramCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Telegram cancels opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == TelegramNotifierService.SettingsSection &&
+                             change.Key == TelegramNotifierService.CancelsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedTelegramCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Telegram cancels opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                TelegramNotifierService.SettingsSection,
+                TelegramNotifierService.RejectsEnabledKey,
+                TelegramNotifierService.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedTelegramRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Telegram rejects opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == TelegramNotifierService.SettingsSection &&
+                             change.Key == TelegramNotifierService.RejectsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedTelegramRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Telegram rejects opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                TelegramNotifierService.SettingsSection,
+                TelegramNotifierService.ChatIdKey,
+                TelegramNotifierService.DefaultChatId))
+            .Subscribe(
+                chatId => _persistedTelegramChatId = chatId,
+                ex => _logger.LogError(ex, "Failed to read the Telegram chat id"));
+
+        _settings.Changes
+            .Where(change => change.Section == TelegramNotifierService.SettingsSection &&
+                             change.Key == TelegramNotifierService.ChatIdKey)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                chatId => _persistedTelegramChatId = chatId,
+                ex => _logger.LogError(ex, "The Telegram chat id stream stopped unexpectedly"));
+
         // The host's honest state (running / stopped / failed): the three
         // rows derive and rise on every transition; both subscriptions
         // mirror the app-lifetime singleton.
@@ -1364,6 +1522,22 @@ public sealed class SettingsViewModel : ReactiveObject
                 _ => CommitOpenAiApiKeyAsync(),
                 ex => _logger.LogError(ex, "Failed to store the OpenAI-compatible API key"));
         _aiKeyCommitSuppressed = false;
+
+        // The Telegram bot token commits immediately (per keystroke) too
+        // (T-260): the secret store is the token's only home, so there is no
+        // save step to hold it — the OpenAI key's exact shape. The guard
+        // keeps the VM's own re-seeds out of the pipeline: the construction
+        // and the window-open resets clear the box without ever committing
+        // (a re-seed must never queue a deleting commit behind it). A
+        // store-less construction commits nothing (memory-only).
+        _telegramTokenCommitSuppressed = true;
+        this
+            .WhenAnyValue(vm => vm.TelegramBotTokenDraft)
+            .Where(_ => !_telegramTokenCommitSuppressed)
+            .SubscribeAsync(
+                _ => CommitTelegramBotTokenAsync(),
+                ex => _logger.LogError(ex, "Failed to store the Telegram bot token"));
+        _telegramTokenCommitSuppressed = false;
 
         // The pairs tab's commands act on a pick: no pick, no move. A hide
         // move needs an unstarred pick (a starred pair never hides — that is
@@ -1645,6 +1819,47 @@ public sealed class SettingsViewModel : ReactiveObject
                 AppSettingsKeys.UpdateChannel,
                 updateChannelName);
             _persistedUpdateChannel = updateChannelName;
+        }
+
+        // The Telegram sink routing (T-260): only a real difference applies
+        // (the same no-op discipline every other row keeps). No live apply
+        // is needed — the sink reads its flags per send, so the next
+        // journaled outcome honors the saved choice.
+        if (_isTelegramFillsEnabled != _persistedTelegramFillsEnabled)
+        {
+            await _settings.SetAsync(
+                TelegramNotifierService.SettingsSection,
+                TelegramNotifierService.FillsEnabledKey,
+                _isTelegramFillsEnabled);
+            _persistedTelegramFillsEnabled = _isTelegramFillsEnabled;
+        }
+
+        if (_isTelegramCancelsEnabled != _persistedTelegramCancelsEnabled)
+        {
+            await _settings.SetAsync(
+                TelegramNotifierService.SettingsSection,
+                TelegramNotifierService.CancelsEnabledKey,
+                _isTelegramCancelsEnabled);
+            _persistedTelegramCancelsEnabled = _isTelegramCancelsEnabled;
+        }
+
+        if (_isTelegramRejectsEnabled != _persistedTelegramRejectsEnabled)
+        {
+            await _settings.SetAsync(
+                TelegramNotifierService.SettingsSection,
+                TelegramNotifierService.RejectsEnabledKey,
+                _isTelegramRejectsEnabled);
+            _persistedTelegramRejectsEnabled = _isTelegramRejectsEnabled;
+        }
+
+        var telegramChatIdDraft = TelegramChatIdDraft.Trim();
+        if (!string.Equals(telegramChatIdDraft, _persistedTelegramChatId, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                TelegramNotifierService.SettingsSection,
+                TelegramNotifierService.ChatIdKey,
+                telegramChatIdDraft);
+            _persistedTelegramChatId = telegramChatIdDraft;
         }
 
         // The AI chat provider pick (T-207): only a real difference applies
@@ -2115,8 +2330,9 @@ public sealed class SettingsViewModel : ReactiveObject
 
     /// <summary>
     /// Sync the appearance selections (theme, language, clock, indicator row,
-    /// the MCP enable draft, the update picks, the AI chat provider drafts)
-    /// with the currently applied state. A pure in-memory sync — no I/O.
+    /// the MCP enable draft, the update picks, the AI chat provider drafts,
+    /// the Telegram sink routing rows) with the currently applied state. A
+    /// pure in-memory sync — no I/O.
     /// </summary>
     private void ResetAppearanceSelections()
     {
@@ -2143,6 +2359,10 @@ public sealed class SettingsViewModel : ReactiveObject
         IsUpdateCheckEnabled = _persistedUpdateCheckEnabled;
         IsAutoUpdateEnabled = _persistedAutoUpdateEnabled;
         SelectedUpdateChannelIndex = IndexOfUpdateChannel(_persistedUpdateChannel);
+        IsTelegramFillsEnabled = _persistedTelegramFillsEnabled;
+        IsTelegramCancelsEnabled = _persistedTelegramCancelsEnabled;
+        IsTelegramRejectsEnabled = _persistedTelegramRejectsEnabled;
+        TelegramChatIdDraft = _persistedTelegramChatId.Trim();
 
         // The AI chat provider (T-207): the pick drafts the combo (a garbage
         // stored pick drafts the default with a logged warning) and the text
@@ -2159,6 +2379,13 @@ public sealed class SettingsViewModel : ReactiveObject
         _aiKeyCommitSuppressed = true;
         OpenAiApiKeyDraft = string.Empty;
         _aiKeyCommitSuppressed = false;
+
+        // The Telegram token box re-seeds empty too (the secret never
+        // echoes) under the same commit guard: a re-seed never commits, the
+        // stored token stays exactly as the user left it.
+        _telegramTokenCommitSuppressed = true;
+        TelegramBotTokenDraft = string.Empty;
+        _telegramTokenCommitSuppressed = false;
     }
 
     /// <summary>
@@ -2225,6 +2452,32 @@ public sealed class SettingsViewModel : ReactiveObject
         else
         {
             await store.SetAsync(AiSettingsKeys.OpenAiCompatibleApiKeySecretKey, draft);
+        }
+    }
+
+    /// <summary>
+    /// Commit the typed bot token to the secret store immediately (T-260;
+    /// the OpenAI key's exact shape): a typed value stores (overwrites), an
+    /// emptied one removes (a clear is a real intent). Nothing here touches
+    /// the settings file — the secret's only home is the store. A
+    /// store-less construction stays memory-only.
+    /// </summary>
+    private async Task CommitTelegramBotTokenAsync()
+    {
+        var store = _secrets;
+        if (store is null)
+        {
+            return;
+        }
+
+        var draft = TelegramBotTokenDraft;
+        if (string.IsNullOrWhiteSpace(draft))
+        {
+            await store.RemoveAsync(TelegramNotifierService.BotTokenSecretKey);
+        }
+        else
+        {
+            await store.SetAsync(TelegramNotifierService.BotTokenSecretKey, draft);
         }
     }
 

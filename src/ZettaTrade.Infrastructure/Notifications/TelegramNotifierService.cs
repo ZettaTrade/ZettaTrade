@@ -3,27 +3,31 @@ namespace ZettaTrade.Infrastructure.Notifications;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ZettaTrade.Core.Interfaces;
 
 /// <summary>
-/// The Telegram trade-notification sink (T-041): it receives one composed
-/// message per journaled trade outcome and pushes it to the user's own
+/// The Telegram trade-notification sink (T-041, the T-260 sink contract):
+/// it implements <see cref="INotificationSink"/>, so it receives one
+/// mapped trade event per journaled trade outcome and composes its own
+/// message from the event's facts before pushing it to the user's own
 /// Telegram bot chat. The whole pipeline is BEST-EFFORT by contract: the
 /// per-kind opt-in flag, the chat id and the bot token are read per send
 /// (the flag off, an empty chat id or a missing token is the quiet no-sink
-/// state — a debug line, never a warning), a failed send degrades into one
-/// logged warning through this service's own lane, and nothing ever retries,
-/// blocks a caller or throws outward — a notification fault stays invisible
-/// to the trading flow exactly like a failed beep (the T-220 degrade shape).
+/// state — a debug line, never a warning), the composition and the send
+/// degrade into one logged warning through this service's own lane, and
+/// nothing ever retries, blocks a caller or throws outward — a
+/// notification fault stays invisible to the trading flow exactly like a
+/// failed beep (the T-220 degrade shape).
 /// <para>
-/// The bot token rides <see cref="ISecretStore"/> only (never a command-line
-/// argument, never a settings file); this service reads it per send and
-/// never writes, moves or logs it — a corrupt stored value surfaces as the
-/// degrade lane's warning and stays preserved on disk.
+/// The bot token rides <see cref="ISecretStore"/> only (never a
+/// command-line argument, never a settings file); this service reads it
+/// per send and never writes, moves or logs it — a corrupt stored value
+/// surfaces as the degrade lane's warning and stays preserved on disk.
 /// </para>
 /// </summary>
-public sealed class TelegramNotifierService
+public sealed class TelegramNotifierService : INotificationSink
 {
     #region Constants
 
@@ -58,52 +62,58 @@ public sealed class TelegramNotifierService
     private readonly ISettingsService _settings;
     private readonly ISecretStore _secrets;
     private readonly TelegramBotClient _bot;
+    private readonly ILocalizationManager _localization;
     private readonly ILogger<TelegramNotifierService> _logger;
 
     #endregion Private Fields
 
     #region Constructor
 
-    /// <summary>Create the sink over the settings, the secret store and the Bot API client.</summary>
+    /// <summary>Create the sink over the settings, the secret store, the Bot API client and the message catalog.</summary>
     /// <param name="settings">The reactive settings service the opt-in flags and the chat id ride.</param>
     /// <param name="secrets">The secret store the bot token reads from (never written by this service).</param>
     /// <param name="bot">The Bot API transport.</param>
+    /// <param name="localization">The catalog the message lines compose from (the composition lives inside the sink now).</param>
     /// <param name="logger">The sink's own degrade lane.</param>
     public TelegramNotifierService(
         ISettingsService settings,
         ISecretStore secrets,
         TelegramBotClient bot,
+        ILocalizationManager localization,
         ILogger<TelegramNotifierService> logger)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _secrets = secrets ?? throw new ArgumentNullException(nameof(secrets));
         _bot = bot ?? throw new ArgumentNullException(nameof(bot));
+        _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     #endregion Constructor
 
-    #region Send
+    #region Sink
 
     /// <summary>
-    /// Push one composed trade message, best-effort: the kind's opt-in flag
-    /// gates first (off — quiet no-sink), then the chat id and the bot token
-    /// (missing — the unconfigured state, quiet no-sink), then the POST. The
-    /// returned task NEVER faults: every fault of the whole chain — a read
-    /// fault included — degrades into this service's own warning lane once,
-    /// so a caller that dispatches the send off its critical path carries no
+    /// Handle one mapped trade event, best-effort (the sink contract): the
+    /// kind's opt-in flag gates first (off — quiet no-sink), then the chat
+    /// id and the bot token (missing — the unconfigured state, quiet
+    /// no-sink), then the message composes from the event's facts and the
+    /// POST rides out. The returned task NEVER faults: every fault of the
+    /// whole chain — a read fault, a composition fault, a transport fault —
+    /// degrades into this service's own warning lane once, so a caller
+    /// that dispatches the sink off its critical path carries no
     /// unobserved fault and the trading flow never notices a failed push.
     /// </summary>
-    /// <param name="message">The composed message text (the composer's job — this service never builds user-facing strings).</param>
-    /// <param name="kind">Which trade outcome the message announces (the opt-in flag it reads).</param>
+    /// <param name="tradeEvent">The mapped trade event (the bridge's own vocabulary).</param>
     /// <param name="cancellationToken">Cooperative cancellation on top of the transport's bounded timeout.</param>
-    public async Task SendAsync(string message, TelegramTradeKind kind, CancellationToken cancellationToken = default)
+    /// <inheritdoc cref="INotificationSink.HandleAsync"/>
+    public async Task HandleAsync(TradeNotificationEvent tradeEvent, CancellationToken cancellationToken = default)
     {
         try
         {
-            if (!await ReadEnabledFlagAsync(kind, cancellationToken).ConfigureAwait(false))
+            if (!await ReadEnabledFlagAsync(tradeEvent.Kind, cancellationToken).ConfigureAwait(false))
             {
-                _logger.LogDebug("The Telegram sink is not opted in for {Kind}: no send", kind);
+                _logger.LogDebug("The Telegram sink is not opted in for {Kind}: no send", tradeEvent.Kind);
                 return;
             }
 
@@ -112,7 +122,7 @@ public sealed class TelegramNotifierService
                 .ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(chatId))
             {
-                _logger.LogDebug("The Telegram sink holds no chat id: no send for {Kind}", kind);
+                _logger.LogDebug("The Telegram sink holds no chat id: no send for {Kind}", tradeEvent.Kind);
                 return;
             }
 
@@ -122,35 +132,37 @@ public sealed class TelegramNotifierService
             var token = await _secrets.GetAsync(BotTokenSecretKey, cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(token))
             {
-                _logger.LogDebug("The Telegram sink holds no bot token: no send for {Kind}", kind);
+                _logger.LogDebug("The Telegram sink holds no bot token: no send for {Kind}", tradeEvent.Kind);
                 return;
             }
 
+            var message = TelegramMessageComposer.Compose(tradeEvent, _localization);
+
             await _bot.SendMessageAsync(token, chatId, message, cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation("The Telegram trade notification delivered ({Kind})", kind);
+            _logger.LogInformation("The Telegram trade notification delivered ({Kind})", tradeEvent.Kind);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(
                 ex,
-                "The Telegram trade notification failed and was degraded away ({Kind})", kind);
+                "The Telegram trade notification failed and was degraded away ({Kind})", tradeEvent.Kind);
         }
     }
 
     /// <summary>Read the kind's opt-in flag exactly as the settings hold it right now (no cached reads).</summary>
-    private async Task<bool> ReadEnabledFlagAsync(TelegramTradeKind kind, CancellationToken cancellationToken) => kind switch
+    private async Task<bool> ReadEnabledFlagAsync(TradeNotificationKind kind, CancellationToken cancellationToken) => kind switch
     {
-        TelegramTradeKind.Fill => await _settings
+        TradeNotificationKind.Fill => await _settings
             .GetAsync<bool>(SettingsSection, FillsEnabledKey, DefaultEnabled)
             .ConfigureAwait(false),
-        TelegramTradeKind.Cancel => await _settings
+        TradeNotificationKind.Cancel => await _settings
             .GetAsync<bool>(SettingsSection, CancelsEnabledKey, DefaultEnabled)
             .ConfigureAwait(false),
-        TelegramTradeKind.Reject => await _settings
+        TradeNotificationKind.Reject => await _settings
             .GetAsync<bool>(SettingsSection, RejectsEnabledKey, DefaultEnabled)
             .ConfigureAwait(false),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "The Telegram sink has no opt-in flag for the kind."),
     };
 
-    #endregion Send
+    #endregion Sink
 }

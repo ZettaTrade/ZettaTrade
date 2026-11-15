@@ -2,28 +2,33 @@ namespace ZettaTrade.Infrastructure.Tests.Notifications;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Reactive.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Infrastructure.Notifications;
 
 /// <summary>
-/// The Telegram sink's best-effort facts (T-041), exercised against the
-/// loopback Bot API stub: a configured send POSTs the composed message to
-/// the user's own bot exactly once (the token on the request path, the chat
-/// id and the text in the JSON body); the quiet no-sink states (the kind's
-/// opt-in off, no chat id, no token) dispatch nothing and log nothing loud;
-/// the failure matrix (a 5xx, a negative envelope, a malformed body, a
-/// hanging API that rides out the transport timeout) degrades into one
-/// logged warning, never a throw, never a retry — and no failure report ever
-/// carries the bot token.
+/// The Telegram sink's best-effort facts (T-041 under the T-260 sink
+/// contract), exercised against the loopback Bot API stub: a configured
+/// send composes INSIDE the sink from the mapped event's facts and POSTs
+/// the message to the user's own bot exactly once (the token on the
+/// request path, the chat id and the text in the JSON body); the quiet
+/// no-sink states (the kind's opt-in off, no chat id, no token) dispatch
+/// nothing and log nothing loud; the failure matrix (a 5xx, a negative
+/// envelope, a malformed body, a hanging API that rides out the transport
+/// timeout, a fill without its price fact, a kind the routing has no flag
+/// for) degrades into one logged warning, never a throw, never a retry —
+/// and no failure report ever carries the bot token.
 /// </summary>
 public sealed class TelegramNotifierServiceTests
 {
@@ -32,18 +37,25 @@ public sealed class TelegramNotifierServiceTests
     /// <summary>The chat id one configured sink sends to.</summary>
     private const string TestChatId = "424242";
 
+    /// <summary>The stub catalog's composed fill line: the template, the resolved side and lane words, the event's own facts.</summary>
+    private const string ComposedFillText = "[Notif.TelegramFill|[Order.Buy];0.50000000;BTC/USDT;50000.00000000;bybit;[Trading.Lane.Paper]]";
+
     #endregion Constants
 
     #region Tests: the configured happy path
 
-    /// <summary>A configured, opted-in send POSTs the message once: the token rides the path, the body carries chat_id + text.</summary>
+    /// <summary>
+    /// A configured, opted-in send composes the message inside the sink and
+    /// POSTs it once: the token rides the path, the body carries chat_id +
+    /// the composed text.
+    /// </summary>
     [Fact]
-    public async Task AConfiguredSend_PostsTheMessageToTheUsersBot()
+    public async Task AConfiguredSend_ComposesInsideAndPostsTheMessageToTheUsersBot()
     {
         await using var rig = await SinkRig.CreateAsync(fillFlag: true);
         var serve = rig.Api.ServeAsync(200, """{"ok":true,"result":{"message_id":7}}""");
 
-        await rig.Notifier.SendAsync("BUY 0.50000000 BTC/USDT filled", TelegramTradeKind.Fill);
+        await rig.Notifier.HandleAsync(FillEvent());
 
         var captured = await serve;
 
@@ -52,29 +64,33 @@ public sealed class TelegramNotifierServiceTests
         captured.ContentType.Should().StartWith("application/json");
         using var body = JsonDocument.Parse(captured.Body);
         body.RootElement.GetProperty("chat_id").GetString().Should().Be(TestChatId);
-        body.RootElement.GetProperty("text").GetString().Should().Be("BUY 0.50000000 BTC/USDT filled");
+        body.RootElement.GetProperty("text").GetString().Should().Be(ComposedFillText);
         rig.Logger.Entries.Should().NotContain(
             entry => entry.Level == LogLevel.Warning,
             "a delivered send stays quiet above the information lane");
     }
 
-    /// <summary>The message composes per send — the sink never rewrites the caller's text (no user-facing strings live in the sink).</summary>
+    /// <summary>
+    /// Every kind composes its own template from the mapped event's own
+    /// facts — the sink renders the vocabulary's three outcomes each with
+    /// its own line.
+    /// </summary>
     [Fact]
-    public async Task EveryKind_SendsItsOwnComposedText()
+    public async Task EveryKind_ComposesItsOwnLine()
     {
         await using var rig = await SinkRig.CreateAsync(fillFlag: true, cancelsFlag: true, rejectsFlag: true);
 
         var fillServe = rig.Api.ServeAsync(200, """{"ok":true}""");
-        await rig.Notifier.SendAsync("the fill text", TelegramTradeKind.Fill);
-        (await fillServe).Body.Should().Contain("the fill text");
+        await rig.Notifier.HandleAsync(FillEvent());
+        (await fillServe).Body.Should().Contain("[Notif.TelegramFill|");
 
         var cancelServe = rig.Api.ServeAsync(200, """{"ok":true}""");
-        await rig.Notifier.SendAsync("the cancel text", TelegramTradeKind.Cancel);
-        (await cancelServe).Body.Should().Contain("the cancel text");
+        await rig.Notifier.HandleAsync(TradeEvent(TradeNotificationKind.Cancel, "BTC/USDT"));
+        (await cancelServe).Body.Should().Contain("[Notif.TelegramCancelOn|");
 
         var rejectServe = rig.Api.ServeAsync(200, """{"ok":true}""");
-        await rig.Notifier.SendAsync("the reject text", TelegramTradeKind.Reject);
-        (await rejectServe).Body.Should().Contain("the reject text");
+        await rig.Notifier.HandleAsync(TradeEvent(TradeNotificationKind.Reject, "BTC/USDT", reason: "the venue refused"));
+        (await rejectServe).Body.Should().Contain("[Notif.TelegramReject|");
     }
 
     #endregion Tests: the configured happy path
@@ -119,7 +135,7 @@ public sealed class TelegramNotifierServiceTests
         await using var rig = await SinkRig.CreateAsync(fillFlag: true);
         var serve = rig.Api.ServeAsync(500, """{"ok":false,"description":"internal bot error"}""");
 
-        var send = () => rig.Notifier.SendAsync("the fill text", TelegramTradeKind.Fill);
+        var send = () => rig.Notifier.HandleAsync(FillEvent());
 
         await send.Should().NotThrowAsync("a failed send is the sink's degrade lane's business, not the caller's exception");
         (await serve).Method.Should().Be("POST");
@@ -135,7 +151,7 @@ public sealed class TelegramNotifierServiceTests
         await using var rig = await SinkRig.CreateAsync(fillFlag: true);
         var serve = rig.Api.ServeAsync(200, """{"ok":false,"description":"chat not found"}""");
 
-        var send = () => rig.Notifier.SendAsync("the fill text", TelegramTradeKind.Fill);
+        var send = () => rig.Notifier.HandleAsync(FillEvent());
 
         await send.Should().NotThrowAsync();
         await serve;
@@ -153,7 +169,7 @@ public sealed class TelegramNotifierServiceTests
         await using var rig = await SinkRig.CreateAsync(fillFlag: true);
         var serve = rig.Api.ServeAsync(200, "<not-json>");
 
-        var send = () => rig.Notifier.SendAsync("the fill text", TelegramTradeKind.Fill);
+        var send = () => rig.Notifier.HandleAsync(FillEvent());
 
         await send.Should().NotThrowAsync();
         await serve;
@@ -167,7 +183,7 @@ public sealed class TelegramNotifierServiceTests
         await using var rig = await SinkRig.CreateAsync(fillFlag: true, timeout: TimeSpan.FromMilliseconds(300));
         var serve = rig.Api.ServeHangingAsync();
 
-        var send = () => rig.Notifier.SendAsync("the fill text", TelegramTradeKind.Fill);
+        var send = () => rig.Notifier.HandleAsync(FillEvent());
 
         await send.Should().NotThrowAsync();
         (await serve).Method.Should().Be("POST", "the hanging request still left the client (the timeout cut it)");
@@ -183,7 +199,7 @@ public sealed class TelegramNotifierServiceTests
         await using var rig = await SinkRig.CreateAsync(fillFlag: true);
         var serve = rig.Api.ServeAsync(500, """{"ok":false,"description":"internal bot error"}""");
 
-        await rig.Notifier.SendAsync("the fill text", TelegramTradeKind.Fill);
+        await rig.Notifier.HandleAsync(FillEvent());
         await serve;
 
         rig.Logger.Entries.Should().NotContain(
@@ -198,14 +214,14 @@ public sealed class TelegramNotifierServiceTests
         await using var rig = await SinkRig.CreateAsync(fillFlag: true);
 
         var failed = rig.Api.ServeAsync(500, """{"ok":false}""");
-        await rig.Notifier.SendAsync("the first text", TelegramTradeKind.Fill);
+        await rig.Notifier.HandleAsync(FillEvent());
         await failed;
 
         var served = rig.Api.ServeAsync(200, """{"ok":true}""");
-        await rig.Notifier.SendAsync("the second text", TelegramTradeKind.Fill);
+        await rig.Notifier.HandleAsync(FillEvent());
         var captured = await served;
 
-        captured.Body.Should().Contain("the second text");
+        captured.Body.Should().Contain("[Notif.TelegramFill|");
         rig.Logger.Entries.Should().NotContain(
             entry => entry.Level == LogLevel.Error,
             "a degraded send never escalates the sink's lane");
@@ -213,9 +229,59 @@ public sealed class TelegramNotifierServiceTests
 
     #endregion Tests: the best-effort failure matrix
 
+    #region Tests: the composition and routing faults
+
+    /// <summary>
+    /// A fill whose event carries no price fact is a surface-contract
+    /// fault: the composition degrades into the sink's own warning lane
+    /// with its fault attached, nothing hits the stub and nothing
+    /// fabricated is ever sent.
+    /// </summary>
+    [Fact]
+    public async Task AFillWithoutPriceFact_DegradesToOneWarning_AndSendsNothing()
+    {
+        await using var rig = await SinkRig.CreateAsync(fillFlag: true);
+        var trap = rig.Api.ServeAsync(200, """{"ok":true}""");
+
+        var send = () => rig.Notifier.HandleAsync(FillEvent(price: null));
+
+        await send.Should().NotThrowAsync("the sink never faults — the compose fault degrades");
+        await Task.Delay(200);
+        trap.IsCompleted.Should().BeFalse("a fill without its price fact never fabricates a message");
+        rig.Logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Exception is InvalidOperationException &&
+            entry.Exception.Message.Contains("no price fact", StringComparison.Ordinal),
+            "the price guard's fault rides the degrade lane with its own type attached");
+    }
+
+    /// <summary>
+    /// A kind the routing has no opt-in flag for is refused loudly into the
+    /// degrade lane: one warning, nothing sent, never a substituted
+    /// default — the invalid-value canon.
+    /// </summary>
+    [Fact]
+    public async Task AnUnroutableKind_DegradesToOneWarning_AndSendsNothing()
+    {
+        await using var rig = await SinkRig.CreateAsync(fillFlag: true);
+        var trap = rig.Api.ServeAsync(200, """{"ok":true}""");
+
+        var send = () => rig.Notifier.HandleAsync(TradeEvent((TradeNotificationKind)999));
+
+        await send.Should().NotThrowAsync("the sink never faults — the routing fault degrades");
+        await Task.Delay(200);
+        trap.IsCompleted.Should().BeFalse("an unknown kind never rides a substituted flag");
+        rig.Logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Exception is ArgumentOutOfRangeException,
+            "the unknown kind lands in the degrade lane as the argument fault it is");
+    }
+
+    #endregion Tests: the composition and routing faults
+
     #region Rig
 
-    /// <summary>One wired sink rig: the loopback stub, the pinned client, the settings, the secret store and the logger spy.</summary>
+    /// <summary>One wired sink rig: the loopback stub, the pinned client, the settings, the secret store, the stub catalog and the logger spy.</summary>
     private sealed class SinkRig : IAsyncDisposable
     {
         private SinkRig(LoopbackTelegramApi api, TelegramNotifierService notifier, SpyLogger logger)
@@ -234,9 +300,10 @@ public sealed class TelegramNotifierServiceTests
         /// <summary>
         /// Create the rig: the flags ride an in-memory settings store, the
         /// token rides a stubbed secret store (absent when
-        /// <paramref name="token"/> is null), and the transport is a pinned
-        /// HttpClient aimed at the loopback stub (its timeout the test's
-        /// own, so a hanging API never holds a test for the real 10 s).
+        /// <paramref name="token"/> is null), the catalog is the stub and
+        /// the transport is a pinned HttpClient aimed at the loopback stub
+        /// (its timeout the test's own, so a hanging API never holds a test
+        /// for the real 10 s).
         /// </summary>
         internal static async Task<SinkRig> CreateAsync(
             bool fillFlag,
@@ -266,6 +333,7 @@ public sealed class TelegramNotifierServiceTests
                 settings,
                 secrets,
                 new TelegramBotClient(transport),
+                new StubLocalization(),
                 logger);
 
             return new SinkRig(api, notifier, logger);
@@ -280,7 +348,7 @@ public sealed class TelegramNotifierServiceTests
         {
             var trap = Api.ServeHangingAsync();
 
-            var send = () => Notifier.SendAsync("the fill text", TelegramTradeKind.Fill);
+            var send = () => Notifier.HandleAsync(FillEvent());
             await send.Should().NotThrowAsync();
 
             // Belt-and-suspenders settle: a request would have to arrive
@@ -298,6 +366,56 @@ public sealed class TelegramNotifierServiceTests
             await Task.CompletedTask;
         }
     }
+
+    /// <summary>
+    /// The sink tests' localization stub: a deterministic line per catalog
+    /// request — "[key]" for a word, "[key|arg;arg;…]" for a template — so
+    /// a send's wire text pins the template the sink composed with and the
+    /// exact facts it fed it (the real-catalog wordings stay the App tests'
+    /// goldens, which the shipped resx backs).
+    /// </summary>
+    private sealed class StubLocalization : ILocalizationManager
+    {
+        public string CurrentLanguage => "en";
+
+        public IReadOnlyList<LanguageInfo> AvailableLanguages { get; } = [];
+
+        public Task SetLanguageAsync(string cultureCode, CancellationToken ct = default) => Task.CompletedTask;
+
+        public string GetString(string key) => $"[{key}]";
+
+        public string GetString(string key, params object[] args) =>
+            $"[{key}|{string.Join(";", args)}]";
+
+        public IObservable<string> LanguageChanged { get; } = Observable.Never<string>();
+
+        public IObservable<string> GetObservable(string key) => Observable.Never<string>();
+    }
+
+    /// <summary>One mapped trade event with a fill's canonical facts (the price overridable for the contract-fault facts).</summary>
+    private static TradeNotificationEvent FillEvent(decimal? price = 50_000m) => new(
+        TradeNotificationKind.Fill,
+        "BTC/USDT",
+        OrderSide.Buy,
+        0.5m,
+        price,
+        "bybit",
+        string.Empty,
+        TradeNotificationLane.Paper);
+
+    /// <summary>One mapped trade event with the kind's shape (the price off — only fills carry one).</summary>
+    private static TradeNotificationEvent TradeEvent(
+        TradeNotificationKind kind,
+        string symbol = "BTC/USDT",
+        string reason = "") => new(
+        kind,
+        symbol,
+        OrderSide.Buy,
+        0.5m,
+        null,
+        "bybit",
+        reason,
+        TradeNotificationLane.Paper);
 
     /// <summary>The in-memory settings the flags ride (the reactive stream shape the sink never subscribes).</summary>
     private sealed class TestSettings : ISettingsService

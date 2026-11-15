@@ -1,3 +1,36 @@
+## [0.2.6] - 2026-11-15
+
+Build of board task T-260 (branch `feat/notify-sinks`): trade notifications
+became a sink fleet — the journaled trade outcomes now ride one structured
+event to every registered sink, the Telegram bot is the first sink behind
+the new `INotificationSink` contract, and the settings window gained the
+Notifications tab where the routing is configured.
+
+### Added
+- The sink contract (`INotificationSink`, `TradeNotificationEvent` with
+  `TradeNotificationKind` fill/cancel/reject and `TradeNotificationLane`
+  paper/testnet/live): every sink receives the same mapped event with the
+  journaled row's own facts, composes its own user-facing shape and routes
+  on its own opt-in flags. The contract is best-effort end to end — a sink
+  never faults; the bridge still contains a contract-breaking member and
+  keeps serving the stream (T-260).
+- The trade-notification bridge (`TradeNotificationBridge`): maps the
+  notification center's journaled outcomes once, tags each with the lane
+  standing at event time and fans out to the whole sink fleet without
+  blocking on any in-flight delivery (T-260).
+- The settings window's Notifications tab: the Telegram sink's per-kind
+  opt-ins and the chat id draft with the house save/no-op discipline, the
+  bot token commits to the encrypted secret store immediately per
+  keystroke (the OpenAI key's shape; an emptied box removes the stored
+  token), and the token never echoes back into the box (T-260).
+
+### Changed
+- The Telegram notifier is now a sink: it composes its message inside
+  itself from the mapped event's facts (the composer moved from the App to
+  the sink's own assembly) and reads its opt-in flags, chat id and bot
+  token per send — a rotated token applies without a restart (T-260; the
+  T-041 surface unchanged).
+
 ## [0.2.5] - 2026-11-15
 
 Build of board task T-258 (branch `feat/auto-update`): the update checker
