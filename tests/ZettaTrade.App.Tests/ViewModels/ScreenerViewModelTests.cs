@@ -43,7 +43,7 @@ public sealed class ScreenerViewModelTests
 {
     #region Scene kit
 
-    /// <summary>The panel test's whole scene: the facade, the feed, the chart, the panel.</summary>
+    /// <summary>The panel test's whole scene: the facade, the feed, the chart, the trend computer, the panel.</summary>
     private sealed class Scene
     {
         public Scene()
@@ -65,9 +65,22 @@ public sealed class ScreenerViewModelTests
                 NullLogger<ScreenerFeedService>.Instance,
                 Observable.Never<long>());
             Chart = CreateChart(Exchange, settings);
+            Localization = Substitute.For<ILocalizationManager>();
+            // The words echo their keys, so the facts stay culture-free.
+            Localization.GetString(Arg.Any<string>())
+                .Returns(static call => call.ArgAt<string>(0));
+            Trends = new(
+                Feed,
+                new EmptyCandleCache(),
+                Exchange,
+                new CandleBackfillService(new EmptyCandleCache(), NullLogger<CandleBackfillService>.Instance),
+                settings,
+                NullLogger<MtfTrendService>.Instance);
             Panel = new(
                 Feed,
                 Chart,
+                Trends,
+                Localization,
                 NullLogger<ScreenerViewModel>.Instance);
         }
 
@@ -76,6 +89,10 @@ public sealed class ScreenerViewModelTests
         public ScreenerFeedService Feed { get; }
 
         public ChartViewModel Chart { get; }
+
+        public MtfTrendService Trends { get; }
+
+        public ILocalizationManager Localization { get; }
 
         public ScreenerViewModel Panel { get; }
 
@@ -216,6 +233,25 @@ public sealed class ScreenerViewModelTests
     /// <summary>One feed row shorthand for the facts (symbol, price, volume, change).</summary>
     private static ScreenerRow Row(string symbolText, decimal lastPrice, decimal volume24h, decimal change24hPercent) =>
         new(symbolText, lastPrice, volume24h, change24hPercent);
+
+    /// <summary>The warming cell the absent trend table formats (the key-echo words' culture-free pin).</summary>
+    private static ScreenerTrendCellViewModel WarmingCell() => ScreenerTrendCellViewModel.Plain("Screener.Trend.Warming");
+
+    /// <summary>One display row shorthand for the route facts: the text is the route's only real payload.</summary>
+    private static ScreenerRowViewModel DisplayRow(string symbolText) => new()
+    {
+        Symbol = symbolText,
+        Price = string.Empty,
+        Change = string.Empty,
+        Volume = string.Empty,
+        Funding = string.Empty,
+        IsChangeUp = false,
+        IsChangeDown = false,
+        TrendM15 = WarmingCell(),
+        TrendH1 = WarmingCell(),
+        TrendH4 = WarmingCell(),
+        TrendD1 = WarmingCell(),
+    };
 
     /// <summary>The facts' standing mixed page: an adapter-order trio with both change signs.</summary>
     private static ScreenerSnapshot MixedPage() => new(
@@ -461,16 +497,7 @@ public sealed class ScreenerViewModelTests
         var scene = new Scene();
         scene.Chart.SelectedSymbol = Symbol.Parse("ETH/USDT");
 
-        await scene.Panel.RouteRowAsync(new ScreenerRowViewModel
-        {
-            Symbol = "BTC/USDT",
-            Price = string.Empty,
-            Change = string.Empty,
-            Volume = string.Empty,
-            Funding = string.Empty,
-            IsChangeUp = false,
-            IsChangeDown = false,
-        });
+        await scene.Panel.RouteRowAsync(DisplayRow("BTC/USDT"));
 
         scene.Chart.SelectedSymbol.Should().Be(Symbol.Parse("BTC/USDT"),
             "the pressed row's text IS the new workspace symbol");
@@ -483,30 +510,107 @@ public sealed class ScreenerViewModelTests
         var scene = new Scene();
         scene.Chart.SelectedSymbol = Symbol.Parse("ETH/USDT");
 
-        await scene.Panel.RouteRowAsync(new ScreenerRowViewModel
-        {
-            Symbol = string.Empty,
-            Price = string.Empty,
-            Change = string.Empty,
-            Volume = string.Empty,
-            Funding = string.Empty,
-            IsChangeUp = false,
-            IsChangeDown = false,
-        });
-        await scene.Panel.RouteRowAsync(new ScreenerRowViewModel
-        {
-            Symbol = "   ",
-            Price = string.Empty,
-            Change = string.Empty,
-            Volume = string.Empty,
-            Funding = string.Empty,
-            IsChangeUp = false,
-            IsChangeDown = false,
-        });
+        await scene.Panel.RouteRowAsync(DisplayRow(string.Empty));
+        await scene.Panel.RouteRowAsync(DisplayRow("   "));
 
         scene.Chart.SelectedSymbol.Should().Be(Symbol.Parse("ETH/USDT"),
             "an empty row text owns no route and never invents a substitute symbol");
     }
 
     #endregion Row press route
+
+    #region Trend cells and routes
+
+    /// <summary>
+    /// The absent trend table formats every cell the honest warming state:
+    /// no cached depth is never dressed up as a verdict (T-239).
+    /// </summary>
+    [Fact]
+    public void TheAbsentTrendTable_FormatsEveryCellTheHonestWarmingState()
+    {
+        var scene = new Scene();
+        scene.Panel.ApplySnapshot(MixedPage());
+
+        foreach (var row in scene.Panel.Rows)
+        {
+            row.TrendM15.Should().Be(WarmingCell());
+            row.TrendH1.Should().Be(WarmingCell());
+            row.TrendH4.Should().Be(WarmingCell());
+            row.TrendD1.Should().Be(WarmingCell());
+        }
+    }
+
+    /// <summary>
+    /// A published trend table reformats only its own symbols' cells —
+    /// a bull cell carries the up tint, a bear cell the down tint, warming
+    /// and range the plain ink — while symbols the table does not name
+    /// stay warming and the standing preset and sort survive untouched.
+    /// </summary>
+    [Fact]
+    public void AnAppliedTrendTable_ReformatsOnlyItsSymbols_Cells()
+    {
+        var scene = new Scene();
+        scene.Panel.ApplySnapshot(MixedPage());
+
+        scene.Panel.ApplyTrends(new MtfTrendSnapshot(
+            DateTimeOffset.UtcNow,
+            new Dictionary<string, MtfSymbolTrend>(StringComparer.Ordinal)
+            {
+                ["AAA/USDT"] = new(
+                    "AAA/USDT",
+                    MtfTrendState.Bull,
+                    MtfTrendState.Bear,
+                    MtfTrendState.Range,
+                    MtfTrendState.Warming),
+            }));
+
+        var aaa = scene.Panel.Rows[0];
+        aaa.TrendM15.Should().Be(new ScreenerTrendCellViewModel("Screener.Trend.Bull", true, false),
+            "a bull verdict formats the up-tinted word");
+        aaa.TrendH1.Should().Be(new ScreenerTrendCellViewModel("Screener.Trend.Bear", false, true),
+            "a bear verdict formats the down-tinted word");
+        aaa.TrendH4.Should().Be(ScreenerTrendCellViewModel.Plain("Screener.Trend.Range"),
+            "a range verdict keeps the plain ink");
+        aaa.TrendD1.Should().Be(ScreenerTrendCellViewModel.Plain("Screener.Trend.Warming"));
+        scene.Panel.Rows[1].TrendM15.Should().Be(WarmingCell(),
+            "a symbol the table does not name stays the honest warming cell");
+        scene.Panel.Rows.Select(static row => row.Symbol)
+            .Should().Equal(
+                (IEnumerable<string>)["AAA/USDT", "BBB/USDT", "CCC/USDT"],
+                "the trend re-format rides the standing preset and sort");
+    }
+
+    /// <summary>A trend-cell press routes the row's symbol into the workspace AT the cell's own frame.</summary>
+    [Fact]
+    public async Task ATrendCellPress_WritesTheSymbolAndTheFrame()
+    {
+        var scene = new Scene();
+        scene.Chart.SelectedSymbol = Symbol.Parse("ETH/USDT");
+        scene.Chart.SelectedTimeFrame = TimeFrame.M15;
+
+        await scene.Panel.RouteRowAsync(DisplayRow("BTC/USDT"), TimeFrame.H4);
+
+        scene.Chart.SelectedSymbol.Should().Be(Symbol.Parse("BTC/USDT"),
+            "the pressed cell's row text IS the new workspace symbol");
+        scene.Chart.SelectedTimeFrame.Should().Be(TimeFrame.H4,
+            "the pressed cell's frame rides after the symbol write");
+    }
+
+    /// <summary>An unparsable trend-cell press is refused: neither the symbol nor the frame moves.</summary>
+    [Fact]
+    public async Task AnUnparsableTrendCellPress_IsRefusedWithoutSubstitutes()
+    {
+        var scene = new Scene();
+        scene.Chart.SelectedSymbol = Symbol.Parse("ETH/USDT");
+        scene.Chart.SelectedTimeFrame = TimeFrame.M15;
+
+        await scene.Panel.RouteRowAsync(DisplayRow("   "), TimeFrame.D1);
+
+        scene.Chart.SelectedSymbol.Should().Be(Symbol.Parse("ETH/USDT"),
+            "an unroutable row text invents no substitute symbol");
+        scene.Chart.SelectedTimeFrame.Should().Be(TimeFrame.M15,
+            "a refused press never writes the frame the route would have carried");
+    }
+
+    #endregion Trend cells and routes
 }

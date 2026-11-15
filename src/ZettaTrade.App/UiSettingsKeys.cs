@@ -492,4 +492,25 @@ public static class UiSettingsKeys
     /// </summary>
     public const decimal DefaultPaperStartingBalance =
         ZettaTrade.Infrastructure.Exchange.PaperTradingAdapter.InitialQuoteAmount;
+
+    /// <summary>
+    /// Settings key of the screener trend classifier's EMA slope period (a
+    /// positive int in bars, T-239): the tuning the trend computer loads at
+    /// initialization. An out-of-range stored value clamps into its range
+    /// (<see cref="Services.MtfTrendSettings.EmaPeriodMin"/>..Max).
+    /// </summary>
+    public const string MtfTrendEmaPeriod = "MtfTrend.EmaPeriod";
+
+    /// <summary>
+    /// Settings key of the screener trend classifier's Wilder ADX smoothing
+    /// period (a positive int in bars, T-239).
+    /// </summary>
+    public const string MtfTrendAdxPeriod = "MtfTrend.AdxPeriod";
+
+    /// <summary>
+    /// Settings key of the screener trend classifier's ADX trend threshold
+    /// (a decimal level 1..100, T-239): the strength a series must reach
+    /// for a directional verdict.
+    /// </summary>
+    public const string MtfTrendAdxThreshold = "MtfTrend.AdxThreshold";
 }

@@ -1773,6 +1773,30 @@
   <data name="Screener.Close" xml:space="preserve">
     <value>Закрыть</value>
   </data>
+  <data name="Screener.ColTrendM15" xml:space="preserve">
+    <value>15м</value>
+  </data>
+  <data name="Screener.ColTrendH1" xml:space="preserve">
+    <value>1ч</value>
+  </data>
+  <data name="Screener.ColTrendH4" xml:space="preserve">
+    <value>4ч</value>
+  </data>
+  <data name="Screener.ColTrendD1" xml:space="preserve">
+    <value>1д</value>
+  </data>
+  <data name="Screener.Trend.Bull" xml:space="preserve">
+    <value>Рост</value>
+  </data>
+  <data name="Screener.Trend.Bear" xml:space="preserve">
+    <value>Падение</value>
+  </data>
+  <data name="Screener.Trend.Range" xml:space="preserve">
+    <value>Флэт</value>
+  </data>
+  <data name="Screener.Trend.Warming" xml:space="preserve">
+    <value>Прогрев</value>
+  </data>
   <data name="Tape.NoDataMessage" xml:space="preserve">
     <value>Сделок пока нет</value>
   </data>

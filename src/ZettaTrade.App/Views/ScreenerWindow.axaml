@@ -7,7 +7,7 @@
         Icon="/Assets/ZettaTrade.ico"
         x:DataType="vm:ScreenerViewModel"
         Title="{loc:Localized Screener.Title}"
-        Width="860" Height="560"
+        Width="1120" Height="560"
         WindowStartupLocation="CenterOwner"
         CanResize="True"
         ShowInTaskbar="False"
@@ -90,6 +90,41 @@
         <Style Selector="TextBlock.screener-change.down">
             <Setter Property="Foreground" Value="{DynamicResource CandleDown}" />
         </Style>
+
+        <!-- The trend-state cells (T-239): quiet click targets inside the
+             row press target (the AssistantPanelView's nested-button
+             precedent) — each routes the row's symbol into the workspace
+             at the cell's own timeframe. The chrome trades for the row
+             grammar's look exactly like the row itself: transparent rest,
+             square corners, the Surface hover wash; a bull or bear verdict
+             tints the word by the candle state colors, warming and range
+             keep the plain secondary ink (the honest state, never dressed
+             up as a verdict). -->
+        <Style Selector="Button.trend-cell">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="MinHeight" Value="18" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+        </Style>
+        <Style Selector="Button.trend-cell:pointerover">
+            <Setter Property="Background" Value="{DynamicResource Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+        </Style>
+        <Style Selector="Button.trend-cell:pressed">
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
+        <Style Selector="Button.trend-cell.bull">
+            <Setter Property="Foreground" Value="{DynamicResource CandleUp}" />
+        </Style>
+        <Style Selector="Button.trend-cell.bear">
+            <Setter Property="Foreground" Value="{DynamicResource CandleDown}" />
+        </Style>
     </Window.Styles>
 
     <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource SpaceM}">
@@ -125,9 +160,11 @@
                      grammar's hairline; the numeric columns are the sort
                      buttons and right-align to match their data cells. The
                      funding caption is display-only (T-197): the rate rides
-                     the ticker's honest null and owns no sort shim yet. -->
+                     the ticker's honest null and owns no sort shim yet. The
+                     trend captions (T-239) are display-only the same way:
+                     the states ride the trend computer, never a sort plan. -->
                 <Border Classes="table-header-row" IsVisible="{Binding HasRows}">
-                    <Grid ColumnDefinitions="140,*,110,110,110">
+                    <Grid ColumnDefinitions="140,*,110,110,110,64,64,64,64">
                         <TextBlock Grid.Column="0" Text="{loc:Localized Screener.ColSymbol}" />
                         <Button Grid.Column="1" Classes="column-sort" HorizontalContentAlignment="Right"
                                 Content="{loc:Localized Screener.ColPrice}" Command="{Binding SortByPriceCommand}" />
@@ -137,12 +174,22 @@
                                 Content="{loc:Localized Screener.ColVolume}" Command="{Binding SortByVolumeCommand}" />
                         <TextBlock Grid.Column="4" Text="{loc:Localized Screener.ColFunding}"
                                    HorizontalAlignment="Right" />
+                        <TextBlock Grid.Column="5" Text="{loc:Localized Screener.ColTrendM15}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Grid.Column="6" Text="{loc:Localized Screener.ColTrendH1}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Grid.Column="7" Text="{loc:Localized Screener.ColTrendH4}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Grid.Column="8" Text="{loc:Localized Screener.ColTrendD1}"
+                                   HorizontalAlignment="Center" />
                     </Grid>
                 </Border>
 
                 <!-- The live rows, in the standing sort; the whole row is
                      the press target (the route command rides the window's
-                     DataContext). -->
+                     DataContext). The trend cells (T-239) are the nested
+                     quiet buttons: each routes the row's symbol into the
+                     workspace at its own timeframe. -->
                 <ItemsControl ItemsSource="{Binding Rows}"
                               IsVisible="{Binding HasRows}">
                     <ItemsControl.ItemTemplate>
@@ -150,7 +197,7 @@
                             <Button Classes="screener-row"
                                     Command="{Binding $parent[Window].((vm:ScreenerViewModel)DataContext).RouteRowCommand}"
                                     CommandParameter="{Binding}">
-                                <Grid ColumnDefinitions="140,*,110,110,110">
+                                <Grid ColumnDefinitions="140,*,110,110,110,64,64,64,64">
                                     <TextBlock Grid.Column="0" Text="{Binding Symbol}" />
                                     <TextBlock Grid.Column="1" Text="{Binding Price}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                     <TextBlock Grid.Column="2" Text="{Binding Change}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right"
@@ -159,6 +206,30 @@
                                                Classes.down="{Binding IsChangeDown}" />
                                     <TextBlock Grid.Column="3" Text="{Binding Volume}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                     <TextBlock Grid.Column="4" Text="{Binding Funding}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
+                                    <Button Grid.Column="5" Classes="trend-cell"
+                                            Classes.bull="{Binding TrendM15.IsBull}"
+                                            Classes.bear="{Binding TrendM15.IsBear}"
+                                            Content="{Binding TrendM15.Text}"
+                                            Command="{Binding $parent[Window].((vm:ScreenerViewModel)DataContext).RouteTrendM15Command}"
+                                            CommandParameter="{Binding}" />
+                                    <Button Grid.Column="6" Classes="trend-cell"
+                                            Classes.bull="{Binding TrendH1.IsBull}"
+                                            Classes.bear="{Binding TrendH1.IsBear}"
+                                            Content="{Binding TrendH1.Text}"
+                                            Command="{Binding $parent[Window].((vm:ScreenerViewModel)DataContext).RouteTrendH1Command}"
+                                            CommandParameter="{Binding}" />
+                                    <Button Grid.Column="7" Classes="trend-cell"
+                                            Classes.bull="{Binding TrendH4.IsBull}"
+                                            Classes.bear="{Binding TrendH4.IsBear}"
+                                            Content="{Binding TrendH4.Text}"
+                                            Command="{Binding $parent[Window].((vm:ScreenerViewModel)DataContext).RouteTrendH4Command}"
+                                            CommandParameter="{Binding}" />
+                                    <Button Grid.Column="8" Classes="trend-cell"
+                                            Classes.bull="{Binding TrendD1.IsBull}"
+                                            Classes.bear="{Binding TrendD1.IsBear}"
+                                            Content="{Binding TrendD1.Text}"
+                                            Command="{Binding $parent[Window].((vm:ScreenerViewModel)DataContext).RouteTrendD1Command}"
+                                            CommandParameter="{Binding}" />
                                 </Grid>
                             </Button>
                         </DataTemplate>

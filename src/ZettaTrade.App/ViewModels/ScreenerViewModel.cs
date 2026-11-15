@@ -5,9 +5,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Livery.Extensions;
+using Livery.Localization;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ZettaTrade.App.Services;
+using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.ValueObjects;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
@@ -18,7 +20,11 @@ using RxVoid = ReactiveUI.Primitives.RxVoid;
 /// the preset views (all / top gainers / top losers / top volume) and the
 /// manual column sorts — and the row-press route into the workspace
 /// symbol. A preset or sort flip rebuilds the rows IMMEDIATELY from the
-/// held page (sorting is a free local re-plan, never a feed re-arm).
+/// held page (sorting is a free local re-plan, never a feed re-arm). The
+/// trend cells (T-239) format from the trend computer's last published
+/// table at page time; a table publish re-plans the rows the same free
+/// way, and a cell press routes the row's symbol into the workspace AT
+/// the clicked timeframe.
 /// </summary>
 /// <remarks>
 /// The panel ViewModel lives as long as the application (a workspace
@@ -35,11 +41,25 @@ public sealed class ScreenerViewModel : ReactiveObject
     /// <summary>The chart ViewModel whose <c>SelectedSymbol</c> IS the workspace symbol context.</summary>
     private readonly ChartViewModel _chart;
 
+    /// <summary>The trend computer whose pass tables feed the row cells (T-239).</summary>
+    private readonly MtfTrendService _trends;
+
+    /// <summary>The localization manager the trend words format through (the SignalRailViewModel precedent).</summary>
+    private readonly ILocalizationManager _localization;
+
     /// <summary>The panel's own logging lane (route refusals land here).</summary>
     private readonly ILogger<ScreenerViewModel> _logger;
 
-    /// <summary>The last applied page: the presets and sorts re-plan over it locally.</summary>
+    /// <summary>
+    /// The last applied page: the presets and sorts re-plan over it locally.
+    /// </summary>
     private ScreenerSnapshot? _lastSnapshot;
+
+    /// <summary>
+    /// The last published trend table (T-239): the row cells format from
+    /// it at page time; a symbol absent from the table is a warming cell.
+    /// </summary>
+    private MtfTrendSnapshot _trendTable = MtfTrendSnapshot.Empty;
 
     private IReadOnlyList<ScreenerRowViewModel> _rows = [];
 
@@ -73,6 +93,21 @@ public sealed class ScreenerViewModel : ReactiveObject
 
     /// <summary>Route one pressed row's symbol into the workspace (the row template binds it).</summary>
     public ReactiveCommand<ScreenerRowViewModel, RxVoid> RouteRowCommand { get; }
+
+    /// <summary>
+    /// Route one pressed 15m trend cell (T-239): the row's symbol into the
+    /// workspace AT the 15-minute frame.
+    /// </summary>
+    public ReactiveCommand<ScreenerRowViewModel, RxVoid> RouteTrendM15Command { get; }
+
+    /// <summary>Route one pressed 1h trend cell (T-239).</summary>
+    public ReactiveCommand<ScreenerRowViewModel, RxVoid> RouteTrendH1Command { get; }
+
+    /// <summary>Route one pressed 4h trend cell (T-239).</summary>
+    public ReactiveCommand<ScreenerRowViewModel, RxVoid> RouteTrendH4Command { get; }
+
+    /// <summary>Route one pressed 1d trend cell (T-239).</summary>
+    public ReactiveCommand<ScreenerRowViewModel, RxVoid> RouteTrendD1Command { get; }
 
     #endregion Commands
 
@@ -149,17 +184,22 @@ public sealed class ScreenerViewModel : ReactiveObject
     #region Constructor
 
     /// <summary>
-    /// Create the panel over the feed: the pages flow through the UI thread
-    /// so the row writes stay on it (this VM lives as long as the
-    /// application, so this subscription mirrors it).
+    /// Create the panel over the feed and the trend computer: both pages
+    /// and trend tables flow through the UI thread so the row writes stay
+    /// on it (this VM lives as long as the application, so these
+    /// subscriptions mirror it).
     /// </summary>
     public ScreenerViewModel(
         ScreenerFeedService feed,
         ChartViewModel chart,
+        MtfTrendService trends,
+        ILocalizationManager localization,
         ILogger<ScreenerViewModel> logger)
     {
         _feed = feed ?? throw new ArgumentNullException(nameof(feed));
         _chart = chart ?? throw new ArgumentNullException(nameof(chart));
+        _trends = trends ?? throw new ArgumentNullException(nameof(trends));
+        _localization = localization ?? throw new ArgumentNullException(nameof(localization));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         feed.Snapshots
@@ -167,11 +207,20 @@ public sealed class ScreenerViewModel : ReactiveObject
             .Subscribe(
                 ApplySnapshot,
                 ex => logger.LogError(ex, "The screener snapshot stream stopped unexpectedly"));
+        trends.Snapshots
+            .ObserveOnUiThread()
+            .Subscribe(
+                ApplyTrends,
+                ex => logger.LogError(ex, "The screener trend table stream stopped unexpectedly"));
 
         SortByPriceCommand = ReactiveCommand.Create(() => SortBy(ScreenerSortColumn.Price));
         SortByChangeCommand = ReactiveCommand.Create(() => SortBy(ScreenerSortColumn.Change));
         SortByVolumeCommand = ReactiveCommand.Create(() => SortBy(ScreenerSortColumn.Volume));
-        RouteRowCommand = ReactiveCommand.CreateFromTask<ScreenerRowViewModel, RxVoid>(RouteRowAsync);
+        RouteRowCommand = ReactiveCommand.CreateFromTask<ScreenerRowViewModel, RxVoid>(row => RouteRowAsync(row));
+        RouteTrendM15Command = ReactiveCommand.CreateFromTask<ScreenerRowViewModel, RxVoid>(row => RouteRowAsync(row, TimeFrame.M15));
+        RouteTrendH1Command = ReactiveCommand.CreateFromTask<ScreenerRowViewModel, RxVoid>(row => RouteRowAsync(row, TimeFrame.H1));
+        RouteTrendH4Command = ReactiveCommand.CreateFromTask<ScreenerRowViewModel, RxVoid>(row => RouteRowAsync(row, TimeFrame.H4));
+        RouteTrendD1Command = ReactiveCommand.CreateFromTask<ScreenerRowViewModel, RxVoid>(row => RouteRowAsync(row, TimeFrame.D1));
     }
 
     #endregion Constructor
@@ -189,6 +238,18 @@ public sealed class ScreenerViewModel : ReactiveObject
         IsLive = snapshot.State == ScreenerFeedState.Live;
         IsWaitingTicks = snapshot.State == ScreenerFeedState.NoTicksYet;
         IsCatalogUnavailable = snapshot.State == ScreenerFeedState.CatalogUnavailable;
+        RebuildRows();
+    }
+
+    /// <summary>
+    /// Apply one published trend table (T-239): the held table moves and
+    /// the rows re-format — the trend cells ride the standing preset and
+    /// sort (a table publish is a free local re-plan, never a feed re-arm).
+    /// </summary>
+    /// <param name="snapshot">The trend computer's published verdict table.</param>
+    public void ApplyTrends(MtfTrendSnapshot snapshot)
+    {
+        _trendTable = snapshot ?? MtfTrendSnapshot.Empty;
         RebuildRows();
     }
 
@@ -227,7 +288,7 @@ public sealed class ScreenerViewModel : ReactiveObject
             _ => rows,
         };
 
-        var display = rows.Select(static row => FormatRow(row)).ToList();
+        var display = rows.Select(FormatRow).ToList();
         Rows = display;
         HasRows = display.Count > 0;
     }
@@ -244,8 +305,12 @@ public sealed class ScreenerViewModel : ReactiveObject
             ? rows.OrderByDescending(key).ThenBy(static row => row.SymbolText, StringComparer.Ordinal)
             : rows.OrderBy(key).ThenBy(static row => row.SymbolText, StringComparer.Ordinal);
 
-    /// <summary>Format one feed row into the display row (the shared watchlist helpers).</summary>
-    private static ScreenerRowViewModel FormatRow(ScreenerRow row) => new()
+    /// <summary>
+    /// Format one feed row into the display row (the shared watchlist
+    /// helpers): the trend cells ride the last published table (T-239),
+    /// a symbol absent from the table formats the honest warming cell.
+    /// </summary>
+    private ScreenerRowViewModel FormatRow(ScreenerRow row) => new()
     {
         Symbol = row.SymbolText,
         Price = WatchlistRowPresentation.FormatPrice(row.LastPrice, CultureInfo.CurrentCulture),
@@ -256,7 +321,34 @@ public sealed class ScreenerViewModel : ReactiveObject
             : string.Empty,
         IsChangeUp = row.Change24hPercent > 0m,
         IsChangeDown = row.Change24hPercent < 0m,
+        TrendM15 = FormatTrendCell(row.SymbolText, static verdict => verdict.M15),
+        TrendH1 = FormatTrendCell(row.SymbolText, static verdict => verdict.H1),
+        TrendH4 = FormatTrendCell(row.SymbolText, static verdict => verdict.H4),
+        TrendD1 = FormatTrendCell(row.SymbolText, static verdict => verdict.D1),
     };
+
+    /// <summary>
+    /// Format one trend cell (T-239): the table's verdict for the symbol
+    /// (an absent symbol is the honest warming state) localized at page
+    /// time through the manager — the row stays immutable display data.
+    /// Only a bull or bear verdict carries a tint flag; warming and range
+    /// keep the plain ink.
+    /// </summary>
+    private ScreenerTrendCellViewModel FormatTrendCell(
+        string symbolText,
+        Func<MtfSymbolTrend, MtfTrendState> select)
+    {
+        var state = _trendTable.BySymbol.TryGetValue(symbolText, out var verdict)
+            ? select(verdict)
+            : MtfTrendState.Warming;
+        return state switch
+        {
+            MtfTrendState.Bull => new(_localization.GetString("Screener.Trend.Bull"), true, false),
+            MtfTrendState.Bear => new(_localization.GetString("Screener.Trend.Bear"), false, true),
+            MtfTrendState.Range => ScreenerTrendCellViewModel.Plain(_localization.GetString("Screener.Trend.Range")),
+            _ => ScreenerTrendCellViewModel.Plain(_localization.GetString("Screener.Trend.Warming")),
+        };
+    }
 
     #endregion Snapshot Apply
 
@@ -339,13 +431,17 @@ public sealed class ScreenerViewModel : ReactiveObject
     /// <summary>
     /// Route one pressed row: the row's symbol becomes the workspace symbol
     /// context (the same write the palette's same-exchange apply and the
-    /// heatmap's tile route maintain). An unparsable text is refused
+    /// heatmap's tile route maintain), and a pressed trend cell's frame
+    /// (T-239) rides after it — the symbol write first, then the frame
+    /// write, the same sequential pair the startup restore maintains
+    /// (an equal-value write is a no-op). An unparsable text is refused
     /// honestly — the press unrouts and the refusal logs; a substitute
     /// symbol is never invented for a bad row text.
     /// </summary>
     /// <param name="row">The pressed row.</param>
+    /// <param name="timeFrame">The pressed trend cell's frame, or null for the symbol-only route.</param>
     /// <returns>The route's completed signal.</returns>
-    public async Task<RxVoid> RouteRowAsync(ScreenerRowViewModel row)
+    public async Task<RxVoid> RouteRowAsync(ScreenerRowViewModel row, TimeFrame? timeFrame = null)
     {
         var resolved = ResolveRowSymbol(row.Symbol);
         if (resolved is null)
@@ -357,6 +453,11 @@ public sealed class ScreenerViewModel : ReactiveObject
         }
 
         _chart.SelectedSymbol = resolved;
+        if (timeFrame is { } frame)
+        {
+            _chart.SelectedTimeFrame = frame;
+        }
+
         return RxVoid.Default;
     }
 

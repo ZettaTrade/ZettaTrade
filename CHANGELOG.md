@@ -1,3 +1,34 @@
+## [0.2.11] - 2026-11-15
+
+Build of board task T-239 (branch `feat/mtf-trend-table`): the screener
+table grows four per-symbol trend-state columns (15m/1h/4h/1d) computed
+from the local candle cache off the UI thread.
+
+### Added
+- The pure trend classifier (T-239): the EMA slope, the Wilder ADX at the
+  configured threshold and the swing structure (higher highs and lows vs
+  lower, the swing window's halves compared) must ALL agree for a bull or
+  bear state; any disagreement degrades to the honest range state, and a
+  series too short for any leg throws — the warming state's territory,
+  never a fabricated verdict.
+- The trend computer (T-239): one pass per screener page under a
+  20-second cooldown (a symbol-set change bypasses it), the pass's cache
+  reads sharing a two-flight budget, and a bounded backfill drain over
+  the T-086 fetcher (four series per pass, the fetch window the minimum
+  bars doubled over the frame's nominal length, a pair fetched dry
+  waiting out a ten-minute backoff) — a cold 64×4 universe warms in over
+  successive passes, never one REST storm and never a frozen panel. The
+  tuning rides the UI section (MtfTrend.*): the EMA period 2..200 (20),
+  the ADX period 2..100 (14), the ADX threshold 1..100 (25); an
+  out-of-range stored value clamps into its range.
+- The screener table's four trend columns (T-239): the localized state
+  words (Bull/Bear/Range/Warming) with the change pair's candle tints on
+  bull and bear, the plain ink on warming and range; a trend-cell press
+  routes the row's symbol into the workspace AT the clicked timeframe
+  (the same sequential symbol-then-frame write the startup restore
+  maintains), and a symbol the table does not name yet stays the honest
+  warming cell.
+
 ## [0.2.10] - 2026-11-15
 
 Build of board task T-265 (branch `feat/zt-backtest-load`): the backtest

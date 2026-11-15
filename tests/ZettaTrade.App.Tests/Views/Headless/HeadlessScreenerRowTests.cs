@@ -124,6 +124,36 @@ public sealed class HeadlessScreenerRowTests
     }
 
     /// <summary>
+    /// The trend cells (T-239) materialize as the quiet click targets: one
+    /// button per trend column per row, riding the staged state words in
+    /// the column order — the nested buttons live inside the row press
+    /// target without stealing its stretch plan.
+    /// </summary>
+    [Fact]
+    public async Task TheTrendCells_MaterializeAsQuietClickTargets()
+    {
+        var (window, _, rows) = await MaterializeAsync();
+        try
+        {
+            await HeadlessWorld.OnUi(() =>
+            {
+                var cells = HeadlessWorld.Descendants<Button>(rows[0])
+                    .Where(b => b.Classes.Contains("trend-cell"))
+                    .ToList();
+                cells.Should().HaveCount(4, "the 15m/1h/4h/1d trend columns ride one cell each");
+                cells.Select(static cell => (string?)cell.Content)
+                    .Should().Equal(
+                        (IEnumerable<string?>)["Bull", "Range", "Bear", "Warming"],
+                        "the row's staged words land in the column order");
+            });
+        }
+        finally
+        {
+            await HeadlessWorld.CloseAndSettleAsync(window);
+        }
+    }
+
+    /// <summary>
     /// Materialize the screener window headlessly, inject two rows through
     /// the row list's direct ItemsSource (the preset picker's ComboBox is
     /// an ItemsControl too — the row list is the non-ComboBox one), force
@@ -155,12 +185,20 @@ public sealed class HeadlessScreenerRowTests
                         Symbol = "BTC/USDT", Price = "97 412,50", Change = "+2,4%",
                         Volume = "1,2 млрд", Funding = "0,0100%",
                         IsChangeUp = true, IsChangeDown = false,
+                        TrendM15 = new ScreenerTrendCellViewModel("Bull", true, false),
+                        TrendH1 = new ScreenerTrendCellViewModel("Range", false, false),
+                        TrendH4 = new ScreenerTrendCellViewModel("Bear", false, true),
+                        TrendD1 = new ScreenerTrendCellViewModel("Warming", false, false),
                     },
                     new()
                     {
                         Symbol = "ETH/USDT", Price = "3 612,20", Change = "-1,1%",
                         Volume = "840 млн", Funding = "0,0095%",
                         IsChangeUp = false, IsChangeDown = true,
+                        TrendM15 = new ScreenerTrendCellViewModel("Warming", false, false),
+                        TrendH1 = new ScreenerTrendCellViewModel("Warming", false, false),
+                        TrendH4 = new ScreenerTrendCellViewModel("Warming", false, false),
+                        TrendD1 = new ScreenerTrendCellViewModel("Warming", false, false),
                     },
                 };
             });

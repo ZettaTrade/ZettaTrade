@@ -1773,6 +1773,30 @@ Estimated fee: {10}</value>
   <data name="Screener.Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="Screener.ColTrendM15" xml:space="preserve">
+    <value>15m</value>
+  </data>
+  <data name="Screener.ColTrendH1" xml:space="preserve">
+    <value>1h</value>
+  </data>
+  <data name="Screener.ColTrendH4" xml:space="preserve">
+    <value>4h</value>
+  </data>
+  <data name="Screener.ColTrendD1" xml:space="preserve">
+    <value>1d</value>
+  </data>
+  <data name="Screener.Trend.Bull" xml:space="preserve">
+    <value>Bull</value>
+  </data>
+  <data name="Screener.Trend.Bear" xml:space="preserve">
+    <value>Bear</value>
+  </data>
+  <data name="Screener.Trend.Range" xml:space="preserve">
+    <value>Range</value>
+  </data>
+  <data name="Screener.Trend.Warming" xml:space="preserve">
+    <value>Warming</value>
+  </data>
   <data name="Tape.NoDataMessage" xml:space="preserve">
     <value>No trades yet</value>
   </data>

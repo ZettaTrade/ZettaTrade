@@ -36,4 +36,31 @@ public sealed record ScreenerRowViewModel
     /// change carries neither flag — the honest plain ink.
     /// </summary>
     public required bool IsChangeDown { get; init; }
+
+    /// <summary>The 15-minute trend cell (T-239): the localized state word and its tint flags.</summary>
+    public required ScreenerTrendCellViewModel TrendM15 { get; init; }
+
+    /// <summary>The one-hour trend cell (T-239).</summary>
+    public required ScreenerTrendCellViewModel TrendH1 { get; init; }
+
+    /// <summary>The four-hour trend cell (T-239).</summary>
+    public required ScreenerTrendCellViewModel TrendH4 { get; init; }
+
+    /// <summary>The one-day trend cell (T-239).</summary>
+    public required ScreenerTrendCellViewModel TrendD1 { get; init; }
+}
+
+/// <summary>
+/// One trend-state cell of a screener row (T-239): the localized state
+/// word plus the bull/bear tint flags. Warming and range carry neither
+/// tint — the honest plain ink (the T-159 pair's discipline): no cached
+/// depth is never dressed up as a verdict.
+/// </summary>
+/// <param name="Text">The localized state word (formatted at page time, the row's own discipline).</param>
+/// <param name="IsBull">True for a bull state: the up tint's state class.</param>
+/// <param name="IsBear">True for a bear state: the down tint's state class.</param>
+public sealed record ScreenerTrendCellViewModel(string Text, bool IsBull, bool IsBear)
+{
+    /// <summary>The plain-ink cell: a warming or range state owns no tint flags.</summary>
+    public static ScreenerTrendCellViewModel Plain(string text) => new(text, false, false);
 }
