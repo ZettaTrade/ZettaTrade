@@ -5633,6 +5633,46 @@ the board and its section below.
   builds the tag's tree and the tag must match the version commit (`v0.2.0`). Free filing
   number after this task: T-239.
 
+## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
+
+- **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
+  claimed 2026-11-15).
+- **Origin:** T-083 ships win rate/profit factor/drawdown/averages; risk-relative reads are absent.
+- **What:** per-trade MAE/MFE (derived from the candles around the trade's window), the
+  R-multiple distribution (the risk unit from the ticket's sizer stop when present), an
+  hourly/weekday performance table, Sharpe/Sortino over the equity curve.
+- **Scope:** the stats window growth + read-only store queries, resx en+ru, tests.
+- **Acceptance:** stays responsive on six-figure histories (the T-083 paging discipline).
+- **Tests:** aggregation goldens, the MAE/MFE derivation, empty and short histories.
+- **Status:** done. Canon: the task ships as two commits on feat/stats-deepening — the claim
+  `c4a2ee1` and the feature `48a6f6c` (the pure MAE/MFE math + the binary window slice, the
+  walk-back candle-cache reader, the accumulator's per-trade facts + the R-multiple booking
+  + the Welford-running Sharpe/Sortino, the five risk tiles, the hourly/weekday bucket
+  tables, the MAE/MFE columns joined into the realized table, the `Stats.*` resx en+ru)
+  plus the release `chore(release): 0.2.3` (the props bump, the CHANGELOG section on top);
+  shipped as 0.2.3. Lane decisions: the derivation is read-only over the local candle cache
+  and rides AFTER the scan's final publish, off the trading hot path; the honest-absence
+  rule — a trade whose window the cache does not cover keeps the dash (the first candidate
+  holding any bar wins for the symbol, no stitching across series, the fact keys carry the
+  TRADE's venue for the ledger join); the R-multiple speaks the measure-ruler division
+  canon (null on a missing stop or a zero risk distance, the closing row's own trigger
+  first, then the most recent trigger among the opening rows — a stop-entry at its own
+  fill self-refuses); the ratios run Welford-incrementally so a snapshot stays O(1) under
+  the six-figure paging discipline, the unbounded render speaks the mean's sign (∞/-∞),
+  0/0 stays a dash; the bucket tables render every bucket (zeros + dash while empty, never
+  hidden), the weekday labels ride `Stats.Weekday*` resx Monday-first, the hour labels stay
+  invariant "HH:00" UTC. The consumer pin grew with the surface (TokensPinsTests: the stats
+  window's numeric cells 15 -> 29 — T-251 adds the five risk tiles and the bucket tables).
+  Tests: 24 new facts across the derivation math and the slice bounds, the reader's
+  fall-through/grouping/walk-back/coverage honesty, the accumulator's R goldens + Welford
+  goldens + lane-gated facts + flip windows, and the view's ratio/bucket goldens + the
+  MAE/MFE join + the cache-fault degradation; the touched suites 78 facts green, the full
+  gate `GATE PASSED` (`-AllowProtected`), the launch smoke `SMOKE PASSED` (0.2.3+7d01154,
+  ERR/FTL/WRN=0, all five stores). Hazards: the excursion reads key the H1 series — a
+  venue with no cached H1 history leaves its trades dashing until the chart's cache warms;
+  the R-multiple trusts the journal's recorded triggers verbatim (the recorded journal is
+  the source of truth; a mis-recorded stop skews the distribution).
+
 ## T-256 — Windows installer: Inno Setup over the T-125 artifacts
 
 - **Branch:** `feat/windows-installer` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep).

@@ -254,7 +254,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-248 Volume profile annotations: POC/value-area labels + the naked-POC track (the analytics sweep 2026-11-14) | feat/profile-annotations | planned | — |
 | T-249 Auto S/R levels from swing pivots, proximity-clustered and pan-stable (the analytics sweep 2026-11-14) | feat/auto-levels | planned | — |
 | T-250 Squeeze detector (Bollinger inside Keltner) rides the standard pack (the analytics sweep 2026-11-14) | feat/squeeze-detector | planned | — |
-| T-251 Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day performance, Sharpe/Sortino (the analytics sweep 2026-11-14) | feat/stats-deepening | in-progress | — |
+| T-251 Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day performance, Sharpe/Sortino (the analytics sweep 2026-11-14) | feat/stats-deepening | done | 0.2.3 |
 | T-252 Correlation matrix over the cached candles (the analytics sweep 2026-11-14) | feat/correlation-matrix | planned | — |
 | T-253 Cross-venue spread + the perp-spot basis view over the three shipped adapters (the analytics sweep 2026-11-14) | feat/venue-spread | planned | — |
 | T-254 Backtest robustness: Monte Carlo over the trade sequence + walk-forward splits (the analytics sweep 2026-11-14) | feat/backtest-robustness | planned | — |
@@ -534,21 +534,6 @@ original numbers.
   here), tests in the satellite.
 - **Acceptance:** the math matches reference values on fixtures.
 - **Tests:** reference-value goldens, the pane integration in the satellite's harness.
-
----
-
-## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
-
-- **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
-  claimed 2026-11-15).
-- **Origin:** T-083 ships win rate/profit factor/drawdown/averages; risk-relative reads are absent.
-- **What:** per-trade MAE/MFE (derived from the candles around the trade's window), the
-  R-multiple distribution (the risk unit from the ticket's sizer stop when present), an
-  hourly/weekday performance table, Sharpe/Sortino over the equity curve.
-- **Scope:** the stats window growth + read-only store queries, resx en+ru, tests.
-- **Acceptance:** stays responsive on six-figure histories (the T-083 paging discipline).
-- **Tests:** aggregation goldens, the MAE/MFE derivation, empty and short histories.
-- **Status:** in-progress.
 
 ---
 
