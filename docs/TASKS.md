@@ -265,7 +265,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-259 GitHub Pages publish automation + the beta site content (the beta-2 sweep 2026-11-15) | feat/pages-publish | done | — |
 | T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | done | - |
 | T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | done | T-260 |
-| T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | planned | T-260 |
+| T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | in-progress | T-260 |
 | T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | done | — |
 | T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | — | planned | — |
 | T-265 Backtest load assembles the walk-back pages in one pass (the perf sweep 2026-11-15) | — | planned | — |
@@ -620,7 +620,7 @@ the human prioritizes the lanes.
 
 ## T-262 — Matrix + email sinks
 
-- **Branch:** `feat/matrix-email-sinks` off `develop` (queued 2026-11-15, the beta-2 sweep).
+- **Branch:** `feat/matrix-email-sinks` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep; the worktree `zt-matrix-email-sinks`).
 - **Origin:** the second transport class after the webhook batch (the T-260 abstraction).
 - **What:** a Matrix sink (the bot access token through ISecretStore, the room routing) and an
   email sink (SMTP with the user's credentials through ISecretStore, throttled, plain-text
