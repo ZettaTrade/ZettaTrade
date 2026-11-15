@@ -6118,6 +6118,52 @@ the board and its section below.
   (`-AllowProtected` - the props shield). The queued T-264/T-265 ride their own branches
   at landing — the branch name is consumed by this landing.
 
+## T-264 — Backtest replay reads signals while the feed runs
+
+- **Branch:** `feat/backtest-replay` off `develop` (claimed 2026-11-15, the perf sweep; the worktree `zt-backtest-replay`).
+- **Origin:** the perf analysis: the replay fed ALL bars into the host's unbounded input
+  channel and only then started reading the stamped signals, so the in-flight queues
+  accumulated O(N) stamped events before the first one was applied.
+- **What:** the replay's feed and its signal read run concurrently — the reader consumes
+  the stamped signals while the pump is still accepting candles, so the queues stay
+  near-empty across long replays. The emission order is untouched (the channel preserves
+  it), so every report stays byte-identical; the cooperative stop keeps its per-signal
+  check and its Cancelled event with the processed count.
+- **Scope:** `ZettaTrade.Backtest` only (the replay loop); the T-111 host seam is untouched.
+- **Acceptance:** the event order stays Started → Progress… → Completed with the same
+  counts; a mid-replay stop publishes the Cancelled event with the processed count and
+  returns the cancelled envelope with no report.
+- **Tests:** the run engine facts keep their exact-output pins (byte-identical canonical
+  text, seed independence, the walk-back window); the new mid-replay cancellation fact
+  (cancel on the first Progress event, the Cancelled event carries the stride's count).
+- **Status:** done. Canon: shipped as one feat on `feat/backtest-replay` — the claim
+  `fc99814`, the feature `707f541` (0.2.9), this close. The replay's feed and its signal
+  read now run concurrently: the feed task starts beside the read and is held to the
+  replay's own finally, and since the host's unbounded write never pends, each write is
+  followed by an honest `Task.Yield` — the pump keeps consuming and the reader keeps
+  applying while bars remain, so the in-flight queues stay near-empty across long
+  replays (the O(N) stamped-event backlog is gone). The emission order is untouched
+  (the channels are FIFO, the pump sequential), so every report stays byte-identical to
+  the serial shape — the exact-output pins (byte-identical canonical text, seed
+  independence, the walk-back window) hold unchanged. The cooperative stop keeps its
+  per-signal check; one post-loop check catches the stop landing while the reader waits
+  on an emptied channel (the paced feed lets the pump idle between candles) — a token
+  that fired mid-run is the cancelled outcome with the processed count, never a partial
+  report dressed as a completion, and the feed's own token-fired stop unwinds through
+  the same cancelled-event catch (held and observed in the finally, never discarded).
+  The T-111 host seam is untouched. Tests: the new mid-replay cancellation fact
+  `Run_CancelledOnFirstProgress_PublishesCancelledWithTheStrideCount` (cancel on the
+  first Progress event, the Cancelled event carries the stride's count) is green across
+  10 repeat runs; the gate's full suites — Infrastructure 759/759, Backtest 79/79 (+1),
+  App 2421/2421 (the first pass tripped exactly one load-timing test, identity not
+  captured by the gate's short log, and the gate's own flaky retry turned the assembly
+  green), Core 61, Strategies 32, AdapterKit 48, UI 409, E2E 7, Soak 17 — with the
+  exact-output pins green throughout. Hazards: the gate's `[PROTECTED]` list owns
+  `Directory.Build.props`, so the assigned version bump (0.2.9) forced the props shield
+  — the gate ran with `-AllowProtected` (the T-262/T-263 lane convention); the App.Tests
+  first-pass single failure is the load-sensitive timing family (the T-266 filing
+  covers it, bisected not here).
+
 ## T-266 — UpdateStage venue-consent fact: the order-sensitive timing flake
 
 - **Branch:** `feat/update-consent-flake` (worktree `zt-update-consent-flake`, based on

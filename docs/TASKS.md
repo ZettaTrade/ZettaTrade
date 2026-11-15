@@ -267,7 +267,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | done | T-260 |
 | T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | done | T-260 |
 | T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | done | — |
-| T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | feat/backtest-replay | in-progress | - |
+| T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | feat/backtest-replay | done | - |
 | T-265 Backtest load assembles the walk-back pages in one pass (the perf sweep 2026-11-15) | — | planned | — |
 | T-266 UpdateStage venue-consent fact: the order-sensitive timing flake (filed 2026-11-15) | feat/update-consent-flake | done | T-258 |
 
@@ -601,28 +601,6 @@ no-middleman canon. The messenger sinks stay free (the user's call). All rows st
 the human prioritizes the lanes.
 
 ---
-
----
-
-## T-264 — Backtest replay reads signals while the feed runs
-
-- **Branch:** `feat/backtest-replay` off `develop` (claimed 2026-11-15, the perf sweep; the worktree `zt-backtest-replay`).
-- **Status:** in-progress.
-- **Origin:** the perf analysis: the replay fed ALL bars into the host's unbounded input
-  channel and only then started reading the stamped signals, so the in-flight queues
-  accumulated O(N) stamped events before the first one was applied.
-- **What:** the replay's feed and its signal read run concurrently — the reader consumes
-  the stamped signals while the pump is still accepting candles, so the queues stay
-  near-empty across long replays. The emission order is untouched (the channel preserves
-  it), so every report stays byte-identical; the cooperative stop keeps its per-signal
-  check and its Cancelled event with the processed count.
-- **Scope:** `ZettaTrade.Backtest` only (the replay loop); the T-111 host seam is untouched.
-- **Acceptance:** the event order stays Started → Progress… → Completed with the same
-  counts; a mid-replay stop publishes the Cancelled event with the processed count and
-  returns the cancelled envelope with no report.
-- **Tests:** the run engine facts keep their exact-output pins (byte-identical canonical
-  text, seed independence, the walk-back window); the new mid-replay cancellation fact
-  (cancel on the first Progress event, the Cancelled event carries the stride's count).
 
 ---
 
