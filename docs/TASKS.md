@@ -243,7 +243,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-237 The cold start meets the 3 s budget on the soak lane: the spawn-to-window wall (runtime spin-up + service assemblies + the window build) gets the dedicated startup-optimization pass first noted at the T-109 close (the T-236 readiness record's disclosed breach; renumbered off T-234 - the number was taken by the landed windows-unify task) | feat/startup-optimization | done | - |
 | T-238 The beta flip: the version line moves to plain 0.2.x - the first beta 0.2.0, the third number rides the app-changing landings (the user's board decision; the signing flip stays a follow-up per docs/SECURITY.md) | feat/beta-flip | done | 0.2.0 |
 | T-239 Multi-timeframe trend table in the screener: per-symbol bull/bear/range states across 15m/1h/4h/1d computed from the candle cache (the analytics sweep 2026-11-14) | feat/mtf-trend-table | done | 0.2.11 |
-| T-240 Funding-rate history chart + the funding-threshold alert kind for perps (the analytics sweep 2026-11-14) | feat/funding-history | in-progress | — |
+| T-240 Funding-rate history chart + the funding-threshold alert kind for perps (the analytics sweep 2026-11-14) | feat/funding-history | done | 0.2.12 |
 | T-241 Open-interest history as a chart pane under the price series for perps (the analytics sweep 2026-11-14) | feat/oi-history-pane | planned | — |
 | T-242 Liquidation feed: the venues' free forced-order WS streams aggregated into the tape and chart markers (the analytics sweep 2026-11-14) | feat/liquidation-feed | planned | — |
 | T-243 Estimated liquidation levels overlay computed locally from OI deltas + the venues' public leverage brackets (the analytics sweep 2026-11-14) | feat/liquidation-levels | planned | T-241 (soft) |
@@ -361,22 +361,6 @@ prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately le
 the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
 T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
 original numbers.
-
----
-
-## T-240 - Funding-rate history + the funding-threshold alert kind
-
-- **Branch:** `feat/funding-history` off `develop` (claimed 2026-11-15, the analytics sweep; the worktree `zt-funding-history`).
-- **Origin:** T-197 shows the live funding rate as a number only; no history, no alerting.
-- **What:** fetch the venue's funding-rate history (Bybit's free REST; Binance's futures endpoint
-  when that lane grows), a funding pane/tooltip on perp charts, and a new alert kind — funding
-  crosses a signed threshold — riding the T-096/T-203 engine's evaluation surface.
-- **Scope:** adapter growth (the history endpoint, category-gated), a small history cache, the
-  alert-kind extension, resx en+ru, tests.
-- **Acceptance:** a perp symbol shows its funding history; a threshold alert fires once per
-  crossing and re-arms per canon.
-- **Tests:** adapter-kit coverage for the history endpoint, alert firing goldens (cross up/down,
-  re-arm).
 
 ---
 

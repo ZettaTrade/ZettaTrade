@@ -5672,6 +5672,40 @@ the board and its section below.
 - **Tests:** classifier goldens (bull/bear/range fixtures), the cache-miss warming path, the
   worker budget cap.
 
+## T-240 — Funding-rate history + the funding-threshold alert kind
+
+- **Branch:** `feat/funding-history` off `develop` (claimed 2026-11-15, the analytics sweep; the worktree `zt-funding-history`).
+- **Origin:** T-197 shows the live funding rate as a number only; no history, no alerting.
+- **What:** fetch the venue's funding-rate history (Bybit's free REST; Binance's futures endpoint
+  when that lane grows), a funding pane/tooltip on perp charts, and a new alert kind — funding
+  crosses a signed threshold — riding the T-096/T-203 engine's evaluation surface.
+- **Scope:** adapter growth (the history endpoint, category-gated), a small history cache, the
+  alert-kind extension, resx en+ru, tests.
+- **Acceptance:** a perp symbol shows its funding history; a threshold alert fires once per
+  crossing and re-arms per canon.
+- **Tests:** adapter-kit coverage for the history endpoint, alert firing goldens (cross up/down,
+  re-arm).
+- **Status:** done. Canon: the feature commit `b281134` (the claim `cba7df2`; the dead worker's
+  drafts adopted and completed supervisor-solo — the engine, codec, service, aligner, editor and
+  chart-pane surfaces finished plus the whole test tail) is on develop (fast-forward merge);
+  shipped as `0.2.12` (see CHANGELOG.md). Lane decisions: the funding history rides the optional
+  capability probe (`IFundingHistoryProvider` in Infrastructure Exchange) — a venue without it
+  and a non-perpetual symbol both answer the honest no-pane without a provider call; the cache
+  front (`FundingHistoryService`) is cache-first per symbol (a 15-minute freshness, a 32-entry
+  bound) and never fabricates past the venue's 200-event page (honest gaps, never a filled
+  stretch); the chart synthesizes the `Funding` oscillator outside the plugin catalog, the
+  per-bar value is the last settled event at or before the bar's open (a bar before the first
+  event breaks the polyline), and the load kicks on delivery, prepend and repair merge with a
+  superseded load dropping silently at apply; the `FundingCross` kind reuses the price slot in
+  PERCENT units (zero and negatives are honest thresholds), offers only the Above/Below edges,
+  and fires the two-sample crossing on `Ticker.FundingRate` — the first rate-carrying tick
+  seeds the pair and never fires; the draft spelling accepts the ccxt settle suffix on the pair
+  form only ("USDT:USDT" stays refused). Tests: App.Tests 2466/2466 and Infrastructure.Tests
+  764/764 (the endpoint wire facts re-anchored on the clean 8-hour 2026-01-01 grid; the funding
+  REST dish rides the shipped manifest as the third family). Gate passed with `-AllowProtected`
+  (the `Directory.Build.props` bump is the supervisor-only protected file); the launch smoke
+  passed before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
