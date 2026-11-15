@@ -288,6 +288,43 @@ public sealed class BacktestServiceTests
     }
 
     [Fact]
+    public async Task Run_WalkBackMultiPage_AssemblesTheExactOpenTimeSequence()
+    {
+        // Five pages of differing sizes — the newest page of 5, three 7-bar
+        // strides, the 6-bar remainder — must assemble the full 32-bar
+        // window into the exact ascending open-time sequence, and the same
+        // series served in ONE page must produce the byte-identical report.
+        const int target = 32;
+        var (paged, pagedCache) = Build();
+        await SeedAsync(pagedCache, 40);
+        pagedCache.NewestPageSize = 5;
+        pagedCache.OlderPageSize = 7;
+
+        var pagedResult = await paged.RunAsync(Request(bars: target));
+
+        pagedResult.IsCompleted.Should().BeTrue();
+        // The load really walked back: the single newest page of 5 cannot
+        // cover the 32-bar target alone.
+        pagedCache.OlderReadCount.Should().BeGreaterThan(1, "the window assembles over several fetched pages");
+        pagedResult.Report!.Equity.Should().HaveCount(target, "one equity point per replayed candle");
+        // bars 8..39, oldest first: the newest page (35..39) plus the strides
+        // (28..34, 21..27, 14..20) plus the remainder (8..13) — every bar in
+        // its exact place, no page re-shuffled into the wrong slot.
+        var expectedTimes = Enumerable.Range(8, target).Select(index => Base.AddHours(index));
+        pagedResult.Report.Equity.Select(point => point.Time).Should().Equal(expectedTimes);
+
+        var (single, singleCache) = Build();
+        await SeedAsync(singleCache, 40);
+
+        var singleResult = await single.RunAsync(Request(bars: target));
+
+        singleResult.IsCompleted.Should().BeTrue();
+        singleCache.OlderReadCount.Should().Be(0, "the default page sizes serve the whole window in the newest page");
+        // The multi-page assembly is byte-identical to the single-page load.
+        singleResult.Report!.ToCanonicalText().Should().Be(pagedResult.Report.ToCanonicalText());
+    }
+
+    [Fact]
     public async Task Run_EmptyCache_IsTheHonestZeroActivityBaseline()
     {
         var (service, cache) = Build();

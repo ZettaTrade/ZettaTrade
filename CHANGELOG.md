@@ -1,3 +1,21 @@
+## [0.2.10] - 2026-11-15
+
+Build of board task T-265 (branch `feat/zt-backtest-load`): the backtest
+run's walk-back load assembles the fetched pages in one pass — every bar
+is copied exactly once into the ascending series instead of re-shifting
+the whole already-loaded list on every fetched page.
+
+### Changed
+- The window loader collects the walk-back's pages as fetched (newest page
+  first) and assembles the ascending series in ONE pass by walking the
+  collected pages from the oldest back: the total element moves drop from
+  O(N² / page cap) (≈5M reference moves at the 100k-bar cap over the
+  cache's 1000-row pages) to O(N) (T-265).
+- The window's shape is untouched: the empty-newest early exit and the
+  between-page cooperative stop keep their exact forms, and every multi-
+  page window assembles the exact same ascending bar sequence — the report
+  is byte-identical to the single-page load over the same series (T-265).
+
 ## [0.2.9] - 2026-11-15
 
 Build of board task T-264 (branch `feat/backtest-replay`): the backtest

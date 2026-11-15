@@ -702,25 +702,39 @@ public sealed class BacktestService : IBacktestService
     /// <see cref="BacktestRunRequest.Bars"/> bars, oldest first. The cache's
     /// own paging shape (the T-085/T-086 canon) serves at most its own page
     /// cap per call, so the load walks back by open time until the target is
-    /// reached or the cache runs dry — the honest shorter window.
+    /// reached or the cache runs dry — the honest shorter window. The
+    /// walk-back COLLECTS its pages as fetched (newest page first) and
+    /// assembles the ascending series in ONE pass from the oldest page back:
+    /// every bar is copied exactly once, instead of re-shifting the whole
+    /// accumulated list on every page (the prepend cost grew as
+    /// O(N² / page cap)).
     /// </summary>
     private async Task<List<Bar>> LoadCandlesAsync(
         BacktestRunRequest request,
         CancellationToken cancellationToken)
     {
-        var bars = new List<Bar>(capacity: request.Bars);
-
         var newest = await _candles.GetLatestAsync(
             request.AdapterId,
             request.Symbol,
             request.Interval,
             request.Bars,
             cancellationToken).ConfigureAwait(false);
-        bars.AddRange(newest);
 
         // An empty newest answer ends the walk immediately: the cache has
         // nothing — the honest zero-activity baseline, never a crash.
-        while (bars.Count > 0 && bars.Count < request.Bars)
+        if (newest.Count == 0)
+        {
+            return [];
+        }
+
+        // The pages as fetched, newest page first. Each page is ascending
+        // (the cache's own order) and lands entirely older than every page
+        // collected before it.
+        var pages = new List<IReadOnlyList<Bar>> { newest };
+        var loaded = newest.Count;
+        var anchor = newest[0].Time;
+
+        while (loaded < request.Bars)
         {
             // The cooperative stop: checked between pages.
             cancellationToken.ThrowIfCancellationRequested();
@@ -729,17 +743,29 @@ public sealed class BacktestService : IBacktestService
                 request.AdapterId,
                 request.Symbol,
                 request.Interval,
-                bars[0].Time,
-                request.Bars - bars.Count,
+                anchor,
+                request.Bars - loaded,
                 cancellationToken).ConfigureAwait(false);
             if (page.Count == 0)
             {
                 break;
             }
 
-            // Each page lands entirely older than the current front, so
-            // always prepending keeps the series ascending.
-            bars.InsertRange(0, page);
+            // Each page lands entirely older than the current anchor, so
+            // walking the collected pages from the oldest back keeps the
+            // assembled series ascending.
+            pages.Add(page);
+            loaded += page.Count;
+            anchor = page[0].Time;
+        }
+
+        // The ONE assembly pass: walk the collected pages from the oldest
+        // back, every bar copied exactly once — no re-shifting, the whole
+        // walk costs O(loaded) element moves instead of O(N² / page cap).
+        var bars = new List<Bar>(capacity: request.Bars);
+        for (var index = pages.Count - 1; index >= 0; index--)
+        {
+            bars.AddRange(pages[index]);
         }
 
         return bars;

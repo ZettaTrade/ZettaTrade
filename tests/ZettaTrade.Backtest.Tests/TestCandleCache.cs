@@ -42,6 +42,9 @@ public sealed class TestCandleCache : ICandleCache
     /// <summary>How many newest reads have arrived (the sweep's load-once pin: the window loads one time, not per row).</summary>
     public int NewestReadCount { get; private set; }
 
+    /// <summary>How many older reads have arrived (the walk-back's page count).</summary>
+    public int OlderReadCount { get; private set; }
+
     /// <summary>The size of every older page (the cache's own stride).</summary>
     public int OlderPageSize { get; set; } = int.MaxValue;
 
@@ -112,6 +115,7 @@ public sealed class TestCandleCache : ICandleCache
 
         // The real cache serves the NEWEST bars strictly older than the
         // boundary, oldest first — the walk-back's contiguous window.
+        OlderReadCount++;
         var page = new List<Bar>();
         for (var index = bars.Count - 1; index >= 0 && page.Count < Math.Min(OlderPageSize, limit); index--)
         {
