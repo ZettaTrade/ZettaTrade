@@ -1,3 +1,42 @@
+## [0.2.14] - 2026-11-16
+
+Build of board task T-242 (branch `feat/liquidation-feed`): the venues'
+forced-liquidation streams land as a dedicated tape-column panel — the
+forced orders ride their own wire lanes, the aggregation stays bounded,
+and the first-order-only under-reporting caveat is printed on the panel
+itself.
+
+### Added
+- The liquidation-feed capability (`ILiquidationFeedProvider`) in the
+  Infrastructure Exchange module, served by the Bybit adapter (the
+  per-contract `allLiquidation` topics on a dedicated third socket on the
+  linear host) and the Binance adapter (the all-market `!forceOrder@arr`
+  stream on a dedicated socket on the futures combined-stream host); both
+  wires dial on the first subscriber and drop when the last one releases,
+  re-subscribe after every reconnect, and carry the venue-normalized
+  force-closed POSITION side — never a raw dialect field (T-242).
+- The `LiquidationFeedService` front: the active adapter is probed per
+  request, the aggregation lanes ride bounded channels (the log tail's
+  backpressure leg — a stalled consumer drops the oldest events, never
+  backpressures the wire), and the window state (the recent events, the
+  rolled-up totals, the open cascade) publishes per pulse tick.
+- The `LiquidationCascadeAggregator` pure math: the chain-rule grouping
+  (an event within 30 s of the run's previous one) and the 250 000
+  notional qualification — a run under the bound is the tape's ordinary
+  rows, never a cascade.
+- The `LiquidationsWidget` (the trade tape's pattern: a bounded ring,
+  the hover pause, the theme and language re-ink) beside the trade tape
+  as the tape column's second tab, with the cascade badge in the header
+  band and the under-reporting note under the field; an adapter without
+  the capability renders the panel's honest unavailable state.
+
+### Notes
+- The venues publish only the FIRST forced order of a cascade (Bybit's
+  `allLiquidation` and Binance's `!forceOrder@arr` both): every served
+  cascade total is a floor, and the panel's note says so — no estimate
+  pretends to know the rest. OKX stays out until that adapter grows the
+  lane (the board's own "when the adapter grows" bound).
+
 ## [0.2.13] - 2026-11-16
 
 Build of board task T-241 (branch `feat/oi-history-pane`): the

@@ -1821,6 +1821,36 @@
   <data name="Tape.Size" xml:space="preserve">
     <value>Объём</value>
   </data>
+  <data name="Tape.Liquidations.Title" xml:space="preserve">
+    <value>Ликвидации</value>
+  </data>
+  <data name="Tape.Liquidations.A11yWithSymbol" xml:space="preserve">
+    <value>Ликвидации: {0}</value>
+  </data>
+  <data name="Tape.Liquidations.NoDataMessage" xml:space="preserve">
+    <value>Ликвидаций пока нет</value>
+  </data>
+  <data name="Tape.Liquidations.PausedHint" xml:space="preserve">
+    <value>Пауза — уберите курсор, чтобы продолжить</value>
+  </data>
+  <data name="Tape.Liquidations.Time" xml:space="preserve">
+    <value>Время</value>
+  </data>
+  <data name="Tape.Liquidations.Price" xml:space="preserve">
+    <value>Цена</value>
+  </data>
+  <data name="Tape.Liquidations.Size" xml:space="preserve">
+    <value>Объём</value>
+  </data>
+  <data name="Tape.Liquidations.CascadeHint" xml:space="preserve">
+    <value>Каскад: {0} ордеров, {1} номинал</value>
+  </data>
+  <data name="Tape.Liquidations.Unavailable" xml:space="preserve">
+    <value>Активная площадка не публикует поток ликвидаций</value>
+  </data>
+  <data name="Tape.Liquidations.Note" xml:space="preserve">
+    <value>Площадки публикуют только первый принудительный ордер каскада — итоги занижены</value>
+  </data>
   <data name="Chrome.Title" xml:space="preserve">
     <value>ZettaTrade</value>
   </data>

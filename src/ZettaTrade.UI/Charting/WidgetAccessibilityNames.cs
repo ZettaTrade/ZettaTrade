@@ -50,6 +50,12 @@ public static class WidgetAccessibilityNames
     /// <summary>The market heatmap's static title key.</summary>
     private const string HeatmapEmptyKey = "Heatmap.Title";
 
+    /// <summary>The liquidation tape's static title key.</summary>
+    private const string LiquidationsEmptyKey = "Tape.Liquidations.Title";
+
+    /// <summary>The liquidation tape's symbol template key ("{0}" = symbol).</summary>
+    private const string LiquidationsWithSymbolKey = "Tape.Liquidations.A11yWithSymbol";
+
     #endregion
 
     #region Pure Compositors
@@ -141,6 +147,10 @@ public static class WidgetAccessibilityNames
 
     /// <summary>The market heatmap's static title.</summary>
     public static string HeatmapTitle() => Template(HeatmapEmptyKey);
+
+    /// <summary>The liquidation tape peer's template pair.</summary>
+    public static (string Empty, string WithSymbol) LiquidationsTemplates() =>
+        (Template(LiquidationsEmptyKey), Template(LiquidationsWithSymbolKey));
 
     #endregion
 }

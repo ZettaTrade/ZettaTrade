@@ -460,31 +460,76 @@
                         <controls:ColumnResizeHandle Grid.Column="3"
                                                      IsVisible="{Binding !Layout.IsBookDetached}" />
 
-                        <!-- Trade tape panel: the newest trades on top (side
-                             coloring on the aggressor), pauses on hover, clears
-                             on the button; a switched symbol clears the old
-                             symbol's rows in the widget. -->
+                        <!-- The tape column hosts the trade tape and the
+                             liquidation tape (T-242) as tabs: the same
+                             persisted column, two surfaces — the venues'
+                             live trades and the venues' forced orders. The
+                             tab captions ride the kit's panel-title
+                             treatment (the right rail's precedent); the
+                             liquidation tab carries the under-reporting
+                             note under the widget (the venues publish only
+                             the first forced order of a cascade — the
+                             caveat is documentation, never decoration). -->
                         <Border Grid.Column="4"
                                 Margin="8,0,0,0"
                                 BorderBrush="{DynamicResource Border}"
-                                BorderThickness="1,0,0,0"
-                                DataContext="{Binding TradeTape}">
-                            <Grid RowDefinitions="Auto,*">
-                                <!-- The tape head rides the kit's panel-header
-                                     scaffold (T-160): the padding grammar and
-                                     the title treatment live in the kit, the
-                                     Clear action right-docks into it — no
-                                     hand-typed margins or type copies. -->
-                                <DockPanel Grid.Row="0" Classes="panel-header">
-                                    <Button x:Name="TapeClearButton"
-                                            DockPanel.Dock="Right"
-                                            Content="{loc:Localized Tape.Clear}"
-                                            Click="OnTapeClearClick"
-                                            MinWidth="72" />
-                                    <TextBlock Text="{loc:Localized Tape.Title}" />
-                                </DockPanel>
-                                <charting:TradeTapeWidget x:Name="TapeWidget" Grid.Row="1" Trades="{Binding Updates}" />
-                            </Grid>
+                                BorderThickness="1,0,0,0">
+                            <TabControl>
+                                <TabItem DataContext="{Binding TradeTape}">
+                                    <TabItem.Header>
+                                        <TextBlock Classes="panel-title"
+                                                   Text="{loc:Localized Tape.Title}" />
+                                    </TabItem.Header>
+                                    <Grid RowDefinitions="Auto,*">
+                                        <!-- The tape head rides the kit's panel-header
+                                             scaffold (T-160): the padding grammar and
+                                             the title treatment live in the kit, the
+                                             Clear action right-docks into it — the bare
+                                             title stays the scaffold's descendant (the
+                                             pin's contract), the tab caption repeats it
+                                             for the tab strip's sake. -->
+                                        <DockPanel Grid.Row="0" Classes="panel-header">
+                                            <Button x:Name="TapeClearButton"
+                                                    DockPanel.Dock="Right"
+                                                    Content="{loc:Localized Tape.Clear}"
+                                                    Click="OnTapeClearClick"
+                                                    MinWidth="72" />
+                                            <TextBlock Text="{loc:Localized Tape.Title}" />
+                                        </DockPanel>
+                                        <charting:TradeTapeWidget x:Name="TapeWidget" Grid.Row="1" Trades="{Binding Updates}" />
+                                    </Grid>
+                                </TabItem>
+                                <TabItem DataContext="{Binding Liquidations}">
+                                    <TabItem.Header>
+                                        <TextBlock Classes="panel-title"
+                                                   Text="{loc:Localized Tape.Liquidations.Title}" />
+                                    </TabItem.Header>
+                                    <Grid RowDefinitions="*,Auto">
+                                        <!-- The events field: the venue's forced orders drawn as
+                                              the side-colored rows; the open cascade badges in
+                                              the header band. The unavailable note covers the
+                                              widget while the active venue publishes no
+                                              liquidation stream (an honest absence, never a
+                                              dead panel waiting for data). -->
+                                        <Panel Grid.Row="0">
+                                            <charting:LiquidationsWidget x:Name="LiquidationsWidget"
+                                                                         Liquidations="{Binding Updates}"
+                                                                         Cascade="{Binding Window.OpenCascade}" />
+                                            <TextBlock IsVisible="{Binding !IsAvailable}"
+                                                       Text="{loc:Localized Tape.Liquidations.Unavailable}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextSecondary}" />
+                                        </Panel>
+                                        <TextBlock Grid.Row="1"
+                                                   Text="{loc:Localized Tape.Liquidations.Note}"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="{StaticResource CaptionFontSize}"
+                                                   Margin="8,0,8,4"
+                                                   Foreground="{DynamicResource TextSecondary}" />
+                                    </Grid>
+                                </TabItem>
+                            </TabControl>
                         </Border>
 
                         <!-- Tape/watchlist handle: drags move the boundary —

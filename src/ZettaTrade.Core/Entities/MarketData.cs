@@ -79,3 +79,35 @@ public readonly record struct Ticker(
     decimal? FundingRate = null,
     decimal? OpenInterest = null,
     DateTimeOffset? NextFundingTime = null);
+
+/// <summary>
+/// One forced liquidation event of a venue's derivatives wire (T-242):
+/// the forced close of a position the exchange executed at its margin
+/// call, as the venue published it. Every member is a wire fact — the
+/// price is the venue's served forced price (Bybit's bankruptcy price,
+/// Binance's average forced fill), the quantity the venue's served size
+/// (the executed size, the accumulated fill), the timestamp the venue's
+/// event moment. The side is the venue-normalized
+/// <see cref="Enums.LiquidationSide"/> — the POSITION that was force-closed
+/// — never a venue's raw dialect field; the adapters own that mapping.
+/// </summary>
+public sealed record LiquidationEvent
+{
+    /// <summary>The subscription's app symbol the event resolved to.</summary>
+    public required Symbol Symbol { get; init; }
+
+    /// <summary>The side of the position the liquidation force-closed.</summary>
+    public required Enums.LiquidationSide LiquidatedSide { get; init; }
+
+    /// <summary>The venue's served forced price.</summary>
+    public required Price Price { get; init; }
+
+    /// <summary>The venue's served executed size.</summary>
+    public required Quantity Quantity { get; init; }
+
+    /// <summary>The venue's event moment (its own server clock).</summary>
+    public required DateTimeOffset Timestamp { get; init; }
+
+    /// <summary>The event's notional value at the served price and size (the computed display fact; the tape's magnitude ordering rides it).</summary>
+    public decimal Notional => Price.Value * Quantity.Value;
+}

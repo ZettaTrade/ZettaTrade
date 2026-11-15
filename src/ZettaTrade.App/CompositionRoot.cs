@@ -392,6 +392,7 @@ internal static class CompositionRoot
         services.AddWatchlistServices(); // T-120/T-196: the watchlist panel (catalog + feed + rows) over the same facade/selection pair above.
         services.AddHeatmapServices(); // T-121: the heatmap panel (candidate pumps + ranked tile page) beside the watchlist rail above.
         services.AddScreenerServices(); // T-195: the screener panel (candidate pumps + the sortable table page) beside the heatmap rail above.
+        services.AddLiquidationsServices(); // T-242: the liquidation tape panel (the forced-order capability's raw events + the pulse-paced aggregation lanes) beside the tape column above.
         // T-095: the global symbol palette — the Ctrl+K instrument picker
         // over ALL registered adapters. Both singletons, registered after
         // the chart ViewModel it applies into and before MainViewModel;
@@ -410,6 +411,7 @@ internal static class CompositionRoot
                 sp.GetRequiredService<TradeTapeViewModel>(),
                 sp.GetRequiredService<WatchlistViewModel>(),
                 sp.GetRequiredService<HeatmapViewModel>(), // T-121: the right rail's heatmap tab.
+                sp.GetRequiredService<LiquidationsViewModel>(), // T-242: the tape column's liquidation tab.
                 sp.GetRequiredService<WorkspaceLayoutViewModel>(),
                 sp.GetRequiredService<WorkspaceChartsViewModel>(), // T-201: the multi-chart grid's layout mode + slots.
                 sp.GetRequiredService<SymbolPaletteViewModel>(),

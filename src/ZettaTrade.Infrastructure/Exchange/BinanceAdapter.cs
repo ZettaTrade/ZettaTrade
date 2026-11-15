@@ -4,6 +4,8 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
@@ -18,8 +20,17 @@ using ZettaTrade.Infrastructure.RateLimiting;
 /// <summary>
 /// Binance exchange adapter implementation (read-only market data).
 /// Creates its own WebSocket transport; HTTP clients come from IHttpClientFactory.
+/// <para>
+/// The T-242 liquidation feed rides a SECOND, dedicated socket on the
+/// futures combined-stream host: the venue wires forced liquidations only on
+/// its derivatives wire, the all-market <c>!forceOrder@arr</c> stream is one
+/// subscription for every contract, and its lazy lifecycle is the tracked
+/// contracts' own — the socket dials on the first liquidation subscriber and
+/// drops when the last one releases, while <see cref="ConnectAsync"/> and
+/// <see cref="DisconnectAsync"/> keep governing only the market-data wire.
+/// </para>
 /// </summary>
-public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
+public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter, ILiquidationFeedProvider
 {
     #region Properties
 
@@ -36,6 +47,18 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     // the message handler expects that envelope (raw /ws frames lack it).
     /// <summary>Production WebSocket URL of the combined stream endpoint.</summary>
     public const string DefaultWsUrl = "wss://stream.binance.com:9443/stream";
+
+    /// <summary>
+    /// Production WebSocket URL of the futures combined-stream host: the
+    /// derivatives wire the forced-liquidation stream rides (T-242). The
+    /// spot wire carries no liquidation data at any price — a liquidation
+    /// lane pointing at the spot host is a configuration error, so it owns
+    /// its own default.
+    /// </summary>
+    public const string DefaultFuturesWsUrl = "wss://fstream.binance.com:443/stream";
+
+    /// <summary>The v5-era all-market forced-liquidation stream name (one subscription serves every contract; the events carry their own symbol).</summary>
+    private const string LiquidationStreamName = "!forceOrder@arr";
 
     /// <summary>Number of levels in the partial book depth snapshot.</summary>
     private const int DepthLevelCount = 20;
@@ -193,9 +216,37 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     private readonly WebSocketClient _wsClient;
     private readonly string _baseUrl;
     private readonly string _wsUrl;
+    private readonly string _futuresWsUrl;
     private readonly IRestRateLimiter _restLimiter;
     private readonly IDisposable _messageSubscription;
     private readonly IDisposable _connectionSubscription;
+
+    /// <summary>
+    /// The dedicated liquidation socket (T-242): the forced-liquidation
+    /// stream rides the futures combined-stream host on a wire of its own —
+    /// the market-data wire's subscription state stays honest and an idle
+    /// market-data session never shares a socket with the liquidation lane.
+    /// LIFECYCLE: the socket is lazy and ref-count OWNED — it dials on the
+    /// first liquidation subscriber and disconnects when the last one
+    /// releases; <see cref="ConnectAsync"/> and <see cref="DisconnectAsync"/>
+    /// govern only the market-data wire.
+    /// </summary>
+    private readonly WebSocketClient _liquidationSocket;
+
+    /// <summary>The liquidation lane's tracked contracts, keyed by the wire text.</summary>
+    private readonly ConcurrentDictionary<string, TrackedLiquidation> _liquidationTracked = new(StringComparer.Ordinal);
+
+    private readonly IDisposable _liquidationMessageSubscription;
+    private readonly IDisposable _liquidationConnectionSubscription;
+
+    /// <summary>
+    /// The liquidation wire's last logged connection state: a
+    /// connection-state line is a TRANSITION (T-233) — the WS client's
+    /// subject seeds the pre-dial <c>false</c> at subscription, and logging
+    /// that sync would print the real endpoint into a session that never
+    /// dialed (the T-141 isolation census's property).
+    /// </summary>
+    private bool _liquidationLastLoggedConnectionState;
 
     /// <summary>
     /// Serializes on-demand stream starts, the public subscribe/unsubscribe
@@ -213,11 +264,14 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     private readonly ConcurrentDictionary<string, TrackedSubscription> _subscribedSymbols = new();
 
     /// <summary>
-    /// Topic re-subscribe requests (a fresh socket): each one lands in this
-    /// queue and the ONE consumer task serves them FIFO, serialized through
-    /// <see cref="_streamStartGate"/> and never fire-and-forget.
+    /// Wire requests (a fresh socket, a liquidation lane's lifecycle): each
+    /// one lands in this queue and the ONE consumer task serves them FIFO,
+    /// serialized through <see cref="_streamStartGate"/> and never
+    /// fire-and-forget. The request discriminates the KIND — a market-data
+    /// re-subscribe, a liquidation re-subscribe or a liquidation release —
+    /// so one queue serves both wires' lifecycles.
     /// </summary>
-    private readonly Channel<Symbol> _resubscribeQueue = Channel.CreateUnbounded<Symbol>(
+    private readonly Channel<ResubscribeRequest> _resubscribeQueue = Channel.CreateUnbounded<ResubscribeRequest>(
         new UnboundedChannelOptions { SingleReader = true });
 
     /// <summary>
@@ -263,6 +317,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     {
         _baseUrl = endpoints?.RestBaseUrl ?? DefaultRestBaseUrl;
         _wsUrl = endpoints?.WsUrl ?? DefaultWsUrl;
+        _futuresWsUrl = ResolveFuturesWsUrl(endpoints);
 
         if (string.IsNullOrWhiteSpace(_baseUrl) || string.IsNullOrWhiteSpace(_wsUrl))
         {
@@ -278,9 +333,17 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
             logger,
             DefaultReconnectPolicy,
             reconnectSupervisor?.For(Id, DefaultReconnectPolicy));
+        _liquidationSocket = new WebSocketClient(
+            _futuresWsUrl,
+            logger,
+            DefaultReconnectPolicy,
+            reconnectSupervisor?.For($"{Id}-liquidation", DefaultReconnectPolicy));
 
         _messageSubscription = _wsClient.MessageStream.Subscribe(HandleWebSocketMessage);
         _connectionSubscription = _wsClient.ConnectionStateStream.Subscribe(HandleConnectionStateChanged);
+        _liquidationMessageSubscription = _liquidationSocket.MessageStream.Subscribe(HandleLiquidationSocketMessage);
+        _liquidationConnectionSubscription = _liquidationSocket.ConnectionStateStream.Subscribe(
+            HandleLiquidationConnectionStateChanged);
 
         _resubscribeLoop = RunResubscribeLoopAsync(_lifetimeCts.Token);
     }
@@ -293,14 +356,18 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     public override async Task ConnectAsync(CancellationToken ct = default)
     {
         await _wsClient.ConnectAsync(ct);
-        IsConnected = _wsClient.IsConnected;
+        IsConnected = _wsClient.IsConnected || _liquidationSocket.IsConnected;
     }
 
     /// <inheritdoc/>
     public override async Task DisconnectAsync(CancellationToken ct = default)
     {
         await _wsClient.DisconnectAsync();
-        IsConnected = false;
+        // The liquidation lane's socket is ref-count owned (its subscribers
+        // dial and release it): this call disconnects only the market-data
+        // wire, and the aggregate reads the truth — a live liquidation
+        // session keeps the honest connected state.
+        IsConnected = _wsClient.IsConnected || _liquidationSocket.IsConnected;
     }
 
     /// <summary>
@@ -522,6 +589,161 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     /// </summary>
     private int NextRequestId() => Interlocked.Increment(ref _lastRequestId);
 
+    /// <inheritdoc/>
+    public IObservable<LiquidationEvent> SubscribeLiquidations(Symbol symbol, CancellationToken ct = default)
+    {
+        // The wire text of EITHER app form is the same contract (T-242: the
+        // spot pair and the settle-marked perpetual name one concatenated
+        // symbol), so the tracked set is keyed by the wire text and one
+        // all-market subscription serves both subscribers; each subscriber
+        // sees the events stamped with ITS app symbol.
+        var wireText = symbol.GetExchangeFormat(Id);
+        return Observable
+            .FromAsync(token => StartLiquidationStreamsAsync(symbol, wireText, token))
+            .Select(_ => _liquidationTracked.TryGetValue(wireText, out var tracked)
+                ? tracked.Events.AsObservable()
+                : Observable.Empty<LiquidationEvent>())
+            .Switch()
+            .Select(ev => ev with { Symbol = symbol })
+            .Finally(() => _resubscribeQueue.Writer.TryWrite(
+                new ResubscribeRequest(symbol, ResubscribeKind.LiquidationRelease)));
+    }
+
+    /// <summary>
+    /// Start the liquidation feed for one wire contract on demand (called by
+    /// the FIRST subscriber of the contract): connect the dedicated futures
+    /// socket once when not connected, and subscribe the all-market forced
+    /// liquidation stream once when the first contract joins the tracked
+    /// set. The tracked-map mutation and every send share
+    /// <see cref="_streamStartGate"/> with the market-data socket's sends, so
+    /// concurrent starts, releases and re-subscribes can never interleave
+    /// frames (the T-052 transport discipline). The caller's token covers the
+    /// gate wait and the connect only: the SEND rides the adapter-owned
+    /// lifetime — cancelling it mid-send would abort the shared socket for
+    /// every feed (BUG-004). The tracked map mutates AFTER the connect and
+    /// the send (the market-data lane's ordering): the connection-state
+    /// handler reads the map on every fresh connect, and an entry published
+    /// before the dial would make the FIRST connect queue a re-subscribe the
+    /// start's own send already covered — the wire would see the all-market
+    /// SUBSCRIBE twice per fresh lane.
+    /// </summary>
+    private async Task StartLiquidationStreamsAsync(Symbol symbol, string wireText, CancellationToken ct)
+    {
+        await _streamStartGate.WaitAsync(ct);
+        try
+        {
+            var isNewContract = !_liquidationTracked.TryGetValue(wireText, out var tracked);
+            tracked ??= new TrackedLiquidation(symbol);
+            tracked.RefCount++;
+            var firstContract = isNewContract && _liquidationTracked.IsEmpty;
+
+            if (!_liquidationSocket.IsConnected)
+            {
+                await _liquidationSocket.ConnectAsync(ct);
+            }
+
+            if (firstContract)
+            {
+                await _liquidationSocket.SendJsonAsync(
+                    new SubscriptionRequest(MethodNames.Subscribe, NextRequestId(), [LiquidationStreamName]),
+                    _lifetimeCts.Token);
+            }
+
+            if (isNewContract)
+            {
+                _liquidationTracked[wireText] = tracked;
+            }
+        }
+        finally
+        {
+            _streamStartGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Release one subscriber's hold on the contract's liquidation feed
+    /// (queued by the subscription's <c>Finally</c>): the last release
+    /// unsubscribes the all-market stream and disconnects the dedicated
+    /// socket when NO contract remains tracked (the all-market stream has no
+    /// per-contract unsubscribe — the wire drops only when the tracked set
+    /// empties). Runs on the re-subscribe pump's adapter-owned lifetime,
+    /// serialized through <see cref="_streamStartGate"/> like every send; a
+    /// release for an already removed contract is a no-op, never a negative
+    /// count.
+    /// </summary>
+    private async Task ReleaseLiquidationStreamsAsync(Symbol symbol, CancellationToken ct)
+    {
+        var wireText = symbol.GetExchangeFormat(Id);
+        await _streamStartGate.WaitAsync(ct);
+        try
+        {
+            if (!_liquidationTracked.TryGetValue(wireText, out var tracked))
+            {
+                return;
+            }
+
+            tracked.RefCount--;
+            if (tracked.RefCount > 0)
+            {
+                return;
+            }
+
+            _liquidationTracked.TryRemove(wireText, out _);
+
+            if (_liquidationTracked.IsEmpty)
+            {
+                if (_liquidationSocket.IsConnected)
+                {
+                    await _liquidationSocket.SendJsonAsync(
+                        new SubscriptionRequest(MethodNames.Unsubscribe, NextRequestId(), [LiquidationStreamName]),
+                        ct);
+                }
+
+                await _liquidationSocket.DisconnectAsync();
+            }
+
+            tracked.Events.Dispose();
+        }
+        finally
+        {
+            _streamStartGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Re-send the all-market liquidation subscription after the dedicated
+    /// socket's reconnection (the server holds no session state across
+    /// sockets). The tracked-set membership is kept by the subscribe/release
+    /// paths, so this send-only path cannot resurrect a stale entry; a set
+    /// that emptied while the request queued skips the send.
+    /// </summary>
+    private async Task ResubscribeLiquidationAsync(CancellationToken ct)
+    {
+        await _streamStartGate.WaitAsync(ct);
+        try
+        {
+            if (!_liquidationTracked.IsEmpty && _liquidationSocket.IsConnected)
+            {
+                await _liquidationSocket.SendJsonAsync(
+                    new SubscriptionRequest(MethodNames.Subscribe, NextRequestId(), [LiquidationStreamName]),
+                    ct);
+            }
+        }
+        finally
+        {
+            _streamStartGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Resolve the liquidation lane's socket host: the endpoints record's
+    /// optional futures override, the shipped production default otherwise.
+    /// </summary>
+    private static string ResolveFuturesWsUrl(BinanceEndpoints? endpoints) =>
+        string.IsNullOrWhiteSpace(endpoints?.FuturesWsUrl)
+            ? DefaultFuturesWsUrl
+            : endpoints.FuturesWsUrl;
+
     #endregion
 
     #region Private Methods
@@ -579,51 +801,79 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
             : DepthLevelCount;
 
     /// <summary>
-    /// The ONE consumer of the re-subscribe queue: after every reconnect the
-    /// tracked set is re-subscribed FIFO, each send running to completion — a
-    /// newer request queues behind and never cancels an in-flight send,
-    /// because a cancelled send aborts the whole socket and silences every
-    /// feed behind it (BUG-004). Runs on the adapter's owned lifetime; the
-    /// only exit is disposal.
+    /// The ONE consumer of the wire-request queue: every entry is served FIFO
+    /// and runs to completion — a newer request (a reconnect burst trailing
+    /// several symbols, a gap frame, a release) queues behind and never
+    /// cancels an in-flight send, because a cancelled send aborts the whole
+    /// socket and silences every feed behind it (BUG-004). The only
+    /// cancellation left on this path is disposal, which tears the transport
+    /// down on its own.
     /// </summary>
     private async Task RunResubscribeLoopAsync(CancellationToken ct)
     {
         try
         {
-            await foreach (var symbol in _resubscribeQueue.Reader.ReadAllAsync(ct))
+            await foreach (var request in _resubscribeQueue.Reader.ReadAllAsync(ct))
             {
                 try
                 {
-                    await _streamStartGate.WaitAsync(ct);
-                    try
+                    switch (request.Kind)
                     {
-                        if (_subscribedSymbols.TryGetValue(symbol.Normalized, out var tracked)
-                            && _wsClient.IsConnected)
-                        {
-                            await _wsClient.SendJsonAsync(
-                                new SubscriptionRequest(
-                                    MethodNames.Subscribe,
-                                    NextRequestId(),
-                                    BuildStreamNames(symbol, tracked.BookDepth)),
-                                ct);
-                        }
-                    }
-                    finally
-                    {
-                        _streamStartGate.Release();
+                        case ResubscribeKind.MarketData:
+                            await ResubscribeMarketDataAsync(request.Symbol, ct);
+                            break;
+                        case ResubscribeKind.LiquidationSubscribe:
+                            await ResubscribeLiquidationAsync(ct);
+                            break;
+                        case ResubscribeKind.LiquidationRelease:
+                            await ReleaseLiquidationStreamsAsync(request.Symbol, ct);
+                            break;
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    // One failed re-subscribe must not kill the pump: the
-                    // tracked set survives and the NEXT reconnect re-serves it.
-                    Logger.LogWarning(ex, "Binance stream re-subscribe for {Symbol} failed", symbol.Normalized);
+                    // One failed request must not kill the pump: a failed
+                    // market-data re-subscribe re-arms on the next book frame,
+                    // a liquidation one on the next reconnect, and a release
+                    // that failed leaves the ref-count honest (the next
+                    // release or disposal reaps it).
+                    Logger.LogWarning(
+                        ex,
+                        "Binance wire request {Kind} for {Symbol} failed",
+                        request.Kind,
+                        request.Symbol.Normalized);
                 }
             }
         }
         catch (OperationCanceledException)
         {
             // Disposal: the only exit of the re-subscribe pump.
+        }
+    }
+
+    /// <summary>
+    /// Re-subscribe one tracked symbol's market-data streams after a
+    /// reconnect (the pump's market-data leg, extracted as its own step).
+    /// </summary>
+    private async Task ResubscribeMarketDataAsync(Symbol symbol, CancellationToken ct)
+    {
+        await _streamStartGate.WaitAsync(ct);
+        try
+        {
+            if (_subscribedSymbols.TryGetValue(symbol.Normalized, out var tracked)
+                && _wsClient.IsConnected)
+            {
+                await _wsClient.SendJsonAsync(
+                    new SubscriptionRequest(
+                        MethodNames.Subscribe,
+                        NextRequestId(),
+                        BuildStreamNames(symbol, tracked.BookDepth)),
+                    ct);
+            }
+        }
+        finally
+        {
+            _streamStartGate.Release();
         }
     }
 
@@ -758,6 +1008,164 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
     }
 
     /// <summary>
+    /// Frame dispatch for the dedicated liquidation socket: the only data
+    /// frames it serves carry the all-market forced-liquidation stream's
+    /// envelope; subscribe acks ({"result":null,"id":N}) and any other
+    /// stream name are ignored — errors from one message never leave the
+    /// handler.
+    /// </summary>
+    private void HandleLiquidationSocketMessage(string message)
+    {
+        try
+        {
+            using var json = JsonDocument.Parse(message);
+            var root = json.RootElement;
+
+            if (!root.TryGetProperty("stream", out var streamProp) ||
+                !root.TryGetProperty("data", out var data))
+            {
+                // A control frame (the subscribe/unsubscribe result echo).
+                return;
+            }
+
+            if (streamProp.GetString() != LiquidationStreamName)
+            {
+                return;
+            }
+
+            if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("o", out var order))
+            {
+                Logger.LogWarning(
+                    "Binance liquidation frame: the data carries no forced-order object, the frame is dropped");
+                return;
+            }
+
+            HandleLiquidationFrame(order);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error handling Binance liquidation WebSocket message");
+        }
+    }
+
+    /// <summary>
+    /// Parse one forced-liquidation order (the wire measured live,
+    /// 2026-11-16): <c>{"e":"forceOrder","o":{"s":"BTCUSDT","S":"SELL",
+    /// "o":"LIMIT","f":"IOC","q":"0.014","p":"9910","X":"FILLED",
+    /// "ap":"9910.5","l":"0.011","z":"0.011","T":1763245800000}}</c> —
+    /// <c>s</c> the contract's concatenated name, <c>S</c> the closing
+    /// ORDER's side ("SELL" = a LONG position was force-closed), <c>q</c> the
+    /// original size, <c>p</c> the bankruptcy price, <c>ap</c> the average
+    /// forced fill, <c>z</c> the accumulated filled size and <c>T</c> the
+    /// event's epoch-milliseconds NUMBER. The event carries the executed
+    /// size (<c>z</c>, the honest total the venue served) and the average
+    /// forced fill (<c>ap</c>) when both are served positive, the original
+    /// order facts otherwise — never a fabricated zero. An untracked
+    /// contract is dropped at debug (the all-market stream serves every
+    /// contract; only the tracked ones fan out). A malformed order is
+    /// counted and dropped — it never aborts the socket.
+    /// </summary>
+    private void HandleLiquidationFrame(JsonElement order)
+    {
+        if (order.ValueKind != JsonValueKind.Object)
+        {
+            Logger.LogWarning("Binance liquidation frame: the order is not an object, the frame is dropped");
+            return;
+        }
+
+        if (!order.TryGetProperty("s", out var symbolProp) || symbolProp.ValueKind != JsonValueKind.String)
+        {
+            Logger.LogWarning("Binance liquidation frame: the order carries no contract name, the event is dropped");
+            return;
+        }
+
+        var contract = symbolProp.GetString()!;
+        if (!_liquidationTracked.TryGetValue(contract, out var tracked))
+        {
+            // The all-market stream serves every contract; only the tracked
+            // ones fan out. An untracked frame is an in-flight unsubscribe
+            // the server has not processed yet — the demand-driven wire's
+            // routine cargo (debug, never a warning).
+            Logger.LogDebug(
+                "Binance liquidation event for {Contract}: untracked contract, the event is dropped",
+                contract);
+            return;
+        }
+
+        try
+        {
+            if (!order.TryGetProperty("S", out var sideProp) ||
+                sideProp.GetString() is not (FrameSides.Buy or FrameSides.Sell) ||
+                !order.TryGetProperty("T", out var timeProp) ||
+                timeProp.ValueKind != JsonValueKind.Number)
+            {
+                Logger.LogWarning(
+                    "Binance liquidation event for {Contract}: the order is malformed, the event is dropped",
+                    tracked.Symbol.Normalized);
+                return;
+            }
+
+            var side = sideProp.GetString();
+            var price = ReadLiquidationNumber(order, "ap") ?? ReadLiquidationNumber(order, "p");
+            var quantity = ReadLiquidationNumber(order, "z") ?? ReadLiquidationNumber(order, "q");
+            if (price is not { } forcedPrice || quantity is not { } forcedQuantity)
+            {
+                Logger.LogWarning(
+                    "Binance liquidation event for {Contract}: no parsable price or size, the event is dropped",
+                    tracked.Symbol.Normalized);
+                return;
+            }
+
+            tracked.Events.OnNext(new LiquidationEvent
+            {
+                Symbol = tracked.Symbol,
+                LiquidatedSide = side == FrameSides.Sell ? LiquidationSide.Long : LiquidationSide.Short,
+                Price = new Price(forcedPrice),
+                Quantity = new Quantity(forcedQuantity),
+                Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(timeProp.GetInt64()),
+            });
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // One unparsable order is dropped and counted; the socket keeps
+            // flowing (the BUG-027 discipline — a bad row never aborts the
+            // stream).
+            Logger.LogWarning(
+                ex,
+                "Binance liquidation event for {Contract} is malformed and is dropped",
+                tracked.Symbol.Normalized);
+        }
+    }
+
+    /// <summary>
+    /// Read one numeric-string order member (the venue wires sizes and
+    /// prices as decimal STRINGS): a present, parsable, strictly positive
+    /// value returns; anything else (absent, unparsable, zero — an average
+    /// price before fills, an empty accumulation) returns null so the
+    /// caller's fallback chain picks the venue's original order fact.
+    /// </summary>
+    private static decimal? ReadLiquidationNumber(JsonElement order, string name)
+    {
+        if (!order.TryGetProperty(name, out var prop))
+        {
+            return null;
+        }
+
+        try
+        {
+            var value = BinanceJsonNumbers.ParseDecimal(prop);
+            return value > 0m ? value : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // An unparsable member is the fallback chain's signal, not a
+            // socket fault: the caller drops to the next member.
+            _ = ex;
+            return null;
+        }
+    }
+
+    /// <summary>
     /// The last logged connection state: a connection-state line is a TRANSITION (T-233) —
     /// the WS client's subject seeds the pre-dial <c>false</c> at subscription, and logging
     /// that sync would print this adapter's real endpoint into a session that never dialed
@@ -768,7 +1176,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     private void HandleConnectionStateChanged(bool isConnected)
     {
-        IsConnected = isConnected;
+        IsConnected = _wsClient.IsConnected || _liquidationSocket.IsConnected;
         if (isConnected != _lastLoggedConnectionState)
         {
             _lastLoggedConnectionState = isConnected;
@@ -786,8 +1194,35 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         // subscribed on its own).
         foreach (var tracked in _subscribedSymbols.Values)
         {
-            _resubscribeQueue.Writer.TryWrite(tracked.Symbol);
+            _resubscribeQueue.Writer.TryWrite(new ResubscribeRequest(tracked.Symbol, ResubscribeKind.MarketData));
         }
+    }
+
+    /// <summary>
+    /// The dedicated liquidation socket's connection transitions: the
+    /// aggregate connected state and the deduped log line, then — on a fresh
+    /// connect — one re-subscribe request for the all-market stream (the
+    /// server holds no session state across sockets). A tracked set that
+    /// emptied while the transition queued makes the re-subscribe a no-op.
+    /// </summary>
+    private void HandleLiquidationConnectionStateChanged(bool isConnected)
+    {
+        IsConnected = _wsClient.IsConnected || _liquidationSocket.IsConnected;
+        if (isConnected != _liquidationLastLoggedConnectionState)
+        {
+            _liquidationLastLoggedConnectionState = isConnected;
+            Logger.LogInformation(
+                "Binance futures WebSocket connection state: {State}",
+                isConnected ? "Connected" : "Disconnected");
+        }
+
+        if (!isConnected || _liquidationTracked.IsEmpty)
+        {
+            return;
+        }
+
+        _resubscribeQueue.Writer.TryWrite(
+            new ResubscribeRequest(_liquidationTracked.Values.First().Symbol, ResubscribeKind.LiquidationSubscribe));
     }
 
     private static string ConvertTimeFrame(TimeFrame timeFrame)
@@ -825,7 +1260,16 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
         await base.DisposeAsync();
         _messageSubscription.Dispose();
         _connectionSubscription.Dispose();
+        _liquidationMessageSubscription.Dispose();
+        _liquidationConnectionSubscription.Dispose();
         await _wsClient.DisposeAsync();
+        await _liquidationSocket.DisposeAsync();
+        foreach (var tracked in _liquidationTracked.Values)
+        {
+            tracked.Events.Dispose();
+        }
+
+        _liquidationTracked.Clear();
         _streamStartGate.Dispose();
         // HttpClient comes from IHttpClientFactory; its lifetime is managed there.
     }
@@ -841,6 +1285,52 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <summary>A tracked symbol with the book depth its streams were requested at.</summary>
     private sealed record TrackedSubscription(Symbol Symbol, int BookDepth);
+
+    /// <summary>
+    /// One queued wire request for the FIFO pump: the symbol the request
+    /// rides (the all-market liquidation re-subscribe carries any one
+    /// tracked symbol — the symbol is a log detail there, the request is
+    /// the subscription of the whole stream) and its KIND.
+    /// </summary>
+    private sealed record ResubscribeRequest(Symbol Symbol, ResubscribeKind Kind);
+
+    /// <summary>The kinds of wire request the re-subscribe pump serves.</summary>
+    private enum ResubscribeKind
+    {
+        /// <summary>Re-subscribe a symbol's market-data topic set on the combined socket.</summary>
+        MarketData,
+
+        /// <summary>Re-subscribe the all-market forced-liquidation stream on the dedicated socket.</summary>
+        LiquidationSubscribe,
+
+        /// <summary>Release one subscriber's hold on the liquidation lane.</summary>
+        LiquidationRelease,
+    }
+
+    /// <summary>The venue's forced-order side literals (the closing ORDER's side: "SELL" closes a LONG).</summary>
+    private static class FrameSides
+    {
+        public const string Buy = "BUY";
+        public const string Sell = "SELL";
+    }
+
+    /// <summary>
+    /// One contract's tracked liquidation feed: the app symbol it was first
+    /// requested under (the log and the re-subscribe name it), its shared
+    /// event subject and the open subscribers' ref-count (the last release
+    /// unsubscribes the wire and drops the entry).
+    /// </summary>
+    private sealed class TrackedLiquidation(Symbol symbol)
+    {
+        /// <summary>The app symbol the feed was first requested under.</summary>
+        public Symbol Symbol { get; } = symbol;
+
+        /// <summary>The contract's shared event subject (every subscriber of the wire text sees it).</summary>
+        public Subject<LiquidationEvent> Events { get; } = new();
+
+        /// <summary>The open subscribers' count (the lifecycle's ownership count).</summary>
+        public int RefCount;
+    }
 
     private static class MethodNames
     {

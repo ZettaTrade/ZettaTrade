@@ -1821,6 +1821,36 @@ Estimated fee: {10}</value>
   <data name="Tape.Size" xml:space="preserve">
     <value>Size</value>
   </data>
+  <data name="Tape.Liquidations.Title" xml:space="preserve">
+    <value>Liquidations</value>
+  </data>
+  <data name="Tape.Liquidations.A11yWithSymbol" xml:space="preserve">
+    <value>Liquidations: {0}</value>
+  </data>
+  <data name="Tape.Liquidations.NoDataMessage" xml:space="preserve">
+    <value>No liquidations yet</value>
+  </data>
+  <data name="Tape.Liquidations.PausedHint" xml:space="preserve">
+    <value>Paused - move the cursor off to resume</value>
+  </data>
+  <data name="Tape.Liquidations.Time" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="Tape.Liquidations.Price" xml:space="preserve">
+    <value>Price</value>
+  </data>
+  <data name="Tape.Liquidations.Size" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="Tape.Liquidations.CascadeHint" xml:space="preserve">
+    <value>Cascade: {0} orders, {1} notional</value>
+  </data>
+  <data name="Tape.Liquidations.Unavailable" xml:space="preserve">
+    <value>The active venue publishes no liquidation stream</value>
+  </data>
+  <data name="Tape.Liquidations.Note" xml:space="preserve">
+    <value>Venues publish only the first forced order of a cascade - totals under-report</value>
+  </data>
   <data name="Chrome.Title" xml:space="preserve">
     <value>ZettaTrade</value>
   </data>

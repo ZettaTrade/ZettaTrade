@@ -163,6 +163,16 @@ internal sealed record MainWorld(
                 NullLogger<HeatmapFeedService>.Instance),
             chart,
             NullLogger<HeatmapViewModel>.Instance);
+        // The liquidation panel's world twin (T-242): the feed rides the
+        // facade (the offline adapter carries no liquidation capability — the
+        // panel boots into its honest unavailable state).
+        var liquidations = new LiquidationsViewModel(
+            new LiquidationFeedService(
+                activeExchanges,
+                TimeProvider.System,
+                NullLogger<LiquidationFeedService>.Instance),
+            selections,
+            NullLogger<LiquidationsViewModel>.Instance);
         var toast = new NotificationToastHostViewModel(
             new NotificationCenter(settings, NullLogger<NotificationCenter>.Instance),
             localization,
@@ -212,6 +222,7 @@ internal sealed record MainWorld(
             tape,
             watchlist,
             heatmap,
+            liquidations,
             layout,
             charts,
             palette,

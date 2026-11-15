@@ -48,6 +48,9 @@ public sealed class MainViewModel : ReactiveObject
     /// <summary>Heatmap panel ViewModel for the change-colored market tiles (T-121).</summary>
     public HeatmapViewModel Heatmap { get; }
 
+    /// <summary>Liquidation tape panel ViewModel for the venues' forced-order flow (T-242).</summary>
+    public LiquidationsViewModel Liquidations { get; }
+
     /// <summary>Workspace layout ViewModel owning the persisted splitter column widths.</summary>
     public WorkspaceLayoutViewModel Layout { get; }
 
@@ -88,6 +91,7 @@ public sealed class MainViewModel : ReactiveObject
         TradeTapeViewModel tradeTape,
         WatchlistViewModel watchlist,
         HeatmapViewModel heatmap,
+        LiquidationsViewModel liquidations,
         WorkspaceLayoutViewModel layout,
         WorkspaceChartsViewModel charts,
         SymbolPaletteViewModel palette,
@@ -106,6 +110,7 @@ public sealed class MainViewModel : ReactiveObject
         TradeTape = tradeTape;
         Watchlist = watchlist;
         Heatmap = heatmap;
+        Liquidations = liquidations;
         Layout = layout;
         Charts = charts;
         Palette = palette;
