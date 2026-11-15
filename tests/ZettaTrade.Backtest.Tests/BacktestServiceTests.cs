@@ -212,6 +212,41 @@ public sealed class BacktestServiceTests
     }
 
     [Fact]
+    public async Task Run_CancelledOnFirstProgress_PublishesCancelledWithTheStrideCount()
+    {
+        var (service, cache) = Build();
+        await SeedAsync(cache, 1_200);
+
+        var events = new List<BacktestRunEvent>();
+        using var cancellation = new CancellationTokenSource();
+        using var subscription = service.Events.Subscribe(
+            @event =>
+            {
+                events.Add(@event);
+                if (@event.Kind == BacktestRunEventKind.Progress)
+                {
+                    // The stop rides the stream itself: the first stride's
+                    // Progress is where the cooperative stop lands.
+                    cancellation.Cancel();
+                }
+            },
+            ex => throw ex);
+
+        var result = await service.RunAsync(Request(bars: 1_200), cancellation.Token);
+
+        result.Should().Be(BacktestRunResult.Cancelled);
+        result.Report.Should().BeNull();
+        // The stop landed mid-replay: Started, the first stride's Progress,
+        // then the Cancelled event — no Completed, no report.
+        events.Select(@event => @event.Kind).Should().Equal(
+            [BacktestRunEventKind.Started, BacktestRunEventKind.Progress, BacktestRunEventKind.Cancelled]);
+        // The Cancelled event carries the stride's own count: the per-signal
+        // stop fired before any further signal was applied.
+        events[^1].BarsProcessed.Should().Be(events[^2].BarsProcessed);
+        events[^1].BarsProcessed.Should().Be(256);
+    }
+
+    [Fact]
     public async Task Run_Events_FollowStartedProgressCompleted()
     {
         var (service, cache) = Build();

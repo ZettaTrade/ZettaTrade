@@ -174,9 +174,13 @@ public sealed class BacktestService : IBacktestService
     /// report (T-113's evaluation loop, extracted so a sweep replays the same
     /// bars per parameterization): a fresh host, ledger and seeded draw per
     /// replay, the per-run events published as the run shape owns them. The
-    /// cancellation is cooperative per signal; a stop inside the replay
-    /// publishes the cancelled event (with the bars processed so far) and
-    /// rethrows — the caller owns the cancelled result.
+    /// feed and the signal read run concurrently (T-264): the feed paces one
+    /// candle at a time beside the read, so the in-flight queues stay
+    /// near-empty across long replays while the channel's FIFO order keeps
+    /// every report byte-identical to the serial shape. The cancellation is
+    /// cooperative per signal; a stop inside the replay publishes the
+    /// cancelled event (with the bars processed so far) and rethrows — the
+    /// caller owns the cancelled result.
     /// </summary>
     /// <param name="publishEvents">Publish the run-lane event shapes
     /// (Started/Progress/Cancelled). The T-263 best-report re-replay rides
@@ -220,21 +224,44 @@ public sealed class BacktestService : IBacktestService
 
             var previousStance = StrategyStance.Neutral;
 
-            await FeedBarsAsync(host, bars, request, cancellationToken).ConfigureAwait(false);
+            // The feed runs BESIDE the read (T-264): it is started here and held
+            // to the finally below, so the reader consumes the stamped signals
+            // while the feed is still feeding bars — the in-flight queues stay
+            // near-empty across long replays instead of accumulating O(N)
+            // stamped events ahead of the first applied one. The channels are
+            // FIFO and the pump is sequential, so the applied signal sequence —
+            // and therefore every report — is byte-identical to the serial shape.
+            var feedTask = FeedBarsAsync(host, bars, request, cancellationToken);
 
-            await foreach (var signal in host.Signals
-                .ReadAllAsync(CancellationToken.None)
-                .ConfigureAwait(false))
+            try
             {
-                // The cooperative stop: checked per signal, nothing re-arms.
-                cancellationToken.ThrowIfCancellationRequested();
-                ApplySignal(ledger, prng, previousStance, signal, request, ref previousStance);
-                processed++;
-
-                if (processed % ProgressStride == 0)
+                await foreach (var signal in host.Signals
+                    .ReadAllAsync(CancellationToken.None)
+                    .ConfigureAwait(false))
                 {
-                    Publish(new BacktestRunEvent(BacktestRunEventKind.Progress, request.Bars, processed, Report: null));
+                    // The cooperative stop: checked per signal, nothing re-arms.
+                    cancellationToken.ThrowIfCancellationRequested();
+                    ApplySignal(ledger, prng, previousStance, signal, request, ref previousStance);
+                    processed++;
+
+                    if (processed % ProgressStride == 0)
+                    {
+                        Publish(new BacktestRunEvent(BacktestRunEventKind.Progress, request.Bars, processed, Report: null));
+                    }
                 }
+
+                // The stop may have landed while the reader waited on an emptied
+                // channel (the paced feed lets the pump idle between candles):
+                // a token that fired mid-run is the cancelled outcome, never a
+                // partial report dressed as a completion.
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            finally
+            {
+                // The feed settles on every path; its token-fired stop is the
+                // same stop the replay rides, so whatever surfaces here unwinds
+                // through the same cancelled-event catch below.
+                await feedTask.ConfigureAwait(false);
             }
 
             // The final mark rides the last candle's close (or the empty
@@ -722,8 +749,12 @@ public sealed class BacktestService : IBacktestService
 
     #region Replay
 
-    /// <summary>Feed the loaded series into the host's input (unbounded channel: the
-    /// writer completes synchronously per candle; the token still stops the walk).</summary>
+    /// <summary>Feed the loaded series into the host's input, pacing one candle
+    /// at a time (T-264): each write is followed by an honest yield, so the pump
+    /// consumes the candle and the signal reader applies its stamp while the
+    /// feed still has bars left — the in-flight queues stay near-empty across
+    /// long replays. The unbounded write itself completes synchronously per
+    /// candle; the token still stops the walk.</summary>
     private static async Task FeedBarsAsync(
         StrategyHost host,
         IReadOnlyList<Bar> bars,
@@ -735,6 +766,11 @@ public sealed class BacktestService : IBacktestService
             await host.CandleInput
                 .WriteAsync(new ClosedCandle(request.Symbol, request.Interval, bar), cancellationToken)
                 .ConfigureAwait(false);
+
+            // The unbounded write never pends, so without this yield the feed
+            // would run the whole series into the channel in one unbroken
+            // stretch — the exact O(N) backlog the concurrency removes.
+            await Task.Yield();
         }
 
         // The whole series is in: the pump drains, consumes and completes.

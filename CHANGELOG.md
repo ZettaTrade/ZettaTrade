@@ -1,3 +1,24 @@
+## [0.2.9] - 2026-11-15
+
+Build of board task T-264 (branch `feat/backtest-replay`): the backtest
+replay's feed and its signal read now run concurrently — the reader
+consumes the stamped signals while the pump is still accepting candles,
+so the in-flight queues stay near-empty across long replays instead of
+accumulating O(N) stamped events ahead of the first applied one.
+
+### Changed
+- The replay's feed paces one candle at a time beside the signal read:
+  the feed runs as its own task held to the replay's finally, and since
+  the host's unbounded write never pends, each write is followed by an
+  honest yield — the pump keeps consuming and the reader keeps applying
+  while bars remain (T-264).
+- The emission order is untouched (the channel preserves it), so every
+  report stays byte-identical to the serial shape; a stop that lands
+  while the reader waits on an emptied channel publishes the Cancelled
+  event with the processed count and returns the cancelled envelope
+  with no report, never a partial report dressed as a completion
+  (T-264).
+
 ## [0.2.8] - 2026-11-15
 
 Build of board task T-262 (branch `feat/matrix-email-sinks`): the sink
