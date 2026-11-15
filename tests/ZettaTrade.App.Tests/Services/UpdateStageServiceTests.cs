@@ -1,6 +1,7 @@
 namespace ZettaTrade.App.Tests.Services;
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -14,6 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Livery.Localization;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -53,6 +55,18 @@ public sealed class UpdateStageServiceTests
 
     private static readonly TimeSpan SettleDelay = TimeSpan.FromMilliseconds(120);
 
+    /// <summary>
+    /// The consent write's settle: the ask, the answer and the Approved
+    /// manifest write ride ONE synchronous pump continuation, so a settle
+    /// longer than that path (a warm manifest write is low single-digit
+    /// milliseconds) is the honest join — the state read after it can never
+    /// race the write. The write itself is an atomic temp-file replace-move,
+    /// and a move over a file ANY reader holds open fails with Access
+    /// denied (the pump never retries the write — ONE question per
+    /// version), so a manifest poll must never overlap that window.
+    /// </summary>
+    private static readonly TimeSpan ConsentWriteSettle = TimeSpan.FromMilliseconds(250);
+
     #region Tests: the staged path
 
     /// <summary>A consented verdict stages the verified build, asks the ONE question and writes Approved.</summary>
@@ -62,14 +76,16 @@ public sealed class UpdateStageServiceTests
         var archiveBytes = ZipArchiveBytes([HostEntry(), ("zettatrade.dll", "staged dll")]);
         var confirmations = new ConfirmationStub(answer: true);
         var venue = VenueWith(positions: 1, orders: 1);
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: AssetMap(archiveBytes),
             confirmations: confirmations,
             venues: [venue]);
 
-        await WaitUntilAsync(() => ReadState(harness) == UpdateSwapState.Approved, "the consent landed");
+        await WaitUntilAsync(() => confirmations.Requests.Count > 0, "the consent ask landed");
+        await Task.Delay(ConsentWriteSettle);
+        ReadState(harness).Should().Be(UpdateSwapState.Approved, "the consent landed");
 
         confirmations.Requests.Should().ContainSingle("the ONE consent question per version");
         var request = confirmations.Requests[0];
@@ -100,13 +116,15 @@ public sealed class UpdateStageServiceTests
             ("zettatrade-9.9.9/" + HostFileName(), "staged host"),
             ("zettatrade-9.9.9/zettatrade.dll", "staged dll"),
         ]);
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: AssetMap(archiveBytes),
             confirmations: new ConfirmationStub(answer: true));
 
-        await WaitUntilAsync(() => ReadState(harness) == UpdateSwapState.Approved, "the wrapped stage normalized and consented");
+        await WaitUntilAsync(() => harness.Confirmations.Requests.Count > 0, "the consent ask landed");
+        await Task.Delay(ConsentWriteSettle);
+        ReadState(harness).Should().Be(UpdateSwapState.Approved, "the wrapped stage normalized and consented");
 
         var stagedDirectory = harness.Store.StagedDirectory(StagedVersion);
         File.ReadAllText(Path.Combine(stagedDirectory, HostFileName())).Should().Be(
@@ -120,7 +138,7 @@ public sealed class UpdateStageServiceTests
     public async Task ADeclinedConsent_LeavesTheManifestStaged_AndNeverRepeatsTheAsk()
     {
         var confirmations = new ConfirmationStub(answer: false);
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: AssetMap(ZipArchiveBytes([HostEntry()])),
@@ -152,14 +170,21 @@ public sealed class UpdateStageServiceTests
         offline.GetOpenOrdersAsync(Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult<IReadOnlyList<Order>>([]));
 
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: AssetMap(ZipArchiveBytes([HostEntry()])),
             confirmations: confirmations,
             venues: [healthy, offline]);
 
-        await WaitUntilAsync(() => ReadState(harness) == UpdateSwapState.Approved, "the consent landed");
+        await WaitUntilAsync(
+            () => confirmations.Requests.Count > 0,
+            "the consent ask landed",
+            () => $"asks={harness.Confirmations.Requests.Count} assetReqs={harness.AssetHandler.Requests} "
+                + $"releasesReqs={harness.Releases.Requests} state={ReadState(harness)} "
+                + "log=[" + string.Join(" || ", harness.StageLog.Entries.TakeLast(6)) + "]");
+        await Task.Delay(ConsentWriteSettle);
+        ReadState(harness).Should().Be(UpdateSwapState.Approved, "the consent landed");
 
         var request = confirmations.Requests.Should().ContainSingle().Subject;
         request.Arguments.Should().HaveCount(3, "the version, the risk line and the unreachable note ride the ask");
@@ -176,13 +201,15 @@ public sealed class UpdateStageServiceTests
     public async Task AZeroStateSession_DisclosesTheZerosHonestly()
     {
         var confirmations = new ConfirmationStub(answer: true);
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: AssetMap(ZipArchiveBytes([HostEntry()])),
             confirmations: confirmations);
 
-        await WaitUntilAsync(() => ReadState(harness) == UpdateSwapState.Approved, "the consent landed");
+        await WaitUntilAsync(() => confirmations.Requests.Count > 0, "the consent ask landed");
+        await Task.Delay(ConsentWriteSettle);
+        ReadState(harness).Should().Be(UpdateSwapState.Approved, "the consent landed");
 
         var request = confirmations.Requests.Should().ContainSingle().Subject;
         ((string)request.Arguments[1]).Should().Contain("Update.Consent.RiskLine")
@@ -194,7 +221,7 @@ public sealed class UpdateStageServiceTests
     public async Task TheOffSwitch_SilencesTheLoop_AndALiveFlipRearsIt()
     {
         var confirmations = new ConfirmationStub(answer: true);
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: AssetMap(ZipArchiveBytes([HostEntry()])),
@@ -210,7 +237,9 @@ public sealed class UpdateStageServiceTests
 
         await harness.Settings.SetAsync(AppSettingsKeys.Section, AppSettingsKeys.AutoUpdate, true);
         await harness.Checker.CheckNowAsync();
-        await WaitUntilAsync(() => ReadState(harness) == UpdateSwapState.Approved, "the flip re-arms the loop");
+        await WaitUntilAsync(() => confirmations.Requests.Count > 0, "the flip re-arms the ask");
+        await Task.Delay(ConsentWriteSettle);
+        ReadState(harness).Should().Be(UpdateSwapState.Approved, "the flip re-arms the loop");
     }
 
     #endregion
@@ -221,7 +250,7 @@ public sealed class UpdateStageServiceTests
     [Fact]
     public async Task AHashMismatch_RefusesTheStage_AndCleansUp()
     {
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: new Dictionary<string, byte[]>
@@ -242,7 +271,7 @@ public sealed class UpdateStageServiceTests
     [Fact]
     public async Task AFailedStaging_NeverRetriesThisProcess()
     {
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: new Dictionary<string, byte[]>
@@ -266,7 +295,7 @@ public sealed class UpdateStageServiceTests
     public async Task AMissingRidArchive_RefusesTheStage()
     {
         var confirmations = new ConfirmationStub(answer: true);
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets(
                 archiveName: "zettatrade-9.9.9-osx-arm64.zip")),
@@ -284,7 +313,7 @@ public sealed class UpdateStageServiceTests
     [Fact]
     public async Task AMissingSumsFile_RefusesTheStage()
     {
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: new Dictionary<string, byte[]> { [ArchiveUrl] = ZipArchiveBytes([HostEntry()]) });
@@ -299,7 +328,7 @@ public sealed class UpdateStageServiceTests
     [Fact]
     public async Task ASumsFileWithoutTheArchiveLine_RefusesTheStage()
     {
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: new Dictionary<string, byte[]>
@@ -318,7 +347,7 @@ public sealed class UpdateStageServiceTests
     [Fact]
     public async Task ALyingHeader_RefusesTheDownload_BeforeAnyByteStreams()
     {
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets()),
             assets: new Dictionary<string, byte[]>
@@ -339,7 +368,7 @@ public sealed class UpdateStageServiceTests
     [Fact]
     public async Task ADowngradeRedirect_RefusesAtTheLandingCheck()
     {
-        using var harness = await CreateHarnessAsync(
+        await using var harness = await CreateHarnessAsync(
             currentVersion: "0.1.0",
             payloadJson: ReleasesJson(ReleaseWithAssets(
                 archiveName: ArchiveName,
@@ -363,7 +392,14 @@ public sealed class UpdateStageServiceTests
 
     private static UpdateSwapState? ReadState(StageHarness harness) => harness.Store.TryRead()?.State;
 
-    private static async Task WaitUntilAsync(Func<bool> condition, string because)
+    /// <summary>
+    /// The bounded wait the pump-driven facts join through (the AlertEngine
+    /// budget shape). The optional probe rides the failure message: a
+    /// timed-out wait reports the harness's last-known shape (the state,
+    /// the counters and the service's own captured warning lane), never a
+    /// bare no.
+    /// </summary>
+    private static async Task WaitUntilAsync(Func<bool> condition, string because, Func<string>? probe = null)
     {
         var deadline = DateTimeOffset.UtcNow + WaitBudget;
         while (!condition() && DateTimeOffset.UtcNow < deadline)
@@ -371,7 +407,19 @@ public sealed class UpdateStageServiceTests
             await Task.Delay(10);
         }
 
-        condition().Should().BeTrue(because);
+        if (condition())
+        {
+            return;
+        }
+
+        if (probe is null)
+        {
+            condition().Should().BeTrue(because);
+        }
+        else
+        {
+            throw new InvalidOperationException($"{because}: {probe()}");
+        }
     }
 
     /// <summary>The asset map the happy paths ride: the archive and its own sums file.</summary>
@@ -432,6 +480,31 @@ public sealed class UpdateStageServiceTests
     /// <summary>The releases list payload.</summary>
     private static string ReleasesJson(params string[] releases) =>
         "[" + string.Join(",", releases) + "]";
+
+    /// <summary>
+    /// The stage service's own logger: the pump's warning lane (a refused
+    /// staging, a failed consent write) is captured, so a timed-out wait can
+    /// report WHY the state never moved — the suite's
+    /// every-failure-diagnosable shape, not a silent wedge.
+    /// </summary>
+    private sealed class CapturingLogger : ILogger<UpdateStageService>
+    {
+        public ConcurrentQueue<string> Entries { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Enqueue(
+                $"{logLevel}: {formatter(state, exception)}"
+                + (exception is null ? string.Empty : $" :: {exception.GetType().Name}: {exception.Message}"));
+    }
 
     /// <summary>
     /// The consent recorder (the marshal-free spy shape the suite keeps):
@@ -549,6 +622,7 @@ public sealed class UpdateStageServiceTests
         localization.GetString(Arg.Any<string>(), Arg.Any<object[]>()).Returns(call =>
             $"[{call.ArgAt<string>(0)}:{string.Join(",", call.ArgAt<object[]>(1).Select(item => item))}]");
 
+        var stageLogger = new CapturingLogger();
         var stage = new UpdateStageService(
             settings,
             factory,
@@ -556,7 +630,7 @@ public sealed class UpdateStageServiceTests
             venueSet,
             confirmation,
             localization,
-            NullLogger<UpdateStageService>.Instance,
+            stageLogger,
             installDirectory: install,
             ridCandidates: () => ["win-x64"],
             uiMarshaller: ask => ask());
@@ -564,20 +638,36 @@ public sealed class UpdateStageServiceTests
         await checker.InitializeAsync();
         await stage.InitializeAsync();
 
-        return new StageHarness(install, settings, assetHandler, checker, confirmation, stage);
+        return new StageHarness(
+            install,
+            settings,
+            assetHandler,
+            releasesHandler,
+            stageLogger,
+            checker,
+            confirmation,
+            stage);
     }
 
     private sealed record StageHarness(
         string Install,
         FakeSettings Settings,
         StubAssetHandler AssetHandler,
+        StubReleasesHandler Releases,
+        CapturingLogger StageLog,
         UpdateCheckService Checker,
         ConfirmationStub Confirmations,
-        UpdateStageService Stage) : IDisposable
+        UpdateStageService Stage) : IAsyncDisposable
     {
         public UpdateStagingStore Store { get; } = new(Install);
 
-        public async void Dispose()
+        /// <summary>
+        /// The AWAITED teardown (the T-266 harness canon): the services stop
+        /// and the temp tree dies INSIDE the test's lifetime. The previous
+        /// async-void shape let a test's pump outlive its own test — an
+        /// unobserved fire-and-forget the suite could never reason about.
+        /// </summary>
+        public async ValueTask DisposeAsync()
         {
             await Checker.DisposeAsync();
             await Stage.DisposeAsync();
@@ -585,7 +675,7 @@ public sealed class UpdateStageServiceTests
             {
                 Directory.Delete(Install, recursive: true);
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // The temp space is the OS's to reclaim; a locked tree dies later.
             }
