@@ -242,7 +242,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-236 Beta-prep finale: the full E2E/soak pass + the release readiness checklist recorded on the beta-prep tip (the beta-prep wave's closer; renumbered off T-232 - the number collided with the landed controls task) | feat/beta-prep-finale | done | - |
 | T-237 The cold start meets the 3 s budget on the soak lane: the spawn-to-window wall (runtime spin-up + service assemblies + the window build) gets the dedicated startup-optimization pass first noted at the T-109 close (the T-236 readiness record's disclosed breach; renumbered off T-234 - the number was taken by the landed windows-unify task) | feat/startup-optimization | done | - |
 | T-238 The beta flip: the version line moves to plain 0.2.x - the first beta 0.2.0, the third number rides the app-changing landings (the user's board decision; the signing flip stays a follow-up per docs/SECURITY.md) | feat/beta-flip | done | 0.2.0 |
-| T-239 Multi-timeframe trend table in the screener: per-symbol bull/bear/range states across 15m/1h/4h/1d computed from the candle cache (the analytics sweep 2026-11-14) | feat/mtf-trend-table | planned | — |
+| T-239 Multi-timeframe trend table in the screener: per-symbol bull/bear/range states across 15m/1h/4h/1d computed from the candle cache (the analytics sweep 2026-11-14) | feat/mtf-trend-table | in-progress | — |
 | T-240 Funding-rate history chart + the funding-threshold alert kind for perps (the analytics sweep 2026-11-14) | feat/funding-history | planned | — |
 | T-241 Open-interest history as a chart pane under the price series for perps (the analytics sweep 2026-11-14) | feat/oi-history-pane | planned | — |
 | T-242 Liquidation feed: the venues' free forced-order WS streams aggregated into the tape and chart markers (the analytics sweep 2026-11-14) | feat/liquidation-feed | planned | — |
@@ -366,7 +366,9 @@ original numbers.
 
 ## T-239 — Multi-timeframe trend table in the screener
 
-- **Branch:** `feat/mtf-trend-table` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Branch:** `feat/mtf-trend-table` off `develop` (claimed 2026-11-15, the analytics sweep; the
+  worktree `zt-mtf-trend-table`).
+- **Status:** in-progress.
 - **Origin:** the screener ranks 24h stats only (T-195); a per-timeframe trend read exists nowhere.
 - **What:** per-symbol trend-state columns (15m/1h/4h/1d) computed from the candle cache (T-085):
   bull/bear/range from the EMA slope + an ADX threshold + swing structure (HH/HL vs LL/LH);
