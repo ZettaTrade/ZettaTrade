@@ -261,7 +261,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-255 AI trade review: journal-backed post-trade analysis through the chat (the analytics sweep 2026-11-14) | feat/ai-trade-review | planned | — |
 | T-256 Windows installer: Inno Setup over the T-125 artifacts (the beta-2 sweep 2026-11-15) | feat/windows-installer | done | - |
 | T-257 macOS .dmg + Linux AppImage/.deb packaging (the beta-2 sweep 2026-11-15) | feat/mac-linux-packaging | planned | — |
-| T-258 Auto-update: download, verify, staged swap, rollback (the beta-2 sweep 2026-11-15) | feat/auto-update | in-progress | — |
+| T-258 Auto-update: download, verify, staged swap, rollback (the beta-2 sweep 2026-11-15) | feat/auto-update | done | 0.2.5 |
 | T-259 GitHub Pages publish automation + the beta site content (the beta-2 sweep 2026-11-15) | feat/pages-publish | planned | — |
 | T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | planned | — |
 | T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | planned | T-260 |
@@ -615,23 +615,6 @@ the human prioritizes the lanes.
 - **Tests:** CI leg presence asserts; the script smoke mirrors the T-125 dry-run pattern.
 
 ---
-
-## T-258 — Auto-update: download, verify, staged swap, rollback
-
-- **Branch:** `feat/auto-update` off `develop` (queued 2026-11-15, the beta-2 sweep; claimed 2026-11-15).
-- **Origin:** the checker (T-213) stops at a chip and a link; the beta posture needs the loop.
-- **What:** from the checker's verdict: download the release asset for the running RID, verify
-  SHA-256 against the release's `zettatrade-<version>-sha256.txt` (HTTPS only, the hash pinned
-  from the release metadata), stage it, and swap on the next start with a rollback to the
-  previous build when the new one fails to launch; a settings channel switch (stable/beta) and
-  an off switch; the consent prompt never silently kills a session with open positions or
-  working orders — confirmation is the trading-safety rule.
-- **Scope:** the updater service (bounded downloads, the T-105/T-106 lessons), the settings
-  keys, resx en+ru, tests.
-- **Acceptance:** an update applies without user-file loss and rolls back on a corrupted
-  download or a failed launch; the consent gate holds with open positions.
-- **Tests:** the hash-verify matrix, the staged-swap/rollback goldens, the consent-gate pin.
-- **Status:** in-progress.
 
 ---
 

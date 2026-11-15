@@ -5762,6 +5762,48 @@ the board and its section below.
   setup exe draws SmartScreen on first run (documented, pairs with the T-119 disclaimer);
   a changed AppId would orphan prior uninstall registrations (the script pins the GUID).
 
+## T-258 — Auto-update: download, verify, staged swap, rollback
+
+- **Branch:** `feat/auto-update` off `develop` (queued 2026-11-15, the beta-2 sweep; claimed 2026-11-15).
+- **Origin:** the checker (T-213) stops at a chip and a link; the beta posture needs the loop.
+- **What:** from the checker's verdict: download the release asset for the running RID, verify
+  SHA-256 against the release's `zettatrade-<version>-sha256.txt` (HTTPS only, the hash pinned
+  from the release metadata), stage it, and swap on the next start with a rollback to the
+  previous build when the new one fails to launch; a settings channel switch (stable/beta) and
+  an off switch; the consent prompt never silently kills a session with open positions or
+  working orders — confirmation is the trading-safety rule.
+- **Scope:** the updater service (bounded downloads, the T-105/T-106 lessons), the settings
+  keys, resx en+ru, tests.
+- **Acceptance:** an update applies without user-file loss and rolls back on a corrupted
+  download or a failed launch; the consent gate holds with open positions.
+- **Tests:** the hash-verify matrix, the staged-swap/rollback goldens, the consent-gate pin.
+- **Status:** done. Canon: shipped as 0.2.5 — the claim `d30c235`, the feature `6f025f0`, the
+  release `904ca3c` (props 0.2.5 + the CHANGELOG section). Supervisor-solo lane: the wave's
+  worker quota died mid-task and the uncommitted drafts were audited, fixed and adopted in one
+  feat commit — the dead worker's bugs fixed in-repo (the relaunch spawn rode the moved-away
+  staged path; the restore journals walked source-to-target a second time instead of back; the
+  wrapped-archive normalization counted the archive's own shell and never lifted; the .NET 10
+  send path no longer echoes the landing URI on the response, so the pin reads the request
+  itself; tests read a file name no fixture wrote and expected a pre-release to rank above its
+  own core release). Product facts: `App.AutoUpdate` defaults OFF (opt-in), `App.UpdateChannel`
+  defaults stable (stable offers no pre-release; beta offers every parsable release); consent
+  is the ONE structured question per version via `IConfirmationService`, the disclosure names
+  the live per-venue positions/working orders and the unreachable venues; downloads bounded
+  (512 MB archive cap by header and stream, 64 KB sums cap, 10-minute budget, HTTPS landing
+  pinned after redirects, one attempt per version per process); the swap moves files only,
+  journald restores run last-move-first, and the whole `.update` tree dies at settle and at
+  rollback. Verification: App.Tests 2346/2346 post-rebase (the Update battery 82/82); the gate
+  GATE PASSED twice with `-AllowProtected` (9 `TASK-FROMRESULT` lint warnings — the
+  interface-shaped NSubstitute venue stubs, tolerated); the launch smoke SMOKE PASSED at
+  `0.2.5+904ca3c9` (ERR/FTL=0, 5 stores ready, bars + palette delivered, zero updater WRNs;
+  2 WRN lines are the bybit-outage pair — the host box's IP answers 403 on api.bybit.com, an
+  environment fact recorded here). Harness honesty: the stage facts seed `AutoUpdate=true`
+  explicitly (the product default is OFF) and the legacy checker facts seed the beta channel
+  (the stable default would hide their pre-releases). Open hazards: the loop downloads from
+  the project's own GitHub releases only — the private-feed satellites never ride it; the swap
+  lane logs to its own file shelf (never stdout), and a lost rollback copy leaves the applied
+  build standing (the honest end).
+
 ## T-263 — Backtest sweep retains metrics rows plus one best report
 
 - **Branch:** `feat/backtest-perf` off `develop` (claimed 2026-11-15, the perf sweep; the
