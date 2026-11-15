@@ -262,7 +262,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-256 Windows installer: Inno Setup over the T-125 artifacts (the beta-2 sweep 2026-11-15) | feat/windows-installer | done | - |
 | T-257 macOS .dmg + Linux AppImage/.deb packaging (the beta-2 sweep 2026-11-15) | feat/mac-linux-packaging | planned | — |
 | T-258 Auto-update: download, verify, staged swap, rollback (the beta-2 sweep 2026-11-15) | feat/auto-update | done | 0.2.5 |
-| T-259 GitHub Pages publish automation + the beta site content (the beta-2 sweep 2026-11-15) | feat/pages-publish | in-progress | — |
+| T-259 GitHub Pages publish automation + the beta site content (the beta-2 sweep 2026-11-15) | feat/pages-publish | done | — |
 | T-260 Notification sink abstraction + Telegram (the parked T-041 activated) (the beta-2 sweep 2026-11-15) | feat/notify-sinks | planned | — |
 | T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | planned | T-260 |
 | T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | planned | T-260 |
@@ -613,22 +613,6 @@ the human prioritizes the lanes.
 - **Acceptance:** each artifact installs/launches on its OS; the caveats say exactly what is
   unsigned.
 - **Tests:** CI leg presence asserts; the script smoke mirrors the T-125 dry-run pattern.
-
----
-
-## T-259 — GitHub Pages publish automation + the beta site content
-
-- **Branch:** `feat/pages-publish` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep; the worktree `zt-pages-publish`).
-- **Origin:** the docs-site (T-126) has no deploy workflow and origin carries no gh-pages branch
-  — the landing exists but does not publish.
-- **What:** a Pages deploy workflow building the Vite docs-site on main pushes; the beta content
-  pass: the download section resolves the latest release assets per OS, a changelog page
-  rendered from CHANGELOG.md, the user manual (T-115) published, the OG meta and the favicon.
-- **Scope:** the workflow + the docs-site content/links, no product code.
-- **Acceptance:** the site is reachable on Pages; every download link lands on the matching
-  latest artifact; the link checks pass.
-- **Tests:** the link-check smoke in CI (the T-126 precedent).
-- **Status:** in-progress.
 
 ---
 

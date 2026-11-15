@@ -5804,6 +5804,54 @@ the board and its section below.
   lane logs to its own file shelf (never stdout), and a lost rollback copy leaves the applied
   build standing (the honest end).
 
+## T-259 — GitHub Pages publish automation + the beta site content
+
+- **Branch:** `feat/pages-publish` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep; the worktree `zt-pages-publish`).
+- **Origin:** the docs-site (T-126) has no deploy workflow and origin carries no gh-pages branch
+  — the landing exists but does not publish.
+- **What:** a Pages deploy workflow building the Vite docs-site on main pushes; the beta content
+  pass: the download section resolves the latest release assets per OS, a changelog page
+  rendered from CHANGELOG.md, the user manual (T-115) published, the OG meta and the favicon.
+- **Scope:** the workflow + the docs-site content/links, no product code.
+- **Acceptance:** the site is reachable on Pages; every download link lands on the matching
+  latest artifact; the link checks pass.
+- **Tests:** the link-check smoke in CI (the T-126 precedent).
+- **Status:** done. Canon: shipped as one feat on `feat/pages-publish` — the claim `ad10a1b`,
+  the feature `b953c98`. `.github/workflows/pages.yml` deploys the Vite docs-site on every
+  main push (and workflow_dispatch): build (npm ci against the committed package-lock.json,
+  vite build), generate, stamp, the strict local link gate, then
+  `actions/upload-pages-artifact` + `actions/deploy-pages` (permissions `pages: write` +
+  `id-token: write`, environment `github-pages`, a serializing `pages` concurrency group).
+  `scripts/generate-site-pages.ps1` renders CHANGELOG.md and docs/USER-MANUAL.md at deploy
+  time from the pushed tree itself (ephemeral in public/, never committed): a deterministic
+  house-subset renderer (HTML-escape first; ATX headings with GitHub-style slugs whose
+  duplicates get the -2/-3 suffixes; flat lists with wrapped continuations; pipe tables at
+  column 0 only — an indented pipe line is a list continuation, not a table; fenced code;
+  blockquotes; bold and inline code over protected code spans), relative .md links rewritten
+  to GitHub blob URLs on main, in-page anchors kept and SELF-VERIFIED against the generated
+  slugs (the manual's own table of contents must resolve or the run fails), images and
+  unknown link shapes refused. Double render is byte-identical. The manual's TOC anchors
+  (#1-installation … #6-screenshots) all resolve.
+  `scripts/stamp-landing-downloads.ps1` stamps the landing's marked download links
+  (`data-zt-dl="<rid>"`, href AND visible text) and the `data-zt-release-version` span from
+  the LATEST release's own artifact list (the four per-OS archives + the release's own sums
+  file, resolved by exact name), HEAD-verifies every stamped URL answers 200 before writing,
+  and self-checks the patched pages; a 404 (no release yet — the repo is private) keeps the
+  committed Releases-page links and SUCCEEDS as the honest pending state. The committed
+  landing sources stay release-agnostic. `scripts/check-site-links.ps1` rules the built
+  dist: in-page anchors must match an id in the same document, relative targets resolve
+  against the page's own directory (absolute site links ride the documented base
+  /ZettaTrade/ and resolve from the root), external links warn-only, javascript: fails.
+  Content pass: OG meta + favicon (the app's own .ico and mark.svg) on the landing (en+ru)
+  and the React entry; the entry's build was BROKEN — src/App.tsx never existed while
+  main.tsx imported it — restored with an honest site home (links only); the README now
+  documents the real deploy. Verification: the full pipeline green locally (generate →
+  build → stamp → link check: 6 pages, 98 references, 0 failures, 52 external warn-only);
+  gate GATE PASSED with `-AllowProtected`. Docs-only: no version bump, no CHANGELOG section,
+  no launch smoke. Open fact for the public flip: the stamp's honest pending state makes the
+  site publishable before the first tag; once a release exists, every direct link is
+  HEAD-verified in CI.
+
 ## T-263 — Backtest sweep retains metrics rows plus one best report
 
 - **Branch:** `feat/backtest-perf` off `develop` (claimed 2026-11-15, the perf sweep; the
