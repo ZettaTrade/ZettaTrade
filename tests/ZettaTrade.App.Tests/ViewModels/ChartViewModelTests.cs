@@ -19,12 +19,12 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
 using ZettaTrade.Plugins.Abstractions;
 using ZettaTrade.Strategies;
 using ZettaTrade.UI.Charting;
-
 /// <summary>The half-day-agnostic status byte ReactiveUI.Primitives names RxVoid.</summary>
 using RxVoid = ReactiveUI.Primitives.RxVoid;
 
@@ -202,6 +202,71 @@ public sealed class ChartViewModelTests
 
     #endregion
 
+    /// <summary>
+    /// The funding-capable adapter fake (T-240): the plain market-data
+    /// fake's surface composed with the history capability — one settled
+    /// event at the served bar's own open edge, at the honest wire rate
+    /// (0.0001 = 0.01%).
+    /// </summary>
+    private sealed class FundingCapableMarketData : IMarketDataAdapter, IFundingHistoryProvider
+    {
+        private readonly FakeMarketData _inner = new();
+
+        public string Id => _inner.Id;
+
+        public string Name => _inner.Name;
+
+        public bool IsConnected => _inner.IsConnected;
+
+        public ExchangeCapabilities Capabilities => _inner.Capabilities;
+
+        /// <summary>The funding-history requests, in call order.</summary>
+        public List<Symbol> FundingRequests { get; } = new();
+
+        /// <summary>The funding-history window starts, in call order.</summary>
+        public List<DateTimeOffset> FundingFroms { get; } = new();
+
+        /// <summary>The inner fake's bars-window records (the kick's anchor check).</summary>
+        public List<FakeMarketData.BarsWindow> BarsWindowRequests => _inner.BarsWindowRequests;
+
+        public async Task<IReadOnlyList<FundingRatePoint>> GetFundingRateHistoryAsync(
+            Symbol symbol,
+            DateTimeOffset from,
+            DateTimeOffset? to = null,
+            int limit = 200,
+            CancellationToken ct = default)
+        {
+            FundingRequests.Add(symbol);
+            FundingFroms.Add(from);
+            return [new FundingRatePoint(from, 0.0001m)];
+        }
+
+        public Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default) =>
+            _inner.GetSymbolsAsync(ct);
+
+        public Task<IReadOnlyList<Bar>> GetBarsAsync(
+            Symbol symbol,
+            TimeFrame timeFrame,
+            DateTimeOffset from,
+            DateTimeOffset? to = null,
+            int limit = 500,
+            CancellationToken ct = default) =>
+            _inner.GetBarsAsync(symbol, timeFrame, from, to, limit, ct);
+
+        public IObservable<Ticker> SubscribeTicker(Symbol symbol) => _inner.SubscribeTicker(symbol);
+
+        public IObservable<MarketTrade> SubscribeTrades(Symbol symbol) => _inner.SubscribeTrades(symbol);
+
+        public IObservable<OrderBook> SubscribeOrderBook(Symbol symbol, int depth = 20) =>
+            _inner.SubscribeOrderBook(symbol, depth);
+
+        public Task ConnectAsync(CancellationToken ct = default) => _inner.ConnectAsync(ct);
+
+        public Task DisconnectAsync(CancellationToken ct = default) => _inner.DisconnectAsync(ct);
+
+        public ValueTask DisposeAsync() => _inner.DisposeAsync();
+    }
+
     #region Composition
 
     /// <summary>
@@ -312,7 +377,7 @@ public sealed class ChartViewModelTests
         #endregion Public Methods
     }
 
-    private static ActiveExchangeService CreateService(FakeMarketData first, FakeMarketData second)
+    private static ActiveExchangeService CreateService(IMarketDataAdapter first, IMarketDataAdapter second)
     {
         var settings = Substitute.For<ISettingsService>();
         settings.GetAsync<string>(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
@@ -329,7 +394,8 @@ public sealed class ChartViewModelTests
         ICsvExportService? export = null,
         ILocalizationManager? localization = null,
         ICandleCache? candleCache = null,
-        FakeDrawingStore? drawingStore = null)
+        FakeDrawingStore? drawingStore = null,
+        FundingHistoryService? fundingHistory = null)
     {
         var timeFrameSettings = settings;
         if (timeFrameSettings is null)
@@ -385,6 +451,10 @@ public sealed class ChartViewModelTests
             // The T-122 seam rides silent in the pre-existing facts: an
             // empty-footprint stream keeps the overlay publishes inert.
             Observable.Empty<ChartFootprintSnapshot>(),
+            // The funding pane rides the honest no-pane in the pre-existing
+            // facts: the stubbed adapters carry no funding-history
+            // capability, so the front answers null without a network.
+            fundingHistory ?? new FundingHistoryService(service, TimeProvider.System),
             NullLogger<ChartViewModel>.Instance);
     }
 
@@ -2019,6 +2089,70 @@ public sealed class ChartViewModelTests
     #endregion Snapshot & Visible-Range Export (T-094)
 
     #endregion
+
+    #region Funding Pane (T-240)
+
+    [Fact]
+    public async Task AFundingCapableVenue_PublishesTheFundingLine_AlignedWithTheBars()
+    {
+        var marketData = new FundingCapableMarketData();
+        var service = CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2"));
+        var chart = CreateChart(
+            service,
+            fundingHistory: new FundingHistoryService(service, TimeProvider.System));
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT:USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The delivered perp's kick fetched the venue's settled history
+        // once, anchored at the delivered series' own head (the bootstrap
+        // spot page's kick answered the no-pane before the provider).
+        marketData.FundingRequests.Should().ContainSingle()
+            .Which.Should().Be(Symbol.Parse("BTC/USDT:USDT"));
+        marketData.FundingFroms.Should().ContainSingle()
+            .Which.Should().Be(chart.Bars[0].Time, "the kick anchors the window at the delivered series' own head");
+
+        // The pane's synthesized line rides the pipeline tail: the funding
+        // values aligned with the bars (the event at the bar's open
+        // governs it), the oscillator pane, the caption's label key.
+        var funding = chart.IndicatorLines.Should().ContainSingle(
+                line => line.Name == ChartFundingSeries.Name,
+                "the capable venue's pane publishes exactly one funding line").Subject;
+        funding.Values.Should().HaveCount(chart.Bars.Count, "the line aligns with the bars by index");
+        funding.Values.Should().ContainSingle(value => value != null)
+            .Which.Should().Be(0.0001m, "the governing event's wire rate fills the bar's slot");
+        funding.PaneKind.Should().Be(IndicatorPaneKind.Oscillator);
+        funding.LabelKey.Should().Be(ChartFundingSeries.LabelKey);
+
+        publications.SelectMany(lines => lines).Should().Contain(
+            line => line.Name == ChartFundingSeries.Name,
+            "the raw publish path carries the funding line too");
+    }
+
+    [Fact]
+    public async Task AVenueWithoutTheFundingCapability_RidesTheHonestNoPane()
+    {
+        var marketData = new FakeMarketData();
+        var chart = CreateChart(CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")));
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT:USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The delivered page re-published the overlays; the capability
+        // probe answered the honest no-capability without a fetch, so no
+        // funding line ever joins the pipeline tail.
+        chart.Bars.Should().NotBeEmpty("the delivery itself stands");
+        publications.Should().NotBeEmpty("the delivery republished the overlays");
+        publications.SelectMany(lines => lines)
+            .Should().NotContain(line => line.Name == ChartFundingSeries.Name);
+        chart.IndicatorLines.Should().NotContain(line => line.Name == ChartFundingSeries.Name);
+    }
+
+    #endregion Funding Pane (T-240)
 
     #region Deep-history Repair (T-086)
 

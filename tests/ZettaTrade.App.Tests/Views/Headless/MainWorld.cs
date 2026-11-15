@@ -318,6 +318,9 @@ internal sealed record MainWorld(
             relay,
             // The T-122 seam rides silent in the window facts likewise.
             Observable.Empty<ChartFootprintSnapshot>(),
+            // The funding pane rides the honest no-pane here too: the fake
+            // adapter carries no funding-history capability.
+            new FundingHistoryService(service, TimeProvider.System),
             NullLogger<ChartViewModel>.Instance,
             slotId,
             templates);

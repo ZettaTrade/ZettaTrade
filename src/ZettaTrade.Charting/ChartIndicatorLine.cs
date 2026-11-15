@@ -14,6 +14,11 @@ using ZettaTrade.Plugins.Abstractions;
 /// canonical scale (RSI's 0-100) and the optional stored height is the
 /// pane's persisted geometry (the splitter's settled value; null rides
 /// the layout default). Overlays ignore the three pane members.</para>
+/// <para>The optional label key (T-240) localizes the pane's label per
+/// frame: a line synthesized outside the plugin catalog (the chart's own
+/// funding series) carries the resx key of its caption, the catalog's
+/// plugin lines keep their raw names. Display-only — the pane layout and
+/// the persisted heights key on the Name.</para>
 /// </summary>
 public sealed record ChartIndicatorLine(
     string Name,
@@ -21,4 +26,5 @@ public sealed record ChartIndicatorLine(
     IndicatorPaneKind PaneKind = IndicatorPaneKind.Overlay,
     decimal? ScaleMin = null,
     decimal? ScaleMax = null,
-    double? PaneHeight = null);
+    double? PaneHeight = null,
+    string? LabelKey = null);

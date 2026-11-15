@@ -22,6 +22,8 @@ public static class AlertConditionText
     private const string ConditionIndicatorValueBelowFormatKey = "Alert.Condition.Indicator.ValueBelow.Format";
     private const string ConditionPriceAboveFormatKey = "Alert.Condition.Indicator.PriceAbove.Format";
     private const string ConditionPriceBelowFormatKey = "Alert.Condition.Indicator.PriceBelow.Format";
+    private const string ConditionFundingAboveFormatKey = "Alert.Condition.Funding.Above.Format";
+    private const string ConditionFundingBelowFormatKey = "Alert.Condition.Funding.Below.Format";
 
     #endregion Resx Keys
 
@@ -61,6 +63,12 @@ public static class AlertConditionText
                         localization.GetString(ConditionPriceBelowFormatKey, spec.Name, spec.Period),
                     _ => string.Empty,
                 },
+            PriceAlertKind.FundingCross => definition.Trigger switch
+            {
+                AlertTrigger.Above => localization.GetString(ConditionFundingAboveFormatKey, definition.TargetPrice),
+                AlertTrigger.Below => localization.GetString(ConditionFundingBelowFormatKey, definition.TargetPrice),
+                _ => string.Empty,
+            },
             _ => string.Empty,
         };
 }

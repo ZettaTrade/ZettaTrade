@@ -16,8 +16,10 @@ using ZettaTrade.Core.Entities;
 using ZettaTrade.Core.Enums;
 using ZettaTrade.Core.Interfaces;
 using ZettaTrade.Core.ValueObjects;
+using ZettaTrade.Infrastructure.Exchange;
 using ZettaTrade.Infrastructure.Export;
 using ZettaTrade.Infrastructure.Persistence;
+using ZettaTrade.Plugins.Abstractions;
 using ZettaTrade.Strategies;
 using ZettaTrade.UI.Charting;
 using RxVoid = ReactiveUI.Primitives.RxVoid;
@@ -724,6 +726,18 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         IReadOnlyList<Bar> Bars,
         IReadOnlyList<ChartDrawing> Drawings);
 
+    /// <summary>
+    /// One funding-pane load's payload (T-240): the events the service
+    /// resolved (null = the honest no-pane — no capability or a fetch that
+    /// came back empty), the series identity the load kicked for and the
+    /// kick's epoch (the stale-drop: a superseded load drops at dispatch).
+    /// </summary>
+    private sealed record FundingPaneLoad(
+        Symbol Symbol,
+        string ExchangeId,
+        int Epoch,
+        IReadOnlyList<FundingRatePoint>? Points);
+
     private string? _errorMessage;
 
     /// <summary>Last candles-export error, for the error line under the chart header.</summary>
@@ -963,6 +977,17 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// <summary>The adapter the last load delivered through; paging fetches through it (recorded with <see cref="_loadedTarget"/>).</summary>
     private IMarketDataAdapter? _loadedAdapter;
 
+    /// <summary>
+    /// The funding pane's standing series (T-240): one value per bar slot of
+    /// the series it aligned against (wire fractions, null = the honest gap
+    /// before the venue's first event), the identity it was loaded for, and
+    /// the kick counter the stale-drop reads. Cleared on every rebase and
+    /// every no-capability verdict.
+    /// </summary>
+    private IReadOnlyList<decimal?>? _fundingSeries;
+    private (Symbol Symbol, string ExchangeId)? _fundingTarget;
+    private int _fundingKickEpoch;
+
     /// <summary>Whether an older-history fetch is in flight (the request path serializes on it; a request racing the release is dropped and the next pan crossing re-raises it).</summary>
     private bool _olderFetchInFlight;
 
@@ -1132,6 +1157,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private readonly Subject<IReadOnlyList<Bar>?> _heikinAshiPublishes = new();
 
     /// <summary>
+    /// The funding pane's loads publish here (T-240): the fetch runs
+    /// fire-and-forget wherever it lands, the marshalled subscription aligns
+    /// the events against the standing series ON THE UI THREAD (the
+    /// alignment reads the live bar collection) and re-publishes the
+    /// overlays. A null emission is the honest no-pane: no capability, no
+    /// events, or a dropped stale load.
+    /// </summary>
+    private readonly Subject<FundingPaneLoad?> _fundingPublishes = new();
+
+    /// <summary>
     /// The persisted VWAP overlay choice: the cache LEADS the toggles'
     /// persistence pipeline (updated at issue time, in issuance order), so
     /// a rapid settle burst never drops its second flip and an external
@@ -1252,6 +1287,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// order from here.
     /// </summary>
     private readonly IObservable<ChartFootprintSnapshot> _tradingFootprint;
+
+    /// <summary>The funding-history front (T-240): the active adapter's capability probe and the per-symbol cache.</summary>
+    private readonly FundingHistoryService _fundingHistory;
 
     /// <summary>The latest footprint snapshot the feed published (UI-thread-owned, marshalled on assignment).</summary>
     private ChartFootprintSnapshot _latestFootprint = ChartFootprintSnapshot.Empty;
@@ -1473,6 +1511,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         SignalRailViewModel signalRail,
         SignalSeriesRelay seriesRelay,
         IObservable<ChartFootprintSnapshot> tradingFootprint,
+        FundingHistoryService fundingHistory, // T-240: the funding pane's history front.
         ILogger<ChartViewModel> logger,
         string? slotId = null,
         ChartTemplatesViewModel? templates = null)
@@ -1492,6 +1531,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         SignalRail = signalRail;
         _seriesRelay = seriesRelay;
         _tradingFootprint = tradingFootprint;
+        _fundingHistory = fundingHistory;
 
         // The multi-chart grid (T-201): the primary keeps the workspace's
         // shared symbol key (the order book and the dialog follow it) and
@@ -1631,6 +1671,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     _loadedTarget = (page.Symbol, page.TimeFrame, page.Adapter.Id);
                     _loadedAdapter = page.Adapter;
 
+                    // The funding pane (T-240) is a rebase-volatile state: the
+                    // standing alignment belongs to the replaced series, the
+                    // fresh one re-aligns from the service's cache-first load
+                    // (the kick below) — the pane never shows a stale series'
+                    // values over a fresh grid.
+                    _fundingSeries = null;
+                    _fundingTarget = null;
+
                     // The T-112 strategies feed: the full load is the host's
                     // closed-candle address, published through the relay (the
                     // composition-owned decoupling — the service never holds
@@ -1652,6 +1700,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // (T-086): the passes probe the cache and the feed behind
                     // the window's head and fill the calendar's missing bars.
                     KickRepairPass(page);
+
+                    // The delivered page starts the funding pane's load
+                    // (T-240): a perp on an adapter that serves the history
+                    // fetches cache-first and re-publishes; anything else is
+                    // the honest no-pane.
+                    KickFundingLoad(page.Symbol, page.Adapter.Id);
                 },
                 ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
 
@@ -1681,6 +1735,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishVwapOverlay(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
+
+                    // The funding pane re-aligns against the grown series too
+                    // (T-240): the cache-first load re-runs over the standing
+                    // head — the prepended stretch shows the honest gaps when
+                    // the cached page predates it.
+                    if (_loadedTarget is { } target)
+                    {
+                        KickFundingLoad(target.Symbol, target.ExchangeId);
+                    }
                 },
                 ex => _logger.LogError(ex, "The chart older-bars stream stopped unexpectedly"));
 
@@ -1725,6 +1788,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishVwapOverlay(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
+
+                    // The funding pane re-aligns against the healed series
+                    // too (T-240): the cache-first load re-runs over the
+                    // standing head — the pane survives the repair merge.
+                    if (_loadedTarget is { } target)
+                    {
+                        KickFundingLoad(target.Symbol, target.ExchangeId);
+                    }
                 },
                 ex => _logger.LogError(ex, "The chart repair stream stopped unexpectedly"));
 
@@ -1892,6 +1963,16 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 bars => HeikinAshiBars = bars,
                 ex => _logger.LogError(ex, "The chart heikin-ashi stream stopped unexpectedly"));
+
+        // The funding pane's loads (T-240): the alignment runs ON the UI
+        // thread (it reads the live bar collection), then the overlays
+        // republish through the standing pipeline. A stale load — its kick
+        // superseded by a newer one or its identity no longer standing —
+        // drops silently.
+        _fundingPublishes.ObserveOnUiThread()
+            .Subscribe(
+                ApplyFundingPaneLoad,
+                ex => _logger.LogError(ex, "The chart funding pane stream stopped unexpectedly"));
 
         // The two overlay toggles persist like the AI panel's visibility
         // does (T-093): the cache LEADS the pipeline — it is updated at
@@ -2812,6 +2893,20 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             _indicatorCatalog,
             _logger);
 
+        // The funding pane (T-240): the chart's own synthesized line rides
+        // the same pipeline tail — appended after the catalog's plugin lines,
+        // merged with the persisted heights by the SAME Name key (the pane
+        // splitter's settled geometry persists across sessions). A stale
+        // alignment (its series no longer standing) contributes nothing.
+        if (_fundingSeries is { } funding && funding.Count == bars.Count)
+        {
+            lines = [.. lines, new ChartIndicatorLine(
+                ChartFundingSeries.Name,
+                funding,
+                IndicatorPaneKind.Oscillator,
+                LabelKey: ChartFundingSeries.LabelKey)];
+        }
+
         var heights = _persistedPaneHeights;
         if (heights.Count > 0)
         {
@@ -2893,6 +2988,71 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     #endregion
+
+    #region Funding Pane (T-240)
+
+    /// <summary>
+    /// Kick the funding pane's load (T-240): the fresh kick takes the next
+    /// epoch and the standing identity, and the fetch runs fire-and-forget
+    /// through the service's cache-first front — a venue without the
+    /// funding-history capability answers the honest no-pane without a
+    /// network round-trip. The load publishes through the marshalled
+    /// subject; a superseded kick drops at apply. Nothing aligns here: the
+    /// alignment reads the live bar collection and rides the UI thread, so
+    /// the window's start is captured from the standing head at kick time.
+    /// </summary>
+    /// <param name="symbol">The standing series' symbol.</param>
+    /// <param name="exchangeId">The standing series' exchange.</param>
+    private void KickFundingLoad(Symbol symbol, string exchangeId)
+    {
+        if (Bars.Count == 0)
+        {
+            // No series to align onto (no kick site can produce this; the
+            // guard is the honest shape) — nothing fetches.
+            return;
+        }
+
+        var from = Bars[0].Time;
+        var epoch = ++_fundingKickEpoch;
+        _fundingTarget = (symbol, exchangeId);
+
+        Observable
+            .FromAsync(() => _fundingHistory.GetAsync(symbol, from, ct: CancellationToken.None))
+            .Subscribe(
+                points => _fundingPublishes.OnNext(new FundingPaneLoad(symbol, exchangeId, epoch, points)),
+                error => _logger.LogWarning(
+                    error,
+                    "The funding-history load for {Symbol} on {Exchange} failed; the pane waits for the next kick",
+                    symbol.Normalized,
+                    exchangeId));
+    }
+
+    /// <summary>
+    /// Apply one funding pane load (T-240) on the UI thread (the subject's
+    /// marshalled subscription): a stale load — a kick superseded by a newer
+    /// one or an identity no longer standing — drops silently; the standing
+    /// load aligns against the live bar collection and republishes the
+    /// overlays. A null emission (the service's honest no-capability answer)
+    /// or an empty page clears the standing series: the overlays republish
+    /// without the funding line, the honest absence.
+    /// </summary>
+    /// <param name="load">The resolved load, or nothing for the honest no-pane.</param>
+    private void ApplyFundingPaneLoad(FundingPaneLoad? load)
+    {
+        if (load is null || _fundingTarget != (load.Symbol, load.ExchangeId) || load.Epoch != _fundingKickEpoch)
+        {
+            // A stale load drops: a newer kick owns the pane (a rebase
+            // cleared the identity before its own kick armed).
+            return;
+        }
+
+        _fundingSeries = load.Points is { Count: > 0 } points
+            ? FundingSeriesAlignment.Align(Bars, points)
+            : null;
+        PublishIndicatorLines(Bars);
+    }
+
+    #endregion Funding Pane (T-240)
 
     #region Vwap Overlay
 

@@ -1,3 +1,37 @@
+## [0.2.12] - 2026-11-15
+
+Build of board task T-240 (branch `feat/funding-history`): the funding-rate
+history lands as a chart pane and a new alert kind for perpetual symbols —
+the venue's settled funding events align onto the bars and the funding
+threshold rides the standing alert engine.
+
+### Added
+- The funding-history capability (`IFundingHistoryProvider`) in the
+  Infrastructure Exchange module, served by the Bybit adapter's
+  `GET /v5/market/funding/history` (the linear category, an ascending
+  parse and the limit bounds pinned by tests); a symbol or a venue
+  without the capability answers the honest no-pane, never a guess
+  (T-240).
+- The `FundingHistoryService` front: the active adapter is probed per
+  request, the pages cache per symbol (a 15-minute freshness, a 32-entry
+  bound) so every delivered page, prepend and re-publish is cache-first,
+  and a venue that cannot serve the history answers null without a
+  network round-trip (T-240).
+- The funding pane: the chart synthesizes the `Funding` oscillator line
+  outside the plugin catalog (the caption's resx key rides the line), the
+  values align per bar (the last event at or before the bar's open governs
+  it; a bar before the first event breaks the polyline), the load kicks on
+  page delivery, prepend and repair merge, and a superseded load drops
+  silently at apply (T-240).
+- The funding-threshold alert kind (`FundingCross`): the signed threshold
+  rides the price slot in percent units (zero and negatives are honest),
+  the editor offers only the Above/Below edges, and the engine fires the
+  two-sample crossing on `Ticker.FundingRate` (T-197) — the first
+  rate-carrying tick never fires, it only seeds the pair (T-240).
+- The alert editor accepts the ccxt perpetual spelling ("BTC/USDT:USDT")
+  — the funding kind needs the settle asset; a settle mark on a single
+  asset stays a refused spelling (T-240).
+
 ## [0.2.11] - 2026-11-15
 
 Build of board task T-239 (branch `feat/mtf-trend-table`): the screener

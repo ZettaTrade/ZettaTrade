@@ -9,8 +9,8 @@ namespace ZettaTrade.App.Services;
 /// </summary>
 /// <param name="SymbolName">The normalized symbol the alert evaluates.</param>
 /// <param name="Kind">Which evaluation the alert performs.</param>
-/// <param name="Trigger">The Price kind's edge trigger and the IndicatorCross kind's cross direction; unused (neutral slot) for the PercentMove kind.</param>
-/// <param name="TargetPrice">The Price kind's level; unused (zero) for the PercentMove kind.</param>
+/// <param name="Trigger">The Price kind's edge trigger and the IndicatorCross and FundingCross kinds' cross direction; unused (neutral slot) for the PercentMove kind.</param>
+/// <param name="TargetPrice">The Price kind's level and the FundingCross kind's signed threshold in PERCENT units (T-240); unused (zero) for the PercentMove kind.</param>
 /// <param name="ThresholdPercent">The PercentMove kind's percent threshold (non-negative); unused (zero) for the Price kind.</param>
 /// <param name="WindowMinutes">The PercentMove kind's trailing window in minutes; unused (zero) for the Price kind.</param>
 /// <param name="Note">The user's free-text note; empty when left off.</param>
@@ -87,6 +87,14 @@ public sealed record AlertDraft(
 
                 break;
 
+            case PriceAlertKind.FundingCross:
+                // The threshold lives on TargetPrice in PERCENT units and any
+                // signed value is honest (zero and negatives included — a
+                // sub-zero funding regime is exactly what an operator may
+                // alert on): a decimal carries no invalid value, only the
+                // cross edge below is demanded.
+                break;
+
             case PriceAlertKind.IndicatorCross:
                 if (Indicator is not { } indicator)
                 {
@@ -128,6 +136,13 @@ public sealed record AlertDraft(
         {
             throw new ArgumentException(
                 "An indicator-cross trigger reads only the Above or Below edge; At is meaningless for a cross.",
+                nameof(Trigger));
+        }
+
+        if (Kind == PriceAlertKind.FundingCross && Trigger == AlertTrigger.At)
+        {
+            throw new ArgumentException(
+                "A funding-cross trigger reads only the Above or Below edge; At is meaningless for a cross.",
                 nameof(Trigger));
         }
 
@@ -175,18 +190,26 @@ public sealed record AlertDraft(
     /// <summary>The normalized spelling's part separator (the two-side crypto spelling).</summary>
     private const char SpellingSeparator = '/';
 
+    /// <summary>The ccxt-style perpetual suffix's separator (T-240: "BASE/QUOTE:SETTLE" — a funding alert needs the settle).</summary>
+    private const char SettleMark = ':';
+
     /// <summary>The one spelling's length ceiling (an asset token never runs longer; the bound is honest, not decorative).</summary>
     private const int MaxSpellingLength = 32;
 
     #endregion Private Fields
 
     /// <summary>
-    /// The draft-spelling vocabulary (T-096): ONE place the parsable symbol
-    /// spelling is decided, because <see cref="ZettaTrade.Core.ValueObjects.Symbol"/>
-    /// itself parses leniently (a one-part spelling is a legitimate stock
-    /// ticker). A parsable spelling here is at most two non-empty asset
-    /// tokens of letters, digits, dots or dashes — whitespace and stray
-    /// separators are a refused spelling, never a coerced asset name.
+    /// The draft-spelling vocabulary (T-096; the settle suffix rides it
+    /// since T-240): ONE place the parsable symbol spelling is decided,
+    /// because <see cref="ZettaTrade.Core.ValueObjects.Symbol"/> itself
+    /// parses leniently (a one-part spelling is a legitimate stock ticker).
+    /// A parsable spelling here is at most two non-empty asset tokens of
+    /// letters, digits, dots or dashes, optionally carrying ONE ccxt-style
+    /// perpetual settle suffix ("BASE/QUOTE:SETTLE" — a funding alert needs
+    /// the settle; the suffix is legal on the two-asset pair form only, a
+    /// settle-marked single asset is the malformed shape the parse refuses).
+    /// Whitespace and stray separators are a refused spelling, never a
+    /// coerced asset name.
     /// </summary>
     /// <param name="spelling">The user-typed symbol spelling.</param>
     /// <returns>Whether the spelling parses exactly under this vocabulary.</returns>
@@ -197,14 +220,26 @@ public sealed record AlertDraft(
             return false;
         }
 
-        var tokens = spelling.Split(SpellingSeparator);
-        if (tokens.Length is > 2)
+        var settleParts = spelling.Split(SettleMark);
+        if (settleParts.Length > 2)
         {
             return false;
         }
 
-        return tokens.All(token =>
-            token.Length > 0 &&
-            token.All(character => char.IsLetterOrDigit(character) || character is '.' or '-'));
+        var settle = settleParts.Length == 2 ? settleParts[1] : null;
+        var tokens = settleParts[0].Split(SpellingSeparator);
+        if (tokens.Length != 2 && settle is not null)
+        {
+            // The settle mark rides the pair form only: a single asset with
+            // a settle ("USDT:USDT") is malformed, never a coerced pair.
+            return false;
+        }
+
+        return tokens.All(IsAnAssetToken) && (settle is null || IsAnAssetToken(settle));
     }
+
+    /// <summary>Whether one asset token is a non-empty run of letters, digits, dots or dashes.</summary>
+    private static bool IsAnAssetToken(string token) =>
+        token.Length > 0 &&
+        token.All(character => char.IsLetterOrDigit(character) || character is '.' or '-');
 }

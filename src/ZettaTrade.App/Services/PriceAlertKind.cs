@@ -23,4 +23,15 @@ public enum PriceAlertKind
     /// cross's direction only; the <see cref="AlertTrigger.At"/> edge is meaningless here and is
     /// refused at draft validation.</summary>
     IndicatorCross,
+
+    /// <summary>A funding-rate-cross trigger (T-240): the observed funding rate crosses the
+    /// alert's signed threshold between two consecutive ticker observations — Above is a cross
+    /// from strictly below to at-or-above, Below the mirror. The threshold rides
+    /// <see cref="AlertDefinition.TargetPrice"/> in PERCENT units (the same percent the ticker
+    /// cell displays; 0.05 = 0.05%) and the engine converts it once at evaluation; zero and
+    /// negatives are honest thresholds. The trigger carries the cross's direction only; the
+    /// <see cref="AlertTrigger.At"/> edge is meaningless here and is refused at draft
+    /// validation. The evaluation rides the adapters' existing ticker stream — the funding
+    /// rate the venue already pushes — no polling of its own.</summary>
+    FundingCross,
 }

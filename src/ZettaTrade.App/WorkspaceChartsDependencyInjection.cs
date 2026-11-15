@@ -49,6 +49,7 @@ public static class WorkspaceChartsDependencyInjection
                     sp.GetRequiredService<SignalRailViewModel>(), // T-112: the rail strip's VM.
                     sp.GetRequiredService<SignalSeriesRelay>(), // T-112: the loads the host feeds from.
                     sp.GetRequiredService<ChartFootprintService>().Updates, // T-122: the footprint feed's stream.
+                    sp.GetRequiredService<FundingHistoryService>(), // T-240: the funding pane's history front.
                     sp.GetRequiredService<ILogger<ChartViewModel>>(),
                     slotId),
                 sp.GetRequiredService<ILogger<WorkspaceChartsViewModel>>()));

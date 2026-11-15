@@ -609,6 +609,9 @@
   <data name="Chart.NoDataMessage" xml:space="preserve">
     <value>No data available</value>
   </data>
+  <data name="Chart.Funding.Pane" xml:space="preserve">
+    <value>Funding</value>
+  </data>
   <data name="Chart.TimeFrame" xml:space="preserve">
     <value>Time frame</value>
   </data>
@@ -2838,6 +2841,9 @@ Estimated fee: {10}</value>
   <data name="Alert.Editing.Level" xml:space="preserve">
     <value>Level</value>
   </data>
+  <data name="Alert.Editing.FundingThreshold" xml:space="preserve">
+    <value>Funding, %</value>
+  </data>
   <data name="Alert.Editing.ReArm" xml:space="preserve">
     <value>After firing</value>
   </data>
@@ -2855,6 +2861,9 @@ Estimated fee: {10}</value>
   </data>
   <data name="Alert.Kind.IndicatorCross" xml:space="preserve">
     <value>Indicator cross</value>
+  </data>
+  <data name="Alert.Kind.FundingCross" xml:space="preserve">
+    <value>Funding cross</value>
   </data>
   <data name="Alert.Trigger.Above" xml:space="preserve">
     <value>Rises above</value>
@@ -2928,6 +2937,12 @@ Estimated fee: {10}</value>
   <data name="Alert.Condition.Indicator.PriceBelow.Format" xml:space="preserve">
     <value>price crossed below {0}({1})</value>
   </data>
+  <data name="Alert.Condition.Funding.Above.Format" xml:space="preserve">
+    <value>funding crossed above {0}%</value>
+  </data>
+  <data name="Alert.Condition.Funding.Below.Format" xml:space="preserve">
+    <value>funding crossed below {0}%</value>
+  </data>
   <data name="Alert.Create" xml:space="preserve">
     <value>Create</value>
   </data>
@@ -2960,6 +2975,9 @@ Estimated fee: {10}</value>
   </data>
   <data name="Alert.Error.InvalidLevel" xml:space="preserve">
     <value>'{0}' is not a parsable level.</value>
+  </data>
+  <data name="Alert.Error.InvalidFundingThreshold" xml:space="preserve">
+    <value>'{0}' is not a parsable funding threshold (percent).</value>
   </data>
   <data name="Alert.Error.InvalidCooldown" xml:space="preserve">
     <value>'{0}' is not a parsable cooldown (minutes).</value>

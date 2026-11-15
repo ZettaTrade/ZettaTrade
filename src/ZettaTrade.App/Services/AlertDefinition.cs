@@ -14,8 +14,8 @@ namespace ZettaTrade.App.Services;
 /// <param name="Id">The stable identity the persistence and the manager commands key on.</param>
 /// <param name="SymbolName">The normalized symbol ("BTC/USDT") the alert evaluates; resolved against the active exchange's own listing when drafted.</param>
 /// <param name="Kind">Which evaluation the alert performs.</param>
-/// <param name="Trigger">The Price kind's exact edge (<see cref="AlertTrigger"/>) and the IndicatorCross kind's cross direction (Above/Below; At is refused at draft validation); the PercentMove kind leaves it at <see cref="AlertTrigger.At"/>'s neutral slot and reads the move's own direction at fire time.</param>
-/// <param name="TargetPrice">The Price kind's level; unused (zero) for the PercentMove kind.</param>
+/// <param name="Trigger">The Price kind's exact edge (<see cref="AlertTrigger"/>) and the IndicatorCross and FundingCross kinds' cross direction (Above/Below; At is refused at draft validation); the PercentMove kind leaves it at <see cref="AlertTrigger.At"/>'s neutral slot and reads the move's own direction at fire time.</param>
+/// <param name="TargetPrice">The Price kind's level and the FundingCross kind's signed threshold in PERCENT units (T-240; 0.05 = 0.05%); unused (zero) for the PercentMove kind.</param>
 /// <param name="ThresholdPercent">The PercentMove kind's non-negative percent (the move's magnitude that satisfies it); unused (zero) for the Price kind.</param>
 /// <param name="WindowMinutes">The PercentMove kind's trailing window in whole minutes; unused (zero) for the Price kind.</param>
 /// <param name="Note">The user's own free-text note; empty when left off.</param>

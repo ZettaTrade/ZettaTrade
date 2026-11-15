@@ -320,6 +320,18 @@ public sealed class AlertEngineTests
         Note: string.Empty,
         Indicator: new AlertIndicatorSpec(indicatorName, period, source, level));
 
+    private static AlertDraft FundingDraft(
+        decimal thresholdPercent,
+        AlertTrigger edge,
+        string symbolName = "BTC/USDT") => new(
+        SymbolName: symbolName,
+        Kind: PriceAlertKind.FundingCross,
+        Trigger: edge,
+        TargetPrice: thresholdPercent,
+        ThresholdPercent: 0m,
+        WindowMinutes: 0,
+        Note: string.Empty);
+
     private static (ConcurrentQueue<AlertEvent> Census, TaskCompletionSource<AlertEvent> FirstFire) WireFiredLatch(
         AlertEngine engine,
         AlertDefinition? owner = null)
@@ -362,6 +374,18 @@ public sealed class AlertEngineTests
             1m,
             0m,
             occurred));
+
+    /// <summary>The funding tick (T-240): the wire's rate rides the ticker's own funding member (nothing = the honest absence).</summary>
+    private static void PushFundingTick(TestAdapter adapter, decimal? fundingRate, DateTimeOffset occurred) =>
+        adapter.Tickers[BtcUsdt.Normalized].OnNext(new Ticker(
+            BtcUsdt,
+            100m,
+            100m,
+            100m,
+            1m,
+            0m,
+            occurred,
+            FundingRate: fundingRate));
 
     [Fact]
     public async Task AboveEdge_FiresStrictlyAfterTheTarget_NeverAtIt()
@@ -713,6 +737,78 @@ public sealed class AlertEngineTests
         (await firstFire.Task.WaitAsync(EventWaitBudget)).Definition!.LastFiredUtc
             .Should().Be(Base.AddMinutes(5), "the first computable pair (65 -> 71) is the cross");
         CountFires(census).Should().Be(1, "the warmup stretch's null pairs never fire");
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AFundingCrossAbove_FiresOnTheRealCross_NeverOnTheFirstRate()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        var created = await rig.Engine.CreateAsync(FundingDraft(0.05m, AlertTrigger.Above));
+        var (census, firstFire) = WireFiredLatch(rig.Engine, created);
+
+        // The first rate-carrying tick owns no previous (the honest
+        // two-sample crossing); the second pair 0.01% -> 0.06% crosses
+        // above the 0.05% threshold.
+        PushFundingTick(rig.Adapter, 0.0001m, Base.AddMinutes(1));
+        PushFundingTick(rig.Adapter, 0.0006m, Base.AddMinutes(2));
+
+        (await firstFire.Task.WaitAsync(EventWaitBudget)).Definition!.LastFiredUtc
+            .Should().Be(Base.AddMinutes(2), "the fire stamps the crossing tick's own moment");
+        CountFires(census).Should().Be(1, "the first observation never fired — no previous to cross from");
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AFundingCrossBelow_FiresOnTheMirror()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        var created = await rig.Engine.CreateAsync(FundingDraft(-0.05m, AlertTrigger.Below));
+        var (census, firstFire) = WireFiredLatch(rig.Engine, created);
+
+        PushFundingTick(rig.Adapter, 0.0001m, Base.AddMinutes(1));
+        PushFundingTick(rig.Adapter, -0.0006m, Base.AddMinutes(2));
+
+        (await firstFire.Task.WaitAsync(EventWaitBudget)).Definition!.LastFiredUtc
+            .Should().Be(Base.AddMinutes(2), "the mirror edge crosses from above to at-or-below");
+        CountFires(census).Should().Be(1);
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ARatelessTick_IsTheHonestAbsence_TheTrackedPairSurvives()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        var created = await rig.Engine.CreateAsync(FundingDraft(0.05m, AlertTrigger.Above));
+        var (census, firstFire) = WireFiredLatch(rig.Engine, created);
+
+        // The middle tick carries no rate: it contributes nothing (never a
+        // fabricated zero) and the tracked previous survives it, so the
+        // 0.01% -> 0.06% pair still crosses on the third tick.
+        PushFundingTick(rig.Adapter, 0.0001m, Base.AddMinutes(1));
+        PushFundingTick(rig.Adapter, null, Base.AddMinutes(2));
+        PushFundingTick(rig.Adapter, 0.0006m, Base.AddMinutes(3));
+
+        (await firstFire.Task.WaitAsync(EventWaitBudget)).Definition!.LastFiredUtc
+            .Should().Be(Base.AddMinutes(3));
+        CountFires(census).Should().Be(1, "the rateless tick neither fired nor broke the pair");
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AFundingDraft_WithTheMeaninglessAtEdge_IsRefused()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+
+        var act = () => rig.Engine.CreateAsync(FundingDraft(0.05m, AlertTrigger.At));
+
+        await act.Should().ThrowAsync<ArgumentException>(
+            "a cross reads only the Above or Below edge; the editor never offers what it would refuse");
+        rig.Engine.Definitions.Should().BeEmpty("the refused draft never landed");
         await rig.Engine.DisposeAsync();
     }
 

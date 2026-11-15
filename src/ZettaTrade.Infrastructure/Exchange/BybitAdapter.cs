@@ -37,7 +37,7 @@ using ZettaTrade.Infrastructure.RateLimiting;
 /// dropped with a warning, because the wire text cannot carry the category
 /// and a guessed category is never honest.
 /// </summary>
-public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
+public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter, IFundingHistoryProvider
 {
     #region Constants
 
@@ -61,6 +61,9 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
 
     /// <summary>REST path of the kline history endpoint.</summary>
     private const string KlineRequestPath = "/v5/market/kline";
+
+    /// <summary>REST path of the settled funding-rate history endpoint (T-240).</summary>
+    private const string FundingHistoryRequestPath = "/v5/market/funding/history";
 
     /// <summary>The v5 REST category of the spot instruments (T-197's category-aware requests).</summary>
     private const string SpotCategory = "spot";
@@ -91,11 +94,18 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         [
             new RestEndpointBudget(KlineRequestPath, PublicRequestsPerSecond, RestRefillInterval),
             new RestEndpointBudget(CatalogRequestPath, PublicRequestsPerSecond, RestRefillInterval),
+            new RestEndpointBudget(FundingHistoryRequestPath, PublicRequestsPerSecond, RestRefillInterval),
         ],
     };
 
     /// <summary>Page size requested for the spot catalog (the server's own cap).</summary>
     private const int CatalogPageSize = 1000;
+
+    /// <summary>The smallest funding-history page the endpoint accepts (the venue's documented bound).</summary>
+    private const int FundingHistoryMinLimit = 1;
+
+    /// <summary>The largest funding-history page the endpoint serves (the venue's documented cap; T-240).</summary>
+    private const int FundingHistoryMaxLimit = 200;
 
     /// <summary>The request weight a public Bybit market REST call spends from its bucket (one per request).</summary>
     private const int CatalogPageWeight = 1;
@@ -524,6 +534,66 @@ public sealed class BybitAdapter : ExchangeAdapterBase, IMarketDataAdapter
         bars.Reverse();
 
         return bars;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<FundingRatePoint>> GetFundingRateHistoryAsync(
+        Symbol symbol,
+        DateTimeOffset from,
+        DateTimeOffset? to = null,
+        int limit = 200,
+        CancellationToken ct = default)
+    {
+        // Funding history is a derivatives wire: a spot symbol is a request
+        // contract violation, refused — never guessed into another category.
+        if (!symbol.IsPerpetual)
+        {
+            throw new ArgumentException(
+                $"Funding-rate history serves perpetual contracts only; {symbol.Normalized} is not one.",
+                nameof(symbol));
+        }
+
+        if (limit is < FundingHistoryMinLimit or > FundingHistoryMaxLimit)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(limit),
+                limit,
+                $"The funding-history limit rides the venue's page bounds [{FundingHistoryMinLimit}..{FundingHistoryMaxLimit}].");
+        }
+
+        var startTime = from.ToUnixTimeMilliseconds();
+        var endTime = to?.ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var url = $"{_baseUrl}{FundingHistoryRequestPath}" +
+                  $"?category={LinearCategory}" +
+                  $"&symbol={symbol.GetExchangeFormat(Id)}" +
+                  $"&startTime={startTime}" +
+                  $"&endTime={endTime}" +
+                  $"&limit={limit}";
+
+        var result = await GetRestResultAsync(
+            RestLane.Background,
+            FundingHistoryRequestPath,
+            CatalogPageWeight,
+            url,
+            ct);
+        var rows = result.GetProperty("list");
+
+        // Bybit v5 funding rows: {"symbol","fundingRate","fundingRateTimestamp"}
+        // with BOTH data fields as strings (the timestamp in milliseconds),
+        // NEWEST FIRST — same as the kline wire.
+        var points = new List<FundingRatePoint>(rows.GetArrayLength());
+        foreach (var row in rows.EnumerateArray())
+        {
+            points.Add(new FundingRatePoint(
+                DateTimeOffset.FromUnixTimeMilliseconds(BinanceJsonNumbers.ParseInt64(row.GetProperty("fundingRateTimestamp"))),
+                BinanceJsonNumbers.ParseDecimal(row.GetProperty("fundingRate"))));
+        }
+
+        // The series contract is ascending; reverse the newest-first order
+        // in place.
+        points.Reverse();
+
+        return points;
     }
 
     /// <summary>

@@ -61,7 +61,7 @@ public static class AlertCodec
 
     /// <summary>The enums the codec stores: every value parses by its exact enum name, case-insensitively.</summary>
     private static readonly Dictionary<string, PriceAlertKind> StoredKinds =
-        Built(PriceAlertKind.Price, PriceAlertKind.PercentMove, PriceAlertKind.IndicatorCross);
+        Built(PriceAlertKind.Price, PriceAlertKind.PercentMove, PriceAlertKind.IndicatorCross, PriceAlertKind.FundingCross);
     private static readonly Dictionary<string, AlertTrigger> StoredTriggers = Built(AlertTrigger.Above, AlertTrigger.Below, AlertTrigger.At);
     private static readonly Dictionary<string, AlertStatus> StoredStatuses =
         Built(AlertStatus.Armed, AlertStatus.Snoozed, AlertStatus.Fired, AlertStatus.Paused);
@@ -252,9 +252,10 @@ public static class AlertCodec
         // price entry needs a positive level AND a named edge, a percent-move
         // entry a positive percent inside a positive window, an
         // indicator-cross entry (T-203) a resolvable-looking spec with a real
-        // cross edge. Facts the other kinds unused-fields (even junk there)
-        // stay harmlessly decodable — the demark is the kind, never a silent
-        // value guess.
+        // cross edge, a funding-cross entry (T-240) a present (signed)
+        // threshold member with a real cross edge. Facts the other kinds
+        // unused-fields (even junk there) stay harmlessly decodable — the
+        // demark is the kind, never a silent value guess.
         if (id == Guid.Empty ||
             symbol is not { Length: > 0 } ||
             kind is null ||
@@ -292,6 +293,14 @@ public static class AlertCodec
                 return false;
             }
         }
+        else if (kind == PriceAlertKind.FundingCross)
+        {
+            parsedTrigger = ReadEnum(entry, TriggerMember, StoredTriggers);
+            if (parsedTrigger is not AlertTrigger.Above and not AlertTrigger.Below)
+            {
+                return false;
+            }
+        }
         else
         {
             parsedTrigger = AlertTrigger.At;
@@ -299,6 +308,15 @@ public static class AlertCodec
 
         if (kind == PriceAlertKind.PercentMove &&
             (thresholdPercent is not { } parsedThreshold || parsedThreshold <= 0m || windowMinutes <= 0))
+        {
+            return false;
+        }
+
+        // The funding-cross threshold (T-240): the member's PRESENCE is the
+        // demand — its stored value is a signed percent (zero and negatives
+        // are honest thresholds), so only a missing or non-numeric member is
+        // the skipped entry.
+        if (kind == PriceAlertKind.FundingCross && targetPrice is null)
         {
             return false;
         }

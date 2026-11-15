@@ -115,6 +115,16 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     /// <summary>The per-symbol ascending move history the percent-move evaluation reads (stream data only, time-pruned).</summary>
     private readonly Dictionary<string, List<AlertObservation>> _history = [];
 
+    /// <summary>
+    /// The per-symbol last observed funding rate as a wire fraction (T-240),
+    /// tracked only while a funding-cross alert is evaluatable on the symbol:
+    /// the cross evaluation reads the PREVIOUS rate against the arriving
+    /// observation's, so the write lands after the per-definition loop and
+    /// the first observed rate (no previous) evaluates nothing — the honest
+    /// two-sample crossing. Cleaned up with the subscriptions.
+    /// </summary>
+    private readonly Dictionary<string, decimal> _fundingRates = [];
+
     /// <summary>The live ticker subscriptions keyed by normalized symbol (the same spelling the definitions carry).</summary>
     private readonly Dictionary<string, IDisposable> _tickSubscriptions = [];
 
@@ -552,6 +562,18 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
                 changed = true;
             }
 
+            // The funding-rate tracking (T-240) lands AFTER the per-definition
+            // loop: the evaluations above read the PREVIOUS rate out of the
+            // map, the arriving observation becomes the next evaluation's
+            // previous — the two-sample crossing discipline. Only tracked
+            // while a funding-cross alert is evaluatable on the symbol, and
+            // only from ticks that carry a rate (the wire's honest absence).
+            if (observation.FundingRate is { } fundingRate &&
+                evaluatable.Exists(definition => definition.Kind == PriceAlertKind.FundingCross))
+            {
+                _fundingRates[observation.SymbolName] = fundingRate;
+            }
+
             if (closedCandle is { } candle)
             {
                 // The minute's candle closed: land it in the series (the
@@ -585,8 +607,32 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
         // T-203: the indicator cross never judges the raw tick — its evaluation
         // event is the candle close, handled after the per-tick loop.
         PriceAlertKind.IndicatorCross => false,
+
+        // T-240: the funding cross judges the tracked previous rate against
+        // the arriving observation's, at the stored percent threshold
+        // converted once into the wire's fraction units.
+        PriceAlertKind.FundingCross => IsFundingCrossReached(definition, observation),
         _ => throw new ArgumentOutOfRangeException(nameof(definition), definition.Kind, "The definition names no known alert kind."),
     };
+
+    /// <summary>
+    /// The funding-cross evaluation (T-240): the tracked previous rate
+    /// crosses the percent threshold between the last two observations. A
+    /// tick without a rate, or a first observation with no tracked previous,
+    /// is the honest absence — nothing fires until two rate-carrying
+    /// observations straddle the level.
+    /// </summary>
+    private bool IsFundingCrossReached(AlertDefinition definition, AlertObservation observation)
+    {
+        if (observation.FundingRate is not { } current ||
+            !_fundingRates.TryGetValue(definition.SymbolName, out var previous))
+        {
+            return false;
+        }
+
+        var level = definition.TargetPrice / 100m;
+        return AlertEdge.IsLevelCrossHit(definition.Trigger, previous, current, level);
+    }
 
     /// <summary>
     /// The percent-move evaluation: the reference is the OLDEST observation the
@@ -1028,6 +1074,7 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
             _pendingCandles.Remove(symbolName);
             _candles.Remove(symbolName);
             _seededSymbols.Remove(symbolName);
+            _fundingRates.Remove(symbolName);
         }
 
         foreach (var symbolName in symbols.Where(name => !_tickSubscriptions.ContainsKey(name)))
@@ -1048,7 +1095,10 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 
             var stream = _ticks.SubscribeTicker(symbol);
             _tickSubscriptions[symbolName] = stream.Subscribe(
-                tick => _inbox.Writer.TryWrite(new AlertObservation(symbolName, tick.Timestamp, tick.LastPrice)),
+                tick => _inbox.Writer.TryWrite(new AlertObservation(symbolName, tick.Timestamp, tick.LastPrice)
+                {
+                    FundingRate = tick.FundingRate,
+                }),
                 ex => _logger.LogWarning(ex, "The alert ticker stream for {Symbol} ended unexpectedly", symbolName));
         }
 

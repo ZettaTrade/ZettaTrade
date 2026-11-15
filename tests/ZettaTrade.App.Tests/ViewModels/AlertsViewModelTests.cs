@@ -282,6 +282,34 @@ public sealed class AlertsViewModelTests
         engine.Roster.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task CreateCommand_AnUnparsableFundingThresholdRefuses_TheFundingFieldsCarryTheirOwnLine()
+    {
+        var (model, engine, _) = Build();
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.FundingCross);
+        model.SymbolText = "BTC/USDT:USDT";
+        model.TargetText = "half a percent";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+
+        model.ErrorMessage.Should().Be("[Alert.Error.InvalidFundingThreshold/half a percent]");
+        engine.Roster.Should().BeEmpty();
+    }
+
+    /// <summary>A settle mark on a single asset is the malformed shape the parse refuses: the symbol line carries it, never a guess.</summary>
+    [Fact]
+    public async Task CreateCommand_ASettleMarkedSingleAssetRefuses_WithTheSymbolLine()
+    {
+        var (model, engine, _) = Build();
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.FundingCross);
+        model.SymbolText = "USDT:USDT";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+
+        model.ErrorMessage.Should().Be("[Alert.Error.InvalidSymbol/USDT:USDT]");
+        engine.Roster.Should().BeEmpty();
+    }
+
     #endregion Draft Refusals
 
     #region Valid Drafts
@@ -334,6 +362,70 @@ public sealed class AlertsViewModelTests
         definition.WindowMinutes.Should().Be(60);
         definition.Trigger.Should().Be(AlertTrigger.Below, "the percent kind leaves the edge slot neutral");
         model.Rows[0].ConditionText.Should().Be("[Alert.Condition.PercentMove.Format/8|60]");
+    }
+
+    /// <summary>
+    /// The funding draft (T-240) rides the price slot in PERCENT units: the
+    /// threshold parses, the default edge stays Below, and the row renders
+    /// the funding condition's own line. The fact pins an integer threshold
+    /// so the rendered line is culture-invariant; a fraction's own parse is
+    /// pinned by the codec's signed-threshold fact.
+    /// </summary>
+    [Fact]
+    public async Task CreateCommand_AValidFundingDraft_ReachesTheEngine_InPercentUnits()
+    {
+        var (model, engine, _) = Build();
+        using var attach = model.Attach();
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.FundingCross);
+        model.SymbolText = "BTC/USDT:USDT";
+        model.TargetText = "2";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var definition = engine.Roster.Should().ContainSingle().Subject;
+        definition.Kind.Should().Be(PriceAlertKind.FundingCross);
+        definition.TargetPrice.Should().Be(2m, "the funding threshold rides the price slot in PERCENT units");
+        definition.Trigger.Should().Be(AlertTrigger.Below, "the editor's default edge is the Below option");
+        model.Rows[0].ConditionText.Should().Be("[Alert.Condition.Funding.Below.Format/2]");
+    }
+
+    /// <summary>Zero is an honest funding threshold (the rate can sit exactly on it): the draft lands, never defaulted.</summary>
+    [Fact]
+    public async Task CreateCommand_AZeroFundingThreshold_IsAnHonestThreshold()
+    {
+        var (model, engine, _) = Build();
+        using var attach = model.Attach();
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.FundingCross);
+        model.SymbolText = "BTC/USDT:USDT";
+        model.TargetText = "0";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var definition = engine.Roster.Should().ContainSingle().Subject;
+        definition.TargetPrice.Should().Be(0m, "zero is never substituted for a missing parse");
+        model.ErrorMessage.Should().BeNull();
+    }
+
+    /// <summary>A negative threshold is honest too (rates go negative); the Above edge rides the cross vocabulary. The integer pins the line culture-invariant.</summary>
+    [Fact]
+    public async Task CreateCommand_ANegativeFundingThreshold_IsAnHonestThreshold()
+    {
+        var (model, engine, _) = Build();
+        using var attach = model.Attach();
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.FundingCross);
+        model.SelectedTrigger = model.VisibleTriggerOptions.First(option => option.Trigger == AlertTrigger.Above);
+        model.SymbolText = "BTC/USDT:USDT";
+        model.TargetText = "-2";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var definition = engine.Roster.Should().ContainSingle().Subject;
+        definition.TargetPrice.Should().Be(-2m, "the signed threshold is never defaulted away");
+        definition.Trigger.Should().Be(AlertTrigger.Above, "the Above edge composes from the cross vocabulary");
+        model.Rows[0].ConditionText.Should().Be("[Alert.Condition.Funding.Above.Format/-2]");
     }
 
     [Fact]
@@ -437,6 +529,37 @@ public sealed class AlertsViewModelTests
     }
 
     #endregion Indicator Cross Editor (T-203)
+
+    #region Funding Cross Editor (T-240)
+
+    /// <summary>
+    /// The funding kind opens the cross vocabulary (Above/Below only, At
+    /// never offered — the editor never offers what the engine would
+    /// refuse) and keeps the indicator fields hidden.
+    /// </summary>
+    [Fact]
+    public void TheFundingEditor_OpensTheCrossVocabulary_AndNeverOffersAt()
+    {
+        var (model, _, _) = Build();
+        model.IsFundingKind.Should().BeFalse("the default kind is the price level");
+        model.IsCrossKind.Should().BeFalse();
+
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.FundingCross);
+
+        model.IsFundingKind.Should().BeTrue();
+        model.IsCrossKind.Should().BeTrue("a cross reads only the Above or Below edge");
+        model.IsIndicatorKind.Should().BeFalse("the indicator fields stay hidden");
+        model.IsPriceKind.Should().BeFalse();
+        model.VisibleTriggerOptions.Select(option => option.Trigger)
+            .Should().Equal([AlertTrigger.Above, AlertTrigger.Below], "At is meaningless for a cross");
+
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.Price);
+        model.IsFundingKind.Should().BeFalse();
+        model.VisibleTriggerOptions.Select(option => option.Trigger)
+            .Should().Contain(AlertTrigger.At, "the price vocabulary keeps its At edge");
+    }
+
+    #endregion Funding Cross Editor (T-240)
 
     #region Re-arm Editor (T-204)
 

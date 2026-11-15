@@ -121,6 +121,13 @@
                 <TextBlock Text="{loc:Localized Alert.Editing.Target}" />
                 <TextBox Width="100" Text="{Binding TargetText}" />
             </StackPanel>
+            <!-- The funding kind (T-240) reuses the price slot: the kinds are
+                 mutually exclusive, so the same cell holds both fields. -->
+            <StackPanel Grid.Column="2" Classes="field-cell"
+                        IsVisible="{Binding IsFundingKind}">
+                <TextBlock Text="{loc:Localized Alert.Editing.FundingThreshold}" />
+                <TextBox Width="100" Text="{Binding TargetText}" />
+            </StackPanel>
             <StackPanel Grid.Column="3" Classes="field-cell"
                         IsVisible="{Binding IsIndicatorKind}">
                 <TextBlock Text="{loc:Localized Alert.Editing.Indicator}" />

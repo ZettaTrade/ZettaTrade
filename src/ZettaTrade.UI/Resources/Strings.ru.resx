@@ -609,6 +609,9 @@
   <data name="Chart.NoDataMessage" xml:space="preserve">
     <value>Нет данных</value>
   </data>
+  <data name="Chart.Funding.Pane" xml:space="preserve">
+    <value>Фандинг</value>
+  </data>
   <data name="Chart.TimeFrame" xml:space="preserve">
     <value>Таймфрейм</value>
   </data>
@@ -2838,6 +2841,9 @@
   <data name="Alert.Editing.Level" xml:space="preserve">
     <value>Уровень</value>
   </data>
+  <data name="Alert.Editing.FundingThreshold" xml:space="preserve">
+    <value>Фандинг, %</value>
+  </data>
   <data name="Alert.Editing.ReArm" xml:space="preserve">
     <value>После срабатывания</value>
   </data>
@@ -2855,6 +2861,9 @@
   </data>
   <data name="Alert.Kind.IndicatorCross" xml:space="preserve">
     <value>Пересечение индикатора</value>
+  </data>
+  <data name="Alert.Kind.FundingCross" xml:space="preserve">
+    <value>Пересечение фандинга</value>
   </data>
   <data name="Alert.Trigger.Above" xml:space="preserve">
     <value>Поднимается выше</value>
@@ -2928,6 +2937,12 @@
   <data name="Alert.Condition.Indicator.PriceBelow.Format" xml:space="preserve">
     <value>цена пересекла {0}({1}) снизу</value>
   </data>
+  <data name="Alert.Condition.Funding.Above.Format" xml:space="preserve">
+    <value>фандинг пересёк {0}% сверху</value>
+  </data>
+  <data name="Alert.Condition.Funding.Below.Format" xml:space="preserve">
+    <value>фандинг пересёк {0}% снизу</value>
+  </data>
   <data name="Alert.Create" xml:space="preserve">
     <value>Создать</value>
   </data>
@@ -2960,6 +2975,9 @@
   </data>
   <data name="Alert.Error.InvalidLevel" xml:space="preserve">
     <value>'{0}' — не разборчивый уровень.</value>
+  </data>
+  <data name="Alert.Error.InvalidFundingThreshold" xml:space="preserve">
+    <value>'{0}' — не разборчивый порог фандинга (проценты).</value>
   </data>
   <data name="Alert.Error.InvalidCooldown" xml:space="preserve">
     <value>'{0}' — не разборчивая пауза (минуты).</value>

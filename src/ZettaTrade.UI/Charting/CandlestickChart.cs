@@ -129,6 +129,15 @@ public class CandlestickChart : Control
     private const string NoVolumeMessageKey = "Chart.NoVolumeData";
 
     /// <summary>
+    /// The funding hover readout's format (T-240): the wire fraction printed
+    /// on the watchlist's percent basis — the '%' specifier multiplies the
+    /// fraction into percent itself, so a 0.0001 fraction prints "+0.0100%",
+    /// the same text the app's watchlist row shows. The sign is explicit (a
+    /// negative funding regime reads at a glance).
+    /// </summary>
+    private const string FundingReadoutFormat = "+0.0000%;-0.0000%;0.0000%";
+
+    /// <summary>
     /// The bucket count the volume profile ladder (T-093) cuts the visible
     /// window's price spread into: plenty of resolution at terminal zooms
     /// while every bucket stays a wide band on a coarse frame.
@@ -2124,7 +2133,14 @@ public class CandlestickChart : Control
             // The hover layer rides LAST: the crosshair paints over the
             // candles and the axis labels (the terminal look). The hovered
             // readout keys off the DRAWN series — a Heikin-Ashi frame reads
-            // its smoothed OHLC, every other type reads the raw bar.
+            // its smoothed OHLC, every other type reads the raw bar. The
+            // funding readout (T-240) rides the frame's own funding
+            // oscillator when one is present (a perp on an adapter that
+            // serves the history); its sliced values align with the visible
+            // bars by index like every pane's.
+            var fundingLine = Array.Find(
+                _snapshot.Indicators.ToArray(),
+                line => line.PaneKind == IndicatorPaneKind.Oscillator && line.Name == ChartFundingSeries.Name);
             DrawHover(
                 canvas,
                 font,
@@ -2136,7 +2152,8 @@ public class CandlestickChart : Control
                 axisRange,
                 axisDecimals,
                 rawDecimals,
-                _snapshot.Hover);
+                _snapshot.Hover,
+                fundingLine?.Values);
         }
 
         private void DrawNoDataMessage(SKCanvas canvas, double width, double height)
@@ -2323,10 +2340,12 @@ public class CandlestickChart : Control
 
                 // The pane's name at its top-left: the catalog's canonical
                 // identity (never a localized alias — the palette lists the
-                // same name).
+                // same name), except a synthesized line carrying its own resx
+                // label key localizes per frame (T-240's funding series rides
+                // the plugin pipeline).
                 var nameBaseline = (float)rect.Top + PaneLabelInsetPx - font.Metrics.Ascent;
                 canvas.DrawText(
-                    pane.Line.Name,
+                    GetPaneLabelText(pane.Line),
                     (float)rect.Left + PaneLabelInsetPx,
                     nameBaseline,
                     SKTextAlign.Left,
@@ -3690,6 +3709,29 @@ public class CandlestickChart : Control
         }
 
         /// <summary>
+        /// The pane's label text (T-240): a synthesized line carrying a resx
+        /// label key localizes per frame; the catalog's plugin lines keep
+        /// their raw canonical names (the palette lists the same name).
+        /// </summary>
+        private static string GetPaneLabelText(ChartIndicatorLine line)
+        {
+            if (line.LabelKey is { } key)
+            {
+                if (LocalizationManager.IsInitialized)
+                {
+                    return LocalizationManager.Instance.GetString(key);
+                }
+
+                // Design mode / manager not wired yet: raw resource lookup instead.
+                return Strings.ResourceManager.GetString(
+                    key,
+                    System.Globalization.CultureInfo.CurrentUICulture) ?? key;
+            }
+
+            return line.Name;
+        }
+
+        /// <summary>
         /// The right-margin volume-at-price histogram (T-093), drawn over the
         /// candles: the visible window's spread cuts into an even bucket
         /// ladder (the pure <see cref="VolumeProfile"/> compute — exactly
@@ -4148,8 +4190,9 @@ public class CandlestickChart : Control
         /// The hover layer, drawn last: dashed crosshair rails clipped to the
         /// plot, the hovered price pill in the right gutter at the cursor's
         /// row, and the hovered candle's compact OHLC (+V) readout in the
-        /// plot's top-left. Everything keys off the hover position the
-        /// snapshot carries: no hover, a cursor outside the plot band (a
+        /// plot's top-left — extended with the funding pane's readout (T-240)
+        /// when the frame carries one. Everything keys off the hover position
+        /// the snapshot carries: no hover, a cursor outside the plot band (a
         /// rail just does not draw) or a cursor outside every bar's
         /// half-pitch band (no readout) draw less of it instead of throwing
         /// or substituting — the dead paths stay silent. The cursor's price
@@ -4169,7 +4212,8 @@ public class CandlestickChart : Control
             decimal axisRange,
             int axisDecimals,
             int rawDecimals,
-            Point? hover)
+            Point? hover,
+            IReadOnlyList<decimal?>? fundingValues = null)
         {
             if (hover is not { } position)
             {
@@ -4259,6 +4303,19 @@ public class CandlestickChart : Control
             var closeText = ChartAxisFormatting.FormatPriceTick(bar.Close, rawDecimals, _snapshot.Culture);
             var volumeText = ChartAxisFormatting.FormatPriceTick(bar.Volume, rawDecimals, _snapshot.Culture);
             var readout = $"O {openText}  H {highText}  L {lowText}  C {closeText}  V {volumeText}";
+
+            // The funding readout (T-240): the bar's own aligned pane value,
+            // the wire fraction printed on the watchlist's percent basis (the
+            // '%' specifier multiplies the fraction into percent itself) — a
+            // bar before the first funding event is the honest gap, the
+            // readout simply carries no F term.
+            if (fundingValues is { } funding &&
+                barIndex < funding.Count &&
+                funding[barIndex] is { } fundingValue)
+            {
+                readout += $"  F {fundingValue.ToString(FundingReadoutFormat, _snapshot.Culture)}";
+            }
+
             var readoutBaseline = (float)plotRect.Top + CrosshairReadoutPadPx - font.Metrics.Ascent;
 
             canvas.DrawText(readout, (float)plotRect.Left + CrosshairReadoutPadPx, readoutBaseline, SKTextAlign.Left, font, textPaint);

@@ -53,10 +53,12 @@ public sealed class FieldGrammarPinsTests
             "<StyleInclude Source=\"avares://ZettaTrade.App/Themes/FieldGrammar.axaml\" />",
             "the editor's cells ride the shared grammar, never a window-local copy");
 
-        // Eleven cells on the facts row (the kind through the note), three
-        // on the fire-mechanics row (the re-arm, the cooldown, the sound).
+        // Twelve cells on the facts row (the kind through the note — the
+        // funding kind's twin of the price slot is the twelfth, T-240),
+        // three on the fire-mechanics row (the re-arm, the cooldown, the
+        // sound).
         Regex.Matches(AlertsXaml, "Classes=\"field-cell\"").Should().HaveCount(
-            14, "every editor cell is the one shared caption-over-field class");
+            15, "every editor cell is the one shared caption-over-field class");
 
         // The caption copies died with the class: exactly one CaptionFontSize
         // remains in the window — the manager table's LastFired column.

@@ -304,4 +304,84 @@ public sealed class BybitAdapterParsingTests
     }
 
     #endregion Klines
+
+    #region Funding History (T-240)
+
+    /// <summary>Real v5 funding-history shape: newest first, BOTH data fields as strings (the 8-hour cadence's 2026-01-01 events: 16:00Z, 08:00Z, 00:00Z).</summary>
+    private const string FundingHistoryPayloadJson =
+        """
+        {"retCode":0,"retMsg":"OK","result":{"category":"linear","list":[
+            {"symbol":"BTCUSDT","fundingRate":"0.0001","fundingRateTimestamp":"1767283200000"},
+            {"symbol":"BTCUSDT","fundingRate":"-0.00025","fundingRateTimestamp":"1767254400000"},
+            {"symbol":"BTCUSDT","fundingRate":"0.000075","fundingRateTimestamp":"1767225600000"}
+        ]}}
+        """;
+
+    /// <summary>The funding history rides the linear wire on its own endpoint (the pane's capability probe resolves it).</summary>
+    [Fact]
+    public async Task GetFundingRateHistoryAsync_PerpetualSymbol_RequestsTheLinearCategoryOnTheHistoryEndpoint()
+    {
+        var (adapter, handler) = CreateAdapter(FundingHistoryPayloadJson);
+
+        await adapter.GetFundingRateHistoryAsync(
+            Symbol.Parse("BTC/USDT:USDT"),
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero),
+            limit: 200);
+
+        handler.LastRequest!.RequestUri!.Query
+            .Should().Contain("category=linear")
+            .And.Contain("symbol=BTCUSDT")
+            .And.Contain("startTime=1767225600000")
+            .And.Contain("endTime=1767312000000")
+            .And.Contain("limit=200");
+        handler.LastRequest.RequestUri!.AbsolutePath.Should().Be("/v5/market/funding/history");
+    }
+
+    /// <summary>The newest-first wire parses into the series contract's ASCENDING order with exact decimals.</summary>
+    [Fact]
+    public async Task GetFundingRateHistoryAsync_NewestFirstRows_ParseAscendingExactDecimals()
+    {
+        var (adapter, _) = CreateAdapter(FundingHistoryPayloadJson);
+
+        var points = await adapter.GetFundingRateHistoryAsync(
+            Symbol.Parse("BTC/USDT:USDT"),
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+        points.Select(static point => point.Rate)
+            .Should().Equal([0.000075m, -0.00025m, 0.0001m], "the wire serves newest first; the series contract is ascending");
+        points[0].Time.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1767225600000));
+        points[2].Time.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1767283200000));
+    }
+
+    /// <summary>A spot symbol is a request-contract violation: refused, never guessed into another category.</summary>
+    [Fact]
+    public async Task GetFundingRateHistoryAsync_SpotSymbol_IsRefused()
+    {
+        var (adapter, _) = CreateAdapter(FundingHistoryPayloadJson);
+
+        var act = () => adapter.GetFundingRateHistoryAsync(
+            Symbol.Parse("BTC/USDT"),
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    /// <summary>The limit rides the venue's documented page bounds [1..200]: out-of-band values are refused.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(201)]
+    public async Task GetFundingRateHistoryAsync_OutOfBoundsLimit_IsRefused(int limit)
+    {
+        var (adapter, _) = CreateAdapter(FundingHistoryPayloadJson);
+
+        var act = () => adapter.GetFundingRateHistoryAsync(
+            Symbol.Parse("BTC/USDT:USDT"),
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            limit: limit);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    #endregion Funding History (T-240)
 }

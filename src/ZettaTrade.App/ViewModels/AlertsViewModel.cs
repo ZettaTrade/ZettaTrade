@@ -39,6 +39,7 @@ public sealed class AlertsViewModel : ReactiveObject
     private const string InvalidateWindowKey = "Alert.Error.InvalidWindow";
     private const string InvalidatePeriodKey = "Alert.Error.InvalidPeriod";
     private const string InvalidateLevelKey = "Alert.Error.InvalidLevel";
+    private const string InvalidateFundingThresholdKey = "Alert.Error.InvalidFundingThreshold";
     private const string NoIndicatorsKey = "Alert.Error.NoIndicatorsLoaded";
     private const string InvalidateOperationKey = "Alert.Error.OperationFailed";
     private const string InvalidateCooldownKey = "Alert.Error.InvalidCooldown";
@@ -143,6 +144,7 @@ public sealed class AlertsViewModel : ReactiveObject
     private const string KindPriceKey = "Alert.Kind.Price";
     private const string KindPercentKey = "Alert.Kind.PercentMove";
     private const string KindIndicatorKey = "Alert.Kind.IndicatorCross";
+    private const string KindFundingKey = "Alert.Kind.FundingCross";
     private const string SourceIndicatorValueKey = "Alert.Source.IndicatorValue";
     private const string SourcePriceKey = "Alert.Source.Price";
     private const string TriggerAboveKey = "Alert.Trigger.Above";
@@ -189,12 +191,13 @@ public sealed class AlertsViewModel : ReactiveObject
     public ObservableCollection<AlertTriggerOption> TriggerOptions { get; } = [];
 
     /// <summary>
-    /// The trigger edges the CURRENT kind's vocabulary offers (T-203): the
-    /// indicator cross reads only Above/Below — At is meaningless for a cross
-    /// and the editor never offers what it would refuse.
+    /// The trigger edges the CURRENT kind's vocabulary offers (T-203, T-240):
+    /// the indicator cross and the funding cross read only Above/Below — At
+    /// is meaningless for a cross and the editor never offers what it would
+    /// refuse.
     /// </summary>
     public IReadOnlyList<AlertTriggerOption> VisibleTriggerOptions =>
-        IsIndicatorKind ? _crossTriggerOptions : TriggerOptions;
+        IsCrossKind ? _crossTriggerOptions : TriggerOptions;
 
     /// <summary>The cross vocabulary's edges (Above + Below; composed beside <see cref="TriggerOptions"/>).</summary>
     private readonly List<AlertTriggerOption> _crossTriggerOptions = [];
@@ -250,11 +253,12 @@ public sealed class AlertsViewModel : ReactiveObject
             this.RaisePropertyChanged(nameof(IsPriceKind));
             this.RaisePropertyChanged(nameof(IsPercentKind));
             this.RaisePropertyChanged(nameof(IsIndicatorKind));
+            this.RaisePropertyChanged(nameof(IsFundingKind));
             this.RaisePropertyChanged(nameof(ShowsTrigger));
             this.RaisePropertyChanged(nameof(IsIndicatorValueSource));
             this.RaisePropertyChanged(nameof(IsPriceSource));
             this.RaisePropertyChanged(nameof(VisibleTriggerOptions));
-            if (IsIndicatorKind && _selectedTrigger.Trigger == AlertTrigger.At)
+            if (IsCrossKind && _selectedTrigger.Trigger == AlertTrigger.At)
             {
                 SelectedTrigger = TriggerOptions.First(option => option.Trigger == AlertTrigger.Below);
             }
@@ -279,7 +283,7 @@ public sealed class AlertsViewModel : ReactiveObject
         }
     }
 
-    /// <summary>The target-price spelling (Price kind; parsed and validated at submit).</summary>
+    /// <summary>The target-price spelling (Price kind) and the funding threshold's, in PERCENT units (FundingCross kind, T-240); parsed and validated at submit.</summary>
     public string TargetText
     {
         get => _targetText;
@@ -425,11 +429,17 @@ public sealed class AlertsViewModel : ReactiveObject
     /// <summary>True while the PercentMove kind is selected (its fields visible, the price fields hidden).</summary>
     public bool IsPercentKind => SelectedKind?.Kind == PriceAlertKind.PercentMove;
 
-    /// <summary>True while the selected kind reads the trigger edge vocabulary (Price and IndicatorCross; the PercentMove kind leaves the neutral At slot untouchable).</summary>
-    public bool ShowsTrigger => IsPriceKind || IsIndicatorKind;
+    /// <summary>True while the selected kind reads the trigger edge vocabulary (Price, IndicatorCross and FundingCross; the PercentMove kind leaves the neutral At slot untouchable).</summary>
+    public bool ShowsTrigger => IsPriceKind || IsCrossKind;
 
     /// <summary>True while the IndicatorCross kind is selected (T-203: its indicator fields visible, the others hidden).</summary>
     public bool IsIndicatorKind => SelectedKind?.Kind == PriceAlertKind.IndicatorCross;
+
+    /// <summary>True while the FundingCross kind is selected (T-240: its threshold field shows in the price slot, the indicator fields stay hidden).</summary>
+    public bool IsFundingKind => SelectedKind?.Kind == PriceAlertKind.FundingCross;
+
+    /// <summary>True while the selected kind is a cross vocabulary kind (T-203/T-240: Above/Below only, At never offered).</summary>
+    public bool IsCrossKind => IsIndicatorKind || IsFundingKind;
 
     /// <summary>True while the cross reads the indicator's own value against the stored level (the level field shows).</summary>
     public bool IsIndicatorValueSource =>
@@ -724,6 +734,19 @@ public sealed class AlertsViewModel : ReactiveObject
                 indicator = new AlertIndicatorSpec(_selectedIndicatorName, period, sourceOption.Source, level);
                 break;
 
+            case PriceAlertKind.FundingCross:
+                // The threshold rides the Price kind's own field slot in
+                // PERCENT units (T-240); zero and negatives are honest
+                // thresholds, so only the parse is demanded — the draft
+                // validation demands nothing further.
+                if (!decimal.TryParse(_targetText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out target))
+                {
+                    inputError = _localization.GetString(InvalidateFundingThresholdKey, _targetText);
+                    return false;
+                }
+
+                break;
+
             default:
                 inputError = _localization.GetString(InvalidateOperationKey, "unknown alert kind");
                 return false;
@@ -773,6 +796,7 @@ public sealed class AlertsViewModel : ReactiveObject
         KindOptions.Add(new AlertKindOption(PriceAlertKind.Price, _localization.GetString(KindPriceKey)));
         KindOptions.Add(new AlertKindOption(PriceAlertKind.PercentMove, _localization.GetString(KindPercentKey)));
         KindOptions.Add(new AlertKindOption(PriceAlertKind.IndicatorCross, _localization.GetString(KindIndicatorKey)));
+        KindOptions.Add(new AlertKindOption(PriceAlertKind.FundingCross, _localization.GetString(KindFundingKey)));
         TriggerOptions.Clear();
         TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Above, _localization.GetString(TriggerAboveKey)));
         TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Below, _localization.GetString(TriggerBelowKey)));

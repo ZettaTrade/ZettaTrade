@@ -343,10 +343,15 @@ internal static class CompositionRoot
                                                             // #region T-122: the footprint feed's stream (my-activity overlays).
                 sp.GetRequiredService<ChartFootprintService>().Updates,
                 // #endregion T-122
+                sp.GetRequiredService<FundingHistoryService>(), // T-240: the funding pane's history front.
                 sp.GetRequiredService<ILogger<ChartViewModel>>(),
                 // T-202: the primary hosts the templates manager (the grid
                 // slots resolve their own charts without it).
                 templates: sp.GetRequiredService<ChartTemplatesViewModel>()));
+        // The funding-history front (T-240): the chart's funding pane resolves
+        // the venue's settled events through this session singleton (the
+        // active-adapter capability probe + the bounded stale-aware cache).
+        services.AddFundingHistoryServices();
         // The multi-chart grid (T-201): the workspace's layout-mode
         // ViewModel over lazy slot factories. IAsyncInitializable: the
         // startup walk restores the persisted layout and seam sizes before

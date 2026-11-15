@@ -147,6 +147,76 @@ public sealed class AlertCodecTests
         decoded.Valid.Should().BeEmpty();
     }
 
+    private static AlertDefinition FundingCrossAlert(
+        AlertStatus status = AlertStatus.Armed,
+        AlertTrigger trigger = AlertTrigger.Above,
+        decimal thresholdPercent = 0.05m) => new(
+        Id: Guid.Parse("0a0a0a0a-0000-0000-0000-000000000004"),
+        SymbolName: "BTC/USDT:USDT",
+        Kind: PriceAlertKind.FundingCross,
+        Trigger: trigger,
+        TargetPrice: thresholdPercent,
+        ThresholdPercent: 0m,
+        WindowMinutes: 0,
+        Note: string.Empty,
+        Status: status,
+        CreatedUtc: Base,
+        SnoozedUntilUtc: status == AlertStatus.Snoozed ? Base.AddMinutes(15) : null,
+        LastFiredUtc: status == AlertStatus.Fired ? Base.AddMinutes(30) : null);
+
+    /// <summary>
+    /// The funding-cross kind (T-240) round-trips every fact: the signed
+    /// percent threshold rides the price slot verbatim (zero and negatives
+    /// included), the cross edge and the status stamps survive, the
+    /// funding entry decodes whole.
+    /// </summary>
+    [Fact]
+    public void RoundTrip_TheFundingCrossKindSurvivesEveryFact()
+    {
+        var roster = new[]
+        {
+            FundingCrossAlert(),
+            FundingCrossAlert(
+                status: AlertStatus.Paused,
+                trigger: AlertTrigger.Below,
+                thresholdPercent: -0.05m),
+        };
+
+        var decoded = AlertCodec.Decode(AlertCodec.Encode(roster));
+
+        decoded.SkippedCount.Should().Be(0);
+        decoded.Valid.Should().Equal(roster, "the signed thresholds and the cross edges decode verbatim");
+    }
+
+    [Fact]
+    public void AFundingEntry_WithTheMeaninglessAtEdge_IsSkipped()
+    {
+        var decoded = AlertCodec.Decode(FundingRoster(trigger: "\"At\""));
+
+        decoded.SkippedCount.Should().Be(1, "a cross reads only the Above or Below edge");
+        decoded.Valid.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AFundingEntry_WithoutItsThreshold_IsSkipped()
+    {
+        var decoded = AlertCodec.Decode(FundingRoster(threshold: null));
+
+        decoded.SkippedCount.Should().Be(1, "the threshold member's presence is the decode's demand");
+        decoded.Valid.Should().BeEmpty();
+    }
+
+    /// <summary>A signed (negative) threshold is an honest stored value: the entry decodes whole, never defaulted.</summary>
+    [Fact]
+    public void AFundingEntry_WithASignedThreshold_DecodesWhole()
+    {
+        var decoded = AlertCodec.Decode(FundingRoster(trigger: "\"Below\"", threshold: "-0.05"));
+
+        decoded.SkippedCount.Should().Be(0);
+        decoded.Valid.Should().ContainSingle()
+            .Which.TargetPrice.Should().Be(-0.05m);
+    }
+
     [Fact]
     public void RoundTrip_BothKindsEveryFact_Survives()
     {
@@ -378,6 +448,34 @@ public sealed class AlertCodecTests
         ("status", "\"Armed\""),
         ("createdUtc", null!),
     ];
+
+    private static readonly List<(string Member, string Json)> FundingMembers =
+    [
+        ("id", "\"0a0a0a0a-0000-0000-0000-000000000004\""),
+        ("symbol", "\"BTC/USDT:USDT\""),
+        ("trigger", "\"Above\""),
+        ("status", "\"Armed\""),
+        ("createdUtc", null!),
+    ];
+
+    /// <summary>
+    /// Build one version-2 roster whose single entry is a funding-cross
+    /// carrying the named threshold (or none at all — the missing-threshold
+    /// fact); the trigger spelling is overridable for the At-edge fact.
+    /// </summary>
+    private static string FundingRoster(string trigger = "\"Above\"", string? threshold = "0.05")
+    {
+        var members = FundingMembers
+            .Select(entry => entry.Member == "createdUtc" ? (entry.Member, BaseTicksJson) : entry)
+            .Select(entry => entry.Member == "trigger" ? (entry.Member, trigger) : entry)
+            .ToList();
+        if (threshold is { } value)
+        {
+            members.Add(("targetPrice", value));
+        }
+
+        return $"{{\"version\":2,\"alerts\":[{{\"kind\":\"FundingCross\",{JoinMembers(members)}}}]}}";
+    }
 
     /// <summary>
     /// Build one version-2 roster whose single entry is an indicator-cross
