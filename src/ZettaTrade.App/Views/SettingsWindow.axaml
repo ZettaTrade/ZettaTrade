@@ -1581,7 +1581,12 @@
                  chat id drafts and saves with them, and the bot token
                  commits to the secret store immediately per keystroke (the
                  OpenAI key's shape — the store is the secret's only home,
-                 the box never echoes it). -->
+                 the box never echoes it). T-262: the fleet outgrew the
+                 one-open-demo rhythm (the T-261 close rode the viewport's
+                 exact boundary and the Matrix/email pair pushed the page
+                 over the T-184 no-scroll contract), so every channel card
+                 rides collapsed by default — the tab opens as the six-channel
+                 picker, the user unfolds the channel they own. -->
             <TabItem Classes="rail-item">
                 <TabItem.Header>
                     <!-- The rail item's mark: the stroke bell beside the
@@ -1602,7 +1607,7 @@
                             <StackPanel Spacing="{StaticResource SpaceM}">
                                 <ToggleButton x:Name="TelegramSectionToggle"
                                               Classes="section-toggle"
-                                              IsChecked="True"
+                                              IsChecked="False"
                                               AutomationProperties.AutomationId="TelegramSectionToggle">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
@@ -1867,6 +1872,211 @@
                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Ntfy.Url.Hint}" />
                                     </Grid>
                                     <TextBlock Text="{loc:Localized Settings.Notif.Ntfy.Note}"
+                                               TextWrapping="Wrap"
+                                               />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- The Matrix card (T-262): the room-push lane —
+                             the homeserver URL and the room id are
+                             PUBLIC by design (addresses, not secret
+                             material), so they draft and save with the
+                             toggles; the bot's access token rides the
+                             secret store per keystroke in its masked
+                             box (the webhook URLs' shape). -->
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <ToggleButton x:Name="MatrixSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="MatrixSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Notif.Matrix.Title}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="MatrixSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #MatrixSectionToggle.IsChecked}">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                                          ColumnDefinitions="Auto,*"
+                                          RowSpacing="{StaticResource SpaceM}"
+                                          ColumnSpacing="{StaticResource SpaceS}">
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Matrix.Fills}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="0" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="MatrixFillsCheckBox"
+                                                  IsChecked="{Binding IsMatrixFillsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Matrix.Fills.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Matrix.Cancels}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="1" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="MatrixCancelsCheckBox"
+                                                  IsChecked="{Binding IsMatrixCancelsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Matrix.Cancels.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Matrix.Rejects}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="2" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="MatrixRejectsCheckBox"
+                                                  IsChecked="{Binding IsMatrixRejectsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Matrix.Rejects.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Matrix.Token}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="3" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="MatrixTokenTextBox"
+                                                 Text="{Binding MatrixAccessTokenDraft}"
+                                                 PasswordChar="●"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Matrix.Token.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Matrix.Token.Hint}" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Matrix.Homeserver}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="4" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="MatrixHomeserverTextBox"
+                                                 Text="{Binding MatrixHomeserverUrlDraft}"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Matrix.Homeserver.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Matrix.Homeserver.Hint}" />
+                                        <TextBlock Grid.Row="5" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Matrix.Room}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="5" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="MatrixRoomTextBox"
+                                                 Text="{Binding MatrixRoomIdDraft}"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Matrix.Room.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Matrix.Room.Hint}" />
+                                    </Grid>
+                                    <TextBlock Text="{loc:Localized Settings.Notif.Matrix.Note}"
+                                               TextWrapping="Wrap"
+                                               />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- The email card (T-262): the mailbox lane — the
+                             server host, port, envelope addresses and the
+                             STARTTLS pick are PUBLIC by design (addresses
+                             and a posture pick), so they draft and save
+                             with the toggles; the SMTP credentials ride
+                             the secret store per keystroke in their two
+                             masked boxes (the webhook URLs' shape). -->
+                        <Border Classes="section-card">
+                            <StackPanel Spacing="{StaticResource SpaceM}">
+                                <ToggleButton x:Name="EmailSectionToggle"
+                                              Classes="section-toggle"
+                                              IsChecked="False"
+                                              AutomationProperties.AutomationId="EmailSectionToggle">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+                                            <Border Classes="section-tick" />
+                                            <TextBlock Classes="section-header"
+                                                       Text="{loc:Localized Settings.Notif.Email.Title}" />
+                                        </StackPanel>
+                                        <Path Classes="section-chevron" Grid.Column="1" />
+                                    </Grid>
+                                </ToggleButton>
+                                <StackPanel x:Name="EmailSectionBody"
+                                            Spacing="{StaticResource SpaceM}"
+                                            IsVisible="{Binding #EmailSectionToggle.IsChecked}">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                          ColumnDefinitions="Auto,*"
+                                          RowSpacing="{StaticResource SpaceM}"
+                                          ColumnSpacing="{StaticResource SpaceS}">
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.Fills}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="0" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="EmailFillsCheckBox"
+                                                  IsChecked="{Binding IsEmailFillsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Email.Fills.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.Cancels}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="1" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="EmailCancelsCheckBox"
+                                                  IsChecked="{Binding IsEmailCancelsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Email.Cancels.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.Rejects}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="2" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="EmailRejectsCheckBox"
+                                                  IsChecked="{Binding IsEmailRejectsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Email.Rejects.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.Tls}"
+                                                   VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="3" Grid.Column="1"
+                                                  AutomationProperties.AutomationId="EmailTlsCheckBox"
+                                                  IsChecked="{Binding IsEmailTlsEnabled}"
+                                                  ToolTip.Tip="{loc:Localized Settings.Notif.Email.Tls.Hint}"
+                                                  HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.Host}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="4" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="EmailHostTextBox"
+                                                 Text="{Binding EmailHostDraft}"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Email.Host.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Email.Host.Hint}" />
+                                        <TextBlock Grid.Row="5" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.Port}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="5" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="EmailPortTextBox"
+                                                 Text="{Binding EmailPortDraft}"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Email.Port.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Email.Port.Hint}" />
+                                        <TextBlock Grid.Row="6" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.From}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="6" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="EmailFromTextBox"
+                                                 Text="{Binding EmailFromDraft}"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Email.From.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Email.From.Hint}" />
+                                        <TextBlock Grid.Row="7" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.To}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="7" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="EmailToTextBox"
+                                                 Text="{Binding EmailToDraft}"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Email.To.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Email.To.Hint}" />
+                                        <TextBlock Grid.Row="8" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.User}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="8" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="EmailUsernameTextBox"
+                                                 Text="{Binding EmailUsernameDraft}"
+                                                 PasswordChar="●"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Email.User.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Email.User.Hint}" />
+                                        <TextBlock Grid.Row="9" Grid.Column="0"
+                                                   Text="{loc:Localized Settings.Notif.Email.Password}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="9" Grid.Column="1"
+                                                 AutomationProperties.AutomationId="EmailPasswordTextBox"
+                                                 Text="{Binding EmailPasswordDraft}"
+                                                 PasswordChar="●"
+                                                 PlaceholderText="{loc:Localized Settings.Notif.Email.Password.Watermark}"
+                                                 ToolTip.Tip="{loc:Localized Settings.Notif.Email.Password.Hint}" />
+                                    </Grid>
+                                    <TextBlock Text="{loc:Localized Settings.Notif.Email.Note}"
                                                TextWrapping="Wrap"
                                                />
                                 </StackPanel>

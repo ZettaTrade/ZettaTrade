@@ -1,3 +1,37 @@
+## [0.2.8] - 2026-11-15
+
+Build of board task T-262 (branch `feat/matrix-email-sinks`): the sink
+fleet's second transport class landed — the journaled trade outcomes now
+also push through the user's own Matrix room (the bot's client-API lane)
+and the user's own SMTP mailbox (the plain-text email lane), beside the
+Telegram and webhook sinks under the same `INotificationSink` contract.
+
+### Added
+- The two transport sinks (`MatrixSink`, `EmailSink`): each composes its
+  trade line inside itself from the mapped event's facts — Matrix one
+  transactional PUT per send on the room's `m.message` endpoint (the room
+  id escaped, a fresh transaction id per send, the access token riding
+  the Authorization header), email one plain-text mail per send with the
+  composed line as subject and body (T-262).
+- The channels' secret posture, per the spec: the Matrix access token and
+  the SMTP credentials are the channels' own secret material — they ride
+  the encrypted secret store only and never appear in a failure report;
+  the homeserver URL, the room id and the SMTP server rows are public by
+  design and ride the settings file (T-262).
+- The email lane's throttle floor: one delivered mail claims the shipped
+  60 s minimum between deliveries, a send arriving sooner is the quiet
+  throttled skip, and a failed send never claims the floor (T-262).
+- The settings window's two cards (collapsed by default): the same
+  per-kind opt-in rows as the webhook cards, the homeserver/room and
+  SMTP rows drafting like the chat id (they apply on Save), the token
+  and the two credential boxes masked with the per-keystroke
+  secret-store commit (the webhook URLs' exact shape: a typed value
+  stores, an emptied box removes, a re-seed never commits) (T-262).
+- The Notifications tab's posture: with six channel cards the one-open
+  demo retires - every channel card rides collapsed by default and the
+  tab opens as the six-channel picker, so the page keeps the T-184
+  no-scroll shape at the default window size (T-262).
+
 ## [0.2.7] - 2026-11-15
 
 Build of board task T-261 (branch `feat/webhook-sinks`): the webhook

@@ -188,10 +188,10 @@ public sealed class WindowLayoutPinsTests
         var cards = SectionCardsXaml;
 
         Regex.Matches(source, "<Border Classes=\"section-card\"").Should().HaveCount(
-            15,
-            "the fifteen sections: Appearance 3 (appearance + theme folder + first-run wizard), Indicators 1, Notifications 4 (the Telegram sink + the Discord, Slack and ntfy webhook channels), Integrations 5 (MCP + AI chat + exchange credentials + import/export + profile backup), Workspace 2 (pairs + hotkeys)");
+            17,
+            "the seventeen sections: Appearance 3 (appearance + theme folder + first-run wizard), Indicators 1, Notifications 6 (the Telegram sink + the Discord, Slack and ntfy webhook channels + the Matrix and email transports), Integrations 5 (MCP + AI chat + exchange credentials + import/export + profile backup), Workspace 2 (pairs + hotkeys)");
         Regex.Matches(source, "<Border Classes=\"section-tick\" />").Should().HaveCount(
-            15,
+            17,
             "every section card carries the Accent tick header");
         source.Should().Contain(
             "<StyleInclude Source=\"avares://ZettaTrade.App/Themes/SectionCards.axaml\" />",
@@ -212,7 +212,7 @@ public sealed class WindowLayoutPinsTests
             "<Setter Property=\"CornerRadius\" Value=\"{StaticResource CornerM}\" />",
             "the cards ride the approved compact CornerM rounding (the variant-A card step, T-222)");
 
-        // The fifteen header keys ride the pages (one per card, exactly).
+        // The seventeen header keys ride the pages (one per card, exactly).
         foreach (var key in new[]
                  {
                      "Settings.Section.Appearance",
@@ -223,6 +223,8 @@ public sealed class WindowLayoutPinsTests
                      "Settings.Notif.Discord.Title",
                      "Settings.Notif.Slack.Title",
                      "Settings.Notif.Ntfy.Title",
+                     "Settings.Notif.Matrix.Title",
+                     "Settings.Notif.Email.Title",
                      "Settings.Section.Mcp",
                      "Settings.Section.Ai",
                      "Settings.Section.Credentials",
@@ -252,28 +254,29 @@ public sealed class WindowLayoutPinsTests
         var source = SettingsXaml;
         var cards = SectionCardsXaml;
 
-        // The fifteen card headers fold (T-227; the Telegram card rides the
-        // same grammar since T-260, the webhook batch since T-261): every
-        // header is a named section toggle with the right-edge chevron, and
-        // every card body rides its own toggle's IsChecked — one-way, with
-        // an explicit IsChecked so no null state exists.
+        // The seventeen card headers fold (T-227; the Telegram card rides
+        // the same grammar since T-260, the webhook batch since T-261, the
+        // Matrix and email cards since T-262): every header is a named
+        // section toggle with the right-edge chevron, and every card body
+        // rides its own toggle's IsChecked — one-way, with an explicit
+        // IsChecked so no null state exists.
         Regex.Matches(source, "<ToggleButton x:Name=\"\\w+SectionToggle\"").Should().HaveCount(
-            15,
-            "every card header folds: fifteen named section toggles");
+            17,
+            "every card header folds: seventeen named section toggles");
         Regex.Matches(source, "<Path Classes=\"section-chevron\" Grid.Column=\"1\" />").Should().HaveCount(
-            15,
+            17,
             "every toggle carries the right-edge chevron mark");
         Regex.Matches(source, "IsChecked=\"True\"").Should().HaveCount(
-            5,
-            "five cards open by default: the appearance card, the indicators page's only card, the Telegram card, MCP, pairs");
+            4,
+            "four cards open by default: the appearance card, the indicators page's only card, MCP, pairs — the notifications fleet tab outgrew the one-open demo and rides as the six-channel collapsed picker (T-262)");
         Regex.Matches(source, "IsChecked=\"False\"").Should().HaveCount(
-            10,
-            "ten cards open collapsed: theme folder, first-run wizard, the Discord, Slack and ntfy webhook cards, AI chat, exchange credentials, port, profile backup, hotkeys");
+            13,
+            "thirteen cards open collapsed: theme folder, first-run wizard, the Telegram card and the Discord, Slack and ntfy webhook cards, the Matrix and email cards, AI chat, exchange credentials, port, profile backup, hotkeys");
 
         foreach (var name in new[]
                  {
                      "Appearance", "ThemesFolder", "Wizard", "Indicators", "Telegram",
-                     "Discord", "Slack", "Ntfy",
+                     "Discord", "Slack", "Ntfy", "Matrix", "Email",
                      "Mcp", "Ai", "Credentials", "Port", "Backup", "Pairs", "Hotkeys",
                  })
         {
@@ -377,6 +380,8 @@ public sealed class WindowLayoutPinsTests
     [InlineData("Settings.Notif.Discord.Title")]
     [InlineData("Settings.Notif.Slack.Title")]
     [InlineData("Settings.Notif.Ntfy.Title")]
+    [InlineData("Settings.Notif.Matrix.Title")]
+    [InlineData("Settings.Notif.Email.Title")]
     public void TheSectionHeaderKeys_ResolveInBothCultures(string key)
     {
         Strings.ResourceManager.GetString(key, CultureInfo.InvariantCulture)

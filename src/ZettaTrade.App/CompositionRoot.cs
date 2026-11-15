@@ -412,14 +412,16 @@ internal static class CompositionRoot
         services.AddOrderHistory();
         services.AddNotificationServices(); // T-097: the notification center (toasts, history, DND) over the journal + health taps above.
 
-        // The trade-notification sinks (T-260, the webhook batch T-261): the
-        // best-effort sink fleet over the center's trade events (opt-in per
-        // kind — Telegram first, then Discord/Slack/ntfy; the webhook URLs
-        // ride the secret store, the ntfy topic URL is public by design and
-        // rides the settings). Registered AFTER the notification services
-        // (the bridge rides the center's event lane) and AFTER the
-        // trading-mode registration (the message's paper/live tag reads its
-        // lane stream).
+        // The trade-notification sinks (T-260, the webhook batch T-261, the
+        // Matrix and email pair T-262): the best-effort sink fleet over the
+        // center's trade events (opt-in per kind — Telegram first, then
+        // Discord/Slack/ntfy, then Matrix and email; the webhook URLs, the
+        // Matrix access token and the SMTP credentials ride the secret
+        // store, the ntfy topic URL and the Matrix/SMTP addresses are
+        // public by design and ride the settings). Registered AFTER the
+        // notification services (the bridge rides the center's event lane)
+        // and AFTER the trading-mode registration (the message's paper/live
+        // tag reads its lane stream).
         services.AddNotificationSinkServices();
 
         // The update checker (T-213): the periodic (and manual) GitHub

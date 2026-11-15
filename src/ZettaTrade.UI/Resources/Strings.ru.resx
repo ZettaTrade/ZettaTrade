@@ -2340,6 +2340,141 @@
   <data name="Settings.Notif.Ntfy.Note" xml:space="preserve">
     <value>Всё отправляется в вашу собственную тему, по мере возможностей: неудачная отправка пишет предупреждение и никогда не трогает торговый поток. Тумблеры и URL темы применяются по кнопке «Сохранить».</value>
   </data>
+  <data name="Settings.Notif.Matrix.Title" xml:space="preserve">
+    <value>Matrix</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Fills" xml:space="preserve">
+    <value>Исполнения</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Fills.Hint" xml:space="preserve">
+    <value>Отправлять исполненные ордера в вашу собственную комнату Matrix.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Cancels" xml:space="preserve">
+    <value>Отмены</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Cancels.Hint" xml:space="preserve">
+    <value>Отправлять принятые отмены в вашу собственную комнату Matrix.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Rejects" xml:space="preserve">
+    <value>Отклонения</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Rejects.Hint" xml:space="preserve">
+    <value>Отправлять отклонённые ордера в вашу собственную комнату Matrix.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Token" xml:space="preserve">
+    <value>Токен доступа</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Token.Watermark" xml:space="preserve">
+    <value>syt_…</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Token.Hint" xml:space="preserve">
+    <value>Токен доступа бота на вашем homeserver. Сохраняется сразу, никогда не показывается.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Homeserver" xml:space="preserve">
+    <value>URL homeserver</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Homeserver.Watermark" xml:space="preserve">
+    <value>https://matrix.example.org</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Homeserver.Hint" xml:space="preserve">
+    <value>Базовый URL клиентского API homeserver, через который шлёт бот. Применяется по кнопке «Сохранить».</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Room" xml:space="preserve">
+    <value>ID комнаты</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Room.Watermark" xml:space="preserve">
+    <value>!room:example.org</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Room.Hint" xml:space="preserve">
+    <value>Внутренний идентификатор комнаты, куда шлёт бот. Применяется по кнопке «Сохранить».</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Note" xml:space="preserve">
+    <value>Всё отправляется через ваш собственный homeserver, по мере возможностей: неудачная отправка пишет предупреждение и никогда не трогает торговый поток. Тумблеры и строки применяются по кнопке «Сохранить»; токен сохраняется сразу.</value>
+  </data>
+  <data name="Settings.Notif.Email.Title" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Settings.Notif.Email.Fills" xml:space="preserve">
+    <value>Исполнения</value>
+  </data>
+  <data name="Settings.Notif.Email.Fills.Hint" xml:space="preserve">
+    <value>Слать исполненные ордера письмом в ваш собственный почтовый ящик.</value>
+  </data>
+  <data name="Settings.Notif.Email.Cancels" xml:space="preserve">
+    <value>Отмены</value>
+  </data>
+  <data name="Settings.Notif.Email.Cancels.Hint" xml:space="preserve">
+    <value>Слать принятые отмены письмом в ваш собственный почтовый ящик.</value>
+  </data>
+  <data name="Settings.Notif.Email.Rejects" xml:space="preserve">
+    <value>Отклонения</value>
+  </data>
+  <data name="Settings.Notif.Email.Rejects.Hint" xml:space="preserve">
+    <value>Слать отклонённые ордера письмом в ваш собственный почтовый ящик.</value>
+  </data>
+  <data name="Settings.Notif.Email.Tls" xml:space="preserve">
+    <value>STARTTLS</value>
+  </data>
+  <data name="Settings.Notif.Email.Tls.Hint" xml:space="preserve">
+    <value>Поднимать TLS до входа по паролю. Держите включённым: выключено означает, что учётные данные идут по сети открытым текстом.</value>
+  </data>
+  <data name="Settings.Notif.Email.Host" xml:space="preserve">
+    <value>SMTP-сервер</value>
+  </data>
+  <data name="Settings.Notif.Email.Host.Watermark" xml:space="preserve">
+    <value>smtp.example.org</value>
+  </data>
+  <data name="Settings.Notif.Email.Host.Hint" xml:space="preserve">
+    <value>SMTP-сервер вашего почтового провайдера. Применяется по кнопке «Сохранить».</value>
+  </data>
+  <data name="Settings.Notif.Email.Port" xml:space="preserve">
+    <value>SMTP-порт</value>
+  </data>
+  <data name="Settings.Notif.Email.Port.Watermark" xml:space="preserve">
+    <value>587</value>
+  </data>
+  <data name="Settings.Notif.Email.Port.Hint" xml:space="preserve">
+    <value>Порт SMTP (587 — обычный порт STARTTLS). Применяется по кнопке «Сохранить».</value>
+  </data>
+  <data name="Settings.Notif.Email.From" xml:space="preserve">
+    <value>Адрес отправителя</value>
+  </data>
+  <data name="Settings.Notif.Email.From.Watermark" xml:space="preserve">
+    <value>you@example.org</value>
+  </data>
+  <data name="Settings.Notif.Email.From.Hint" xml:space="preserve">
+    <value>Адрес конверта (обычно ваш собственный). Применяется по кнопке «Сохранить».</value>
+  </data>
+  <data name="Settings.Notif.Email.To" xml:space="preserve">
+    <value>Адрес получателя</value>
+  </data>
+  <data name="Settings.Notif.Email.To.Watermark" xml:space="preserve">
+    <value>you@example.org</value>
+  </data>
+  <data name="Settings.Notif.Email.To.Hint" xml:space="preserve">
+    <value>Куда падает торговое письмо. Применяется по кнопке «Сохранить».</value>
+  </data>
+  <data name="Settings.Notif.Email.User" xml:space="preserve">
+    <value>Логин</value>
+  </data>
+  <data name="Settings.Notif.Email.User.Watermark" xml:space="preserve">
+    <value>you@example.org</value>
+  </data>
+  <data name="Settings.Notif.Email.User.Hint" xml:space="preserve">
+    <value>Логин SMTP. Сохраняется сразу, никогда не показывается.</value>
+  </data>
+  <data name="Settings.Notif.Email.Password" xml:space="preserve">
+    <value>Пароль</value>
+  </data>
+  <data name="Settings.Notif.Email.Password.Watermark" xml:space="preserve">
+    <value>••••••••</value>
+  </data>
+  <data name="Settings.Notif.Email.Password.Hint" xml:space="preserve">
+    <value>Пароль SMTP (или пароль приложения провайдера). Сохраняется сразу, никогда не показывается.</value>
+  </data>
+  <data name="Settings.Notif.Email.Note" xml:space="preserve">
+    <value>Всё отправляется в ваш собственный почтовый ящик, по мере возможностей и с ограничением частоты (не чаще одного доставленного письма в минуту): неудачная отправка пишет предупреждение и никогда не трогает торговый поток. Строки применяются по кнопке «Сохранить»; учётные данные сохраняются сразу.</value>
+  </data>
   <data name="Settings.Tab.Notifications" xml:space="preserve">
     <value>Уведомления</value>
   </data>

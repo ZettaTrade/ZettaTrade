@@ -113,7 +113,8 @@ internal sealed class LoopbackHttpApi : IDisposable
             request.Url!.AbsolutePath,
             request.HttpMethod,
             Encoding.UTF8.GetString(payload),
-            request.Headers["Content-Type"] ?? string.Empty);
+            request.Headers["Content-Type"] ?? string.Empty,
+            request.Headers["Authorization"]);
     }
 
     #endregion Serving
@@ -124,6 +125,10 @@ internal sealed class LoopbackHttpApi : IDisposable
 
     #endregion IDisposable
 
-    /// <summary>The captured request facts (the token-bearing path + the JSON body as sent).</summary>
-    internal sealed record CapturedRequest(string Path, string Method, string Body, string ContentType);
+    /// <summary>
+    /// The captured request facts (the token-bearing path + the JSON body
+    /// as sent; the Authorization header since T-262 — the Matrix sends
+    /// ride the Bearer token and the goldens pin it).
+    /// </summary>
+    internal sealed record CapturedRequest(string Path, string Method, string Body, string ContentType, string? Authorization = null);
 }

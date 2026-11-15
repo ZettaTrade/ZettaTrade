@@ -529,6 +529,137 @@ public sealed class SettingsViewModel : ReactiveObject
         set => this.RaiseAndSetIfChanged(ref _ntfyUrlDraft, value);
     }
 
+    /// <summary>Whether the Matrix sink pushes fills (T-262; the same draft/save contract as the webhook toggles).</summary>
+    public bool IsMatrixFillsEnabled
+    {
+        get => _isMatrixFillsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isMatrixFillsEnabled, value);
+    }
+
+    /// <summary>Whether the Matrix sink pushes cancellations (T-262; the same draft/save contract).</summary>
+    public bool IsMatrixCancelsEnabled
+    {
+        get => _isMatrixCancelsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isMatrixCancelsEnabled, value);
+    }
+
+    /// <summary>Whether the Matrix sink pushes rejections (T-262; the same draft/save contract).</summary>
+    public bool IsMatrixRejectsEnabled
+    {
+        get => _isMatrixRejectsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isMatrixRejectsEnabled, value);
+    }
+
+    /// <summary>
+    /// The Matrix homeserver's client-API base URL draft (T-262): PUBLIC by
+    /// design (an address, not secret material), so it rides the settings
+    /// file like the ntfy topic URL — a text draft that applies only on
+    /// the explicit Save (trimmed; the sink reads it per send).
+    /// </summary>
+    public string MatrixHomeserverUrlDraft
+    {
+        get => _matrixHomeserverUrlDraft;
+        set => this.RaiseAndSetIfChanged(ref _matrixHomeserverUrlDraft, value);
+    }
+
+    /// <summary>
+    /// The Matrix room id draft (T-262): PUBLIC by design (the internal
+    /// room address the bot pushes into), the homeserver draft's exact
+    /// shape — a text draft that applies only on the explicit Save.
+    /// </summary>
+    public string MatrixRoomIdDraft
+    {
+        get => _matrixRoomIdDraft;
+        set => this.RaiseAndSetIfChanged(ref _matrixRoomIdDraft, value);
+    }
+
+    /// <summary>
+    /// The Matrix access token's draft box (T-262): the secret material's
+    /// immediate-commit shape — the box stays empty on re-seeds (the
+    /// token never echoes) and every typed character commits to the
+    /// secret store at once (the Discord URL's exact shape).
+    /// </summary>
+    public string MatrixAccessTokenDraft
+    {
+        get => _matrixAccessTokenDraft;
+        set => this.RaiseAndSetIfChanged(ref _matrixAccessTokenDraft, value);
+    }
+
+    /// <summary>Whether the email sink sends fills (T-262; the same draft/save contract as the webhook toggles).</summary>
+    public bool IsEmailFillsEnabled
+    {
+        get => _isEmailFillsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isEmailFillsEnabled, value);
+    }
+
+    /// <summary>Whether the email sink sends cancellations (T-262; the same draft/save contract).</summary>
+    public bool IsEmailCancelsEnabled
+    {
+        get => _isEmailCancelsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isEmailCancelsEnabled, value);
+    }
+
+    /// <summary>Whether the email sink sends rejections (T-262; the same draft/save contract).</summary>
+    public bool IsEmailRejectsEnabled
+    {
+        get => _isEmailRejectsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isEmailRejectsEnabled, value);
+    }
+
+    /// <summary>Whether the SMTP session rides STARTTLS (T-262; on by default — the credentials must not ride the wire in the clear).</summary>
+    public bool IsEmailTlsEnabled
+    {
+        get => _isEmailTlsEnabled;
+        set => this.RaiseAndSetIfChanged(ref _isEmailTlsEnabled, value);
+    }
+
+    /// <summary>The SMTP host draft (T-262): the ntfy topic URL's exact shape — a public-by-design address applying only on the explicit Save.</summary>
+    public string EmailHostDraft
+    {
+        get => _emailHostDraft;
+        set => this.RaiseAndSetIfChanged(ref _emailHostDraft, value);
+    }
+
+    /// <summary>The SMTP port draft (T-262): a text draft like the host (the sink parses it invariant per send).</summary>
+    public string EmailPortDraft
+    {
+        get => _emailPortDraft;
+        set => this.RaiseAndSetIfChanged(ref _emailPortDraft, value);
+    }
+
+    /// <summary>The envelope sender draft (T-262): the host draft's exact shape.</summary>
+    public string EmailFromDraft
+    {
+        get => _emailFromDraft;
+        set => this.RaiseAndSetIfChanged(ref _emailFromDraft, value);
+    }
+
+    /// <summary>The recipient draft (T-262): the host draft's exact shape.</summary>
+    public string EmailToDraft
+    {
+        get => _emailToDraft;
+        set => this.RaiseAndSetIfChanged(ref _emailToDraft, value);
+    }
+
+    /// <summary>
+    /// The SMTP username's draft box (T-262): the secret material's
+    /// immediate-commit shape — the box stays empty on re-seeds (the
+    /// secret never echoes) and every typed character commits to the
+    /// secret store at once (the Discord URL's exact shape).
+    /// </summary>
+    public string EmailUsernameDraft
+    {
+        get => _emailUsernameDraft;
+        set => this.RaiseAndSetIfChanged(ref _emailUsernameDraft, value);
+    }
+
+    /// <summary>The SMTP password's draft box (T-262): the username box's exact immediate-commit shape.</summary>
+    public string EmailPasswordDraft
+    {
+        get => _emailPasswordDraft;
+        set => this.RaiseAndSetIfChanged(ref _emailPasswordDraft, value);
+    }
+
     /// <summary>
     /// The update channel pick's combo index (T-258): 0 = stable (the
     /// released stables only), 1 = beta (every parsable release,
@@ -1087,6 +1218,102 @@ public sealed class SettingsViewModel : ReactiveObject
 
     /// <summary>The drafted ntfy topic URL.</summary>
     private string _ntfyUrlDraft = string.Empty;
+
+    /// <summary>The Matrix fills opt-in's persisted cache (the seed reads refresh it; the save compares against it).</summary>
+    private bool _persistedMatrixFillsEnabled = MatrixSink.DefaultEnabled;
+
+    /// <summary>The Matrix cancellations opt-in's persisted cache.</summary>
+    private bool _persistedMatrixCancelsEnabled = MatrixSink.DefaultEnabled;
+
+    /// <summary>The Matrix rejections opt-in's persisted cache.</summary>
+    private bool _persistedMatrixRejectsEnabled = MatrixSink.DefaultEnabled;
+
+    /// <summary>The persisted Matrix homeserver URL.</summary>
+    private string _persistedMatrixHomeserverUrl = MatrixSink.DefaultHomeserverUrl;
+
+    /// <summary>The persisted Matrix room id.</summary>
+    private string _persistedMatrixRoomId = MatrixSink.DefaultRoomId;
+
+    /// <summary>The drafted Matrix fills opt-in.</summary>
+    private bool _isMatrixFillsEnabled;
+
+    /// <summary>The drafted Matrix cancellations opt-in.</summary>
+    private bool _isMatrixCancelsEnabled;
+
+    /// <summary>The drafted Matrix rejections opt-in.</summary>
+    private bool _isMatrixRejectsEnabled;
+
+    /// <summary>The drafted Matrix homeserver URL.</summary>
+    private string _matrixHomeserverUrlDraft = string.Empty;
+
+    /// <summary>The drafted Matrix room id.</summary>
+    private string _matrixRoomIdDraft = string.Empty;
+
+    /// <summary>The drafted Matrix access token (always empty between keystrokes — the secret never echoes).</summary>
+    private string _matrixAccessTokenDraft = string.Empty;
+
+    /// <summary>The Matrix token commit's re-seed guard (the Discord URL commit's exact shape).</summary>
+    private bool _matrixTokenCommitSuppressed;
+
+    /// <summary>The email fills opt-in's persisted cache.</summary>
+    private bool _persistedEmailFillsEnabled = EmailSink.DefaultEnabled;
+
+    /// <summary>The email cancellations opt-in's persisted cache.</summary>
+    private bool _persistedEmailCancelsEnabled = EmailSink.DefaultEnabled;
+
+    /// <summary>The email rejections opt-in's persisted cache.</summary>
+    private bool _persistedEmailRejectsEnabled = EmailSink.DefaultEnabled;
+
+    /// <summary>The persisted STARTTLS pick.</summary>
+    private bool _persistedEmailTlsEnabled = EmailSink.DefaultEnableSsl;
+
+    /// <summary>The persisted SMTP host.</summary>
+    private string _persistedEmailHost = string.Empty;
+
+    /// <summary>The persisted SMTP port (the raw stored spelling; the sink parses it per send).</summary>
+    private string _persistedEmailPort = string.Empty;
+
+    /// <summary>The persisted envelope sender.</summary>
+    private string _persistedEmailFrom = string.Empty;
+
+    /// <summary>The persisted recipient.</summary>
+    private string _persistedEmailTo = string.Empty;
+
+    /// <summary>The drafted email fills opt-in.</summary>
+    private bool _isEmailFillsEnabled;
+
+    /// <summary>The drafted email cancellations opt-in.</summary>
+    private bool _isEmailCancelsEnabled;
+
+    /// <summary>The drafted email rejections opt-in.</summary>
+    private bool _isEmailRejectsEnabled;
+
+    /// <summary>The drafted STARTTLS pick.</summary>
+    private bool _isEmailTlsEnabled;
+
+    /// <summary>The drafted SMTP host.</summary>
+    private string _emailHostDraft = string.Empty;
+
+    /// <summary>The drafted SMTP port.</summary>
+    private string _emailPortDraft = string.Empty;
+
+    /// <summary>The drafted envelope sender.</summary>
+    private string _emailFromDraft = string.Empty;
+
+    /// <summary>The drafted recipient.</summary>
+    private string _emailToDraft = string.Empty;
+
+    /// <summary>The drafted SMTP username (always empty between keystrokes — the secret never echoes).</summary>
+    private string _emailUsernameDraft = string.Empty;
+
+    /// <summary>The drafted SMTP password (always empty between keystrokes — the secret never echoes).</summary>
+    private string _emailPasswordDraft = string.Empty;
+
+    /// <summary>The email username commit's re-seed guard (the Discord URL commit's exact shape).</summary>
+    private bool _emailUsernameCommitSuppressed;
+
+    /// <summary>The email password commit's re-seed guard (the Discord URL commit's exact shape).</summary>
+    private bool _emailPasswordCommitSuppressed;
 
     /// <summary>
     /// The persisted update-channel choice as last read (T-258, the
@@ -1750,6 +1977,233 @@ public sealed class SettingsViewModel : ReactiveObject
                 url => _persistedNtfyUrl = url,
                 ex => _logger.LogError(ex, "The ntfy topic URL stream stopped unexpectedly"));
 
+        // The Matrix and email sinks' routing (T-262): the same seed +
+        // changes pattern as the webhook rows. The Matrix access token and
+        // the SMTP credentials ride the secret store (never the settings
+        // file — they are the channels' own secret material), so they carry
+        // no settings seed here; the homeserver URL, the room id and the
+        // SMTP server rows are public by design and seed like the chat id.
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                MatrixSink.SettingsSection,
+                MatrixSink.FillsEnabledKey,
+                MatrixSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedMatrixFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Matrix fills opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == MatrixSink.SettingsSection &&
+                             change.Key == MatrixSink.FillsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedMatrixFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Matrix fills opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                MatrixSink.SettingsSection,
+                MatrixSink.CancelsEnabledKey,
+                MatrixSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedMatrixCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Matrix cancels opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == MatrixSink.SettingsSection &&
+                             change.Key == MatrixSink.CancelsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedMatrixCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Matrix cancels opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                MatrixSink.SettingsSection,
+                MatrixSink.RejectsEnabledKey,
+                MatrixSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedMatrixRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the Matrix rejects opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == MatrixSink.SettingsSection &&
+                             change.Key == MatrixSink.RejectsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedMatrixRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "The Matrix rejects opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                MatrixSink.SettingsSection,
+                MatrixSink.HomeserverUrlKey,
+                MatrixSink.DefaultHomeserverUrl))
+            .Subscribe(
+                url => _persistedMatrixHomeserverUrl = url,
+                ex => _logger.LogError(ex, "Failed to read the Matrix homeserver URL"));
+
+        _settings.Changes
+            .Where(change => change.Section == MatrixSink.SettingsSection &&
+                             change.Key == MatrixSink.HomeserverUrlKey)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                url => _persistedMatrixHomeserverUrl = url,
+                ex => _logger.LogError(ex, "The Matrix homeserver URL stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                MatrixSink.SettingsSection,
+                MatrixSink.RoomIdKey,
+                MatrixSink.DefaultRoomId))
+            .Subscribe(
+                roomId => _persistedMatrixRoomId = roomId,
+                ex => _logger.LogError(ex, "Failed to read the Matrix room id"));
+
+        _settings.Changes
+            .Where(change => change.Section == MatrixSink.SettingsSection &&
+                             change.Key == MatrixSink.RoomIdKey)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                roomId => _persistedMatrixRoomId = roomId,
+                ex => _logger.LogError(ex, "The Matrix room id stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                EmailSink.SettingsSection,
+                EmailSink.FillsEnabledKey,
+                EmailSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedEmailFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the email fills opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == EmailSink.SettingsSection &&
+                             change.Key == EmailSink.FillsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedEmailFillsEnabled = enabled,
+                ex => _logger.LogError(ex, "The email fills opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                EmailSink.SettingsSection,
+                EmailSink.CancelsEnabledKey,
+                EmailSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedEmailCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the email cancels opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == EmailSink.SettingsSection &&
+                             change.Key == EmailSink.CancelsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedEmailCancelsEnabled = enabled,
+                ex => _logger.LogError(ex, "The email cancels opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                EmailSink.SettingsSection,
+                EmailSink.RejectsEnabledKey,
+                EmailSink.DefaultEnabled))
+            .Subscribe(
+                enabled => _persistedEmailRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the email rejects opt-in"));
+
+        _settings.Changes
+            .Where(change => change.Section == EmailSink.SettingsSection &&
+                             change.Key == EmailSink.RejectsEnabledKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedEmailRejectsEnabled = enabled,
+                ex => _logger.LogError(ex, "The email rejects opt-in stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<bool>(
+                EmailSink.SettingsSection,
+                EmailSink.EnableSslKey,
+                EmailSink.DefaultEnableSsl))
+            .Subscribe(
+                enabled => _persistedEmailTlsEnabled = enabled,
+                ex => _logger.LogError(ex, "Failed to read the email STARTTLS pick"));
+
+        _settings.Changes
+            .Where(change => change.Section == EmailSink.SettingsSection &&
+                             change.Key == EmailSink.EnableSslKey)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled => _persistedEmailTlsEnabled = enabled,
+                ex => _logger.LogError(ex, "The email STARTTLS pick stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                EmailSink.SettingsSection,
+                EmailSink.HostKey,
+                string.Empty))
+            .Subscribe(
+                host => _persistedEmailHost = host,
+                ex => _logger.LogError(ex, "Failed to read the SMTP host"));
+
+        _settings.Changes
+            .Where(change => change.Section == EmailSink.SettingsSection &&
+                             change.Key == EmailSink.HostKey)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                host => _persistedEmailHost = host,
+                ex => _logger.LogError(ex, "The SMTP host stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                EmailSink.SettingsSection,
+                EmailSink.PortKey,
+                string.Empty))
+            .Subscribe(
+                port => _persistedEmailPort = port,
+                ex => _logger.LogError(ex, "Failed to read the SMTP port"));
+
+        _settings.Changes
+            .Where(change => change.Section == EmailSink.SettingsSection &&
+                             change.Key == EmailSink.PortKey)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                port => _persistedEmailPort = port,
+                ex => _logger.LogError(ex, "The SMTP port stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                EmailSink.SettingsSection,
+                EmailSink.FromKey,
+                string.Empty))
+            .Subscribe(
+                from => _persistedEmailFrom = from,
+                ex => _logger.LogError(ex, "Failed to read the envelope sender"));
+
+        _settings.Changes
+            .Where(change => change.Section == EmailSink.SettingsSection &&
+                             change.Key == EmailSink.FromKey)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                from => _persistedEmailFrom = from,
+                ex => _logger.LogError(ex, "The envelope sender stream stopped unexpectedly"));
+
+        Observable.FromAsync(() => _settings.GetAsync<string>(
+                EmailSink.SettingsSection,
+                EmailSink.ToKey,
+                string.Empty))
+            .Subscribe(
+                to => _persistedEmailTo = to,
+                ex => _logger.LogError(ex, "Failed to read the mail recipient"));
+
+        _settings.Changes
+            .Where(change => change.Section == EmailSink.SettingsSection &&
+                             change.Key == EmailSink.ToKey)
+            .Select(change => change.NewValue)
+            .OfType<string>()
+            .Subscribe(
+                to => _persistedEmailTo = to,
+                ex => _logger.LogError(ex, "The mail recipient stream stopped unexpectedly"));
+
         // The host's honest state (running / stopped / failed): the three
         // rows derive and rise on every transition; both subscriptions
         // mirror the app-lifetime singleton.
@@ -1908,6 +2362,45 @@ public sealed class SettingsViewModel : ReactiveObject
                 _ => CommitSlackWebhookUrlAsync(),
                 ex => _logger.LogError(ex, "Failed to store the Slack webhook URL"));
         _slackUrlCommitSuppressed = false;
+
+        // The SMTP username and password commit immediately (per keystroke)
+        // too (T-262): the credentials are the email channel's own secret
+        // material, so the secret store is their only home — the Discord
+        // URL's exact shape. The guards keep the VM's own re-seeds out of
+        // the pipelines (a re-seed never queues a deleting commit behind
+        // it). A store-less construction commits nothing (memory-only).
+        _emailUsernameCommitSuppressed = true;
+        this
+            .WhenAnyValue(vm => vm.EmailUsernameDraft)
+            .Where(_ => !_emailUsernameCommitSuppressed)
+            .SubscribeAsync(
+                _ => CommitEmailUsernameAsync(),
+                ex => _logger.LogError(ex, "Failed to store the SMTP username"));
+        _emailUsernameCommitSuppressed = false;
+
+        // The Matrix access token commits immediately (per keystroke) too
+        // (T-262): the token is the Matrix channel's own secret material,
+        // so the secret store is its only home — the Discord URL's exact
+        // shape. The guard keeps the VM's own re-seeds out of the pipeline
+        // (a re-seed never queues a deleting commit behind it). A
+        // store-less construction commits nothing (memory-only).
+        _matrixTokenCommitSuppressed = true;
+        this
+            .WhenAnyValue(vm => vm.MatrixAccessTokenDraft)
+            .Where(_ => !_matrixTokenCommitSuppressed)
+            .SubscribeAsync(
+                _ => CommitMatrixAccessTokenAsync(),
+                ex => _logger.LogError(ex, "Failed to store the Matrix access token"));
+        _matrixTokenCommitSuppressed = false;
+
+        _emailPasswordCommitSuppressed = true;
+        this
+            .WhenAnyValue(vm => vm.EmailPasswordDraft)
+            .Where(_ => !_emailPasswordCommitSuppressed)
+            .SubscribeAsync(
+                _ => CommitEmailPasswordAsync(),
+                ex => _logger.LogError(ex, "Failed to store the SMTP password"));
+        _emailPasswordCommitSuppressed = false;
 
         // The pairs tab's commands act on a pick: no pick, no move. A hide
         // move needs an unstarred pick (a starred pair never hides — that is
@@ -2325,6 +2818,134 @@ public sealed class SettingsViewModel : ReactiveObject
                 NtfySink.TopicUrlKey,
                 ntfyUrlDraft);
             _persistedNtfyUrl = ntfyUrlDraft;
+        }
+
+        // The Matrix sink's routing rows (T-262): the same no-op discipline
+        // — each opt-in and each public-by-design address its own key.
+        if (_isMatrixFillsEnabled != _persistedMatrixFillsEnabled)
+        {
+            await _settings.SetAsync(
+                MatrixSink.SettingsSection,
+                MatrixSink.FillsEnabledKey,
+                _isMatrixFillsEnabled);
+            _persistedMatrixFillsEnabled = _isMatrixFillsEnabled;
+        }
+
+        if (_isMatrixCancelsEnabled != _persistedMatrixCancelsEnabled)
+        {
+            await _settings.SetAsync(
+                MatrixSink.SettingsSection,
+                MatrixSink.CancelsEnabledKey,
+                _isMatrixCancelsEnabled);
+            _persistedMatrixCancelsEnabled = _isMatrixCancelsEnabled;
+        }
+
+        if (_isMatrixRejectsEnabled != _persistedMatrixRejectsEnabled)
+        {
+            await _settings.SetAsync(
+                MatrixSink.SettingsSection,
+                MatrixSink.RejectsEnabledKey,
+                _isMatrixRejectsEnabled);
+            _persistedMatrixRejectsEnabled = _isMatrixRejectsEnabled;
+        }
+
+        var matrixHomeserverDraft = MatrixHomeserverUrlDraft.Trim();
+        if (!string.Equals(matrixHomeserverDraft, _persistedMatrixHomeserverUrl, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                MatrixSink.SettingsSection,
+                MatrixSink.HomeserverUrlKey,
+                matrixHomeserverDraft);
+            _persistedMatrixHomeserverUrl = matrixHomeserverDraft;
+        }
+
+        var matrixRoomDraft = MatrixRoomIdDraft.Trim();
+        if (!string.Equals(matrixRoomDraft, _persistedMatrixRoomId, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                MatrixSink.SettingsSection,
+                MatrixSink.RoomIdKey,
+                matrixRoomDraft);
+            _persistedMatrixRoomId = matrixRoomDraft;
+        }
+
+        // The email sink's routing rows (T-262): the same no-op discipline.
+        // The credentials never ride this path — they commit to the secret
+        // store per keystroke, the save step never touches them.
+        if (_isEmailFillsEnabled != _persistedEmailFillsEnabled)
+        {
+            await _settings.SetAsync(
+                EmailSink.SettingsSection,
+                EmailSink.FillsEnabledKey,
+                _isEmailFillsEnabled);
+            _persistedEmailFillsEnabled = _isEmailFillsEnabled;
+        }
+
+        if (_isEmailCancelsEnabled != _persistedEmailCancelsEnabled)
+        {
+            await _settings.SetAsync(
+                EmailSink.SettingsSection,
+                EmailSink.CancelsEnabledKey,
+                _isEmailCancelsEnabled);
+            _persistedEmailCancelsEnabled = _isEmailCancelsEnabled;
+        }
+
+        if (_isEmailRejectsEnabled != _persistedEmailRejectsEnabled)
+        {
+            await _settings.SetAsync(
+                EmailSink.SettingsSection,
+                EmailSink.RejectsEnabledKey,
+                _isEmailRejectsEnabled);
+            _persistedEmailRejectsEnabled = _isEmailRejectsEnabled;
+        }
+
+        if (_isEmailTlsEnabled != _persistedEmailTlsEnabled)
+        {
+            await _settings.SetAsync(
+                EmailSink.SettingsSection,
+                EmailSink.EnableSslKey,
+                _isEmailTlsEnabled);
+            _persistedEmailTlsEnabled = _isEmailTlsEnabled;
+        }
+
+        var emailHostDraft = EmailHostDraft.Trim();
+        if (!string.Equals(emailHostDraft, _persistedEmailHost, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                EmailSink.SettingsSection,
+                EmailSink.HostKey,
+                emailHostDraft);
+            _persistedEmailHost = emailHostDraft;
+        }
+
+        var emailPortDraft = EmailPortDraft.Trim();
+        if (!string.Equals(emailPortDraft, _persistedEmailPort, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                EmailSink.SettingsSection,
+                EmailSink.PortKey,
+                emailPortDraft);
+            _persistedEmailPort = emailPortDraft;
+        }
+
+        var emailFromDraft = EmailFromDraft.Trim();
+        if (!string.Equals(emailFromDraft, _persistedEmailFrom, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                EmailSink.SettingsSection,
+                EmailSink.FromKey,
+                emailFromDraft);
+            _persistedEmailFrom = emailFromDraft;
+        }
+
+        var emailToDraft = EmailToDraft.Trim();
+        if (!string.Equals(emailToDraft, _persistedEmailTo, StringComparison.Ordinal))
+        {
+            await _settings.SetAsync(
+                EmailSink.SettingsSection,
+                EmailSink.ToKey,
+                emailToDraft);
+            _persistedEmailTo = emailToDraft;
         }
 
         // The AI chat provider pick (T-207): only a real difference applies
@@ -2839,6 +3460,39 @@ public sealed class SettingsViewModel : ReactiveObject
         IsNtfyRejectsEnabled = _persistedNtfyRejectsEnabled;
         NtfyUrlDraft = _persistedNtfyUrl.Trim();
 
+        // The Matrix and email sinks' public-by-design rows re-seed from
+        // the caches (T-262) — the homeserver URL, the room id and the
+        // SMTP server rows draft like the chat id, no guard needed.
+        IsMatrixFillsEnabled = _persistedMatrixFillsEnabled;
+        IsMatrixCancelsEnabled = _persistedMatrixCancelsEnabled;
+        IsMatrixRejectsEnabled = _persistedMatrixRejectsEnabled;
+        MatrixHomeserverUrlDraft = _persistedMatrixHomeserverUrl.Trim();
+        MatrixRoomIdDraft = _persistedMatrixRoomId.Trim();
+        IsEmailFillsEnabled = _persistedEmailFillsEnabled;
+        IsEmailCancelsEnabled = _persistedEmailCancelsEnabled;
+        IsEmailRejectsEnabled = _persistedEmailRejectsEnabled;
+        IsEmailTlsEnabled = _persistedEmailTlsEnabled;
+        EmailHostDraft = _persistedEmailHost.Trim();
+        EmailPortDraft = _persistedEmailPort.Trim();
+        EmailFromDraft = _persistedEmailFrom.Trim();
+        EmailToDraft = _persistedEmailTo.Trim();
+
+        // The SMTP credential boxes re-seed empty under their commit
+        // guards (the credentials are the email channel's own secret
+        // material — they never echo): a re-seed never commits, the
+        // stored credentials stay exactly as the user left them.
+        _emailUsernameCommitSuppressed = true;
+        EmailUsernameDraft = string.Empty;
+        _emailUsernameCommitSuppressed = false;
+
+        _emailPasswordCommitSuppressed = true;
+        EmailPasswordDraft = string.Empty;
+        _emailPasswordCommitSuppressed = false;
+
+        _matrixTokenCommitSuppressed = true;
+        MatrixAccessTokenDraft = string.Empty;
+        _matrixTokenCommitSuppressed = false;
+
         // The AI chat provider (T-207): the pick drafts the combo (a garbage
         // stored pick drafts the default with a logged warning) and the text
         // drafts seed from the caches (blank stored values already resolved
@@ -3018,6 +3672,84 @@ public sealed class SettingsViewModel : ReactiveObject
         else
         {
             await store.SetAsync(SlackSink.WebhookUrlSecretKey, draft);
+        }
+    }
+
+    /// <summary>
+    /// Commit the typed SMTP username to the secret store immediately
+    /// (T-262; the Discord URL's exact shape): a typed value stores
+    /// (overwrites), an emptied one removes (a clear is a real intent).
+    /// Nothing here touches the settings file — the credential's only
+    /// home is the store. A store-less construction stays memory-only.
+    /// </summary>
+    private async Task CommitEmailUsernameAsync()
+    {
+        var store = _secrets;
+        if (store is null)
+        {
+            return;
+        }
+
+        var draft = EmailUsernameDraft;
+        if (string.IsNullOrWhiteSpace(draft))
+        {
+            await store.RemoveAsync(EmailSink.UsernameSecretKey);
+        }
+        else
+        {
+            await store.SetAsync(EmailSink.UsernameSecretKey, draft);
+        }
+    }
+
+    /// <summary>
+    /// Commit the typed SMTP password to the secret store immediately
+    /// (T-262; the Discord URL's exact shape): a typed value stores
+    /// (overwrites), an emptied one removes (a clear is a real intent).
+    /// Nothing here touches the settings file — the credential's only
+    /// home is the store. A store-less construction stays memory-only.
+    /// </summary>
+    private async Task CommitEmailPasswordAsync()
+    {
+        var store = _secrets;
+        if (store is null)
+        {
+            return;
+        }
+
+        var draft = EmailPasswordDraft;
+        if (string.IsNullOrWhiteSpace(draft))
+        {
+            await store.RemoveAsync(EmailSink.PasswordSecretKey);
+        }
+        else
+        {
+            await store.SetAsync(EmailSink.PasswordSecretKey, draft);
+        }
+    }
+
+    /// <summary>
+    /// Commit the typed Matrix access token to the secret store
+    /// immediately (T-262; the Discord URL's exact shape): a typed value
+    /// stores (overwrites), an emptied one removes (a clear is a real
+    /// intent). Nothing here touches the settings file — the token's only
+    /// home is the store. A store-less construction stays memory-only.
+    /// </summary>
+    private async Task CommitMatrixAccessTokenAsync()
+    {
+        var store = _secrets;
+        if (store is null)
+        {
+            return;
+        }
+
+        var draft = MatrixAccessTokenDraft;
+        if (string.IsNullOrWhiteSpace(draft))
+        {
+            await store.RemoveAsync(MatrixSink.AccessTokenSecretKey);
+        }
+        else
+        {
+            await store.SetAsync(MatrixSink.AccessTokenSecretKey, draft);
         }
     }
 

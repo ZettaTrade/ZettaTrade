@@ -2340,6 +2340,141 @@ Estimated fee: {10}</value>
   <data name="Settings.Notif.Ntfy.Note" xml:space="preserve">
     <value>Everything sends through your own topic, best-effort: a failed push logs a warning and never touches the trading flow. The toggles and the topic URL apply on Save.</value>
   </data>
+  <data name="Settings.Notif.Matrix.Title" xml:space="preserve">
+    <value>Matrix</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Fills" xml:space="preserve">
+    <value>Fills</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Fills.Hint" xml:space="preserve">
+    <value>Push a journaled fill into your own Matrix room.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Cancels" xml:space="preserve">
+    <value>Cancellations</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Cancels.Hint" xml:space="preserve">
+    <value>Push an accepted cancellation into your own Matrix room.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Rejects" xml:space="preserve">
+    <value>Rejections</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Rejects.Hint" xml:space="preserve">
+    <value>Push a rejected order into your own Matrix room.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Token" xml:space="preserve">
+    <value>Access token</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Token.Watermark" xml:space="preserve">
+    <value>syt_…</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Token.Hint" xml:space="preserve">
+    <value>The bot's access token for your homeserver. Stores immediately, never echoes.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Homeserver" xml:space="preserve">
+    <value>Homeserver URL</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Homeserver.Watermark" xml:space="preserve">
+    <value>https://matrix.example.org</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Homeserver.Hint" xml:space="preserve">
+    <value>The homeserver's client API base URL the bot pushes through. Applies on Save.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Room" xml:space="preserve">
+    <value>Room ID</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Room.Watermark" xml:space="preserve">
+    <value>!room:example.org</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Room.Hint" xml:space="preserve">
+    <value>The internal room id the bot pushes into. Applies on Save.</value>
+  </data>
+  <data name="Settings.Notif.Matrix.Note" xml:space="preserve">
+    <value>Everything sends through your own homeserver, best-effort: a failed push logs a warning and never touches the trading flow. The toggles and the rows apply on Save; the token stores immediately.</value>
+  </data>
+  <data name="Settings.Notif.Email.Title" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Settings.Notif.Email.Fills" xml:space="preserve">
+    <value>Fills</value>
+  </data>
+  <data name="Settings.Notif.Email.Fills.Hint" xml:space="preserve">
+    <value>Mail a journaled fill to your own mailbox.</value>
+  </data>
+  <data name="Settings.Notif.Email.Cancels" xml:space="preserve">
+    <value>Cancellations</value>
+  </data>
+  <data name="Settings.Notif.Email.Cancels.Hint" xml:space="preserve">
+    <value>Mail an accepted cancellation to your own mailbox.</value>
+  </data>
+  <data name="Settings.Notif.Email.Rejects" xml:space="preserve">
+    <value>Rejections</value>
+  </data>
+  <data name="Settings.Notif.Email.Rejects.Hint" xml:space="preserve">
+    <value>Mail a rejected order to your own mailbox.</value>
+  </data>
+  <data name="Settings.Notif.Email.Tls" xml:space="preserve">
+    <value>STARTTLS</value>
+  </data>
+  <data name="Settings.Notif.Email.Tls.Hint" xml:space="preserve">
+    <value>Upgrade the connection to TLS before the login. Keep it on: off means the credentials ride the wire in the clear.</value>
+  </data>
+  <data name="Settings.Notif.Email.Host" xml:space="preserve">
+    <value>SMTP host</value>
+  </data>
+  <data name="Settings.Notif.Email.Host.Watermark" xml:space="preserve">
+    <value>smtp.example.org</value>
+  </data>
+  <data name="Settings.Notif.Email.Host.Hint" xml:space="preserve">
+    <value>Your mail provider's SMTP server. Applies on Save.</value>
+  </data>
+  <data name="Settings.Notif.Email.Port" xml:space="preserve">
+    <value>SMTP port</value>
+  </data>
+  <data name="Settings.Notif.Email.Port.Watermark" xml:space="preserve">
+    <value>587</value>
+  </data>
+  <data name="Settings.Notif.Email.Port.Hint" xml:space="preserve">
+    <value>The SMTP port (587 is the common STARTTLS one). Applies on Save.</value>
+  </data>
+  <data name="Settings.Notif.Email.From" xml:space="preserve">
+    <value>From address</value>
+  </data>
+  <data name="Settings.Notif.Email.From.Watermark" xml:space="preserve">
+    <value>you@example.org</value>
+  </data>
+  <data name="Settings.Notif.Email.From.Hint" xml:space="preserve">
+    <value>The envelope sender (usually your own address). Applies on Save.</value>
+  </data>
+  <data name="Settings.Notif.Email.To" xml:space="preserve">
+    <value>To address</value>
+  </data>
+  <data name="Settings.Notif.Email.To.Watermark" xml:space="preserve">
+    <value>you@example.org</value>
+  </data>
+  <data name="Settings.Notif.Email.To.Hint" xml:space="preserve">
+    <value>Where the trade mail lands. Applies on Save.</value>
+  </data>
+  <data name="Settings.Notif.Email.User" xml:space="preserve">
+    <value>Username</value>
+  </data>
+  <data name="Settings.Notif.Email.User.Watermark" xml:space="preserve">
+    <value>you@example.org</value>
+  </data>
+  <data name="Settings.Notif.Email.User.Hint" xml:space="preserve">
+    <value>The SMTP login. Stores immediately, never echoes.</value>
+  </data>
+  <data name="Settings.Notif.Email.Password" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="Settings.Notif.Email.Password.Watermark" xml:space="preserve">
+    <value>••••••••</value>
+  </data>
+  <data name="Settings.Notif.Email.Password.Hint" xml:space="preserve">
+    <value>The SMTP password (or the provider's app password). Stores immediately, never echoes.</value>
+  </data>
+  <data name="Settings.Notif.Email.Note" xml:space="preserve">
+    <value>Everything sends through your own mailbox, best-effort and throttled (at most one delivered mail per minute): a failed send logs a warning and never touches the trading flow. The rows apply on Save; the credentials store immediately.</value>
+  </data>
   <data name="Settings.Tab.Notifications" xml:space="preserve">
     <value>Notifications</value>
   </data>
