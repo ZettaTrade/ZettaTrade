@@ -5939,6 +5939,72 @@ the board and its section below.
   the webhook test double's `Task.FromResult` is a false positive — `ISettingsService`
   requires the `Task<T>` wrap.
 
+## T-262 — Matrix + email sinks
+
+- **Branch:** `feat/matrix-email-sinks` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep; the worktree `zt-matrix-email-sinks`).
+- **Origin:** the second transport class after the webhook batch (the T-260 abstraction).
+- **What:** a Matrix sink (the bot access token through ISecretStore, the room routing) and an
+  email sink (SMTP with the user's credentials through ISecretStore, throttled, plain-text
+  templates); the recorded exclusion stays: WhatsApp and Signal stay out (no official free bot
+  APIs; unofficial bridges are middlemen — the T-041 canon).
+- **Scope:** the two sinks + settings + resx en+ru + tests.
+- **Acceptance:** both channels deliver; credential failures degrade to logged warnings; no
+  secret ever lands in logs or command lines.
+- **Tests:** the loopback stubs (a Matrix client stub, an SMTP stub), the template goldens, the
+  throttling pin.
+- **Status:** done. Canon: shipped as one feat on `feat/matrix-email-sinks` — the claim
+  `5a5524c`, the feature `1d5944b` (0.2.8). The two sinks follow the fleet contract exactly:
+  the per-kind opt-ins and every address are read per send, `HandleAsync` never faults (a
+  fault degrades into the sink's own warning lane once), no failure report carries secret
+  material (the Matrix report pins the status code only). Secret posture: the Matrix access
+  token rides the secret store key `matrix.access-token`, the SMTP credentials ride
+  `smtp.username`/`smtp.password`; the homeserver URL, the room id and the SMTP server rows
+  are public by design (`MatrixHomeserverUrl`, `MatrixRoomId`, `SmtpHost`, `SmtpPort`,
+  `SmtpFrom`, `SmtpTo`, `SmtpEnableSsl`). Matrix: one transactional PUT per send on the
+  room's `m.message` endpoint (a fresh txn id per send, the room id URL-escaped, the token
+  riding the Authorization header only), the named 10 s client `ZettaTradeMatrix`. Email:
+  one plain-text mail per send (subject = body = the composed line), a disposable
+  `SmtpClient` per send, STARTTLS default ON (the credentials must not ride the wire in the
+  clear), the 10 s session bound, and the throttle floor — one DELIVERED mail claims the
+  shipped 60 s minimum, a sooner send is the quiet skip, a failed send never claims the
+  floor; an unparsable stored port is a real degrade, never a substituted default. DI:
+  `AddMatrixEmailNotificationApi()` chained after `AddWebhookNotificationApi()`; each sink
+  registers concrete + `INotificationSink`. Settings: two collapsed cards (the webhook
+  cards' exact shape) — the address rows draft and save with the toggles; the token and the
+  two credential boxes mask (`PasswordChar="●"`) and commit to the store per keystroke with
+  the re-seed guards (`_matrixTokenCommitSuppressed`, `_emailUsernameCommitSuppressed`,
+  `_emailPasswordCommitSuppressed`); a typed value stores, an emptied box removes, a
+  re-seed never commits, a store-less construction stays memory-only; 33 resx keys en+ru.
+  THE FOLD DECISION (the task's design canon): the fleet outgrew the one-open-demo rhythm —
+  the T-261 close rode the body viewport's exact boundary (551.5) and the Matrix/email pair
+  pushed the Notifications extent to 670, while the collapsed six-card stack (~454) leaves
+  ~97 px — less than the cheapest card body; every channel card now rides collapsed by
+  default (the Telegram card retires from the open set), the tab opens as the six-channel
+  picker, and the T-184 no-scroll contract holds again (the pins retuned True 4 / False 13).
+  Tests: Infrastructure 759/759 (+33 `MatrixSinkTests`/`EmailSinkTests`: the client-API
+  golden + PUT path regex, the Bearer pin, fresh txn ids, the quiet matrix, the
+  5xx/hanging/no-leak/degrade matrix, the garbage-port canon, the throttle floor +
+  failed-send-never-claims-floor; the SMTP fixture canon — System.Net.Mail treats a 535 AUTH
+  rejection as NON-FATAL (it logs nothing and keeps delivering unauthenticated), so the
+  stub answers a rejected AUTH with the envelope refusal `530 5.7.0 Authentication
+  required` and `SmtpClient` throws at MAIL FROM; the fixture holds a SemaphoreSlim gate —
+  the parked wait lives OUTSIDE the hold, the accept loop holds every session task, the
+  walk is total) and App 2421/2421 (+32: the toggles seed/save/no-op/external-flip facts,
+  six address drafts seed/trim/no-op, three secrets typed/cleared/re-seed/storeless; the
+  missing-credential-half rig speaks USERNAME-missing — `missingPassword=False` means the
+  username is missing, so the rig pairs `withUsername = missingPassword`; NSubstitute probe:
+  an unconfigured `string GetAsync` returns EMPTY STRING, never null). Hazards: the
+  `UpdateStageServiceTests` venue-consent fact is an order-sensitive timing flake of the
+  T-258 family — bisected NOT T-262 (the class-only run fails on clean develop too, the
+  single test passes, the T-261 full run was green; filed as T-266, a dedicated task).
+  Verification: full gate GATE PASSED (`-AllowProtected`: the supervisor-owned version line
+  + the CompositionRoot one-liner; the known `[TASK-FROMRESULT]` warns ride the test
+  doubles' interface-required wraps), launch smoke SMOKE PASSED (0.2.8+1d5944b,
+  ERR/FTL/WRN=0, five stores ready, bars delivered, no leftovers).
+  Gate lint canon: the `[SECRET]` rule's value class is alnum+`+/_-` at 16+ chars beside a
+  token/password-bearing name — sample fakes ride dotted shapes now; `LoopbackSmtpServer`
+  speaks the SemaphoreSlim house (no `lock`, no discard fire-and-forget).
+
 ## T-263 — Backtest sweep retains metrics rows plus one best report
 
 - **Branch:** `feat/backtest-perf` off `develop` (claimed 2026-11-15, the perf sweep; the
