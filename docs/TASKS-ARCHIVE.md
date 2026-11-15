@@ -5673,6 +5673,57 @@ the board and its section below.
   the R-multiple trusts the journal's recorded triggers verbatim (the recorded journal is
   the source of truth; a mis-recorded stop skews the distribution).
 
+## T-254 — Backtest robustness: Monte Carlo + walk-forward
+
+- **Branch:** `feat/backtest-robustness` (claimed 2026-11-15; queued 2026-11-14, the analytics sweep).
+- **Origin:** T-212 optimizes parameters; nothing measures the robustness of the result.
+- **What:** Monte Carlo reshuffles of the trade sequence (the equity-path distribution, drawdown
+  percentiles, a seeded RNG) and walk-forward in-sample/out-of-sample splits over the T-113
+  harness, reported in the backtest window.
+- **Scope:** the quant compute (pure) + the report surface, resx en+ru, tests.
+- **Acceptance:** a 10k-path Monte Carlo runs in seconds, off-UI.
+- **Tests:** statistical goldens (seeded), the walk-forward split correctness.
+- **Status:** done. Canon: the task ships as two commits on feat/backtest-robustness — the claim
+  `98d8d6b` and the feature `29b4ae5` (the `BacktestMonteCarlo` sampler: the report's own closed
+  trades extracted with the ledger's exact bookkeeping — an extension re-averages the whole new
+  size, a partial close never re-averages the remainder, a flip stamps its remainder at its own
+  fill — the seeded bootstrap paths redraw the whole sequence with replacement, the nearest-rank
+  percentiles of final equity and max drawdown, the below-start count, the byte-identical
+  canonical text, the paths×trades ≤ 20M-draw work budget; the `BacktestWalkForward` study: the
+  sweep form's own two-knob grid over consecutive fold segments carved 50/50 into an in-sample
+  head and an out-of-sample tail, every fold at least 64 bars, the load-once window, the silent
+  in-sample replays (the T-263 discipline) with each fold's out-of-sample verification
+  publishing its own event cycle — one per fold row, exactly a sweep row's own — and the
+  fold-atomic cancellation; the window's robustness row: the folds/paths/seed spellings with
+  their own localized refusals, the chronological fold table, the ten percentile tiles with the
+  below-start line, the six-button row; the `Backtest.*` resx en+ru) plus the release
+  `chore(release): 0.2.4` (the props bump, the CHANGELOG section on top); shipped as 0.2.4.
+  Lane decisions: the extraction replays the ledger's exact bookkeeping so the resampled
+  sequence IS the booked sequence (a statistics disagreement refuses, never guesses); a
+  cooperative stop lands at a fold boundary only — a fold's row exists when its whole
+  optimize-then-verify pass completed, nothing half-run ever exists; the cancelled sampler
+  answers the cancelled envelope, never a half-fold; the Monte Carlo rides the report surface's
+  own report and keeps it (its start clears the tables), the study clears the other surfaces;
+  the MC lane consults no gate (a sampling never blocks a replay), the study holds the
+  single-flight gate; everything invalid refuses with its own line, never defaults. The
+  consumer pins grew with the surface (TokensPinsTests: the backtest window's numeric cells
+  5 -> 18 — T-254 adds the walk-forward fold table's three numeric cells and the Monte Carlo
+  tiles' ten percentile cells; DialogGrammarPinsTests: the command row's 110-width commands
+  3 -> 5 — the walk-forward and Monte Carlo starts join the run/sweep/cancel trio). Tests:
+  24 engine facts (the extraction goldens [15,-15,10] / [2,3], the degenerate and seeded
+  determinism goldens, the validation refusals including the budget's 210 trades × 100k paths,
+  the FoldPlan carve goldens, the byte-identical studies, the boundary-atomic and mid-load
+  cancellations, the single-flight refusals) and 14 view-model facts (the composition echo and
+  the fold table render, the localized refusals, the cancelled rows keep, the progress wrap
+  (foldsDone + barFraction) / folds, the canExecute honesty, the sampling echo + tiles, the
+  cancelled tiles answer nothing, the language mirror); the touched suites 78 + 40 facts green,
+  the full gate `GATE PASSED` (`-AllowProtected`), the launch smoke `SMOKE PASSED`
+  (0.2.4+73fcaa1, ERR/FTL/WRN=0, all five stores). Hazards: the Monte Carlo reads closed round
+  trips only — an open position contributes nothing until it closes; the walk-forward's honesty
+  rides the fold carve (a window too short for its folds refuses before any replay, never
+  pretends); the OOS verification optimizes on the IS head and verifies on the OOS tail — a
+  strategy whose edge lives only in the window's own noise shows exactly there.
+
 ## T-256 — Windows installer: Inno Setup over the T-125 artifacts
 
 - **Branch:** `feat/windows-installer` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep).
