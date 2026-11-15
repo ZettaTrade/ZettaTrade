@@ -267,7 +267,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-261 Webhook sinks: Discord, Slack, ntfy (the beta-2 sweep 2026-11-15) | feat/webhook-sinks | done | T-260 |
 | T-262 Matrix + email sinks (the beta-2 sweep 2026-11-15) | feat/matrix-email-sinks | done | T-260 |
 | T-263 Backtest sweep retains metrics rows plus one best report, not P full reports (the perf sweep 2026-11-15) | feat/backtest-perf | done | — |
-| T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | — | planned | — |
+| T-264 Backtest replay reads signals while the feed runs (the perf sweep 2026-11-15) | feat/backtest-replay | in-progress | - |
 | T-265 Backtest load assembles the walk-back pages in one pass (the perf sweep 2026-11-15) | — | planned | — |
 | T-266 UpdateStage venue-consent fact: the order-sensitive timing flake (filed 2026-11-15) | feat/update-consent-flake | done | T-258 |
 
@@ -606,7 +606,8 @@ the human prioritizes the lanes.
 
 ## T-264 — Backtest replay reads signals while the feed runs
 
-- **Branch:** created at landing off `develop` (queued 2026-11-15, the perf sweep).
+- **Branch:** `feat/backtest-replay` off `develop` (claimed 2026-11-15, the perf sweep; the worktree `zt-backtest-replay`).
+- **Status:** in-progress.
 - **Origin:** the perf analysis: the replay fed ALL bars into the host's unbounded input
   channel and only then started reading the stamped signals, so the in-flight queues
   accumulated O(N) stamped events before the first one was applied.
