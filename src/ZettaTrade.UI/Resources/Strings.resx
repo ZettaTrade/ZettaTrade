@@ -762,6 +762,12 @@
   <data name="Chart.ProfileNpoc" xml:space="preserve">
     <value>N-POC</value>
   </data>
+  <data name="Chart.AutoLevels.Support" xml:space="preserve">
+    <value>S</value>
+  </data>
+  <data name="Chart.AutoLevels.Resistance" xml:space="preserve">
+    <value>R</value>
+  </data>
   <data name="Chart.NoVolumeData" xml:space="preserve">
     <value>No volume data for these candles</value>
   </data>

@@ -435,6 +435,7 @@
                                    LiquidationLevelsOverlay="{Binding LiquidationLevelsOverlay}"
                                    SessionAnalytics="{Binding SessionAnalytics}"
                                    NakedPocs="{Binding NakedPocs}"
+                                   AutoLevels="{Binding AutoLevels}"
                                    SessionOpensVisible="{Binding ShowSessionOpens}"
                                    SessionRangeVisible="{Binding ShowSessionRange}"
                                    SessionShadingVisible="{Binding ShowSessionShading}"

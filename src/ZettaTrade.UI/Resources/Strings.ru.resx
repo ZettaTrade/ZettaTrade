@@ -762,6 +762,12 @@
   <data name="Chart.ProfileNpoc" xml:space="preserve">
     <value>N-POC</value>
   </data>
+  <data name="Chart.AutoLevels.Support" xml:space="preserve">
+    <value>П</value>
+  </data>
+  <data name="Chart.AutoLevels.Resistance" xml:space="preserve">
+    <value>С</value>
+  </data>
   <data name="Chart.NoVolumeData" xml:space="preserve">
     <value>Нет данных об объёме этих свечей</value>
   </data>

@@ -134,6 +134,10 @@ public class CandlestickChart : Control
     private const string ProfileValLabelKey = "Chart.ProfileVal";
     private const string ProfileNpocLabelKey = "Chart.ProfileNpoc";
 
+    /// <summary>The auto S/R levels' resx keys (T-249): the right-margin kind tags.</summary>
+    private const string AutoLevelsSupportKey = "Chart.AutoLevels.Support";
+    private const string AutoLevelsResistanceKey = "Chart.AutoLevels.Resistance";
+
     /// <summary>The POC marker's line width (T-248), in pixels: the short line into the plot from the right edge.</summary>
     private const float ProfilePocTickPx = 18f;
 
@@ -256,6 +260,15 @@ public class CandlestickChart : Control
 
     /// <summary>Horizontal pad (px) between the plot's right edge and the «estimate» tags.</summary>
     private const float LiquidationTagPadPx = 6f;
+
+    /// <summary>Alpha (0–255) of the auto S/R levels' line at the lightest weight — every level is a visible floor.</summary>
+    private const byte AutoLevelMinAlpha = 90;
+
+    /// <summary>Alpha (0–255) of the auto S/R levels' line at the heaviest weight.</summary>
+    private const byte AutoLevelMaxAlpha = 200;
+
+    /// <summary>Alpha (0–255) of the auto S/R levels' right-margin tag text.</summary>
+    private const byte AutoLevelTagAlpha = 210;
 
     /// <summary>
     /// Half the base width of a strategy-signal marker (T-112), in pixels:
@@ -534,6 +547,27 @@ public class CandlestickChart : Control
     {
         get => GetValue(NakedPocsProperty);
         set => SetValue(NakedPocsProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the automatic S/R levels (T-249): the swing
+    /// pivots' clustered levels the ViewModel publishes against the loaded
+    /// series (null while the series is empty — the honest absence).
+    /// Static price geometry: the levels draw across the whole visible
+    /// window without a slice; the S/R kind resolves in the draw pass
+    /// against the last visible close. Always on while published — the
+    /// scope keeps no toggle.
+    /// </summary>
+    public static readonly StyledProperty<SupportResistanceLevels?> AutoLevelsProperty =
+        AvaloniaProperty.Register<CandlestickChart, SupportResistanceLevels?>(
+            nameof(AutoLevels),
+            defaultValue: null);
+
+    /// <summary>The automatic S/R levels the chart draws; a change re-inks on the next pass.</summary>
+    public SupportResistanceLevels? AutoLevels
+    {
+        get => GetValue(AutoLevelsProperty);
+        set => SetValue(AutoLevelsProperty, value);
     }
 
     /// <summary>
@@ -1301,6 +1335,10 @@ public class CandlestickChart : Control
         NakedPocsProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
 
+        // The T-249 auto S/R levels: a new publish re-inks on the next pass.
+        AutoLevelsProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
         // The T-247 session analytics: a new publish or a family toggle flip
         // re-inks on the next pass the same way.
         SessionAnalyticsProperty.Changed.AddClassHandler<CandlestickChart>(
@@ -1598,6 +1636,7 @@ public class CandlestickChart : Control
             _hoverPosition,
             VolumeProfileVisible,
             NakedPocs,
+            AutoLevels,
             SeriesType,
             heikinAshi,
             ChartSignalLayout.Resolve(SignalMarkers, visible),
@@ -1884,6 +1923,7 @@ public class CandlestickChart : Control
         Point? Hover,
         bool VolumeProfileVisible,
         NakedPocTrack? NakedPocs,
+        SupportResistanceLevels? AutoLevels,
         ChartSeriesType SeriesType,
         Bar[]? HeikinAshi,
         IReadOnlyList<SignalMarkerHit> SignalMarkerHits,
@@ -2336,6 +2376,7 @@ public class CandlestickChart : Control
             DrawVwapOverlay(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Vwap);
             DrawSessionLevels(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Sessions);
             DrawLiquidationLevels(canvas, font, textPaint, plotRect, minAxis, axisRange);
+            DrawAutoLevels(canvas, font, textPaint, plotRect, minAxis, axisRange);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minAxis, axisRange, axisTicks, priceTexts);
             DrawTimeAxis(canvas, font, textPaint, chartRect, barPitch, openTimes, timeTicks, timeTexts);
 
@@ -3923,6 +3964,105 @@ public class CandlestickChart : Control
             return Strings.ResourceManager.GetString(
                 key,
                 CultureInfo.CurrentUICulture) ?? key;
+        }
+
+        /// <summary>
+        /// The auto S/R levels' draw block (T-249): one horizontal line per
+        /// published level across the plot, the KIND the last visible
+        /// close decides (a level at or under the close is support — the
+        /// bullish hue; above it, resistance — the bearish hue; the kind
+        /// re-resolves every frame price moves, so a crossed level flips
+        /// honestly) and the WEIGHT the set's normalized emphasis (the
+        /// heaviest level draws fullest, the lightest at the floor). The
+        /// right-margin kind tags ride one label column the
+        /// <see cref="ChartLabelStack"/> keeps collision-free (the
+        /// heaviest level keeps priority, the rest push aside). A level
+        /// whose price maps off-plot stays off-plot — the honest absence,
+        /// never a clamped line claiming the edge.
+        /// </summary>
+        private void DrawAutoLevels(
+            SKCanvas canvas,
+            SKFont font,
+            SKPaint textPaint,
+            Rect plotRect,
+            decimal minAxis,
+            decimal axisRange)
+        {
+            var levels = _snapshot.AutoLevels?.Levels;
+            if (levels is not { Count: > 0 } || _snapshot.VisibleBars.Length == 0)
+            {
+                // The honest absence: nothing published (or no bar to
+                // anchor the kind on) — nothing draws.
+                return;
+            }
+
+            var lastClose = _snapshot.VisibleBars[^1].Close;
+            var maxWeight = levels.Max(static level => (double)level.Weight);
+
+            using var linePaint = new SKPaint
+            {
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1f,
+                IsAntialias = true
+            };
+
+            var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
+            var halfText = textHeight / 2f;
+
+            // The tag column's inputs, in priority order (the heaviest
+            // level is the most-worth-keeping).
+            var texts = new List<string>();
+            var desired = new List<double>();
+
+            foreach (var level in levels)
+            {
+                var y = ChartPriceScale.PriceToY(plotRect, AxisOf(level.Price), minAxis, axisRange);
+                if (y < plotRect.Top || y > plotRect.Bottom)
+                {
+                    continue;
+                }
+
+                var support = level.Price <= lastClose;
+                var share = maxWeight > 0 ? level.Weight / maxWeight : 0d;
+                var alpha = (byte)Math.Round(
+                    AutoLevelMinAlpha + ((AutoLevelMaxAlpha - AutoLevelMinAlpha) * share));
+                linePaint.Color = (support ? _snapshot.Bullish : _snapshot.Bearish).WithAlpha(alpha);
+                canvas.DrawLine(
+                    (float)plotRect.Left,
+                    (float)y,
+                    (float)plotRect.Right,
+                    (float)y,
+                    linePaint);
+
+                texts.Add(GetLocalizedLabel(support ? AutoLevelsSupportKey : AutoLevelsResistanceKey));
+                desired.Add(y);
+            }
+
+            if (texts.Count == 0)
+            {
+                return;
+            }
+
+            var ys = ChartLabelStack.Resolve(
+                desired,
+                textHeight + 2d,
+                plotRect.Top + halfText,
+                plotRect.Bottom - halfText);
+
+            var tagPaint = textPaint.Clone();
+            tagPaint.Color = _snapshot.Text.WithAlpha(AutoLevelTagAlpha);
+            using (tagPaint)
+            {
+                for (var i = 0; i < texts.Count; i++)
+                {
+                    var y = (float)ys[i];
+                    var text = texts[i];
+                    var textWidth = font.MeasureText(text);
+                    var x = (float)plotRect.Right - 4f - textWidth;
+                    var centerY = y - ((font.Metrics.Ascent + font.Metrics.Descent) / 2f);
+                    canvas.DrawText(text, x, centerY, SKTextAlign.Left, font, tagPaint);
+                }
+            }
         }
 
         /// <summary>

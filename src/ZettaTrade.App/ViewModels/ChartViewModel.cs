@@ -830,6 +830,63 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         private set => this.RaiseAndSetIfChanged(ref _nakedPocs, value);
     }
 
+    private SupportResistanceLevels? _autoLevels;
+
+    /// <summary>
+    /// The automatic S/R levels the chart draws (T-249): the swing pivots'
+    /// price-proximity clusters, computed by the pure
+    /// <see cref="SupportResistanceLevels.FromBars"/> against the whole
+    /// loaded series — once per bars-applied, never per frame (a per-frame
+    /// re-detection of a 100k-candle series would break the pan budget).
+    /// Always on while published (no toggle — the scope's own decision);
+    /// null while the series is empty (the honest absence). The assignment
+    /// is the single UI-thread hop of its publish.
+    /// </summary>
+    public SupportResistanceLevels? AutoLevels
+    {
+        get => _autoLevels;
+        private set => this.RaiseAndSetIfChanged(ref _autoLevels, value);
+    }
+
+    private int _autoLevelLookback = SwingPivots.DefaultLookback;
+
+    /// <summary>
+    /// The auto S/R levels' detection arm in bars each side (T-249): the
+    /// session-scoped knob the detector clamps into its legal range. Not
+    /// persisted (the T-246 knob precedent — a geometry knob rides the
+    /// session, not the workspace), and its edit re-keys the publish
+    /// against the standing series.
+    /// </summary>
+    public int AutoLevelLookback
+    {
+        get => _autoLevelLookback;
+        set => this.RaiseAndSetIfChanged(ref _autoLevelLookback, value);
+    }
+
+    private int _autoLevelMinStrength = SwingPivots.DefaultMinStrength;
+
+    /// <summary>
+    /// The auto S/R levels' minimum measured dominance a pivot must reach
+    /// (T-249): the session-scoped filter knob, not persisted.
+    /// </summary>
+    public int AutoLevelMinStrength
+    {
+        get => _autoLevelMinStrength;
+        set => this.RaiseAndSetIfChanged(ref _autoLevelMinStrength, value);
+    }
+
+    private decimal _autoLevelClusterTolerance = SupportResistanceLevels.DefaultTolerance;
+
+    /// <summary>
+    /// The auto S/R levels' cluster tolerance as a fraction of price
+    /// (T-249): the session-scoped clustering knob, not persisted.
+    /// </summary>
+    public decimal AutoLevelClusterTolerance
+    {
+        get => _autoLevelClusterTolerance;
+        set => this.RaiseAndSetIfChanged(ref _autoLevelClusterTolerance, value);
+    }
+
     private IReadOnlyList<SignalMarker> _signalMarkers = [];
 
     /// <summary>
@@ -1398,6 +1455,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// assignment crosses onto the UI thread.
     /// </summary>
     private readonly Subject<NakedPocTrack?> _nakedPocPublishes = new();
+
+    /// <summary>
+    /// The auto S/R levels publish here (T-249); the marshalled
+    /// subscription assigns <see cref="AutoLevels"/>. A null emission is
+    /// the empty-series state. The compute itself is pure — the publish
+    /// runs wherever its callers land and only the assignment crosses onto
+    /// the UI thread.
+    /// </summary>
+    private readonly Subject<SupportResistanceLevels?> _autoLevelPublishes = new();
 
     /// <summary>
     /// The Heikin-Ashi series publishes here (T-089); the marshalled
@@ -2032,6 +2098,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishVwapOverlay(page.Bars);
                     PublishSessionAnalytics(page.Bars);
                     PublishNakedPocTrack(page.Bars);
+                    PublishAutoLevels(page.Bars);
                     PublishHeikinAshi(page.Bars);
                     PublishSignalMarkers();
 
@@ -2084,6 +2151,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishVwapOverlay(Bars);
                     PublishSessionAnalytics(Bars);
                     PublishNakedPocTrack(Bars);
+                    PublishAutoLevels(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
                     PublishCvd(Bars);
@@ -2142,6 +2210,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishVwapOverlay(Bars);
                     PublishSessionAnalytics(Bars);
                     PublishNakedPocTrack(Bars);
+                    PublishAutoLevels(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
                     PublishCvd(Bars);
@@ -2328,6 +2397,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 track => NakedPocs = track,
                 ex => _logger.LogError(ex, "The chart naked-POC track stream stopped unexpectedly"));
+
+        // The auto S/R levels ride the same raw-then-marshal split (T-249).
+        _autoLevelPublishes.ObserveOnUiThread()
+            .Subscribe(
+                levels => AutoLevels = levels,
+                ex => _logger.LogError(ex, "The chart auto S/R levels stream stopped unexpectedly"));
 
         // The Heikin-Ashi series rides the same raw-then-marshal split (T-089).
         _heikinAshiPublishes.ObserveOnUiThread()
@@ -2531,6 +2606,20 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 _ => PublishSessionAnalytics(Bars),
                 ex => _logger.LogError(ex, "The session analytics publish stream stopped unexpectedly"));
+
+        // The auto S/R levels' knobs re-key the published levels against
+        // the CURRENT series (T-249): a knob edit recomputes immediately
+        // (the bars are the series' copy — the pure compute). The knobs
+        // are session-scoped (not persisted, the T-246 precedent), so no
+        // restore re-asserts them — the lane's initial emission is the
+        // constructor-time default publish's twin and just re-publishes.
+        this.WhenAnyValue(
+                x => x.AutoLevelLookback,
+                x => x.AutoLevelMinStrength,
+                x => x.AutoLevelClusterTolerance)
+            .Subscribe(
+                _ => PublishAutoLevels(Bars),
+                ex => _logger.LogError(ex, "The auto S/R levels publish stream stopped unexpectedly"));
 
         // The families follow the settings service live: an external writer
         // applies with the cache leading (so the persistence pipelines above
@@ -4080,6 +4169,29 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         }
 
         _nakedPocPublishes.OnNext(NakedPocTrack.Compute(bars));
+    }
+
+    /// <summary>
+    /// Compute the auto S/R levels (T-249) over the whole loaded series
+    /// and publish them; null while the series is empty (the honest
+    /// absence — the chart draws nothing of the levels). The compute rides
+    /// the bars-applied callers, never the frame pass; no toggle re-keys
+    /// it (the overlay is always on while published) — the three knob
+    /// properties do, each edit re-publishing against the standing series.
+    /// </summary>
+    private void PublishAutoLevels(IReadOnlyList<Bar>? bars)
+    {
+        if (bars is not { Count: > 0 })
+        {
+            _autoLevelPublishes.OnNext(null);
+            return;
+        }
+
+        _autoLevelPublishes.OnNext(SupportResistanceLevels.FromBars(
+            bars,
+            AutoLevelLookback,
+            AutoLevelMinStrength,
+            AutoLevelClusterTolerance));
     }
 
     /// <summary>
