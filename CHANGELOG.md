@@ -1,3 +1,24 @@
+## [0.2.25] - 2026-11-16
+
+Build of board task T-255 (branch `feat/ai-trade-review`): the AI trade
+review — one realized trade's journal facts composed into a structured
+review prompt, the answer lands in the chat.
+
+### Added
+- The trade-statistics window's realized rows carry a new "Review in
+  chat" action: the row's journal facts (the close time, the venue, the
+  symbol, the side, the size, the entry/exit prices, the realized PnL
+  with its win/loss/scratch verdict, the MAE/MFE excursions, the note
+  and the tags) compose into a structured English review prompt (the
+  pure composer — a read-only pass over the row) and the main window
+  routes it into the assistant panel through the standard send
+  discipline (the T-114 market context rides the system prompt as
+  always). A hidden panel shows; a reply in flight parks the prompt in
+  the input row for the user's own send; a provider failure is the
+  localized in-chat error line, never silence. Strictly read-only: no
+  journal write, no order routing, no auto-posting — the output lives
+  in the chat only.
+
 ## [0.2.24] - 2026-11-16
 
 Build of board task T-253 (branch `feat/venue-spread`): the cross-venue
