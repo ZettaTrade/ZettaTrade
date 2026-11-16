@@ -253,7 +253,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-247 Session analytics: daily/weekly opens, the opening range, session shading (the analytics sweep 2026-11-14) | feat/session-levels | done | 0.2.19 |
 | T-248 Volume profile annotations: POC/value-area labels + the naked-POC track (the analytics sweep 2026-11-14) | feat/profile-annotations | done | 0.2.20 |
 | T-249 Auto S/R levels from swing pivots, proximity-clustered and pan-stable (the analytics sweep 2026-11-14) | feat/auto-levels | done | 0.2.21 |
-| T-250 Squeeze detector (Bollinger inside Keltner) rides the standard pack (the analytics sweep 2026-11-14) | feat/squeeze-detector | in-progress | — |
+| T-250 Squeeze detector (Bollinger inside Keltner) rides the standard pack (the analytics sweep 2026-11-14) | feat/squeeze-detector | done | 0.2.22 |
 | T-251 Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day performance, Sharpe/Sortino (the analytics sweep 2026-11-14) | feat/stats-deepening | done | 0.2.3 |
 | T-252 Correlation matrix over the cached candles (the analytics sweep 2026-11-14) | feat/correlation-matrix | planned | — |
 | T-253 Cross-venue spread + the perp-spot basis view over the three shipped adapters (the analytics sweep 2026-11-14) | feat/venue-spread | planned | — |
@@ -361,21 +361,6 @@ prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately le
 the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
 T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
 original numbers.
-
----
-
-## T-250 — Squeeze detector (Bollinger inside Keltner) in the standard pack
-
-- **Branch:** `feat/squeeze-detector` off `develop` (queued 2026-11-14, the analytics sweep).
-- **Origin:** volatility-compression reads are absent; the pack rides the package mechanics
-  (T-163).
-- **What:** an indicator plugin marking bars where Bollinger bands sit inside Keltner channels
-  (configurable periods/multipliers) with fired markers on release, as a pane plugin riding the
-  SDK contract.
-- **Scope:** the Plugins satellite (the package bumps there first, the one-line consuming bump
-  here), tests in the satellite.
-- **Acceptance:** the math matches reference values on fixtures.
-- **Tests:** reference-value goldens, the pane integration in the satellite's harness.
 
 ---
 

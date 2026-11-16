@@ -6139,6 +6139,50 @@ the board and its section below.
   clamped negative tolerance, the deterministic series-scoped composition). Gate passed with
   `-AllowProtected`; the launch smoke passed before the merge.
 
+## T-250 — Squeeze detector (Bollinger inside Keltner) in the standard pack
+
+- **Branch:** `feat/squeeze-detector` off `develop` (queued 2026-11-14, the analytics sweep;
+  claimed 2026-11-16, supervisor-solo — the worktree `zt-squeeze` in-tree, the same-named
+  branch in the `ZettaTrade/Plugins` satellite).
+- **Origin:** volatility-compression reads are absent; the pack rides the package mechanics
+  (T-163).
+- **What:** an indicator plugin marking bars where Bollinger bands sit inside Keltner channels
+  (configurable periods/multipliers) with fired markers on release, as a pane plugin riding the
+  SDK contract.
+- **Scope:** the Plugins satellite (the package bumps there first, the one-line consuming bump
+  here), tests in the satellite.
+- **Acceptance:** the math matches reference values on fixtures.
+- **Tests:** reference-value goldens, the pane integration in the satellite's harness.
+- **Status:** done. Canon: the satellite commit `02abb66` (the pure `SqueezeIndicator` — the
+  Bollinger pair rides the closes' simple mean and the POPULATION sigma, the Bollinger plugin's
+  own convention; the Keltner pair rides the typicals' simple mean and the true ranges' PLAIN
+  window average — the pack's first-day convention for the opening bar, no Wilder smoothing;
+  the strict-inside pair means a band TOUCHING its channel is not a squeeze) ff'd onto the
+  satellite's develop AND main, pushed, the tag `v0.5.0` cut and pushed (the tag-driven
+  workflow ships the umbrella to the feed); the in-tree chain `425948d` (claim) → `391f752`
+  (the one-line consuming bump, `PluginsVersion` 0.5.0, the twelve-DLL comment) → `1aff7c5`
+  (`chore(release): 0.2.22`) lands through this close commit; written supervisor-solo. Lane
+  decisions: the single-series seam carries the STATE — 1 while the squeeze stands, 0 while it
+  does not, and -1 on the RELEASE bar (the first bar the standing squeeze ends; the fire is
+  data, not an edge a viewer must infer), and only the edge fires (a quiet stretch never
+  re-fires); the release fires on BOTH expansion directions (a range collapse lets the channels
+  fall back onto the bands, a price shove blows the bands out past them); the pane declaration
+  is the T-199 seam's Oscillator with the canonical band the state's own floor and ceiling pin
+  (-1 / 1 — the RSI canonical-band precedent); the catalog-facing `ctor(period)` maps the
+  row's knob onto the SHARED window (both envelopes' length) while the multipliers stay
+  classic 2.0 / 1.5 (the MACD/Bollinger parameter-surface precedent), the full triple stays
+  constructable for embeddings and the tests; an out-of-range window or a non-positive
+  multiplier throws — the catalog skips the row, nothing defaults silently. Acceptance
+  evidence: two hand-computed state walks with every intermediate exact (the range-collapse
+  fire: the channels swell over the wide stretch and decay back, the last decay bar drops them
+  onto the bands — the walk 0, 1x7, -1, 0; the band-expansion fire: the shove bar's exact
+  sqrt-3 window blows the upper band past the upper channel — the walk 0, 1, -1, 0), the
+  equality touch pinned off, the warmup head null through the seed bar, the catalog mapping
+  byte-equal to the full-triple construction, the guards, the determinism, the pane
+  declaration. Tests: 11 `SqueezeIndicator` goldens; the satellite suite 128/128. The gate
+  passed with `-AllowProtected` (the restore pulls 0.5.0 off the feed — the consume is real);
+  the launch smoke passed before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
