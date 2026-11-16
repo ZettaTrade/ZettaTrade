@@ -6,7 +6,9 @@ namespace ZettaTrade.App.Services;
 /// pushes) — the alerts module starts no polling loop of its own. The
 /// indicator-cross kind (T-203) rides the same ticker stream: the engine
 /// aggregates its ticks into one-minute candles and evaluates the cross on
-/// every candle close.
+/// every candle close. The whale-print kind (T-245) is the one kind on its
+/// OWN stream: the adapters' existing trade stream (the same prints the
+/// tape shows), because a print's size is a fact the ticker never carries.
 /// </summary>
 public enum PriceAlertKind
 {
@@ -34,4 +36,16 @@ public enum PriceAlertKind
     /// validation. The evaluation rides the adapters' existing ticker stream — the funding
     /// rate the venue already pushes — no polling of its own.</summary>
     FundingCross,
+
+    /// <summary>A big-trade trigger (T-245): a single print whose notional (price × quantity)
+    /// is strictly above the alert's threshold. The threshold rides
+    /// <see cref="AlertDefinition.TargetPrice"/> in absolute quote-currency units (100000 =
+    /// 100 000 USDT on a USDT-quoted symbol) and the trigger carries no edge beyond
+    /// <see cref="AlertTrigger.Above"/> — a trade alert reads "bigger than", so At and Below
+    /// are meaningless and are refused at draft validation. The evaluation rides the
+    /// adapters' existing trade stream — the same prints the tape shows — no polling and
+    /// no second feed of its own; the engine's one trade subscription per armed symbol is
+    /// the kind's own necessary cost (the tape filter shares the venue's tape feed, never
+    /// the engine's).</summary>
+    WhalePrint,
 }

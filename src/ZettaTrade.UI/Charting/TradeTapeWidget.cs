@@ -78,6 +78,10 @@ public class TradeTapeWidget : Control
     private const string BuyColorKey = "CandleUp";
     private const string SellColorKey = "CandleDown";
 
+    /// <summary>T-245: whale prints paint their size column in the theme's
+    /// accent color (the same key the chart's pane splitter uses).</summary>
+    private const string WhaleColorKey = "Accent";
+
     #endregion
 
     #region Styled Properties
@@ -100,6 +104,23 @@ public class TradeTapeWidget : Control
         set => SetValue(TradesProperty, value);
     }
 
+    /// <summary>
+    /// StyledProperty for the whale threshold (T-245, absolute quote units):
+    /// a row whose notional (price × quantity) is strictly above it paints
+    /// its size column in the accent color with a bold face. Zero (the
+    /// default) highlights nothing.
+    /// </summary>
+    public static readonly StyledProperty<decimal> WhaleThresholdProperty =
+        AvaloniaProperty.Register<TradeTapeWidget, decimal>(nameof(WhaleThreshold));
+
+    /// <summary>Gets or sets the whale notional threshold the drawn rows are
+    /// highlighted against; bound to the tape head's filter field.</summary>
+    public decimal WhaleThreshold
+    {
+        get => GetValue(WhaleThresholdProperty);
+        set => SetValue(WhaleThresholdProperty, value);
+    }
+
     #endregion
 
     #region Fields & Properties
@@ -112,12 +133,14 @@ public class TradeTapeWidget : Control
     private static readonly SKColor DefaultTextColor = new(200, 200, 200);
     private static readonly SKColor DefaultBuyColor = new(34, 197, 94);
     private static readonly SKColor DefaultSellColor = new(239, 68, 68);
+    private static readonly SKColor DefaultWhaleColor = new(59, 130, 246);
 
     private SKColor _backgroundColor = DefaultBackgroundColor;
     private SKColor _gridColor = DefaultGridColor;
     private SKColor _textColor = DefaultTextColor;
     private SKColor _buyColor = DefaultBuyColor;
     private SKColor _sellColor = DefaultSellColor;
+    private SKColor _whaleColor = DefaultWhaleColor;
 
     /// <summary>Subscription of the trades stream; swapped on a Trades change, disposed on detach.</summary>
     private IDisposable? _tradesSubscription;
@@ -167,6 +190,11 @@ public class TradeTapeWidget : Control
         // the attach path rebinds it too. Both funnels through the same
         // idempotent rebind below.
         TradesProperty.Changed.AddClassHandler<TradeTapeWidget>((x, _) => x.RebindTrades());
+
+        // A new threshold re-plans the highlight on the next frame; the value
+        // itself is only read when the snapshot is taken.
+        WhaleThresholdProperty.Changed.AddClassHandler<TradeTapeWidget>(
+            (x, _) => x.InvalidateVisual());
     }
 
     public TradeTapeWidget()
@@ -396,7 +424,8 @@ public class TradeTapeWidget : Control
             Bounds.Size.Height,
             RowHeightPx,
             HeaderHeightPx,
-            _isPointerInside);
+            _isPointerInside,
+            WhaleThreshold);
 
         return new TradeTapeSnapshot(
             page,
@@ -404,7 +433,8 @@ public class TradeTapeWidget : Control
             _gridColor,
             _textColor,
             _buyColor,
-            _sellColor);
+            _sellColor,
+            _whaleColor);
     }
 
     /// <summary>
@@ -443,7 +473,8 @@ public class TradeTapeWidget : Control
         SKColor Grid,
         SKColor Text,
         SKColor Buy,
-        SKColor Sell);
+        SKColor Sell,
+        SKColor Whale);
 
     /// <summary>
     /// Refresh the draw colors from the theme resources published by ThemeManager
@@ -456,6 +487,7 @@ public class TradeTapeWidget : Control
         _textColor = ResourceColor(TextColorKey, _textColor);
         _buyColor = ResourceColor(BuyColorKey, _buyColor);
         _sellColor = ResourceColor(SellColorKey, _sellColor);
+        _whaleColor = ResourceColor(WhaleColorKey, _whaleColor);
     }
 
     private static SKColor ResourceColor(string key, SKColor fallback)
@@ -499,6 +531,17 @@ public class TradeTapeWidget : Control
     /// </summary>
     private sealed class TradeTapeDrawOperation : ICustomDrawOperation
     {
+        /// <summary>
+        /// The bold face whale rows' size column draws with (T-245): one face
+        /// for the process, resolved once against the default family's bold
+        /// style — Skia falls back to the closest match when the family has
+        /// no dedicated bold cut. Static and never disposed per frame (the
+        /// face outlives every draw operation; the process owns it).
+        /// </summary>
+        private static readonly SKTypeface WhaleFace = SKTypeface.FromFamilyName(
+            SKTypeface.Default.FamilyName,
+            SKFontStyle.Bold);
+
         private readonly Rect _bounds;
         private readonly TradeTapeSnapshot _snapshot;
 
@@ -582,6 +625,15 @@ public class TradeTapeWidget : Control
 
             using var font = new SKFont(SKTypeface.Default, RowFontSizePx);
 
+            // T-245: whale rows' size column draws in the accent color with a
+            // bold face — one extra paint + font per frame, never per row.
+            using var whaleFont = new SKFont(WhaleFace, RowFontSizePx);
+            using var whalePaint = new SKPaint
+            {
+                Color = _snapshot.Whale,
+                IsAntialias = true,
+            };
+
             if (page.PausedHint is { } hint)
             {
                 using var headerPaint = new SKPaint
@@ -633,8 +685,8 @@ public class TradeTapeWidget : Control
                     width - PaddingPx,
                     row.Y + RowBaselineOffsetPx,
                     SKTextAlign.Right,
-                    font,
-                    sidePaint);
+                    row.IsWhale ? whaleFont : font,
+                    row.IsWhale ? whalePaint : sidePaint);
             }
         }
 

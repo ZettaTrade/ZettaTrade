@@ -143,6 +143,7 @@ internal sealed record MainWorld(
         var tape = new TradeTapeViewModel(
             adapter,
             selections,
+            settings,
             NullLogger<TradeTapeViewModel>.Instance);
         var watchlistCatalog = new WatchlistCatalogService(
             settings,

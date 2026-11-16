@@ -40,6 +40,7 @@ public sealed class AlertsViewModel : ReactiveObject
     private const string InvalidatePeriodKey = "Alert.Error.InvalidPeriod";
     private const string InvalidateLevelKey = "Alert.Error.InvalidLevel";
     private const string InvalidateFundingThresholdKey = "Alert.Error.InvalidFundingThreshold";
+    private const string InvalidateWhaleThresholdKey = "Alert.Error.InvalidWhaleThreshold";
     private const string NoIndicatorsKey = "Alert.Error.NoIndicatorsLoaded";
     private const string InvalidateOperationKey = "Alert.Error.OperationFailed";
     private const string InvalidateCooldownKey = "Alert.Error.InvalidCooldown";
@@ -145,6 +146,7 @@ public sealed class AlertsViewModel : ReactiveObject
     private const string KindPercentKey = "Alert.Kind.PercentMove";
     private const string KindIndicatorKey = "Alert.Kind.IndicatorCross";
     private const string KindFundingKey = "Alert.Kind.FundingCross";
+    private const string KindWhaleKey = "Alert.Kind.WhalePrint";
     private const string SourceIndicatorValueKey = "Alert.Source.IndicatorValue";
     private const string SourcePriceKey = "Alert.Source.Price";
     private const string TriggerAboveKey = "Alert.Trigger.Above";
@@ -249,11 +251,14 @@ public sealed class AlertsViewModel : ReactiveObject
             // the kind) and the trigger vocabulary all ride this selection:
             // every dependent fact re-renders, and a cross selection that
             // held At moves to a real cross edge (the editor never shows an
-            // option it would refuse).
+            // option it would refuse). The whale print (T-245) moves any
+            // standing edge to its only one — Above — because a trade alert
+            // reads "bigger than" and its trigger cell stays hidden.
             this.RaisePropertyChanged(nameof(IsPriceKind));
             this.RaisePropertyChanged(nameof(IsPercentKind));
             this.RaisePropertyChanged(nameof(IsIndicatorKind));
             this.RaisePropertyChanged(nameof(IsFundingKind));
+            this.RaisePropertyChanged(nameof(IsWhaleKind));
             this.RaisePropertyChanged(nameof(ShowsTrigger));
             this.RaisePropertyChanged(nameof(IsIndicatorValueSource));
             this.RaisePropertyChanged(nameof(IsPriceSource));
@@ -261,6 +266,11 @@ public sealed class AlertsViewModel : ReactiveObject
             if (IsCrossKind && _selectedTrigger.Trigger == AlertTrigger.At)
             {
                 SelectedTrigger = TriggerOptions.First(option => option.Trigger == AlertTrigger.Below);
+            }
+
+            if (IsWhaleKind && _selectedTrigger.Trigger != AlertTrigger.Above)
+            {
+                SelectedTrigger = TriggerOptions.First(option => option.Trigger == AlertTrigger.Above);
             }
         }
     }
@@ -283,7 +293,7 @@ public sealed class AlertsViewModel : ReactiveObject
         }
     }
 
-    /// <summary>The target-price spelling (Price kind) and the funding threshold's, in PERCENT units (FundingCross kind, T-240); parsed and validated at submit.</summary>
+    /// <summary>The target-price spelling (Price kind), the funding threshold's, in PERCENT units (FundingCross kind, T-240), and the whale threshold's, in absolute quote units (WhalePrint kind, T-245); parsed and validated at submit.</summary>
     public string TargetText
     {
         get => _targetText;
@@ -429,7 +439,7 @@ public sealed class AlertsViewModel : ReactiveObject
     /// <summary>True while the PercentMove kind is selected (its fields visible, the price fields hidden).</summary>
     public bool IsPercentKind => SelectedKind?.Kind == PriceAlertKind.PercentMove;
 
-    /// <summary>True while the selected kind reads the trigger edge vocabulary (Price, IndicatorCross and FundingCross; the PercentMove kind leaves the neutral At slot untouchable).</summary>
+    /// <summary>True while the selected kind reads the trigger edge vocabulary (Price, IndicatorCross and FundingCross; the PercentMove kind leaves the neutral At slot untouchable and the WhalePrint kind's only edge is Above — neither cell shows).</summary>
     public bool ShowsTrigger => IsPriceKind || IsCrossKind;
 
     /// <summary>True while the IndicatorCross kind is selected (T-203: its indicator fields visible, the others hidden).</summary>
@@ -437,6 +447,9 @@ public sealed class AlertsViewModel : ReactiveObject
 
     /// <summary>True while the FundingCross kind is selected (T-240: its threshold field shows in the price slot, the indicator fields stay hidden).</summary>
     public bool IsFundingKind => SelectedKind?.Kind == PriceAlertKind.FundingCross;
+
+    /// <summary>True while the WhalePrint kind is selected (T-245: its threshold field shows in the price slot, the trigger cell hides — a trade alert reads "bigger than", no edge choice exists).</summary>
+    public bool IsWhaleKind => SelectedKind?.Kind == PriceAlertKind.WhalePrint;
 
     /// <summary>True while the selected kind is a cross vocabulary kind (T-203/T-240: Above/Below only, At never offered).</summary>
     public bool IsCrossKind => IsIndicatorKind || IsFundingKind;
@@ -747,6 +760,20 @@ public sealed class AlertsViewModel : ReactiveObject
 
                 break;
 
+            case PriceAlertKind.WhalePrint:
+                // The threshold rides the Price kind's own field slot in
+                // absolute quote units (T-245); zero and negatives are no
+                // thresholds at all (everything and nothing would satisfy
+                // them) — only the parse is demanded here, the draft
+                // validation refuses the non-positive remainder.
+                if (!decimal.TryParse(_targetText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out target))
+                {
+                    inputError = _localization.GetString(InvalidateWhaleThresholdKey, _targetText);
+                    return false;
+                }
+
+                break;
+
             default:
                 inputError = _localization.GetString(InvalidateOperationKey, "unknown alert kind");
                 return false;
@@ -755,7 +782,7 @@ public sealed class AlertsViewModel : ReactiveObject
         draft = new AlertDraft(
             SymbolName: symbol.Normalized,
             Kind: kindOption.Kind,
-            Trigger: triggerOption.Trigger,
+            Trigger: kindOption.Kind == PriceAlertKind.WhalePrint ? AlertTrigger.Above : triggerOption.Trigger,
             TargetPrice: target,
             ThresholdPercent: percent,
             WindowMinutes: window,
@@ -797,6 +824,7 @@ public sealed class AlertsViewModel : ReactiveObject
         KindOptions.Add(new AlertKindOption(PriceAlertKind.PercentMove, _localization.GetString(KindPercentKey)));
         KindOptions.Add(new AlertKindOption(PriceAlertKind.IndicatorCross, _localization.GetString(KindIndicatorKey)));
         KindOptions.Add(new AlertKindOption(PriceAlertKind.FundingCross, _localization.GetString(KindFundingKey)));
+        KindOptions.Add(new AlertKindOption(PriceAlertKind.WhalePrint, _localization.GetString(KindWhaleKey)));
         TriggerOptions.Clear();
         TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Above, _localization.GetString(TriggerAboveKey)));
         TriggerOptions.Add(new AlertTriggerOption(AlertTrigger.Below, _localization.GetString(TriggerBelowKey)));

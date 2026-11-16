@@ -380,6 +380,7 @@ internal static class CompositionRoot
             new TradeTapeViewModel(
                 sp.GetRequiredService<IMarketDataAdapter>(),
                 sp.GetRequiredService<ChartViewModel>().SymbolSelections,
+                sp.GetRequiredService<ISettingsService>(), // T-245: the whale filter's persisted state.
                 sp.GetRequiredService<ILogger<TradeTapeViewModel>>()));
         // T-108: the performance HUD — the sampler + its overlay ViewModel.
         // The service taps the book ViewModel's own stream (the rate and the

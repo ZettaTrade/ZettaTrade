@@ -220,6 +220,75 @@ public sealed class TradeTapePageLayoutTests
 
     #endregion
 
+    #region Whale Highlight (T-245)
+
+    /// <summary>Explicit notional facts: price × quantity names its own arithmetic.</summary>
+    private static MarketTrade NotionalTrade(decimal price, decimal quantity, OrderSide side = OrderSide.Buy) =>
+        new()
+        {
+            Id = $"n{price}-{quantity}",
+            Symbol = Symbol.Parse("BTC/USDT"),
+            Side = side,
+            Price = new Price(price),
+            Quantity = new Quantity(quantity),
+            Timestamp = DateTimeOffset.UnixEpoch,
+        };
+
+    [Fact]
+    public void Build_WhaleThreshold_MarksTheRowsWhoseNotionalIsStrictlyAbove()
+    {
+        // Notionals: 500 exactly, 500.5 above, 499.99 below.
+        var trades = new List<MarketTrade>
+        {
+            NotionalTrade(50m, 10m),
+            NotionalTrade(50m, 10.01m),
+            NotionalTrade(50m, 9.9998m),
+        };
+
+        var page = TradeTapePageLayout.Build(
+            trades,
+            HeightFor(3),
+            RowHeight,
+            HeaderHeight,
+            isPaused: false,
+            whaleThreshold: 500m);
+
+        page.Rows.Select(row => row.IsWhale).Should().Equal(new[] { false, true, false },
+            "a whale print is a notional strictly above the threshold — exactly-at is no whale");
+    }
+
+    [Fact]
+    public void Build_NonPositiveThreshold_MarksNothingWhale()
+    {
+        var trades = new List<MarketTrade> { NotionalTrade(100m, 1000m) };
+
+        var off = TradeTapePageLayout.Build(trades, HeightFor(1), RowHeight, HeaderHeight, isPaused: false, whaleThreshold: 0m);
+        var negative = TradeTapePageLayout.Build(trades, HeightFor(1), RowHeight, HeaderHeight, isPaused: false, whaleThreshold: -1m);
+
+        off.Rows[0].IsWhale.Should().BeFalse("zero is the filter's honest off");
+        negative.Rows[0].IsWhale.Should().BeFalse("a negative threshold highlights nothing either");
+    }
+
+    [Fact]
+    public void Build_WhaleMarkIsIndependentOfTheSide()
+    {
+        var buy = NotionalTrade(50m, 10.01m, OrderSide.Buy);
+        var sell = NotionalTrade(50m, 10.01m, OrderSide.Sell);
+
+        var page = TradeTapePageLayout.Build(
+            new List<MarketTrade> { buy, sell },
+            HeightFor(2),
+            RowHeight,
+            HeaderHeight,
+            isPaused: false,
+            whaleThreshold: 500m);
+
+        page.Rows[0].IsWhale.Should().BeTrue();
+        page.Rows[1].IsWhale.Should().BeTrue("the highlight reads the notional alone, the aggressor side keeps its own coloring");
+    }
+
+    #endregion
+
     #region Performance
 
     /// <summary>Untimed frames that prime JIT paths before the measured burst.</summary>

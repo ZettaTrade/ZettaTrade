@@ -42,17 +42,21 @@ public static class TradeTapePageLayout
     /// ring's fill, so a 4096-trade ring costs the same as a fresh one.
     /// A paused page keeps the rows it froze with and carries the localized
     /// hint the header band shows while new trades stay buffered.
+    /// A positive <paramref name="whaleThreshold"/> marks a row whose notional
+    /// (price × quantity) is strictly above it as a whale print (T-245);
+    /// a non-positive threshold marks none.
     /// </summary>
     public static TradeTapePage Build(
         IReadOnlyList<MarketTrade> newestFirst,
         double height,
         double rowHeight,
         double headerHeight,
-        bool isPaused)
+        bool isPaused,
+        decimal whaleThreshold = 0m)
     {
         var bodyHeight = Math.Max(0, height - headerHeight);
         var visibleRows = Math.Max(MinRows, (int)(bodyHeight / rowHeight));
-        var rows = BuildRows(newestFirst, visibleRows, rowHeight, headerHeight);
+        var rows = BuildRows(newestFirst, visibleRows, rowHeight, headerHeight, whaleThreshold);
 
         return new TradeTapePage(
             isPaused ? Localized(PausedHintKey) : null,
@@ -74,7 +78,8 @@ public static class TradeTapePageLayout
         IReadOnlyList<MarketTrade> newestFirst,
         int visibleRows,
         double rowHeight,
-        double headerHeight)
+        double headerHeight,
+        decimal whaleThreshold)
     {
         var visible = Math.Min(newestFirst.Count, visibleRows);
         var rows = new List<TradeTapeDrawRow>(visible);
@@ -84,11 +89,18 @@ public static class TradeTapePageLayout
             var trade = newestFirst[i];
             var y = (float)(headerHeight + (i * rowHeight));
 
+            // T-245: a whale print is a notional strictly above the threshold
+            // (the same edge the alerts fire on); 0 or a negative threshold
+            // filters nothing.
+            var isWhale = whaleThreshold > 0m &&
+                trade.Price.Value * trade.Quantity.Value > whaleThreshold;
+
             rows.Add(new TradeTapeDrawRow(
                 TimeText(trade.Timestamp),
                 MoneyText(trade.Price.Value),
                 MoneyText(trade.Quantity.Value),
                 trade.Side,
+                isWhale,
                 y));
         }
 
@@ -123,14 +135,17 @@ public static class TradeTapePageLayout
 
 /// <summary>
 /// One drawn trade row: its precomputed text columns, the aggressor side the
-/// row is colored with (buys the bullish color, sells the bearish one) and
-/// the top Y coordinate (the newest trade at the top of the body).
+/// row is colored with (buys the bullish color, sells the bearish one), the
+/// whale flag (T-245 — the size column draws in the accent color with a bold
+/// face when the notional crossed the threshold) and the top Y coordinate
+/// (the newest trade at the top of the body).
 /// </summary>
 public readonly record struct TradeTapeDrawRow(
     string TimeText,
     string PriceText,
     string SizeText,
     OrderSide Side,
+    bool IsWhale,
     float Y);
 
 /// <summary>

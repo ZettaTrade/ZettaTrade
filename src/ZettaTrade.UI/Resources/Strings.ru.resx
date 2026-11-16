@@ -1836,6 +1836,12 @@
   <data name="Tape.Size" xml:space="preserve">
     <value>Объём</value>
   </data>
+  <data name="Tape.WhaleLabel" xml:space="preserve">
+    <value>Фильтр крупных</value>
+  </data>
+  <data name="Tape.WhaleA11y" xml:space="preserve">
+    <value>Порог объёма фильтра крупных сделок</value>
+  </data>
   <data name="Tape.Liquidations.Title" xml:space="preserve">
     <value>Ликвидации</value>
   </data>
@@ -2892,6 +2898,9 @@
   <data name="Alert.Editing.FundingThreshold" xml:space="preserve">
     <value>Фандинг, %</value>
   </data>
+  <data name="Alert.Editing.WhaleThreshold" xml:space="preserve">
+    <value>Объём выше</value>
+  </data>
   <data name="Alert.Editing.ReArm" xml:space="preserve">
     <value>После срабатывания</value>
   </data>
@@ -2912,6 +2921,9 @@
   </data>
   <data name="Alert.Kind.FundingCross" xml:space="preserve">
     <value>Пересечение фандинга</value>
+  </data>
+  <data name="Alert.Kind.WhalePrint" xml:space="preserve">
+    <value>Крупная сделка</value>
   </data>
   <data name="Alert.Trigger.Above" xml:space="preserve">
     <value>Поднимается выше</value>
@@ -2991,6 +3003,9 @@
   <data name="Alert.Condition.Funding.Below.Format" xml:space="preserve">
     <value>фандинг пересёк {0}% снизу</value>
   </data>
+  <data name="Alert.Condition.Whale.Format" xml:space="preserve">
+    <value>объём сделки выше {0}</value>
+  </data>
   <data name="Alert.Create" xml:space="preserve">
     <value>Создать</value>
   </data>
@@ -3026,6 +3041,9 @@
   </data>
   <data name="Alert.Error.InvalidFundingThreshold" xml:space="preserve">
     <value>'{0}' — не разборчивый порог фандинга (проценты).</value>
+  </data>
+  <data name="Alert.Error.InvalidWhaleThreshold" xml:space="preserve">
+    <value>'{0}' — не число (порог объёма сделки).</value>
   </data>
   <data name="Alert.Error.InvalidCooldown" xml:space="preserve">
     <value>'{0}' — не разборчивая пауза (минуты).</value>

@@ -26,7 +26,11 @@ using ZettaTrade.Plugins.Abstractions;
 /// app's active-exchange facade), every arriving observation is routed
 /// through a channel into a serial consumer task — the engine serializes all
 /// roster work and tick work behind one gate, so roster edits, fires and
-/// reloads never interleave.
+/// reloads never interleave. The whale-print kind (T-245) adds the kind's
+/// own route: one trade subscription per whale-armed symbol — the same
+/// prints the tape shows — whose quantity-carrying observations evaluate
+/// only the whale alerts (a print is not a tick), so no other kind ever
+/// judges a trade row and the whale never judges a tick.
 /// </summary>
 /// <remarks>
 /// Delayed semantics without timers: a snoozed alert re-arms on the next
@@ -127,6 +131,13 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
 
     /// <summary>The live ticker subscriptions keyed by normalized symbol (the same spelling the definitions carry).</summary>
     private readonly Dictionary<string, IDisposable> _tickSubscriptions = [];
+
+    /// <summary>
+    /// The live trade subscriptions keyed by normalized symbol (T-245): the
+    /// whale-print kind's own route — the adapters' existing trade stream,
+    /// the same prints the tape shows, never a second venue feed of its own.
+    /// </summary>
+    private readonly Dictionary<string, IDisposable> _tradeSubscriptions = [];
 
     /// <summary>The per-symbol closed one-minute candle series, ascending by open time (T-203):
     /// the seeded history page plus every session close; bounded by <see cref="MaxCandlesPerSymbol"/>.</summary>
@@ -480,9 +491,12 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     /// <summary>Apply one observation behind the gate: track it, evaluate the symbol's Armed alerts, make the transitions and their persistence.</summary>
     private async Task ApplyObservationAsync(AlertObservation observation, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(observation.SymbolName) || observation.Price <= 0m)
+        if (string.IsNullOrWhiteSpace(observation.SymbolName) || observation.Price <= 0m ||
+            (observation.Quantity is { } arriving && arriving <= 0m))
         {
             // A malformed observation evaluates nothing: the route drops it, nothing defaults.
+            // A trade row without a strictly positive size is exactly that (T-245) — the
+            // wire's honest garbage, never a notional zero.
             return;
         }
 
@@ -492,6 +506,31 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
             var evaluatable = _definitions
                 .Where(definition => definition.SymbolName == observation.SymbolName && definition.IsEvaluatable)
                 .ToList();
+
+            // The route discriminator (T-245): a quantity-carrying observation
+            // rides the trade stream and evaluates ONLY the whale-print alerts;
+            // a quantity-less one rides the ticker stream and never reaches
+            // them. Every track on this symbol (the move history, the candles,
+            // the funding rates) belongs to the ticker side alone — a print is
+            // not a tick.
+            var tradeRoute = observation.Quantity is not null;
+            evaluatable = evaluatable
+                .Where(definition => tradeRoute == (definition.Kind == PriceAlertKind.WhalePrint))
+                .ToList();
+
+            if (tradeRoute)
+            {
+                // The trade route's whole job: the whale-print evaluation. No
+                // history pruning, no candles, no funding — and an arriving
+                // print with nothing listening stays a full pass-through (the
+                // ticker side's history is never this route's to drop).
+                if (evaluatable.Count > 0 && EvaluateDefinitions(evaluatable, observation))
+                {
+                    await PersistAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                return;
+            }
 
             if (evaluatable.Count == 0)
             {
@@ -510,57 +549,7 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
             // previous candle and hands it to the close evaluation.
             var closedCandle = TrackCandle(observation);
 
-            var changed = false;
-            foreach (var definition in evaluatable)
-            {
-                if (definition.Status == AlertStatus.Snoozed)
-                {
-                    if (definition.SnoozedUntilUtc is not { } until || observation.OccurredUtc < until)
-                    {
-                        continue;
-                    }
-
-                    // The snooze window expired on an arriving tick: re-arm NOW,
-                    // evaluate later (the re-arm tick itself is not an evaluation).
-                    Replace(definition with
-                    {
-                        Status = AlertStatus.Armed,
-                        SnoozedUntilUtc = null,
-                    });
-                    changed = true;
-                    continue;
-                }
-
-                if (!IsReached(definition, observation))
-                {
-                    if (definition.ReArm != AlertReArmMode.OneShot)
-                    {
-                        // The re-arm gate tracks the last evaluation's hit
-                        // truth (T-204): the level left its edge, the held mark
-                        // clears, the next crossing is fresh.
-                        _reArmHitStates[definition.Id] = false;
-                    }
-
-                    continue;
-                }
-
-                if (definition.ReArm != AlertReArmMode.OneShot)
-                {
-                    if (_reArmHitStates.TryGetValue(definition.Id, out var wasHit) && wasHit)
-                    {
-                        // The held mark: the condition never left its edge since
-                        // the last fire — the crossing is not fresh, no fire.
-                        continue;
-                    }
-
-                    // A missing entry is the unknown state (the T-096 arming
-                    // semantics: the FIRST hit fires); the hit marks itself.
-                    _reArmHitStates[definition.Id] = true;
-                }
-
-                Fire(definition, observation);
-                changed = true;
-            }
+            var changed = EvaluateDefinitions(evaluatable, observation);
 
             // The funding-rate tracking (T-240) lands AFTER the per-definition
             // loop: the evaluations above read the PREVIOUS rate out of the
@@ -598,6 +587,69 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Run one route's per-definition evaluation pass (the shared loop behind
+    /// both routes): the snooze-expiry re-arm, the exact-edge check and the
+    /// re-arm-gated fire. Returns whether the roster changed (a re-arm or a
+    /// fire) so the caller persists.
+    /// </summary>
+    private bool EvaluateDefinitions(List<AlertDefinition> definitions, AlertObservation observation)
+    {
+        var changed = false;
+        foreach (var definition in definitions)
+        {
+            if (definition.Status == AlertStatus.Snoozed)
+            {
+                if (definition.SnoozedUntilUtc is not { } until || observation.OccurredUtc < until)
+                {
+                    continue;
+                }
+
+                // The snooze window expired on an arriving fact: re-arm NOW,
+                // evaluate later (the re-arm fact itself is not an evaluation).
+                Replace(definition with
+                {
+                    Status = AlertStatus.Armed,
+                    SnoozedUntilUtc = null,
+                });
+                changed = true;
+                continue;
+            }
+
+            if (!IsReached(definition, observation))
+            {
+                if (definition.ReArm != AlertReArmMode.OneShot)
+                {
+                    // The re-arm gate tracks the last evaluation's hit
+                    // truth (T-204): the level left its edge, the held mark
+                    // clears, the next crossing is fresh.
+                    _reArmHitStates[definition.Id] = false;
+                }
+
+                continue;
+            }
+
+            if (definition.ReArm != AlertReArmMode.OneShot)
+            {
+                if (_reArmHitStates.TryGetValue(definition.Id, out var wasHit) && wasHit)
+                {
+                    // The held mark: the condition never left its edge since
+                    // the last fire — the crossing is not fresh, no fire.
+                    continue;
+                }
+
+                // A missing entry is the unknown state (the T-096 arming
+                // semantics: the FIRST hit fires); the hit marks itself.
+                _reArmHitStates[definition.Id] = true;
+            }
+
+            Fire(definition, observation);
+            changed = true;
+        }
+
+        return changed;
+    }
+
     /// <summary>Does the definition's condition hold on this observation exactly?</summary>
     private bool IsReached(AlertDefinition definition, AlertObservation observation) => definition.Kind switch
     {
@@ -612,8 +664,32 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
         // the arriving observation's, at the stored percent threshold
         // converted once into the wire's fraction units.
         PriceAlertKind.FundingCross => IsFundingCrossReached(definition, observation),
+
+        // T-245: the whale print judges the print's own notional (price ×
+        // quantity) against the stored threshold in absolute quote units; the
+        // edge is the stored Above by construction (draft + codec refuse the
+        // rest) and the edge seam stays the one decider.
+        PriceAlertKind.WhalePrint => IsWhaleReached(definition, observation),
         _ => throw new ArgumentOutOfRangeException(nameof(definition), definition.Kind, "The definition names no known alert kind."),
     };
+
+    /// <summary>
+    /// The whale-print evaluation (T-245): the arriving print's notional
+    /// (served price × served size) against the stored threshold in absolute
+    /// quote-currency units, strictly above by the stored edge. The route
+    /// discriminator guarantees a quantity; the honest guard keeps the
+    /// predicate total.
+    /// </summary>
+    private bool IsWhaleReached(AlertDefinition definition, AlertObservation observation)
+    {
+        if (observation.Quantity is not { } quantity)
+        {
+            return false;
+        }
+
+        var notional = observation.Price * quantity;
+        return AlertEdge.IsLevelHit(definition.Trigger, notional, definition.TargetPrice);
+    }
 
     /// <summary>
     /// The funding-cross evaluation (T-240): the tracked previous rate
@@ -1051,23 +1127,32 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
     #region Tick Subscriptions
 
     /// <summary>
-    /// Reconcile the ticker subscriptions with the evaluatable symbol set:
-    /// a symbol with zero evaluatable alerts drops its subscription (and its
-    /// candle state and seeded flag — a fresh arm re-seeds), a newly armed
-    /// symbol gains one; a live symbol carrying an evaluatable indicator-cross
-    /// alert gets its ONE-SHOT M1 history seed (T-203) the first time it is
-    /// live this session, so the first close evaluates against real history
-    /// instead of an hour of warmup. Called under the gate.
+    /// Reconcile both subscription families with the evaluatable symbol set
+    /// (T-245): the ticker subscriptions serve every evaluatable kind EXCEPT
+    /// the whale print (a tick carries no size), the trade subscriptions
+    /// serve exactly the whale-print symbols — the same prints the tape
+    /// shows, no second venue feed of its own. A symbol leaving a family
+    /// drops its subscription (the ticker side also drops its candle state
+    /// and seeded flag — a fresh arm re-seeds), a newly armed symbol gains
+    /// one; a live symbol carrying an evaluatable indicator-cross alert gets
+    /// its ONE-SHOT M1 history seed (T-203) the first time it is live this
+    /// session, so the first close evaluates against real history instead of
+    /// an hour of warmup. Called under the gate.
     /// </summary>
     private async Task RecalculateSubscriptionsAsync(CancellationToken cancellationToken)
     {
-        var symbols = _definitions
-            .Where(definition => definition.IsEvaluatable)
+        var tickerSymbols = _definitions
+            .Where(definition => definition.IsEvaluatable && definition.Kind != PriceAlertKind.WhalePrint)
+            .Select(definition => definition.SymbolName)
+            .Distinct(StringComparer.Ordinal)
+            .ToHashSet(StringComparer.Ordinal);
+        var tradeSymbols = _definitions
+            .Where(definition => definition.IsEvaluatable && definition.Kind == PriceAlertKind.WhalePrint)
             .Select(definition => definition.SymbolName)
             .Distinct(StringComparer.Ordinal)
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var symbolName in _tickSubscriptions.Keys.Where(name => !symbols.Contains(name)).ToArray())
+        foreach (var symbolName in _tickSubscriptions.Keys.Where(name => !tickerSymbols.Contains(name)).ToArray())
         {
             _tickSubscriptions[symbolName].Dispose();
             _tickSubscriptions.Remove(symbolName);
@@ -1077,7 +1162,13 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
             _fundingRates.Remove(symbolName);
         }
 
-        foreach (var symbolName in symbols.Where(name => !_tickSubscriptions.ContainsKey(name)))
+        foreach (var symbolName in _tradeSubscriptions.Keys.Where(name => !tradeSymbols.Contains(name)).ToArray())
+        {
+            _tradeSubscriptions[symbolName].Dispose();
+            _tradeSubscriptions.Remove(symbolName);
+        }
+
+        foreach (var symbolName in tickerSymbols.Where(name => !_tickSubscriptions.ContainsKey(name)))
         {
             Symbol symbol;
             try
@@ -1100,6 +1191,31 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
                     FundingRate = tick.FundingRate,
                 }),
                 ex => _logger.LogWarning(ex, "The alert ticker stream for {Symbol} ended unexpectedly", symbolName));
+        }
+
+        foreach (var symbolName in tradeSymbols.Where(name => !_tradeSubscriptions.ContainsKey(name)))
+        {
+            Symbol symbol;
+            try
+            {
+                symbol = Symbol.Parse(symbolName);
+            }
+            catch (Exception ex)
+            {
+                // The stored spelling refuses to parse: the same honest
+                // refusal the ticker side keeps — logged loudly, subscribed
+                // never, nothing silently normalized.
+                _logger.LogError(ex, "The alert symbol spelling '{Symbol}' does not parse; its alerts stay inert", symbolName);
+                continue;
+            }
+
+            var stream = _ticks.SubscribeTrades(symbol);
+            _tradeSubscriptions[symbolName] = stream.Subscribe(
+                trade => _inbox.Writer.TryWrite(new AlertObservation(symbolName, trade.Timestamp, trade.Price.Value)
+                {
+                    Quantity = trade.Quantity.Value,
+                }),
+                ex => _logger.LogWarning(ex, "The alert trade stream for {Symbol} ended unexpectedly", symbolName));
         }
 
         await SeedCandleHistoryAsync(cancellationToken).ConfigureAwait(false);
@@ -1192,6 +1308,13 @@ public sealed class AlertEngine : IAlertEngine, IAsyncDisposable
         }
 
         _tickSubscriptions.Clear();
+
+        foreach (var subscription in _tradeSubscriptions.Values)
+        {
+            subscription.Dispose();
+        }
+
+        _tradeSubscriptions.Clear();
 
         _consumerStop.Dispose();
         _gate.Dispose();

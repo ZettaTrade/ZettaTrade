@@ -217,6 +217,73 @@ public sealed class AlertCodecTests
             .Which.TargetPrice.Should().Be(-0.05m);
     }
 
+    private static AlertDefinition WhalePrintAlert(
+        AlertStatus status = AlertStatus.Armed,
+        AlertTrigger trigger = AlertTrigger.Above,
+        decimal notionalThreshold = 250_000m) => new(
+        Id: Guid.Parse("0a0a0a0a-0000-0000-0000-000000000005"),
+        SymbolName: "BTC/USDT",
+        Kind: PriceAlertKind.WhalePrint,
+        Trigger: trigger,
+        TargetPrice: notionalThreshold,
+        ThresholdPercent: 0m,
+        WindowMinutes: 0,
+        Note: string.Empty,
+        Status: status,
+        CreatedUtc: Base,
+        SnoozedUntilUtc: status == AlertStatus.Snoozed ? Base.AddMinutes(15) : null,
+        LastFiredUtc: status == AlertStatus.Fired ? Base.AddMinutes(30) : null);
+
+    /// <summary>
+    /// The whale-print kind (T-245) round-trips every fact: the absolute
+    /// notional threshold rides the price slot verbatim, the fixed Above
+    /// edge and the status stamps survive, the re-arm facts ride version 3
+    /// exactly as the other kinds'.
+    /// </summary>
+    [Fact]
+    public void RoundTrip_TheWhalePrintKindSurvivesEveryFact()
+    {
+        var roster = new[]
+        {
+            WhalePrintAlert(),
+            WhalePrintAlert(
+                status: AlertStatus.Fired,
+                notionalThreshold: 1_250_000m) with
+            {
+                ReArm = AlertReArmMode.PerCross,
+                Sound = AlertSoundChoice.Silent,
+            },
+        };
+
+        var decoded = AlertCodec.Decode(AlertCodec.Encode(roster));
+
+        decoded.SkippedCount.Should().Be(0);
+        decoded.Valid.Should().Equal(roster, "the notional threshold, the Above edge and the stamps decode verbatim");
+    }
+
+    [Theory]
+    [InlineData("\"At\"")]
+    [InlineData("\"Below\"")]
+    public void AWhaleEntry_WithAMeaninglessEdge_IsSkipped(string trigger)
+    {
+        var decoded = AlertCodec.Decode(WhaleRoster(trigger: trigger));
+
+        decoded.SkippedCount.Should().Be(1, "a trade alert reads only 'bigger than' (Above); the rest is unhonorable");
+        decoded.Valid.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("0")]
+    [InlineData("-1")]
+    public void AWhaleEntry_WithoutAPositiveThreshold_IsSkipped(string? targetPrice)
+    {
+        var decoded = AlertCodec.Decode(WhaleRoster(targetPrice: targetPrice));
+
+        decoded.SkippedCount.Should().Be(1, "zero and negatives are no thresholds at all; a missing member is no fact");
+        decoded.Valid.Should().BeEmpty();
+    }
+
     [Fact]
     public void RoundTrip_BothKindsEveryFact_Survives()
     {
@@ -457,6 +524,35 @@ public sealed class AlertCodecTests
         ("status", "\"Armed\""),
         ("createdUtc", null!),
     ];
+
+    private static readonly List<(string Member, string Json)> WhaleMembers =
+    [
+        ("id", "\"0a0a0a0a-0000-0000-0000-000000000005\""),
+        ("symbol", "\"BTC/USDT\""),
+        ("trigger", "\"Above\""),
+        ("status", "\"Armed\""),
+        ("createdUtc", null!),
+    ];
+
+    /// <summary>
+    /// Build one version-2 roster whose single entry is a whale print
+    /// carrying the named notional threshold (or none at all — the
+    /// missing-threshold fact); the trigger spelling is overridable for the
+    /// meaningless-edge facts.
+    /// </summary>
+    private static string WhaleRoster(string trigger = "\"Above\"", string? targetPrice = "250000")
+    {
+        var members = WhaleMembers
+            .Select(entry => entry.Member == "createdUtc" ? (entry.Member, BaseTicksJson) : entry)
+            .Select(entry => entry.Member == "trigger" ? (entry.Member, trigger) : entry)
+            .ToList();
+        if (targetPrice is { } value)
+        {
+            members.Add(("targetPrice", value));
+        }
+
+        return $"{{\"version\":2,\"alerts\":[{{\"kind\":\"WhalePrint\",{JoinMembers(members)}}}]}}";
+    }
 
     /// <summary>
     /// Build one version-2 roster whose single entry is a funding-cross

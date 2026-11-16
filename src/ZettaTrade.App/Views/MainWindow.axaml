@@ -494,9 +494,24 @@
                                                     Content="{loc:Localized Tape.Clear}"
                                                     Click="OnTapeClearClick"
                                                     MinWidth="72" />
+                                            <!-- T-245: the whale filter — a caption and the
+                                                 notional threshold field, docked left of Clear.
+                                                 The binding pushes the live value into the
+                                                 widget; the ViewModel owns apply + persist. -->
+                                            <StackPanel DockPanel.Dock="Right"
+                                                        Orientation="Horizontal"
+                                                        Spacing="6"
+                                                        Margin="0,0,8,0"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{loc:Localized Tape.WhaleLabel}"
+                                                           VerticalAlignment="Center" />
+                                                <TextBox Width="90"
+                                                         Text="{Binding WhaleThresholdText}"
+                                                         AutomationProperties.Name="{loc:Localized Tape.WhaleA11y}" />
+                                            </StackPanel>
                                             <TextBlock Text="{loc:Localized Tape.Title}" />
                                         </DockPanel>
-                                        <charting:TradeTapeWidget x:Name="TapeWidget" Grid.Row="1" Trades="{Binding Updates}" />
+                                        <charting:TradeTapeWidget x:Name="TapeWidget" Grid.Row="1" Trades="{Binding Updates}" WhaleThreshold="{Binding WhaleThreshold}" />
                                     </Grid>
                                 </TabItem>
                                 <TabItem DataContext="{Binding Liquidations}">

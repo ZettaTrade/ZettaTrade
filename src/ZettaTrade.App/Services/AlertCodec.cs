@@ -61,7 +61,12 @@ public static class AlertCodec
 
     /// <summary>The enums the codec stores: every value parses by its exact enum name, case-insensitively.</summary>
     private static readonly Dictionary<string, PriceAlertKind> StoredKinds =
-        Built(PriceAlertKind.Price, PriceAlertKind.PercentMove, PriceAlertKind.IndicatorCross, PriceAlertKind.FundingCross);
+        Built(
+            PriceAlertKind.Price,
+            PriceAlertKind.PercentMove,
+            PriceAlertKind.IndicatorCross,
+            PriceAlertKind.FundingCross,
+            PriceAlertKind.WhalePrint);
     private static readonly Dictionary<string, AlertTrigger> StoredTriggers = Built(AlertTrigger.Above, AlertTrigger.Below, AlertTrigger.At);
     private static readonly Dictionary<string, AlertStatus> StoredStatuses =
         Built(AlertStatus.Armed, AlertStatus.Snoozed, AlertStatus.Fired, AlertStatus.Paused);
@@ -253,7 +258,9 @@ public static class AlertCodec
         // entry a positive percent inside a positive window, an
         // indicator-cross entry (T-203) a resolvable-looking spec with a real
         // cross edge, a funding-cross entry (T-240) a present (signed)
-        // threshold member with a real cross edge. Facts the other kinds
+        // threshold member with a real cross edge, a whale-print entry
+        // (T-245) a strictly positive notional threshold with the exact
+        // Above edge. Facts the other kinds
         // unused-fields (even junk there) stay harmlessly decodable — the
         // demark is the kind, never a silent value guess.
         if (id == Guid.Empty ||
@@ -301,6 +308,17 @@ public static class AlertCodec
                 return false;
             }
         }
+        else if (kind == PriceAlertKind.WhalePrint)
+        {
+            // T-245: a trade alert reads only "bigger than" — the stored edge
+            // must be the exact Above; At and Below are meaningless for a
+            // print and an entry carrying them is skipped.
+            parsedTrigger = ReadEnum(entry, TriggerMember, StoredTriggers);
+            if (parsedTrigger is not AlertTrigger.Above)
+            {
+                return false;
+            }
+        }
         else
         {
             parsedTrigger = AlertTrigger.At;
@@ -317,6 +335,15 @@ public static class AlertCodec
         // are honest thresholds), so only a missing or non-numeric member is
         // the skipped entry.
         if (kind == PriceAlertKind.FundingCross && targetPrice is null)
+        {
+            return false;
+        }
+
+        // The whale-print threshold (T-245): a strictly positive notional in
+        // absolute quote units — zero and negatives are no thresholds at all
+        // (the draft's own refusal), a missing or non-numeric member likewise.
+        if (kind == PriceAlertKind.WhalePrint &&
+            (targetPrice is not { } parsedNotional || parsedNotional <= 0m))
         {
             return false;
         }

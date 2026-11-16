@@ -24,6 +24,7 @@ public static class AlertConditionText
     private const string ConditionPriceBelowFormatKey = "Alert.Condition.Indicator.PriceBelow.Format";
     private const string ConditionFundingAboveFormatKey = "Alert.Condition.Funding.Above.Format";
     private const string ConditionFundingBelowFormatKey = "Alert.Condition.Funding.Below.Format";
+    private const string ConditionWhaleFormatKey = "Alert.Condition.Whale.Format";
 
     #endregion Resx Keys
 
@@ -69,6 +70,12 @@ public static class AlertConditionText
                 AlertTrigger.Below => localization.GetString(ConditionFundingBelowFormatKey, definition.TargetPrice),
                 _ => string.Empty,
             },
+            PriceAlertKind.WhalePrint =>
+                // T-245: the whale's only edge is Above by construction (draft
+                // + codec refuse the rest), so the line names the notional
+                // threshold alone — the manager column and the fire toast
+                // compose the same frame from it.
+                localization.GetString(ConditionWhaleFormatKey, definition.TargetPrice),
             _ => string.Empty,
         };
 }

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
@@ -106,7 +107,19 @@ public sealed class AlertEngineTests
 
         public IObservable<OrderBook> SubscribeOrderBook(Symbol symbol, int depth = 20) => Observable.Empty<OrderBook>();
 
-        public IObservable<MarketTrade> SubscribeTrades(Symbol symbol) => Observable.Empty<MarketTrade>();
+        public IObservable<MarketTrade> SubscribeTrades(Symbol symbol) =>
+            Observable.Create<MarketTrade>(observer =>
+            {
+                var subject = Trades.GetOrAdd(symbol.Normalized, _ => new Subject<MarketTrade>());
+                Interlocked.Increment(ref tradeSubscriptions);
+                var subscription = subject.Subscribe(observer);
+
+                return Disposable.Create(() =>
+                {
+                    Interlocked.Increment(ref tradeUnsubscriptions);
+                    subscription.Dispose();
+                });
+            });
 
         public Task<IReadOnlyList<Bar>> GetBarsAsync(
             Symbol symbol,
@@ -129,6 +142,19 @@ public sealed class AlertEngineTests
         private int seedCalls;
 
         public ConcurrentDictionary<string, Subject<Ticker>> Tickers { get; } = new();
+
+        /// <summary>The per-symbol trade subjects (T-245): the whale-print route's fake wire.</summary>
+        public ConcurrentDictionary<string, Subject<MarketTrade>> Trades { get; } = new();
+
+        /// <summary>How many trade subscriptions the engine opened (the route's lifecycle pin).</summary>
+        public int TradeSubscriptions => tradeSubscriptions;
+
+        /// <summary>How many trade subscriptions the engine dropped.</summary>
+        public int TradeUnsubscriptions => tradeUnsubscriptions;
+
+        private int tradeSubscriptions;
+
+        private int tradeUnsubscriptions;
     }
 
     private sealed class TestSound : IAlertSoundPlayer
@@ -366,14 +392,15 @@ public sealed class AlertEngineTests
     }
 
     private static void PushTick(TestAdapter adapter, decimal price, DateTimeOffset occurred) =>
-        adapter.Tickers[BtcUsdt.Normalized].OnNext(new Ticker(
-            BtcUsdt,
-            price,
-            price,
-            price,
-            1m,
-            0m,
-            occurred));
+        adapter.Tickers.GetOrAdd(BtcUsdt.Normalized, _ => new Subject<Ticker>())
+            .OnNext(new Ticker(
+                BtcUsdt,
+                price,
+                price,
+                price,
+                1m,
+                0m,
+                occurred));
 
     /// <summary>The funding tick (T-240): the wire's rate rides the ticker's own funding member (nothing = the honest absence).</summary>
     private static void PushFundingTick(TestAdapter adapter, decimal? fundingRate, DateTimeOffset occurred) =>
@@ -386,6 +413,28 @@ public sealed class AlertEngineTests
             0m,
             occurred,
             FundingRate: fundingRate));
+
+    /// <summary>The whale draft (T-245): the notional threshold lives on TargetPrice in absolute quote units, the edge is the fixed Above.</summary>
+    private static AlertDraft WhaleDraft(decimal notionalThreshold, string symbolName = "BTC/USDT") => new(
+        SymbolName: symbolName,
+        Kind: PriceAlertKind.WhalePrint,
+        Trigger: AlertTrigger.Above,
+        TargetPrice: notionalThreshold,
+        ThresholdPercent: 0m,
+        WindowMinutes: 0,
+        Note: string.Empty);
+
+    /// <summary>The trade print (T-245): served price × served size on the fake trade wire.</summary>
+    private static void PushTrade(TestAdapter adapter, decimal price, decimal quantity, DateTimeOffset occurred) =>
+        adapter.Trades[BtcUsdt.Normalized].OnNext(new MarketTrade
+        {
+            Id = $"print-{price}-{quantity}",
+            Symbol = BtcUsdt,
+            Side = OrderSide.Buy,
+            Price = new Price(price),
+            Quantity = new Quantity(quantity),
+            Timestamp = occurred,
+        });
 
     [Fact]
     public async Task AboveEdge_FiresStrictlyAfterTheTarget_NeverAtIt()
@@ -811,6 +860,125 @@ public sealed class AlertEngineTests
         rig.Engine.Definitions.Should().BeEmpty("the refused draft never landed");
         await rig.Engine.DisposeAsync();
     }
+
+    #region Whale Print (T-245)
+
+    [Fact]
+    public async Task AWhalePrint_FiresStrictlyAboveTheNotional_NeverAtIt()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        await rig.Engine.CreateAsync(WhaleDraft(100_000m));
+        var (census, firstFire) = WireFiredLatch(rig.Engine);
+
+        // 100 × 1000 = 100 000 exactly: the edge is strictly above, no fire.
+        PushTrade(rig.Adapter, 100m, 1000m, Base.AddMinutes(1));
+        // 100 × 1000.01 = 100 001: the qualifying print.
+        PushTrade(rig.Adapter, 100m, 1000.01m, Base.AddMinutes(2));
+
+        var fired = await firstFire.Task.WaitAsync(EventWaitBudget);
+        fired.Definition!.Kind.Should().Be(PriceAlertKind.WhalePrint);
+        fired.Observation!.OccurredUtc.Should().Be(Base.AddMinutes(2), "the fire stamps the qualifying print's own moment");
+        fired.Observation!.Quantity.Should().Be(1000.01m, "the route carries the print's served size");
+        CountFires(census).Should().Be(1);
+        rig.Sound.Played.Should().Be(1);
+        rig.Settings.Saved[^1].Should().Contain("\"Fired\"", "the fire persisted");
+        rig.Engine.Definitions.Should().ContainSingle()
+            .Which.Status.Should().Be(AlertStatus.Fired);
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AWhalePrint_TheTradeRouteNeverFeedsTheOtherKinds()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        await rig.Engine.CreateAsync(PriceDraft(110m, AlertTrigger.Above));
+        var whale = await rig.Engine.CreateAsync(WhaleDraft(50_000m));
+        var (census, firstFire) = WireFiredLatch(rig.Engine, whale);
+
+        // A print whose price alone would satisfy the price level (120 > 110)
+        // AND whose notional satisfies the whale: only the whale judges it —
+        // a print is not a tick.
+        PushTrade(rig.Adapter, 120m, 600m, Base.AddMinutes(1));
+
+        var fired = await firstFire.Task.WaitAsync(EventWaitBudget);
+        fired.Definition!.Id.Should().Be(whale.Id, "the whale is the only kind on the trade route");
+        CountFires(census).Should().Be(1);
+        rig.Engine.Definitions.Single(definition => definition.Kind == PriceAlertKind.Price)
+            .Status.Should().Be(AlertStatus.Armed, "the price level never saw the trade row");
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AWhalePrint_TheTickerRouteNeverReachesIt()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        var whale = await rig.Engine.CreateAsync(WhaleDraft(50_000m));
+        var (census, firstFire) = WireFiredLatch(rig.Engine, whale);
+
+        // Ticks with a huge price: a tick carries no size — it never judges
+        // the whale, no matter how big the price reads.
+        PushTick(rig.Adapter, 999_999m, Base.AddMinutes(1));
+        PushTick(rig.Adapter, 999_999m, Base.AddMinutes(2));
+        // The qualifying print AFTER the ticks: the FIFO proves the ticks
+        // were processed without firing.
+        PushTrade(rig.Adapter, 100m, 600m, Base.AddMinutes(3));
+
+        var fired = await firstFire.Task.WaitAsync(EventWaitBudget);
+        fired.Observation!.OccurredUtc.Should().Be(Base.AddMinutes(3), "the fire is the print's own stamp — the ticks stayed silent");
+        CountFires(census).Should().Be(1);
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AWhalePrint_TheTradeSubscriptionFollowsTheRoster()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        rig.Adapter.TradeSubscriptions.Should().Be(0, "a whale-free roster holds no trade subscription");
+
+        var whale = await rig.Engine.CreateAsync(WhaleDraft(50_000m));
+        rig.Adapter.TradeSubscriptions.Should().Be(1, "the armed whale subscribes its symbol's trade stream");
+        rig.Adapter.Trades.Keys.Should().ContainSingle().Which.Should().Be("BTC/USDT");
+        rig.Adapter.Tickers.Should().BeEmpty("a whale-only symbol rides the trade route alone, no ticker");
+
+        await rig.Engine.DeleteAsync(whale.Id);
+        rig.Adapter.TradeUnsubscriptions.Should().Be(1, "the delete drops the trade subscription with the roster entry");
+        await rig.Engine.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AZeroQuantityPrint_EvaluatesNothing_AndTheRouteSurvives()
+    {
+        var rig = BuildRig();
+        await rig.Engine.InitializeAsync();
+        await rig.Engine.CreateAsync(WhaleDraft(50_000m));
+        var (census, firstFire) = WireFiredLatch(rig.Engine);
+
+        // The wire's malformed row: a served size of zero is no trade fact —
+        // the route drops it, nothing is fabricated.
+        rig.Adapter.Trades[BtcUsdt.Normalized].OnNext(new MarketTrade
+        {
+            Id = "print-zero",
+            Symbol = BtcUsdt,
+            Side = OrderSide.Buy,
+            Price = new Price(1_000_000m),
+            Quantity = new Quantity(0m),
+            Timestamp = Base.AddMinutes(1),
+        });
+
+        // A healthy print right after: the route survived the malformed row.
+        PushTrade(rig.Adapter, 100m, 600m, Base.AddMinutes(2));
+
+        var fired = await firstFire.Task.WaitAsync(EventWaitBudget);
+        fired.Observation!.OccurredUtc.Should().Be(Base.AddMinutes(2), "only the healthy print evaluated");
+        CountFires(census).Should().Be(1);
+        await rig.Engine.DisposeAsync();
+    }
+
+    #endregion
 
     [Fact]
     public async Task AnUnresolvableIndicator_PausesAtTheFirstClose_ItCannotHonor()

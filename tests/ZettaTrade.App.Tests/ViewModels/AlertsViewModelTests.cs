@@ -296,6 +296,20 @@ public sealed class AlertsViewModelTests
         engine.Roster.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task CreateCommand_AnUnparsableWhaleThresholdRefuses_WithItsOwnLine()
+    {
+        var (model, engine, _) = Build();
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.WhalePrint);
+        model.SymbolText = "BTC/USDT";
+        model.TargetText = "an ocean";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+
+        model.ErrorMessage.Should().Be("[Alert.Error.InvalidWhaleThreshold/an ocean]");
+        engine.Roster.Should().BeEmpty();
+    }
+
     /// <summary>A settle mark on a single asset is the malformed shape the parse refuses: the symbol line carries it, never a guess.</summary>
     [Fact]
     public async Task CreateCommand_ASettleMarkedSingleAssetRefuses_WithTheSymbolLine()
@@ -426,6 +440,48 @@ public sealed class AlertsViewModelTests
         definition.TargetPrice.Should().Be(-2m, "the signed threshold is never defaulted away");
         definition.Trigger.Should().Be(AlertTrigger.Above, "the Above edge composes from the cross vocabulary");
         model.Rows[0].ConditionText.Should().Be("[Alert.Condition.Funding.Above.Format/-2]");
+    }
+
+    /// <summary>
+    /// The whale draft (T-245) rides the price slot in ABSOLUTE quote units:
+    /// the notional threshold parses, the edge composes Above regardless of
+    /// the editor's pick (a trade alert is 'bigger than'), and the row
+    /// renders the whale condition's own line. The integer pins the line
+    /// culture-invariant.
+    /// </summary>
+    [Fact]
+    public async Task CreateCommand_AValidWhaleDraft_ForcesTheAboveEdge_AndRendersTheWhaleLine()
+    {
+        var (model, engine, _) = Build();
+        using var attach = model.Attach();
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.WhalePrint);
+        model.SelectedTrigger = model.VisibleTriggerOptions.First(option => option.Trigger == AlertTrigger.Below);
+        model.SymbolText = "BTC/USDT";
+        model.TargetText = "250000";
+
+        await model.CreateCommand.Execute(RxVoid.Default);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var definition = engine.Roster.Should().ContainSingle().Subject;
+        definition.Kind.Should().Be(PriceAlertKind.WhalePrint);
+        definition.TargetPrice.Should().Be(250000m, "the notional threshold rides the price slot in absolute quote units");
+        definition.Trigger.Should().Be(AlertTrigger.Above, "a trade alert is 'bigger than' — the edge is forced at compose, the pick is never honored");
+        model.Rows[0].ConditionText.Should().Be("[Alert.Condition.Whale.Format/250000]");
+        model.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public void SelectingTheWhaleKind_ForcesTheAboveTrigger_AndCarriesItsFlag()
+    {
+        var (model, _, _) = Build();
+
+        model.IsWhaleKind.Should().BeFalse("the editor boots on the price kind");
+
+        model.SelectedKind = model.KindOptions.First(option => option.Kind == PriceAlertKind.WhalePrint);
+
+        model.IsWhaleKind.Should().BeTrue("the threshold field's visibility rides the flag");
+        model.SelectedTrigger.Trigger.Should().Be(AlertTrigger.Above,
+            "the kind switch forces the only edge a trade alert reads");
     }
 
     [Fact]

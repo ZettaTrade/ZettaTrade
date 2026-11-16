@@ -1836,6 +1836,12 @@ Estimated fee: {10}</value>
   <data name="Tape.Size" xml:space="preserve">
     <value>Size</value>
   </data>
+  <data name="Tape.WhaleLabel" xml:space="preserve">
+    <value>Whale filter</value>
+  </data>
+  <data name="Tape.WhaleA11y" xml:space="preserve">
+    <value>Whale filter notional threshold</value>
+  </data>
   <data name="Tape.Liquidations.Title" xml:space="preserve">
     <value>Liquidations</value>
   </data>
@@ -2892,6 +2898,9 @@ Estimated fee: {10}</value>
   <data name="Alert.Editing.FundingThreshold" xml:space="preserve">
     <value>Funding, %</value>
   </data>
+  <data name="Alert.Editing.WhaleThreshold" xml:space="preserve">
+    <value>Notional above</value>
+  </data>
   <data name="Alert.Editing.ReArm" xml:space="preserve">
     <value>After firing</value>
   </data>
@@ -2912,6 +2921,9 @@ Estimated fee: {10}</value>
   </data>
   <data name="Alert.Kind.FundingCross" xml:space="preserve">
     <value>Funding cross</value>
+  </data>
+  <data name="Alert.Kind.WhalePrint" xml:space="preserve">
+    <value>Whale print</value>
   </data>
   <data name="Alert.Trigger.Above" xml:space="preserve">
     <value>Rises above</value>
@@ -2991,6 +3003,9 @@ Estimated fee: {10}</value>
   <data name="Alert.Condition.Funding.Below.Format" xml:space="preserve">
     <value>funding crossed below {0}%</value>
   </data>
+  <data name="Alert.Condition.Whale.Format" xml:space="preserve">
+    <value>trade notional above {0}</value>
+  </data>
   <data name="Alert.Create" xml:space="preserve">
     <value>Create</value>
   </data>
@@ -3026,6 +3041,9 @@ Estimated fee: {10}</value>
   </data>
   <data name="Alert.Error.InvalidFundingThreshold" xml:space="preserve">
     <value>'{0}' is not a parsable funding threshold (percent).</value>
+  </data>
+  <data name="Alert.Error.InvalidWhaleThreshold" xml:space="preserve">
+    <value>'{0}' is not a parsable notional threshold.</value>
   </data>
   <data name="Alert.Error.InvalidCooldown" xml:space="preserve">
     <value>'{0}' is not a parsable cooldown (minutes).</value>

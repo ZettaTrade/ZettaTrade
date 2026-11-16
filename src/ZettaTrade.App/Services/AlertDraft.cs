@@ -9,8 +9,8 @@ namespace ZettaTrade.App.Services;
 /// </summary>
 /// <param name="SymbolName">The normalized symbol the alert evaluates.</param>
 /// <param name="Kind">Which evaluation the alert performs.</param>
-/// <param name="Trigger">The Price kind's edge trigger and the IndicatorCross and FundingCross kinds' cross direction; unused (neutral slot) for the PercentMove kind.</param>
-/// <param name="TargetPrice">The Price kind's level and the FundingCross kind's signed threshold in PERCENT units (T-240); unused (zero) for the PercentMove kind.</param>
+/// <param name="Trigger">The Price kind's edge trigger, the IndicatorCross and FundingCross kinds' cross direction, and the WhalePrint kind's fixed Above reading (T-245); unused (neutral slot) for the PercentMove kind.</param>
+/// <param name="TargetPrice">The Price kind's level, the FundingCross kind's signed threshold in PERCENT units (T-240), and the WhalePrint kind's notional threshold in absolute quote-currency units (T-245); unused (zero) for the PercentMove kind.</param>
 /// <param name="ThresholdPercent">The PercentMove kind's percent threshold (non-negative); unused (zero) for the Price kind.</param>
 /// <param name="WindowMinutes">The PercentMove kind's trailing window in minutes; unused (zero) for the Price kind.</param>
 /// <param name="Note">The user's free-text note; empty when left off.</param>
@@ -95,6 +95,21 @@ public sealed record AlertDraft(
                 // cross edge below is demanded.
                 break;
 
+            case PriceAlertKind.WhalePrint:
+                // The threshold lives on TargetPrice in ABSOLUTE quote units
+                // (T-245): a print either reaches it or it does not, so zero
+                // and negatives are no thresholds at all (everything and
+                // nothing would satisfy them) — a strictly positive notional
+                // is demanded, the same refusal the price level keeps.
+                if (TargetPrice <= 0m)
+                {
+                    throw new ArgumentException(
+                        "A whale-print trigger needs a strictly positive notional threshold.",
+                        nameof(TargetPrice));
+                }
+
+                break;
+
             case PriceAlertKind.IndicatorCross:
                 if (Indicator is not { } indicator)
                 {
@@ -143,6 +158,13 @@ public sealed record AlertDraft(
         {
             throw new ArgumentException(
                 "A funding-cross trigger reads only the Above or Below edge; At is meaningless for a cross.",
+                nameof(Trigger));
+        }
+
+        if (Kind == PriceAlertKind.WhalePrint && Trigger is not AlertTrigger.Above)
+        {
+            throw new ArgumentException(
+                "A whale-print trigger reads only the Above edge; a trade alert is 'bigger than', At and Below are meaningless.",
                 nameof(Trigger));
         }
 
