@@ -1,3 +1,25 @@
+## [0.2.23] - 2026-11-16
+
+Build of board task T-252 (branch `feat/correlation-matrix`): the
+correlation matrix panel — an N×N Pearson grid over a chosen watchlist
+and window, read from the local candle cache.
+
+### Added
+- The correlation matrix window (`Trading` menu, beside the screener):
+  pick a watchlist, a time frame (M15/H1/H4/D1) and a returns window
+  (50/100/200 bars), compute — the matrix answers the N×N Pearson
+  grid over the log returns of the cached series (the T-085 cache, the
+  reads under the screener trend computer's bounded two-slot budget, the
+  pairing off the UI thread). Two series pair ONLY where their bar-open
+  times overlap — a pair whose shared stretch cannot reach half the
+  window answers the honest dash (—), a vanished variance dashes the
+  same way; a symbol the cache cannot judge yet keeps its matrix slot as
+  an all-dash row. A roster over 32 symbols truncates with a localized
+  honesty note. A cell press routes the pair into the chart's compare
+  view (T-124): the member that is not the chart's standing anchor joins
+  the layers, the compare seam's own refusals surface on the chart's
+  error line.
+
 ## [0.2.22] - 2026-11-16
 
 Build of board task T-250 (branch `feat/squeeze-detector`): the squeeze
