@@ -5855,6 +5855,47 @@ the board and its section below.
   Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only
   protected file); the launch smoke passed before the merge.
 
+## T-244 — CVD pane: cumulative volume delta
+
+- **Branch:** `feat/cvd-pane` off `develop` (claimed 2026-11-16, the analytics sweep; the
+  worktree `zt-cvd-pane`).
+- **Origin:** the tape (T-087) carries the aggressor side; nothing sums it.
+- **What:** a cumulative buy-minus-sell volume series from the trade stream as an indicator pane,
+  a session-anchored reset option, an honest state where the adapter serves no trade data.
+- **Scope:** the pure aggregator + stream wiring + the pane renderer, resx en+ru, tests.
+- **Acceptance:** CVD equals a hand-summed fixture; the pane aligns to the chart axis.
+- **Status:** done. Canon: the chain `91a40e5` (claim) → `5a4f231` (the pane — the pure
+  `CvdAggregation`, the chart lane, the `ChartCvdSeries` sentinel, resx en+ru, the 16 tests) →
+  `e46d847` (`chore(release): 0.2.16`) is on develop (fast-forward merge); written
+  supervisor-solo (the worker quota still dead); shipped as `0.2.16` (see CHANGELOG.md). Lane
+  decisions: CVD is computed from the LIVE trade stream only — no per-bar side split is
+  fabricated from the bars' own direction (a bar's OHLC tells the candle, not the tape); the
+  attribution is the bar slot whose window `[open, open + NominalBarLength)` contains the beat
+  (binary-searched over the standing bars' own opens, never a grid-floor guess), a beat before
+  the head or at/past the last bar's close is unattributed and a non-positive size is dropped
+  (the BUG-027 discipline); a NEUTRAL beat (the T-198 wire's own no-aggressor absence)
+  contributes nothing — an only-neutral bar is the honest GAP (null), never a fabricated flat
+  zero, and the running sum carries underneath the gaps; the session-anchored reset (the
+  shipped semantics — the VWAP anchor's own UTC-day rule via
+  `VwapSessionAnchor.OpensNewSession`) restarts the sum at every session break, both reset
+  modes pinned in the goldens; the lane architecture: the chart VM holds a bounded per-bar
+  delta map (UI-thread-owned, cleared at every rebase — never a raw-trade buffer, that grows
+  unbounded on a busy symbol), the trade stream rides the active adapter's
+  `SubscribeTrades(symbol)` behind a Subject+Switch (a symbol switch retires the previous
+  stream atomically), a stale-symbol beat drops against `_loadedTarget`, and the republish is
+  PULSE-PACED (~1 s — the trade handler only marks the lane dirty; the ctor takes an optional
+  `IObservable<long>? cvdPulse` seam, the HeatmapFeedService precedent, defaulting to
+  `Observable.Interval`); the pane publishes as the THIRD synthesized oscillator line after
+  funding (T-240) and OI (T-241) — the `ChartCvdSeries` Name sentinel keys the persisted pane
+  height, the `Chart.Cvd.Pane` caption localizes en+ru; no toolbar toggle (the funding/OI
+  always-on discipline). The demo world's own tape feeds the pane; an all-gap window publishes
+  no line. Tests: App.Tests 2564/2564 (10 aggregator goldens — the hand-summed
+  buy/sell/neutral fixtures, the windowless boundaries, the both-mode session reset, the
+  honest empties — and 6 chart-lane facts among the additions), every other suite green (UI
+  432, E2E 7, AdapterKit 48, Backtest 80, Strategies 32, Soak 17, Core 61). Gate passed with
+  `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file);
+  the launch smoke passed before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
