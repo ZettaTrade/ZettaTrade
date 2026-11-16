@@ -615,6 +615,9 @@
   <data name="Chart.OpenInterest.Pane" xml:space="preserve">
     <value>Открытый интерес</value>
   </data>
+  <data name="Chart.Cvd.Pane" xml:space="preserve">
+    <value>CVD</value>
+  </data>
   <data name="Chart.LiquidationLevels.EstimateTag" xml:space="preserve">
     <value>оценка</value>
   </data>

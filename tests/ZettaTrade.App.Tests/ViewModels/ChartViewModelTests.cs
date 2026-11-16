@@ -336,6 +336,54 @@ public sealed class ChartViewModelTests
         public ValueTask DisposeAsync() => _inner.DisposeAsync();
     }
 
+    /// <summary>
+    /// The trade-streaming adapter fake (T-244): the plain market-data
+    /// fake's surface composed with a live trade stream — the scripted
+    /// beats push through the one subject, so a fact emits against the
+    /// standing subscription (a switch retires the old one, the wire's
+    /// own shape).
+    /// </summary>
+    private sealed class CvdCapableMarketData : IMarketDataAdapter
+    {
+        private readonly FakeMarketData _inner = new();
+
+        /// <summary>The live trade stream the pane's address subscribes.</summary>
+        public Subject<MarketTrade> Beats { get; } = new();
+
+        public string Id => _inner.Id;
+
+        public string Name => _inner.Name;
+
+        public bool IsConnected => _inner.IsConnected;
+
+        public ExchangeCapabilities Capabilities => _inner.Capabilities;
+
+        public Task<IReadOnlyList<Symbol>> GetSymbolsAsync(CancellationToken ct = default) =>
+            _inner.GetSymbolsAsync(ct);
+
+        public Task<IReadOnlyList<Bar>> GetBarsAsync(
+            Symbol symbol,
+            TimeFrame timeFrame,
+            DateTimeOffset from,
+            DateTimeOffset? to = null,
+            int limit = 500,
+            CancellationToken ct = default) =>
+            _inner.GetBarsAsync(symbol, timeFrame, from, to, limit, ct);
+
+        public IObservable<MarketTrade> SubscribeTrades(Symbol symbol) => Beats;
+
+        public IObservable<Ticker> SubscribeTicker(Symbol symbol) => _inner.SubscribeTicker(symbol);
+
+        public IObservable<OrderBook> SubscribeOrderBook(Symbol symbol, int depth = 20) =>
+            _inner.SubscribeOrderBook(symbol, depth);
+
+        public Task ConnectAsync(CancellationToken ct = default) => _inner.ConnectAsync(ct);
+
+        public Task DisconnectAsync(CancellationToken ct = default) => _inner.DisconnectAsync(ct);
+
+        public ValueTask DisposeAsync() => _inner.DisposeAsync();
+    }
+
     #region Composition
 
     /// <summary>
@@ -466,7 +514,8 @@ public sealed class ChartViewModelTests
         FakeDrawingStore? drawingStore = null,
         FundingHistoryService? fundingHistory = null,
         OIHistoryService? oiHistory = null,
-        LeverageBracketsService? brackets = null)
+        LeverageBracketsService? brackets = null,
+        IObservable<long>? cvdPulse = null)
     {
         var timeFrameSettings = settings;
         if (timeFrameSettings is null)
@@ -531,7 +580,8 @@ public sealed class ChartViewModelTests
             // The liquidation levels' bracket front rides the honest
             // no-table likewise (T-243).
             brackets ?? new LeverageBracketsService(service, TimeProvider.System),
-            NullLogger<ChartViewModel>.Instance);
+            NullLogger<ChartViewModel>.Instance,
+            cvdPulse: cvdPulse);
     }
 
     /// <summary>
@@ -2295,6 +2345,230 @@ public sealed class ChartViewModelTests
     }
 
     #endregion Open-Interest Pane (T-241)
+
+    #region CVD Pane (T-244)
+
+    /// <summary>One scripted trade beat for the pane's stream facts.</summary>
+    private static MarketTrade TradeBeat(Symbol symbol, OrderSide side, decimal size, DateTimeOffset timestamp) => new()
+    {
+        Id = $"t-{symbol.Normalized}-{side}-{size}-{timestamp.Ticks}",
+        Symbol = symbol,
+        Side = side,
+        Price = new Price(100m),
+        Quantity = new Quantity(size),
+        Timestamp = timestamp,
+    };
+
+    [Fact]
+    public async Task ALiveTradeBeat_PublishesTheCvdLine_AlignedWithTheBars()
+    {
+        var marketData = new CvdCapableMarketData();
+        var pulse = new Subject<long>();
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            cvdPulse: pulse);
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The delivered page addressed the pane's trade stream (the
+        // standing symbol's live wire); the beat lands in the standing
+        // bar's own slot (the window [open, open + nominal length) took
+        // it), the pulse aligns and republishes once.
+        var barLength = TimeFrameCalendar.NominalBarLength(chart.SelectedTimeFrame);
+        marketData.Beats.OnNext(
+            TradeBeat(Symbol.Parse("BTC/USDT"), OrderSide.Buy, 7m, chart.Bars[0].Time.Add(barLength / 2)));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        pulse.OnNext(0);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var cvd = chart.IndicatorLines.Should().ContainSingle(
+                line => line.Name == ChartCvdSeries.Name,
+                "the standing stream's beat publishes exactly one CVD line").Subject;
+        cvd.Values.Should().HaveCount(chart.Bars.Count, "the line aligns with the bars by index");
+        cvd.Values.Should().ContainSingle(value => value != null)
+            .Which.Should().Be(7m, "the beat's buy size fills the bar's slot");
+        cvd.PaneKind.Should().Be(IndicatorPaneKind.Oscillator);
+        cvd.LabelKey.Should().Be(ChartCvdSeries.LabelKey);
+
+        publications.SelectMany(lines => lines).Should().Contain(
+            line => line.Name == ChartCvdSeries.Name,
+            "the raw publish path carries the CVD line too");
+    }
+
+    [Fact]
+    public async Task AWindowlessBeat_IsUnattributed_AndRidesTheHonestNoPane()
+    {
+        var marketData = new CvdCapableMarketData();
+        var pulse = new Subject<long>();
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            cvdPulse: pulse);
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var barLength = TimeFrameCalendar.NominalBarLength(chart.SelectedTimeFrame);
+        marketData.Beats.OnNext(
+            TradeBeat(Symbol.Parse("BTC/USDT"), OrderSide.Buy, 7m, chart.Bars[0].Time.Subtract(barLength)));
+        marketData.Beats.OnNext(
+            TradeBeat(Symbol.Parse("BTC/USDT"), OrderSide.Sell, 3m, chart.Bars[0].Time.Add(barLength * 2)));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        pulse.OnNext(0);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // A beat before the head or past the last bar's close stands
+        // outside the standing windows — nothing attributed, no dirty
+        // lane, the honest no-pane.
+        chart.IndicatorLines.Should().NotContain(line => line.Name == ChartCvdSeries.Name);
+        publications.SelectMany(lines => lines)
+            .Should().NotContain(line => line.Name == ChartCvdSeries.Name);
+    }
+
+    [Fact]
+    public async Task AForeignSymbolBeat_Drops()
+    {
+        var marketData = new CvdCapableMarketData();
+        var pulse = new Subject<long>();
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            cvdPulse: pulse);
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The standing bar's own window, but the beat's symbol is not the
+        // standing one — the guard drops it (the pane aggregates the
+        // STANDING symbol only).
+        var barLength = TimeFrameCalendar.NominalBarLength(chart.SelectedTimeFrame);
+        marketData.Beats.OnNext(
+            TradeBeat(Symbol.Parse("ETH/BTC"), OrderSide.Buy, 7m, chart.Bars[0].Time.Add(barLength / 2)));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        pulse.OnNext(0);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.IndicatorLines.Should().NotContain(line => line.Name == ChartCvdSeries.Name);
+        publications.SelectMany(lines => lines)
+            .Should().NotContain(line => line.Name == ChartCvdSeries.Name);
+    }
+
+    [Fact]
+    public async Task AnOnlyNeutralBeat_RidesTheHonestNoPane()
+    {
+        var marketData = new CvdCapableMarketData();
+        var pulse = new Subject<long>();
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            cvdPulse: pulse);
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        // The neutral beat's volume is real but the side is unknowable —
+        // the bar stays the honest gap, the all-gap series publishes no
+        // line.
+        var barLength = TimeFrameCalendar.NominalBarLength(chart.SelectedTimeFrame);
+        marketData.Beats.OnNext(
+            TradeBeat(Symbol.Parse("BTC/USDT"), OrderSide.None, 7m, chart.Bars[0].Time.Add(barLength / 2)));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        pulse.OnNext(0);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.IndicatorLines.Should().NotContain(line => line.Name == ChartCvdSeries.Name);
+        publications.SelectMany(lines => lines)
+            .Should().NotContain(line => line.Name == ChartCvdSeries.Name);
+    }
+
+    [Fact]
+    public async Task ASymbolSwitch_RetiresTheStandingStream_AndClearsTheLane()
+    {
+        var marketData = new CvdCapableMarketData();
+        var pulse = new Subject<long>();
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            cvdPulse: pulse);
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var barLength = TimeFrameCalendar.NominalBarLength(chart.SelectedTimeFrame);
+        marketData.Beats.OnNext(
+            TradeBeat(Symbol.Parse("BTC/USDT"), OrderSide.Buy, 7m, chart.Bars[0].Time.Add(barLength / 2)));
+        await AvaloniaDispatcherPump.DrainAsync();
+        pulse.OnNext(0);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.IndicatorLines.Should().ContainSingle(
+            line => line.Name == ChartCvdSeries.Name,
+            "the standing lane publishes before the switch");
+        var publicationsBeforeSwitch = publications.Count;
+
+        // The switch is a rebase: the accumulator belongs to the replaced
+        // series, the fresh address re-subscribes the wire — the old
+        // symbol's beat (replayed against the fresh subscription) drops at
+        // the guard, the lane stays empty.
+        chart.SelectedSymbol = Symbol.Parse("ETH/BTC");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        marketData.Beats.OnNext(
+            TradeBeat(Symbol.Parse("BTC/USDT"), OrderSide.Buy, 7m, DateTimeOffset.UtcNow));
+        await AvaloniaDispatcherPump.DrainAsync();
+        pulse.OnNext(0);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        chart.IndicatorLines.Should().NotContain(line => line.Name == ChartCvdSeries.Name);
+        publications.Skip(publicationsBeforeSwitch).SelectMany(lines => lines)
+            .Should().NotContain(line => line.Name == ChartCvdSeries.Name);
+    }
+
+    [Fact]
+    public async Task ThePulse_AlignsOncePerTick_ACleanLaneStandsDown()
+    {
+        var marketData = new CvdCapableMarketData();
+        var pulse = new Subject<long>();
+        var chart = CreateChart(
+            CreateService(marketData, new FakeMarketData(id: "fake2", name: "Fake2")),
+            cvdPulse: pulse);
+        var publications = new List<IReadOnlyList<ChartIndicatorLine>>();
+        using var subscription = chart.IndicatorLinesUpdates.Subscribe(publications.Add);
+
+        chart.SelectedSymbol = Symbol.Parse("BTC/USDT");
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        var barLength = TimeFrameCalendar.NominalBarLength(chart.SelectedTimeFrame);
+        marketData.Beats.OnNext(
+            TradeBeat(Symbol.Parse("BTC/USDT"), OrderSide.Buy, 7m, chart.Bars[0].Time.Add(barLength / 2)));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        pulse.OnNext(0);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        publications.SelectMany(lines => lines).Count(line => line.Name == ChartCvdSeries.Name)
+            .Should().Be(1, "the dirty lane aligned and republished exactly once");
+
+        // A second tick with no fresh trades stands down (the dirty gate).
+        pulse.OnNext(0);
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        publications.SelectMany(lines => lines).Count(line => line.Name == ChartCvdSeries.Name)
+            .Should().Be(1, "a clean lane never republishes");
+    }
+
+    #endregion CVD Pane (T-244)
 
     #region Deep-history Repair (T-086)
 

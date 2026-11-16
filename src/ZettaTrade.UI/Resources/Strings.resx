@@ -615,6 +615,9 @@
   <data name="Chart.OpenInterest.Pane" xml:space="preserve">
     <value>Open interest</value>
   </data>
+  <data name="Chart.Cvd.Pane" xml:space="preserve">
+    <value>CVD</value>
+  </data>
   <data name="Chart.LiquidationLevels.EstimateTag" xml:space="preserve">
     <value>est.</value>
   </data>

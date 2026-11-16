@@ -1059,6 +1059,32 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private (Symbol Symbol, string ExchangeId, TimeFrame Interval)? _oiTarget;
     private int _oiKickEpoch;
 
+    /// <summary>
+    /// The CVD pane's standing series (T-244): one value per bar slot of the
+    /// series it aggregated against (the running buy-minus-sell sum; null =
+    /// the honest gap — the bar carried no sided trade), cleared on every
+    /// rebase.
+    /// </summary>
+    private IReadOnlyList<decimal?>? _cvdSeries;
+
+    /// <summary>
+    /// The CVD pane's per-bar delta accumulator (T-244): the UI-thread-owned
+    /// map the trade handler adds into and the pulse aligns out — NOT a
+    /// raw-trade buffer (that grows unbounded on a busy symbol); a rebase
+    /// clears it.
+    /// </summary>
+    private readonly Dictionary<DateTimeOffset, CvdAggregation.Bucket> _cvdBuckets = new();
+
+    /// <summary>Whether the accumulator holds deltas the standing series has not published yet (the pulse-paced republish gate).</summary>
+    private bool _cvdDirty;
+
+    /// <summary>
+    /// The pane's republish clock: the default ~1 s Rx interval or the test
+    /// seam (the heatmap feed's pulse precedent — the goldens drive the
+    /// tick deterministically).
+    /// </summary>
+    private readonly IObservable<long> _cvdPulse;
+
     /// <summary>Whether an older-history fetch is in flight (the request path serializes on it; a request racing the release is dropped and the next pan crossing re-raises it).</summary>
     private bool _olderFetchInFlight;
 
@@ -1261,6 +1287,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// same discipline as the VWAP overlay's.
     /// </summary>
     private readonly Subject<LiquidationLevelsOverlay?> _liqOverlayPublishes = new();
+
+    /// <summary>
+    /// The CVD pane's trade-stream re-address (T-244): the standing symbol
+    /// publishes here on every rebase, the constructor's Switch subscribes
+    /// exactly the standing symbol's live trades — a symbol switch cancels
+    /// the previous stream atomically.
+    /// </summary>
+    private readonly Subject<Symbol?> _cvdStreamSymbols = new();
 
     /// <summary>
     /// The persisted VWAP overlay choice: the cache LEADS the toggles'
@@ -1618,7 +1652,8 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         LeverageBracketsService leverageBrackets, // T-243: the liquidation levels' bracket front.
         ILogger<ChartViewModel> logger,
         string? slotId = null,
-        ChartTemplatesViewModel? templates = null)
+        ChartTemplatesViewModel? templates = null,
+        IObservable<long>? cvdPulse = null) // T-244: the CVD pane's republish clock (the heatmap pulse's test seam).
     {
         _activeExchanges = activeExchanges;
         _symbolList = symbolList;
@@ -1638,6 +1673,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _fundingHistory = fundingHistory;
         _openInterestHistory = openInterestHistory;
         _leverageBrackets = leverageBrackets;
+        _cvdPulse = cvdPulse ?? Observable.Interval(TimeSpan.FromSeconds(1));
 
         // The multi-chart grid (T-201): the primary keeps the workspace's
         // shared symbol key (the order book and the dialog follow it) and
@@ -1789,6 +1825,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     _oiSeries = null;
                     _oiTarget = null;
 
+                    // The CVD pane (T-244) rides the same rebase-volatile
+                    // state: the accumulator belongs to the replaced series
+                    // (the trades that fed it landed in ITS bar slots), so
+                    // the fresh grid re-aggregates from its own stream — the
+                    // old series' deltas never leak into a fresh grid.
+                    _cvdSeries = null;
+                    _cvdBuckets.Clear();
+                    _cvdDirty = false;
+
                     // The liquidation levels (T-243) ride the same
                     // rebase-volatile state: the fresh grid estimates from
                     // ITS OWN OI deltas once both inputs land — the old
@@ -1829,6 +1874,11 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // the same way — the bar interval rides it (the bucket
                     // size keyed the fetch).
                     KickOpenInterestLoad(page.Symbol, page.Adapter.Id, page.TimeFrame);
+
+                    // The delivered page re-addresses the CVD pane's trade
+                    // stream (T-244): the standing symbol's live trades feed
+                    // the fresh grid's buckets.
+                    _cvdStreamSymbols.OnNext(page.Symbol);
                 },
                 ex => _logger.LogError(ex, "The chart bars stream stopped unexpectedly"));
 
@@ -1858,6 +1908,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishVwapOverlay(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
+                    PublishCvd(Bars);
 
                     // The funding pane re-aligns against the grown series too
                     // (T-240): the cache-first load re-runs over the standing
@@ -1913,6 +1964,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishVwapOverlay(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
+                    PublishCvd(Bars);
 
                     // The funding pane re-aligns against the healed series
                     // too (T-240): the cache-first load re-runs over the
@@ -2123,6 +2175,36 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 overlay => LiquidationLevelsOverlay = overlay,
                 ex => _logger.LogError(ex, "The chart liquidation-levels overlay stream stopped unexpectedly"));
+
+        // The CVD pane (T-244) rides the LIVE trade stream: the standing
+        // symbol's address (published on every rebase) switches the
+        // subscription — a symbol switch cancels the previous stream
+        // atomically, and a stream failure ends the current symbol's data
+        // without killing the switch pipeline (the trade tape's guard
+        // discipline). The handler runs ON the UI thread: it reads and
+        // mutates the shared bucket map and marks the pane dirty.
+        _cvdStreamSymbols
+            .Select(symbol => symbol is { } standing
+                ? GuardCvdTradeStream(_activeExchanges.SubscribeTrades(standing))
+                : Observable.Empty<MarketTrade>())
+            .Switch()
+            .ObserveOnUiThread()
+            .Subscribe(
+                HandleCvdTrade,
+                ex => _logger.LogError(ex, "The chart CVD trade stream stopped unexpectedly"));
+
+        // The pane's republish is pulse-paced (T-244): the trade handler
+        // only marks the lane dirty, the ~1 s tick aligns and republishes
+        // at most once per tick — a busy symbol's trade rate never floods
+        // the pipeline with per-trade alignment passes. The ViewModel lives
+        // as long as the application, so this subscription mirrors it. The
+        // clock is the heatmap pulse's test seam: the shipped default is
+        // the Rx interval, the goldens drive the tick deterministically.
+        _cvdPulse
+            .ObserveOnUiThread()
+            .Subscribe(
+                _ => PublishCvdOnPulse(),
+                ex => _logger.LogError(ex, "The chart CVD pulse stream stopped unexpectedly"));
 
         // The two overlay toggles persist like the AI panel's visibility
         // does (T-093): the cache LEADS the pipeline — it is updated at
@@ -3070,6 +3152,19 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 LabelKey: ChartOpenInterestSeries.LabelKey)];
         }
 
+        // The CVD pane (T-244): the chart's own synthesized line rides the
+        // same tail after the OI one, merged with the persisted heights by
+        // the SAME Name key. A stale alignment (its series no longer
+        // standing) contributes nothing.
+        if (_cvdSeries is { } cvd && cvd.Count == bars.Count)
+        {
+            lines = [.. lines, new ChartIndicatorLine(
+                ChartCvdSeries.Name,
+                cvd,
+                IndicatorPaneKind.Oscillator,
+                LabelKey: ChartCvdSeries.LabelKey)];
+        }
+
         var heights = _persistedPaneHeights;
         if (heights.Count > 0)
         {
@@ -3377,6 +3472,76 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     }
 
     #endregion Liquidation Levels (T-243)
+
+    #region CVD Pane (T-244)
+
+    /// <summary>
+    /// Handle one live trade (T-244) on the UI thread (the marshalled
+    /// subscription): a stale stream's beat — a symbol the Switch has
+    /// already cancelled but whose in-flight beat crossed the cancel —
+    /// drops (the pane aggregates the STANDING symbol only). A trade inside
+    /// the standing series' windows adds into its slot's bucket and marks
+    /// the pane dirty; the pulse owns the republish.
+    /// </summary>
+    private void HandleCvdTrade(MarketTrade trade)
+    {
+        if (_loadedTarget is not { } target || trade.Symbol != target.Symbol)
+        {
+            // A stale beat drops: the standing series owns the pane, never
+            // the stream the switch already moved off.
+            return;
+        }
+
+        if (CvdAggregation.AddTrade(Bars, _cvdBuckets, trade, TimeFrameCalendar.NominalBarLength(target.TimeFrame)))
+        {
+            _cvdDirty = true;
+        }
+    }
+
+    /// <summary>
+    /// A trade-stream failure ends the current symbol's data (an error is
+    /// logged) but must not terminate the switch pipeline for later symbols
+    /// (the trade tape's guard discipline, T-244).
+    /// </summary>
+    private IObservable<MarketTrade> GuardCvdTradeStream(IObservable<MarketTrade> source) =>
+        source.Catch<MarketTrade, Exception>(ex =>
+        {
+            _logger.LogError(ex, "The CVD pane's trade stream ended with an error");
+            return Observable.Empty<MarketTrade>();
+        });
+
+    /// <summary>
+    /// The pulse tick (T-244): a clean lane stands down, a dirty lane
+    /// aligns the standing buckets over the live bar collection once and
+    /// republishes — the per-trade alignment pass never runs.
+    /// </summary>
+    private void PublishCvdOnPulse()
+    {
+        if (!_cvdDirty)
+        {
+            return;
+        }
+
+        _cvdDirty = false;
+        PublishCvd(Bars);
+    }
+
+    /// <summary>
+    /// Align the standing buckets over the given series and republish the
+    /// overlays (T-244): the aggregation is pure, the aligned values ride
+    /// the session-anchored reset (the shipped semantics — the VWAP
+    /// anchor's UTC-day rule). An all-gap series (no sided trades have
+    /// landed) is the honest no-pane: the overlays republish without the
+    /// line.
+    /// </summary>
+    private void PublishCvd(IReadOnlyList<Bar> bars)
+    {
+        var values = CvdAggregation.Aligned(bars, _cvdBuckets, sessionReset: true);
+        _cvdSeries = values.Any(static value => value is { }) ? values : null;
+        PublishIndicatorLines(bars);
+    }
+
+    #endregion CVD Pane (T-244)
 
     #region Vwap Overlay
 
