@@ -255,7 +255,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-249 Auto S/R levels from swing pivots, proximity-clustered and pan-stable (the analytics sweep 2026-11-14) | feat/auto-levels | done | 0.2.21 |
 | T-250 Squeeze detector (Bollinger inside Keltner) rides the standard pack (the analytics sweep 2026-11-14) | feat/squeeze-detector | done | 0.2.22 |
 | T-251 Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day performance, Sharpe/Sortino (the analytics sweep 2026-11-14) | feat/stats-deepening | done | 0.2.3 |
-| T-252 Correlation matrix over the cached candles (the analytics sweep 2026-11-14) | feat/correlation-matrix | planned | — |
+| T-252 Correlation matrix over the cached candles (the analytics sweep 2026-11-14) | feat/correlation-matrix | in-progress | - |
 | T-253 Cross-venue spread + the perp-spot basis view over the three shipped adapters (the analytics sweep 2026-11-14) | feat/venue-spread | planned | — |
 | T-254 Backtest robustness: Monte Carlo over the trade sequence + walk-forward splits (the analytics sweep 2026-11-14) | feat/backtest-robustness | done | 0.2.4 |
 | T-255 AI trade review: journal-backed post-trade analysis through the chat (the analytics sweep 2026-11-14) | feat/ai-trade-review | planned | — |
