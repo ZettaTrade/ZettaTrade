@@ -1,3 +1,36 @@
+## [0.2.16] - 2026-11-16
+
+Build of board task T-244 (branch `feat/cvd-pane`): the cumulative volume
+delta pane — the chart's own synthesized oscillator line summing the live
+trade stream's aggressor sizes, session-anchored, honest on gaps.
+
+### Added
+- The `CvdAggregation` pure math: a trade lands in the bar slot whose
+  window contains its timestamp (binary-searched over the standing bars'
+  own opens, never a grid-floor guess), the aggressor's side sizes the
+  delta (a Buy adds, a Sell subtracts), a NEUTRAL trade (the T-198 wire's
+  own no-aggressor absence) contributes nothing — an only-neutral bar is
+  the honest gap, never a fabricated flat zero; a non-positive size is
+  dropped (the BUG-027 discipline) and a beat outside the standing
+  windows is unattributed, never squeezed into a neighbor.
+- The chart's CVD pane (the funding/OI synthesized-line discipline): the
+  running buy-minus-sell sum carries through the gaps and restarts at
+  every session break (the VWAP anchor's own UTC-day rule — the shipped
+  semantics), the accumulator is a bounded per-bar map the rebase clears
+  (never a raw-trade buffer), the republish is pulse-paced (~1 s — the
+  trade handler only marks the lane dirty) and the trade stream rides
+  the active adapter's trade feed behind a Switch: a symbol switch
+  retires the previous stream atomically and a stale-symbol beat drops
+  at the guard.
+- The pane's caption (`Chart.Cvd.Pane`, en+ru) and the persisted pane
+  height key ride the same Name sentinel the funding and OI panes keep.
+
+### Notes
+- CVD is computed from the LIVE trade stream only: no per-bar side split
+  is fabricated from the bars' own direction (a bar's OHLC tells the
+  candle, not the tape). The pane needs no venue capability — an
+  all-gap window publishes no line.
+
 ## [0.2.15] - 2026-11-16
 
 Build of board task T-243 (branch `feat/liquidation-levels`): the
