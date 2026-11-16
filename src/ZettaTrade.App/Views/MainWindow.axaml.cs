@@ -195,6 +195,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowPositionsRequested.RegisterHandler(OpenPositionsAsync);
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
         ViewModel?.Menu.ShowScreenerRequested.RegisterHandler(OpenScreenerAsync);
+        ViewModel?.Menu.ShowCorrelationRequested.RegisterHandler(OpenCorrelationAsync);
         ViewModel?.Menu.ShowTradeStatsRequested.RegisterHandler(OpenTradeStatsAsync);
         ViewModel?.Menu.ShowBacktestRequested.RegisterHandler(OpenBacktestAsync);
         ViewModel?.Menu.ShowAlertsRequested.RegisterHandler(OpenAlertsAsync);
@@ -918,6 +919,29 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the order history window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenCorrelationAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The correlation view model is the workspace singleton: the
+            // window surfaces its standing matrix — every open shows the
+            // last computed page, never a re-armed compute.
+            var window = new CorrelationWindow
+            {
+                DataContext = App.Services.GetRequiredService<ViewModels.CorrelationViewModel>(),
+            };
+            await window.ShowDialog<object>(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the correlation matrix window");
         }
         finally
         {

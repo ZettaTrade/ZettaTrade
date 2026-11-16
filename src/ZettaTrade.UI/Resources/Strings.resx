@@ -72,6 +72,9 @@
   <data name="Menu.Trading.Screener" xml:space="preserve">
     <value>Screener</value>
   </data>
+  <data name="Menu.Trading.Correlation" xml:space="preserve">
+    <value>Correlation matrix</value>
+  </data>
   <data name="Menu.AI" xml:space="preserve">
     <value>AI</value>
   </data>
@@ -1841,6 +1844,54 @@ Estimated fee: {10}</value>
   </data>
   <data name="Screener.Close" xml:space="preserve">
     <value>Close</value>
+  </data>
+  <data name="Correlation.Title" xml:space="preserve">
+    <value>Correlation matrix</value>
+  </data>
+  <data name="Correlation.List" xml:space="preserve">
+    <value>Watchlist</value>
+  </data>
+  <data name="Correlation.Frame" xml:space="preserve">
+    <value>Time frame</value>
+  </data>
+  <data name="Correlation.Frame.M15" xml:space="preserve">
+    <value>M15</value>
+  </data>
+  <data name="Correlation.Frame.H1" xml:space="preserve">
+    <value>H1</value>
+  </data>
+  <data name="Correlation.Frame.H4" xml:space="preserve">
+    <value>H4</value>
+  </data>
+  <data name="Correlation.Frame.D1" xml:space="preserve">
+    <value>D1</value>
+  </data>
+  <data name="Correlation.Window" xml:space="preserve">
+    <value>Window</value>
+  </data>
+  <data name="Correlation.Window.50" xml:space="preserve">
+    <value>50 bars</value>
+  </data>
+  <data name="Correlation.Window.100" xml:space="preserve">
+    <value>100 bars</value>
+  </data>
+  <data name="Correlation.Window.200" xml:space="preserve">
+    <value>200 bars</value>
+  </data>
+  <data name="Correlation.Compute" xml:space="preserve">
+    <value>Compute</value>
+  </data>
+  <data name="Correlation.EmptyState" xml:space="preserve">
+    <value>Choose a watchlist and compute the matrix</value>
+  </data>
+  <data name="Correlation.EmptyList" xml:space="preserve">
+    <value>The chosen watchlist carries no symbols</value>
+  </data>
+  <data name="Correlation.Truncated" xml:space="preserve">
+    <value>The roster exceeds {0} symbols — the matrix answers the first ones</value>
+  </data>
+  <data name="Correlation.ComputeFailed" xml:space="preserve">
+    <value>The computation failed: {0}</value>
   </data>
   <data name="Screener.ColTrendM15" xml:space="preserve">
     <value>15m</value>

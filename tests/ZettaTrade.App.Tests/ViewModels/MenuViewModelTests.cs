@@ -129,6 +129,31 @@ public sealed class MenuViewModelTests
     }
 
     /// <summary>
+    /// The Trading menu's correlation-matrix item (T-252) routes through
+    /// its interaction the same way every panel command does — the View
+    /// hosts the window.
+    /// </summary>
+    [Fact]
+    public async Task ShowCorrelationCommand_Executed_RoutesThroughShowCorrelationInteraction()
+    {
+        // Arrange
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
+        var handled = 0;
+        menu.ShowCorrelationRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref handled);
+            context.SetOutput(RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await menu.ShowCorrelationCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(1);
+    }
+
+    /// <summary>
     /// The Help menu's license-activation item (T-132) routes through its
     /// interaction the same way every dialog command does — the View hosts
     /// the dialog window.

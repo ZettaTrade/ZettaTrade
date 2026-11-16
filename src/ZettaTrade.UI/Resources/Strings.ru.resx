@@ -72,6 +72,9 @@
   <data name="Menu.Trading.Screener" xml:space="preserve">
     <value>Скринер</value>
   </data>
+  <data name="Menu.Trading.Correlation" xml:space="preserve">
+    <value>Матрица корреляции</value>
+  </data>
   <data name="Menu.AI" xml:space="preserve">
     <value>ИИ</value>
   </data>
@@ -1841,6 +1844,54 @@
   </data>
   <data name="Screener.Close" xml:space="preserve">
     <value>Закрыть</value>
+  </data>
+  <data name="Correlation.Title" xml:space="preserve">
+    <value>Матрица корреляции</value>
+  </data>
+  <data name="Correlation.List" xml:space="preserve">
+    <value>Список</value>
+  </data>
+  <data name="Correlation.Frame" xml:space="preserve">
+    <value>Таймфрейм</value>
+  </data>
+  <data name="Correlation.Frame.M15" xml:space="preserve">
+    <value>M15</value>
+  </data>
+  <data name="Correlation.Frame.H1" xml:space="preserve">
+    <value>H1</value>
+  </data>
+  <data name="Correlation.Frame.H4" xml:space="preserve">
+    <value>H4</value>
+  </data>
+  <data name="Correlation.Frame.D1" xml:space="preserve">
+    <value>D1</value>
+  </data>
+  <data name="Correlation.Window" xml:space="preserve">
+    <value>Окно</value>
+  </data>
+  <data name="Correlation.Window.50" xml:space="preserve">
+    <value>50 баров</value>
+  </data>
+  <data name="Correlation.Window.100" xml:space="preserve">
+    <value>100 баров</value>
+  </data>
+  <data name="Correlation.Window.200" xml:space="preserve">
+    <value>200 баров</value>
+  </data>
+  <data name="Correlation.Compute" xml:space="preserve">
+    <value>Вычислить</value>
+  </data>
+  <data name="Correlation.EmptyState" xml:space="preserve">
+    <value>Выберите список и вычислите матрицу</value>
+  </data>
+  <data name="Correlation.EmptyList" xml:space="preserve">
+    <value>Выбранный список не несёт символов</value>
+  </data>
+  <data name="Correlation.Truncated" xml:space="preserve">
+    <value>Список превышает {0} символов — матрица отвечает по первым</value>
+  </data>
+  <data name="Correlation.ComputeFailed" xml:space="preserve">
+    <value>Не удалось вычислить: {0}</value>
   </data>
   <data name="Screener.ColTrendM15" xml:space="preserve">
     <value>15м</value>

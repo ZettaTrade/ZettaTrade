@@ -42,6 +42,7 @@ $ModulePrefixes = @(
     'Watch.',
     'Heatmap.',
     'Screener.',
+    'Correlation.',
     'Tray.',
     'Backup.',
     'Update.'

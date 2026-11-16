@@ -1,0 +1,180 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.CorrelationWindow"
+        Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
+        x:DataType="vm:CorrelationViewModel"
+        Title="{loc:Localized Correlation.Title}"
+        Width="980" Height="620"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <Window.Styles>
+        <!-- T-252: the matrix rides the shared RowGrammar dictionary (the
+             screener's scaffold) — the window carries no table style
+             copy. -->
+        <StyleInclude Source="avares://ZettaTrade.App/Themes/RowGrammar.axaml" />
+
+        <!-- The matrix cell: a fixed-width quiet press target (the
+             screener's trend-cell discipline — transparent rest, square
+             corners, the Surface hover wash). A positive coefficient
+             tints by the candle-up hue, a negative one by the candle-down
+             hue, a dash keeps the plain secondary ink (the honest state,
+             never dressed up as a verdict); a non-routable cell (the
+             diagonal, a coverage gap) renders disabled and dim. -->
+        <Style Selector="Button.correlation-cell">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="Width" Value="72" />
+            <Setter Property="MinHeight" Value="20" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+            <Setter Property="FontFamily" Value="{StaticResource NumericFont}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+        </Style>
+        <Style Selector="Button.correlation-cell:pointerover">
+            <Setter Property="Background" Value="{DynamicResource Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+        </Style>
+        <Style Selector="Button.correlation-cell:pressed">
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
+        <Style Selector="Button.correlation-cell.positive">
+            <Setter Property="Foreground" Value="{DynamicResource CandleUp}" />
+        </Style>
+        <Style Selector="Button.correlation-cell.negative">
+            <Setter Property="Foreground" Value="{DynamicResource CandleDown}" />
+        </Style>
+
+        <!-- The symbol headers: the matrix's own first column and the
+             header band's captions — the emphasized header ink, the same
+             fixed widths the cells read against. -->
+        <Style Selector="TextBlock.correlation-header">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="Width" Value="72" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="{StaticResource SpaceM}">
+
+        <!-- The knobs: the watchlist picker (the catalog document's lists),
+             the frame and the window (the static localized items bind by
+             index — the chart type selector's precedent); the compute
+             command disables itself while its pass runs. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+            <TextBlock Text="{loc:Localized Correlation.List}" VerticalAlignment="Center" />
+            <ComboBox MinWidth="150" ItemsSource="{Binding ListNames}" SelectedIndex="{Binding SelectedListIndex}" />
+            <TextBlock Text="{loc:Localized Correlation.Frame}" VerticalAlignment="Center" Margin="16,0,0,0" />
+            <ComboBox MinWidth="90" SelectedIndex="{Binding SelectedFrameIndex}">
+                <ComboBoxItem Content="{loc:Localized Correlation.Frame.M15}" />
+                <ComboBoxItem Content="{loc:Localized Correlation.Frame.H1}" />
+                <ComboBoxItem Content="{loc:Localized Correlation.Frame.H4}" />
+                <ComboBoxItem Content="{loc:Localized Correlation.Frame.D1}" />
+            </ComboBox>
+            <TextBlock Text="{loc:Localized Correlation.Window}" VerticalAlignment="Center" Margin="16,0,0,0" />
+            <ComboBox MinWidth="100" SelectedIndex="{Binding SelectedWindowIndex}">
+                <ComboBoxItem Content="{loc:Localized Correlation.Window.50}" />
+                <ComboBoxItem Content="{loc:Localized Correlation.Window.100}" />
+                <ComboBoxItem Content="{loc:Localized Correlation.Window.200}" />
+            </ComboBox>
+            <Button Content="{loc:Localized Correlation.Compute}"
+                    Command="{Binding ComputeCommand}"
+                    MinWidth="110" Margin="16,0,0,0" />
+        </StackPanel>
+
+        <!-- The status note: the empty list's refusal, the truncation
+             honesty, a failure's reason — one quiet line, never chrome
+             over a missing matrix. -->
+        <TextBlock Grid.Row="1" Text="{Binding Note}" TextWrapping="Wrap"
+                   IsVisible="{Binding HasNote}" />
+
+        <ScrollViewer Grid.Row="2">
+            <StackPanel Spacing="{StaticResource SpaceS}" Margin="0,0,16,0">
+
+                <!-- The honest empty state: no matrix computed yet (or the
+                     chosen list carried nothing) — a line, never a stub
+                     grid. -->
+                <TextBlock Text="{loc:Localized Correlation.EmptyState}"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding !HasRows}" />
+
+                <!-- The matrix: the corner cell + the column headers, then
+                     one row per symbol — the row header, then the row's
+                     cells. Fixed widths keep the columns aligned across
+                     the whole grid; a routable cell presses into the
+                     chart's compare view (T-124). -->
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}" IsVisible="{Binding HasRows}">
+                    <TextBlock Width="96" />
+                    <ItemsControl ItemsSource="{Binding Symbols}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Classes="correlation-header" Text="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding HasRows}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:CorrelationRowViewModel">
+                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                                <TextBlock Classes="correlation-header"
+                                           Text="{Binding Symbol}"
+                                           TextAlignment="Left"
+                                           Width="96" />
+                                <ItemsControl ItemsSource="{Binding Cells}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:CorrelationCellViewModel">
+                                            <Button Classes="correlation-cell"
+                                                    Classes.positive="{Binding IsPositive}"
+                                                    Classes.negative="{Binding IsNegative}"
+                                                    IsEnabled="{Binding IsRoutable}"
+                                                    Content="{Binding Text}"
+                                                    Command="{Binding $parent[Window].((vm:CorrelationViewModel)DataContext).RouteCellCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+            <Button Grid.Column="1"
+                    Content="{loc:Localized Screener.Close}"
+                    Click="OnCloseClick"
+                    MinWidth="90"
+                    HorizontalAlignment="Right" />
+        </Grid>
+
+    </Grid>
+</Window>
