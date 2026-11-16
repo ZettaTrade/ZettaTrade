@@ -1,3 +1,45 @@
+## [0.2.15] - 2026-11-16
+
+Build of board task T-243 (branch `feat/liquidation-levels`): the
+estimated liquidation levels overlay — computed locally from the chart's
+own OI deltas and the venues' public leverage brackets, drawn as
+translucent bands with a permanent «estimate» marking; the
+entry-distribution assumption stays stated on the frame.
+
+### Added
+- The leverage-bracket capability (`ILeverageBracketsProvider`) in the
+  Infrastructure Exchange module, served by the Bybit adapter (the
+  per-symbol risk-limit tiers, chained floors) and the Binance adapter
+  (`/fapi/v1/leverageBracket`); both refuse spot symbols, Binance refuses
+  out-of-order tiers, and a venue without the endpoint answers the honest
+  absence (T-243).
+- The `LiquidationLevelEstimator` pure math: a bucket's OI delta times the
+  bucket's close is the notional, the notional picks exactly one bracket
+  tier (the first cap that bounds it, the top-tier clamp past every cap),
+  and the tier scales the close into `entry × (1 ∓ 1/L + MMR)` — the
+  estimator's entry-distribution assumption is stated, never hidden:
+  growth buckets only, side from the bucket's direction, flat and
+  shrinking buckets unattributed (the overlay is a floor of the real map,
+  the same way the liquidation tape is).
+- The `LeverageBracketsService` front: the active adapter is probed per
+  request, the per-symbol cache keeps the 15-minute freshness and the
+  32-entry bound (the OI history front's own shape), and the honest null
+  answers before any network call.
+- The chart's liquidation-levels overlay (the VWAP overlay's publish
+  path): translucent bands on the price pane — thickness rides the
+  level's notional share, the side hues the tape's way (a force-closed
+  long is a forced sell) — each band carrying its permanent «estimate»
+  tag and the frame carrying the assumption note; a bandless state draws
+  its own honest note (no bracket table served / no OI deltas), a venue
+  or symbol without the estimate's inputs draws nothing.
+
+### Notes
+- The estimate is a local computation over public data, never a venue map:
+  the levels match a hand-computed fixture exactly (the goldens pin the
+  arithmetic), and the «estimate» marking is always visible with the
+  bands. OKX stays out until that adapter grows the bracket lane (the
+  T-242 decision's own bound, now on the levels side too).
+
 ## [0.2.14] - 2026-11-16
 
 Build of board task T-242 (branch `feat/liquidation-feed`): the venues'
