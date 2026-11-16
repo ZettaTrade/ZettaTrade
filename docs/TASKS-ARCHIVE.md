@@ -5982,6 +5982,62 @@ the board and its section below.
   the XAML pins suites green. Gate passed with `-AllowProtected`; the launch smoke passed
   before the merge.
 
+## T-247 — Session analytics: opens, opening range, session shading
+
+- **Branch:** `feat/session-levels` off `develop` (queued 2026-11-14, the analytics sweep; claimed
+  2026-11-16, supervisor-solo — the worktree `zt-session-levels`).
+- **Origin:** levels are manual-only (T-091); the calendar (T-037) paints no session context.
+- **What:** daily/weekly open lines, an opening-range band (configurable minutes), and
+  Asia/Europe/US session shading (UTC-anchored for 24/7 venues, the venue calendars for stocks)
+  as toggleable overlays.
+- **Scope:** the calendar-riding compute + the renderer + settings, resx en+ru, tests.
+- **Acceptance:** the anchors match the T-037 calendar exactly; DST and weekend fixtures hold.
+- **Tests:** anchor goldens over DST/weekend calendars, the overlay alignment.
+- **Status:** done. Canon: the chain `f214908` (claim) → `e92fb50` (the feature — the pure
+  `SessionAnalytics` calculator, the chart draw pass, the toolbar family, resx en+ru, the
+  tests; the toolbar's shared-`.on` pin rides here updated to the eleven toggles) →
+  `ad79160` (`chore(release): 0.2.19`) is on develop (fast-forward merge); this
+  close commit follows; written supervisor-solo. Lane decisions: the daily open breaks
+  exactly where the VWAP session resets (the `VwapSessionAnchor` rule — the UTC
+  calendar-date boundary, so the daily open line and the VWAP reset cut on the same edges
+  by construction); the weekly open rides the Monday-anchored week boundary (the T-037
+  calendar's own `NextCalendarWeek` anchor — a stock series' Friday→Monday weekend skip
+  lands the weekly open on the Monday bar, a holiday-shifted Tuesday opener is still the
+  week's honest first bar, a mid-week series head anchors its partial week at its own
+  first bar — nothing outside the loaded window is ever assumed); the opening-range band
+  weighs the bars whose opens fall inside `[dayStart, dayStart + minutes)` — the day's
+  highest high and lowest low whose FINAL shape backfills every bar of the owning day
+  (one band shape per day — the draft's running-extremes shape was corrected to the
+  backfill at test time: the record's own doc line "carried on every bar" is the
+  contract; a day with no bar inside the window carries the honest nulls and the band
+  skips the day); the shading maps every bar's open time-of-day into the fixed UTC
+  partition Asia [00:00, 08:00), Europe [08:00, 16:00), US [16:00, 24:00) — UTC-anchored
+  for every venue class (a stock's weekend and its local session shape ride the bars'
+  presence, a DST shift shows up as the honest UTC drift of the session mix — the 2026
+  GMT→BST golden pins the London open's slot moving Europe→Asia — never a fabricated
+  alignment). The draw pass: the shading tints ride UNDER the series (behind the candles,
+  over the grid — the snapshot palette's own colors, no new palette members), the open
+  lines ride the reference-line layer (the daily solid, the weekly dashed — the two
+  distinguish at a glance without a legend) and the band draws its fill with two edge
+  lines, all per same-value run (a flat stroke never connects across a day or week
+  boundary) and skipped when off-plot — never a line over the axis margins; a stale
+  analytics draws nothing (the VWAP slice-alignment rule — the arrays shrink together
+  with the visible window). The toolbar family: three toggle buttons (Opens, Range,
+  Sessions) and the minutes knob ride the same overlay-toggle grammar; every toggle and
+  the minutes persist under the cache-leads discipline the VWAP and volume-profile
+  choices keep (an external writer applies live, an unparsable minutes spelling edits
+  nothing — the standing value stays in charge); the defaults show the family visible
+  (the T-092 default-indicator precedent) with the 30-minute window. resx en+ru:
+  `Chart.SessionOpens` + `.Tip`, `Chart.SessionRange` + `.Tip`, `Chart.SessionShading` +
+  `.Tip`, `Chart.SessionMinutes.Name` + `.Tip` (mirror placement in the `Chart.*`
+  block). Tests: 19 `SessionAnalytics` goldens (the day/week anchors, the weekend
+  fixture, the DST fixture, the partition theory, the range weigh + the honest nulls +
+  the clamp, the empty state, the slice alignment + the out-of-range throws) + 13 parse
+  goldens (the readable spellings clamp, the unreadable ones edit nothing); the
+  acceptance's anchors match the T-037 calendar exactly — verified against
+  `VwapSessionAnchor` and `TimeFrameCalendar.NextCalendarWeek` at review. Gate passed
+  with `-AllowProtected`; the launch smoke passed before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
