@@ -246,7 +246,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-240 Funding-rate history chart + the funding-threshold alert kind for perps (the analytics sweep 2026-11-14) | feat/funding-history | done | 0.2.12 |
 | T-241 Open-interest history as a chart pane under the price series for perps (the analytics sweep 2026-11-14) | feat/oi-history-pane | done | 0.2.13 |
 | T-242 Liquidation feed: the venues' free forced-order WS streams aggregated into the tape and chart markers (the analytics sweep 2026-11-14) | feat/liquidation-feed | done | 0.2.14 |
-| T-243 Estimated liquidation levels overlay computed locally from OI deltas + the venues' public leverage brackets (the analytics sweep 2026-11-14) | feat/liquidation-levels | in-progress | - |
+| T-243 Estimated liquidation levels overlay computed locally from OI deltas + the venues' public leverage brackets (the analytics sweep 2026-11-14) | feat/liquidation-levels | done | 0.2.15 |
 | T-244 CVD pane: cumulative volume delta summed from the tape's aggressor side (the analytics sweep 2026-11-14) | feat/cvd-pane | planned | — |
 | T-245 Whale-print filter + the big-trade alert kind in the tape (the analytics sweep 2026-11-14) | feat/whale-filter | planned | — |
 | T-246 Book imbalance indicator derived from the depth stream (the analytics sweep 2026-11-14) | feat/book-imbalance | planned | — |
@@ -361,25 +361,6 @@ prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately le
 the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
 T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
 original numbers.
-
----
-
-## T-243 — Estimated liquidation levels overlay
-
-- **Branch:** `feat/liquidation-levels` off `develop` (claimed 2026-11-16, the analytics sweep; the
-  worktree `zt-liquidation-levels`).
-- **Status:** in-progress.
-- **Origin:** no venue publishes a predicted liquidation map; aggregators estimate it from
-  OI-by-price - the estimate is reproducible locally.
-- **What:** an estimated-levels overlay computed from the OI deltas per price bucket (riding
-  T-241's history) plus the venue's public leverage-bracket/maintenance-margin tables; drawn as
-  translucent bands with a permanent «estimate» marking; the entry-distribution assumption stays
-  stated, never hidden.
-- **Scope:** the pure estimator + the bracket fetch/cache + the chart overlay, resx en+ru, tests.
-- **Acceptance:** the levels match a hand-computed fixture exactly; the estimate marking is
-  always visible.
-- **Tests:** estimator goldens (a bracket table + a synthetic OI ladder), cache behavior, the
-  overlay honesty states.
 
 ---
 

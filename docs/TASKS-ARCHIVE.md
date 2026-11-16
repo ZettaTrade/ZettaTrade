@@ -5801,6 +5801,60 @@ the board and its section below.
   32, Soak 17, Core 61). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump
   is the supervisor-only protected file); the launch smoke passed before the merge.
 
+## T-243 — Estimated liquidation levels overlay
+
+- **Branch:** `feat/liquidation-levels` off `develop` (claimed 2026-11-16, the analytics sweep; the
+  worktree `zt-liquidation-levels`).
+- **Origin:** no venue publishes a predicted liquidation map; aggregators estimate it from
+  OI-by-price - the estimate is reproducible locally.
+- **What:** an estimated-levels overlay computed from the OI deltas per price bucket (riding
+  T-241's history) plus the venue's public leverage-bracket/maintenance-margin tables; drawn as
+  translucent bands with a permanent «estimate» marking; the entry-distribution assumption stays
+  stated, never hidden.
+- **Scope:** the pure estimator + the bracket fetch/cache + the chart overlay, resx en+ru, tests.
+- **Acceptance:** the levels match a hand-computed fixture exactly; the estimate marking is
+  always visible.
+- **Tests:** estimator goldens (a bracket table + a synthetic OI ladder), cache behavior, the
+  overlay honesty states.
+- **Status:** done. Canon: the chain `e363c2b` (claim) → `d246021` (the brackets capability —
+  `ILeverageBracketsProvider` + `LeverageBracket` in Infrastructure Exchange, the Bybit
+  risk-limit lane with chained floors, the Binance `/fapi/v1/leverageBracket` lane on
+  `BinanceEndpoints.FuturesRestBaseUrl`, spot symbols refused, Binance out-of-order tiers
+  refused) → `7653e27` (the pure `LiquidationLevelEstimator` and the `LiquidationLevelsOverlay`
+  record) → `b65b94a` (the `LeverageBracketsService` cache front, the chart's levels lane and
+  the band draw) → `cbba969` (`chore(release): 0.2.15`) is on develop (fast-forward merge);
+  written supervisor-solo (the worker quota still dead); shipped as `0.2.15` (see
+  CHANGELOG.md). Lane decisions: the math is delta (coin units — both served histories report
+  base-coin size) × the bucket's close = notional, the notional picks exactly ONE tier (the
+  first cap ≥ notional — the tiers ascend by cap and chain their floors; a notional past the
+  top cap clamps onto the top tier), and the tier scales the close into
+  `entry × (1 ∓ 1/L + MMR)` (minus for the long side — force-closed below the entry); the
+  ENTRY-DISTRIBUTION ASSUMPTION stands stated on the frame (the resx note rides the bands):
+  growth buckets only — the bucket's growth is assumed to have entered at the bucket's close,
+  its side taken from the bucket's own direction (an up bucket entered longs, a down bucket
+  shorts); a shrinking bucket removes no level (the closure's bucket is unknowable from the
+  series — the estimator refuses to guess) and a flat bucket carries no side; the consequence
+  is honest — the overlay is a FLOOR of the real map, the same way the liquidation tape is;
+  the estimate is bounded (MaxBands = 32, the largest-notional bands stand, ties keep input
+  order, the survivors sort price-ascending, largest-notional first at a tie); the chart draw
+  is translucent bands on the price pane — thickness rides the band's notional share of the
+  largest one, the side hues the TAPE's way (a force-closed long is a forced sell — bearish),
+  each band carries its permanent «estimate» tag and the frame carries the assumption note;
+  the bandless states are the honest absences (the venue's explicit no-bracket-table note /
+  the no-deltas note), no inputs standing draws nothing; the service front is the OI history
+  front's own shape (the active-adapter capability probe, the 15-minute freshness, the
+  32-entry bound, the honest null before any network call); the ViewModel lane is the funding/
+  OI discipline — the bracket kick rides the OI kicks (delivered/prepend/repair), the estimate
+  publishes only when BOTH inputs stand (a stale alignment holds, a fetch in flight holds,
+  never a flashed wrong note), a rebase clears. OKX stays out until that adapter grows the
+  bracket lane (the T-242 decision's own bound, now on the levels side too). Tests: App.Tests
+  2548/2548 and Infrastructure.Tests 798/798, the gate-measured counts (the estimator goldens
+  — the hand-computed ladder, the tier boundaries, the clamp, the honesty states, the cap, the
+  tie order — and the front's capability/cache/refusal pins among the additions), every other
+  suite green (UI 432, E2E 7, AdapterKit 48, Backtest 80, Strategies 32, Soak 17, Core 61).
+  Gate passed with `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only
+  protected file); the launch smoke passed before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
