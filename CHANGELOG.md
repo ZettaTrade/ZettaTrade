@@ -1,3 +1,41 @@
+## [0.2.21] - 2026-11-16
+
+Build of board task T-249 (branch `feat/auto-levels`): the automatic
+S/R levels — swing pivots detected over the loaded series, proximity-
+clustered into horizontal levels, pan-stable.
+
+### Added
+- The pure `SwingPivots` detector: a bar is a swing high when its high
+  dominates its lookback arms (strict over the left, at-or-over the right
+  — a plateau of equal highs resolves to its EARLIEST bar, exactly one
+  pivot per plateau), a swing low mirrors it; the pivot's strength
+  measures the dominance BEYOND the arm on both sides (an equal-or-higher
+  extreme breaks the count — a retest is a break — while the series
+  bounds just stop it), the min of the two sides; the min-strength filter
+  keeps only the pivots that reach it. One bounded scan per candidate,
+  side-effect free.
+- The pure `SupportResistanceLevels` clustering: the pivots sort by
+  price, a cluster's anchor is its first (lowest-priced) pivot and the
+  next pivot joins while its price sits within the tolerance of the
+  ANCHOR — never of the previous member (no chaining: a slow drift of
+  mutually close pivots cannot walk a cluster across the axis); the
+  level answers the members' exact mean, the weight their summed
+  strengths; the tolerance speaks as a fraction of price (default 0.005
+  — half a percent), so the band scales with the instrument. The same
+  series answers the same levels on every recompute — the pan-stability
+  pin.
+- The chart surface: one horizontal line per level across the plot, the
+  KIND the last visible close decides (at or under the close = support,
+  the bullish hue; above = resistance, the bearish hue — a crossed
+  level flips honestly) and the WEIGHT the set's normalized emphasis
+  (the heaviest level draws fullest); the right-margin S/R tags ride one
+  label column the `ChartLabelStack` keeps collision-free (the heaviest
+  level keeps priority); a level beyond the visible axis stays off-plot.
+  The levels compute once per bars-applied (never per frame — the
+  100k-candle pan budget holds), always on while published (no toggle),
+  and the three knobs (lookback 10, min strength 2, tolerance 0.005)
+  are session-scoped VM properties, not persisted settings.
+
 ## [0.2.20] - 2026-11-16
 
 Build of board task T-248 (branch `feat/profile-annotations`): the volume
