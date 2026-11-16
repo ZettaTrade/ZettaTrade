@@ -1,3 +1,23 @@
+## [0.2.24] - 2026-11-16
+
+Build of board task T-253 (branch `feat/venue-spread`): the cross-venue
+spread panel — a per-venue quote table and the perp-spot basis series
+over the fleet's caches.
+
+### Added
+- The venue-spread window (`Trading` menu, beside the correlation
+  matrix): type a symbol (the spot form or the settled perp form),
+  pick a frame (M15/H1/H4/D1) and a window (50/100/200 bars), sample —
+  every registered venue races its first ticker within a bounded wait
+  (the adapters' own lazy dial; a silent venue keeps its row as the
+  honest dash, never an error), the last prices' deltas answer against
+  the answering set's median in basis points (a single answering venue
+  owns no spread — the dash), and the perp-spot basis series reads
+  each venue's OWN cache (spot vs the derived linear-perp sibling over
+  the shared bar-open times, the T-252 alignment axis) rendered as the
+  spark plus the last value. Market-data only — no order routing, no
+  risk surface.
+
 ## [0.2.23] - 2026-11-16
 
 Build of board task T-252 (branch `feat/correlation-matrix`): the
