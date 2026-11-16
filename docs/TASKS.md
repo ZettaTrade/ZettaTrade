@@ -247,7 +247,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-241 Open-interest history as a chart pane under the price series for perps (the analytics sweep 2026-11-14) | feat/oi-history-pane | done | 0.2.13 |
 | T-242 Liquidation feed: the venues' free forced-order WS streams aggregated into the tape and chart markers (the analytics sweep 2026-11-14) | feat/liquidation-feed | done | 0.2.14 |
 | T-243 Estimated liquidation levels overlay computed locally from OI deltas + the venues' public leverage brackets (the analytics sweep 2026-11-14) | feat/liquidation-levels | done | 0.2.15 |
-| T-244 CVD pane: cumulative volume delta summed from the tape's aggressor side (the analytics sweep 2026-11-14) | feat/cvd-pane | planned | — |
+| T-244 CVD pane: cumulative volume delta summed from the tape's aggressor side (the analytics sweep 2026-11-14) | feat/cvd-pane | in-progress | — |
 | T-245 Whale-print filter + the big-trade alert kind in the tape (the analytics sweep 2026-11-14) | feat/whale-filter | planned | — |
 | T-246 Book imbalance indicator derived from the depth stream (the analytics sweep 2026-11-14) | feat/book-imbalance | planned | — |
 | T-247 Session analytics: daily/weekly opens, the opening range, session shading (the analytics sweep 2026-11-14) | feat/session-levels | planned | — |
@@ -366,7 +366,9 @@ original numbers.
 
 ## T-244 — CVD pane: cumulative volume delta
 
-- **Branch:** `feat/cvd-pane` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Branch:** `feat/cvd-pane` off `develop` (queued 2026-11-14, the analytics sweep; claimed
+  2026-11-16, supervisor-solo — the worktree `zt-cvd-pane`).
+- **Status:** in-progress.
 - **Origin:** the tape (T-087) carries the aggressor side; nothing sums it.
 - **What:** a cumulative buy-minus-sell volume series from the trade stream as an indicator pane,
   a session-anchored reset option, an honest state where the adapter serves no trade data.
