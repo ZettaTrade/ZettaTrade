@@ -6038,6 +6038,57 @@ the board and its section below.
   `VwapSessionAnchor` and `TimeFrameCalendar.NextCalendarWeek` at review. Gate passed
   with `-AllowProtected`; the launch smoke passed before the merge.
 
+## T-248 — Volume profile annotations: POC, value area, naked POC
+
+- **Branch:** `feat/profile-annotations` off `develop` (queued 2026-11-14, the analytics sweep; claimed
+  2026-11-16, supervisor-solo — the worktree `zt-profile-annotations`).
+- **Origin:** T-093 paints the histogram; no POC/value-area read.
+- **What:** POC/VAH/VAL labels on the visible-window profile (the T-093 compute gains the
+  annotations, the standard 70% expansion rule) plus a naked-POC track — session POCs persist
+  until price revisits.
+- **Scope:** the profile compute extension (pure) + the label rendering, resx en+ru, tests.
+- **Acceptance:** the value area covers 70% of volume by the standard rule; naked POCs clear on
+  revisit.
+- **Tests:** POC/VA goldens, the naked-POC lifecycle, label placement.
+- **Status:** done. Canon: the chain `7299a82` (claim) → `95e743f` (the feature — the pure
+  `VolumeProfileValueArea` + `NakedPocTrack`, the chart's right-margin label column, the naked
+  track's publish lane, resx en+ru, the tests) → `7b0005e` (`chore(release): 0.2.20`) is on
+  develop (fast-forward merge); this close commit follows; written supervisor-solo. Lane
+  decisions: the POC is the profile's heaviest bucket — ties keep the LOWEST-priced maximum
+  (an ascending strict scan, one deterministic answer), the label price is the bucket's own
+  mid (a bucket is the finest price unit the OHLCV fidelity honestly carries); the value area
+  grows from the POC by the standard 70% expansion (the next two buckets above and the next
+  two below weigh against each other, the heavier side joins, a TIE joins the below side —
+  the classic rule's own else branch, a short side joins what it has, a zero-volume neighbor
+  offers nothing and the walk stops when the area holds `ValueAreaFraction` = 0.70 of the
+  window's volume; VAH/VAL are the finished area's outer bucket edges; the acceptance's 70%
+  rule is pinned by the exact goldens); the naked-POC track rides ONE ascending session walk
+  over the whole loaded series (every session's bars first clear the live candidates they
+  touch — `low <= price <= high`, a touch IS a revisit — then the session's own POC joins;
+  a session never answers to its own POC, a volume-less session joins nothing, the last
+  session's POC stays naked by construction; the session anchor is the UTC calendar-date
+  boundary the whole chart family rides — the T-247/T-037 rule, a stock's weekend sessions
+  simply do not exist); the track computes once per bars-applied (the marshalled publish lane
+  the SessionAnalytics discipline rides — a per-frame re-walk of a 100k-candle series would
+  break the pan budget); the annotations ride the volume-profile family's own visibility
+  toggle — no new settings, no new knobs (the task's scope is the compute extension + the
+  label rendering). The draw pass: the POC's marker line + the VAH/VAL labels + the naked
+  track's accent ticks sit in ONE right-margin label column the pure `ChartLabelStack` keeps
+  collision-free (the POC keeps priority, the rest push aside a minimum text gap, the pushed
+  shape clamps into the plot as one rigid column, a taller-than-plot column anchors at the
+  ceiling letting the tail clip); the labels ride the localized resx keys and a price beyond
+  the visible axis stays off-plot — never a clamped label claiming the edge. resx en+ru:
+  `Chart.ProfilePoc` / `Chart.ProfileVah` / `Chart.ProfileVal` / `Chart.ProfileNpoc` (the
+  Latin abbreviations are the honest ru translation too — the trading canon keeps them).
+  Tests: 8 `VolumeProfileValueArea` goldens (the exact expansion, the tie joins below, the
+  short side, the zero neighbor, the POC tie keeps the lowest, the flat single bucket, the
+  honest nulls, the fraction constant) + 6 `NakedPocTrack` goldens (the later touch clears,
+  the absent touches persist, the own-session immunity, the three-day ordering, the weekend
+  anchor, the honest absences) + 7 `ChartLabelStack` goldens (the pass-through, the push-down
+  in the caller's order, the unsorted map-back, the rigid floor clamp, the ceiling anchor,
+  the empty input, the inverted-plot throw). Gate passed with `-AllowProtected`; the launch
+  smoke passed before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
