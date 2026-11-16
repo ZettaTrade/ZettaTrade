@@ -489,25 +489,25 @@
                                              pin's contract), the tab caption repeats it
                                              for the tab strip's sake. -->
                                         <DockPanel Grid.Row="0" Classes="panel-header">
-                                            <Button x:Name="TapeClearButton"
-                                                    DockPanel.Dock="Right"
-                                                    Content="{loc:Localized Tape.Clear}"
-                                                    Click="OnTapeClearClick"
-                                                    MinWidth="72" />
-                                            <!-- T-245: the whale filter — a caption and the
-                                                 notional threshold field, docked left of Clear.
-                                                 The binding pushes the live value into the
-                                                 widget; the ViewModel owns apply + persist. -->
+                                            <!-- T-245: the whale filter — a caption, the notional
+                                                 threshold field and the Clear action riding one
+                                                 right-docked strip: the intra-pair gaps ride the
+                                                 strip's spacing token, never a composite margin.
+                                                 The binding pushes the live value into the widget;
+                                                 the ViewModel owns apply + persist. -->
                                             <StackPanel DockPanel.Dock="Right"
                                                         Orientation="Horizontal"
-                                                        Spacing="6"
-                                                        Margin="0,0,8,0"
+                                                        Spacing="{StaticResource SpaceS}"
                                                         VerticalAlignment="Center">
                                                 <TextBlock Text="{loc:Localized Tape.WhaleLabel}"
                                                            VerticalAlignment="Center" />
                                                 <TextBox Width="90"
                                                          Text="{Binding WhaleThresholdText}"
                                                          AutomationProperties.Name="{loc:Localized Tape.WhaleA11y}" />
+                                                <Button x:Name="TapeClearButton"
+                                                        Content="{loc:Localized Tape.Clear}"
+                                                        Click="OnTapeClearClick"
+                                                        MinWidth="72" />
                                             </StackPanel>
                                             <TextBlock Text="{loc:Localized Tape.Title}" />
                                         </DockPanel>
