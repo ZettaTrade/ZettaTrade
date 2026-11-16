@@ -128,6 +128,27 @@ public class CandlestickChart : Control
     /// </summary>
     private const string NoVolumeMessageKey = "Chart.NoVolumeData";
 
+    /// <summary>The volume profile annotations' resx keys (T-248): the four canvas labels — the POC, the value area's two edges and the naked track's ticks.</summary>
+    private const string ProfilePocLabelKey = "Chart.ProfilePoc";
+    private const string ProfileVahLabelKey = "Chart.ProfileVah";
+    private const string ProfileValLabelKey = "Chart.ProfileVal";
+    private const string ProfileNpocLabelKey = "Chart.ProfileNpoc";
+
+    /// <summary>The POC marker's line width (T-248), in pixels: the short line into the plot from the right edge.</summary>
+    private const float ProfilePocTickPx = 18f;
+
+    /// <summary>The naked-POC tick's line width (T-248), in pixels.</summary>
+    private const float ProfileNakedTickPx = 26f;
+
+    /// <summary>Alpha (0-255) of the annotation labels' text (T-248).</summary>
+    private const byte ProfileLabelAlpha = 235;
+
+    /// <summary>Alpha (0-255) of the POC marker's line (T-248).</summary>
+    private const byte ProfilePocTickAlpha = 190;
+
+    /// <summary>Alpha (0-255) of the naked-POC ticks (T-248): the accent reads "price has not come back" against the neutral profile body.</summary>
+    private const byte ProfileNakedTickAlpha = 210;
+
     /// <summary>The liquidation levels' resx keys (T-243): the permanent «estimate» tag, the stated assumption, the bandless absences.</summary>
     private const string LiquidationLevelsEstimateTagKey = "Chart.LiquidationLevels.EstimateTag";
     private const string LiquidationLevelsAssumptionKey = "Chart.LiquidationLevels.Assumption";
@@ -492,6 +513,27 @@ public class CandlestickChart : Control
     {
         get => GetValue(VolumeProfileVisibleProperty);
         set => SetValue(VolumeProfileVisibleProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the naked-POC track (T-248): the past sessions'
+    /// points of control price has not revisited, computed by the pure
+    /// <see cref="ZettaTrade.Charting.NakedPocTrack"/> over the loaded
+    /// series (the ViewModel publishes once per bars-applied — the per-frame
+    /// pass never re-walks the whole series). The draw pass renders the
+    /// track's right-margin ticks while the volume-profile family is
+    /// visible; the track's price geometry rides the shared price scale.
+    /// </summary>
+    public static readonly StyledProperty<NakedPocTrack?> NakedPocsProperty =
+        AvaloniaProperty.Register<CandlestickChart, NakedPocTrack?>(
+            nameof(NakedPocs),
+            defaultValue: null);
+
+    /// <summary>The naked-POC track the chart draws; a change re-inks on the next pass.</summary>
+    public NakedPocTrack? NakedPocs
+    {
+        get => GetValue(NakedPocsProperty);
+        set => SetValue(NakedPocsProperty, value);
     }
 
     /// <summary>
@@ -1255,6 +1297,10 @@ public class CandlestickChart : Control
         VolumeProfileVisibleProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
 
+        // The T-248 naked-POC track: a new publish re-inks on the next pass.
+        NakedPocsProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
         // The T-247 session analytics: a new publish or a family toggle flip
         // re-inks on the next pass the same way.
         SessionAnalyticsProperty.Changed.AddClassHandler<CandlestickChart>(
@@ -1551,6 +1597,7 @@ public class CandlestickChart : Control
             Use12HourClock,
             _hoverPosition,
             VolumeProfileVisible,
+            NakedPocs,
             SeriesType,
             heikinAshi,
             ChartSignalLayout.Resolve(SignalMarkers, visible),
@@ -1836,6 +1883,7 @@ public class CandlestickChart : Control
         bool Use12HourClock,
         Point? Hover,
         bool VolumeProfileVisible,
+        NakedPocTrack? NakedPocs,
         ChartSeriesType SeriesType,
         Bar[]? HeikinAshi,
         IReadOnlyList<SignalMarkerHit> SignalMarkerHits,
@@ -2262,7 +2310,7 @@ public class CandlestickChart : Control
 
             // The right-margin volume-at-price histogram (T-093) rides over
             // the candles translucently; the overlay lines draw over it.
-            DrawVolumeProfile(canvas, plotRect, visibleBars, minAxis, axisRange);
+            DrawVolumeProfile(canvas, font, textPaint, plotRect, visibleBars, minAxis, axisRange);
 
             // The T-124 compare layers: one percent-rebased polyline per
             // compared symbol over the volume profile, under the indicator
@@ -4369,6 +4417,8 @@ public class CandlestickChart : Control
         /// </summary>
         private void DrawVolumeProfile(
             SKCanvas canvas,
+            SKFont font,
+            SKPaint textPaint,
             Rect plotRect,
             IReadOnlyList<Bar> bars,
             decimal minAxis,
@@ -4439,6 +4489,144 @@ public class CandlestickChart : Control
                     height,
                     fill);
             }
+
+            // The T-248 annotations: the profile's own POC and value-area
+            // labels plus the naked-POC track, riding the right margin's
+            // label column.
+            DrawProfileAnnotations(canvas, font, textPaint, plotRect, minAxis, axisRange, profile);
+        }
+
+        /// <summary>
+        /// The volume profile's annotations (T-248): the POC's marker line
+        /// and label, the value area's edge labels (VAH over, VAL under) and
+        /// the naked-POC track's accent ticks — all in ONE right-margin
+        /// label column the <see cref="ChartLabelStack"/> keeps collision
+        /// -free (the POC keeps priority, the rest push aside). The labels
+        /// ride the localized resx keys; a price beyond the visible axis
+        /// stays off-plot (the naked track reads the loaded series, the lens
+        /// shows a window of it — the honest absence).
+        /// </summary>
+        private void DrawProfileAnnotations(
+            SKCanvas canvas,
+            SKFont font,
+            SKPaint textPaint,
+            Rect plotRect,
+            decimal minAxis,
+            decimal axisRange,
+            VolumeProfile profile)
+        {
+            var annotations = VolumeProfileValueArea.From(profile);
+            if (annotations.PocPrice is not { } pocPrice)
+            {
+                return;
+            }
+
+            var textHeight = -font.Metrics.Ascent + font.Metrics.Descent;
+            var halfText = textHeight / 2f;
+
+            // The label column's inputs, in priority order (the POC is the
+            // most-worth-keeping; the naked track's ticks follow in session
+            // order).
+            var texts = new List<string>();
+            var desired = new List<double>();
+            var isTick = new List<bool>();
+
+            void AddLabel(string key, decimal price, bool tick)
+            {
+                var y = ChartPriceScale.PriceToY(plotRect, AxisOf(price), minAxis, axisRange);
+                if (y < plotRect.Top - halfText || y > plotRect.Bottom + halfText)
+                {
+                    // A price beyond the visible axis stays off-plot — the
+                    // honest absence, never a clamped label claiming the
+                    // edge.
+                    return;
+                }
+
+                texts.Add(GetLocalizedLabel(key));
+                desired.Add(y);
+                isTick.Add(tick);
+            }
+
+            AddLabel(ProfilePocLabelKey, pocPrice, tick: true);
+            if (annotations.VahPrice is { } vahPrice)
+            {
+                AddLabel(ProfileVahLabelKey, vahPrice, tick: false);
+            }
+
+            if (annotations.ValPrice is { } valPrice)
+            {
+                AddLabel(ProfileValLabelKey, valPrice, tick: false);
+            }
+
+            var nakedItems = _snapshot.NakedPocs?.Items ?? [];
+            foreach (var naked in nakedItems)
+            {
+                AddLabel(ProfileNpocLabelKey, naked.Price, tick: true);
+            }
+
+            if (texts.Count == 0)
+            {
+                return;
+            }
+
+            var ys = ChartLabelStack.Resolve(
+                desired,
+                textHeight + 2d,
+                plotRect.Top + halfText,
+                plotRect.Bottom - halfText);
+
+            var labelPaint = textPaint.Clone();
+            labelPaint.Color = _snapshot.Text.WithAlpha(ProfileLabelAlpha);
+            using (labelPaint)
+            {
+                using var tickPaint = new SKPaint
+                {
+                    Color = _snapshot.Text.WithAlpha(ProfilePocTickAlpha),
+                    Style = SKPaintStyle.Stroke,
+                    StrokeWidth = 1f,
+                    IsAntialias = true
+                };
+
+                for (var i = 0; i < texts.Count; i++)
+                {
+                    var y = (float)ys[i];
+
+                    if (isTick[i])
+                    {
+                        var naked = i > 0;
+                        tickPaint.Color = naked
+                            ? _snapshot.Accent.WithAlpha(ProfileNakedTickAlpha)
+                            : _snapshot.Text.WithAlpha(ProfilePocTickAlpha);
+                        var tickWidth = naked ? ProfileNakedTickPx : ProfilePocTickPx;
+                        canvas.DrawLine(
+                            (float)plotRect.Right - tickWidth,
+                            y,
+                            (float)plotRect.Right,
+                            y,
+                            tickPaint);
+                    }
+
+                    var text = texts[i];
+                    var textWidth = font.MeasureText(text);
+                    var x = (float)plotRect.Right - 4f - textWidth;
+                    var centerY = y - ((font.Metrics.Ascent + font.Metrics.Descent) / 2f);
+                    canvas.DrawText(text, x, centerY, SKTextAlign.Left, font, labelPaint);
+                }
+            }
+        }
+
+        /// <summary>The annotation labels' localized text (the no-volume note's resolution path).</summary>
+        private static string GetLocalizedLabel(string key)
+        {
+            if (LocalizationManager.IsInitialized)
+            {
+                return LocalizationManager.Instance.GetString(key);
+            }
+
+            // Design mode / manager not wired yet: raw resource lookup instead.
+            return Strings.ResourceManager.GetString(
+                key,
+                CultureInfo.CurrentUICulture) ?? key;
         }
 
         /// <summary>

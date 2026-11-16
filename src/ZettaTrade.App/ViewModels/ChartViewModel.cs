@@ -812,6 +812,24 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         private set => this.RaiseAndSetIfChanged(ref _sessionAnalytics, value);
     }
 
+    private NakedPocTrack? _nakedPocs;
+
+    /// <summary>
+    /// The naked-POC track the chart draws (T-248): the past sessions'
+    /// points of control price has not revisited, computed by the pure
+    /// <see cref="NakedPocTrack.Compute"/> against the whole loaded series —
+    /// once per bars-applied, never per frame (a per-frame re-walk of a
+    /// 100k-candle series would break the pan budget). The draw pass gates
+    /// the track behind the volume-profile family's own visibility; null
+    /// while the series is empty (the honest absence). The assignment is
+    /// the single UI-thread hop of its publish.
+    /// </summary>
+    public NakedPocTrack? NakedPocs
+    {
+        get => _nakedPocs;
+        private set => this.RaiseAndSetIfChanged(ref _nakedPocs, value);
+    }
+
     private IReadOnlyList<SignalMarker> _signalMarkers = [];
 
     /// <summary>
@@ -1372,6 +1390,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// crosses onto the UI thread.
     /// </summary>
     private readonly Subject<SessionAnalytics?> _sessionPublishes = new();
+
+    /// <summary>
+    /// The naked-POC track publishes here (T-248); the marshalled
+    /// subscription assigns <see cref="NakedPocs"/>. The compute itself is
+    /// pure — the publish runs wherever its callers land and only the
+    /// assignment crosses onto the UI thread.
+    /// </summary>
+    private readonly Subject<NakedPocTrack?> _nakedPocPublishes = new();
 
     /// <summary>
     /// The Heikin-Ashi series publishes here (T-089); the marshalled
@@ -2005,6 +2031,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishIndicatorLines(page.Bars);
                     PublishVwapOverlay(page.Bars);
                     PublishSessionAnalytics(page.Bars);
+                    PublishNakedPocTrack(page.Bars);
                     PublishHeikinAshi(page.Bars);
                     PublishSignalMarkers();
 
@@ -2056,6 +2083,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishIndicatorLines(Bars);
                     PublishVwapOverlay(Bars);
                     PublishSessionAnalytics(Bars);
+                    PublishNakedPocTrack(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
                     PublishCvd(Bars);
@@ -2113,6 +2141,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     PublishIndicatorLines(Bars);
                     PublishVwapOverlay(Bars);
                     PublishSessionAnalytics(Bars);
+                    PublishNakedPocTrack(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
                     PublishCvd(Bars);
@@ -2293,6 +2322,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 analytics => SessionAnalytics = analytics,
                 ex => _logger.LogError(ex, "The chart session analytics stream stopped unexpectedly"));
+
+        // The naked-POC track rides the same raw-then-marshal split (T-248).
+        _nakedPocPublishes.ObserveOnUiThread()
+            .Subscribe(
+                track => NakedPocs = track,
+                ex => _logger.LogError(ex, "The chart naked-POC track stream stopped unexpectedly"));
 
         // The Heikin-Ashi series rides the same raw-then-marshal split (T-089).
         _heikinAshiPublishes.ObserveOnUiThread()
@@ -4027,6 +4062,24 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         }
 
         _sessionPublishes.OnNext(SessionAnalytics.Compute(bars, OpeningRangeMinutes));
+    }
+
+    /// <summary>
+    /// Compute the naked-POC track (T-248) over the whole loaded series and
+    /// publish it; null while the series is empty (the honest absence — the
+    /// chart draws nothing of the track). The compute rides the bars-applied
+    /// callers, never the frame pass; no toggle re-keys it (the track gates
+    /// behind the volume-profile family's own visibility in the draw pass).
+    /// </summary>
+    private void PublishNakedPocTrack(IReadOnlyList<Bar>? bars)
+    {
+        if (bars is not { Count: > 0 })
+        {
+            _nakedPocPublishes.OnNext(null);
+            return;
+        }
+
+        _nakedPocPublishes.OnNext(NakedPocTrack.Compute(bars));
     }
 
     /// <summary>

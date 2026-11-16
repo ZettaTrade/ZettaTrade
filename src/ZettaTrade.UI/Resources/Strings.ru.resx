@@ -750,6 +750,18 @@
   <data name="Chart.SessionMinutes.Tip" xml:space="preserve">
     <value>Окно диапазона открытия в минутах (1–1440); нечитаемая запись оставляет действующее значение.</value>
   </data>
+  <data name="Chart.ProfilePoc" xml:space="preserve">
+    <value>POC</value>
+  </data>
+  <data name="Chart.ProfileVah" xml:space="preserve">
+    <value>VAH</value>
+  </data>
+  <data name="Chart.ProfileVal" xml:space="preserve">
+    <value>VAL</value>
+  </data>
+  <data name="Chart.ProfileNpoc" xml:space="preserve">
+    <value>N-POC</value>
+  </data>
   <data name="Chart.NoVolumeData" xml:space="preserve">
     <value>Нет данных об объёме этих свечей</value>
   </data>

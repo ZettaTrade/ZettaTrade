@@ -434,6 +434,7 @@
                                    VwapOverlay="{Binding VwapOverlay}"
                                    LiquidationLevelsOverlay="{Binding LiquidationLevelsOverlay}"
                                    SessionAnalytics="{Binding SessionAnalytics}"
+                                   NakedPocs="{Binding NakedPocs}"
                                    SessionOpensVisible="{Binding ShowSessionOpens}"
                                    SessionRangeVisible="{Binding ShowSessionRange}"
                                    SessionShadingVisible="{Binding ShowSessionShading}"
