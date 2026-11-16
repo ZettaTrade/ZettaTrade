@@ -1,0 +1,145 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZettaTrade.App.ViewModels"
+        xmlns:loc="using:Livery.Localization"
+        x:Class="ZettaTrade.App.Views.VenueSpreadWindow"
+        Classes="chrome"
+        Icon="/Assets/ZettaTrade.ico"
+        x:DataType="vm:VenueSpreadViewModel"
+        Title="{loc:Localized VenueSpread.Title}"
+        Width="920" Height="520"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Background}">
+
+    <Window.Styles>
+        <!-- T-253: the table rides the shared RowGrammar dictionary (the
+             screener's scaffold) — the window carries no table style
+             copy. -->
+        <StyleInclude Source="avares://ZettaTrade.App/Themes/RowGrammar.axaml" />
+
+        <!-- The table's numeric cells: the emphasized-header ink against
+             the plain value ink, the numeric font, fixed widths — the
+             columns align across the whole table. -->
+        <Style Selector="TextBlock.venue-caption">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.venue-value">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="FontFamily" Value="{StaticResource NumericFont}" />
+            <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+        <Style Selector="TextBlock.venue-value.up">
+            <Setter Property="Foreground" Value="{DynamicResource CandleUp}" />
+        </Style>
+        <Style Selector="TextBlock.venue-value.down">
+            <Setter Property="Foreground" Value="{DynamicResource CandleDown}" />
+        </Style>
+        <Style Selector="Polyline.venue-basis">
+            <Setter Property="Stroke" Value="{DynamicResource TextSecondary}" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="Width" Value="120" />
+            <Setter Property="Height" Value="28" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="{StaticResource InsetL}" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="{StaticResource SpaceM}">
+
+        <!-- The knobs: the symbol text (the spot form or the settled
+             perp form), the frame and the window (the static localized
+             items bind by index — the chart type selector's precedent);
+             the sample command disables itself while its pass runs. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="{StaticResource SpaceS}">
+            <TextBlock Text="{loc:Localized VenueSpread.Symbol}" VerticalAlignment="Center" />
+            <TextBox Width="140" Text="{Binding SymbolText}" />
+            <TextBlock Text="{loc:Localized VenueSpread.Frame}" VerticalAlignment="Center" Margin="16,0,0,0" />
+            <ComboBox MinWidth="90" SelectedIndex="{Binding SelectedFrameIndex}">
+                <ComboBoxItem Content="{loc:Localized VenueSpread.Frame.M15}" />
+                <ComboBoxItem Content="{loc:Localized VenueSpread.Frame.H1}" />
+                <ComboBoxItem Content="{loc:Localized VenueSpread.Frame.H4}" />
+                <ComboBoxItem Content="{loc:Localized VenueSpread.Frame.D1}" />
+            </ComboBox>
+            <TextBlock Text="{loc:Localized VenueSpread.Window}" VerticalAlignment="Center" Margin="16,0,0,0" />
+            <ComboBox MinWidth="100" SelectedIndex="{Binding SelectedWindowIndex}">
+                <ComboBoxItem Content="{loc:Localized VenueSpread.Window.50}" />
+                <ComboBoxItem Content="{loc:Localized VenueSpread.Window.100}" />
+                <ComboBoxItem Content="{loc:Localized VenueSpread.Window.200}" />
+            </ComboBox>
+            <Button Content="{loc:Localized VenueSpread.Sample}"
+                    Command="{Binding SampleCommand}"
+                    MinWidth="110" Margin="16,0,0,0" />
+        </StackPanel>
+
+        <!-- The status note: a failure's reason, the no-answer honesty —
+             one quiet line, never chrome over a missing table. -->
+        <TextBlock Grid.Row="1" Text="{Binding Note}" TextWrapping="Wrap"
+                   IsVisible="{Binding HasNote}" />
+
+        <ScrollViewer Grid.Row="2">
+            <StackPanel Spacing="{StaticResource SpaceS}" Margin="0,0,16,0">
+
+                <!-- The honest empty state: nothing sampled yet — a
+                     line, never a stub table. -->
+                <TextBlock Text="{loc:Localized VenueSpread.EmptyState}"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding !HasRows}" />
+
+                <!-- The table: the header band, then one row per venue —
+                     the venue, its last/bid/ask, its cross-venue delta,
+                     the perp-spot basis spark and last. A venue that
+                     never answered renders its dashes (the honest
+                     absence, never an error row). -->
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceM}" IsVisible="{Binding HasRows}">
+                    <TextBlock Classes="venue-caption" Text="{loc:Localized VenueSpread.Col.Venue}" Width="90" />
+                    <TextBlock Classes="venue-caption" Text="{loc:Localized VenueSpread.Col.Last}" Width="110" TextAlignment="Right" />
+                    <TextBlock Classes="venue-caption" Text="{loc:Localized VenueSpread.Col.Bid}" Width="110" TextAlignment="Right" />
+                    <TextBlock Classes="venue-caption" Text="{loc:Localized VenueSpread.Col.Ask}" Width="110" TextAlignment="Right" />
+                    <TextBlock Classes="venue-caption" Text="{loc:Localized VenueSpread.Col.Delta}" Width="90" TextAlignment="Right" />
+                    <TextBlock Classes="venue-caption" Text="{loc:Localized VenueSpread.Col.Basis}" Width="130" />
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding HasRows}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:VenueSpreadRowViewModel">
+                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceM}">
+                                <TextBlock Classes="venue-caption" Text="{Binding Venue}" Width="90" />
+                                <TextBlock Classes="venue-value" Text="{Binding LastText}" Width="110" />
+                                <TextBlock Classes="venue-value" Text="{Binding BidText}" Width="110" />
+                                <TextBlock Classes="venue-value" Text="{Binding AskText}" Width="110" />
+                                <TextBlock Classes="venue-value" Text="{Binding DeltaText}" Width="90"
+                                           Classes.up="{Binding IsDeltaPositive}"
+                                           Classes.down="{Binding IsDeltaNegative}" />
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceS}" Width="130">
+                                    <Polyline Classes="venue-basis" Points="{Binding BasisPoints}" />
+                                    <TextBlock Classes="venue-value" Text="{Binding BasisText}" VerticalAlignment="Center"
+                                               Classes.up="{Binding IsBasisPositive}"
+                                               Classes.down="{Binding IsBasisNegative}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+            <Button Grid.Column="1"
+                    Content="{loc:Localized Screener.Close}"
+                    Click="OnCloseClick"
+                    MinWidth="90"
+                    HorizontalAlignment="Right" />
+        </Grid>
+
+    </Grid>
+</Window>

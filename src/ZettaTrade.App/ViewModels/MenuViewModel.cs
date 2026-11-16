@@ -44,6 +44,9 @@ public sealed class MenuViewModel : ReactiveObject
     /// <summary>The correlation matrix window's menu command (T-252).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowCorrelationCommand { get; }
 
+    /// <summary>The venue-spread window's menu command (T-253).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ShowVenueSpreadCommand { get; }
+
     /// <summary>Command to show the trade statistics window.</summary>
     public ReactiveCommand<RxVoid, RxVoid> ShowTradeStatsCommand { get; }
 
@@ -136,6 +139,13 @@ public sealed class MenuViewModel : ReactiveObject
     /// <see cref="ShowScreenerRequested"/>).
     /// </summary>
     public Interaction<RxVoid, RxVoid> ShowCorrelationRequested { get; }
+
+    /// <summary>
+    /// Interaction that routes the show-venue-spread request to the View,
+    /// which hosts the modal window (T-253, same pattern as
+    /// <see cref="ShowCorrelationRequested"/>).
+    /// </summary>
+    public Interaction<RxVoid, RxVoid> ShowVenueSpreadRequested { get; }
 
     /// <summary>
     /// Interaction that routes the show-trade-statistics request to the
@@ -231,6 +241,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowOrderHistoryRequested = new Interaction<RxVoid, RxVoid>();
         ShowScreenerRequested = new Interaction<RxVoid, RxVoid>();
         ShowCorrelationRequested = new Interaction<RxVoid, RxVoid>();
+        ShowVenueSpreadRequested = new Interaction<RxVoid, RxVoid>();
         ShowTradeStatsRequested = new Interaction<RxVoid, RxVoid>();
         ShowNotificationsRequested = new Interaction<RxVoid, RxVoid>();
         ShowAlertsRequested = new Interaction<RxVoid, RxVoid>();
@@ -247,6 +258,7 @@ public sealed class MenuViewModel : ReactiveObject
         ShowOrderHistoryCommand = ReactiveCommand.CreateFromTask(HandleShowOrderHistoryAsync);
         ShowScreenerCommand = ReactiveCommand.CreateFromTask(HandleShowScreenerAsync);
         ShowCorrelationCommand = ReactiveCommand.CreateFromTask(HandleShowCorrelationAsync);
+        ShowVenueSpreadCommand = ReactiveCommand.CreateFromTask(HandleShowVenueSpreadAsync);
         ShowTradeStatsCommand = ReactiveCommand.CreateFromTask(HandleShowTradeStatsAsync);
         ShowNotificationsCommand = ReactiveCommand.CreateFromTask(HandleShowNotificationsAsync);
         ShowAlertsCommand = ReactiveCommand.CreateFromTask(HandleShowAlertsAsync);
@@ -361,6 +373,12 @@ public sealed class MenuViewModel : ReactiveObject
     /// plumbing stays out of the ViewModel, same as the screener window).
     /// </summary>
     private Task HandleShowCorrelationAsync() => ShowCorrelationRequested.Handle(RxVoid.Default);
+
+    /// <summary>
+    /// Route the show-venue-spread request to the View (window plumbing
+    /// stays out of the ViewModel, same as the correlation window).
+    /// </summary>
+    private Task HandleShowVenueSpreadAsync() => ShowVenueSpreadRequested.Handle(RxVoid.Default);
 
     /// <summary>
     /// Route the show-trade-statistics request to the View (window plumbing

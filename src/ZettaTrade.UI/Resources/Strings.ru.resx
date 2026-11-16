@@ -75,6 +75,9 @@
   <data name="Menu.Trading.Correlation" xml:space="preserve">
     <value>Матрица корреляции</value>
   </data>
+  <data name="Menu.Trading.VenueSpread" xml:space="preserve">
+    <value>Спред по площадкам</value>
+  </data>
   <data name="Menu.AI" xml:space="preserve">
     <value>ИИ</value>
   </data>
@@ -1892,6 +1895,72 @@
   </data>
   <data name="Correlation.ComputeFailed" xml:space="preserve">
     <value>Не удалось вычислить: {0}</value>
+  </data>
+  <data name="VenueSpread.Title" xml:space="preserve">
+    <value>Спред по площадкам и базис</value>
+  </data>
+  <data name="VenueSpread.Symbol" xml:space="preserve">
+    <value>Символ</value>
+  </data>
+  <data name="VenueSpread.Frame" xml:space="preserve">
+    <value>Таймфрейм</value>
+  </data>
+  <data name="VenueSpread.Frame.M15" xml:space="preserve">
+    <value>M15</value>
+  </data>
+  <data name="VenueSpread.Frame.H1" xml:space="preserve">
+    <value>H1</value>
+  </data>
+  <data name="VenueSpread.Frame.H4" xml:space="preserve">
+    <value>H4</value>
+  </data>
+  <data name="VenueSpread.Frame.D1" xml:space="preserve">
+    <value>D1</value>
+  </data>
+  <data name="VenueSpread.Window" xml:space="preserve">
+    <value>Окно</value>
+  </data>
+  <data name="VenueSpread.Window.50" xml:space="preserve">
+    <value>50 баров</value>
+  </data>
+  <data name="VenueSpread.Window.100" xml:space="preserve">
+    <value>100 баров</value>
+  </data>
+  <data name="VenueSpread.Window.200" xml:space="preserve">
+    <value>200 баров</value>
+  </data>
+  <data name="VenueSpread.Sample" xml:space="preserve">
+    <value>Опросить</value>
+  </data>
+  <data name="VenueSpread.EmptyState" xml:space="preserve">
+    <value>Введите символ и опросите площадки</value>
+  </data>
+  <data name="VenueSpread.SampleFailed" xml:space="preserve">
+    <value>Не удалось опросить: {0}</value>
+  </data>
+  <data name="VenueSpread.NoAnswers" xml:space="preserve">
+    <value>Ни одна площадка не ответила вовремя — таблица из прочерков</value>
+  </data>
+  <data name="VenueSpread.EmptySymbol" xml:space="preserve">
+    <value>Сначала введите текст символа</value>
+  </data>
+  <data name="VenueSpread.Col.Venue" xml:space="preserve">
+    <value>Площадка</value>
+  </data>
+  <data name="VenueSpread.Col.Last" xml:space="preserve">
+    <value>Последняя</value>
+  </data>
+  <data name="VenueSpread.Col.Bid" xml:space="preserve">
+    <value>Бид</value>
+  </data>
+  <data name="VenueSpread.Col.Ask" xml:space="preserve">
+    <value>Аск</value>
+  </data>
+  <data name="VenueSpread.Col.Delta" xml:space="preserve">
+    <value>Δ, бп</value>
+  </data>
+  <data name="VenueSpread.Col.Basis" xml:space="preserve">
+    <value>Базис перп-спот, бп</value>
   </data>
   <data name="Screener.ColTrendM15" xml:space="preserve">
     <value>15м</value>

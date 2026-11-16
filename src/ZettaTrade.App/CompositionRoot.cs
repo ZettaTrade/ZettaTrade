@@ -400,6 +400,7 @@ internal static class CompositionRoot
         services.AddHeatmapServices(); // T-121: the heatmap panel (candidate pumps + ranked tile page) beside the watchlist rail above.
         services.AddScreenerServices(); // T-195: the screener panel (candidate pumps + the sortable table page) beside the heatmap rail above.
         services.AddCorrelationServices(); // T-252: the correlation matrix panel (the on-demand cache pass + the compare-routing grid) beside the screener above.
+        services.AddVenueSpreadServices(); // T-253: the cross-venue spread + perp-spot basis panel (the ticker race + the basis cache reads) beside the correlation above.
         services.AddLiquidationsServices(); // T-242: the liquidation tape panel (the forced-order capability's raw events + the pulse-paced aggregation lanes) beside the tape column above.
         // T-095: the global symbol palette — the Ctrl+K instrument picker
         // over ALL registered adapters. Both singletons, registered after

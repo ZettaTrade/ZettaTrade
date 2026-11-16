@@ -75,6 +75,9 @@
   <data name="Menu.Trading.Correlation" xml:space="preserve">
     <value>Correlation matrix</value>
   </data>
+  <data name="Menu.Trading.VenueSpread" xml:space="preserve">
+    <value>Venue spread</value>
+  </data>
   <data name="Menu.AI" xml:space="preserve">
     <value>AI</value>
   </data>
@@ -1892,6 +1895,72 @@ Estimated fee: {10}</value>
   </data>
   <data name="Correlation.ComputeFailed" xml:space="preserve">
     <value>The computation failed: {0}</value>
+  </data>
+  <data name="VenueSpread.Title" xml:space="preserve">
+    <value>Cross-venue spread &amp; basis</value>
+  </data>
+  <data name="VenueSpread.Symbol" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="VenueSpread.Frame" xml:space="preserve">
+    <value>Time frame</value>
+  </data>
+  <data name="VenueSpread.Frame.M15" xml:space="preserve">
+    <value>M15</value>
+  </data>
+  <data name="VenueSpread.Frame.H1" xml:space="preserve">
+    <value>H1</value>
+  </data>
+  <data name="VenueSpread.Frame.H4" xml:space="preserve">
+    <value>H4</value>
+  </data>
+  <data name="VenueSpread.Frame.D1" xml:space="preserve">
+    <value>D1</value>
+  </data>
+  <data name="VenueSpread.Window" xml:space="preserve">
+    <value>Window</value>
+  </data>
+  <data name="VenueSpread.Window.50" xml:space="preserve">
+    <value>50 bars</value>
+  </data>
+  <data name="VenueSpread.Window.100" xml:space="preserve">
+    <value>100 bars</value>
+  </data>
+  <data name="VenueSpread.Window.200" xml:space="preserve">
+    <value>200 bars</value>
+  </data>
+  <data name="VenueSpread.Sample" xml:space="preserve">
+    <value>Sample</value>
+  </data>
+  <data name="VenueSpread.EmptyState" xml:space="preserve">
+    <value>Enter a symbol and sample the venues</value>
+  </data>
+  <data name="VenueSpread.SampleFailed" xml:space="preserve">
+    <value>The sampling failed: {0}</value>
+  </data>
+  <data name="VenueSpread.NoAnswers" xml:space="preserve">
+    <value>No venue answered in time — the table stays dashed</value>
+  </data>
+  <data name="VenueSpread.EmptySymbol" xml:space="preserve">
+    <value>Enter a symbol text first</value>
+  </data>
+  <data name="VenueSpread.Col.Venue" xml:space="preserve">
+    <value>Venue</value>
+  </data>
+  <data name="VenueSpread.Col.Last" xml:space="preserve">
+    <value>Last</value>
+  </data>
+  <data name="VenueSpread.Col.Bid" xml:space="preserve">
+    <value>Bid</value>
+  </data>
+  <data name="VenueSpread.Col.Ask" xml:space="preserve">
+    <value>Ask</value>
+  </data>
+  <data name="VenueSpread.Col.Delta" xml:space="preserve">
+    <value>Δ, bps</value>
+  </data>
+  <data name="VenueSpread.Col.Basis" xml:space="preserve">
+    <value>Perp-spot basis, bps</value>
   </data>
   <data name="Screener.ColTrendM15" xml:space="preserve">
     <value>15m</value>

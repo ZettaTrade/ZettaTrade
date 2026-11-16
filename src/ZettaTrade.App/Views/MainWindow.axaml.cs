@@ -196,6 +196,7 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         ViewModel?.Menu.ShowOrderHistoryRequested.RegisterHandler(OpenOrderHistoryAsync);
         ViewModel?.Menu.ShowScreenerRequested.RegisterHandler(OpenScreenerAsync);
         ViewModel?.Menu.ShowCorrelationRequested.RegisterHandler(OpenCorrelationAsync);
+        ViewModel?.Menu.ShowVenueSpreadRequested.RegisterHandler(OpenVenueSpreadAsync);
         ViewModel?.Menu.ShowTradeStatsRequested.RegisterHandler(OpenTradeStatsAsync);
         ViewModel?.Menu.ShowBacktestRequested.RegisterHandler(OpenBacktestAsync);
         ViewModel?.Menu.ShowAlertsRequested.RegisterHandler(OpenAlertsAsync);
@@ -919,6 +920,29 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to open the order history window");
+        }
+        finally
+        {
+            context.SetOutput(RxVoid.Default);
+        }
+    }
+
+    private async Task OpenVenueSpreadAsync(IInteractionContext<RxVoid, RxVoid> context)
+    {
+        try
+        {
+            // The venue-spread view model is the workspace singleton: the
+            // window surfaces its standing table — every open shows the
+            // last sampled page, never a re-armed sample.
+            var window = new VenueSpreadWindow
+            {
+                DataContext = App.Services.GetRequiredService<ViewModels.VenueSpreadViewModel>(),
+            };
+            await window.ShowDialog<object>(this);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open the venue-spread window");
         }
         finally
         {

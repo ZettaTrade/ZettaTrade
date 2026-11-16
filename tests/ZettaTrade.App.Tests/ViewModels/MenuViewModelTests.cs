@@ -154,6 +154,31 @@ public sealed class MenuViewModelTests
     }
 
     /// <summary>
+    /// The Trading menu's venue-spread item (T-253) routes through its
+    /// interaction the same way every panel command does — the View
+    /// hosts the window.
+    /// </summary>
+    [Fact]
+    public async Task ShowVenueSpreadCommand_Executed_RoutesThroughShowVenueSpreadInteraction()
+    {
+        // Arrange
+        var menu = new MenuViewModel(CreateChat(), HudTests.CreateAnonymousHud(), HotkeyKits.CreateAnonymousHotkeys());
+        var handled = 0;
+        menu.ShowVenueSpreadRequested.RegisterHandler(context =>
+        {
+            Interlocked.Increment(ref handled);
+            context.SetOutput(RxVoid.Default);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await menu.ShowVenueSpreadCommand.Execute(RxVoid.Default);
+
+        // Assert
+        handled.Should().Be(1);
+    }
+
+    /// <summary>
     /// The Help menu's license-activation item (T-132) routes through its
     /// interaction the same way every dialog command does — the View hosts
     /// the dialog window.
