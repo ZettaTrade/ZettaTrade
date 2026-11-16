@@ -245,7 +245,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-239 Multi-timeframe trend table in the screener: per-symbol bull/bear/range states across 15m/1h/4h/1d computed from the candle cache (the analytics sweep 2026-11-14) | feat/mtf-trend-table | done | 0.2.11 |
 | T-240 Funding-rate history chart + the funding-threshold alert kind for perps (the analytics sweep 2026-11-14) | feat/funding-history | done | 0.2.12 |
 | T-241 Open-interest history as a chart pane under the price series for perps (the analytics sweep 2026-11-14) | feat/oi-history-pane | done | 0.2.13 |
-| T-242 Liquidation feed: the venues' free forced-order WS streams aggregated into the tape and chart markers (the analytics sweep 2026-11-14) | feat/liquidation-feed | in-progress | — |
+| T-242 Liquidation feed: the venues' free forced-order WS streams aggregated into the tape and chart markers (the analytics sweep 2026-11-14) | feat/liquidation-feed | done | 0.2.14 |
 | T-243 Estimated liquidation levels overlay computed locally from OI deltas + the venues' public leverage brackets (the analytics sweep 2026-11-14) | feat/liquidation-levels | planned | T-241 (soft) |
 | T-244 CVD pane: cumulative volume delta summed from the tape's aggressor side (the analytics sweep 2026-11-14) | feat/cvd-pane | planned | — |
 | T-245 Whale-print filter + the big-trade alert kind in the tape (the analytics sweep 2026-11-14) | feat/whale-filter | planned | — |
@@ -361,25 +361,6 @@ prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately le
 the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
 T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
 original numbers.
-
----
-
-## T-242 — Liquidation feed: the venues' forced-order streams
-
-- **Branch:** `feat/liquidation-feed` off `develop` (claimed 2026-11-16, the analytics sweep; the
-  worktree `zt-liquidation-feed`).
-- **Status:** in-progress.
-- **Origin:** no liquidation data anywhere; the venues publish it free over WebSocket.
-- **What:** subscribe the liquidation streams (Binance `!forceOrder@arr`, Bybit v5
-  `liquidation.linear.<symbol>`, OKX when that adapter grows), aggregate per symbol, surface in
-  the tape area (a filter or a dedicated panel) and optional chart markers on large-notional
-  cascades; the under-reporting caveat (first-order-only cascades) stays documented in the UI note.
-- **Scope:** adapter WS growth (category-aware), the aggregation service (bounded channels, the
-  T-052/T-105 transport lessons), the panel surface, resx en+ru, tests.
-- **Acceptance:** a live liquidation lands within one WS frame; an adapter without the stream
-  degrades honestly.
-- **Tests:** e2e WS against the loopback harness (the T-020 pattern), aggregation goldens,
-  cascade grouping.
 
 ---
 

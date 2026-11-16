@@ -5742,6 +5742,65 @@ the board and its section below.
   `Directory.Build.props` bump is the supervisor-only protected file); the launch smoke passed
   before the merge.
 
+## T-242 — Liquidation feed: the venues' forced-order streams
+
+- **Branch:** `feat/liquidation-feed` off `develop` (claimed 2026-11-16, the analytics sweep; the
+  worktree `zt-liquidation-feed`).
+- **Origin:** no liquidation data anywhere; the venues publish it free over WebSocket.
+- **What:** subscribe the liquidation streams (Binance `!forceOrder@arr`, Bybit v5
+  `liquidation.linear.<symbol>`, OKX when that adapter grows), aggregate per symbol, surface in
+  the tape area (a filter or a dedicated panel) and optional chart markers on large-notional
+  cascades; the under-reporting caveat (first-order-only cascades) stays documented in the UI note.
+- **Scope:** adapter WS growth (category-aware), the aggregation service (bounded channels, the
+  T-052/T-105 transport lessons), the panel surface, resx en+ru, tests.
+- **Acceptance:** a live liquidation lands within one WS frame; an adapter without the stream
+  degrades honestly.
+- **Tests:** e2e WS against the loopback harness (the T-020 pattern), aggregation goldens,
+  cascade grouping.
+- **Status:** done. Canon: the feature commit `0c30eb4` (the claim `be97475`; the T-240
+  archive-tally correction `477bbd8` rides the chain; written supervisor-solo, then two
+  review-fix amends — the aggregator's doc line made truthful to the pinned single-order
+  semantics, and the gate's lint/pin families: the import order in the two adapters and the
+  Bybit E2E tests, the aggregator tests' expression-body indentation, the MainWindow note's
+  on-scale margin and ramp-step font size, the tape head's bare title restored inside the
+  scaffold — the two-tab tape column keeps the tab captions AND the scaffold's title) is on
+  develop (fast-forward merge); shipped as `0.2.14` (see CHANGELOG.md). Lane decisions: the
+  feed rides the optional capability probe (`ILiquidationFeedProvider` in Infrastructure
+  Exchange) — a venue without the wire answers the honest empty stream and the panel's
+  unavailable note (OKX stays out until that adapter grows the lane — the board's own "when
+  the adapter grows" bound); the wire is demand-subscribed and ref-count OWNED — Bybit's
+  per-contract `allLiquidation.<wire>` topics on a dedicated third socket on the linear host,
+  Binance's all-market `!forceOrder@arr` on a dedicated socket on the futures combined-stream
+  host (`BinanceEndpoints.FuturesWsUrl`) — dial on the first subscriber, drop on the last
+  release; the wire-request pump serves market-data re-subscribes, liquidation re-subscribes
+  and releases FIFO through the send gate (the BUG-004 no-mid-send-cancel discipline); the
+  spot twin and the settle-marked perpetual name one contract text — one wire subscription
+  serves both subscribers, each sees the events stamped with ITS app symbol, and the request
+  is NOT perp-only (unlike the funding and open-interest capabilities); the side is the
+  venue-normalized POSITION the liquidation force-closed (Bybit's "Buy" row and Binance's
+  "SELL" closing order both name a LONG liquidation) — never the venue's raw dialect; the
+  Binance event carries the executed size (`z`) and the average forced fill (`ap`) when
+  served positive, the original order facts (`q`/`p`) otherwise — never a fabricated zero;
+  malformed rows are counted and dropped (the BUG-027 discipline); the aggregation lane rides
+  a bounded DropOldest channel (the log tail's backpressure leg) — the drops stay counted,
+  the single reader owns the tracker — and the window state (the recent events, the rolled-up
+  totals, the open cascade) publishes per pulse tick; the cascade is the chain rule (each
+  event within 30 s of the run's previous one) plus the 250 000 notional bound (the bound,
+  not the order count, qualifies — one oversized forced order badges on its own, a stream of
+  small ones never does; ties badge Long); every served cascade total is a floor (the venues
+  publish only the FIRST forced order of a cascade — the under-reporting note rides the
+  panel and the CHANGELOG, no estimate pretends to know the rest); the chart markers stayed
+  OUT this task — the open cascade badges the panel's header band, the chart-marker surface
+  remains queued (the task's "optional" marker clause). Tests: App.Tests 2527/2527 and
+  Infrastructure.Tests 791/791, the gate-measured counts (the loopback E2E for both venues —
+  the dial-on-first-subscribe, the side mapping, the malformed/untracked drops, the release
+  unsubscribe+disconnect and the reconnect re-subscribe — and the aggregator goldens among
+  the respective additions; the service lane's capability honesty, pulse pacing, lookback
+  eviction and adapter-switch rebuild; the ring and page-layout pins among the UI.Tests
+  additions), every other suite green (UI 432, E2E 7, AdapterKit 48, Backtest 80, Strategies
+  32, Soak 17, Core 61). Gate passed with `-AllowProtected` (the `Directory.Build.props` bump
+  is the supervisor-only protected file); the launch smoke passed before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
