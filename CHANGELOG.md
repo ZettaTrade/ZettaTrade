@@ -1,3 +1,18 @@
+## [0.2.22] - 2026-11-16
+
+Build of board task T-250 (branch `feat/squeeze-detector`): the squeeze
+marker rides the standard pack's new release.
+
+### Added
+- The standard pack 0.5.0's squeeze marker plugin (`SQZ`): the classic
+  Bollinger-inside-Keltner volatility-compression read — the state
+  series renders in its own oscillator pane (1 while the bands sit
+  strictly inside the channels, 0 while they do not, -1 on the release
+  bar — the first bar the standing squeeze ends, the edge only). The
+  window (default 20) is the row knob, the multipliers stay classic
+  (2.0 / 1.5). The consuming bump is the one-line `PluginsVersion` pin;
+  the pack's own release notes ride the satellite repo's CHANGELOG.
+
 ## [0.2.21] - 2026-11-16
 
 Build of board task T-249 (branch `feat/auto-levels`): the automatic
