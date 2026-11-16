@@ -48,7 +48,8 @@ public sealed class BybitAdapter :
     IMarketDataAdapter,
     IFundingHistoryProvider,
     IOIHistoryProvider,
-    ILiquidationFeedProvider
+    ILiquidationFeedProvider,
+    ILeverageBracketsProvider
 {
     #region Constants
 
@@ -78,6 +79,9 @@ public sealed class BybitAdapter :
 
     /// <summary>REST path of the open-interest history endpoint (T-241).</summary>
     private const string OpenInterestRequestPath = "/v5/market/open-interest";
+
+    /// <summary>The v5 public risk-limit table of the linear contracts (T-243's bracket source).</summary>
+    private const string RiskLimitRequestPath = "/v5/market/risk-limit";
 
     /// <summary>The v5 REST category of the spot instruments (T-197's category-aware requests).</summary>
     private const string SpotCategory = "spot";
@@ -716,6 +720,67 @@ public sealed class BybitAdapter :
         points.Reverse();
 
         return points;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<LeverageBracket>> GetLeverageBracketsAsync(
+        Symbol symbol,
+        CancellationToken ct = default)
+    {
+        // A risk table exists for leveraged contracts only: a spot symbol
+        // is a request-contract violation, refused — never guessed into
+        // another category.
+        if (!symbol.IsPerpetual)
+        {
+            throw new ArgumentException(
+                $"The leverage brackets serve perpetual contracts only; {symbol.Normalized} is not one.",
+                nameof(symbol));
+        }
+
+        var url = $"{_baseUrl}{RiskLimitRequestPath}" +
+                  $"?category={LinearCategory}" +
+                  $"&symbol={symbol.GetExchangeFormat(Id)}";
+
+        var result = await GetRestResultAsync(
+            RestLane.Background,
+            RiskLimitRequestPath,
+            CatalogPageWeight,
+            url,
+            ct);
+        var rows = result.GetProperty("list");
+
+        // Bybit v5 risk-limit rows (the current wire measured 2026-11-16):
+        // {"id":1,"symbol":"BTCUSDT","riskLimitValue":"150000",
+        // "maintenanceMargin":"0.005","initialMargin":"0.01",
+        // "isLowestRisk":1,"maxLeverage":"100.00",...} — riskLimitValue is
+        // the tier's notional cap in the settle currency (USDT for the
+        // linear contracts the catalog serves), the margin members are
+        // RATES as decimal fractions, and the tiers serve ascending by id
+        // (tier 1 the lowest). The table normalizes ascending by cap; a
+        // tier's floor is the previous tier's cap, the first floors at
+        // zero — a position's notional picks exactly one tier.
+        var rowsList = new List<(decimal Cap, decimal MaxLeverage, decimal MaintenanceMarginRate)>(rows.GetArrayLength());
+        foreach (var row in rows.EnumerateArray())
+        {
+            rowsList.Add((
+                BinanceJsonNumbers.ParseDecimal(row.GetProperty("riskLimitValue")),
+                BinanceJsonNumbers.ParseDecimal(row.GetProperty("maxLeverage")),
+                BinanceJsonNumbers.ParseDecimal(row.GetProperty("maintenanceMargin"))));
+        }
+
+        rowsList.Sort(static (a, b) => a.Cap.CompareTo(b.Cap));
+
+        var brackets = new List<LeverageBracket>(rowsList.Count);
+        foreach (var row in rowsList)
+        {
+            brackets.Add(new LeverageBracket(
+                brackets.Count == 0 ? 0m : brackets[^1].NotionalCap,
+                row.Cap,
+                row.MaxLeverage,
+                row.MaintenanceMarginRate));
+        }
+
+        return brackets;
     }
 
     /// <summary>

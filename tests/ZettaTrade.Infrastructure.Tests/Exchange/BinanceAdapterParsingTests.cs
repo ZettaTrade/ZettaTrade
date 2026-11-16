@@ -219,4 +219,85 @@ public sealed class BinanceAdapterParsingTests
     }
 
     #endregion Parser
+
+    #region Leverage Brackets (T-243)
+
+    /// <summary>Real Binance futures leverageBracket shape: an array holding
+    /// the requested symbol's one entry, the tiers NUMBER-typed, ascending,
+    /// notionalFloor/notionalCap in USDT (the synthetic three-step table:
+    /// 150 000 / 500 000 / 2 000 000 USDT).</summary>
+    private const string LeverageBracketPayload =
+        """
+        [{"symbol":"BTCUSDT","brackets":[
+            {"bracket":1,"initialLeverage":125,"notionalCap":150000,"notionalFloor":0,"maintMarginRatio":0.004,"cum":0.0},
+            {"bracket":2,"initialLeverage":50,"notionalCap":500000,"notionalFloor":150000,"maintMarginRatio":0.005,"cum":300.0},
+            {"bracket":3,"initialLeverage":20,"notionalCap":2000000,"notionalFloor":500000,"maintMarginRatio":0.01,"cum":2600.0}
+        ]}]
+        """;
+
+    /// <summary>The bracket table rides the futures REST host on its own path with the wire symbol.</summary>
+    [Fact]
+    public async Task GetLeverageBracketsAsync_PerpetualSymbol_RequestsTheFuturesHostOnItsPath()
+    {
+        var (adapter, handler) = CreateAdapterWithCapture(Json(Encoding.UTF8.GetBytes(LeverageBracketPayload)));
+
+        await adapter.GetLeverageBracketsAsync(Symbol.Parse("BTC/USDT:USDT"));
+
+        handler.LastRequest!.RequestUri!.Query.Should().Contain("symbol=BTCUSDT");
+        handler.LastRequest.RequestUri!.AbsolutePath.Should().Be("/fapi/v1/leverageBracket");
+    }
+
+    /// <summary>The served tiers parse into ascending brackets with the venue's own floors and exact decimals.</summary>
+    [Fact]
+    public async Task GetLeverageBracketsAsync_Tiers_ParseAscendingExactDecimals()
+    {
+        var adapter = CreateAdapter(Json(Encoding.UTF8.GetBytes(LeverageBracketPayload)));
+
+        var brackets = await adapter.GetLeverageBracketsAsync(Symbol.Parse("BTC/USDT:USDT"));
+
+        brackets.Should().HaveCount(3);
+        brackets[0].NotionalFloor.Should().Be(0m);
+        brackets[0].NotionalCap.Should().Be(150_000m);
+        brackets[0].MaxLeverage.Should().Be(125m);
+        brackets[0].MaintenanceMarginRate.Should().Be(0.004m);
+        brackets[1].NotionalFloor.Should().Be(150_000m);
+        brackets[1].NotionalCap.Should().Be(500_000m);
+        brackets[1].MaxLeverage.Should().Be(50m);
+        brackets[1].MaintenanceMarginRate.Should().Be(0.005m);
+        brackets[2].NotionalFloor.Should().Be(500_000m);
+        brackets[2].NotionalCap.Should().Be(2_000_000m);
+        brackets[2].MaxLeverage.Should().Be(20m);
+        brackets[2].MaintenanceMarginRate.Should().Be(0.01m);
+    }
+
+    /// <summary>A served order that breaks the ascending chain is a wire fault, refused — never re-guessed into shape.</summary>
+    [Fact]
+    public async Task GetLeverageBracketsAsync_OutOfOrderTiers_IsRefused()
+    {
+        const string outOfOrder =
+            """
+            [{"symbol":"BTCUSDT","brackets":[
+                {"bracket":1,"initialLeverage":125,"notionalCap":500000,"notionalFloor":0,"maintMarginRatio":0.004},
+                {"bracket":2,"initialLeverage":50,"notionalCap":150000,"notionalFloor":0,"maintMarginRatio":0.005}
+            ]}]
+            """;
+        var adapter = CreateAdapter(Json(Encoding.UTF8.GetBytes(outOfOrder)));
+
+        var act = () => adapter.GetLeverageBracketsAsync(Symbol.Parse("BTC/USDT:USDT"));
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    /// <summary>A spot symbol has no risk table at any venue: the request is refused, never guessed.</summary>
+    [Fact]
+    public async Task GetLeverageBracketsAsync_SpotSymbol_IsRefused()
+    {
+        var adapter = CreateAdapter(Json(Encoding.UTF8.GetBytes(LeverageBracketPayload)));
+
+        var act = () => adapter.GetLeverageBracketsAsync(Symbol.Parse("BTC/USDT"));
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    #endregion Leverage Brackets (T-243)
 }

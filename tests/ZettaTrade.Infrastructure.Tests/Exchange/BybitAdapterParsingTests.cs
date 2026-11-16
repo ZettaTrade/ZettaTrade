@@ -492,4 +492,70 @@ public sealed class BybitAdapterParsingTests
     }
 
     #endregion Open-Interest History (T-241)
+
+    #region Leverage Brackets (T-243)
+
+    /// <summary>Real v5 risk-limit shape (measured 2026-11-16): the symbol-filtered
+    /// call serves the contract's tiers ascending by id, every numeric member a
+    /// STRING, riskLimitValue the notional cap in the settle currency and the
+    /// margin members RATES as decimal fractions. The tiers are a synthetic
+    /// three-step BTCUSDT table (150 000 / 500 000 / 2 000 000 USDT).</summary>
+    private const string LeverageBracketsPayloadJson =
+        """
+        {"retCode":0,"retMsg":"OK","result":{"category":"linear","list":[
+            {"id":1,"symbol":"BTCUSDT","riskLimitValue":"150000","maintenanceMargin":"0.005","initialMargin":"0.01","isLowestRisk":1,"maxLeverage":"100.00"},
+            {"id":2,"symbol":"BTCUSDT","riskLimitValue":"500000","maintenanceMargin":"0.01","initialMargin":"0.02","isLowestRisk":0,"maxLeverage":"50.00"},
+            {"id":3,"symbol":"BTCUSDT","riskLimitValue":"2000000","maintenanceMargin":"0.02","initialMargin":"0.05","isLowestRisk":0,"maxLeverage":"20.00"}
+        ]}}
+        """;
+
+    /// <summary>The bracket table rides the linear risk-limit endpoint with the category and the wire symbol.</summary>
+    [Fact]
+    public async Task GetLeverageBracketsAsync_PerpetualSymbol_RequestsTheLinearCategoryOnItsEndpoint()
+    {
+        var (adapter, handler) = CreateAdapter(LeverageBracketsPayloadJson);
+
+        await adapter.GetLeverageBracketsAsync(Symbol.Parse("BTC/USDT:USDT"));
+
+        handler.LastRequest!.RequestUri!.Query
+            .Should().Contain("category=linear")
+            .And.Contain("symbol=BTCUSDT");
+        handler.LastRequest.RequestUri!.AbsolutePath.Should().Be("/v5/market/risk-limit");
+    }
+
+    /// <summary>The served tiers normalize ascending by cap with CHAINED floors and the rates as served fractions.</summary>
+    [Fact]
+    public async Task GetLeverageBracketsAsync_Tiers_ParseAscendingChainedExactDecimals()
+    {
+        var (adapter, _) = CreateAdapter(LeverageBracketsPayloadJson);
+
+        var brackets = await adapter.GetLeverageBracketsAsync(Symbol.Parse("BTC/USDT:USDT"));
+
+        brackets.Should().HaveCount(3);
+        brackets[0].NotionalFloor.Should().Be(0m);
+        brackets[0].NotionalCap.Should().Be(150_000m);
+        brackets[0].MaxLeverage.Should().Be(100m);
+        brackets[0].MaintenanceMarginRate.Should().Be(0.005m);
+        brackets[1].NotionalFloor.Should().Be(150_000m, "a tier floors at the previous tier's cap");
+        brackets[1].NotionalCap.Should().Be(500_000m);
+        brackets[1].MaxLeverage.Should().Be(50m);
+        brackets[1].MaintenanceMarginRate.Should().Be(0.01m);
+        brackets[2].NotionalFloor.Should().Be(500_000m);
+        brackets[2].NotionalCap.Should().Be(2_000_000m);
+        brackets[2].MaxLeverage.Should().Be(20m);
+        brackets[2].MaintenanceMarginRate.Should().Be(0.02m);
+    }
+
+    /// <summary>A spot symbol has no risk table at any venue: the request is refused, never guessed.</summary>
+    [Fact]
+    public async Task GetLeverageBracketsAsync_SpotSymbol_IsRefused()
+    {
+        var (adapter, _) = CreateAdapter(LeverageBracketsPayloadJson);
+
+        var act = () => adapter.GetLeverageBracketsAsync(Symbol.Parse("BTC/USDT"));
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    #endregion Leverage Brackets (T-243)
 }

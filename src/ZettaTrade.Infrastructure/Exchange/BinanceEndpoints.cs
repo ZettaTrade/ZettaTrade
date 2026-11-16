@@ -10,7 +10,13 @@ namespace ZettaTrade.Infrastructure.Exchange;
 /// <param name="WsUrl">WebSocket URL of the combined stream endpoint (the {"stream","data"} envelope adapter's message handler expects — a raw /ws frame host would drop depth frames silently).</param>
 /// <param name="IsTestnet">Venue lane identity: true when this record's endpoints serve a testnet venue (the trading-mode chip's mapping reads it; production endpoints stay false).</param>
 /// <param name="FuturesWsUrl">WebSocket URL of the futures combined-stream host — the venue's derivatives wire the forced-liquidation stream rides (T-242). Optional: the shipped default is the production futures host, and a loopback rig overrides it the same way <paramref name="WsUrl"/> is.</param>
-public sealed record BinanceEndpoints(string RestBaseUrl, string WsUrl, bool IsTestnet = false, string? FuturesWsUrl = null)
+/// <param name="FuturesRestBaseUrl">HTTPS base of the futures REST host — the derivatives REST the leverage-bracket table rides (T-243). Optional: the shipped default is the production futures REST host, and a loopback rig overrides it the same way <paramref name="RestBaseUrl"/> is.</param>
+public sealed record BinanceEndpoints(
+    string RestBaseUrl,
+    string WsUrl,
+    bool IsTestnet = false,
+    string? FuturesWsUrl = null,
+    string? FuturesRestBaseUrl = null)
 {
     /// <summary>Production host pair used when nothing else is configured.</summary>
     public static readonly BinanceEndpoints Production = new(

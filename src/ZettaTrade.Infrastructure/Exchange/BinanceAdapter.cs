@@ -30,7 +30,7 @@ using ZettaTrade.Infrastructure.RateLimiting;
 /// <see cref="DisconnectAsync"/> keep governing only the market-data wire.
 /// </para>
 /// </summary>
-public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter, ILiquidationFeedProvider
+public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter, ILiquidationFeedProvider, ILeverageBracketsProvider
 {
     #region Properties
 
@@ -57,8 +57,19 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter, IL
     /// </summary>
     public const string DefaultFuturesWsUrl = "wss://fstream.binance.com:443/stream";
 
+    /// <summary>
+    /// Production REST base of the futures host: the derivatives REST the
+    /// leverage-bracket table rides (T-243). The spot REST carries no risk
+    /// table at any price — a bracket lane pointing at the spot REST is a
+    /// configuration error, so it owns its own default.
+    /// </summary>
+    public const string DefaultFuturesRestUrl = "https://fapi.binance.com";
+
     /// <summary>The v5-era all-market forced-liquidation stream name (one subscription serves every contract; the events carry their own symbol).</summary>
     private const string LiquidationStreamName = "!forceOrder@arr";
+
+    /// <summary>The futures REST path of the public leverage-bracket table (T-243).</summary>
+    private const string LeverageBracketRequestPath = "/fapi/v1/leverageBracket";
 
     /// <summary>Number of levels in the partial book depth snapshot.</summary>
     private const int DepthLevelCount = 20;
@@ -88,6 +99,9 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter, IL
 
     /// <summary>The request weight the venue documents for an unsymbol'd priced-symbols REST call.</summary>
     private const int SymbolsRequestWeight = 4;
+
+    /// <summary>The request weight the venue documents for the symbol-filtered leverage-bracket call (T-243).</summary>
+    private const int LeverageBracketRequestWeight = 1;
 
     /// <summary>The request weight the venue documents for the lightest kline slice (limit up to 100 bars).</summary>
     private const int KlinesBaseWeight = 2;
@@ -217,6 +231,9 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter, IL
     private readonly string _baseUrl;
     private readonly string _wsUrl;
     private readonly string _futuresWsUrl;
+
+    /// <summary>The futures REST base the leverage-bracket table rides (T-243).</summary>
+    private readonly string _futuresRestUrl;
     private readonly IRestRateLimiter _restLimiter;
     private readonly IDisposable _messageSubscription;
     private readonly IDisposable _connectionSubscription;
@@ -318,6 +335,7 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter, IL
         _baseUrl = endpoints?.RestBaseUrl ?? DefaultRestBaseUrl;
         _wsUrl = endpoints?.WsUrl ?? DefaultWsUrl;
         _futuresWsUrl = ResolveFuturesWsUrl(endpoints);
+        _futuresRestUrl = ResolveFuturesRestUrl(endpoints);
 
         if (string.IsNullOrWhiteSpace(_baseUrl) || string.IsNullOrWhiteSpace(_wsUrl))
         {
@@ -743,6 +761,86 @@ public sealed class BinanceAdapter : ExchangeAdapterBase, IMarketDataAdapter, IL
         string.IsNullOrWhiteSpace(endpoints?.FuturesWsUrl)
             ? DefaultFuturesWsUrl
             : endpoints.FuturesWsUrl;
+
+    /// <summary>
+    /// Resolve the bracket lane's REST host: the endpoints record's optional
+    /// futures override, the shipped production default otherwise.
+    /// </summary>
+    private static string ResolveFuturesRestUrl(BinanceEndpoints? endpoints) =>
+        string.IsNullOrWhiteSpace(endpoints?.FuturesRestBaseUrl)
+            ? DefaultFuturesRestUrl
+            : endpoints.FuturesRestBaseUrl;
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<LeverageBracket>> GetLeverageBracketsAsync(
+        Symbol symbol,
+        CancellationToken ct = default)
+    {
+        // A risk table exists for leveraged contracts only: a spot symbol is
+        // a request-contract violation, refused — never guessed into
+        // another category.
+        if (!symbol.IsPerpetual)
+        {
+            throw new ArgumentException(
+                $"The leverage brackets serve perpetual contracts only; {symbol.Normalized} is not one.",
+                nameof(symbol));
+        }
+
+        var url = $"{_futuresRestUrl}{LeverageBracketRequestPath}" +
+                  $"?symbol={symbol.GetExchangeFormat(Id)}";
+
+        using var response = await SendRateLimitedGetAsync(
+            RestLane.Background,
+            LeverageBracketRequestPath,
+            LeverageBracketRequestWeight,
+            url,
+            ct);
+        response.EnsureSuccessStatusCode();
+
+        // Binance futures leverageBracket wire (the real shape): the response
+        // is an ARRAY holding the requested symbol's one entry —
+        // [{"symbol":"BTCUSDT","brackets":[{"bracket":1,"initialLeverage":125,
+        // "notionalCap":5000000,"notionalFloor":0,"maintMarginRatio":0.004,
+        // "cum":0.0,...}]}] — every numeric member a NUMBER (no strings), the
+        // tiers served ascending, notionalFloor/notionalCap in USDT.
+        using var json = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(ct));
+        var entries = json.RootElement;
+        if (entries.ValueKind != JsonValueKind.Array || entries.GetArrayLength() == 0)
+        {
+            throw new InvalidOperationException(
+                $"The Binance leverage-bracket response for {symbol.Normalized} carries no bracket entry.");
+        }
+
+        var entry = entries[0];
+        if (!entry.TryGetProperty("brackets", out var bracketRows) ||
+            bracketRows.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException(
+                $"The Binance leverage-bracket response for {symbol.Normalized} carries no brackets list.");
+        }
+
+        var brackets = new List<LeverageBracket>(bracketRows.GetArrayLength());
+        foreach (var row in bracketRows.EnumerateArray())
+        {
+            var floor = row.GetProperty("notionalFloor").GetDecimal();
+            var cap = row.GetProperty("notionalCap").GetDecimal();
+            var maxLeverage = row.GetProperty("initialLeverage").GetDecimal();
+            var mmr = row.GetProperty("maintMarginRatio").GetDecimal();
+            if (brackets.Count > 0 && floor <= brackets[^1].NotionalFloor)
+            {
+                // The tiers serve ascending by notional; a served order that
+                // breaks the chain is a wire fault, not a table to guess
+                // into shape.
+                throw new InvalidOperationException(
+                    $"The Binance leverage-bracket tiers for {symbol.Normalized} serve out of the ascending order.");
+            }
+
+            brackets.Add(new LeverageBracket(floor, cap, maxLeverage, mmr));
+        }
+
+        return brackets;
+    }
 
     #endregion
 
