@@ -1,3 +1,51 @@
+## [0.2.19] - 2026-11-16
+
+Build of board task T-247 (branch `feat/session-levels`): the session
+analytics overlays — the daily and weekly open lines, the day's
+opening-range band and the Asia/Europe/US session shading — computed
+over the loaded bar series the chart already carries (no transport, no
+clock, no scheduler).
+
+### Added
+- The pure `SessionAnalytics` calculator (one O(N) pass, static and
+  side-effect free — the VWAP overlay discipline): the daily open breaks
+  exactly where the VWAP session resets (the UTC calendar-date boundary,
+  so the daily open line and the VWAP reset cut on the same edges by
+  construction); the weekly open rides the Monday-anchored week boundary
+  (the T-037 calendar's own weekly anchor — a stock series' Friday→Monday
+  weekend skip lands the weekly open on the Monday bar, a holiday-shifted
+  Tuesday opener is still the week's honest first bar and a mid-week
+  series head anchors its partial week at its own first bar); the
+  opening-range band weighs the bars whose opens fall inside
+  [dayStart, dayStart + minutes) — the day's highest high and lowest low,
+  whose final shape backfills every bar of the owning day (one band shape
+  per day, honest nulls when no bar weighed); the shading maps every
+  bar's open time-of-day into the fixed UTC partition Asia [00:00, 08:00),
+  Europe [08:00, 16:00), US [16:00, 24:00). The goldens pin the anchors
+  over DST (the 2026 GMT→BST switch drifts the London open's slot
+  honestly) and weekend calendars, and the slice alignment.
+- The chart surface: the shading tints ride UNDER the series (behind the
+  candles, over the grid), the open lines ride the reference-line layer
+  (the daily solid, the weekly dashed — the two distinguish at a glance
+  without a legend) and the band draws its fill with two edge lines, all
+  drawn per same-value run (a flat stroke never connects across a day or
+  week boundary) and skipped when off-plot — never a line over the axis
+  margins. A stale analytics draws nothing (the VWAP slice-alignment
+  rule).
+- The toolbar family: three toggle buttons (Opens, Range, Sessions) and
+  the opening-range minutes knob, riding the same overlay-toggle grammar.
+  Each toggle and the minutes persist under the same cache-leads
+  discipline the VWAP and volume-profile choices keep (an external
+  writer applies live, an unparsable spelling edits nothing — the
+  standing value stays in charge); the defaults show the family visible
+  (the T-092 default-indicator precedent) with the 30-minute window.
+
+### Notes
+- The shading is UTC-anchored for every venue class: a stock's weekend
+  and its local session shape ride the bars' presence (the venue's quiet
+  hours carry no bars) and a DST shift shows up as the honest UTC drift
+  of the session mix, never a fabricated alignment.
+
 ## [0.2.18] - 2026-11-16
 
 Build of board task T-246 (branch `feat/book-imbalance`): the book
