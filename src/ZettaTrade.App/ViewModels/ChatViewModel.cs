@@ -458,6 +458,40 @@ public sealed class ChatViewModel : ReactiveObject, IAsyncInitializable
         return IsAiChatVisible;
     }
 
+    /// <summary>
+    /// Route a composed trade review into the chat (T-255): the panel shows
+    /// (a hidden one toggles visible) and the prompt rides the standard
+    /// send discipline — the user turn lands, persists, and the provider
+    /// answers through the very pipeline a typed message takes (the
+    /// localized failure line, the Stop affordance, the busy guard
+    /// included). While a reply is in flight the prompt parks in the
+    /// input row: the user sends it when the answer settles — one
+    /// assistant request at a time, never a queue jump. Strictly
+    /// read-only toward everything else: no trading decision, no
+    /// auto-posting — the review is a user turn, nothing more.
+    /// </summary>
+    public async Task SubmitReviewAsync(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return;
+        }
+
+        if (!IsAiChatVisible)
+        {
+            await ToggleAsync();
+        }
+
+        if (IsBusy)
+        {
+            AiChatInput = prompt;
+            return;
+        }
+
+        AiChatInput = prompt;
+        await SendTextAsync(CancellationToken.None);
+    }
+
     /// <inheritdoc/>
     public async Task InitializeAsync(CancellationToken ct = default)
     {

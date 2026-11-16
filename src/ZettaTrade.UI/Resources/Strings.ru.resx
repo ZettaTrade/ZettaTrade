@@ -2199,6 +2199,9 @@
   <data name="Stats.EditTrade" xml:space="preserve">
     <value>Изменить</value>
   </data>
+  <data name="Stats.ReviewInChat" xml:space="preserve">
+    <value>Разбор в чате</value>
+  </data>
   <data name="Stats.A11yRealized" xml:space="preserve">
     <value>Таблица закрытых сделок</value>
   </data>

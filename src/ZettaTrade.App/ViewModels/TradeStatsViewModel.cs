@@ -423,6 +423,13 @@ public sealed class TradeStatsViewModel : ReactiveObject
     /// <summary>Opens the note-and-tags dialog for one realized row (T-211); the applied result lands in the journal.</summary>
     public ReactiveCommand<TradeRealizedRowViewModel, RxVoid> EditRealizedRowCommand { get; }
 
+    /// <summary>
+    /// Composes one realized row's trade review prompt and hands it to the
+    /// view for the chat route (T-255). Read-only: the journal is never
+    /// written, no order is routed — the output lands in the chat only.
+    /// </summary>
+    public ReactiveCommand<TradeRealizedRowViewModel, RxVoid> ReviewTradeCommand { get; }
+
     /// <summary>Exports the traded surface's current open positions as a positions CSV file (T-210).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ExportPositionsCommand { get; }
 
@@ -440,6 +447,13 @@ public sealed class TradeStatsViewModel : ReactiveObject
     /// (T-211); the applied result comes back, null closes without one.
     /// </summary>
     public Interaction<TradeRealizedRowViewModel, TradeNoteEditResult?> EditRealizedRowRequested { get; }
+
+    /// <summary>
+    /// Hands one realized row's composed review prompt to the view (T-255):
+    /// the main window's handler lands it in the assistant panel — the
+    /// output lives in the chat only.
+    /// </summary>
+    public Interaction<string, RxVoid> ReviewTradeRequested { get; }
 
     #endregion Properties
 
@@ -477,6 +491,8 @@ public sealed class TradeStatsViewModel : ReactiveObject
             (_, ct) => HandleApplyAsync(ct));
         EditRealizedRowCommand = ReactiveCommand.CreateFromTask<TradeRealizedRowViewModel, RxVoid>(
             (row, ct) => HandleEditRealizedRowAsync(row, ct));
+        ReviewTradeCommand = ReactiveCommand.CreateFromTask<TradeRealizedRowViewModel, RxVoid>(
+            (row, ct) => HandleReviewTradeAsync(row, ct));
         ExportPositionsCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
             (_, ct) => HandleExportPositionsAsync(ct));
         ExportStatementCommand = ReactiveCommand.CreateFromTask<RxVoid, RxVoid>(
@@ -484,6 +500,7 @@ public sealed class TradeStatsViewModel : ReactiveObject
         SavePositionsCsvRequested = new Interaction<string, string?>();
         SaveStatementRequested = new Interaction<string, string?>();
         EditRealizedRowRequested = new Interaction<TradeRealizedRowViewModel, TradeNoteEditResult?>();
+        ReviewTradeRequested = new Interaction<string, RxVoid>();
     }
 
     #endregion Constructor
@@ -997,6 +1014,21 @@ public sealed class TradeStatsViewModel : ReactiveObject
             ErrorMessage = _localization.GetString(EditFailedKey, ex.Message);
         }
 
+        return RxVoid.Default;
+    }
+
+    /// <summary>
+    /// The review route (T-255): the row's journal facts compose into the
+    /// structured prompt (the pure composer — a read-only pass over the
+    /// row) and the interaction hands the text to the view. Strictly
+    /// read-only here: no journal write, no order routing — the output
+    /// lands in the chat only.
+    /// </summary>
+    private async Task<RxVoid> HandleReviewTradeAsync(
+        TradeRealizedRowViewModel row,
+        CancellationToken ct)
+    {
+        await ReviewTradeRequested.Handle(TradeReviewPromptComposer.Compose(row));
         return RxVoid.Default;
     }
 

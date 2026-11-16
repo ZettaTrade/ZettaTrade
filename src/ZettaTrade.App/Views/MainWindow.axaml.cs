@@ -1065,11 +1065,44 @@ public partial class MainWindow : ReactiveWindow<MainViewModel>
     /// </summary>
     private async Task ShowTradeStatsWindowAsync()
     {
+        var stats = App.Services.GetRequiredService<ViewModels.TradeStatsViewModel>();
         var window = new TradeStatsWindow
         {
-            DataContext = App.Services.GetRequiredService<ViewModels.TradeStatsViewModel>(),
+            DataContext = stats,
         };
-        await window.ShowDialog<object>(this);
+        // The review route (T-255): the transient stats view model hands its
+        // composed prompt to this window — the chat's host. The registration
+        // rides the dialog's lifetime (the view model is transient).
+        using (stats.ReviewTradeRequested.RegisterHandler(
+                   context => HandleReviewTradeAsync(context, window)))
+        {
+            await window.ShowDialog<object>(this);
+        }
+    }
+
+    /// <summary>
+    /// The trade-review route (T-255): the composed prompt lands in the chat
+    /// (the standard send discipline inside), the stats window yields — the
+    /// review's output lives in the chat, the transient window holds nothing
+    /// worth keeping — and the input takes the focus (the menu's own focus
+    /// route: the detached-panel case rides the coordinator, the docked one
+    /// the panel).
+    /// </summary>
+    private async Task HandleReviewTradeAsync(
+        IInteractionContext<string, RxVoid> context,
+        Views.TradeStatsWindow window)
+    {
+        try
+        {
+            context.SetOutput(RxVoid.Default);
+            window.Close();
+            await ViewModel!.Chat.SubmitReviewAsync(context.Input);
+            await ViewModel.Menu.FocusAiChatRequested.Handle(RxVoid.Default);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to route the trade review into the chat");
+        }
     }
 
     /// <summary>

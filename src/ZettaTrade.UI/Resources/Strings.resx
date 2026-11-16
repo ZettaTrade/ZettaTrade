@@ -2199,6 +2199,9 @@ Estimated fee: {10}</value>
   <data name="Stats.EditTrade" xml:space="preserve">
     <value>Edit</value>
   </data>
+  <data name="Stats.ReviewInChat" xml:space="preserve">
+    <value>Review in chat</value>
+  </data>
   <data name="Stats.A11yRealized" xml:space="preserve">
     <value>Closed trades table</value>
   </data>

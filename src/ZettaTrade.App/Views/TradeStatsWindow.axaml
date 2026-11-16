@@ -251,7 +251,7 @@
             <TextBlock Text="{loc:Localized Stats.RealizedTitle}"
                        Foreground="{DynamicResource TextSecondary}" />
             <Border Classes="table-header-row" IsVisible="{Binding HasRealizedRows}">
-                <Grid ColumnDefinitions="130,80,90,60,80,80,80,90,*,*,70">
+                <Grid ColumnDefinitions="130,80,90,60,80,80,80,90,*,*,70,90">
                     <TextBlock Grid.Column="0" TextAlignment="Right" Text="{loc:Localized Stats.ColClosed}" />
                     <TextBlock Grid.Column="1" Text="{loc:Localized Stats.ColExchange}" />
                     <TextBlock Grid.Column="2" Text="{loc:Localized Stats.ColSymbol}" />
@@ -263,6 +263,7 @@
                     <TextBlock Grid.Column="8" Text="{loc:Localized Stats.ColNote}" />
                     <TextBlock Grid.Column="9" Text="{loc:Localized Stats.ColTags}" />
                     <TextBlock Grid.Column="10" />
+                    <TextBlock Grid.Column="11" />
                 </Grid>
             </Border>
             <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
@@ -273,7 +274,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:TradeRealizedRowViewModel">
                                 <Border Classes="table-row">
-                                    <Grid ColumnDefinitions="130,80,90,60,80,80,80,90,*,*,70">
+                                    <Grid ColumnDefinitions="130,80,90,60,80,80,80,90,*,*,70,90">
                                         <TextBlock Grid.Column="0" Text="{Binding ClosedAt}" FontFamily="{StaticResource NumericFont}" TextAlignment="Right" />
                                         <TextBlock Grid.Column="1" Text="{Binding Exchange}" />
                                         <TextBlock Grid.Column="2" Text="{Binding Symbol}" />
@@ -299,6 +300,12 @@
                                                 Content="{loc:Localized Stats.EditTrade}"
                                                 AutomationProperties.AutomationId="StatsEditTradeButton"
                                                 Command="{Binding $parent[Window].((vm:TradeStatsViewModel)DataContext).EditRealizedRowCommand}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Grid.Column="11"
+                                                Classes="row-action secondary"
+                                                Content="{loc:Localized Stats.ReviewInChat}"
+                                                AutomationProperties.AutomationId="StatsReviewInChatButton"
+                                                Command="{Binding $parent[Window].((vm:TradeStatsViewModel)DataContext).ReviewTradeCommand}"
                                                 CommandParameter="{Binding}" />
                                     </Grid>
                                 </Border>

@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
 using FluentAssertions;
 using NSubstitute;
+using ReactiveUI;
 using Xunit;
 using ZettaTrade.AI.Chat;
 using ZettaTrade.App.ViewModels;
@@ -629,6 +630,156 @@ public sealed class ChatViewModelTests
         bool? stoppable = null;
         using var watch = kit.Chat.StopCommand.CanExecute.Subscribe(guard => stoppable = guard);
         stoppable.Should().BeFalse("the stop locked again — a late click is a no-op, not a dead button");
+    }
+
+    #endregion
+
+    #region Trade Review Handoff (T-255)
+
+    /// <summary>
+    /// An idle chat takes the composed review as a plain user turn: the
+    /// panel shows, the input row clears, the provider answers through
+    /// the standard pipeline — the review is a user turn, nothing more.
+    /// </summary>
+    [Fact]
+    public async Task SubmitReviewAsync_AnIdleChat_LandsThePromptAsAUserTurn()
+    {
+        // Arrange
+        var kit = ChatTests.CreateKit();
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<ChatTurn>>(),
+                Arg.Any<CancellationToken>())
+            .Returns("the review's answer");
+
+        // Act
+        await kit.Chat.SubmitReviewAsync("Review the following closed trade from my trading journal.");
+
+        // Assert
+        kit.Chat.IsAiChatVisible.Should().BeTrue("the review shows the panel it lands in");
+        kit.Chat.ChatMessages
+            .Select(message => message.Kind)
+            .Should().Equal(ChatMessageKind.UserTurn, ChatMessageKind.AssistantTurn);
+        kit.Chat.ChatMessages[0].Content
+            .Should().Be("Review the following closed trade from my trading journal.");
+        kit.Chat.AiChatInput.Should().BeEmpty("the accepted send cleared the input row");
+        kit.Chat.IsBusy.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// While a reply is in flight the review parks its prompt in the input
+    /// row (the user sends it when the answer settles) — one assistant
+    /// request at a time, never a queue jump and never a second turn.
+    /// </summary>
+    [Fact]
+    public async Task SubmitReviewAsync_AnInFlightReply_ParksThePromptInTheInput()
+    {
+        // Arrange
+        var kit = ChatTests.CreateKit();
+        var gate = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<ChatTurn>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(gate.Task);
+        kit.Chat.AiChatInput = "typed while waiting";
+        var parked = kit.Chat
+            .WhenAnyValue(x => x.IsBusy)
+            .Where(busy => busy)
+            .FirstAsync()
+            .Timeout(SendWaitBudget)
+            .ToTask();
+        var settled = new TaskCompletionSource<RxVoid>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var sendWatcher = kit.Chat.SendTextCommand.Execute(RxVoid.Default).Subscribe(
+            value => settled.TrySetResult(value),
+            exception => settled.SetException(exception),
+            () => settled.TrySetResult(RxVoid.Default));
+        await parked;
+        kit.Chat.IsBusy.Should().BeTrue("the send is parked at the hanging completion");
+
+        // Act
+        await kit.Chat.SubmitReviewAsync("Review this trade.");
+
+        // Assert
+        kit.Chat.AiChatInput.Should()
+            .Be("Review this trade.", "the prompt parks in the input row while the reply is in flight");
+        kit.Chat.ChatMessages
+            .Select(message => message.Kind)
+            .Should().Equal([ChatMessageKind.UserTurn], "no second turn lands while a reply is in flight");
+
+        gate.SetResult("settled");
+        await settled.Task;
+        kit.Chat.IsBusy.Should().BeFalse();
+        kit.Chat.ChatMessages
+            .Select(message => message.Kind)
+            .Should().Equal(ChatMessageKind.UserTurn, ChatMessageKind.AssistantTurn);
+    }
+
+    /// <summary>
+    /// The provider-failure matrix through the review route: an
+    /// unavailable assistant reports honestly — the user turn stays, the
+    /// in-chat error line carries the localized failure text, the bus
+    /// goes idle again. A failure is a localized error line, never
+    /// silence.
+    /// </summary>
+    [Fact]
+    public async Task SubmitReviewAsync_AnUnavailableAssistant_ReportsAnHonestErrorLine()
+    {
+        // Arrange
+        var kit = ChatTests.CreateKit();
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<ChatTurn>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<string>(new HttpRequestException("the local model server is off")));
+        kit.Localization
+            .GetString("AI.Chat.Error", "the local model server is off")
+            .Returns("The assistant is unavailable: the local model server is off");
+
+        // Act
+        await kit.Chat.SubmitReviewAsync("Review this trade.");
+
+        // Assert
+        kit.Chat.ChatMessages
+            .Select(message => message.Kind)
+            .Should().Equal(ChatMessageKind.UserTurn, ChatMessageKind.ErrorLine);
+        kit.Chat.ChatMessages[1].Content
+            .Should().Be("The assistant is unavailable: the local model server is off");
+        kit.Chat.IsBusy.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// The read-only guarantee (T-255): the review sends exactly one
+    /// request through the provider seam and nothing follows it — no
+    /// auto-posted continuation, no second ask. The output lands in the
+    /// chat only.
+    /// </summary>
+    [Fact]
+    public async Task SubmitReviewAsync_SendsExactlyOneRequest_NeverAnAutoPostedFollowUp()
+    {
+        // Arrange
+        var kit = ChatTests.CreateKit();
+        kit.Completion
+            .CompleteAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<ChatTurn>>(),
+                Arg.Any<CancellationToken>())
+            .Returns("the review's answer");
+
+        // Act
+        await kit.Chat.SubmitReviewAsync("Review this trade.");
+
+        // Assert
+        await kit.Completion.Received(1).CompleteAsync(
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<ChatTurn>>(),
+            Arg.Any<CancellationToken>());
+        kit.Chat.ChatMessages
+            .Select(message => message.Kind)
+            .Should().Equal(ChatMessageKind.UserTurn, ChatMessageKind.AssistantTurn);
     }
 
     #endregion
