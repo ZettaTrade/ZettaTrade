@@ -54,11 +54,11 @@
 
   <!-- The standard indicator pack ships as a package (T-163): the
        standalone ZettaTrade/Plugins repo publishes the umbrella
-       (ZettaTrade.Plugins.Standard - the eleven plugin DLLs) to the private
+       (ZettaTrade.Plugins.Standard - the twelve plugin DLLs) to the private
        GitHub Packages feed (the root nuget.config pins the source). One
        version fact: bump this single line when a new pack release lands,
        never the consuming test projects. -->
   <PropertyGroup>
-    <PluginsVersion>0.4.0</PluginsVersion>
+    <PluginsVersion>0.5.0</PluginsVersion>
   </PropertyGroup>
 </Project>
