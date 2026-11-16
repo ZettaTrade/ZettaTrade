@@ -258,7 +258,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-252 Correlation matrix over the cached candles (the analytics sweep 2026-11-14) | feat/correlation-matrix | done | 0.2.23 |
 | T-253 Cross-venue spread + the perp-spot basis view over the three shipped adapters (the analytics sweep 2026-11-14) | feat/venue-spread | done | 0.2.24 |
 | T-254 Backtest robustness: Monte Carlo over the trade sequence + walk-forward splits (the analytics sweep 2026-11-14) | feat/backtest-robustness | done | 0.2.4 |
-| T-255 AI trade review: journal-backed post-trade analysis through the chat (the analytics sweep 2026-11-14) | feat/ai-trade-review | in-progress | - |
+| T-255 AI trade review: journal-backed post-trade analysis through the chat (the analytics sweep 2026-11-14) | feat/ai-trade-review | done | 0.2.25 |
 | T-256 Windows installer: Inno Setup over the T-125 artifacts (the beta-2 sweep 2026-11-15) | feat/windows-installer | done | - |
 | T-257 macOS .dmg + Linux AppImage/.deb packaging (the beta-2 sweep 2026-11-15) | feat/mac-linux-packaging | done | — |
 | T-258 Auto-update: download, verify, staged swap, rollback (the beta-2 sweep 2026-11-15) | feat/auto-update | done | 0.2.5 |
@@ -361,22 +361,6 @@ prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately le
 the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
 T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
 original numbers.
-
----
-
-## T-255 — AI trade review: journal-backed post-trade analysis
-
-- **Branch:** `feat/ai-trade-review` off `develop` (queued 2026-11-14, the analytics sweep).
-- **Origin:** the journal, the notes/tags (T-211) and the AI chat exist; nothing joins them
-  analytically.
-- **What:** a review action that composes the selected session/trade's journal data (fills, PnL,
-  notes, the T-114 market context) into a structured review prompt over the existing provider
-  surface; the output lands in the chat only; strictly read-only — no trading decisions, no
-  auto-posting.
-- **Scope:** the prompt/service + the chat handoff, resx en+ru, tests.
-- **Acceptance:** works with the local model and the OpenAI-compatible provider; a provider
-  failure is a localized error, never silence.
-- **Tests:** prompt-composition goldens, the provider-failure matrix, the read-only guarantee.
 
 ---
 

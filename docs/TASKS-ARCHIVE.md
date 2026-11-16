@@ -6356,6 +6356,47 @@ the board and its section below.
   pretends); the OOS verification optimizes on the IS head and verifies on the OOS tail — a
   strategy whose edge lives only in the window's own noise shows exactly there.
 
+## T-255 - AI trade review: journal-backed post-trade analysis
+
+- **Branch:** `feat/ai-trade-review` off `develop` (queued 2026-11-14, the analytics sweep;
+  claimed 2026-11-16, supervisor-solo - the worktree `zt-ai-trade-review`).
+- **Origin:** the journal, the notes/tags (T-211) and the AI chat exist; nothing joins them
+  analytically.
+- **What:** a review action that composes the selected session/trade's journal data (fills, PnL,
+  notes, the T-114 market context) into a structured review prompt over the existing provider
+  surface; the output lands in the chat only; strictly read-only - no trading decisions, no
+  auto-posting.
+- **Scope:** the prompt/service + the chat handoff, resx en+ru, tests.
+- **Acceptance:** works with the local model and the OpenAI-compatible provider; a provider
+  failure is a localized error, never silence.
+- **Tests:** prompt-composition goldens, the provider-failure matrix, the read-only guarantee.
+- **Status:** done. Canon: the task ships as three commits on feat/ai-trade-review - the claim
+  `3003021`, the feature `e8e08ab` (the pure `TradeReviewPromptComposer` - the structured
+  English prompt over the realized row's journal facts: the structural side flag, the
+  win/loss/scratch verdict, the honest absence omits its line, the 200-character cap on the
+  note/tags free text; the `TradeStatsViewModel` `ReviewTradeCommand` + the
+  `ReviewTradeRequested` interaction; the realized table's col 11 "Review in chat" button; the
+  `ChatViewModel.SubmitReviewAsync` - a hidden panel shows, a reply in flight parks the prompt
+  in the input row, else the standard send discipline (the localized failure line, the stop,
+  the busy guard) answers; the `MainWindow` route - the registration rides the dialog's
+  lifetime, the review closes the transient window and lands the prompt through the menu's own
+  focus route; the `Stats.ReviewInChat` resx en+ru), `55e8e58` (`chore(release): 0.2.25`, the
+  props bump + the CHANGELOG section) lands through this close commit; written supervisor-solo.
+  Lane decisions: the prompt carries ONLY the trade's journal facts - the T-114 market context
+  already rides the chat's system prompt, so the review prompt never duplicates it (one closing
+  line tells the model to use the workspace context when it is available); the side reads off
+  the structural flags (the display side is a localized surface - the prompt is not); a null
+  note/tags omits its line entirely (never a fabricated "none"); the composer is pure - a row
+  in, text out, no service behind it (the read-only guarantee is the signature's); the route
+  closes the transient stats window (the review's output lives in the chat, the transient
+  window holds nothing worth keeping) and rides the menu's FocusAiChatRequested (the
+  detached-panel case via the coordinator, the docked one the input focus). Tests: 6 composer
+  goldens (the full-row facts, the absences, the verdicts, the cap), 2 stats routing facts
+  (the composed prompt handed, the journal store untouched) and 4 chat handoff facts (the
+  idle turn, the in-flight park, the provider-failure line, the exactly-one-request
+  no-auto-post) - the touched classes 29/29 green + the surface/button pins 11/11. The gate
+  passed with `-AllowProtected`; the launch smoke passed before the merge.
+
 ## T-256 — Windows installer: Inno Setup over the T-125 artifacts
 
 - **Branch:** `feat/windows-installer` off `develop` (claimed 2026-11-15; queued 2026-11-15, the beta-2 sweep).
