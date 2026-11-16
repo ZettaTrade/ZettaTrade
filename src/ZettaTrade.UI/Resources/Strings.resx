@@ -615,6 +615,18 @@
   <data name="Chart.OpenInterest.Pane" xml:space="preserve">
     <value>Open interest</value>
   </data>
+  <data name="Chart.LiquidationLevels.EstimateTag" xml:space="preserve">
+    <value>est.</value>
+  </data>
+  <data name="Chart.LiquidationLevels.Assumption" xml:space="preserve">
+    <value>Estimate: bucket OI growth assumed entered at the bucket close, its side follows the bucket's direction</value>
+  </data>
+  <data name="Chart.LiquidationLevels.NoBrackets" xml:space="preserve">
+    <value>No leverage-bracket table served — the estimate is unavailable</value>
+  </data>
+  <data name="Chart.LiquidationLevels.NoDeltas" xml:space="preserve">
+    <value>No open-interest deltas in the window — nothing to estimate</value>
+  </data>
   <data name="Chart.TimeFrame" xml:space="preserve">
     <value>Time frame</value>
   </data>

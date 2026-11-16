@@ -128,6 +128,12 @@ public class CandlestickChart : Control
     /// </summary>
     private const string NoVolumeMessageKey = "Chart.NoVolumeData";
 
+    /// <summary>The liquidation levels' resx keys (T-243): the permanent «estimate» tag, the stated assumption, the bandless absences.</summary>
+    private const string LiquidationLevelsEstimateTagKey = "Chart.LiquidationLevels.EstimateTag";
+    private const string LiquidationLevelsAssumptionKey = "Chart.LiquidationLevels.Assumption";
+    private const string LiquidationLevelsNoBracketsKey = "Chart.LiquidationLevels.NoBrackets";
+    private const string LiquidationLevelsNoDeltasKey = "Chart.LiquidationLevels.NoDeltas";
+
     /// <summary>
     /// The funding hover readout's format (T-240): the wire fraction printed
     /// on the watchlist's percent basis — the '%' specifier multiplies the
@@ -188,6 +194,25 @@ public class CandlestickChart : Control
     /// Dash pattern (on/off pixels) of the VWAP ±1σ band strokes.
     /// </summary>
     private static readonly float[] VwapBandDashPatternPx = [4f, 3f];
+
+    /// <summary>Alpha (0–255) of the liquidation levels' band fill; the translucent fill keeps the candles readable under it.</summary>
+    private const byte LiquidationBandFillAlpha = 36;
+
+    /// <summary>Alpha (0–255) of the liquidation levels' exact-price edge line.</summary>
+    private const byte LiquidationBandEdgeAlpha = 130;
+
+    /// <summary>Alpha (0–255) of the liquidation levels' «estimate» tag text.</summary>
+    private const byte LiquidationTagAlpha = 210;
+
+    /// <summary>Font size (px) of the liquidation levels' tag and note text.</summary>
+    private const float LiquidationNoteFontSize = 11f;
+
+    /// <summary>Band-thickness bounds (px): the notional maps onto this range (the thinnest band is still a visible strip).</summary>
+    private const float LiquidationBandMinThicknessPx = 2f;
+    private const float LiquidationBandMaxThicknessPx = 12f;
+
+    /// <summary>Horizontal pad (px) between the plot's right edge and the «estimate» tags.</summary>
+    private const float LiquidationTagPadPx = 6f;
 
     /// <summary>
     /// Half the base width of a strategy-signal marker (T-112), in pixels:
@@ -418,6 +443,26 @@ public class CandlestickChart : Control
     {
         get => GetValue(VwapOverlayProperty);
         set => SetValue(VwapOverlayProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the estimated liquidation-levels overlay (T-243):
+    /// the local estimator's bands the ViewModel publishes against the
+    /// loaded series (null while either input is absent — the honest
+    /// absence). Static price geometry: the bands draw across the whole
+    /// visible window without a slice, and a state without bands draws the
+    /// localized note instead of levels.
+    /// </summary>
+    public static readonly StyledProperty<LiquidationLevelsOverlay?> LiquidationLevelsOverlayProperty =
+        AvaloniaProperty.Register<CandlestickChart, LiquidationLevelsOverlay?>(
+            nameof(LiquidationLevelsOverlay),
+            defaultValue: null);
+
+    /// <summary>The estimated liquidation-level bands the chart draws; a change re-inks on the next pass.</summary>
+    public LiquidationLevelsOverlay? LiquidationLevelsOverlay
+    {
+        get => GetValue(LiquidationLevelsOverlayProperty);
+        set => SetValue(LiquidationLevelsOverlayProperty, value);
     }
 
     /// <summary>Whether the right-margin volume-at-price histogram is drawn; a change re-inks on the next pass.</summary>
@@ -1395,6 +1440,7 @@ public class CandlestickChart : Control
             visible,
             ApplyPaneDragHeights(SliceIndicatorLines(bars, spanStart, spanEnd)),
             SliceVwapOverlay(bars, spanStart, spanEnd),
+            LiquidationLevelsOverlay,
             _backgroundColor,
             _bullishColor,
             _bearishColor,
@@ -1647,6 +1693,7 @@ public class CandlestickChart : Control
         Bar[] VisibleBars,
         IReadOnlyList<ChartIndicatorLine> Indicators,
         VwapOverlay? Vwap,
+        LiquidationLevelsOverlay? LiquidationLevels,
         SKColor Background,
         SKColor Bullish,
         SKColor Bearish,
@@ -2104,6 +2151,7 @@ public class CandlestickChart : Control
                 minAxis,
                 axisRange);
             DrawVwapOverlay(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Vwap);
+            DrawLiquidationLevels(canvas, font, textPaint, plotRect, minAxis, axisRange);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minAxis, axisRange, axisTicks, priceTexts);
             DrawTimeAxis(canvas, font, textPaint, chartRect, barPitch, openTimes, timeTicks, timeTexts);
 
@@ -3255,6 +3303,148 @@ public class CandlestickChart : Control
             canvas.DrawPath(upperBandPath, bandPaint);
             canvas.DrawPath(lowerBandPath, bandPaint);
             canvas.DrawPath(centerPath, centerPaint);
+        }
+
+        /// <summary>
+        /// The estimated liquidation levels (T-243): the estimator's bands
+        /// over the price pane — a horizontal translucent strip per level
+        /// (its thickness rides the level's notional share of the largest
+        /// one), the exact-price edge line on the strip's center, and the
+        /// permanent «estimate» tag at the strip's right edge (EVERY band
+        /// carries it — the overlay never presents an estimated level as
+        /// venue data). The side hues the band the tape's way: a force-closed
+        /// LONG was a forced sell (bearish), a force-closed SHORT a forced
+        /// buy (bullish). A band outside the axis range maps off-plot and
+        /// clips (Skia discards the geometry), the same honest clip the
+        /// candles themselves keep. The assumption note states the
+        /// entry-distribution assumption ON the frame the bands ride —
+        /// stated, never hidden. A bandless state draws only the note (the
+        /// explicit absence the overlay carries), null draws nothing.
+        /// </summary>
+        private void DrawLiquidationLevels(
+            SKCanvas canvas,
+            SKFont font,
+            SKPaint textPaint,
+            Rect plotRect,
+            decimal minAxis,
+            decimal axisRange)
+        {
+            var overlay = _snapshot.LiquidationLevels;
+            if (overlay is null)
+            {
+                // The honest absence (no inputs standing): nothing draws.
+                return;
+            }
+
+            using var noteFont = new SKFont(SKTypeface.Default, LiquidationNoteFontSize);
+            using var fillPaint = new SKPaint { IsAntialias = true };
+            using var edgePaint = new SKPaint
+            {
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1f,
+                IsAntialias = true
+            };
+
+            if (overlay.Bands.Count == 0)
+            {
+                DrawLiquidationLevelsNote(
+                    canvas,
+                    noteFont,
+                    textPaint,
+                    plotRect,
+                    GetLocalizedLiquidationLevelsText(overlay.State switch
+                    {
+                        LiquidationLevelsOverlayState.NoBrackets => LiquidationLevelsNoBracketsKey,
+                        _ => LiquidationLevelsNoDeltasKey,
+                    }));
+                return;
+            }
+
+            var maxNotional = overlay.Bands.Max(band => band.Notional);
+
+            // The assumption note first (the stated assumption rides above
+            // the bands it describes — top-left inside the plot, over the
+            // candles the bands cross).
+            DrawLiquidationLevelsNote(
+                canvas,
+                noteFont,
+                textPaint,
+                plotRect,
+                GetLocalizedLiquidationLevelsText(LiquidationLevelsAssumptionKey));
+
+            var tagText = GetLocalizedLiquidationLevelsText(LiquidationLevelsEstimateTagKey);
+            var tagWidth = noteFont.MeasureText(tagText);
+
+            foreach (var band in overlay.Bands)
+            {
+                var y = ChartPriceScale.PriceToY(plotRect, AxisOf(band.Price), minAxis, axisRange);
+                var color = (band.Side == LiquidationSide.Long ? _snapshot.Bearish : _snapshot.Bullish)
+                    .WithAlpha(LiquidationBandFillAlpha);
+                var thickness = LiquidationBandMinThicknessPx +
+                                ((LiquidationBandMaxThicknessPx - LiquidationBandMinThicknessPx) *
+                                 (float)(band.Notional / maxNotional));
+
+                fillPaint.Color = color;
+                fillPaint.Style = SKPaintStyle.Fill;
+                canvas.DrawRect(
+                    (float)plotRect.Left,
+                    y - (thickness / 2f),
+                    (float)plotRect.Width,
+                    thickness,
+                    fillPaint);
+
+                edgePaint.Color = (band.Side == LiquidationSide.Long ? _snapshot.Bearish : _snapshot.Bullish)
+                    .WithAlpha(LiquidationBandEdgeAlpha);
+                canvas.DrawLine(
+                    (float)plotRect.Left,
+                    y,
+                    (float)plotRect.Right,
+                    y,
+                    edgePaint);
+
+                // The permanent «estimate» tag: right-aligned just inside
+                // the plot's right edge, vertically centered on the band.
+                textPaint.Color = _snapshot.Text.WithAlpha(LiquidationTagAlpha);
+                canvas.DrawText(
+                    tagText,
+                    (float)plotRect.Right - LiquidationTagPadPx - tagWidth,
+                    y + (LiquidationNoteFontSize / 2f),
+                    SKTextAlign.Left,
+                    noteFont,
+                    textPaint);
+            }
+        }
+
+        /// <summary>Draw the liquidation levels' note line, top-left inside the plot.</summary>
+        private void DrawLiquidationLevelsNote(
+            SKCanvas canvas,
+            SKFont noteFont,
+            SKPaint textPaint,
+            Rect plotRect,
+            string text)
+        {
+            textPaint.Color = _snapshot.Text.WithAlpha(LiquidationTagAlpha);
+            canvas.DrawText(
+                text,
+                (float)plotRect.Left + LiquidationTagPadPx,
+                (float)plotRect.Top + LiquidationNoteFontSize + LiquidationTagPadPx,
+                SKTextAlign.Left,
+                noteFont,
+                textPaint);
+        }
+
+        /// <summary>Resolve a liquidation-levels resx key the localized way (the manager, the raw fallback in design mode).</summary>
+        private static string GetLocalizedLiquidationLevelsText(string key)
+        {
+            if (LocalizationManager.IsInitialized)
+            {
+                return LocalizationManager.Instance.GetString(key);
+            }
+
+            // Design mode / manager not wired yet: raw resource lookup instead.
+            return Strings.ResourceManager.GetString(
+                key,
+                CultureInfo.CurrentUICulture) ?? key;
         }
 
         /// <summary>

@@ -398,6 +398,7 @@
                                    Bars="{Binding Bars}"
                                    Use12HourClock="{Binding Use12HourClock}"
                                    VwapOverlay="{Binding VwapOverlay}"
+                                   LiquidationLevelsOverlay="{Binding LiquidationLevelsOverlay}"
                                    VolumeProfileVisible="{Binding ShowVolumeProfile}"
                                    IndicatorLines="{Binding IndicatorLines}"
                                    SeriesType="{Binding ChartType}"

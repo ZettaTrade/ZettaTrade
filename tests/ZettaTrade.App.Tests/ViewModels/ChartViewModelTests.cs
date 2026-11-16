@@ -465,7 +465,8 @@ public sealed class ChartViewModelTests
         ICandleCache? candleCache = null,
         FakeDrawingStore? drawingStore = null,
         FundingHistoryService? fundingHistory = null,
-        OIHistoryService? oiHistory = null)
+        OIHistoryService? oiHistory = null,
+        LeverageBracketsService? brackets = null)
     {
         var timeFrameSettings = settings;
         if (timeFrameSettings is null)
@@ -527,6 +528,9 @@ public sealed class ChartViewModelTests
             fundingHistory ?? new FundingHistoryService(service, TimeProvider.System),
             // The OI pane rides the honest no-pane likewise (T-241).
             oiHistory ?? new OIHistoryService(service, TimeProvider.System),
+            // The liquidation levels' bracket front rides the honest
+            // no-table likewise (T-243).
+            brackets ?? new LeverageBracketsService(service, TimeProvider.System),
             NullLogger<ChartViewModel>.Instance);
     }
 

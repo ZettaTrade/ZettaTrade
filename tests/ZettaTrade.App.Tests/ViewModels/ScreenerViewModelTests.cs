@@ -190,6 +190,9 @@ public sealed class ScreenerViewModelTests
             new FundingHistoryService(service, TimeProvider.System),
             // The OI pane rides the honest no-pane here too (T-241).
             new OIHistoryService(service, TimeProvider.System),
+            // The liquidation levels' bracket front rides the honest
+            // no-table here too (T-243).
+            new LeverageBracketsService(service, TimeProvider.System),
             NullLogger<ChartViewModel>.Instance);
     }
 

@@ -345,6 +345,7 @@ internal static class CompositionRoot
                 // #endregion T-122
                 sp.GetRequiredService<FundingHistoryService>(), // T-240: the funding pane's history front.
                 sp.GetRequiredService<OIHistoryService>(), // T-241: the OI pane's history front.
+                sp.GetRequiredService<LeverageBracketsService>(), // T-243: the liquidation levels' bracket front.
                 sp.GetRequiredService<ILogger<ChartViewModel>>(),
                 // T-202: the primary hosts the templates manager (the grid
                 // slots resolve their own charts without it).
@@ -358,6 +359,11 @@ internal static class CompositionRoot
         // singleton (the active-adapter capability probe + the bounded
         // stale-aware cache).
         services.AddOIHistoryServices();
+        // The leverage brackets' front (T-243): the estimated liquidation
+        // levels resolve the venue's public risk table through this session
+        // singleton (the active-adapter capability probe + the bounded
+        // stale-aware cache).
+        services.AddLeverageBracketsServices();
         // The multi-chart grid (T-201): the workspace's layout-mode
         // ViewModel over lazy slot factories. IAsyncInitializable: the
         // startup walk restores the persisted layout and seam sizes before

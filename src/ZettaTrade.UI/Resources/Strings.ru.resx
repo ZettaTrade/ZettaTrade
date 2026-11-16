@@ -615,6 +615,18 @@
   <data name="Chart.OpenInterest.Pane" xml:space="preserve">
     <value>Открытый интерес</value>
   </data>
+  <data name="Chart.LiquidationLevels.EstimateTag" xml:space="preserve">
+    <value>оценка</value>
+  </data>
+  <data name="Chart.LiquidationLevels.Assumption" xml:space="preserve">
+    <value>Оценка: прирост ОИ в бакете считается вошедшим по цене закрытия бакета, сторона — по направлению бакета</value>
+  </data>
+  <data name="Chart.LiquidationLevels.NoBrackets" xml:space="preserve">
+    <value>Таблица плечевых брекетов недоступна — оценка невозможна</value>
+  </data>
+  <data name="Chart.LiquidationLevels.NoDeltas" xml:space="preserve">
+    <value>Нет прироста открытого интереса в окне — нечего оценивать</value>
+  </data>
   <data name="Chart.TimeFrame" xml:space="preserve">
     <value>Таймфрейм</value>
   </data>

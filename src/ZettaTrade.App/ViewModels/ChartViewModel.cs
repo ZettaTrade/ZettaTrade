@@ -686,6 +686,21 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         private set => this.RaiseAndSetIfChanged(ref _vwapOverlay, value);
     }
 
+    private LiquidationLevelsOverlay? _liquidationLevelsOverlay;
+
+    /// <summary>
+    /// The estimated liquidation-levels overlay the chart draws on the price
+    /// pane (T-243): the local estimator's bands from the chart's own OI
+    /// deltas and the venue's public bracket table; null while either input
+    /// is absent (the honest absence — the chart draws nothing). The
+    /// assignment is the single UI-thread hop of its publish.
+    /// </summary>
+    public LiquidationLevelsOverlay? LiquidationLevelsOverlay
+    {
+        get => _liquidationLevelsOverlay;
+        private set => this.RaiseAndSetIfChanged(ref _liquidationLevelsOverlay, value);
+    }
+
     private IReadOnlyList<SignalMarker> _signalMarkers = [];
 
     /// <summary>
@@ -751,6 +766,19 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         TimeFrame Interval,
         int Epoch,
         IReadOnlyList<OpenInterestPoint>? Points);
+
+    /// <summary>
+    /// One liquidation-levels load's payload (T-243): the venue's public
+    /// bracket table the service resolved (null = the honest no-table — no
+    /// capability or a spot symbol), the series identity the load kicked for
+    /// and the kick's epoch (the stale-drop: a superseded load drops at
+    /// dispatch).
+    /// </summary>
+    private sealed record LiquidationLevelsLoad(
+        Symbol Symbol,
+        string ExchangeId,
+        int Epoch,
+        IReadOnlyList<LeverageBracket>? Brackets);
 
     private string? _errorMessage;
 
@@ -1011,6 +1039,23 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// no-capability verdict.
     /// </summary>
     private IReadOnlyList<decimal?>? _oiSeries;
+
+    /// <summary>The standing bracket table the levels estimate through (T-243): null until the front answers.</summary>
+    private IReadOnlyList<LeverageBracket>? _liqBrackets;
+
+    /// <summary>The standing identity the liquidation levels' kicks address (T-243): the brackets are interval-free.</summary>
+    private (Symbol Symbol, string ExchangeId)? _liqTarget;
+
+    private int _liqKickEpoch;
+
+    /// <summary>
+    /// Whether the liquidation levels' bracket input settled for the
+    /// standing identity (T-243): false until the load applies — the
+    /// estimate publishes only when both inputs are settled, never a
+    /// flashed wrong note while the fetch still rides.
+    /// </summary>
+    private bool _liqBracketsSettled;
+
     private (Symbol Symbol, string ExchangeId, TimeFrame Interval)? _oiTarget;
     private int _oiKickEpoch;
 
@@ -1201,6 +1246,23 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private readonly Subject<OpenInterestPaneLoad?> _oiPublishes = new();
 
     /// <summary>
+    /// The liquidation levels' brackets loads (T-243): the raw publishes of
+    /// the venue's public bracket table (null = the honest no-table), each
+    /// stamped with its series identity and kick epoch — the apply drops a
+    /// superseded load. Raw-then-marshal split: the apply lands on whatever
+    /// thread ran the fetch, only the property assignment hops.
+    /// </summary>
+    private readonly Subject<LiquidationLevelsLoad?> _liqLevelsPublishes = new();
+
+    /// <summary>
+    /// The liquidation levels' overlay publishes (T-243): the raw publishes
+    /// of the estimator's overlay (null = the honest absence), the
+    /// assignment is the single UI-thread hop. Raw-then-marshal split, the
+    /// same discipline as the VWAP overlay's.
+    /// </summary>
+    private readonly Subject<LiquidationLevelsOverlay?> _liqOverlayPublishes = new();
+
+    /// <summary>
     /// The persisted VWAP overlay choice: the cache LEADS the toggles'
     /// persistence pipeline (updated at issue time, in issuance order), so
     /// a rapid settle burst never drops its second flip and an external
@@ -1327,6 +1389,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>The OI-history front (T-241): the active adapter's capability probe and the per-(symbol, interval) cache.</summary>
     private readonly OIHistoryService _openInterestHistory;
+
+    /// <summary>The leverage-brackets front (T-243): the active adapter's capability probe and the per-symbol cache.</summary>
+    private readonly LeverageBracketsService _leverageBrackets;
 
     /// <summary>The latest footprint snapshot the feed published (UI-thread-owned, marshalled on assignment).</summary>
     private ChartFootprintSnapshot _latestFootprint = ChartFootprintSnapshot.Empty;
@@ -1550,6 +1615,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         IObservable<ChartFootprintSnapshot> tradingFootprint,
         FundingHistoryService fundingHistory, // T-240: the funding pane's history front.
         OIHistoryService openInterestHistory, // T-241: the OI pane's history front.
+        LeverageBracketsService leverageBrackets, // T-243: the liquidation levels' bracket front.
         ILogger<ChartViewModel> logger,
         string? slotId = null,
         ChartTemplatesViewModel? templates = null)
@@ -1571,6 +1637,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _tradingFootprint = tradingFootprint;
         _fundingHistory = fundingHistory;
         _openInterestHistory = openInterestHistory;
+        _leverageBrackets = leverageBrackets;
 
         // The multi-chart grid (T-201): the primary keeps the workspace's
         // shared symbol key (the order book and the dialog follow it) and
@@ -1721,6 +1788,14 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // The OI pane (T-241) is the same rebase-volatile state.
                     _oiSeries = null;
                     _oiTarget = null;
+
+                    // The liquidation levels (T-243) ride the same
+                    // rebase-volatile state: the fresh grid estimates from
+                    // ITS OWN OI deltas once both inputs land — the old
+                    // series' bands never draw over a fresh grid.
+                    _liqBrackets = null;
+                    _liqBracketsSettled = false;
+                    _liqOverlayPublishes.OnNext(null);
 
                     // The T-112 strategies feed: the full load is the host's
                     // closed-candle address, published through the relay (the
@@ -2032,6 +2107,22 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             .Subscribe(
                 ApplyOpenInterestPaneLoad,
                 ex => _logger.LogError(ex, "The chart open-interest pane stream stopped unexpectedly"));
+
+        // The liquidation levels' bracket loads (T-243): the same marshalled
+        // discipline — the standing table lands ON the UI thread, a stale
+        // load drops silently.
+        _liqLevelsPublishes.ObserveOnUiThread()
+            .Subscribe(
+                ApplyLiquidationLevelsLoad,
+                ex => _logger.LogError(ex, "The chart liquidation-levels stream stopped unexpectedly"));
+
+        // The liquidation levels' overlay rides the same raw-then-marshal
+        // split as the VWAP overlay's (T-243): publishes stay raw, only the
+        // assignment hops.
+        _liqOverlayPublishes.ObserveOnUiThread()
+            .Subscribe(
+                overlay => LiquidationLevelsOverlay = overlay,
+                ex => _logger.LogError(ex, "The chart liquidation-levels overlay stream stopped unexpectedly"));
 
         // The two overlay toggles persist like the AI panel's visibility
         // does (T-093): the cache LEADS the pipeline — it is updated at
@@ -3164,6 +3255,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     "The open-interest-history load for {Symbol} on {Exchange} failed; the pane waits for the next kick",
                     symbol.Normalized,
                     exchangeId));
+
+        // The liquidation levels (T-243) ride the same kicks: the venue's
+        // public bracket table is the estimate's second input — cache-first
+        // through the front, its own epoch (the table is interval-free, so
+        // its identity carries the symbol and the exchange only).
+        KickLiquidationBracketsLoad(symbol, exchangeId);
     }
 
     /// <summary>
@@ -3191,9 +3288,95 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
             ? OISeriesAlignment.Align(Bars, points)
             : null;
         PublishIndicatorLines(Bars);
+        PublishLiquidationLevels();
     }
 
     #endregion Open-Interest Pane (T-241)
+
+    #region Liquidation Levels (T-243)
+
+    /// <summary>
+    /// Kick the liquidation levels' bracket load (T-243): the fresh kick
+    /// takes the next epoch and the standing identity, and the fetch runs
+    /// fire-and-forget through the service's cache-first front — a venue
+    /// without the bracket capability (or a spot symbol) answers the honest
+    /// no-table without a network round-trip. The load publishes through
+    /// the marshalled subject; a superseded kick drops at apply.
+    /// </summary>
+    /// <param name="symbol">The standing series' symbol.</param>
+    /// <param name="exchangeId">The standing series' exchange.</param>
+    private void KickLiquidationBracketsLoad(Symbol symbol, string exchangeId)
+    {
+        var epoch = ++_liqKickEpoch;
+        _liqTarget = (symbol, exchangeId);
+
+        Observable
+            .FromAsync(() => _leverageBrackets.GetAsync(symbol, CancellationToken.None))
+            .Subscribe(
+                brackets => _liqLevelsPublishes.OnNext(new LiquidationLevelsLoad(symbol, exchangeId, epoch, brackets)),
+                error => _logger.LogWarning(
+                    error,
+                    "The leverage-brackets load for {Symbol} on {Exchange} failed; the estimate waits for the next kick",
+                    symbol.Normalized,
+                    exchangeId));
+    }
+
+    /// <summary>
+    /// Apply one liquidation-levels load (T-243) on the UI thread (the
+    /// subject's marshalled subscription): a stale load — a kick superseded
+    /// by a newer one or an identity no longer standing — drops silently;
+    /// the standing table (null = the honest no-table) republishes the
+    /// estimate against the live bar collection and the standing OI series.
+    /// </summary>
+    /// <param name="load">The resolved load, or nothing for the honest no-table.</param>
+    private void ApplyLiquidationLevelsLoad(LiquidationLevelsLoad? load)
+    {
+        if (load is null || _liqTarget != (load.Symbol, load.ExchangeId) || load.Epoch != _liqKickEpoch)
+        {
+            // A stale load drops: a newer kick owns the estimate (a rebase
+            // cleared the identity before its own kick armed).
+            return;
+        }
+
+        _liqBrackets = load.Brackets;
+        _liqBracketsSettled = true;
+        PublishLiquidationLevels();
+    }
+
+    /// <summary>
+    /// Compute the liquidation-levels estimate (T-243) from the standing
+    /// inputs and publish it. The estimate needs BOTH inputs standing: the
+    /// OI series aligned with the live bar collection (the chart's own
+    /// deltas — a stale alignment holds, the re-kick re-publishes) and the
+    /// bracket table settled for the standing identity (a fetch still in
+    /// flight holds — never a flashed wrong note). Either input absent is
+    /// the honest null (the chart draws nothing); the OI standing with the
+    /// venue's explicit no-table is the estimator's own honesty state, the
+    /// note the chart carries.
+    /// </summary>
+    private void PublishLiquidationLevels()
+    {
+        if (_oiSeries is not { } openInterest || openInterest.Count != Bars.Count)
+        {
+            // No OI pane stands for the live collection (spot, no
+            // capability, the load still riding, or a stale alignment a
+            // prepend grew out) — the honest absence.
+            _liqOverlayPublishes.OnNext(null);
+            return;
+        }
+
+        if (!_liqBracketsSettled)
+        {
+            // The bracket load still rides: hold — the standing overlay
+            // keeps serving until both inputs settle (the bands are price
+            // geometry, a held overlay stays honest through a pan).
+            return;
+        }
+
+        _liqOverlayPublishes.OnNext(LiquidationLevelEstimator.Compute(Bars, _liqBrackets, openInterest));
+    }
+
+    #endregion Liquidation Levels (T-243)
 
     #region Vwap Overlay
 
