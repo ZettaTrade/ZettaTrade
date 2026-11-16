@@ -6223,6 +6223,46 @@ the board and its section below.
   the R-multiple trusts the journal's recorded triggers verbatim (the recorded journal is
   the source of truth; a mis-recorded stop skews the distribution).
 
+## T-252 — Correlation matrix over the cached candles
+
+- **Branch:** `feat/correlation-matrix` off `develop` (queued 2026-11-14, the analytics sweep;
+  claimed 2026-11-16, supervisor-solo — the worktree `zt-correlation`).
+- **Origin:** the compare overlay (T-124) is pairwise and visual only.
+- **What:** an N×N Pearson correlation panel over a chosen watchlist/screener set and window (log
+  returns from the T-085 cache), computed off-UI; a cell routes into the compare view; missing
+  coverage is an honest dash.
+- **Scope:** the pure compute + the panel, resx en+ru, tests.
+- **Acceptance:** a 20-symbol matrix computes without freezing the UI.
+- **Tests:** correlation goldens, the coverage-gap states, the worker budget.
+- **Status:** done. Canon: the task ships as three commits on feat/correlation-matrix — the
+  claim `1b16b5e`, the feature `889a5ab` (the pure `CorrelationMath` — the bar-open-time-keyed
+  log returns, the Pearson with the honest dash, the N×N assembly; the on-demand
+  `CorrelationService` — the T-085 cache reads under the screener trend computer's bounded
+  two-slot budget, the roster cap 32 with the localized truncation note, the unparsable-text
+  refusal; the `CorrelationViewModel` + the row/cell state — the list/frame/window pickers, the
+  cell route into the chart's compare view (T-124); the `CorrelationWindow` over the screener's
+  RowGrammar scaffold; the `CorrelationDependencyInjection` + the CompositionRoot one-liner;
+  the `Menu.Trading.Correlation` item + the `ShowCorrelationRequested` wiring; the
+  `Correlation.*` resx en+ru), `c38decf` (`chore(release): 0.2.23`, the props bump + the
+  CHANGELOG section) lands through this close commit; written supervisor-solo. Lane decisions:
+  the log returns key by the BAR-OPEN time — the honest alignment axis, two series pair ONLY
+  over their shared bar times; the min overlap is max(2, window/2), Pearson answers the dash on
+  n<2 or a vanished variance, the diagonal is the self-correlation (1.0 with variance, the dash
+  without); a non-positive close refuses its return and poisons both adjacent returns (corrupt
+  data, never an exception); the assembly sorts the shared keys by time — the pinned summation
+  order recomputes bit-identically. The service pass is on-demand (no pipeline, no cadence):
+  the adapter snapshot captured once, the distinct ordinal-sorted symbol order, an unparsable
+  text refuses with a warning (the refuse-not-default discipline). The panel is the workspace
+  singleton: the watchlist document's apply re-clamps the list picker and never wipes a
+  computed matrix; a cell press routes the non-anchor member into the compare layers — the
+  anchor itself never self-compares, a text the active exchange's parser refuses stays
+  unrouted. Tests: 17 new facts (the math goldens — the keyed returns, the poisoned-pair
+  refusal, the perfect and degenerate coefficients, the shared-keys drive, the overlap floor,
+  the bit-identical recompute; the service goldens — the empty-cache all-dash pass, the cached
+  pair, the read-budget cap, the unparsable refusal, the roster-cap truncation, the 20-symbol
+  budgeted walk) + the menu routing fact. The gate passed with `-AllowProtected`; the launch
+  smoke passed before the merge.
+
 ## T-254 — Backtest robustness: Monte Carlo + walk-forward
 
 - **Branch:** `feat/backtest-robustness` (claimed 2026-11-15; queued 2026-11-14, the analytics sweep).
