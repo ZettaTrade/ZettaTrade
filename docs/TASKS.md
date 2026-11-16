@@ -252,7 +252,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-246 Book imbalance indicator derived from the depth stream (the analytics sweep 2026-11-14) | feat/book-imbalance | done | 0.2.18 |
 | T-247 Session analytics: daily/weekly opens, the opening range, session shading (the analytics sweep 2026-11-14) | feat/session-levels | done | 0.2.19 |
 | T-248 Volume profile annotations: POC/value-area labels + the naked-POC track (the analytics sweep 2026-11-14) | feat/profile-annotations | done | 0.2.20 |
-| T-249 Auto S/R levels from swing pivots, proximity-clustered and pan-stable (the analytics sweep 2026-11-14) | feat/auto-levels | in-progress | — |
+| T-249 Auto S/R levels from swing pivots, proximity-clustered and pan-stable (the analytics sweep 2026-11-14) | feat/auto-levels | done | 0.2.21 |
 | T-250 Squeeze detector (Bollinger inside Keltner) rides the standard pack (the analytics sweep 2026-11-14) | feat/squeeze-detector | planned | — |
 | T-251 Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day performance, Sharpe/Sortino (the analytics sweep 2026-11-14) | feat/stats-deepening | done | 0.2.3 |
 | T-252 Correlation matrix over the cached candles (the analytics sweep 2026-11-14) | feat/correlation-matrix | planned | — |
@@ -361,21 +361,6 @@ prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately le
 the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
 T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
 original numbers.
-
----
-
-## T-249 — Auto S/R levels from swing pivots
-
-- **Branch:** `feat/auto-levels` off `develop` (queued 2026-11-14, the analytics sweep; claimed
-  2026-11-16, supervisor-solo — the worktree `zt-auto-levels`).
-- **Status:** in-progress.
-- **Origin:** horizontal levels are drawn manually only (T-091).
-- **What:** automatic horizontal levels from swing pivots (configurable lookback and strength),
-  proximity-clustered, drawn as a read-only overlay (never written into the user's drawings),
-  stable across pans.
-- **Scope:** the pivot detector + clustering (pure) + the overlay, resx en+ru, tests.
-- **Acceptance:** the levels do not flicker when the visible window pans.
-- **Tests:** detector goldens, clustering, the pan stability.
 
 ---
 

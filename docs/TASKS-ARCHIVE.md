@@ -6089,6 +6089,56 @@ the board and its section below.
   the empty input, the inverted-plot throw). Gate passed with `-AllowProtected`; the launch
   smoke passed before the merge.
 
+## T-249 — Auto S/R levels from swing pivots
+
+- **Branch:** `feat/auto-levels` off `develop` (queued 2026-11-14, the analytics sweep; claimed
+  2026-11-16, supervisor-solo — the worktree `zt-auto-levels`).
+- **Origin:** horizontal levels are drawn manually only (T-091).
+- **What:** automatic horizontal levels from swing pivots (configurable lookback and strength),
+  proximity-clustered, drawn as a read-only overlay (never written into the user's drawings),
+  stable across pans.
+- **Scope:** the pivot detector + clustering (pure) + the overlay, resx en+ru, tests.
+- **Acceptance:** the levels do not flicker when the visible window pans.
+- **Tests:** detector goldens, clustering, the pan stability.
+- **Status:** done. Canon: the chain `b9a4c69` (claim) → `ffaaed8` (the feature — the pure
+  `SwingPivots` detector + `SupportResistanceLevels` clustering, the chart's draw pass, the
+  bars-applied publish lane, resx en+ru, the tests) → `2b05ef8` (`chore(release): 0.2.21`) is on
+  develop (fast-forward merge); this close commit follows; written supervisor-solo. Lane
+  decisions: the detection compares the candidate's arms LEFT-STRICT and RIGHT-INCLUSIVE — a
+  plateau of equal highs resolves to its EARLIEST bar (exactly one pivot per plateau), a swing
+  low mirrors it; the pivot's strength is the honest symmetric measure — the bars BEYOND the arm
+  on each side are counted until the first bar whose extreme reaches the pivot's own (equal or
+  higher breaks the count — a retest IS a break), the two counts take their min, and the series
+  bounds just stop the count without breaking it (a head or a tail is not a break); the
+  min-strength filter speaks in the same units it measures. The clustering is ANCHOR-based: the
+  pivots sort by price, a cluster's anchor is its first (lowest-priced) pivot and the next pivot
+  joins while its price sits within the tolerance of the ANCHOR — never of the previous member
+  (no chaining: a slow drift of mutually close pivots cannot walk a cluster across the axis);
+  the level answers the members' exact mean, the weight their summed strengths, the tolerance
+  speaks as a fraction of price (default 0.005 — half a percent, the band scales with the
+  instrument). The pan stability rides the series-scoped compute (the WHOLE loaded series,
+  never the visible window) published once per bars-applied through the marshalled lane the
+  SessionAnalytics/NakedPocTrack discipline rides — a per-frame re-detection of a 100k-candle
+  series would break the pan budget; the same series answers the same levels on every
+  recompute (the goldens pin the determinism). The overlay is always on while published — no
+  toggle, no new settings (the scope excludes it, the T-243 note precedent); the three knobs
+  (lookback 10, min strength 2, tolerance 0.005) are session-scoped VM properties, NOT
+  persisted (the T-246 knob precedent), each edit re-keying the publish against the standing
+  series. The draw pass: one horizontal line per level across the plot, the KIND the last
+  visible close decides (at or under the close = support, the bullish hue; above = resistance,
+  the bearish hue — a crossed level flips honestly every frame), the WEIGHT the set's
+  normalized emphasis (the heaviest level draws fullest, the lightest keeps a visible floor);
+  the right-margin S/R tags ride ONE label column the pure `ChartLabelStack` keeps
+  collision-free (the heaviest level keeps priority, the rest push aside); a level beyond the
+  visible axis stays off-plot — never a clamped line claiming the edge. resx en+ru:
+  `Chart.AutoLevels.Support` ("S" / "П") and `Chart.AutoLevels.Resistance` ("R" / "С").
+  Tests: 7 `SwingPivots` goldens (the triangular detection, the plateau's earliest bar, the
+  equal-retest break vs the strictly-lower run, the series-bound cap, the min-strength filter,
+  the empty/short absences, the lookback's legal floor) + 6 `AutoLevels` goldens (the
+  tolerance join, the anchor-based no-chain pin, the summed weights, the ascending output, the
+  clamped negative tolerance, the deterministic series-scoped composition). Gate passed with
+  `-AllowProtected`; the launch smoke passed before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
