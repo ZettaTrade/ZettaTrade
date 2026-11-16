@@ -1,3 +1,46 @@
+## [0.2.20] - 2026-11-16
+
+Build of board task T-248 (branch `feat/profile-annotations`): the volume
+profile's annotations — the POC/VAH/VAL labels on the visible-window
+profile and the naked-POC track over the loaded series.
+
+### Added
+- The pure `VolumeProfileValueArea` annotations (the
+  `VolumeProfile` discipline): the POC is the profile's heaviest bucket —
+  ties keep the LOWEST-priced maximum, the label price is the bucket's
+  own mid (a bucket is the finest price unit the OHLCV fidelity honestly
+  carries) — and the value area grows from the POC by the standard 70%
+  expansion: the next two buckets above and the next two below weigh
+  against each other, the heavier side joins (a tie joins the below side
+  — the classic rule's own else branch), a short side joins what it has
+  and the walk stops when the area holds
+  `ValueAreaFraction` (0.70) of the window's volume. VAH and VAL are the
+  finished area's outer bucket edges; a zero-total profile answers the
+  honest nulls.
+- The pure `NakedPocTrack` (T-248): one ascending session walk over the
+  whole loaded series — every session's own POC (the same granularity the
+  histogram speaks, the UTC day anchor the whole chart family rides —
+  the `VwapSessionAnchor` rule) joins the live list after that session's
+  bars clear the earlier POCs they touch, and the survivors are the
+  track. A session never answers to its own POC; a volume-less session
+  joins nothing; the last session's POC stays naked by construction. The
+  compute rides the bars-applied lane (once per series change, never per
+  frame — the 100k-candle pan budget holds).
+- The chart surface: the POC's marker line and label, the VAH/VAL edge
+  labels and the naked track's accent ticks draw in ONE right-margin
+  label column the pure `ChartLabelStack` keeps collision-free (the POC
+  keeps priority, the rest push aside a minimum text gap, the pushed
+  shape clamps into the plot as one rigid column and a taller-than-plot
+  column anchors at the ceiling letting the tail clip). The labels ride
+  the localized resx keys (`Chart.ProfilePoc/Vah/Val/Npoc`, en+ru); a
+  price beyond the visible axis stays off-plot — never a clamped label
+  claiming the edge.
+
+### Notes
+- The annotations ride the volume-profile family's own visibility toggle —
+  no new settings, no new knobs (the task's scope is the compute
+  extension + the label rendering).
+
 ## [0.2.19] - 2026-11-16
 
 Build of board task T-247 (branch `feat/session-levels`): the session
