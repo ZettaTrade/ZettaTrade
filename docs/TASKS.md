@@ -250,7 +250,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-244 CVD pane: cumulative volume delta summed from the tape's aggressor side (the analytics sweep 2026-11-14) | feat/cvd-pane | done | 0.2.16 |
 | T-245 Whale-print filter + the big-trade alert kind in the tape (the analytics sweep 2026-11-14) | feat/whale-filter | done | 0.2.17 |
 | T-246 Book imbalance indicator derived from the depth stream (the analytics sweep 2026-11-14) | feat/book-imbalance | done | 0.2.18 |
-| T-247 Session analytics: daily/weekly opens, the opening range, session shading (the analytics sweep 2026-11-14) | feat/session-levels | planned | — |
+| T-247 Session analytics: daily/weekly opens, the opening range, session shading (the analytics sweep 2026-11-14) | feat/session-levels | in-progress | — |
 | T-248 Volume profile annotations: POC/value-area labels + the naked-POC track (the analytics sweep 2026-11-14) | feat/profile-annotations | planned | — |
 | T-249 Auto S/R levels from swing pivots, proximity-clustered and pan-stable (the analytics sweep 2026-11-14) | feat/auto-levels | planned | — |
 | T-250 Squeeze detector (Bollinger inside Keltner) rides the standard pack (the analytics sweep 2026-11-14) | feat/squeeze-detector | planned | — |
@@ -366,7 +366,9 @@ original numbers.
 
 ## T-247 — Session analytics: opens, opening range, session shading
 
-- **Branch:** `feat/session-levels` off `develop` (queued 2026-11-14, the analytics sweep).
+- **Branch:** `feat/session-levels` off `develop` (queued 2026-11-14, the analytics sweep; claimed
+  2026-11-16, supervisor-solo — the worktree `zt-session-levels`).
+- **Status:** in-progress.
 - **Origin:** levels are manual-only (T-091); the calendar (T-037) paints no session context.
 - **What:** daily/weekly open lines, an opening-range band (configurable minutes), and
   Asia/Europe/US session shading (UTC-anchored for 24/7 venues, the venue calendars for stocks)
