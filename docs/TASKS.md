@@ -249,7 +249,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-243 Estimated liquidation levels overlay computed locally from OI deltas + the venues' public leverage brackets (the analytics sweep 2026-11-14) | feat/liquidation-levels | done | 0.2.15 |
 | T-244 CVD pane: cumulative volume delta summed from the tape's aggressor side (the analytics sweep 2026-11-14) | feat/cvd-pane | done | 0.2.16 |
 | T-245 Whale-print filter + the big-trade alert kind in the tape (the analytics sweep 2026-11-14) | feat/whale-filter | done | 0.2.17 |
-| T-246 Book imbalance indicator derived from the depth stream (the analytics sweep 2026-11-14) | feat/book-imbalance | in-progress | — |
+| T-246 Book imbalance indicator derived from the depth stream (the analytics sweep 2026-11-14) | feat/book-imbalance | done | 0.2.18 |
 | T-247 Session analytics: daily/weekly opens, the opening range, session shading (the analytics sweep 2026-11-14) | feat/session-levels | planned | — |
 | T-248 Volume profile annotations: POC/value-area labels + the naked-POC track (the analytics sweep 2026-11-14) | feat/profile-annotations | planned | — |
 | T-249 Auto S/R levels from swing pivots, proximity-clustered and pan-stable (the analytics sweep 2026-11-14) | feat/auto-levels | planned | — |
@@ -361,21 +361,6 @@ prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately le
 the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
 T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
 original numbers.
-
----
-
-## T-246 — Book imbalance indicator
-
-- **Branch:** `feat/book-imbalance` off `develop` (queued 2026-11-14, the analytics sweep; claimed
-  2026-11-16, supervisor-solo — the worktree `zt-book-imbalance`).
-- **Status:** in-progress.
-- **Origin:** depth flows (T-011, T-088); no derived signal.
-- **What:** a bid/ask volume imbalance ratio over a configurable depth window (a pure computation
-  over the book snapshot) shown as a pane or a book header chip, with optional smoothing.
-- **Scope:** the pure calculator + the display, resx en+ru, tests.
-- **Acceptance:** the 60 fps / 1000-level book target holds with the indicator live (no per-frame
-  allocations on the hot path).
-- **Tests:** calculator goldens, a perf smoke over the 1000-level synthetic book.
 
 ---
 

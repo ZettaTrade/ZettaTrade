@@ -5939,6 +5939,49 @@ the board and its section below.
   non-positive no-op, the side independence); every other suite green in the gate. Gate
   passed with `-AllowProtected`; the launch smoke passed before the merge.
 
+## T-246 — Book imbalance indicator
+
+- **Branch:** `feat/book-imbalance` off `develop` (queued 2026-11-14, the analytics sweep; claimed
+  2026-11-16, supervisor-solo — the worktree `zt-book-imbalance`).
+- **Origin:** depth flows (T-011, T-088); no derived signal.
+- **What:** a bid/ask volume imbalance ratio over a configurable depth window (a pure computation
+  over the book snapshot) shown as a pane or a book header chip, with optional smoothing.
+- **Scope:** the pure calculator + the display, resx en+ru, tests.
+- **Acceptance:** the 60 fps / 1000-level book target holds with the indicator live (no per-frame
+  allocations on the hot path).
+- **Tests:** calculator goldens, a perf smoke over the 1000-level synthetic book.
+- **Status:** done. Canon: the chain `54ccfb9` (claim) → `d2cc6cc` (the feature — the pure
+  `BookImbalance` calculator, the chip lane, resx en+ru, the tests) → `4c51ffd`
+  (`chore(release): 0.2.18`) is on develop (fast-forward merge); this close commit follows;
+  written supervisor-solo. Lane decisions: the display is the header CHIP (the task's «a pane
+  or a book header chip» — the right-docked chip in the panel-head scaffold, the bare title
+  stays the pin's descendant) riding the snapshot the ladder and the depth chart already bind —
+  no new transport, no venue capability; the pure calculator (App/Services, the
+  `CvdAggregation` discipline) weighs the window's first levels of each side with
+  `(sumBid - sumAsk) / (sumBid + sumAsk)` bounded [−1, +1] (a one-sided book reads the full
+  lean, an empty book is balanced — never a fabricated lean, a window below one level reads
+  neutral zero — the honest off, the T-245 zero shape), the window truncates at the SERVED
+  depth (the feed caps the ladder via `SubscribeOrderBook`'s own depth — the window never
+  demands what the snapshot does not carry) and the hot path is allocation-free (indexers and
+  decimal arithmetic only, no LINQ — the acceptance's own clause); the chip rides the panel's
+  marshaled lane (the smoothing state stays UI-thread-confined), the invariant signed
+  spelling (`+0.33` / `-0.60` — the lean's direction is the read's whole point) stays blank
+  until the first book lands; the optional smoothing is the per-update EMA with the FIXED 0.25
+  alpha (a pinned constant, only its on/off rides the knob — re-enabling continues from the
+  carried last read, never a stale one), a knob change re-weighs the standing book live and a
+  symbol switch resets the carried read (the new symbol's first book passes through raw, the
+  old symbol's depth distribution never blends in); the knobs are exposed ViewModel
+  properties (defaults: 10 levels, smoothing off) with NO persisted settings — the scope line
+  is the calculator + the display + resx + tests, unlike T-245's explicit persistence clause.
+  resx en+ru: `OrderBook.ImbalanceA11y` + `OrderBook.ImbalanceTip` (mirror placement in the
+  `OrderBook.*` block). Tests: 10 calculator goldens (the sum/normalize, the window
+  truncation both ways, the neutral reads, the one-sided leans, the EMA steps, the
+  allocation-free pin over 600 live frames on the 1000-level synthetic book, the
+  frame-budget smoke) + 5 ViewModel facts (the empty-until-first-book chip, the publish +
+  signed spelling, the knob re-weigh, the smoothing blend + re-enable, the switch reset raw);
+  the XAML pins suites green. Gate passed with `-AllowProtected`; the launch smoke passed
+  before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
