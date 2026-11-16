@@ -1,3 +1,47 @@
+## [0.2.17] - 2026-11-16
+
+Build of board task T-245 (branch `feat/whale-filter`): the whale-print
+filter and alert kind — big trades surface twice, once as the tape's
+highlighted rows and once as a new alert kind over the existing trade
+stream (client-side only, no extra venue subscriptions).
+
+### Added
+- The `PriceAlertKind.WhalePrint` alert kind: an alert fires when a
+  print's notional (served price × served size) rises strictly above the
+  stored threshold in absolute quote-currency units (the threshold lives
+  on `TargetPrice`, the edge is the fixed Above — a trade alert is
+  "bigger than", At and Below are refused at draft validation and at
+  decode). The engine's evaluation gains the kind's own route: one trade
+  subscription per whale-armed symbol (the same prints the tape shows,
+  never a second venue feed), a quantity-carrying observation evaluates
+  ONLY the whale alerts (a print is not a tick — no history, candles or
+  funding tracking on the trade route) and a quantity-less one never
+  reaches them; a malformed print (size ≤ 0) drops.
+- The tape's whale filter: the panel head gains the threshold field, the
+  shown rows whose notional is strictly above it draw their size column
+  in the theme's Accent color with a bold face (time and price keep the
+  aggressor's side colors), and the live stream gate passes only the
+  prints above it (zero = off, everything passes). The threshold
+  resolves per shown symbol from the persisted state — the symbol's own
+  override (`Tape / WhaleThresholds`, a JSON map) wins, the absolute
+  default (`Tape / WhaleThreshold`) fills the rest — every user edit
+  applies live and rides a 600 ms debounced persist (the first edit on a
+  default-riding symbol writes the absolute default too, an edit on an
+  overridden symbol writes only the map entry), an unparsable or
+  negative spelling edits nothing, and the store's own changes reload
+  the resolved state (the T-053 canon). The panel's ViewModel joins the
+  startup walk (`IAsyncInitializable`), so the persisted state lands
+  before the first frame.
+- The alerts editor: the kind picker gains WhalePrint, the kind switch
+  forces the Above edge and hides the trigger cell, and the condition
+  line renders the whale frame (`Alert.Condition.Whale.Format`) in the
+  manager column and the fire toast alike.
+
+### Notes
+- The tape's filter is client-side over the adapter's existing trade
+  stream; no new subscription kind, no venue capability, and the
+  thresholds persist across restarts through the settings store.
+
 ## [0.2.16] - 2026-11-16
 
 Build of board task T-244 (branch `feat/cvd-pane`): the cumulative volume
