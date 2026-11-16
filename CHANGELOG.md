@@ -1,3 +1,40 @@
+## [0.2.18] - 2026-11-16
+
+Build of board task T-246 (branch `feat/book-imbalance`): the book
+imbalance chip — the bid/ask volume lean over a configurable depth
+window, computed over the served snapshot the ladder and the depth chart
+already bind (no new transport).
+
+### Added
+- The pure `BookImbalance` calculator: the window's first levels of each
+  side weigh `(sumBid - sumAsk) / (sumBid + sumAsk)`, bounded to
+  [−1, +1] (+1 the whole window rides the bid side, −1 the ask side, 0
+  the balanced book); the window truncates at the served depth (the feed
+  caps the ladder — the window never demands what the snapshot does not
+  carry), a window below one level reads neutral zero (the honest off)
+  and an empty book is balanced, never a fabricated lean. The hot path
+  is allocation-free — indexers and decimal arithmetic only, no LINQ —
+  so the 60 fps / 1000-level book target holds with the indicator live
+  (pinned by an allocation fact and a frame-budget smoke over the
+  1000-level synthetic book).
+- The order book panel's head chip: the ratio rides the marshaled lane
+  the snapshot already hops through (the smoothing state stays
+  UI-thread-confined), spelled invariantly with its own sign ("+0.33" /
+  "-0.60" — the lean's direction is the read's whole point) and blank
+  until the first book lands. The optional smoothing is the per-update
+  EMA with the fixed 0.25 alpha (a constant, not a setting — the shape
+  is pinned, only its on/off rides the knob); re-enabling continues the
+  EMA from the honest last read, a knob change re-weighs the standing
+  book live and a symbol switch resets the carried read (the new
+  symbol's first book passes through raw, never a blend of the old
+  symbol's depth distribution).
+
+### Notes
+- The chip's display is client-side over the existing book surface; no
+  new subscription, no venue capability. The window and the smoothing
+  ride exposed ViewModel knobs (defaults: 10 levels, off) — the task's
+  scope is the pure calculator + the display, no persisted settings.
+
 ## [0.2.17] - 2026-11-16
 
 Build of board task T-245 (branch `feat/whale-filter`): the whale-print
