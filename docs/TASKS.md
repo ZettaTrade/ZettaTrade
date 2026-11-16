@@ -248,7 +248,7 @@ Statuses: `planned` → `in-progress` → `review` → `done`. One task per feat
 | T-242 Liquidation feed: the venues' free forced-order WS streams aggregated into the tape and chart markers (the analytics sweep 2026-11-14) | feat/liquidation-feed | done | 0.2.14 |
 | T-243 Estimated liquidation levels overlay computed locally from OI deltas + the venues' public leverage brackets (the analytics sweep 2026-11-14) | feat/liquidation-levels | done | 0.2.15 |
 | T-244 CVD pane: cumulative volume delta summed from the tape's aggressor side (the analytics sweep 2026-11-14) | feat/cvd-pane | done | 0.2.16 |
-| T-245 Whale-print filter + the big-trade alert kind in the tape (the analytics sweep 2026-11-14) | feat/whale-filter | in-progress | — |
+| T-245 Whale-print filter + the big-trade alert kind in the tape (the analytics sweep 2026-11-14) | feat/whale-filter | done | 0.2.17 |
 | T-246 Book imbalance indicator derived from the depth stream (the analytics sweep 2026-11-14) | feat/book-imbalance | planned | — |
 | T-247 Session analytics: daily/weekly opens, the opening range, session shading (the analytics sweep 2026-11-14) | feat/session-levels | planned | — |
 | T-248 Volume profile annotations: POC/value-area labels + the naked-POC track (the analytics sweep 2026-11-14) | feat/profile-annotations | planned | — |
@@ -361,20 +361,6 @@ prioritizes the lanes. Filed in the zt-analytics-sweep worktree, deliberately le
 the user's call; refiled off the synced board top (`bd4c514`) as T-239…T-255 — the concurrent
 T-236…T-238 landings (the beta-prep finale, the cold-start pass, the 0.2.0 beta flip) took the
 original numbers.
-
----
-
-## T-245 — Whale-print filter and the big-trade alert kind
-
-- **Branch:** `feat/whale-filter` off `develop` (queued 2026-11-14, the analytics sweep; claimed
-  2026-11-16, supervisor-solo — the worktree `zt-whale-filter`).
-- **Status:** in-progress.
-- **Origin:** every print rides the tape (T-087); large ones drown.
-- **What:** a notional threshold filter with large prints highlighted, and a new alert kind —
-  trade above threshold — riding the alert engine; thresholds per symbol or absolute, persisted.
-- **Scope:** the tape VM filter + the alert kind + settings keys, resx en+ru, tests.
-- **Acceptance:** client-side only (no extra subscriptions); thresholds persist across restarts.
-- **Tests:** filter goldens, the alert firing, persistence.
 
 ---
 

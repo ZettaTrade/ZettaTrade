@@ -5896,6 +5896,49 @@ the board and its section below.
   `-AllowProtected` (the `Directory.Build.props` bump is the supervisor-only protected file);
   the launch smoke passed before the merge.
 
+## T-245 — Whale-print filter and the big-trade alert kind
+
+- **Branch:** `feat/whale-filter` off `develop` (queued 2026-11-14, the analytics sweep; claimed
+  2026-11-16, supervisor-solo — the worktree `zt-whale-filter`).
+- **Origin:** every print rides the tape (T-087); large ones drown.
+- **What:** a notional threshold filter with large prints highlighted, and a new alert kind —
+  trade above threshold — riding the alert engine; thresholds per symbol or absolute, persisted.
+- **Scope:** the tape VM filter + the alert kind + settings keys, resx en+ru, tests.
+- **Acceptance:** client-side only (no extra subscriptions); thresholds persist across restarts.
+- **Tests:** filter goldens, the alert firing, persistence.
+- **Status:** done. Canon: the chain `a79aa21` (claim) → `429d356` (the feature — the
+  `WhalePrint` kind with the notional threshold on `TargetPrice` and the fixed Above edge, the
+  engine's trade route, the tape's filter + highlight, the settings keys, resx en+ru, the
+  tests) → `94cab61` (`chore(release): 0.2.17`) is on develop (fast-forward merge); written
+  supervisor-solo, the dead session's uncommitted draft adopted and finished. Lane decisions:
+  the whale evaluation judges the print's own notional (served price × served size) STRICTLY
+  above the stored threshold in absolute quote units, the edge seam stays the one decider, and
+  the draft + the codec refuse At/Below and non-positive thresholds (a trade alert is "bigger
+  than", zero and negatives are no thresholds at all); the route split is the
+  `AlertObservation.Quantity` PRESENCE — a quantity-carrying observation rides the trade
+  stream and evaluates ONLY the whale alerts (a print is not a tick: no move history, no
+  candles, no funding tracking on the trade route), a quantity-less one never reaches them, a
+  malformed print (size ≤ 0) drops, and one trade subscription per whale-armed symbol rides
+  the adapters' existing stream (client-side only, no second venue feed, disposed with the
+  roster); the tape's filter gates the live stream with `WithLatestFrom` (a threshold edit
+  re-emits nothing stale), the highlighted rows draw the size column in the theme's Accent
+  color with a bold face (time and price keep the aggressor's side colors), and the threshold
+  resolves per shown symbol from the persisted state — the symbol's own override (`Tape /
+  WhaleThresholds`, a JSON map) wins, the absolute default (`Tape / WhaleThreshold`) fills the
+  rest, zero is the honest off; every user edit applies live and rides a 600 ms debounced
+  whole-state persist (the first edit on a default-riding symbol writes the absolute default
+  too, an edit on an overridden symbol never leaks its value into the default), an unparsable
+  or negative spelling edits nothing (never coerced), a pre-bootstrap edit stays
+  session-local, the store's own changes reload the resolved state (the T-053 canon) and the
+  tape ViewModel joins the startup walk (`IAsyncInitializable`, the persisted state lands
+  before the first frame). Tests: App.Tests 144/144 on the touched suites (the whale filter
+  goldens + the live apply + the debounced persistence + the reload, the engine's firing
+  edge + the route discipline both ways + the subscription lifecycle + the malformed drop,
+  the codec's whale round-trip + the skips, the editor's forced Above + the unparsable
+  refusal) and UI.Tests 13/13 on the tape layout suite (the strictly-above goldens, the
+  non-positive no-op, the side independence); every other suite green in the gate. Gate
+  passed with `-AllowProtected`; the launch smoke passed before the merge.
+
 ## T-251 — Trade-statistics deepening: MAE/MFE, R-multiples, time-of-day, Sharpe/Sortino
 
 - **Branch:** `feat/stats-deepening` off `develop` (queued 2026-11-14, the analytics sweep;
