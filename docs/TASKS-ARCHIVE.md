@@ -6263,6 +6263,48 @@ the board and its section below.
   budgeted walk) + the menu routing fact. The gate passed with `-AllowProtected`; the launch
   smoke passed before the merge.
 
+## T-253 — Cross-venue spread and the perp-spot basis view
+
+- **Branch:** `feat/venue-spread` off `develop` (queued 2026-11-14, the analytics sweep;
+  claimed 2026-11-16, supervisor-solo — the worktree `zt-venue-spread`).
+- **Origin:** three venues ship (Binance, Bybit, OKX); nothing compares the same symbol across
+  them, nor perp against spot.
+- **What:** a spread view for a symbol across adapters (last/bid/ask deltas in bps) and a
+  perp-spot basis series where both categories exist; market-data only — no order routing
+  implications, no risk-surface change.
+- **Scope:** the aggregation service over the existing facades + the panel, resx en+ru, tests.
+- **Acceptance:** works on any venue subset — a missing venue is a dash, never an error.
+- **Tests:** aggregation goldens, the missing-venue honesty, the basis math.
+- **Status:** done. Canon: the task ships as three commits on feat/venue-spread — the claim
+  `c6cee86`, the feature `aa71c6f` (the pure `VenueSpreadMath` — the median, the basis-point
+  delta, the deltas-vs-median and the basis series; the on-demand `VenueSpreadService` — the
+  fleet's ticker race under a bounded wait, the per-venue basis reads under the two-slot
+  budget; the `VenueSpreadViewModel` + the row state; the `VenueSpreadWindow` over the
+  correlation's RowGrammar scaffold; the `VenueSpreadDependencyInjection` + the CompositionRoot
+  one-liner; the `Menu.Trading.VenueSpread` item + the `ShowVenueSpreadRequested` wiring; the
+  `VenueSpread.*` resx en+ru), `8e3d1aa` (`chore(release): 0.2.24`, the props bump + the
+  CHANGELOG section) lands through this close commit; written supervisor-solo. Lane decisions:
+  the ticker sample rides the adapters' OWN lazy dial (the first subscriber connects the
+  venue's socket — no panel-managed connects, the standing footprint never churns), a silent
+  venue keeps its table slot as the honest dash row past the bounded wait; the deltas ride the
+  ANSWERING set's MEDIAN (no venue's own wire quirk steers the table) and fewer than two
+  answering venues answer the all-dash table (a spread against one venue is the venue against
+  itself — the absence is never dressed up as a 0.0 verdict); a non-positive wire price is not
+  a price (the dash, the refusal discipline); the basis pairs each venue's OWN spot cache
+  against its OWN perp cache (the same-venue pairing is the honest carry — a cross-venue
+  pairing would fold two venues' fees and conventions into one number), the sibling derives
+  ccxt-style (the spot form appends the quote as the linear settle, the T-197 convention; a
+  stock symbol owns no sibling — the honest no-series), the shared bar-open times key the
+  pairs (the T-252 alignment axis), a non-positive close refuses its sample, the series sorts
+  by time. The panel is the workspace singleton over a fixed-fleet read (no subscriptions, the
+  pass is stateless); the spark reuses the watchlist's point mapper. Tests: 19 new facts (the
+  math goldens — the medians, the bps refusals, the answering-set deltas, the shared-keys
+  basis, the poisoned closes, the order; the service goldens — the cold-fleet dashes, the
+  answering+silent mix, the mirrored deltas, the unparsable refusal, the per-venue basis
+  derivation, the stock's no-basis, the read-budget cap, the text normalization) + the menu
+  routing fact. The gate passed with `-AllowProtected`; the launch smoke passed before the
+  merge.
+
 ## T-254 — Backtest robustness: Monte Carlo + walk-forward
 
 - **Branch:** `feat/backtest-robustness` (claimed 2026-11-15; queued 2026-11-14, the analytics sweep).
