@@ -1689,6 +1689,12 @@ Estimated fee: {10}</value>
   <data name="OrderBook.A11yDepthWithSymbol" xml:space="preserve">
     <value>Depth chart: {0}</value>
   </data>
+  <data name="OrderBook.ImbalanceA11y" xml:space="preserve">
+    <value>Book imbalance ratio</value>
+  </data>
+  <data name="OrderBook.ImbalanceTip" xml:space="preserve">
+    <value>Bid/ask volume imbalance over the depth window (−1 to +1: ask lean to bid lean)</value>
+  </data>
   <data name="Tape.Title" xml:space="preserve">
     <value>Trade Tape</value>
   </data>

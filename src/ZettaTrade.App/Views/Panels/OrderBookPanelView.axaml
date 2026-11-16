@@ -14,6 +14,14 @@
          grammar and the title treatment live in the kit. -->
     <Grid RowDefinitions="Auto,*,Auto,*">
         <DockPanel Grid.Row="0" Classes="panel-header">
+            <!-- T-246: the imbalance chip — the window's bid/ask lean,
+                 right-docked into the scaffold (the bare title stays the
+                 descendant the pin owns). Empty until the first book lands;
+                 the invariant spelling carries its own sign. -->
+            <TextBlock DockPanel.Dock="Right"
+                       Text="{Binding ImbalanceText}"
+                       AutomationProperties.Name="{loc:Localized OrderBook.ImbalanceA11y}"
+                       ToolTip.Tip="{loc:Localized OrderBook.ImbalanceTip}" />
             <TextBlock Text="{loc:Localized OrderBook.Title}" />
         </DockPanel>
         <charting:OrderBookWidget x:Name="BookWidget" Grid.Row="1" Book="{Binding Book}" />

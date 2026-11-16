@@ -22,7 +22,9 @@ using ZettaTrade.Core.ValueObjects;
 /// symbol streams from the first frame, Rx Switch cancels the previous symbol
 /// on change, an unparsable input keeps the current stream alive instead of
 /// guessing, and a stream failure ends one symbol's data without killing the
-/// pipeline for later symbols.
+/// pipeline for later symbols — and the T-246 imbalance chip publishes the
+/// window's ratio on the marshaled lane (a knob change re-weighs the
+/// standing book, a symbol switch resets the carried read).
 /// </summary>
 /// <remarks>
 /// Rides <see cref="AvaloniaDispatcherSerialCollection"/> (T-138): the class
@@ -136,6 +138,30 @@ public sealed class OrderBookViewModelTests
                 .ToList(),
             Timestamp = DateTimeOffset.UtcNow,
         };
+
+    /// <summary>A two-sided lean book: the given quantities per side, unit prices — the window's read is hand-computable.</summary>
+    private static OrderBook LeanBook(string symbol, decimal[] bidQuantities, decimal[] askQuantities)
+    {
+        var bids = new PriceLevel[bidQuantities.Length];
+        for (var i = 0; i < bidQuantities.Length; i++)
+        {
+            bids[i] = new PriceLevel(100m - i, bidQuantities[i]);
+        }
+
+        var asks = new PriceLevel[askQuantities.Length];
+        for (var i = 0; i < askQuantities.Length; i++)
+        {
+            asks[i] = new PriceLevel(100.01m + i, askQuantities[i]);
+        }
+
+        return new OrderBook
+        {
+            Symbol = Symbol.Parse(symbol),
+            Bids = bids,
+            Asks = asks,
+            Timestamp = DateTimeOffset.UtcNow,
+        };
+    }
 
     #endregion
 
@@ -292,6 +318,127 @@ public sealed class OrderBookViewModelTests
 
         vm.SymbolInput = "SOL/USDC";
         marketData.Feeds.Should().ContainKey("SOL/USDC", "the typed input stays the offline override after the selection source dies");
+    }
+
+    [Fact]
+    public void TheChip_IsEmptyUntilTheFirstBookLands()
+    {
+        var marketData = new FakeMarketData();
+        var vm = new OrderBookViewModel(
+            marketData,
+            Observable.Never<Symbol>(),
+            NullLogger<OrderBookViewModel>.Instance);
+
+        vm.Imbalance.Should().Be(0m, "no book, no read");
+        vm.ImbalanceText.Should().BeEmpty("the chip publishes nothing before the first snapshot");
+    }
+
+    [Fact]
+    public async Task ABookUpdate_PublishesTheRatioAndItsSignedSpelling()
+    {
+        var marketData = new FakeMarketData();
+        var vm = new OrderBookViewModel(
+            marketData,
+            Observable.Never<Symbol>(),
+            NullLogger<OrderBookViewModel>.Instance);
+        using var subscription = vm.Updates.Subscribe(_ => { });
+
+        // bids 4+4 = 8, asks 1+3 = 4 → (8-4)/12 = +1/3 → the two-decimal chip spelling.
+        marketData.GetFeed(Symbol.Parse("BTC/USDT")).Subject.OnNext(
+            LeanBook("BTC/USDT", [4m, 4m], [1m, 3m]));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        vm.Imbalance.Should().Be(1m / 3m);
+        vm.ImbalanceText.Should().Be("+0.33", "the sign never swallows — the lean's direction is the read's whole point");
+
+        marketData.GetFeed(Symbol.Parse("BTC/USDT")).Subject.OnNext(
+            LeanBook("BTC/USDT", [1m, 1m], [4m, 4m]));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        vm.ImbalanceText.Should().Be("-0.60", "(2-8)/10 — the ask lean spells with its own sign");
+    }
+
+    [Fact]
+    public async Task TheWindowKnob_ReweighsTheStandingBook()
+    {
+        var marketData = new FakeMarketData();
+        var vm = new OrderBookViewModel(
+            marketData,
+            Observable.Never<Symbol>(),
+            NullLogger<OrderBookViewModel>.Instance);
+        using var subscription = vm.Updates.Subscribe(_ => { });
+
+        // bids 4+4 = 8, asks 1+3 = 4 → the window-2 read is +0.5.
+        marketData.GetFeed(Symbol.Parse("BTC/USDT")).Subject.OnNext(
+            LeanBook("BTC/USDT", [4m, 4m], [1m, 3m]));
+        await AvaloniaDispatcherPump.DrainAsync();
+
+        vm.ImbalanceWindow = 2;
+        vm.Imbalance.Should().Be(1m / 3m, "the knob change re-weighs the standing book live: (8-4)/12");
+        vm.ImbalanceText.Should().Be("+0.33");
+
+        // The window-1 read weighs only the first level: 4 vs 1 → +0.6.
+        vm.ImbalanceWindow = 1;
+        vm.Imbalance.Should().Be(0.6m);
+        vm.ImbalanceText.Should().Be("+0.60");
+    }
+
+    [Fact]
+    public async Task TheSmoothingKnob_BlendsTheReads_AndReenablingCarriesTheHonestLastRead()
+    {
+        var marketData = new FakeMarketData();
+        var vm = new OrderBookViewModel(
+            marketData,
+            Observable.Never<Symbol>(),
+            NullLogger<OrderBookViewModel>.Instance);
+        using var subscription = vm.Updates.Subscribe(_ => { });
+
+        // The off smoothing passes every read raw (bids 7 asks 3 → +0.4).
+        marketData.GetFeed(Symbol.Parse("BTC/USDT")).Subject.OnNext(
+            LeanBook("BTC/USDT", [7m], [3m]));
+        await AvaloniaDispatcherPump.DrainAsync();
+        vm.Imbalance.Should().Be(0.4m);
+
+        // Enabling re-weighs the standing book: the first read passes raw
+        // (nothing to blend from) and the carried state starts there.
+        vm.ImbalanceSmoothed = true;
+        vm.Imbalance.Should().Be(0.4m, "the EMA's first read is the raw one");
+        vm.ImbalanceText.Should().Be("+0.40");
+
+        // The next read blends with the fixed alpha: 0.4 + 0.25 * (0.8 - 0.4).
+        marketData.GetFeed(Symbol.Parse("BTC/USDT")).Subject.OnNext(
+            LeanBook("BTC/USDT", [9m], [1m]));
+        await AvaloniaDispatcherPump.DrainAsync();
+        vm.Imbalance.Should().Be(0.5m, "0.4 + 0.25 * (0.8 - 0.4) = 0.5");
+        vm.ImbalanceText.Should().Be("+0.50");
+    }
+
+    [Fact]
+    public async Task ASymbolSwitch_BlanksTheChip_AndTheNewSymbolReadsRaw()
+    {
+        var marketData = new FakeMarketData();
+        var vm = new OrderBookViewModel(
+            marketData,
+            Observable.Never<Symbol>(),
+            NullLogger<OrderBookViewModel>.Instance);
+        using var subscription = vm.Updates.Subscribe(_ => { });
+        vm.ImbalanceSmoothed = true;
+
+        marketData.GetFeed(Symbol.Parse("BTC/USDT")).Subject.OnNext(
+            LeanBook("BTC/USDT", [7m], [3m]));
+        await AvaloniaDispatcherPump.DrainAsync();
+        vm.ImbalanceText.Should().Be("+0.40", "the first read passes raw (the enabled EMA starts there)");
+
+        vm.SymbolInput = "ETH/BTC";
+        vm.ImbalanceText.Should().BeEmpty("the carried read belongs to the old symbol — the chip blanks on the switch");
+
+        // The new symbol's first book passes through raw: +0.8, never a
+        // blend of the old symbol's carried 0.4 (which would read 0.575).
+        marketData.GetFeed(Symbol.Parse("ETH/BTC")).Subject.OnNext(
+            LeanBook("ETH/BTC", [9m], [1m]));
+        await AvaloniaDispatcherPump.DrainAsync();
+        vm.Imbalance.Should().Be(0.8m, "the reset dropped the carried read — the new symbol's first book reads raw");
+        vm.ImbalanceText.Should().Be("+0.80");
     }
 
     #endregion

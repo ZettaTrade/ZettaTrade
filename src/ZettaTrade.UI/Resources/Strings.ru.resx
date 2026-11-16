@@ -1689,6 +1689,12 @@
   <data name="OrderBook.A11yDepthWithSymbol" xml:space="preserve">
     <value>Кумулятивный стакан: {0}</value>
   </data>
+  <data name="OrderBook.ImbalanceA11y" xml:space="preserve">
+    <value>Коэффициент дисбаланса стакана</value>
+  </data>
+  <data name="OrderBook.ImbalanceTip" xml:space="preserve">
+    <value>Дисбаланс объёмов bid/ask по окну глубины (от −1 до +1: перевес ask к перевесу bid)</value>
+  </data>
   <data name="Tape.Title" xml:space="preserve">
     <value>Лента сделок</value>
   </data>
