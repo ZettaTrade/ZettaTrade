@@ -726,6 +726,30 @@
   <data name="Chart.VolumeProfile.Tip" xml:space="preserve">
     <value>Показать или скрыть гистограмму объёма по цене в правом краю графика.</value>
   </data>
+  <data name="Chart.SessionOpens" xml:space="preserve">
+    <value>Открытия</value>
+  </data>
+  <data name="Chart.SessionOpens.Tip" xml:space="preserve">
+    <value>Показать или скрыть линии дневного и недельного открытия поверх свечей.</value>
+  </data>
+  <data name="Chart.SessionRange" xml:space="preserve">
+    <value>Диапазон</value>
+  </data>
+  <data name="Chart.SessionRange.Tip" xml:space="preserve">
+    <value>Показать или скрыть диапазон открытия дня (его максимум и минимум за первые минуты окна).</value>
+  </data>
+  <data name="Chart.SessionShading" xml:space="preserve">
+    <value>Сессии</value>
+  </data>
+  <data name="Chart.SessionShading.Tip" xml:space="preserve">
+    <value>Подсветить окна сессий Азии, Европы и США (UTC) за свечами.</value>
+  </data>
+  <data name="Chart.SessionMinutes.Name" xml:space="preserve">
+    <value>Окно диапазона открытия, минуты</value>
+  </data>
+  <data name="Chart.SessionMinutes.Tip" xml:space="preserve">
+    <value>Окно диапазона открытия в минутах (1–1440); нечитаемая запись оставляет действующее значение.</value>
+  </data>
   <data name="Chart.NoVolumeData" xml:space="preserve">
     <value>Нет данных об объёме этих свечей</value>
   </data>

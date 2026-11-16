@@ -726,6 +726,30 @@
   <data name="Chart.VolumeProfile.Tip" xml:space="preserve">
     <value>Toggle the volume-at-price histogram in the chart's right margin.</value>
   </data>
+  <data name="Chart.SessionOpens" xml:space="preserve">
+    <value>Opens</value>
+  </data>
+  <data name="Chart.SessionOpens.Tip" xml:space="preserve">
+    <value>Toggle the daily and weekly open lines over the candles.</value>
+  </data>
+  <data name="Chart.SessionRange" xml:space="preserve">
+    <value>Range</value>
+  </data>
+  <data name="Chart.SessionRange.Tip" xml:space="preserve">
+    <value>Toggle the day's opening-range band (its highest high and lowest low over the window's first minutes).</value>
+  </data>
+  <data name="Chart.SessionShading" xml:space="preserve">
+    <value>Sessions</value>
+  </data>
+  <data name="Chart.SessionShading.Tip" xml:space="preserve">
+    <value>Paint the Asia, Europe and US session windows (UTC) behind the candles.</value>
+  </data>
+  <data name="Chart.SessionMinutes.Name" xml:space="preserve">
+    <value>Opening-range window, minutes</value>
+  </data>
+  <data name="Chart.SessionMinutes.Tip" xml:space="preserve">
+    <value>The opening-range window in minutes (1–1440); an unreadable spelling keeps the standing value.</value>
+  </data>
   <data name="Chart.NoVolumeData" xml:space="preserve">
     <value>No volume data for these candles</value>
   </data>

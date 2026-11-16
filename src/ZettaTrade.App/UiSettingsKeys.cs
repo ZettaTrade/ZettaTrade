@@ -236,6 +236,59 @@ public static class UiSettingsKeys
     public const bool DefaultChartShowVolumeProfile = true;
 
     /// <summary>
+    /// Settings key of the persisted daily/weekly open-lines visibility
+    /// (T-247): true draws the session analytics' open lines over the
+    /// candles.
+    /// </summary>
+    public const string ChartShowSessionOpens = "ChartShowSessionOpens";
+
+    /// <summary>
+    /// The session open-lines visibility applied until a stored setting is
+    /// loaded: shown, per the T-092 default-indicator precedent — the task
+    /// ships the family visible and the toggles personalize it.
+    /// </summary>
+    public const bool DefaultChartShowSessionOpens = true;
+
+    /// <summary>
+    /// Settings key of the persisted opening-range band visibility (T-247):
+    /// true draws the day's opening-range band over the candles.
+    /// </summary>
+    public const string ChartShowSessionRange = "ChartShowSessionRange";
+
+    /// <summary>
+    /// The opening-range band visibility applied until a stored setting is
+    /// loaded: shown, per the T-092 default-indicator precedent.
+    /// </summary>
+    public const bool DefaultChartShowSessionRange = true;
+
+    /// <summary>
+    /// Settings key of the persisted session-shading visibility (T-247):
+    /// true paints the Asia/Europe/US UTC windows behind the series.
+    /// </summary>
+    public const string ChartShowSessionShading = "ChartShowSessionShading";
+
+    /// <summary>
+    /// The session-shading visibility applied until a stored setting is
+    /// loaded: shown, per the T-092 default-indicator precedent.
+    /// </summary>
+    public const bool DefaultChartShowSessionShading = true;
+
+    /// <summary>
+    /// Settings key of the persisted opening-range window (T-247): the
+    /// minutes a session day's range weighs (the
+    /// <see cref="ZettaTrade.Charting.SessionAnalytics"/> legal bounds
+    /// clamp the read).
+    /// </summary>
+    public const string ChartOpeningRangeMinutes = "ChartOpeningRangeMinutes";
+
+    /// <summary>
+    /// The opening-range window applied until a stored setting is loaded:
+    /// the calculator's own default (30 minutes).
+    /// </summary>
+    public const int DefaultChartOpeningRangeMinutes =
+        ZettaTrade.Charting.SessionAnalytics.DefaultOpeningRangeMinutes;
+
+    /// <summary>
     /// Settings key of the persisted per-symbol chart rendering type
     /// (T-089): a JSON object (see <c>SymbolChartTypeMap</c>) mapping a
     /// normalized symbol to its chosen <see cref="ZettaTrade.Charting.ChartSeriesType"/>

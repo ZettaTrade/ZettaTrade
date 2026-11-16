@@ -352,6 +352,100 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         private set => this.RaiseAndSetIfChanged(ref _showVolumeProfile, value);
     }
 
+    private bool _showSessionOpens = UiSettingsKeys.DefaultChartShowSessionOpens;
+
+    /// <summary>
+    /// Whether the chart draws the daily and weekly open lines (T-247); the
+    /// same settings lifecycle as <see cref="ShowVwap"/>.
+    /// </summary>
+    public bool ShowSessionOpens
+    {
+        get => _showSessionOpens;
+        private set => this.RaiseAndSetIfChanged(ref _showSessionOpens, value);
+    }
+
+    private bool _showSessionRange = UiSettingsKeys.DefaultChartShowSessionRange;
+
+    /// <summary>
+    /// Whether the chart draws the day's opening-range band (T-247); the
+    /// same settings lifecycle as <see cref="ShowVwap"/>.
+    /// </summary>
+    public bool ShowSessionRange
+    {
+        get => _showSessionRange;
+        private set => this.RaiseAndSetIfChanged(ref _showSessionRange, value);
+    }
+
+    private bool _showSessionShading = UiSettingsKeys.DefaultChartShowSessionShading;
+
+    /// <summary>
+    /// Whether the chart paints the Asia/Europe/US session windows behind
+    /// the series (T-247); the same settings lifecycle as
+    /// <see cref="ShowVwap"/>.
+    /// </summary>
+    public bool ShowSessionShading
+    {
+        get => _showSessionShading;
+        private set => this.RaiseAndSetIfChanged(ref _showSessionShading, value);
+    }
+
+    private int _openingRangeMinutes = UiSettingsKeys.DefaultChartOpeningRangeMinutes;
+
+    /// <summary>
+    /// The opening-range window the session analytics weigh (T-247), in
+    /// minutes; already inside the legal bounds (the parse lane clamps, the
+    /// persisted read clamps). The knob the minutes TextBox edits.
+    /// </summary>
+    public int OpeningRangeMinutes
+    {
+        get => _openingRangeMinutes;
+        private set => this.RaiseAndSetIfChanged(ref _openingRangeMinutes, value);
+    }
+
+    private string _openingRangeMinutesText = UiSettingsKeys.DefaultChartOpeningRangeMinutes.ToString(
+        System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The minutes knob's spelling (T-247): the TextBox edits here, the
+    /// parse lane applies. An unparsable spelling edits nothing — the
+    /// standing value (and its persistence) stays in charge; a parsed
+    /// spelling clamps into the legal bounds and resyncs the canonical
+    /// text. An external or restored value resyncs the spelling to its own
+    /// canonical form.
+    /// </summary>
+    public string OpeningRangeMinutesText
+    {
+        get => _openingRangeMinutesText;
+        set
+        {
+            if (_openingRangeMinutesText == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _openingRangeMinutesText, value);
+
+            if (ParseOpeningRangeMinutes(value) is not { } minutes)
+            {
+                // The unparsable spelling edits nothing — the standing knob
+                // (and its persistence) rides.
+                return;
+            }
+
+            OpeningRangeMinutes = minutes;
+
+            var canonical = minutes.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (canonical != value.Trim())
+            {
+                // The spelling fell out of the legal bounds (the clamp
+                // answered a different number than the box shows): the
+                // canonical text resyncs so the box displays the knob.
+                _openingRangeMinutesText = canonical;
+                this.RaisePropertyChanged(nameof(OpeningRangeMinutesText));
+            }
+        }
+    }
+
     private ChartSeriesType _chartType = ChartSeriesType.Candlesticks;
 
     /// <summary>
@@ -701,6 +795,23 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         private set => this.RaiseAndSetIfChanged(ref _liquidationLevelsOverlay, value);
     }
 
+    private SessionAnalytics? _sessionAnalytics;
+
+    /// <summary>
+    /// The session analytics overlay the chart draws (T-247): the daily and
+    /// weekly open lines, the opening-range band and the session slots,
+    /// computed by the pure <see cref="SessionAnalytics.Compute"/> against
+    /// the loaded series exactly the way the VWAP overlay is; null while
+    /// every family toggle is off (the honest absence — the chart draws
+    /// nothing of the family). The assignment is the single UI-thread hop
+    /// of its publish; which parts draw the three family toggles decide.
+    /// </summary>
+    public SessionAnalytics? SessionAnalytics
+    {
+        get => _sessionAnalytics;
+        private set => this.RaiseAndSetIfChanged(ref _sessionAnalytics, value);
+    }
+
     private IReadOnlyList<SignalMarker> _signalMarkers = [];
 
     /// <summary>
@@ -865,6 +976,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>The toolbar toggle: show or hide the volume-at-price histogram (T-093).</summary>
     public ReactiveCommand<RxVoid, RxVoid> ToggleVolumeProfileCommand { get; }
+
+    /// <summary>The toolbar toggle: show or hide the daily/weekly open lines (T-247).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleSessionOpensCommand { get; }
+
+    /// <summary>The toolbar toggle: show or hide the opening-range band (T-247).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleSessionRangeCommand { get; }
+
+    /// <summary>The toolbar toggle: show or hide the session shading (T-247).</summary>
+    public ReactiveCommand<RxVoid, RxVoid> ToggleSessionShadingCommand { get; }
 
     private IReadOnlyList<ChartCompareLayer> _compareLayers = [];
 
@@ -1245,6 +1365,15 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     private readonly Subject<VwapOverlay?> _vwapPublishes = new();
 
     /// <summary>
+    /// The session analytics publishes here (T-247); the marshalled
+    /// subscription assigns <see cref="SessionAnalytics"/>. A null emission
+    /// is the all-families-off state. The compute itself is pure — the
+    /// publish runs wherever its callers land and only the assignment
+    /// crosses onto the UI thread.
+    /// </summary>
+    private readonly Subject<SessionAnalytics?> _sessionPublishes = new();
+
+    /// <summary>
     /// The Heikin-Ashi series publishes here (T-089); the marshalled
     /// subscription assigns <see cref="HeikinAshiBars"/>. A null emission is
     /// the non-Heikin-Ashi (or empty-series) state. The transform is pure —
@@ -1306,6 +1435,22 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
 
     /// <summary>The persisted volume-profile choice: the same leadership cache as <see cref="_persistedShowVwap"/>.</summary>
     private bool _persistedShowVolumeProfile = UiSettingsKeys.DefaultChartShowVolumeProfile;
+
+    /// <summary>The persisted open-lines choice: the same leadership cache as <see cref="_persistedShowVwap"/> (T-247).</summary>
+    private bool _persistedShowSessionOpens = UiSettingsKeys.DefaultChartShowSessionOpens;
+
+    /// <summary>The persisted opening-range choice: the same leadership cache as <see cref="_persistedShowVwap"/> (T-247).</summary>
+    private bool _persistedShowSessionRange = UiSettingsKeys.DefaultChartShowSessionRange;
+
+    /// <summary>The persisted shading choice: the same leadership cache as <see cref="_persistedShowVwap"/> (T-247).</summary>
+    private bool _persistedShowSessionShading = UiSettingsKeys.DefaultChartShowSessionShading;
+
+    /// <summary>
+    /// The persisted opening-range minutes (T-247): the same leadership
+    /// cache as <see cref="_persistedShowVwap"/>; already clamped into the
+    /// legal bounds (the restore read clamps, the parse lane clamps).
+    /// </summary>
+    private int _persistedOpeningRangeMinutes = UiSettingsKeys.DefaultChartOpeningRangeMinutes;
 
     /// <summary>
     /// Whether the repository restore is addressing the chart type: the
@@ -1709,6 +1854,9 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         ExportVisibleCsvRequested = new Interaction<string, VisibleCsvHandoff?>();
         ToggleVwapCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVwap = !ShowVwap; });
         ToggleVolumeProfileCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowVolumeProfile = !ShowVolumeProfile; });
+        ToggleSessionOpensCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowSessionOpens = !ShowSessionOpens; });
+        ToggleSessionRangeCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowSessionRange = !ShowSessionRange; });
+        ToggleSessionShadingCommand = ReactiveCommand.Create<RxVoid>(_ => { ShowSessionShading = !ShowSessionShading; });
         CompareCommand = ReactiveCommand.CreateFromTask(HandleCompareAsync);
         PickCompareRequested = new Interaction<RxVoid, Symbol?>();
         TextAnnotationRequested = new Interaction<RxVoid, string?>();
@@ -1856,6 +2004,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // the collection's content, marshal-free).
                     PublishIndicatorLines(page.Bars);
                     PublishVwapOverlay(page.Bars);
+                    PublishSessionAnalytics(page.Bars);
                     PublishHeikinAshi(page.Bars);
                     PublishSignalMarkers();
 
@@ -1906,6 +2055,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // the whole collection right here on the UI thread).
                     PublishIndicatorLines(Bars);
                     PublishVwapOverlay(Bars);
+                    PublishSessionAnalytics(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
                     PublishCvd(Bars);
@@ -1962,6 +2112,7 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     // the UI thread — the same discipline as the prepends).
                     PublishIndicatorLines(Bars);
                     PublishVwapOverlay(Bars);
+                    PublishSessionAnalytics(Bars);
                     PublishHeikinAshi(Bars);
                     PublishSignalMarkers();
                     PublishCvd(Bars);
@@ -2137,6 +2288,12 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                 overlay => VwapOverlay = overlay,
                 ex => _logger.LogError(ex, "The chart vwap overlay stream stopped unexpectedly"));
 
+        // The session analytics ride the same raw-then-marshal split (T-247).
+        _sessionPublishes.ObserveOnUiThread()
+            .Subscribe(
+                analytics => SessionAnalytics = analytics,
+                ex => _logger.LogError(ex, "The chart session analytics stream stopped unexpectedly"));
+
         // The Heikin-Ashi series rides the same raw-then-marshal split (T-089).
         _heikinAshiPublishes.ObserveOnUiThread()
             .Subscribe(
@@ -2275,6 +2432,136 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
                     ShowVolumeProfile = enabled;
                 },
                 ex => _logger.LogError(ex, "The chart volume profile stream stopped unexpectedly"));
+
+        // The T-247 session families persist with the identical cache-leads
+        // discipline, one pipeline per toggle.
+        this.WhenAnyValue(x => x.ShowSessionOpens)
+            .Skip(1)
+            .Where(value => value != _persistedShowSessionOpens)
+            .Do(value => _persistedShowSessionOpens = value)
+            .Select(value => Observable
+                .FromAsync(() => SetOverlayChoiceAsync(UiSettingsKeys.ChartShowSessionOpens, value))
+                .Select(_ => value))
+            .Concat()
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The session open-lines persistence pipeline stopped unexpectedly"));
+
+        this.WhenAnyValue(x => x.ShowSessionRange)
+            .Skip(1)
+            .Where(value => value != _persistedShowSessionRange)
+            .Do(value => _persistedShowSessionRange = value)
+            .Select(value => Observable
+                .FromAsync(() => SetOverlayChoiceAsync(UiSettingsKeys.ChartShowSessionRange, value))
+                .Select(_ => value))
+            .Concat()
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The session range persistence pipeline stopped unexpectedly"));
+
+        this.WhenAnyValue(x => x.ShowSessionShading)
+            .Skip(1)
+            .Where(value => value != _persistedShowSessionShading)
+            .Do(value => _persistedShowSessionShading = value)
+            .Select(value => Observable
+                .FromAsync(() => SetOverlayChoiceAsync(UiSettingsKeys.ChartShowSessionShading, value))
+                .Select(_ => value))
+            .Concat()
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The session shading persistence pipeline stopped unexpectedly"));
+
+        this.WhenAnyValue(x => x.OpeningRangeMinutes)
+            .Skip(1)
+            .Where(value => value != _persistedOpeningRangeMinutes)
+            .Do(value => _persistedOpeningRangeMinutes = value)
+            .Select(value => Observable
+                .FromAsync(() => SetOpeningRangeMinutesAsync(value))
+                .Select(_ => value))
+            .Concat()
+            .Subscribe(
+                _ => { },
+                ex => _logger.LogError(ex, "The opening-range minutes persistence pipeline stopped unexpectedly"));
+
+        // Every family toggle or minutes edit re-keys the published analytics
+        // against the CURRENT series: a toolbar flip recomputes immediately
+        // (the bars are the series' copy — the pure compute), a restore
+        // re-asserts the value. The subject's publishes stay raw; only the
+        // assignment hops.
+        this.WhenAnyValue(
+                x => x.ShowSessionOpens,
+                x => x.ShowSessionRange,
+                x => x.ShowSessionShading,
+                x => x.OpeningRangeMinutes)
+            .Subscribe(
+                _ => PublishSessionAnalytics(Bars),
+                ex => _logger.LogError(ex, "The session analytics publish stream stopped unexpectedly"));
+
+        // The families follow the settings service live: an external writer
+        // applies with the cache leading (so the persistence pipelines above
+        // see an equal value and skip the write). Non-bool values drop — the
+        // applied choice stays in charge.
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartShowSessionOpens)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled =>
+                {
+                    _persistedShowSessionOpens = enabled;
+                    ShowSessionOpens = enabled;
+                },
+                ex => _logger.LogError(ex, "The session open-lines stream stopped unexpectedly"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartShowSessionRange)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled =>
+                {
+                    _persistedShowSessionRange = enabled;
+                    ShowSessionRange = enabled;
+                },
+                ex => _logger.LogError(ex, "The session range stream stopped unexpectedly"));
+
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartShowSessionShading)
+            .Select(change => change.NewValue)
+            .OfType<bool>()
+            .Subscribe(
+                enabled =>
+                {
+                    _persistedShowSessionShading = enabled;
+                    ShowSessionShading = enabled;
+                },
+                ex => _logger.LogError(ex, "The session shading stream stopped unexpectedly"));
+
+        // The minutes follow the settings service live: a readable stored
+        // value clamps into the legal bounds and re-keys the knob (the
+        // spelling resyncs to its canonical form); an unparsable one drops —
+        // the applied value stays in charge.
+        _settings.Changes
+            .Where(change => change.Section == UiSettingsKeys.Section &&
+                             change.Key == UiSettingsKeys.ChartOpeningRangeMinutes)
+            .Select(change => change.NewValue)
+            .OfType<int>()
+            .Subscribe(
+                minutes =>
+                {
+                    var clamped = Math.Clamp(
+                        minutes,
+                        SessionAnalytics.MinOpeningRangeMinutes,
+                        SessionAnalytics.MaxOpeningRangeMinutes);
+                    _persistedOpeningRangeMinutes = clamped;
+                    OpeningRangeMinutes = clamped;
+                    OpeningRangeMinutesText = clamped.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture);
+                },
+                ex => _logger.LogError(ex, "The opening-range minutes stream stopped unexpectedly"));
 
         // The chart type selector (T-089): the choice persists PER SYMBOL, in
         // the same document shape the symbol marks keep — the whole map
@@ -2704,10 +2991,48 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         _persistedShowVolumeProfile = restoredProfile;
         ShowVolumeProfile = restoredProfile;
 
+        var restoredOpens = await _settings.GetAsync<bool>(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartShowSessionOpens,
+            UiSettingsKeys.DefaultChartShowSessionOpens);
+        _persistedShowSessionOpens = restoredOpens;
+        ShowSessionOpens = restoredOpens;
+
+        var restoredRange = await _settings.GetAsync<bool>(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartShowSessionRange,
+            UiSettingsKeys.DefaultChartShowSessionRange);
+        _persistedShowSessionRange = restoredRange;
+        ShowSessionRange = restoredRange;
+
+        var restoredShading = await _settings.GetAsync<bool>(
+            UiSettingsKeys.Section,
+            UiSettingsKeys.ChartShowSessionShading,
+            UiSettingsKeys.DefaultChartShowSessionShading);
+        _persistedShowSessionShading = restoredShading;
+        ShowSessionShading = restoredShading;
+
+        var restoredMinutes = Math.Clamp(
+            await _settings.GetAsync<int>(
+                UiSettingsKeys.Section,
+                UiSettingsKeys.ChartOpeningRangeMinutes,
+                UiSettingsKeys.DefaultChartOpeningRangeMinutes),
+            SessionAnalytics.MinOpeningRangeMinutes,
+            SessionAnalytics.MaxOpeningRangeMinutes);
+        _persistedOpeningRangeMinutes = restoredMinutes;
+        OpeningRangeMinutes = restoredMinutes;
+        OpeningRangeMinutesText = restoredMinutes.ToString(
+            System.Globalization.CultureInfo.InvariantCulture);
+
         _logger.LogInformation(
-            "Restored persisted chart overlays: vwap '{Vwap}', volume profile '{Profile}'",
+            "Restored persisted chart overlays: vwap '{Vwap}', volume profile '{Profile}', " +
+            "opens '{Opens}', range '{Range}', shading '{Shading}', minutes '{Minutes}'",
             ShowVwap,
-            ShowVolumeProfile);
+            ShowVolumeProfile,
+            ShowSessionOpens,
+            ShowSessionRange,
+            ShowSessionShading,
+            OpeningRangeMinutes);
 
         var persisted = await _settings.GetAsync<string>(
             UiSettingsKeys.Section,
@@ -3629,7 +3954,10 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
     /// </summary>
     /// <param name="key">The settings key of the overlay choice
     /// (<see cref="UiSettingsKeys.ChartShowVwap"/>,
-    /// <see cref="UiSettingsKeys.ChartShowVolumeProfile"/>).</param>
+    /// <see cref="UiSettingsKeys.ChartShowVolumeProfile"/>,
+    /// <see cref="UiSettingsKeys.ChartShowSessionOpens"/>,
+    /// <see cref="UiSettingsKeys.ChartShowSessionRange"/>,
+    /// <see cref="UiSettingsKeys.ChartShowSessionShading"/>).</param>
     /// <param name="value">The issued choice to persist.</param>
     /// <returns>The completed write.</returns>
     private async Task SetOverlayChoiceAsync(string key, bool value)
@@ -3650,6 +3978,81 @@ public sealed class ChartViewModel : ReactiveObject, IAsyncInitializable
         {
             _logger.LogError(ex, "Failed to persist the chart overlay choice '{Key}'", key);
         }
+    }
+
+    /// <summary>
+    /// Persist the issued opening-range minutes (T-247): the same shared-key
+    /// and degrade-keeps-serving discipline the overlay choices keep.
+    /// </summary>
+    /// <param name="value">The issued minutes to persist (already clamped).</param>
+    /// <returns>The completed write.</returns>
+    private async Task SetOpeningRangeMinutesAsync(int value)
+    {
+        if (!_persistsFaceChoices)
+        {
+            // A grid slot's minutes edit stays in-session (T-201): the key
+            // is shared, the primary's knob must not be overwritten by a
+            // slot's spelling.
+            return;
+        }
+
+        try
+        {
+            await _settings.SetAsync(UiSettingsKeys.Section, UiSettingsKeys.ChartOpeningRangeMinutes, value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist the chart opening-range minutes");
+        }
+    }
+
+    #endregion
+
+    #region Session Analytics (T-247)
+
+    /// <summary>
+    /// Compute the session analytics (T-247) for the given series and
+    /// publish them; null while every family toggle is off (the chart draws
+    /// nothing of the family) or the series is empty (the chart's own
+    /// no-data state owns an empty window). The compute is pure and
+    /// marshal-free — the same publication discipline as the VWAP publishes.
+    /// </summary>
+    private void PublishSessionAnalytics(IReadOnlyList<Bar>? bars)
+    {
+        if (bars is not { Count: > 0 } ||
+            (!ShowSessionOpens && !ShowSessionRange && !ShowSessionShading))
+        {
+            _sessionPublishes.OnNext(null);
+            return;
+        }
+
+        _sessionPublishes.OnNext(SessionAnalytics.Compute(bars, OpeningRangeMinutes));
+    }
+
+    /// <summary>
+    /// The pure opening-range minutes parse the TextBox spelling rides
+    /// (T-247): an unparsable spelling answers null (the knob edits
+    /// nothing), a readable one clamps into the legal bounds. Internal
+    /// static so the golden tests pin the parse without a VM instance (the
+    /// <see cref="ChartViewModel.Preselect"/> precedent).
+    /// </summary>
+    /// <param name="text">The TextBox's spelling.</param>
+    /// <returns>The clamped minutes, or null when the spelling is unparsable.</returns>
+    internal static int? ParseOpeningRangeMinutes(string? text)
+    {
+        if (!int.TryParse(
+                text?.Trim(),
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsed))
+        {
+            return null;
+        }
+
+        return Math.Clamp(
+            parsed,
+            SessionAnalytics.MinOpeningRangeMinutes,
+            SessionAnalytics.MaxOpeningRangeMinutes);
     }
 
     #endregion

@@ -169,6 +169,40 @@
                         MinWidth="92"
                         Margin="8,4,0,4"
                         Classes="overlay-toggle" />
+                <!-- The session analytics family (T-247): three toggle
+                     buttons and the minutes knob ride the same
+                     overlay-toggle grammar — the band wraps onto further
+                     lines at the narrow widths, so the fold pins hold. -->
+                <Button Content="{loc:Localized Chart.SessionOpens}"
+                        Command="{Binding ToggleSessionOpensCommand}"
+                        ToolTip.Tip="{loc:Localized Chart.SessionOpens.Tip}"
+                        Classes.on="{Binding ShowSessionOpens}"
+                        MinWidth="72"
+                        Margin="8,4,0,4"
+                        Classes="overlay-toggle" />
+                <Button Content="{loc:Localized Chart.SessionRange}"
+                        Command="{Binding ToggleSessionRangeCommand}"
+                        ToolTip.Tip="{loc:Localized Chart.SessionRange.Tip}"
+                        Classes.on="{Binding ShowSessionRange}"
+                        MinWidth="72"
+                        Margin="8,4,0,4"
+                        Classes="overlay-toggle" />
+                <Button Content="{loc:Localized Chart.SessionShading}"
+                        Command="{Binding ToggleSessionShadingCommand}"
+                        ToolTip.Tip="{loc:Localized Chart.SessionShading.Tip}"
+                        Classes.on="{Binding ShowSessionShading}"
+                        MinWidth="72"
+                        Margin="8,4,0,4"
+                        Classes="overlay-toggle" />
+                <!-- The opening-range minutes knob (T-247): the VM's parse
+                     lane applies the spelling (an unparsable one edits
+                     nothing), so the box needs no own validation chrome. -->
+                <TextBox Width="64"
+                         Text="{Binding OpeningRangeMinutesText}"
+                         ToolTip.Tip="{loc:Localized Chart.SessionMinutes.Tip}"
+                         AutomationProperties.Name="{loc:Localized Chart.SessionMinutes.Name}"
+                         VerticalAlignment="Center"
+                         Margin="8,4,0,4" />
                 <!-- The export flyout (T-160): the three export actions
                      gather under one icon — the band's narrowest step
                      wins without hiding any action. Each item keeps its
@@ -399,6 +433,10 @@
                                    Use12HourClock="{Binding Use12HourClock}"
                                    VwapOverlay="{Binding VwapOverlay}"
                                    LiquidationLevelsOverlay="{Binding LiquidationLevelsOverlay}"
+                                   SessionAnalytics="{Binding SessionAnalytics}"
+                                   SessionOpensVisible="{Binding ShowSessionOpens}"
+                                   SessionRangeVisible="{Binding ShowSessionRange}"
+                                   SessionShadingVisible="{Binding ShowSessionShading}"
                                    VolumeProfileVisible="{Binding ShowVolumeProfile}"
                                    IndicatorLines="{Binding IndicatorLines}"
                                    SeriesType="{Binding ChartType}"

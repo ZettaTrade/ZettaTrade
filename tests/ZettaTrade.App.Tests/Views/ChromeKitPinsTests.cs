@@ -34,10 +34,10 @@ public sealed class ChromeKitPinsTests
     {
         var source = ChartPanelXaml;
 
-        // The eight armed toggles keep their dynamic class assignments
-        // (the two overlay toggles plus the six drawing tools).
+        // The eleven armed toggles keep their dynamic class assignments
+        // (the five overlay toggles plus the six drawing tools).
         Regex.Matches(source, @"Classes\.on=""\{Binding [^""]+\}""")
-            .Should().HaveCount(8, "the toolbar's eight toggles arm through the shared .on class");
+            .Should().HaveCount(11, "the toolbar's eleven toggles arm through the shared .on class");
 
         source.Should().NotContain(
             "<Style Selector=\"Button.on\">",

@@ -195,6 +195,28 @@ public class CandlestickChart : Control
     /// </summary>
     private static readonly float[] VwapBandDashPatternPx = [4f, 3f];
 
+    /// <summary>Alpha (0–255) of the session shading's window tint (T-247): the translucent fill keeps the candles readable under it.</summary>
+    private const byte SessionShadingAlpha = 18;
+
+    /// <summary>Alpha (0–255) of the opening-range band's fill (T-247).</summary>
+    private const byte SessionRangeFillAlpha = 44;
+
+    /// <summary>Alpha (0–255) of the opening-range band's edge lines (T-247).</summary>
+    private const byte SessionRangeEdgeAlpha = 150;
+
+    /// <summary>Stroke width of the session open lines (T-247), in pixels: a notch under the VWAP center, so the reference lines read quieter.</summary>
+    private const float SessionOpenStrokePx = 1.5f;
+
+    /// <summary>Alpha (0–255) of the session open lines (T-247).</summary>
+    private const byte SessionOpenAlpha = 200;
+
+    /// <summary>
+    /// Dash pattern (on/off pixels) of the weekly open line (T-247): the
+    /// weekly rides dashed while the daily rides solid — the two opens
+    /// distinguish at a glance without a legend.
+    /// </summary>
+    private static readonly float[] SessionWeeklyDashPatternPx = [6f, 4f];
+
     /// <summary>Alpha (0–255) of the liquidation levels' band fill; the translucent fill keeps the candles readable under it.</summary>
     private const byte LiquidationBandFillAlpha = 36;
 
@@ -470,6 +492,68 @@ public class CandlestickChart : Control
     {
         get => GetValue(VolumeProfileVisibleProperty);
         set => SetValue(VolumeProfileVisibleProperty, value);
+    }
+
+    /// <summary>
+    /// StyledProperty for the session analytics overlay (T-247): the
+    /// computed <see cref="ZettaTrade.Charting.SessionAnalytics"/> the
+    /// ViewModel publishes against the loaded series (null while every
+    /// family toggle is off), values aligned with <see cref="Bars"/> by
+    /// index. The draw pass slices it with the visible window; which of the
+    /// three families draw the three visibility toggles decide.
+    /// </summary>
+    public static readonly StyledProperty<SessionAnalytics?> SessionAnalyticsProperty =
+        AvaloniaProperty.Register<CandlestickChart, SessionAnalytics?>(
+            nameof(SessionAnalytics),
+            defaultValue: null);
+
+    /// <summary>
+    /// StyledProperty for the daily/weekly open-lines family toggle
+    /// (T-247): the visibility gate the ViewModel's toggle binds.
+    /// </summary>
+    public static readonly StyledProperty<bool> SessionOpensVisibleProperty =
+        AvaloniaProperty.Register<CandlestickChart, bool>(nameof(SessionOpensVisible), defaultValue: false);
+
+    /// <summary>
+    /// StyledProperty for the opening-range band family toggle (T-247):
+    /// the visibility gate the ViewModel's toggle binds.
+    /// </summary>
+    public static readonly StyledProperty<bool> SessionRangeVisibleProperty =
+        AvaloniaProperty.Register<CandlestickChart, bool>(nameof(SessionRangeVisible), defaultValue: false);
+
+    /// <summary>
+    /// StyledProperty for the session-shading family toggle (T-247): the
+    /// visibility gate the ViewModel's toggle binds.
+    /// </summary>
+    public static readonly StyledProperty<bool> SessionShadingVisibleProperty =
+        AvaloniaProperty.Register<CandlestickChart, bool>(nameof(SessionShadingVisible), defaultValue: false);
+
+    /// <summary>The session analytics overlay the chart draws; a change re-inks on the next pass.</summary>
+    public SessionAnalytics? SessionAnalytics
+    {
+        get => GetValue(SessionAnalyticsProperty);
+        set => SetValue(SessionAnalyticsProperty, value);
+    }
+
+    /// <summary>Whether the daily/weekly open lines are drawn; a change re-inks on the next pass.</summary>
+    public bool SessionOpensVisible
+    {
+        get => GetValue(SessionOpensVisibleProperty);
+        set => SetValue(SessionOpensVisibleProperty, value);
+    }
+
+    /// <summary>Whether the opening-range band is drawn; a change re-inks on the next pass.</summary>
+    public bool SessionRangeVisible
+    {
+        get => GetValue(SessionRangeVisibleProperty);
+        set => SetValue(SessionRangeVisibleProperty, value);
+    }
+
+    /// <summary>Whether the session shading is drawn; a change re-inks on the next pass.</summary>
+    public bool SessionShadingVisible
+    {
+        get => GetValue(SessionShadingVisibleProperty);
+        set => SetValue(SessionShadingVisibleProperty, value);
     }
 
     /// <summary>
@@ -1171,6 +1255,17 @@ public class CandlestickChart : Control
         VolumeProfileVisibleProperty.Changed.AddClassHandler<CandlestickChart>(
             (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
 
+        // The T-247 session analytics: a new publish or a family toggle flip
+        // re-inks on the next pass the same way.
+        SessionAnalyticsProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+        SessionOpensVisibleProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+        SessionRangeVisibleProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+        SessionShadingVisibleProperty.Changed.AddClassHandler<CandlestickChart>(
+            (x, _) => Dispatcher.UIThread.Post(x.InvalidateVisual));
+
         // The T-089 series type: a selector flip or a new Heikin-Ashi
         // publish re-inks on the next pass the same way.
         SeriesTypeProperty.Changed.AddClassHandler<CandlestickChart>(
@@ -1440,6 +1535,10 @@ public class CandlestickChart : Control
             visible,
             ApplyPaneDragHeights(SliceIndicatorLines(bars, spanStart, spanEnd)),
             SliceVwapOverlay(bars, spanStart, spanEnd),
+            SliceSessionAnalytics(bars, spanStart, spanEnd),
+            SessionOpensVisible,
+            SessionRangeVisible,
+            SessionShadingVisible,
             LiquidationLevelsOverlay,
             _backgroundColor,
             _bullishColor,
@@ -1585,6 +1684,34 @@ public class CandlestickChart : Control
     }
 
     /// <summary>
+    /// Slice the session analytics (T-247) with the SAME [start, end)
+    /// window the bars slice uses. An analytics whose arrays no longer
+    /// align with the current series (a stale publish racing the new Bars
+    /// instance) is skipped wholesale — the alignment rule the VWAP overlay
+    /// keeps, so a length mismatch can never reach the draw pass as a
+    /// silently shifted line.
+    /// </summary>
+    private SessionAnalytics? SliceSessionAnalytics(
+        ObservableCollection<Bar>? bars,
+        int spanStart,
+        int spanEnd)
+    {
+        if (bars is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var analytics = SessionAnalytics;
+        if (analytics is null || analytics.State == SessionAnalyticsState.EmptySeries ||
+            analytics.DailyOpens.Count != bars.Count)
+        {
+            return null;
+        }
+
+        return analytics.Slice(spanStart, spanEnd);
+    }
+
+    /// <summary>
     /// Slice the Heikin-Ashi series (T-089) with the SAME [start, end)
     /// window the bars slice uses, while the series type asks for it. A
     /// series whose values no longer align with the current <see cref="Bars"/>
@@ -1693,6 +1820,10 @@ public class CandlestickChart : Control
         Bar[] VisibleBars,
         IReadOnlyList<ChartIndicatorLine> Indicators,
         VwapOverlay? Vwap,
+        SessionAnalytics? Sessions,
+        bool SessionOpensVisible,
+        bool SessionRangeVisible,
+        bool SessionShadingVisible,
         LiquidationLevelsOverlay? LiquidationLevels,
         SKColor Background,
         SKColor Bullish,
@@ -2080,6 +2211,10 @@ public class CandlestickChart : Control
                 barPitch,
                 openTimes);
 
+            // The session shading (T-247) rides UNDER the series, right over
+            // the grid: the windows' tints never cover a candle.
+            DrawSessionShading(canvas, plotRect, drawnBars, barPitch, _snapshot.Sessions);
+
             switch (_snapshot.SeriesType)
             {
                 case ChartSeriesType.Bars:
@@ -2151,6 +2286,7 @@ public class CandlestickChart : Control
                 minAxis,
                 axisRange);
             DrawVwapOverlay(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Vwap);
+            DrawSessionLevels(canvas, plotRect, visibleBars, barPitch, minAxis, axisRange, _snapshot.Sessions);
             DrawLiquidationLevels(canvas, font, textPaint, plotRect, minAxis, axisRange);
             DrawPriceAxis(canvas, font, textPaint, plotRect, minAxis, axisRange, axisTicks, priceTexts);
             DrawTimeAxis(canvas, font, textPaint, chartRect, barPitch, openTimes, timeTicks, timeTexts);
@@ -3303,6 +3439,300 @@ public class CandlestickChart : Control
             canvas.DrawPath(upperBandPath, bandPaint);
             canvas.DrawPath(lowerBandPath, bandPaint);
             canvas.DrawPath(centerPath, centerPaint);
+        }
+
+        /// <summary>
+        /// The session shading (T-247): one translucent tint per UTC-window
+        /// run — Asia [00:00, 08:00) rides the bullish hue, Europe
+        /// [08:00, 16:00) the accent, US [16:00, 24:00) the bearish —
+        /// spanning every bar whose open falls into the window, behind the
+        /// series. The tints derive from the snapshot palette's own colors
+        /// (no new palette members); the window's rectangle fills only the
+        /// plot rect, never the axis margins, and a stale analytics draws
+        /// nothing.
+        /// </summary>
+        private void DrawSessionShading(
+            SKCanvas canvas,
+            Rect plotRect,
+            IReadOnlyList<Bar> drawnBars,
+            double barPitch,
+            SessionAnalytics? analytics)
+        {
+            if (!_snapshot.SessionShadingVisible ||
+                analytics is null ||
+                analytics.State == SessionAnalyticsState.EmptySeries ||
+                analytics.Slots.Count != drawnBars.Count)
+            {
+                return;
+            }
+
+            var count = drawnBars.Count;
+            var runStart = 0;
+            var runSlot = analytics.Slots[0];
+
+            for (var i = 1; i <= count; i++)
+            {
+                var boundary = i == count || analytics.Slots[i] != runSlot;
+                if (!boundary)
+                {
+                    continue;
+                }
+
+                DrawSessionShadingRun(canvas, plotRect, barPitch, count, runStart, i, runSlot);
+                runStart = i;
+            }
+        }
+
+        /// <summary>One shading run's rectangle: the run's column span, the plot's full height.</summary>
+        private void DrawSessionShadingRun(
+            SKCanvas canvas,
+            Rect plotRect,
+            double barPitch,
+            int count,
+            int startInclusive,
+            int endExclusive,
+            SessionSlot slot)
+        {
+            if (slot == SessionSlot.None)
+            {
+                return;
+            }
+
+            var tint = slot switch
+            {
+                SessionSlot.Asia => _snapshot.Bullish,
+                SessionSlot.Europe => _snapshot.Accent,
+                _ => _snapshot.Bearish,
+            };
+
+            var left = (float)ChartBarLayout.BarSlotLeftX(plotRect.Right, barPitch, count, startInclusive);
+            var right = (float)ChartBarLayout.BarSlotLeftX(plotRect.Right, barPitch, count, endExclusive);
+            using var fillPaint = new SKPaint
+            {
+                Color = tint.WithAlpha(SessionShadingAlpha),
+                Style = SKPaintStyle.Fill,
+                IsAntialias = false
+            };
+
+            canvas.DrawRect(left, (float)plotRect.Top, right - left, (float)plotRect.Height, fillPaint);
+        }
+
+        /// <summary>
+        /// The session levels (T-247): the daily and weekly open lines and
+        /// the opening-range band, over the series (the reference-line
+        /// layer). The opens ride value RUNS — a flat horizontal stroke per
+        /// run, never a connector across a day or week boundary (adjacent
+        /// equal values merge visually, an honest consequence of the flat
+        /// reference); the band rides (high, low) runs — a filled rectangle
+        /// per run with its two edge lines. A value outside the visible axis
+        /// maps off-plot and stays off-plot: never a line over the axis
+        /// margins. A stale analytics draws nothing.
+        /// </summary>
+        private void DrawSessionLevels(
+            SKCanvas canvas,
+            Rect plotRect,
+            IReadOnlyList<Bar> bars,
+            double barPitch,
+            decimal minAxis,
+            decimal axisRange,
+            SessionAnalytics? analytics)
+        {
+            if (analytics is null ||
+                analytics.State == SessionAnalyticsState.EmptySeries ||
+                analytics.DailyOpens.Count != bars.Count)
+            {
+                return;
+            }
+
+            var count = bars.Count;
+
+            if (_snapshot.SessionOpensVisible)
+            {
+                DrawSessionOpenRuns(canvas, plotRect, barPitch, count, minAxis, axisRange, analytics.DailyOpens, dashed: false);
+                DrawSessionOpenRuns(canvas, plotRect, barPitch, count, minAxis, axisRange, analytics.WeeklyOpens, dashed: true);
+            }
+
+            if (_snapshot.SessionRangeVisible)
+            {
+                DrawSessionRangeRuns(canvas, plotRect, barPitch, count, minAxis, axisRange, analytics.RangeHigh, analytics.RangeLow);
+            }
+        }
+
+        /// <summary>The open lines' run strokes: one flat horizontal segment per same-value run.</summary>
+        private void DrawSessionOpenRuns(
+            SKCanvas canvas,
+            Rect plotRect,
+            double barPitch,
+            int count,
+            decimal minAxis,
+            decimal axisRange,
+            IReadOnlyList<decimal> opens,
+            bool dashed)
+        {
+            using var weeklyDashEffect = dashed ? SKPathEffect.CreateDash(SessionWeeklyDashPatternPx, 0f) : null;
+            using var linePaint = new SKPaint
+            {
+                Color = _snapshot.IndicatorLine.WithAlpha(SessionOpenAlpha),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = SessionOpenStrokePx,
+                IsAntialias = true,
+                PathEffect = weeklyDashEffect
+            };
+
+            var runStart = 0;
+            for (var i = 1; i <= count; i++)
+            {
+                var boundary = i == count || opens[i] != opens[i - 1];
+                if (!boundary)
+                {
+                    continue;
+                }
+
+                DrawSessionOpenSegment(
+                    canvas,
+                    plotRect,
+                    barPitch,
+                    count,
+                    minAxis,
+                    axisRange,
+                    linePaint,
+                    runStart,
+                    i,
+                    opens[runStart]);
+                runStart = i;
+            }
+        }
+
+        /// <summary>One open run's stroke: the run's column span at the open's y, skipped when off-plot.</summary>
+        private void DrawSessionOpenSegment(
+            SKCanvas canvas,
+            Rect plotRect,
+            double barPitch,
+            int count,
+            decimal minAxis,
+            decimal axisRange,
+            SKPaint linePaint,
+            int startInclusive,
+            int endExclusive,
+            decimal open)
+        {
+            var y = (float)ChartPriceScale.PriceToY(plotRect, AxisOf(open), minAxis, axisRange);
+            if (y < plotRect.Top || y > plotRect.Bottom)
+            {
+                // An open outside the visible axis maps off-plot and stays
+                // off-plot — never a line over the axis margins.
+                return;
+            }
+
+            var left = (float)ChartBarLayout.BarSlotLeftX(plotRect.Right, barPitch, count, startInclusive);
+            var right = (float)ChartBarLayout.BarSlotLeftX(plotRect.Right, barPitch, count, endExclusive);
+            canvas.DrawLine(left, y, right, y, linePaint);
+        }
+
+        /// <summary>The opening-range band's runs: one filled rectangle per (high, low) run, its two edge lines on top.</summary>
+        private void DrawSessionRangeRuns(
+            SKCanvas canvas,
+            Rect plotRect,
+            double barPitch,
+            int count,
+            decimal minAxis,
+            decimal axisRange,
+            IReadOnlyList<decimal?> rangeHigh,
+            IReadOnlyList<decimal?> rangeLow)
+        {
+            using var fillPaint = new SKPaint
+            {
+                Color = _snapshot.IndicatorLine.WithAlpha(SessionRangeFillAlpha),
+                Style = SKPaintStyle.Fill,
+                IsAntialias = false
+            };
+
+            using var edgePaint = new SKPaint
+            {
+                Color = _snapshot.IndicatorLine.WithAlpha(SessionRangeEdgeAlpha),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1f,
+                IsAntialias = true
+            };
+
+            var runStart = 0;
+            var runHigh = rangeHigh[0];
+            var runLow = rangeLow[0];
+
+            for (var i = 1; i <= count; i++)
+            {
+                var boundary = i == count || rangeHigh[i] != runHigh || rangeLow[i] != runLow;
+                if (!boundary)
+                {
+                    continue;
+                }
+
+                if (runHigh is { } high && runLow is { } low && low <= high)
+                {
+                    DrawSessionRangeBand(
+                        canvas,
+                        plotRect,
+                        barPitch,
+                        count,
+                        minAxis,
+                        axisRange,
+                        fillPaint,
+                        edgePaint,
+                        runStart,
+                        i,
+                        high,
+                        low);
+                }
+
+                runStart = i;
+                if (i < count)
+                {
+                    runHigh = rangeHigh[i];
+                    runLow = rangeLow[i];
+                }
+            }
+        }
+
+        /// <summary>One band run's rectangle: the run's column span between the range's two ys, clipped into the plot.</summary>
+        private void DrawSessionRangeBand(
+            SKCanvas canvas,
+            Rect plotRect,
+            double barPitch,
+            int count,
+            decimal minAxis,
+            decimal axisRange,
+            SKPaint fillPaint,
+            SKPaint edgePaint,
+            int startInclusive,
+            int endExclusive,
+            decimal high,
+            decimal low)
+        {
+            var yHigh = (float)ChartPriceScale.PriceToY(plotRect, AxisOf(high), minAxis, axisRange);
+            var yLow = (float)ChartPriceScale.PriceToY(plotRect, AxisOf(low), minAxis, axisRange);
+            var left = (float)ChartBarLayout.BarSlotLeftX(plotRect.Right, barPitch, count, startInclusive);
+            var right = (float)ChartBarLayout.BarSlotLeftX(plotRect.Right, barPitch, count, endExclusive);
+
+            // The fill clips into the plot (a band reaching past the visible
+            // axis shows only its visible part — the same honest clip the
+            // candles keep); the edge lines skip instead of clamping, so a
+            // clamped border never reads as the level itself.
+            var top = MathF.Max(yHigh, (float)plotRect.Top);
+            var bottom = MathF.Min(yLow, (float)plotRect.Bottom);
+            if (bottom > top)
+            {
+                canvas.DrawRect(left, top, right - left, bottom - top, fillPaint);
+            }
+
+            if (yHigh >= plotRect.Top && yHigh <= plotRect.Bottom)
+            {
+                canvas.DrawLine(left, yHigh, right, yHigh, edgePaint);
+            }
+
+            if (yLow >= plotRect.Top && yLow <= plotRect.Bottom)
+            {
+                canvas.DrawLine(left, yLow, right, yLow, edgePaint);
+            }
         }
 
         /// <summary>
